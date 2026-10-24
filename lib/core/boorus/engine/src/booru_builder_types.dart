@@ -28,10 +28,6 @@ typedef UpdateConfigPageBuilder = Widget Function(
   String? initialTab,
 });
 
-typedef HomePageBuilder = Widget Function(
-  BuildContext context,
-);
-
 typedef SearchPageBuilder = Widget Function(
   BuildContext context,
   SearchParams params,

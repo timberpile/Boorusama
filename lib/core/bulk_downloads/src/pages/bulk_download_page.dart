@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../boorus/booru/types.dart';
 import '../../../configs/config/providers.dart';
+import '../../../navigation/destination_profile_scope.dart';
 import '../../../widgets/widgets.dart';
 import '../../../downloads/sidecar/widgets.dart';
 import '../providers/bulk_download_notifier.dart';
@@ -21,6 +22,9 @@ class BulkDownloadPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (DestinationScope.maybeOf(context)?.id.profileId == null &&
+        DestinationScope.maybeOf(context) != null)
+      return const BulkDownloadPageInternal();
     final config = ref.watchConfigAuth;
 
     return config.booruType == BooruType.zerochan

@@ -1,5 +1,10 @@
 # Unified Post Model and Mixed-Booru Viewer Implementation Plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give search, server favorites, bookmarks, and Following Feeds one concrete runtime `Post`, one shared card renderer, and one viewer that dynamically applies the current post's booru-specific data and behavior.
@@ -444,8 +449,7 @@ final class AmbiguousPostOrigin extends PostOriginResolution {
 - Regenerate: `packages/i18n/lib/src/gen/strings_en_US.g.dart`
 - Modify: `lib/core/posts/details/src/widgets/mixed_post_details_page.dart`
 - Create: `docs/post_architecture.md`
-- Modify: `docs/work/in-progress/POST-001-unified-post-model-and-viewer.md`
-- Move after verification: `docs/work/in-progress/POST-001-unified-post-model-and-viewer.md` → `docs/work/done/POST-001-unified-post-model-and-viewer.md`
+- Historical ticket moves are retired. Keep durable design in `docs/post_architecture.md` and evidence in the task handoff.
 - Test: `test/core/posts/details/post_fallback_presentation_test.dart`
 
 - [ ] Add tests for localized warnings covering missing profile, ambiguous profile, unavailable engine, malformed data, unsupported version, removed upstream post, and refresh failure. Assert cached media, tags, navigation, zoom, download, and share remain available; retry appears only when a profile resolves.

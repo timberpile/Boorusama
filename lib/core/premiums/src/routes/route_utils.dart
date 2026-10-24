@@ -5,5 +5,5 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../router.dart';
 
 void goToPremiumPage(WidgetRef ref) {
-  ref.router.push('/premium');
+  ref.pushRoute('/premium');
 }

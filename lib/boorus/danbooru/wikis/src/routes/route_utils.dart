@@ -10,7 +10,7 @@ import '../types/utils.dart';
 void goToDanbooruWikiPage(WidgetRef ref, String wikiPageName) {
   if (wikiPageName.isEmpty) return;
 
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

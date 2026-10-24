@@ -4,6 +4,7 @@ import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../configs/manage/providers.dart';
+import '../../../configs/gesture/types.dart';
 import '../../../haptics/types.dart';
 import '../../../search/search/types.dart';
 import '../types/settings.dart';
@@ -38,6 +39,23 @@ final selectionOptionsProvider = Provider<SelectionOptions>((ref) {
     },
   );
 });
+
+/// The comparison preference changes default entry only, retaining custom actions.
+final postGridLongPressOpensMenuProvider = Provider<bool>(
+  (ref) {
+    if (!ref.watch(
+      settingsProvider.select((s) => s.postLongPressContextMenu),
+    )) {
+      return false;
+    }
+    final action = ref
+        .watch(currentReadOnlyBooruConfigGestureProvider)
+        ?.preview
+        ?.longPress;
+    return action == null || action == kDefaultAction;
+  },
+  dependencies: [settingsProvider, currentReadOnlyBooruConfigGestureProvider],
+);
 
 final hasCustomThemeSettingsProvider = Provider<bool>((ref) {
   final themeConfigs = ref.watch(

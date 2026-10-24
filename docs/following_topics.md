@@ -8,7 +8,7 @@ profile's authentication and image fallback.
 
 The approved requirements are in the [design](superpowers/specs/2026-09-14-pinned-searches-design.md)
 and the task-by-task [implementation plan](superpowers/plans/2026-09-14-pinned-searches.md).
-The later [bounded-refresh decision](work/done/PS-001-bounded-newest-post-refresh.md)
+The [bounded chronological snapshot behavior](#bounded-chronological-snapshots)
 supersedes their exhaustive scanning and numeric unread-count requirements.
 
 ## Current UI and compatibility
@@ -93,7 +93,7 @@ routes use these terms. Persisted contracts remain centralized in
 - Pixiv's native artist-following stream and AnimeBoxes input schema names describe
   external features/formats and are distinct from local Topics.
 
-## Unified Following (work item 0035)
+## Unified Following
 
 Following Topics provides one destination for topic queries and folder feeds on
 mobile and desktop. Topics retain the existing cards, folder browser,
@@ -304,7 +304,7 @@ result count while retaining JSON support for other sites. Totals and upload
 times are not used for NEW detection.
 
 Engine capability adapters and unsupported-profile explanations are tracked
-separately in [PS-005](work/done/PS-005-engine-refresh-adapters.md).
+separately in the engine-specific query adapters described in this section.
 
 ## Manual batch and concurrent operations
 
@@ -726,6 +726,44 @@ scheduler, fetches posts or writes runtime state. Its minute pulse exists only
 while the dialog is open. Next refresh uses the registered locale's relative
 future-time messages; past check and attempt dates retain the local Material
 formatter.
+
+## Retired legacy proposals and retained decisions
+
+The unified Following Topics collection provides local name/query and owning
+profile filters for individual Topics, including folder views. This satisfies the
+general discovery goals of legacy FEED-002 (Filtering Following Feeds) and
+PS-032 (Filtering Pinned Searches and folders), which are retired. The legacy
+Topic Feeds overview did not receive this filter, and the entire earlier
+folder-card-specific filtering contract was not implemented. Those variants are
+not planned as separate tasks.
+
+Nozomi post browsing is unaffected, but automatic chronological checks remain
+unsupported. Its client-side intersections over complete post indices, followed
+by individual post JSON requests, prevent a reliably bounded newest-window
+refresh even when the shared scanner limits visible results to 50. Supporting
+automatic checks would require verified query semantics, upload ordering and a
+newest-window path with bounded network/client work and explicit request-budget
+tests. No such implementation is currently planned.
+
+A feed's `NEW` indicator reflects its internal source Topics. Where multiple
+feeds share one source, opening either feed can mark that source read and clear
+its `NEW` indicator for the other feed. This source-level read-state coupling
+is intentional and accepted; separate per-feed checkpoints are not planned.
+Independently saved visible Topics remain distinct from those shared sources.
+
+A Gelbooru-specific OR query may reduce source requests for large followed-artist
+sets. An earlier limited probe retrieved a valid first page with 1,000 artist
+operands, but did not establish authenticated API support, query length limits,
+pagination, sorting or rate-limit behavior for production. Current independent
+Topic sources remain the supported approach. Any future combined-query design
+would need to preserve feed membership independently of the generated query,
+correct NEW/checkpoint/history state, migration safety, independent pinned Topics
+and fallback for unsupported syntax and other engines. No implementation is
+currently authorized.
+
+Operating-system background refresh is not installed; prospective work is
+tracked in [GitHub issue #70](https://github.com/timberpile/Boorusama/issues/70).
+Existing foreground refresh policy remains authoritative.
 
 ## Testing cached member previews
 

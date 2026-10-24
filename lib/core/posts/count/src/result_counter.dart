@@ -35,6 +35,8 @@ class ResultCounter extends StatelessWidget {
         Flexible(
           child: Text(
             context.t.search.search_in_progress_notice,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Kurumi.themeOf(context).textTheme.titleLarge,
           ),
         ),
@@ -59,6 +61,8 @@ class ResultCounter extends StatelessWidget {
         Flexible(
           child: Text(
             context.t.search.result_counter(n: count),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: Kurumi.themeOf(context).textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
             ),
@@ -73,6 +77,8 @@ class ResultCounter extends StatelessWidget {
   Widget _buildEmptyState(BuildContext context) {
     return Text(
       context.t.search.no_result_notice,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: Kurumi.themeOf(context).textTheme.titleLarge,
     );
   }

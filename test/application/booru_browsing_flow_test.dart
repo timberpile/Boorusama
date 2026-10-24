@@ -10,10 +10,10 @@ import 'package:boorusama/core/home/src/widgets/home_search_bar.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
-import 'package:boorusama/core/search/search/src/widgets/search_button.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 
 import 'support/fake_booru_backend.dart';
+import 'support/app_flow_finders.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
@@ -28,14 +28,23 @@ void main() {
       await harness.settle(tester);
       await harness.pumpUntilFound(
         tester,
-        find.byType(SliverPostGridImageGridItem),
+        find.descendant(
+          of: postGrid(),
+          matching: find.byType(SliverPostGridImageGridItem),
+        ),
       );
 
       expect(
         backend.requests.whereType<FakeBooruPostRequest>().last.resultIds,
         containsAll(<int>[101, 102]),
       );
-      expect(find.byType(SliverPostGridImageGridItem), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: postGrid(),
+          matching: find.byType(SliverPostGridImageGridItem),
+        ),
+        findsNWidgets(2),
+      );
 
       await tester.tap(find.byType(HomeSearchBar));
       await tester.pump();
@@ -51,8 +60,7 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump();
       await harness.settle(tester);
-      await tester.tap(find.byType(SearchButton2));
-      await tester.pump();
+
       await harness.pumpUntil(
         tester,
         () {
@@ -66,16 +74,24 @@ void main() {
 
       await harness.pumpUntilFound(
         tester,
-        find.byType(SliverPostGridImageGridItem),
+        find.descendant(
+          of: postGrid(),
+          matching: find.byType(SliverPostGridImageGridItem),
+        ),
       );
-      expect(find.byType(SliverPostGridImageGridItem), findsOneWidget);
+      expect(
+        find.descendant(
+          of: postGrid(),
+          matching: find.byType(SliverPostGridImageGridItem),
+        ),
+        findsOneWidget,
+      );
 
       await tester.enterText(searchField, 'nonexistent_tag');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump();
       await harness.settle(tester);
-      await tester.tap(find.byType(SearchButton2));
-      await tester.pump();
+
       await harness.pumpUntil(
         tester,
         () =>
@@ -84,11 +100,23 @@ void main() {
                 .last
                 .resultIds
                 .isEmpty &&
-            find.byType(SliverPostGridImageGridItem).evaluate().isEmpty,
+            find
+                .descendant(
+                  of: postGrid(),
+                  matching: find.byType(SliverPostGridImageGridItem),
+                )
+                .evaluate()
+                .isEmpty,
       );
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.byType(SliverPostGridImageGridItem), findsNothing);
+      expect(
+        find.descendant(
+          of: postGrid(),
+          matching: find.byType(SliverPostGridImageGridItem),
+        ),
+        findsNothing,
+      );
     },
   );
 
@@ -101,10 +129,20 @@ void main() {
       await harness.pump(tester);
       await harness.pumpUntilFound(
         tester,
-        find.byType(SliverPostGridImageGridItem),
+        find.descendant(
+          of: postGrid(),
+          matching: find.byType(SliverPostGridImageGridItem),
+        ),
       );
 
-      await tester.tap(find.byType(SliverPostGridImageGridItem).first);
+      await tester.tap(
+        find
+            .descendant(
+              of: postGrid(),
+              matching: find.byType(SliverPostGridImageGridItem),
+            )
+            .first,
+      );
       await tester.pump();
       await harness.pumpUntilFound(
         tester,
@@ -113,7 +151,8 @@ void main() {
 
       expect(find.byType(PostDetailsPageScaffold), findsOneWidget);
 
-      await tester.tap(find.byIcon(Symbols.home).last);
+      expect(find.byIcon(Symbols.home), findsNothing);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios).last);
       await tester.pump();
       await harness.pumpUntilFound(
         tester,

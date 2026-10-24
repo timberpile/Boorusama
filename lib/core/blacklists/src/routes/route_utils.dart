@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../router.dart';
 
 void goToGlobalBlacklistedTagsPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/global_blacklisted_tags',
     ).toString(),

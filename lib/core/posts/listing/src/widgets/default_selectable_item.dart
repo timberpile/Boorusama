@@ -27,7 +27,7 @@ class DefaultSelectableItem<T extends Post> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SelectableBuilder(
-      key: ValueKey(post.id),
+      key: ValueKey(index),
       index: index,
       builder: (context, isSelected) {
         return KurumiSelectableItem(

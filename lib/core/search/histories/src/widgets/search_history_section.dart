@@ -10,6 +10,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../../../core/widgets/widgets.dart';
 import '../../../../../foundation/display/media_query_utils.dart';
 import '../../../../../foundation/platform.dart';
+import '../../../options/collapsible_search_section.dart';
 import '../../../selected_tags/types.dart';
 import '../types/search_history.dart';
 
@@ -33,64 +34,52 @@ class SearchHistorySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return histories.isNotEmpty
-        ? RemoveLeftPaddingOnLargeScreen(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        context.t.search.history.history.toUpperCase(),
-                        style: Kurumi.themeOf(context).textTheme.titleSmall
-                            ?.copyWith(
-                              fontWeight: FontWeight.w700,
+    if (histories.isEmpty) return const SizedBox.shrink();
+    return RemoveLeftPaddingOnLargeScreen(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: CollapsibleSearchSection(
+          title: context.t.search.history.history,
+          storageId: 'search-history',
+          trailing: onFullHistoryRequested != null
+              ? IconButton(
+                  onPressed: onFullHistoryRequested,
+                  icon: const Icon(Symbols.manage_history),
+                )
+              : null,
+          child: Column(
+            children: [
+              for (final item in histories.take(maxHistory))
+                Material(
+                  color: Colors.transparent,
+                  child: ListTile(
+                    visualDensity: VisualDensity.compact,
+                    title: SearchHistoryQueryWidget(
+                      history: item,
+                      reverseScheme: reverseScheme,
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () => onHistoryTap(item),
+                    minTileHeight: ref.watch(appPlatformProvider).isDesktop
+                        ? 0
+                        : null,
+                    subtitle: showTime
+                        ? DateTooltip(
+                            date: item.createdAt,
+                            child: Text(
+                              item.createdAt.fuzzify(
+                                locale: Localizations.localeOf(context),
+                              ),
                             ),
-                      ),
-                      if (onFullHistoryRequested != null)
-                        IconButton(
-                          onPressed: onFullHistoryRequested,
-                          icon: const Icon(Symbols.manage_history),
-                        ),
-                    ],
+                          )
+                        : null,
                   ),
                 ),
-                ...histories
-                    .take(maxHistory)
-                    .map(
-                      (item) => Material(
-                        color: Colors.transparent,
-                        child: ListTile(
-                          visualDensity: VisualDensity.compact,
-                          title: SearchHistoryQueryWidget(
-                            history: item,
-                            reverseScheme: reverseScheme,
-                          ),
-                          contentPadding: const EdgeInsets.only(left: 8),
-                          onTap: () => onHistoryTap(item),
-                          minTileHeight:
-                              ref.watch(appPlatformProvider).isDesktop
-                              ? 0
-                              : null,
-                          subtitle: showTime
-                              ? DateTooltip(
-                                  date: item.createdAt,
-                                  child: Text(
-                                    item.createdAt.fuzzify(
-                                      locale: Localizations.localeOf(context),
-                                    ),
-                                  ),
-                                )
-                              : null,
-                        ),
-                      ),
-                    ),
-              ],
-            ),
-          )
-        : const SizedBox.shrink();
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -105,33 +94,28 @@ class SearchHistoryQueryWidget extends StatelessWidget {
   final bool? reverseScheme;
 
   @override
-  Widget build(BuildContext context) {
-    return switch (history.queryType) {
-      QueryType.list => Wrap(
-        spacing: 4,
-        runSpacing: 4,
-        children: history
-            .queryAsList()
-            .map(
-              (e) => IgnorePointer(
-                child: KurumiCompactChip(
-                  label: e,
-                  borderRadius: BorderRadius.circular(8),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 2,
-                    horizontal: 8,
-                  ),
-                  backgroundColor: (reverseScheme ?? false)
-                      ? Kurumi.themeOf(context).colorScheme.surface
-                      : Kurumi.themeOf(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                ),
+  Widget build(BuildContext context) => switch (history.queryType) {
+    QueryType.list => Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: history
+          .queryAsList()
+          .map(
+            (e) => IgnorePointer(
+              child: KurumiCompactChip(
+                label: e,
+                borderRadius: BorderRadius.circular(8),
+                padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+                backgroundColor: (reverseScheme ?? false)
+                    ? Kurumi.themeOf(context).colorScheme.surface
+                    : Kurumi.themeOf(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
               ),
-            )
-            .toList(),
-      ),
-      _ => Text(history.query),
-    };
-  }
+            ),
+          )
+          .toList(),
+    ),
+    _ => Text(history.query),
+  };
 }

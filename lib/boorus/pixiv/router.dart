@@ -25,5 +25,5 @@ final pixivRoutes = [
 ];
 
 void goToPixivExplorePage(WidgetRef ref) {
-  ref.router.push('/pixiv/explore');
+  ref.pushRoute('/pixiv/explore');
 }

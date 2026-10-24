@@ -6,6 +6,7 @@ enum SharePayloadId {
   sourceLink,
   imageLink,
   postId,
+  boorusamaLink,
 }
 
 final class SharePayload {
@@ -22,6 +23,8 @@ final class SharePayload {
   final bool canCopy;
   final bool canShare;
   final bool deferred;
+
+  bool get sharesMedia => isMedia || id == SharePayloadId.boorusamaLink;
 
   bool get available => value != null || deferred;
   bool get isMedia => switch (id) {
@@ -44,6 +47,7 @@ final class PostSharePayloads {
     required String booruLink,
     required String? sourceLink,
     required int postId,
+    String? boorusamaLink,
   }) {
     final image = _validWebUrl(viewerImageUrl);
     final original = _validWebUrl(originalUrl);
@@ -76,6 +80,12 @@ final class PostSharePayloads {
         ],
       ],
       links: [
+        SharePayload(
+          id: SharePayloadId.boorusamaLink,
+          value: boorusamaLink,
+          canCopy: false,
+          canShare: true,
+        ),
         SharePayload(
           id: SharePayloadId.booruLink,
           value: _validWebUrl(booruLink),

@@ -8,6 +8,16 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
+			<string>Boorusama Link</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.timberpile.boorusama.link</string></array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
 			<string>Boorusama Export</string>
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
@@ -45,6 +55,21 @@
 	<string>NSApplication</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.timberpile.boorusama.link</string>
+			<key>UTTypeDescription</key>
+			<string>Boorusama Link</string>
+			<key>UTTypeConformsTo</key>
+			<array><string>public.data</string><string>public.content</string></array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array><string>bslink</string></array>
+				<key>public.mime-type</key>
+				<string>application/vnd.boorusama.link</string>
+			</dict>
+		</dict>
 		<dict>
 			<key>UTTypeConformsTo</key>
 			<array>

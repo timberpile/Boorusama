@@ -22,14 +22,17 @@ List<Bookmark> selectBookmarks({
   BookmarkShuffleState? shuffleState,
 }) {
   return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
+    final groupIds = state.groupsById[view.groupId]?.bookmarkIds;
     final inView = switch (view.kind) {
       BookmarkViewKind.all => state.items,
       BookmarkViewKind.group =>
         state.items
             .where(
-              (bookmark) => state
-                  .membershipsFor(bookmark.uniqueId)
-                  .contains(view.groupId),
+              // Keep library order (including seeded shuffle input) without
+              // normalizing every post's already indexed bookmark identity.
+              (bookmark) =>
+                  (groupIds?.contains(bookmark.id) ?? false) &&
+                  state.bookmarksById.containsKey(bookmark.id),
             )
             .toList(),
     };
@@ -49,13 +52,94 @@ List<Bookmark> selectBookmarkPreviews({
   required BookmarkView view,
   required BookmarkSortType sortType,
   BookmarkShuffleState? shuffleState,
-}) => selectBookmarks(
-  state: state,
-  view: view,
-  selectedTags: const [],
-  sortType: sortType,
-  shuffleState: shuffleState,
-).take(4).toList();
+}) {
+  // Malformed rows retain the full selector's legacy behavior. All-view random
+  // ordering still belongs to the full selector; group covers sample members.
+  if ((sortType == BookmarkSortType.random &&
+          view.kind == BookmarkViewKind.all) ||
+      state.bookmarksById.length != state.items.length) {
+    return selectBookmarks(
+      state: state,
+      view: view,
+      selectedTags: const [],
+      sortType: sortType,
+      shuffleState: shuffleState,
+    ).take(4).toList();
+  }
+
+  final groupIds = state.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
+  final candidates = switch (view.kind) {
+    BookmarkViewKind.all => state.items,
+    BookmarkViewKind.group =>
+      groupIds.map((id) => state.bookmarksById[id]).whereType<Bookmark>(),
+  };
+  return performanceRecorder.measureSync(
+    PerfOperation.bookmarkSelect,
+    () {
+      if (sortType == BookmarkSortType.random) {
+        return _sampleGroupPreviews(
+          candidates,
+          shuffleState?.seed ?? _defaultPreviewShuffle.seed!,
+        );
+      }
+      final compare = _bookmarkComparator(sortType);
+      final best = <Bookmark>[];
+      for (final candidate in candidates) {
+        var index = 0;
+        while (index < best.length && compare(best[index], candidate) <= 0) {
+          index++;
+        }
+        if (index >= 4) continue;
+        best.insert(index, candidate);
+        if (best.length > 4) best.removeLast();
+      }
+      return best;
+    },
+    items: view.kind == BookmarkViewKind.all
+        ? state.items.length
+        : groupIds.length,
+  );
+}
+
+// Keep unseeded group covers stable for this session, including after unrelated
+// library publications. An explicit Shuffle supplies a new seed.
+final _defaultPreviewShuffle = const BookmarkShuffleState().withNewShuffle();
+
+List<Bookmark> _sampleGroupPreviews(Iterable<Bookmark> candidates, int seed) {
+  final best = <({int rank, int id, Bookmark bookmark})>[];
+  for (final bookmark in candidates) {
+    final id = bookmark.id;
+    final rank = _previewRank(id, seed);
+    // Once full, almost every later rank loses. Avoid walking all four entries
+    // merely to reject it; insertion still handles the occasional better rank.
+    if (best.length == 4 &&
+        (rank > best.last.rank ||
+            (rank == best.last.rank && id > best.last.id))) {
+      continue;
+    }
+    var index = 0;
+    while (index < best.length &&
+        (best[index].rank < rank ||
+            (best[index].rank == rank && best[index].id < id))) {
+      index++;
+    }
+    if (index >= 4) continue;
+    best.insert(index, (rank: rank, id: id, bookmark: bookmark));
+    if (best.length > 4) best.removeLast();
+  }
+  return [for (final entry in best) entry.bookmark];
+}
+
+int _previewRank(int id, int seed) {
+  // Jenkins mixing with bounded shifts keeps native and Web integer behavior
+  // identical. Rank by local ID so set iteration order cannot change covers.
+  var hash = (id ^ seed) & 0x1fffffff;
+  hash = (hash + ((hash & 0x0007ffff) << 10)) & 0x1fffffff;
+  hash ^= hash >> 6;
+  hash = (hash + ((hash & 0x03ffffff) << 3)) & 0x1fffffff;
+  hash ^= hash >> 11;
+  return (hash + ((hash & 0x00003fff) << 15)) & 0x1fffffff;
+}
 
 List<Bookmark> filterBookmarks({
   required List<Bookmark> bookmarks,
@@ -85,7 +169,16 @@ List<Bookmark> filterBookmarks({
                   (filters.isEmpty || matchesTags(bookmark)),
             )
             .toList();
-  final sorted = filtered.sorted(
+  final sorted = filtered.sorted(_bookmarkComparator(sortType));
+
+  if (sortType != BookmarkSortType.random) return sorted;
+  final activeShuffleState = shuffleState?.seed != null
+      ? shuffleState!
+      : const BookmarkShuffleState().withNewShuffle();
+  return activeShuffleState.applyShuffleToList(sorted);
+}
+
+Comparator<Bookmark> _bookmarkComparator(BookmarkSortType sortType) =>
     (a, b) => switch (sortType) {
       BookmarkSortType.newestUpload => _compareUploadDate(
         a,
@@ -97,17 +190,16 @@ List<Bookmark> filterBookmarks({
         b,
         newestFirst: false,
       ),
-      BookmarkSortType.newest => b.createdAt.compareTo(a.createdAt),
-      BookmarkSortType.oldest => a.createdAt.compareTo(b.createdAt),
+      BookmarkSortType.newest => _compareBookmarkDate(b, a),
+      BookmarkSortType.oldest => _compareBookmarkDate(a, b),
       BookmarkSortType.random => 0,
-    },
-  );
+    };
 
-  if (sortType != BookmarkSortType.random) return sorted;
-  final activeShuffleState = shuffleState?.seed != null
-      ? shuffleState!
-      : const BookmarkShuffleState().withNewShuffle();
-  return activeShuffleState.applyShuffleToList(sorted);
+int _compareBookmarkDate(Bookmark a, Bookmark b) {
+  final byDate = a.createdAt.compareTo(b.createdAt);
+  // Several imported bookmarks can share the clock/storage's time precision.
+  // Local IDs retain their insertion order without inventing creation times.
+  return byDate != 0 ? byDate : a.id.compareTo(b.id);
 }
 
 // Known upload dates always precede missing dates in both directions. A

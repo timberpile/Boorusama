@@ -10,7 +10,7 @@ void goToTagEditUploadPage(
   required DanbooruUploadPost post,
   required int uploadId,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -24,7 +24,7 @@ void goToTagEditUploadPage(
 }
 
 void goToMyUploadsPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

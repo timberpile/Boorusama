@@ -62,6 +62,20 @@ class E621Client {
     return data.map((item) => PostDto.fromJson(item)).toList();
   }
 
+  /// The account favorites endpoint orders by favorite time, unlike tag search.
+  Future<List<PostDto>> getFavorites({int? page, int? limit}) async {
+    final response = await _dio.get(
+      '/favorites.json',
+      queryParameters: {'page': ?page, 'limit': ?limit},
+    );
+    final data = switch (response.data) {
+      {'posts': final List posts} => posts,
+      List posts => posts,
+      _ => <dynamic>[],
+    };
+    return data.map((item) => PostDto.fromJson(item)).toList();
+  }
+
   Future<PostDto?> getPost(int id) async {
     final response = await _dio.get('/posts/$id.json');
 

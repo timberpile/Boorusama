@@ -91,6 +91,74 @@ void main() {
     );
   }
 
+  for (final aligned in [true, false]) {
+    testWidgets(
+      'down prefers a visible aligned pane when available: $aligned',
+      (tester) async {
+        final start = FocusNode();
+        final diagonal = FocusNode();
+        final below = FocusNode();
+        addTearDown(() {
+          start.dispose();
+          diagonal.dispose();
+          below.dispose();
+        });
+        Widget button(FocusNode node, String label) => TextButton(
+          focusNode: node,
+          onPressed: () {},
+          child: Text(label),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            actions: {
+              ...WidgetsApp.defaultActions,
+              DirectionalFocusIntent: KurumiDirectionalFocusAction(),
+            },
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  FocusScope(
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          left: 0,
+                          top: 0,
+                          width: 100,
+                          height: 40,
+                          child: button(start, 'Start'),
+                        ),
+                        Positioned(
+                          left: 200,
+                          top: 50,
+                          width: 100,
+                          height: 40,
+                          child: button(diagonal, 'Diagonal'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (aligned)
+                    Positioned(
+                      left: 0,
+                      top: 100,
+                      width: 100,
+                      height: 40,
+                      child: FocusScope(child: button(below, 'Below')),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+        start.requestFocus();
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pumpAndSettle();
+        expect((aligned ? below : diagonal).hasPrimaryFocus, isTrue);
+      },
+    );
+  }
+
   final tabCases = [
     (name: 'Tab', key: LogicalKeyboardKey.tab, shift: false),
     (name: 'Shift+Tab', key: LogicalKeyboardKey.tab, shift: true),

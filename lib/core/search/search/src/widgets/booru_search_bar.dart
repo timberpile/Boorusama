@@ -15,6 +15,7 @@ class BooruSearchBar extends StatelessWidget {
     this.controller,
     this.hintText,
     this.onSubmitted,
+    this.submitEmpty = false,
     this.constraints,
     this.focus,
     this.dense,
@@ -35,6 +36,7 @@ class BooruSearchBar extends StatelessWidget {
   final BoxConstraints? constraints;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final bool submitEmpty;
   final TextEditingController? controller;
   final String? hintText;
   final FocusNode? focus;
@@ -59,6 +61,7 @@ class BooruSearchBar extends StatelessWidget {
     controller: controller,
     hintText: hintText ?? context.t.search.hint,
     onSubmitted: onSubmitted,
+    submitEmpty: submitEmpty,
     constraints: constraints,
     focus: focus,
     dense: dense,

@@ -102,6 +102,7 @@ class _Chip extends ConsumerWidget {
         label: Text(
           search.displayName,
           style: TextStyle(
+            fontWeight: FontWeight.w600,
             color: isSelected
                 ? Kurumi.themeOf(context).colorScheme.surface
                 : colors?.foregroundColor,

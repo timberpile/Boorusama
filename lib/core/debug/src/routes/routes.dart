@@ -30,7 +30,7 @@ final debuglogRoutes = GoRoute(
 );
 
 Future<void> goToDebuglogPage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/debug_logs',
     ).toString(),

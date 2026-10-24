@@ -39,6 +39,7 @@ class TrendingTags extends ConsumerWidget {
                   label: Text(
                     e.displayName,
                     style: TextStyle(
+                      fontWeight: FontWeight.w600,
                       color: Kurumi.themeOf(context).brightness.isDark
                           ? color
                           : null,

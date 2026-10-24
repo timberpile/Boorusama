@@ -1,3 +1,5 @@
+import '../../../../selection/selection_input.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -61,6 +63,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
 
     final booruRepo = ref.watch(booruRepoProvider(config));
     final gestures = ref.watchPostGestures?.preview;
+    final longPressOpensMenu = ref.watch(postGridLongPressOpensMenuProvider);
 
     final imageBorderRadius = ref.watch(
       imageListingSettingsProvider.select(
@@ -86,13 +89,20 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
     );
 
     return GestureDetector(
-      onLongPress: gestures.canLongPress && booruRepo != null
-          ? () => booruRepo.handlePostGesture(
-              ref,
-              gestures?.longPress,
-              post,
-            )
-          : null,
+      onLongPress: multiSelectEnabled || longPressOpensMenu
+          ? null
+          : () {
+              final action = gestures?.longPress;
+              if (action == kDisabledAction) return;
+              if (action == null ||
+                  action == kSelectAction ||
+                  action == kDefaultAction) {
+                final selection = SelectionMode.of(context);
+                selection.enable(initialSelected: [index]);
+              } else if (booruRepo != null) {
+                booruRepo.handlePostGesture(ref, action, post);
+              }
+            },
       child: Stack(
         children: [
           ImageGridItem(
@@ -104,23 +114,16 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
             quickActionButton: quickActionButton,
             autoScrollOptions: autoScrollOptions,
             splashColor: multiSelectEnabled ? Colors.transparent : null,
-            onTap: multiSelectEnabled
-                ? () {
-                    SelectionMode.of(context).toggleItem(index);
-                  }
-                : () {
-                    if (gestures.canTap && booruRepo != null) {
-                      booruRepo.handlePostGesture(
-                        ref,
-                        gestures?.tap,
-                        post,
-                      );
-                    } else {
-                      onTap?.call();
-                    }
-                  },
+            onTap: () {
+              if (handleSelectionTap(context, index)) return;
+              if (gestures.canTap && booruRepo != null) {
+                booruRepo.handlePostGesture(ref, gestures?.tap, post);
+              } else {
+                onTap?.call();
+              }
+            },
             image: image,
-            isAnimated: post.isAnimated,
+            isAnimated: post.showsAnimatedBadge,
             isTranslated: post.isTranslated,
             hasComments: post.hasComment,
             hasParentOrChildren: post.hasParentOrChildren,
@@ -128,7 +131,7 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
             duration: post.duration,
             scoreWidget: scoreWidget,
           ),
-          if (overlay != null) ...[
+          if (overlay != null && !multiSelectEnabled) ...[
             Positioned.fill(
               child: InkWell(
                 highlightColor: Colors.transparent,

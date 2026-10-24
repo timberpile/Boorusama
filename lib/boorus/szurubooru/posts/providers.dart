@@ -79,7 +79,8 @@ final szurubooruPostRepoProvider =
               total: posts.total,
             );
           },
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
         );
       },
     );

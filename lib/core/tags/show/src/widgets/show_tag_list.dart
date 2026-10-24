@@ -233,6 +233,7 @@ class _TagTileState extends State<_TagTile> {
                   (widget.auth, widget.tag.category.name),
                 ),
               ),
+              fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
           ),

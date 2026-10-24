@@ -1,4 +1,6 @@
 dependency_overrides:
+  go_router:
+    path: packages/go_router
   fvp:
     git:
       url: https://github.com/khoadng/fvp.git

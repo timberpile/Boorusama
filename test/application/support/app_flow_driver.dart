@@ -9,14 +9,12 @@ import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.d
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_page.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/create/src/pages/add_booru_page.dart';
-import 'package:boorusama/core/configs/manage/src/widgets/booru_selector_item.dart';
+import 'package:boorusama/core/navigation/profile_management_page.dart';
 import 'package:boorusama/core/download_manager/src/pages/download_manager_page.dart';
 import 'package:boorusama/core/home/src/widgets/home_search_bar.dart';
-import 'package:boorusama/core/home/src/controllers/home_page_controller.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
-import 'package:boorusama/core/search/search/src/widgets/search_button.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 
 import 'app_flow_finders.dart';
@@ -25,7 +23,7 @@ import 'headless_app_harness.dart';
 
 /// Ways a user opens the context menu of a post in the grid.
 enum PostMenuOpener {
-  longPress('long press'),
+  longPress('long press selection then right click'),
   rightClick('right click');
 
   const PostMenuOpener(this.label);
@@ -88,6 +86,12 @@ final class AppFlowDriver {
     switch (via) {
       case PostMenuOpener.longPress:
         await tester.longPress(tile);
+        await tester.pump();
+        await tester.tap(
+          tile,
+          buttons: kSecondaryMouseButton,
+          kind: PointerDeviceKind.mouse,
+        );
       case PostMenuOpener.rightClick:
         await tester.tap(
           tile,
@@ -129,11 +133,6 @@ final class AppFlowDriver {
     await tester.tap(field);
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await harness.settle(tester);
-    await tester.pump(const Duration(milliseconds: 300));
-    final searchButton = find.byType(SearchButton2);
-    await tester.ensureVisible(searchButton);
-    await tester.tap(searchButton);
-    await tester.pump();
     if (waitForRequest) {
       await harness.pumpUntil(
         tester,
@@ -144,7 +143,10 @@ final class AppFlowDriver {
   }
 
   Future<void> clearSelectedSearchTags() async {
-    final close = find.byIcon(Symbols.close);
+    final close = find.descendant(
+      of: find.byType(SelectedTagChip),
+      matching: find.byIcon(Symbols.close),
+    );
     if (close.evaluate().isNotEmpty) {
       await tester.tap(close.last);
       await tester.pump();
@@ -152,7 +154,15 @@ final class AppFlowDriver {
   }
 
   Future<void> openBookmarks() async {
-    await _tapDrawerAction(appStrings(tester).sideMenu.your_bookmarks);
+    await harness.settle(tester);
+    final shortcut = find.byKey(const Key('nav-shortcut-bookmarks'));
+    if (shortcut.evaluate().isNotEmpty) {
+      await tester.tap(shortcut);
+    } else {
+      await tester.tap(
+        find.text(appStrings(tester).navigation.bookmarks).first,
+      );
+    }
     await harness.pumpUntil(
       tester,
       () =>
@@ -160,6 +170,7 @@ final class AppFlowDriver {
           find.byType(BookmarkGroupBrowserPage).evaluate().isNotEmpty,
       description: 'bookmark library to open',
     );
+    await harness.settle(tester);
     if (find.byType(BookmarkGroupBrowserPage).evaluate().isNotEmpty) {
       await tester.tap(find.text(appStrings(tester).bookmark.groups.all));
       await harness.pumpUntilFound(tester, find.byType(BookmarkPage));
@@ -210,20 +221,6 @@ final class AppFlowDriver {
   }
 
   Future<void> goBack() async {
-    final embeddedBookmarks = find.byType(BookmarkGroupBrowserPage);
-    if (embeddedBookmarks.evaluate().isNotEmpty &&
-        find.byType(BookmarkDetailsPage).evaluate().isEmpty) {
-      InheritedHomePageController.of(
-        tester.element(embeddedBookmarks.first),
-      ).goToTab(0);
-      await harness.pumpUntil(
-        tester,
-        () => embeddedBookmarks.evaluate().isEmpty,
-        description: 'embedded bookmark library to close',
-      );
-      return;
-    }
-
     const routeTypes = [
       BookmarkDetailsPage,
       PostDetailsPageScaffold,
@@ -248,11 +245,20 @@ final class AppFlowDriver {
   }
 
   Future<void> selectProfile(BooruConfig config) async {
-    final selector = await _reveal(
-      _profileSelector(config.id),
-      description: 'profile selector ${config.id}',
+    await harness.settle(tester);
+    final shortcut = find.byKey(const Key('nav-shortcut-browse'));
+    await tester.tap(
+      shortcut.evaluate().isNotEmpty
+          ? shortcut
+          : find.text(appStrings(tester).navigation.browse).first,
     );
-    await tester.tap(selector);
+    await harness.settle(tester);
+    final picker = find.byTooltip(appStrings(tester).navigation.choose_profile);
+    if (picker.evaluate().isNotEmpty) {
+      await tester.tap(picker);
+      await harness.settle(tester);
+    }
+    await tester.tap(find.text(config.name).last);
     await tester.pump();
     await harness.pumpUntil(
       tester,
@@ -263,9 +269,10 @@ final class AppFlowDriver {
 
   /// Opens the edit/delete context menu of a profile in the selector.
   Future<void> openProfileMenu(BooruConfig config) async {
-    final selector = await _reveal(
-      _profileSelector(config.id),
-      description: 'profile selector ${config.id}',
+    await openProfiles();
+    final selector = find.descendant(
+      of: find.byType(ProfileManagementPage),
+      matching: find.byKey(ValueKey(config.id)),
     );
     await tester.tap(selector, buttons: kSecondaryMouseButton);
     await tester.pump();
@@ -273,10 +280,8 @@ final class AppFlowDriver {
   }
 
   Future<void> openAddProfile() async {
-    final add = await _reveal(
-      find.byIcon(Symbols.add),
-      description: 'add profile button',
-    );
+    await openProfiles();
+    final add = find.text(appStrings(tester).generic.action.add);
     await tester.tap(add);
     await tester.pump();
     await harness.pumpUntilFound(tester, find.byType(AddBooruPageInternal));
@@ -301,31 +306,53 @@ final class AppFlowDriver {
 
   Future<void> _tapDrawerAction(String label) async {
     final action = await _reveal(
-      find.text(label),
+      find.descendant(
+        of: find.byKey(const Key('nav-catalog-list')),
+        matching: find.text(label),
+      ),
       description: 'drawer action "$label"',
     );
     await tester.tap(action);
-    await tester.pump(const Duration(milliseconds: 500));
+    await harness.settle(tester);
   }
 
-  Finder _profileSelector(String configId) => find.byWidgetPredicate(
-    (widget) => widget is BooruSelectorItem && widget.config.id == configId,
-    description: 'profile selector item with ID $configId',
-  );
+  Future<void> openProfiles() async {
+    if (find.byType(ProfileManagementPage).evaluate().isNotEmpty) return;
+    await _tapDrawerAction(appStrings(tester).sideMenu.settings);
+    await harness.settle(tester);
+    await tester.tap(
+      find.byKey(const ValueKey('settings-navigation-profiles')),
+    );
+    await harness.settle(tester);
+    await harness.pumpUntilFound(tester, find.byType(ProfileManagementPage));
+  }
 
   /// Returns the first on-screen match of [finder], opening the side menu
   /// first when the match lives in a closed drawer.
   Future<Finder> _reveal(Finder finder, {required String description}) async {
+    await harness.settle(tester);
     if (_firstOnScreen(finder) case final match?) return match;
 
-    final menuButton = find
-        .descendant(
-          of: find.byType(HomeSearchBar),
-          matching: find.byIcon(Symbols.menu),
-        )
-        .hitTestable();
+    final menuButton = find.byKey(const Key('nav-menu-toggle')).hitTestable();
     if (menuButton.evaluate().isNotEmpty) {
       await tester.tap(menuButton.first);
+    }
+    await harness.settle(tester);
+
+    final scrollable = find.descendant(
+      of: find.byKey(const Key('nav-catalog-list')),
+      matching: find.byType(Scrollable),
+    );
+    // Footer actions follow all profile tools and may be outside the viewport.
+    if (scrollable.evaluate().isNotEmpty && _firstOnScreen(finder) == null) {
+      tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        finder,
+        160,
+        scrollable: scrollable,
+      );
+      await harness.settle(tester);
     }
 
     await harness.pumpUntil(

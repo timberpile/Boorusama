@@ -10,7 +10,7 @@ void goToDmailPage(
   WidgetRef ref, {
   DmailFolderType? folder,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -26,7 +26,7 @@ void goToDmailDetailsPage(
   WidgetRef ref, {
   required DmailId dmailId,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

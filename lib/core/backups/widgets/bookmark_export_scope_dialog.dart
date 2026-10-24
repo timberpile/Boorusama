@@ -1,3 +1,5 @@
+import '../../selection/checkbox_range_selection.dart';
+
 // Flutter imports:
 import 'package:flutter/material.dart';
 
@@ -50,64 +52,90 @@ class _BookmarkExportScopeDialogState extends State<BookmarkExportScopeDialog> {
     );
     return AlertDialog(
       title: Text(context.t.settings.backup_and_restore.export_scope.title),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioGroup<bool>(
-              groupValue: _all,
-              onChanged: (value) {
-                if (value != null) setState(() => _all = value);
-              },
-              child: Column(
-                children: [
-                  RadioListTile<bool>(
-                    value: true,
-                    title: Text(
-                      context.t.settings.backup_and_restore.export_scope.all,
+      content: CheckboxRangeSelection<(String, String)>(
+        entries: _all
+            ? []
+            : [
+                for (final folder in widget.folders) ('folder', folder.id),
+                for (final group in widget.groups) ('group', group.id),
+              ],
+        selected: {
+          for (final id in _folderIds) ('folder', id),
+          for (final id in _groupIds) ('group', id),
+        },
+        onChanged: (selected) => setState(() {
+          _folderIds
+            ..clear()
+            ..addAll(selected.where((k) => k.$1 == 'folder').map((k) => k.$2));
+          _groupIds
+            ..clear()
+            ..addAll(selected.where((k) => k.$1 == 'group').map((k) => k.$2));
+        }),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioGroup<bool>(
+                groupValue: _all,
+                onChanged: (value) {
+                  if (value != null) setState(() => _all = value);
+                },
+                child: Column(
+                  children: [
+                    RadioListTile<bool>(
+                      value: true,
+                      title: Text(
+                        context.t.settings.backup_and_restore.export_scope.all,
+                      ),
                     ),
-                  ),
-                  RadioListTile<bool>(
-                    value: false,
-                    title: Text(
-                      context
-                          .t
-                          .settings
-                          .backup_and_restore
-                          .export_scope
-                          .selected_groups,
+                    RadioListTile<bool>(
+                      value: false,
+                      title: Text(
+                        context
+                            .t
+                            .settings
+                            .backup_and_restore
+                            .export_scope
+                            .selected_groups,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            if (!_all) ...[
-              for (final f in widget.folders)
-                CheckboxListTile(
-                  value: _folderIds.contains(f.id),
-                  title: Text(FolderTree(widget.folders).path(f.id)),
-                  secondary: const Icon(Icons.folder_outlined),
-                  onChanged: (selected) => setState(() {
-                    if (selected ?? false)
-                      _folderIds.add(f.id);
-                    else
-                      _folderIds.remove(f.id);
-                  }),
-                ),
-              for (final group in widget.groups)
-                CheckboxListTile(
-                  value: _groupIds.contains(group.id),
-                  title: Text(labels[group.id]!),
-                  onChanged: (selected) => setState(() {
-                    if (selected ?? false) {
-                      _groupIds.add(group.id);
-                    } else {
-                      _groupIds.remove(group.id);
-                    }
-                  }),
-                ),
+              if (!_all) ...[
+                for (final f in widget.folders)
+                  CheckboxRangeItem(
+                    value: ('folder', f.id),
+                    child: CheckboxListTile(
+                      value: _folderIds.contains(f.id),
+                      title: Text(FolderTree(widget.folders).path(f.id)),
+                      secondary: const Icon(Icons.folder_outlined),
+                      onChanged: (selected) => setState(() {
+                        if (selected ?? false)
+                          _folderIds.add(f.id);
+                        else
+                          _folderIds.remove(f.id);
+                      }),
+                    ),
+                  ),
+                for (final group in widget.groups)
+                  CheckboxRangeItem(
+                    value: ('group', group.id),
+                    child: CheckboxListTile(
+                      value: _groupIds.contains(group.id),
+                      title: Text(labels[group.id]!),
+                      onChanged: (selected) => setState(() {
+                        if (selected ?? false) {
+                          _groupIds.add(group.id);
+                        } else {
+                          _groupIds.remove(group.id);
+                        }
+                      }),
+                    ),
+                  ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
       actions: [

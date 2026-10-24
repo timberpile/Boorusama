@@ -19,3 +19,49 @@ class KurumiRemoveLeftPaddingOnLargeScreen extends StatelessWidget {
     );
   }
 }
+
+/// Live bottom obstruction for overlays hosted by the enclosed Navigator.
+/// Pages may retain a different, stable padding while app chrome animates.
+class KurumiOverlayInsetsScope extends InheritedWidget {
+  const KurumiOverlayInsetsScope({
+    required this.bottomPadding,
+    required this.bottomViewPadding,
+    required super.child,
+    super.key,
+  });
+
+  final double bottomPadding;
+  final double bottomViewPadding;
+
+  static KurumiOverlayInsetsScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<KurumiOverlayInsetsScope>();
+
+  @override
+  bool updateShouldNotify(KurumiOverlayInsetsScope oldWidget) =>
+      bottomPadding != oldWidget.bottomPadding ||
+      bottomViewPadding != oldWidget.bottomViewPadding;
+}
+
+/// Apply at a route's overlay boundary, before constructing its content.
+/// A root-Navigator overlay outside the scope retains its normal MediaQuery.
+class KurumiOverlayMediaQuery extends StatelessWidget {
+  const KurumiOverlayMediaQuery({required this.builder, super.key});
+
+  final WidgetBuilder builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final insets = KurumiOverlayInsetsScope.maybeOf(context);
+    if (insets == null) return Builder(builder: builder);
+    final data = MediaQuery.of(context);
+    return MediaQuery(
+      data: data.copyWith(
+        padding: data.padding.copyWith(bottom: insets.bottomPadding),
+        viewPadding: data.viewPadding.copyWith(
+          bottom: insets.bottomViewPadding,
+        ),
+      ),
+      child: Builder(builder: builder),
+    );
+  }
+}

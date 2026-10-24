@@ -11,7 +11,7 @@ void goToUserDetailsPage(
   required UserDetails details,
 }) {
   final uid = details.id;
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -28,7 +28,7 @@ void goToUserDetailsPage(
 }
 
 void goToProfilePage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

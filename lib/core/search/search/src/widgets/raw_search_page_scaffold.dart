@@ -38,7 +38,6 @@ typedef IndexedSelectableSearchWidgetBuilder<T extends Post> = Widget Function(
 
 const kSearchBarHeight = kToolbarHeight;
 const _kSelectedTagHeight = 48.0;
-const _kMultiSelectTopHeight = kToolbarHeight;
 
 double _calcBaseSearchHeight(List<TagSearchItem> tags) {
   return kSearchBarHeight + (tags.isNotEmpty ? _kSelectedTagHeight : 0);
@@ -119,7 +118,36 @@ class _SearchPageScaffoldState<T extends Post>
   SelectionModeController get _selectionModeController =>
       widget.selectionModeController;
 
+  var _keyboardWasVisible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final hidden = _keyboardWasVisible && !visible;
+    _keyboardWasVisible = visible;
+    if (!hidden) return;
+    // An unused transparent editor must not leave a modal barrier over Browse
+    // after Android dismisses only the IME. Advanced UI owns its own dismissal.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || MediaQuery.viewInsetsOf(context).bottom > 0) return;
+      if (_controller.didSearchOnce.value ||
+          _controller.state.value != SearchState.initial ||
+          _controller.textController.text.isNotEmpty ||
+          _tagsController.tags.isNotEmpty ||
+          _controller.editingTag.value != null) {
+        return;
+      }
+      final route = ModalRoute.of(context);
+      if (route != null && route.isCurrent && route.impliesAppBarDismissal) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
+
   var _hasScrolledToInitialPosition = false;
+  late final String _restoredQuery;
+  var _useRoutePosition = true;
 
   @override
   void initState() {
@@ -147,6 +175,7 @@ class _SearchPageScaffoldState<T extends Post>
           .read(searchHistoryProvider.notifier)
           .addHistoryFromController(_tagsController, ref.readConfigAuth);
     }
+    _restoredQuery = _controller.tagString.value;
 
     _controller.textController
         .textAsStream()
@@ -158,37 +187,15 @@ class _SearchPageScaffoldState<T extends Post>
 
     _tagsController.addListener(_onSelectedTagChanged);
     _controller.tagString.addListener(_onTagChanged);
-
-    _previousMultiSelectState = _selectionModeController.isActive;
-    _selectionModeController.addListener(
-      _onMultiSelectChanged,
-    );
-  }
-
-  void _onMultiSelectChanged() {
-    final currentSelected = _selectionModeController.isActive;
-
-    if (_previousMultiSelectState != currentSelected) {
-      final currentOffset = _scrollController.offset;
-      final offsetSearchHeight = _calcSearchRegionHeight(_tagsController.value);
-      final sign = currentSelected ? -1 : 1;
-      final jumpTo =
-          (currentOffset + sign * (offsetSearchHeight + _kMultiSelectTopHeight))
-              .clamp(0, double.infinity)
-              .toDouble();
-
-      // Scroll backward to compensate for the change in height
-      _scrollController.jumpTo(jumpTo);
-
-      _previousMultiSelectState = currentSelected;
-    }
   }
 
   var _searchBarOffset = 0.0;
 
-  late bool? _previousMultiSelectState;
-
   void _onTagChanged() {
+    if (_controller.tagString.value != _restoredQuery) {
+      _useRoutePosition = false;
+    }
+    _selectionModeController.disable();
     // check if scroll controller is attached
     if (_scrollController.hasClients) {
       // scroll to top when tag is added
@@ -214,9 +221,6 @@ class _SearchPageScaffoldState<T extends Post>
   void dispose() {
     _tagsController.removeListener(_onSelectedTagChanged);
     _controller.tagString.removeListener(_onTagChanged);
-    _selectionModeController.removeListener(
-      _onMultiSelectChanged,
-    );
 
     _topics.dispose();
     _scrollController.dispose();
@@ -229,17 +233,19 @@ class _SearchPageScaffoldState<T extends Post>
 
   void _setupPostControllerListener(PostGridController<T> controller) {
     if (_postController != controller) {
-      if (widget.initialScrollPosition != null) {
-        controller.events.listen((event) {
-          if (event is PostControllerRefreshCompleted &&
-              !_hasScrolledToInitialPosition &&
-              widget.initialScrollPosition != null) {
-            _scrollController.scrollToIndex(
-              widget.initialScrollPosition!,
-            );
-            _hasScrolledToInitialPosition = true;
-          }
-        });
+      if (_useRoutePosition && widget.initialScrollPosition != null) {
+        controller.events.takeWhile((_) => _useRoutePosition && mounted).listen(
+          (event) {
+            if (event is PostControllerRefreshCompleted &&
+                !_hasScrolledToInitialPosition &&
+                widget.initialScrollPosition != null) {
+              _scrollController.scrollToIndex(
+                widget.initialScrollPosition!,
+              );
+              _hasScrolledToInitialPosition = true;
+            }
+          },
+        );
       }
 
       _postController = controller;
@@ -249,12 +255,10 @@ class _SearchPageScaffoldState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Kurumi.themeOf(context).colorScheme;
-
     return InheritedSearchPageController(
       controller: _controller,
       child: Material(
-        color: colorScheme.surface,
+        type: MaterialType.transparency,
         child: SafeArea(
           bottom: false,
           child: Stack(
@@ -263,19 +267,19 @@ class _SearchPageScaffoldState<T extends Post>
               // keys must not reach while it's covered.
               ValueListenableBuilder(
                 valueListenable: _controller.state,
-                builder: (context, state, child) => ExcludeFocus(
+                builder: (context, state, child) => ExcludeSemantics(
                   excluding: state != SearchState.initial,
-                  child: child!,
+                  child: ExcludeFocus(
+                    excluding: state != SearchState.initial,
+                    child: child!,
+                  ),
                 ),
                 child: ValueListenableBuilder(
                   valueListenable: _controller.didSearchOnce,
                   builder: (context, searchOnce, child) {
                     return searchOnce
                         ? _buildResult()
-                        : _Landing(
-                            landingView: widget.landingView,
-                            selectionModeController: _selectionModeController,
-                          );
+                        : const SizedBox.shrink();
                   },
                 ),
               ),
@@ -355,21 +359,29 @@ class _SearchPageScaffoldState<T extends Post>
 
         return true;
       },
-      child: PostScope(
-        fetcher: (page) => widget.fetcher(
-          page,
-          _controller.tagsController,
+      child: ValueListenableBuilder(
+        valueListenable: _controller.tagString,
+        builder: (context, query, _) => PostScope(
+          // Each applied query owns its requests and pagination. Replacing this
+          // scope logically cancels old work without waiting for the server.
+          key: ValueKey(query),
+          fetcher: (page) => widget.fetcher(
+            page,
+            _controller.tagsController,
+          ),
+          pageMode: _useRoutePosition && widget.initialPage != null
+              ? PageMode.paginated
+              : null,
+          initialPage: _useRoutePosition ? widget.initialPage : null,
+          builder: (context, controller) {
+            // Hacky way to get the controller
+            _setupPostControllerListener(controller);
+            return _buildDefaultSearchResults(
+              context,
+              controller,
+            );
+          },
         ),
-        pageMode: widget.initialPage != null ? PageMode.paginated : null,
-        initialPage: widget.initialPage,
-        builder: (context, controller) {
-          // Hacky way to get the controller
-          _setupPostControllerListener(controller);
-          return _buildDefaultSearchResults(
-            context,
-            controller,
-          );
-        },
       ),
     );
   }
@@ -388,6 +400,10 @@ class _SearchPageScaffoldState<T extends Post>
           selectionModeController: _selectionModeController,
           scrollController: _scrollController,
           controller: controller,
+          bottomInset: searchBarPosition == SearchBarPosition.bottom
+              ? _calcSearchRegionHeight(_tagsController.value) +
+                    MediaQuery.viewPaddingOf(context).bottom
+              : 0,
           itemBuilder: widget.itemBuilder != null
               ? (context, index, scrollController, useHero) {
                   return widget.itemBuilder!(
@@ -464,7 +480,10 @@ class SearchRegionSafeArea extends ConsumerWidget {
         switch (searchBarPosition) {
           SearchBarPosition.bottom => displacement,
           SearchBarPosition.top => SizedBox(
-            height: MediaQuery.viewInsetsOf(context).bottom,
+            height: max(
+              MediaQuery.viewInsetsOf(context).bottom,
+              MediaQuery.viewPaddingOf(context).bottom,
+            ),
           ),
         },
       ],
@@ -514,8 +533,8 @@ class __ScrollToTopButtonPaddingState
     return ListenableBuilder(
       listenable: widget.selectionModeController,
       builder: (_, _) {
-        final multiSelect = widget.selectionModeController.isActive;
-        if (multiSelect || searchBarPosition == SearchBarPosition.top) {
+        if (widget.selectionModeController.isActive ||
+            searchBarPosition == SearchBarPosition.top) {
           return widget.builder(context, 1);
         }
 
@@ -584,12 +603,11 @@ class __SearchBarPositionedState extends ConsumerState<_SearchBarPositioned> {
           child: ListenableBuilder(
             listenable: widget.selectionModeController,
             builder: (context, _) {
-              final multiSelect = widget.selectionModeController.isActive;
               return AnimatedBuilder(
                 animation: _searchBarCurve,
                 builder: (context, _) {
-                  final padding = multiSelect
-                      ? -searchRegionHeight
+                  final padding = widget.selectionModeController.isActive
+                      ? 0.0
                       : searchOnce
                       ? state == SearchState.suggestions
                             ? 0.0
@@ -637,11 +655,6 @@ class _Displacement extends ConsumerWidget {
         third: controller.didSearchOnce,
 
         builder: (_, value, state, searchOnce) {
-          final multiSelect = selectionModeController.isActive;
-          if (multiSelect) {
-            return const SizedBox.shrink();
-          }
-
           final viewInsets = MediaQuery.viewInsetsOf(context).bottom;
           final viewPadding = MediaQuery.viewPaddingOf(context).bottom;
           final padding = max(viewInsets, viewPadding);
@@ -665,24 +678,6 @@ class _Displacement extends ConsumerWidget {
   }
 }
 
-class _Landing extends ConsumerWidget {
-  const _Landing({
-    required this.landingView,
-    required this.selectionModeController,
-  });
-
-  final Widget landingView;
-  final SelectionModeController selectionModeController;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return SearchRegionSafeArea(
-      selectionModeController: selectionModeController,
-      child: landingView,
-    );
-  }
-}
-
 class _SearchOptionsView extends ConsumerWidget {
   const _SearchOptionsView({
     required this.landingView,
@@ -699,33 +694,35 @@ class _SearchOptionsView extends ConsumerWidget {
 
     return SearchRegionSafeArea(
       selectionModeController: selectionModeController,
-      child: ValueListenableBuilder(
-        valueListenable: controller.state,
-        builder: (context, state, child) => state == SearchState.options
-            ? ColoredBox(
-                color: colorScheme.surface,
-                child: Column(
-                  children: [
-                    ref
-                        .watch(analyticsProvider)
-                        .maybeWhen(
-                          data: (analytics) => SearchViewAnalyticsAnchor(
-                            routeName: '/search_options',
-                            previousRoute: const RouteSettings(
-                              name: '/search_result',
+      child: FocusTraversalGroup(
+        child: MultiValueListenableBuilder2(
+          first: controller.state,
+          second: controller.didSearchOnce,
+          builder: (context, state, searched) => state == SearchState.options
+              ? ColoredBox(
+                  color: colorScheme.surface,
+                  child: Column(
+                    children: [
+                      ref
+                          .watch(analyticsProvider)
+                          .maybeWhen(
+                            data: (analytics) => SearchViewAnalyticsAnchor(
+                              routeName: '/search_options',
+                              previousRoute: const RouteSettings(
+                                name: '/search_result',
+                              ),
+                              analytics: analytics,
                             ),
-                            analytics: analytics,
+                            orElse: () => const SizedBox.shrink(),
                           ),
-                          orElse: () => const SizedBox.shrink(),
-                        ),
-                    Expanded(
-                      child: child!,
-                    ),
-                  ],
-                ),
-              )
-            : const SizedBox.shrink(),
-        child: landingView,
+                      Expanded(
+                        child: landingView,
+                      ),
+                    ],
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
       ),
     );
   }

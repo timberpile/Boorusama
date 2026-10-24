@@ -22,6 +22,61 @@ import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/images/providers.dart';
 
 void main() {
+  for (final width in [320.0, 360.0]) {
+    for (final scale in [1.0, 2.0]) {
+      testWidgets(
+        'Pixiv status badges and picker respect system navigation at $width/$scale',
+        (tester) async {
+          tester.view.physicalSize = Size(width, 700);
+          tester.view.devicePixelRatio = 1;
+          tester.view.padding = const FakeViewPadding(bottom: 24);
+          tester.view.viewPadding = const FakeViewPadding(bottom: 24);
+          addTearDown(tester.view.reset);
+          QuickProfileSite? selected;
+          const pixiv = QuickProfileSite(
+            booruType: BooruType.pixiv,
+            url: 'https://www.pixiv.net/',
+            profileName: 'Pixiv',
+            authentication: QuickProfileAuthentication.required,
+          );
+          await tester.pumpWidget(
+            _TestApp(
+              textScaler: TextScaler.linear(scale),
+              child: QuickProfileSetupPicker(
+                sites: const [pixiv],
+                onSelected: (site) => selected = site,
+                onCustomSite: () {},
+              ),
+            ),
+          );
+          final experimental = find.byKey(
+            const ValueKey('quick-profile-experimental-https://www.pixiv.net/'),
+          );
+          final account = find.byKey(
+            const ValueKey(
+              'quick-profile-auth-required-https://www.pixiv.net/',
+            ),
+          );
+          expect(experimental, findsOneWidget);
+          expect(account, findsOneWidget);
+          expect(
+            tester.getRect(find.byType(ListView)).bottom,
+            lessThanOrEqualTo(676),
+          );
+          if (width == 360 && scale == 1) {
+            expect(
+              tester.getCenter(experimental).dy,
+              closeTo(tester.getCenter(account).dy, 1),
+            );
+          }
+          await tester.tap(find.text('Pixiv'));
+          expect(selected, pixiv);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   setUpAll(() async {
     final configFile = File('.dart_tool/package_config.json');
     final config =

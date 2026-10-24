@@ -2,7 +2,7 @@
 
 Consult relevant sections when the current change needs additional engineering
 conventions. [AGENTS.md](../AGENTS.md) defines workflow routing and required
-verification; queue and integration documentation are loaded only when needed.
+verification; issue and integration guidance is loaded only when needed.
 
 ## Tools
 
@@ -28,7 +28,7 @@ uncertain.
 
 | Change | Required local checks |
 | --- | --- |
-| Documentation, work-item status, comments, or other non-runtime-only files | Relevant documentation/tooling checks (for example, links and `git diff --check`); no Flutter/application suite. Executable scripts and configuration that alter runtime/build/test behavior are not documentation-only. |
+| Documentation, issue metadata, comments, or other non-runtime-only files | Relevant documentation/tooling checks (for example, links and `git diff --check`); no Flutter/application suite. Executable scripts and configuration that alter runtime/build/test behavior are not documentation-only. |
 | Clearly scoped application feature/fix | Directly affected test files or an entire affected directory, plus nearby/consumer tests when shared behavior is affected. Unrelated subsystems/packages need not run for local task verification. |
 | Local package | That package's complete suite, plus relevant application/other-package consumer tests. |
 | Broad/shared infrastructure or unclear scope | Complete local suite. This includes shared core models, dependencies/toolchain, generated-code infrastructure, test infrastructure and repository-wide behavior. |
@@ -118,8 +118,8 @@ and authorization rules are unchanged.
 The earlier fixed-four recommendation addressed a share-copy test that assumed
 native I/O finished within 150 ms. Its checks now await completion and lease
 release, and timing contracts use controlled clocks where practical. Historical
-concurrency/module comparisons and updated qualification are recorded in
-[work item 0034](work/done/0034-scope-agent-verification.md).
+concurrency measurements were host-specific; they do not justify a global
+fixed worker count. Retired experiment records remain in Git history.
 
 Inspect every result. A failed, skipped, or unrun suite does not satisfy the full
 requirement; report existing individual test skips separately. Fix in-scope
@@ -135,7 +135,7 @@ new final candidate before integration. Formatting/comments with no behavior
 change need only relevant direct checks.
 
 Record the checked commit/state, executed commands, results, skips and limits in
-the normal work item or handoff. Do not add result caches, hashes or verification
+the normal task report or handoff. Do not add result caches, hashes or verification
 metadata systems. Distinguish local tests from CI, device and upgrade acceptance;
 report blockers without claiming integration readiness. Authorization to merge
 or publish is separate from successful verification.

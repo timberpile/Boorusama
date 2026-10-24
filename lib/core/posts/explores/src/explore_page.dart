@@ -209,6 +209,7 @@ class ExploreList extends ConsumerWidget {
                       imageUrl: media.url,
                       placeholderUrl: media.placeholderUrl,
                       fallbackUrl: media.fallbackUrl,
+                      fallbackUrls: media.fallbackUrls,
                       placeholderAspectRatio: media.placeholderAspectRatio,
                       placeholderFit: media.placeholderFit,
                     ),

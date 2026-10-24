@@ -23,6 +23,7 @@ class GelbooruV2FavoritesPage extends ConsumerWidget {
     final gelbooruV2 = ref.watch(gelbooruV2Provider);
 
     return BooruConfigAuthFailsafe(
+      unauthorizedBuilder: (_) => const FavoritesUnavailablePage(),
       builder: (_) => switch (gelbooruV2
           .getCapabilitiesForSite(config.url)
           ?.favorites

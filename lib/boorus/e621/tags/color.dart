@@ -10,7 +10,20 @@ class E621TagColorGenerator implements TagColorGenerator {
 
   @override
   Color? generateColor(TagColorOptions options) {
-    final tagCategory = stringToE621TagCategory(options.tagType);
+    final category = options.tagType?.trim().toLowerCase();
+    // The parser's invalid fallback describes posts, not missing color metadata.
+    if (!const {
+      'general',
+      'artist',
+      'copyright',
+      'character',
+      'species',
+      'invalid',
+      'meta',
+      'lore',
+    }.contains(category))
+      return null;
+    final tagCategory = stringToE621TagCategory(category);
 
     if (tagCategory == e621InvalidTagCategory) {
       return options.colors.customColors['invalid'];

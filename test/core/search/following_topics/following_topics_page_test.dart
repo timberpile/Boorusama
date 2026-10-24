@@ -1,3 +1,8 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:boorusama/core/widgets/multi_selection_action_bar.dart';
+import 'package:boorusama/core/widgets/multi_select_button.dart';
+import 'package:flutter/gestures.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/configs/config/types.dart';
@@ -32,6 +37,104 @@ void main() {
 
   Future<void> pump(WidgetTester tester) =>
       harness.pump(tester, const FollowingTopicsPage());
+
+  testWidgets(
+    'selection refresh matches both supported and mixed folder menus',
+    (tester) async {
+      harness = FollowingTopicHarness(
+        trackingSupported: (auth) => auth.url == testProfile.url,
+      );
+      addTearDown(harness.dispose);
+      await harness.seed([
+        topicFixture(query: 'cat'),
+        topicFixture(id: 'dogs', name: 'Dogs', query: 'dog'),
+        topicFixture(
+          id: 'manual',
+          name: 'Manual',
+          query: 'manual',
+          profileId: otherTestProfile.id,
+        ),
+      ]);
+      final notifier = harness.container.read(followingTopicsProvider.notifier);
+      final first = await notifier.createSharedFolder(
+        'Supported',
+        feedEnabled: true,
+      );
+      final mixed = await notifier.createSharedFolder(
+        'Mixed',
+        feedEnabled: true,
+      );
+      final child = await notifier.createSharedFolder(
+        'Nested',
+        parentId: mixed.id,
+      );
+      await notifier.moveTopicToSharedFolder('cats', first.id);
+      await notifier.moveTopicToSharedFolder('dogs', child.id);
+      await notifier.moveTopicToSharedFolder('manual', mixed.id);
+      await pump(tester);
+      for (final card in tester.widgetList<FollowingTopicFolderCard>(
+        find.byType(FollowingTopicFolderCard),
+      )) {
+        expect(card.canRefresh, isTrue);
+      }
+      await tester.longPress(find.text('Supported'));
+      await settle(tester);
+      expect(
+        find.widgetWithText(MultiSelectButton, 'Refresh').hitTestable(),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Close'));
+      await settle(tester);
+      await tester.longPress(find.text('Mixed'));
+      await settle(tester);
+      expect(
+        find.widgetWithText(MultiSelectButton, 'Refresh').hitTestable(),
+        findsOneWidget,
+      );
+      for (final label in ['Open feed', 'Settings', 'Edit', 'Details']) {
+        expect(find.widgetWithText(MultiSelectButton, label), findsNothing);
+      }
+      await tester.tap(find.text('Supported'));
+      await settle(tester);
+      expect(find.text('2 items selected'), findsOneWidget);
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Refresh'));
+      await drain(tester);
+      expect(
+        harness.requests.map((request) => request.query),
+        containsAll(['cat', 'dog']),
+      );
+      expect(
+        harness.requests.any((request) => request.query == 'manual'),
+        isFalse,
+      );
+      expect(find.text('2 items selected'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Mark read closes selection after success and retains it after failure',
+    (tester) async {
+      initialize();
+      await harness.seed([topicFixture()]);
+      await pump(tester);
+      await tester.longPress(find.text('Cats'));
+      await settle(tester);
+      for (final label in ['Edit', 'Details', 'Settings', 'Open feed']) {
+        expect(find.widgetWithText(MultiSelectButton, label), findsNothing);
+      }
+      harness.box.failWrites = true;
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Mark read'));
+      await drain(tester);
+      expect(find.text('1 item selected'), findsOneWidget);
+      expect((await harness.repository.getById('cats'))!.hasNewPosts, isTrue);
+      harness.box.failWrites = false;
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Mark read'));
+      await drain(tester);
+      expect((await harness.repository.getById('cats'))!.hasNewPosts, isFalse);
+      expect(find.text('1 item selected'), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
 
   Finder pageOverflow() => find.descendant(
     of: find.byType(AppBar),
@@ -521,6 +624,38 @@ void main() {
       findsOneWidget,
     );
   });
+  testWidgets(
+    'active folder/topic hold-drag selects and reverses in displayed order',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        topicFixture(id: 'a', name: 'Alpha', position: 0),
+        topicFixture(id: 'b', name: 'Beta', query: 'dog', position: 1),
+        topicFixture(id: 'c', name: 'Gamma', query: 'bird', position: 2),
+      ]);
+      await harness.container
+          .read(followingTopicsProvider.notifier)
+          .createSharedFolder('Folder');
+      await pump(tester);
+      await tester.longPress(find.text('Folder'));
+      await settle(tester);
+      final drag = await tester.startGesture(
+        tester.getCenter(find.text('Alpha')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      await drag.moveTo(tester.getCenter(find.text('Gamma')));
+      await tester.pump();
+      expect(find.text('4 items selected'), findsOneWidget);
+      await drag.moveTo(tester.getCenter(find.text('Alpha')));
+      await tester.pump();
+      expect(find.text('2 items selected'), findsOneWidget);
+      await drag.up();
+      await settle(tester);
+      expect(find.byType(PopupMenuButton<FollowingTopicAction>), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final startWithFolder in [false, true]) {
     testWidgets(
       'long press ${startWithFolder ? 'folder' : 'topic'} selects, deselects, and cancels at narrow width',
@@ -547,37 +682,39 @@ void main() {
         expect(pageOverflow(), findsOneWidget);
         // Per-item action menus remain normal actions, not selection gestures.
         await openMenu(tester);
-        expect(find.text('1 selected'), findsNothing);
+        expect(find.text('1 item selected'), findsNothing);
         await tester.tapAt(const Offset(5, 5));
         await settle(tester);
+        final previewsBeforeSelection = tester
+            .widget<FollowingTopicFolderCard>(
+              find.byType(FollowingTopicFolderCard),
+            )
+            .previews;
         await tester.longPress(find.text(start));
         await settle(tester);
-        expect(find.text('1 selected'), findsOneWidget);
-        expect(find.byTooltip('Move'), findsOneWidget);
-        expect(find.byTooltip('Cancel'), findsOneWidget);
-        expect(find.byTooltip('Sort by'), findsNothing);
+        expect(
+          identical(
+            tester
+                .widget<FollowingTopicFolderCard>(
+                  find.byType(FollowingTopicFolderCard),
+                )
+                .previews,
+            previewsBeforeSelection,
+          ),
+          isTrue,
+        );
+        expect(find.text('1 item selected'), findsOneWidget);
+        expect(find.widgetWithText(MultiSelectButton, 'Move'), findsOneWidget);
+        expect(find.byTooltip('Close'), findsOneWidget);
+        expect(find.byTooltip('Sort by'), findsOneWidget);
         expect(
           pageOverflow(),
           findsOneWidget,
         );
-        if (startWithFolder) {
-          await openPageMenu(tester);
-          expect(find.text('Remove'), findsOneWidget);
-          expect(find.text('Unfollow'), findsNothing);
-          expect(find.text('Refresh'), findsNothing);
-          await tester.tapAt(const Offset(5, 5));
-          await settle(tester);
-        } else {
-          expect(
-            tester.getCenter(pageOverflow()).dx,
-            greaterThan(tester.getCenter(find.byTooltip('Cancel')).dx),
-          );
-          await openPageMenu(tester);
-          expect(find.text('Enable auto-update'), findsNothing);
-          expect(find.text('Disable auto-update'), findsNothing);
+        expect(find.text('Remove'), findsOneWidget);
+        expect(find.text('Unfollow'), findsNothing);
+        if (!startWithFolder) {
           expect(find.text('Mark read'), findsOneWidget);
-          await tester.tapAt(const Offset(5, 5));
-          await settle(tester);
         }
         expect(
           find.byType(PopupMenuButton<FollowingTopicAction>),
@@ -594,17 +731,18 @@ void main() {
         expect(folderCard.selected, startWithFolder);
         await tester.tap(find.text(other));
         await settle(tester);
-        expect(find.text('2 selected'), findsOneWidget);
+        expect(find.text('2 items selected'), findsOneWidget);
         expect(pageOverflow(), findsOneWidget);
         expect(find.byIcon(Icons.check_circle), findsNWidgets(2));
         await tester.tap(find.text(start));
         await settle(tester);
-        expect(find.text('1 selected'), findsOneWidget);
+        expect(find.text('1 item selected'), findsOneWidget);
         await tester.tap(find.text(other));
         await settle(tester);
-        expect(find.text('0 selected'), findsNothing);
+        expect(find.text('0 items selected'), findsNothing);
+        expect(find.byTooltip('Close'), findsNothing);
         expect(find.text('Following Topics'), findsOneWidget);
-        expect(find.byTooltip('Move'), findsNothing);
+        expect(find.widgetWithText(MultiSelectButton, 'Move'), findsNothing);
         expect(find.byTooltip('Sort by'), findsOneWidget);
         expect(pageOverflow(), findsOneWidget);
         // Cancel clears both sets, so a new selection starts with one item.
@@ -612,17 +750,17 @@ void main() {
         await settle(tester);
         await tester.tap(find.text(other));
         await settle(tester);
-        await tester.tap(find.byTooltip('Cancel'));
+        await tester.tap(find.byTooltip('Close'));
         await settle(tester);
         await tester.longPress(find.text(other));
         await settle(tester);
-        expect(find.text('1 selected'), findsOneWidget);
-        await tester.tap(find.byTooltip('Move'));
+        expect(find.text('1 item selected'), findsOneWidget);
+        await tester.tap(find.widgetWithText(MultiSelectButton, 'Move'));
         await settle(tester);
         await tester.tap(find.widgetWithText(legacy.TextButton, 'Cancel'));
         await settle(tester);
-        expect(find.text('1 selected'), findsOneWidget);
-        await tester.tap(find.byTooltip('Cancel'));
+        expect(find.text('1 item selected'), findsOneWidget);
+        await tester.tap(find.byTooltip('Close'));
         await settle(tester);
         // Normal folder navigation is restored.
         await tester.tap(find.text('Favorites'));
@@ -655,9 +793,9 @@ void main() {
       await tester.longPress(find.text('Selected folder'));
       await tester.tap(find.text('Cats'));
       await settle(tester);
-      expect(find.text('2 selected'), findsOneWidget);
+      expect(find.text('2 items selected'), findsOneWidget);
       expect(harness.requests, isEmpty);
-      await tester.tap(find.byTooltip('Move'));
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Move'));
       await settle(tester);
       await tester.tap(find.text('Destination').last);
       await settle(tester);
@@ -674,11 +812,60 @@ void main() {
       );
       expect(await harness.repository.getById('cats'), original);
       expect(find.text('Following Topics'), findsOneWidget);
-      expect(find.byTooltip('Move'), findsNothing);
+      expect(find.widgetWithText(MultiSelectButton, 'Move'), findsNothing);
       expect(find.byIcon(Icons.check_circle), findsNothing);
       expect(find.byTooltip('Sort by'), findsOneWidget);
       expect(pageOverflow(), findsOneWidget);
       expect(harness.requests, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'bulk topic reorder moves all selected siblings and preserves selection',
+    (tester) async {
+      initialize();
+      await harness.seed([
+        topicFixture(),
+        topicFixture(id: 'dogs', name: 'Dogs', query: 'dog', position: 1),
+        topicFixture(id: 'birds', name: 'Birds', query: 'bird', position: 2),
+      ]);
+      await harness.container
+          .read(followingTopicSortProvider.notifier)
+          .select(FollowingTopicSort.manual);
+      await pump(tester);
+      final semantics = tester.ensureSemantics();
+      try {
+        final before = harness.container
+            .read(visibleFollowingTopicsProvider(null))
+            .requireValue;
+        await tester.longPress(find.text(before[1].displayName));
+        await tester.tap(find.text(before[2].displayName));
+        await settle(tester);
+        expect(find.text('2 items selected'), findsOneWidget);
+        expect(
+          harness.container.read(followingTopicSortProvider),
+          FollowingTopicSort.manual,
+        );
+        await tester.tap(
+          find.descendant(
+            of: find.byType(MultiSelectionActionBar),
+            matching: find.bySemanticsLabel('More'),
+          ),
+        );
+        await settle(tester);
+        await tester.tap(find.text('Move up'));
+        await drain(tester);
+        expect(
+          harness.container
+              .read(visibleFollowingTopicsProvider(null))
+              .requireValue
+              .map((t) => t.id),
+          [before[1].id, before[2].id, before[0].id],
+        );
+        expect(find.text('2 items selected'), findsOneWidget);
+      } finally {
+        semantics.dispose();
+      }
     },
   );
 
@@ -718,10 +905,9 @@ void main() {
     await tester.longPress(find.text('Selected folder'));
     await tester.tap(find.text('Dogs'));
     await settle(tester);
-    await openPageMenu(tester);
-    expect(find.text('Remove'), findsOneWidget);
+    expect(find.widgetWithText(MultiSelectButton, 'Remove'), findsOneWidget);
     expect(find.text('Unfollow'), findsNothing);
-    await tester.tap(find.text('Remove'));
+    await tester.tap(find.widgetWithText(MultiSelectButton, 'Remove'));
     await settle(tester);
     expect(find.text('Remove selection?'), findsOneWidget);
     expect(
@@ -1379,7 +1565,11 @@ void main() {
   ) async {
     initialize();
     await harness.seed([
-      topicFixture(previewCount: 6, error: SearchRefreshErrorKind.network),
+      topicFixture(
+        query: 'cat  rating:safe order:id',
+        previewCount: 6,
+        error: SearchRefreshErrorKind.network,
+      ),
       topicFixture(
         id: 'dogs',
         query: 'dog',
@@ -1398,7 +1588,14 @@ void main() {
     ]);
     await pump(tester);
     expect(find.text('Cats'), findsOneWidget);
-    expect(find.text('cat  rating:safe order:score'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'cat  rating:safe order:id',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('dog'), findsOneWidget);
     expect(find.text('Other profile'), findsOneWidget);
     expect(find.text('NEW'), findsNWidgets(2));
@@ -1474,7 +1671,7 @@ void main() {
     tester,
   ) async {
     initialize(loadImages: true);
-    await harness.seed([topicFixture(previewCount: 1)]);
+    await harness.seed([topicFixture(query: 'cat', previewCount: 1)]);
     await pump(tester);
     for (
       var i = 0;
@@ -1638,7 +1835,14 @@ void main() {
       await drain(tester);
       await settle(tester);
       expect(find.text('Cats'), findsNothing);
-      expect(find.text('cat  rating:safe order:score'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'cat  rating:safe order:score',
+        ),
+        findsOneWidget,
+      );
       expect((await harness.repository.getById('cats'))!.unreadCount, 1);
       expect(harness.requests, isEmpty);
     },

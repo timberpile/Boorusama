@@ -10,9 +10,11 @@ class BooruConfigAuthFailsafe extends ConsumerWidget {
     required this.builder,
     super.key,
     this.hasLogin,
+    this.unauthorizedBuilder,
   });
 
   final WidgetBuilder builder;
+  final WidgetBuilder? unauthorizedBuilder;
   final bool? hasLogin;
 
   @override
@@ -22,7 +24,7 @@ class BooruConfigAuthFailsafe extends ConsumerWidget {
 
     return hasLogin ?? loginDetails.hasLogin()
         ? builder(context)
-        : const UnauthorizedPage();
+        : unauthorizedBuilder?.call(context) ?? const UnauthorizedPage();
   }
 }
 

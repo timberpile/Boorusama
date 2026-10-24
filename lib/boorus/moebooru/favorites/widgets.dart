@@ -16,6 +16,7 @@ class MoebooruFavoritesPage extends ConsumerWidget {
     final config = ref.watchConfigAuth;
 
     return BooruConfigAuthFailsafe(
+      unauthorizedBuilder: (_) => const FavoritesUnavailablePage(),
       builder: (_) => MoebooruFavoritesPageInternalPage(
         username: config.login!,
       ),

@@ -11,6 +11,21 @@ import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('equal bookmark dates retain insertion order in both directions', () {
+    final sameDate = DateTime.utc(2026);
+    final bookmarks = [
+      for (final id in [3, 1, 4, 2])
+        _bookmark(
+          localId: id,
+          postId: 100 - id,
+          site: 'alpha.example',
+          bookmarkedAt: sameDate,
+        ),
+    ];
+    expect(_ids(bookmarks, BookmarkSortType.newest), [4, 3, 2, 1]);
+    expect(_ids(bookmarks, BookmarkSortType.oldest), [1, 2, 3, 4]);
+  });
+
   test('upload and bookmark sort use their respective dates', () {
     final bookmarks = [
       _bookmark(

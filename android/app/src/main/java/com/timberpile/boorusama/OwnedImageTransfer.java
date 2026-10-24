@@ -13,7 +13,7 @@ public final class OwnedImageTransfer {
     private final File retainedRoot;
     private final File transientRoot;
     private final File ownedRoot;
-    private final File gifRoot;
+    private final File preparedRoot;
     private final CopyObserver observer;
     private static final long MAX_AGE_MILLIS = 24 * 60 * 60 * 1000L;
     private static final Object OWNERSHIP_LOCK = new Object();
@@ -27,7 +27,7 @@ public final class OwnedImageTransfer {
         retainedRoot = new File(cacheRoot, "cacheimage").getCanonicalFile();
         transientRoot = new File(cacheRoot, "cacheimage-transfers").getCanonicalFile();
         ownedRoot = new File(cacheRoot, "boorusama-clipboard").getCanonicalFile();
-        gifRoot = new File(cacheRoot, "boorusama-share").getCanonicalFile();
+        preparedRoot = new File(cacheRoot, "boorusama-share").getCanonicalFile();
         this.observer = observer;
     }
 
@@ -38,11 +38,11 @@ public final class OwnedImageTransfer {
     public File copy(File source, String mimeType) throws IOException {
         String extension = extensionFor(mimeType);
         File canonical = source.getCanonicalFile();
-        boolean generatedGif = "image/gif".equals(mimeType)
-                && gifRoot.equals(canonical.getParentFile())
+        // Dart prepares both still images and converted GIFs in this directory.
+        boolean preparedImage = preparedRoot.equals(canonical.getParentFile())
                 && canonical.getName().startsWith("boorusama_share_")
-                && canonical.getName().endsWith(".gif");
-        if ((!retainedRoot.equals(canonical.getParentFile()) && !transientRoot.equals(canonical.getParentFile()) && !generatedGif)
+                && canonical.getName().endsWith("." + extension);
+        if ((!retainedRoot.equals(canonical.getParentFile()) && !transientRoot.equals(canonical.getParentFile()) && !preparedImage)
                 || !canonical.isFile() || canonical.length() == 0 || canonical.getName().endsWith(".partial")) {
             throw new IllegalArgumentException("Image source is unavailable");
         }

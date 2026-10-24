@@ -13,6 +13,7 @@ import 'package:oktoast/oktoast.dart';
 import '../foundation/info/app_info.dart';
 import '../foundation/platform.dart';
 import 'router.dart';
+import 'bookmarks/src/server_favorites/feedback_banner.dart';
 import 'settings/providers.dart';
 import 'themes/theme/widgets.dart';
 import 'widgets/widgets.dart';
@@ -42,6 +43,7 @@ class BoorusamaCoreApp extends ConsumerWidget {
     return OKToast(
       duration: toastDuration,
       child: ThemeBuilder(
+        useProfileAppearance: false,
         builder: (theme, themeMode) {
           return MaterialApp.router(
             shortcuts: {
@@ -125,6 +127,7 @@ class BoorusamaCoreApp extends ConsumerWidget {
                                 child: Column(
                                   children: [
                                     const NetworkUnavailableIndicatorWithState(),
+                                    const ServerFavoriteFeedbackBanner(),
                                     Expanded(
                                       child: NetworkUnavailableRemovePadding(
                                         child: child!,

@@ -26,7 +26,7 @@ final gridThumbnailSettingsProvider =
         animatedPostsDefaultState: animatedState,
         gridSize: gridSize,
       );
-    });
+    }, dependencies: [imageListingSettingsProvider]);
 
 final gridThumbnailUrlGeneratorProvider =
     Provider.family<GridThumbnailUrlGenerator, BooruConfigAuth>((ref, config) {
@@ -42,7 +42,7 @@ final selectionIndicatorSizeProvider = Provider<double>((ref) {
   );
 
   return 32 * _getGridSizeFactor(gridSize);
-});
+}, dependencies: [imageListingSettingsProvider]);
 
 double _getGridSizeFactor(GridSize gridSize) => switch (gridSize) {
   GridSize.small => 0.95,

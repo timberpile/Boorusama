@@ -10,9 +10,13 @@ enum DuplicateCheckMode {
 class PostDuplicateTracker<T extends Post> {
   PostDuplicateTracker({
     this.mode = DuplicateCheckMode.id,
+    this.identityExtractor,
   });
 
   final DuplicateCheckMode mode;
+  // Collections may supply engine-specific keys. Unknown identities (null)
+  // must remain visible rather than sharing an invented numeric identity.
+  final Object? Function(T item)? identityExtractor;
   final Set<Object> _idKeys = {};
   final Set<String> _md5Keys = {};
 
@@ -27,7 +31,9 @@ class PostDuplicateTracker<T extends Post> {
     }
   }
 
-  Object _identity(T item) => mode == DuplicateCheckMode.originAndId
+  Object? _identity(T item) => identityExtractor != null
+      ? identityExtractor!(item)
+      : mode == DuplicateCheckMode.originAndId
       ? (
           item.origin.booruType,
           item.origin.sourceHost.isEmpty
@@ -38,7 +44,8 @@ class PostDuplicateTracker<T extends Post> {
       : item.id;
 
   void trackItem(T item) {
-    _idKeys.add(_identity(item));
+    final identity = _identity(item);
+    if (identity != null) _idKeys.add(identity);
 
     if (mode == DuplicateCheckMode.idAndMd5) {
       if (item.md5.isNotEmpty) {

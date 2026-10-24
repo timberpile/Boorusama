@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../config/types.dart';
 import '../../../create/providers.dart';
+import '../../../../settings/providers.dart';
 import '../types/actions.dart';
 import '../types/post_gesture_config.dart';
 import '../widgets/booru_config_settings_header.dart';
@@ -41,6 +42,9 @@ class BooruConfigGesturesView extends ConsumerWidget {
       editBooruConfigProvider(
         ref.watch(editBooruConfigIdProvider),
       ).select((value) => value.postGesturesConfigTyped),
+    );
+    final longPressContextMenu = ref.watch(
+      settingsProvider.select((s) => s.postLongPressContextMenu),
     );
 
     return SingleChildScrollView(
@@ -109,8 +113,22 @@ class BooruConfigGesturesView extends ConsumerWidget {
                 postGesturesConfigTyped?.withPreviewLongPress(value),
               );
             },
-            actions: previewGestureActions,
-            describeAction: describePostDetailsAction,
+            actions: {...previewGestureActions, kSelectAction, kDisabledAction},
+            describeAction: (action) => switch (action) {
+              null || kDefaultAction =>
+                longPressContextMenu
+                    ? context
+                          .t
+                          .booru
+                          .gestures
+                          .grid_long_press_context_menu_default
+                    : context.t.booru.gestures.grid_long_press_default,
+              kSelectAction => context.t.generic.action.select,
+              kDisabledAction => context.t.booru.gestures.disabled,
+              _ =>
+                describePostDetailsAction?.call(action) ??
+                    describeDefaultGestureAction(action, context),
+            },
           ),
           const SizedBox(height: 32),
           Text(

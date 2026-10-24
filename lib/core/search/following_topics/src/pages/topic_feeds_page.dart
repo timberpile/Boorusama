@@ -14,7 +14,6 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../configs/config/types.dart';
-import '../../../../downloads/downloader/providers.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
@@ -27,6 +26,8 @@ import '../../../../posts/listing/src/types/page_mode.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/post/providers.dart';
 import '../../../../router.dart';
+import '../../../../navigation/destination_activity.dart';
+import '../../../../navigation/destination_profile_scope.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/feed_history_session.dart';
 import '../providers/following_topics_notifier.dart';
@@ -60,7 +61,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
   void initState() {
     super.initState();
     _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
-    _routeObserver = ref.read(appNavigationProvider).routeObserver;
+    _routeObserver = ref.read(currentDestinationRouteObserverProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _activate();
     });
@@ -71,9 +72,21 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
     super.didChangeDependencies();
     final route = ModalRoute.of(context);
     if (route != null) _routeObserver.subscribe(this, route);
+    final active = NavigationActivity.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (active && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _activate();
+      } else {
+        _deactivate();
+      }
+    });
   }
 
   void _activate() {
+    if (!NavigationActivity.of(context) ||
+        !(ModalRoute.of(context)?.isCurrent ?? true))
+      return;
     _feedInterest ??= _coordinator.acquireFeedInitializationInterest();
   }
 
@@ -199,6 +212,16 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                                 return;
                               }
                               if (action == 'edit') {
+                                if (DestinationScope.maybeOf(context) != null) {
+                                  await ref.pushNamedRoute<void>(
+                                    '/following-topics/feed/edit',
+                                    pathParameters: {'feedId': feed.id},
+                                    queryParameters: {
+                                      '_profile': feed.profileId,
+                                    },
+                                  );
+                                  return;
+                                }
                                 await Navigator.of(context).push(
                                   MaterialPageRoute<void>(
                                     builder: (_) => TopicFeedManagementPage(
@@ -278,6 +301,16 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                             clipBehavior: Clip.antiAlias,
                             child: InkWell(
                               onTap: () => _feedAction(context, () async {
+                                if (DestinationScope.maybeOf(context) != null) {
+                                  await ref.pushNamedRoute<void>(
+                                    '/following-topics/feed',
+                                    pathParameters: {'feedId': feed.id},
+                                    queryParameters: {
+                                      '_profile': feed.profileId,
+                                    },
+                                  );
+                                  return;
+                                }
                                 await Navigator.of(context).push(
                                   MaterialPageRoute<void>(
                                     builder: (_) => TopicFeedPage(
@@ -433,7 +466,7 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   void initState() {
     super.initState();
     _coordinator = ref.read(searchRefreshCoordinatorProvider.notifier);
-    _routeObserver = ref.read(appNavigationProvider).routeObserver;
+    _routeObserver = ref.read(currentDestinationRouteObserverProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _activate();
@@ -448,9 +481,21 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
     super.didChangeDependencies();
     final route = ModalRoute.of(context);
     if (route != null) _routeObserver.subscribe(this, route);
+    final active = NavigationActivity.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (active && (ModalRoute.of(context)?.isCurrent ?? true)) {
+        _activate();
+      } else {
+        _deactivate();
+      }
+    });
   }
 
   void _activate() {
+    if (!NavigationActivity.of(context) ||
+        !(ModalRoute.of(context)?.isCurrent ?? true))
+      return;
     _feedInterest ??= _coordinator.acquireFeedInitializationInterest(
       feedId: widget.feedId,
     );
@@ -992,64 +1037,9 @@ class _FeedSelectionActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selection = SelectionMode.of(context);
-    final profiles = ref.watch(booruConfigProvider);
-    return ListenableBuilder(
-      listenable: selection,
-      builder: (context, _) {
-        final selected = selection
-            .selectedFrom(controller.items.toList())
-            .toList();
-        final groups = <BooruConfig, List<Post>>{};
-        for (final post in selected) {
-          final config = switch (const PostOriginResolver().resolve(
-            post.origin,
-            profiles,
-          )) {
-            ResolvedPostOrigin(:final config) => config,
-            _ => null,
-          };
-          // Unavailable origins and future payload versions remain viewable;
-          // authenticated mutations require a resolved, supported payload.
-          if (config == null || post.booruData is UnknownPostData) {
-            return const SizedBox.shrink();
-          }
-          groups.putIfAbsent(config, () => []).add(post);
-        }
-        if (groups.isEmpty) return const SizedBox.shrink();
-        if (groups.length == 1) {
-          return CurrentBooruConfigScope(
-            config: groups.keys.single,
-            child: Consumer(
-              builder: (context, ref, _) {
-                final builder = ref
-                    .watch(booruBuilderProvider(groups.keys.single.auth))
-                    ?.multiSelectionActionsBuilder;
-                return builder?.call(context, selection, controller) ??
-                    DefaultMultiSelectionActions(postController: controller);
-              },
-            ),
-          );
-        }
-        return DefaultMultiSelectionActions<Post>(
-          postController: controller,
-          onBulkDownload: (_) => unawaited(
-            _feedAction(context, () async {
-              for (final entry in groups.entries) {
-                final params = ref.read(
-                  downloadNotifierParamsProvider((
-                    entry.key.auth,
-                    entry.key.download,
-                  )),
-                );
-                await ref
-                    .read(downloadNotifierProvider(params).notifier)
-                    .bulkDownload(entry.value);
-              }
-            }),
-          ),
-        );
-      },
+    return PostSelectionActions(
+      selectionModeController: SelectionMode.of(context),
+      postController: controller,
     );
   }
 }

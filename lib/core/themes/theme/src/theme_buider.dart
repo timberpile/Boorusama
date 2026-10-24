@@ -14,10 +14,12 @@ import '../../configs/types.dart';
 class ThemeBuilder extends ConsumerWidget {
   const ThemeBuilder({
     required this.builder,
+    this.useProfileAppearance = true,
     super.key,
   });
 
   final Widget Function(ThemeData theme, ThemeMode themeMode) builder;
+  final bool useProfileAppearance;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,7 +41,7 @@ class ThemeBuilder extends ConsumerWidget {
         : (null, null);
 
     final customColorScheme = hasPremium
-        ? (ref.watchThemeConfigs?.enable ?? false)
+        ? (useProfileAppearance && (ref.watchThemeConfigs?.enable ?? false))
               ? getSchemeFromColorSettings(
                   ref.watchThemeConfigs?.colors,
                   dynamicDarkScheme: dark,

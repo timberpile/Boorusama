@@ -1240,7 +1240,7 @@ void main() {
   );
 
   testWidgets(
-    'feed exposes no bulk actions for an incompatible owner-profile payload',
+    'feed retains generic actions and hides native actions for an incompatible payload',
     (tester) async {
       harness.dispose();
       harness = FollowingTopicHarness(
@@ -1290,8 +1290,8 @@ void main() {
       await tester.pump();
 
       expect(find.text('native bulk mutation'), findsNothing);
-      expect(find.text('Download'), findsNothing);
-      expect(find.text('Bookmark'), findsNothing);
+      expect(find.text('Download'), findsOneWidget);
+      expect(find.text('Bookmark'), findsOneWidget);
       expect(
         harness.container.read(currentBooruConfigProvider),
         testProfile,

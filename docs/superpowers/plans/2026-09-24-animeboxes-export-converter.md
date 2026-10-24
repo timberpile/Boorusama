@@ -1,5 +1,10 @@
 # AnimeBoxes Export Converter Implementation Plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > `superpowers:executing-plans` to implement this plan task-by-task.
 
@@ -862,10 +867,7 @@ git commit -m "feat(cli): add AnimeBoxes migration commands"
 **Files:**
 
 - Create: `docs/migrations/animeboxes.md`
-- Modify: `docs/work/in-progress/MIG-001-animeboxes-export-converter.md`
-- Move after every acceptance criterion passes:
-  `docs/work/in-progress/MIG-001-animeboxes-export-converter.md` to
-  `docs/work/done/MIG-001-animeboxes-export-converter.md`
+- Historical local status files are retired; durable migration guidance belongs in `docs/migrations/animeboxes.md`.
 
 **Step 1: Document the operator workflow and privacy boundary**
 
@@ -964,13 +966,12 @@ Add concise completion evidence to the task file. Move it to `done` only after
 all acceptance criteria, including Maestro, are verified. Stage explicit paths:
 
 ```bash
-git add docs/migrations/animeboxes.md docs/work/done/MIG-001-animeboxes-export-converter.md
+git add docs/migrations/animeboxes.md
 git commit -m "docs(migrations): document AnimeBoxes conversion"
 ```
 
-If any acceptance criterion remains unverified, keep the task in
-`docs/work/in-progress/`, state the remaining check, and do not make a
-completion claim.
+If any acceptance criterion remains unverified, state the remaining check
+in the ordinary task handoff and do not claim completion.
 
 **Step 7: Request final code review**
 

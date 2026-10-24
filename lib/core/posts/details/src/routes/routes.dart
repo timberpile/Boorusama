@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/providers.dart';
 import '../../../../router.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/types.dart';
@@ -47,7 +48,21 @@ GoRoute singlePostDetailsRoutes(Ref ref) => GoRoute(
   name: '/posts',
   pageBuilder: (_, state) {
     final context = castOrNull<DetailsRouteContext>(state.extra);
-    final config = context?.config;
+    final segments = state.uri.pathSegments;
+    final sourceId =
+        context?.config?.id ??
+        state.uri.queryParameters['_profile'] ??
+        (segments.length > 2 &&
+                segments[0] == '_nav' &&
+                segments[1] == 'profile'
+            ? segments[2]
+            : null);
+    final config = sourceId == null
+        ? context?.config
+        : ref
+              .read(booruConfigProvider)
+              .where((c) => c.id == sourceId)
+              .firstOrNull;
 
     final postIdString = state.pathParameters['id'];
     final settings = ref.read(settingsProvider);

@@ -16,7 +16,7 @@ final videoCacheManagerProvider = Provider<VideoCacheManager?>(
     }
 
     final enable = ref.watch(
-      imageViewerSettingsProvider.select((s) => s.enableVideoCache),
+      sharedMediaSettingsProvider.select((s) => s.enableVideoCache),
     );
 
     if (!enable) return null;

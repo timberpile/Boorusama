@@ -1,6 +1,7 @@
 // ignore_for_file: avoid_catching_errors
 import 'dart:typed_data';
 import 'dart:async';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,11 @@ import '../../../http/client/providers.dart';
 import '../../../downloads/urls/providers.dart';
 import '../../../http/client/types.dart';
 import '../../details/providers.dart';
+import '../../links/boorusama_post_link.dart';
+import '../../links/boorusama_box_icon.dart';
+import '../../links/boorusama_link_file.dart';
+import '../../links/boorusama_link_file_share.dart';
+import '../../links/link_file_labels.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
 import '../../sources/types.dart';
@@ -48,6 +54,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     this.shareAdapter,
     this.imageClipboardWriter,
     this.profileIconUrl,
+    this.profileName,
     this.imageFileClipboardWriter,
     super.key,
   });
@@ -61,6 +68,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
   final Future<void> Function(String path, String mimeType)?
   imageFileClipboardWriter;
   final String? profileIconUrl;
+  final String? profileName;
 
   @override
   ConsumerState<UnifiedPostShareSheet> createState() =>
@@ -188,6 +196,10 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       booruLink: booruLink,
       sourceLink: sourceLink,
       postId: post.id,
+      boorusamaLink: BoorusamaPostLink.fromPost(
+        post,
+        auth: widget.auth,
+      )?.uri.toString(),
     );
     final capabilities = SharePlatformCapabilities.forPlatform(
       currentAppPlatform(),
@@ -237,7 +249,13 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                       ],
                     ),
                     const SizedBox(height: 12),
-                    if (_segment == _ShareSegment.media && !canShareMedia)
+                    if (!canShareMedia &&
+                        (_segment == _ShareSegment.media ||
+                            payloads.links.any(
+                              (payload) =>
+                                  payload.id == SharePayloadId.boorusamaLink &&
+                                  payload.available,
+                            )))
                       Text(context.t.post.action.media_platform_unavailable),
                     if (_segment == _ShareSegment.media &&
                         !post.isVideo &&
@@ -250,12 +268,16 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                       _ShareSegment.links => payloads.links,
                     }) ...[
                       SharePayloadTile(
-                        key: ValueKey(payload.id),
+                        key: payload.id == SharePayloadId.boorusamaLink
+                            ? const ValueKey('share-bslink-file')
+                            : ValueKey(payload.id),
                         leading: _leadingIcon(payload.id, sourceLink),
                         title: _title(context, payload.id),
                         value: payload.value,
                         deferred: payload.deferred,
-                        showValue: !payload.isMedia,
+                        showValue:
+                            !payload.isMedia &&
+                            payload.id != SharePayloadId.boorusamaLink,
                         reserveDescriptionSpace:
                             payload.id == SharePayloadId.image,
                         description:
@@ -279,8 +301,20 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                             : null,
                         onShare:
                             payload.canShare &&
-                                (!payload.isMedia || canShareMedia)
+                                (!payload.sharesMedia || canShareMedia)
                             ? () => _perform(payload, share: true)
+                            : null,
+                        trailing: payload.id == SharePayloadId.boorusamaLink
+                            ? IconButton(
+                                tooltip: context.linkFileLabel,
+                                icon: const Icon(Icons.share),
+                                onPressed:
+                                    _active == null &&
+                                        canShareMedia &&
+                                        payload.available
+                                    ? () => _perform(payload, share: true)
+                                    : null,
+                              )
                             : null,
                         busy: _active != null,
                       ),
@@ -405,6 +439,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     ),
     SharePayloadId.imageLink => const Icon(Icons.link),
     SharePayloadId.postId => const Icon(Icons.tag),
+    SharePayloadId.boorusamaLink => const BoorusamaBoxIcon(),
   };
 
   Future<void> _perform(
@@ -413,7 +448,12 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     bool asGif = false,
   }) async {
     if (_active != null || !payload.available) return;
-    final token = payload.isMedia ? CancelToken() : null;
+    final isLinkFile = payload.id == SharePayloadId.boorusamaLink;
+    if (isLinkFile && !share) return;
+    final post = widget.post;
+    final auth = widget.auth;
+    final imageCacheManager = widget.imageCacheManager;
+    final token = payload.isMedia || isLinkFile ? CancelToken() : null;
     _progressVisibilityTimer?.cancel();
     setState(() {
       _error = null;
@@ -435,11 +475,19 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     ShareMediaLease? lease;
     try {
       final value = payload.value;
-      if (payload.id == SharePayloadId.video && !share && !asGif) {
+      if (isLinkFile &&
+          BoorusamaPostLink.fromPost(post, auth: auth)?.uri.toString() !=
+              value) {
+        throw const ShareMediaException(ShareMediaFailure.unavailable);
+      }
+      if (isLinkFile) {
+        final outcome = await _shareLinkFile(value!, token: token);
+        if (mounted) _handleShareOutcome(payload, share, outcome);
+      } else if (payload.id == SharePayloadId.video && !share && !asGif) {
         final request = await resolveShareMediaUrl(
           payload: payload,
-          post: widget.post,
-          extractor: ref.read(downloadFileUrlExtractorProvider(widget.auth)),
+          post: post,
+          extractor: ref.read(downloadFileUrlExtractorProvider(auth)),
           cancelToken: token,
         );
         checkShareCancellation(token);
@@ -466,8 +514,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         }
         final request = await resolveShareMediaUrl(
           payload: payload,
-          post: widget.post,
-          extractor: ref.read(downloadFileUrlExtractorProvider(widget.auth)),
+          post: post,
+          extractor: ref.read(downloadFileUrlExtractorProvider(auth)),
           cancelToken: token,
         );
         checkShareCancellation(token);
@@ -495,19 +543,18 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         checkShareCancellation(token);
         if (!mounted) return;
         final requestHeaders = {
-          ...ref.read(httpHeadersProvider(widget.auth)),
+          ...ref.read(httpHeadersProvider(auth)),
           ...bypassHeaders,
           if (request.cookie != null)
             AppHttpHeaders.cookieHeader: request.cookie!,
         };
         final service = ShareMediaPreparation(
           rootPath: rootPath,
-          dio: ref.read(dioForWidgetProvider(widget.auth)),
-          cachedBytes: (url) async =>
-              widget.imageCacheManager.getCachedFileBytes(
-                widget.imageCacheManager.generateCacheKey(url),
-              ),
-          imageCacheManager: widget.imageCacheManager,
+          dio: ref.read(dioForWidgetProvider(auth)),
+          cachedBytes: (url) async => imageCacheManager.getCachedFileBytes(
+            imageCacheManager.generateCacheKey(url),
+          ),
+          imageCacheManager: imageCacheManager,
         );
         if (asGif) {
           final converter = GifConversionService(
@@ -533,7 +580,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                 builder: (_) => GifEditorPage(
                   source: prepared,
                   service: converter,
-                  fileName: 'boorusama_${widget.post.id}.gif',
+                  fileName: 'boorusama_${post.id}.gif',
                   share: (output) async {
                     if (isAndroid() && widget.shareAdapter == null) {
                       await AppClipboard.shareImageFile(
@@ -561,7 +608,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
             SharePayloadId.original => ShareMediaKind.original,
             _ => ShareMediaKind.image,
           },
-          fallbackExtension: widget.post.format,
+          fallbackExtension: post.format,
           headers: requestHeaders,
           cancelToken: token,
           onProgress: (progress) {
@@ -575,17 +622,28 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           _progressVisibilityTimer = null;
           _cancelToken = null;
           setState(() => _showProgress = false);
+          final box = context.findRenderObject();
+          final origin = box is RenderBox && box.hasSize
+              ? box.localToGlobal(Offset.zero) & box.size
+              : null;
           final ShareActionOutcome outcome;
           if (isAndroid() &&
               (asGif || payload.id != SharePayloadId.video) &&
               widget.shareAdapter == null) {
-            await AppClipboard.shareImageFile(lease.path, lease.mimeType);
+            await AppClipboard.shareImageFile(
+              lease.path,
+              lease.mimeType,
+            );
             outcome = ShareActionOutcome.success;
           } else {
             outcome =
                 await (widget.shareAdapter ??
                         ShareActionAdapter(SharePlus.instance.share))
-                    .shareMedia(lease.path, lease.mimeType);
+                    .shareMedia(
+                      lease.path,
+                      lease.mimeType,
+                      sharePositionOrigin: origin,
+                    );
           }
           _handleShareOutcome(payload, share, outcome);
         } else {
@@ -686,6 +744,38 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     }
   }
 
+  Future<ShareActionOutcome> _shareLinkFile(
+    String uri, {
+    CancelToken? token,
+  }) async {
+    final box = context.findRenderObject();
+    final origin = box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    return BoorusamaLinkFileShare(
+      fs: ref.read(appFileSystemProvider),
+      adapter:
+          widget.shareAdapter ?? ShareActionAdapter(SharePlus.instance.share),
+    ).share(
+      BoorusamaLinkFile.fromUri(uri),
+      text: context.postLinkFileMessage(
+        uri,
+        profileName: widget.profileName ?? widget.post.origin.sourceHost,
+        artists: widget.post.artistTags ?? const {},
+      ),
+      sharePositionOrigin: origin,
+      beforeHandoff: () {
+        checkShareCancellation(token);
+        if (!mounted) {
+          throw const ShareMediaException(ShareMediaFailure.cancelled);
+        }
+        _progressVisibilityTimer?.cancel();
+        _cancelToken = null;
+        setState(() => _showProgress = false);
+      },
+    );
+  }
+
   void _beginClipboardHandoff() {
     if (mounted) {
       setState(() {
@@ -711,13 +801,13 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           context.t.post.action.share_result_unavailable,
         );
       case ShareActionOutcome.unsupported:
-        if (payload.isMedia) {
+        if (payload.sharesMedia) {
           setState(() => _nativeMediaShareUnsupported = true);
         }
         _showFailure(
           payload,
           share,
-          payload.isMedia
+          payload.sharesMedia
               ? context.t.post.action.media_platform_unavailable
               : context.t.post.action.share_platform_unavailable,
           retryable: false,
@@ -747,9 +837,10 @@ String _title(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.sourceLink => context.t.post.action.source_link,
   SharePayloadId.imageLink => context.t.post.action.image_link,
   SharePayloadId.postId => context.t.post.action.post_id,
+  SharePayloadId.boorusamaLink => context.linkFileLabel,
 };
 
-String _copyTooltip(BuildContext context, SharePayloadId id) => switch (id) {
+String? _copyTooltip(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.image => context.t.post.action.copy_image,
   SharePayloadId.original => context.t.post.action.copy_original,
   SharePayloadId.video => context.t.post.action.copy_video_link,
@@ -757,6 +848,7 @@ String _copyTooltip(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.sourceLink => context.t.post.action.copy_source_link,
   SharePayloadId.imageLink => context.t.post.action.copy_image_link,
   SharePayloadId.postId => context.t.post.action.copy_post_id,
+  SharePayloadId.boorusamaLink => null,
 };
 
 String _shareTooltip(BuildContext context, SharePayloadId id) => switch (id) {
@@ -767,6 +859,7 @@ String _shareTooltip(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.sourceLink => context.t.post.action.share_source_link,
   SharePayloadId.imageLink => context.t.post.action.share_image_link,
   SharePayloadId.postId => context.t.post.action.share_post_id,
+  SharePayloadId.boorusamaLink => context.linkFileLabel,
 };
 
 String _mediaError(BuildContext context, ShareMediaFailure failure) =>

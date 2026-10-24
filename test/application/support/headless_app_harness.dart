@@ -112,9 +112,26 @@ final class HeadlessAppHarness {
     'boorusama_images_',
   );
   var _didConfigureViewport = false;
+  var _didStubSharing = false;
   Duration? _previousVisibilityUpdateInterval;
 
   Future<void> pump(WidgetTester tester) async {
+    if (!_didStubSharing) {
+      _didStubSharing = true;
+      final messenger = tester.binding.defaultBinaryMessenger;
+      const events = MethodChannel(
+        'com.shoutsocial.share_handler/sharedMediaStream',
+      );
+      const initial =
+          'dev.flutter.pigeon.ShareHandlerApi.getInitialSharedMedia';
+      messenger.setMockMethodCallHandler(events, (_) async => null);
+      messenger.setMockMessageHandler(
+        initial,
+        (_) async =>
+            const StandardMessageCodec().encodeMessage({'result': null}),
+      );
+    }
+
     final size = viewportSize;
     if (size != null) setViewport(tester, size);
     if (phone case final phone? when _keyboard == null) {
@@ -168,6 +185,23 @@ final class HeadlessAppHarness {
       };
       if (!tester.binding.hasScheduledFrame && keyboardSettled) return;
     }
+  }
+
+  /// Pump real route transitions until the operation's completion signal.
+  Future<T> pumpUntilComplete<T>(
+    WidgetTester tester,
+    Future<T> operation,
+  ) async {
+    var completed = false;
+    final result = operation.whenComplete(() => completed = true);
+    await pumpUntil(
+      tester,
+      () => completed,
+      description: 'operation completion',
+    );
+    final value = await result;
+    await settle(tester);
+    return value;
   }
 
   Future<void> pumpUntilFound(

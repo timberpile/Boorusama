@@ -7,6 +7,8 @@ import '../../../../../foundation/display.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../router.dart';
+import '../../../../navigation/destination_profile_scope.dart';
+import '../../../../navigation/page_source_context.dart';
 import '../../../listing/providers.dart';
 import '../../../listing/src/types/page_mode.dart';
 import '../../../post/types.dart';
@@ -66,7 +68,7 @@ void goToPostDetailsPageCore<T extends Post>({
   PostDetailsLiveSource? liveSource,
   BooruConfig? config,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/details',
     ).toString(),
@@ -80,7 +82,12 @@ void goToPostDetailsPageCore<T extends Post>({
       // Preserve the profile that owns this listing. The mixed viewer still
       // resolves every post by origin first, but this gives it an exact
       // fallback for older rows and duplicate profiles on the same host.
-      config: config ?? ref.readConfig,
+      config:
+          config ??
+          (DestinationScope.maybeOf(ref.context) != null &&
+                  ref.read(explicitPageSourceProvider) == null
+              ? null
+              : ref.readConfig),
       useMixedViewer: true,
       liveSource: liveSource,
     ),
@@ -92,7 +99,7 @@ void goToSinglePostDetailsPage<T extends Post>({
   required PostId postId,
   required BooruConfig config,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/posts/$postId',
     ).toString(),

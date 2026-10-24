@@ -48,7 +48,8 @@ final moebooruPostRepoProvider =
                     .toList()
                     .toResult(),
               ),
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
         );
       },
     );

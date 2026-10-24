@@ -13,6 +13,7 @@ import '../../../../router.dart';
 import '../../../../tags/favorites/types.dart';
 import '../../../../tags/favorites/widgets.dart';
 import '../../../../themes/colors/providers.dart';
+import '../../../options/collapsible_search_section.dart';
 import '../../../selected_tags/types.dart';
 import 'constants.dart';
 
@@ -31,13 +32,8 @@ class FavoriteTagsSection extends ConsumerWidget {
     final notifier = ref.watch(
       miscDataProvider(kSearchSelectedFavoriteTagLabelKey).notifier,
     );
-
     return Padding(
-      padding: const EdgeInsets.only(
-        left: 8,
-        right: 8,
-        bottom: 8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: FavoriteTagsFilterScope(
         initialValue: selectedLabel,
         sortType: FavoriteTagsSortType.nameAZ,
@@ -80,6 +76,7 @@ class FavoriteTagsSection extends ConsumerWidget {
             tag.name,
             style: TextStyle(
               color: colors?.foregroundColor,
+              fontWeight: FontWeight.w600,
             ),
           ),
           backgroundColor: colors?.backgroundColor,
@@ -115,66 +112,34 @@ class OptionTagsArenaNoEdit extends ConsumerWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context, WidgetRef ref) => CollapsibleSearchSection(
+    title: title,
+    storageId: 'search-favorites',
+    trailing: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Text(
-                  title.toUpperCase(),
-                  style: Kurumi.themeOf(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    minimumSize: const Size(32, 32),
-                    shape: const CircleBorder(),
-                    backgroundColor: Kurumi.themeOf(
-                      context,
-                    ).colorScheme.surfaceContainerHighest,
-                  ),
-                  onPressed: () => ref.router.push('/favorite_tags'),
-                  child: Icon(
-                    Symbols.settings,
-                    size: 16,
-                    color: Kurumi.themeOf(context).colorScheme.onSurfaceVariant,
-                    fill: 1,
-                  ),
-                ),
-              ],
-            ),
-            Flexible(
-              child: titleTrailing ?? const SizedBox.shrink(),
-            ),
-          ],
+        IconButton(
+          icon: const Icon(Symbols.settings, size: 20),
+          onPressed: () => ref.pushRoute('/favorite_tags'),
         ),
-        const SizedBox(height: 2),
-        Wrap(
-          spacing: 4,
-          runSpacing: ref.watch(appPlatformProvider).isDesktop ? 4 : 0,
-          children: children,
-        ),
+        if (titleTrailing != null) Flexible(child: titleTrailing!),
       ],
-    );
-  }
+    ),
+    child: Wrap(
+      spacing: 4,
+      runSpacing: ref.watch(appPlatformProvider).isDesktop ? 4 : 0,
+      children: children,
+    ),
+  );
 }
 
 class ImportTagButton extends StatelessWidget {
   const ImportTagButton({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      style: FilledButton.styleFrom(shape: const StadiumBorder()),
-      onPressed: () => goToFavoriteTagImportPage(context),
-      child: Text(context.t.settings.backup_and_restore.import),
-    );
-  }
+  Widget build(BuildContext context) => FilledButton(
+    style: FilledButton.styleFrom(shape: const StadiumBorder()),
+    onPressed: () => goToFavoriteTagImportPage(context),
+    child: Text(context.t.settings.backup_and_restore.import),
+  );
 }

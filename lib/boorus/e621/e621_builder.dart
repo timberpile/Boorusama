@@ -21,7 +21,6 @@ import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
-import 'home/widgets.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -53,10 +52,6 @@ class E621Builder extends BaseBooruBuilder {
           backgroundColor: backgroundColor,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const E621HomePage();
 
   @override
   UpdateConfigPageBuilder get updateConfigPageBuilder =>

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../configs/manage/providers.dart';
+import '../../../navigation/page_presentation_profile.dart';
 import '../../../configs/config/types.dart';
 import '../types/settings.dart';
 import 'settings_provider.dart';
@@ -12,7 +13,7 @@ final imageViewerSettingsProvider = Provider<ImageViewerSettings>((ref) {
 
   // check if user has set custom settings
   final viewerConfigs = ref.watch(
-    currentBooruConfigProvider.select((value) => value.viewerConfigs),
+    pagePresentationProfileProvider.select((value) => value?.viewerConfigs),
   );
 
   // if user has set it and it's enabled, return it
@@ -22,15 +23,15 @@ final imageViewerSettingsProvider = Provider<ImageViewerSettings>((ref) {
 
   // otherwise, return the global settings
   return viewer;
-});
+}, dependencies: [pagePresentationProfileProvider, settingsProvider]);
 
 final hasCustomViewerSettingsProvider = Provider<bool>((ref) {
   final viewerConfigs = ref.watch(
-    currentBooruConfigProvider.select((value) => value.viewerConfigs),
+    pagePresentationProfileProvider.select((value) => value?.viewerConfigs),
   );
 
   return viewerConfigs != null && viewerConfigs.enable;
-});
+}, dependencies: [pagePresentationProfileProvider]);
 
 // Explicit auth keeps mixed pages and preloads independent of the selected profile.
 final postQualityProvider = Provider.family<PostQuality, BooruConfigAuth>((
@@ -47,4 +48,9 @@ final postQualityProvider = Provider.family<PostQuality, BooruConfigAuth>((
   if (matches.length != 1) return global;
   final viewer = matches.single.viewerConfigs;
   return viewer != null && viewer.enable ? viewer.settings.postQuality : global;
+});
+
+/// Shared media services use global defaults; pages own their profile settings.
+final sharedMediaSettingsProvider = Provider<ImageViewerSettings>((ref) {
+  return ref.watch(settingsProvider.select((s) => s.viewer));
 });

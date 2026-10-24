@@ -279,6 +279,9 @@ final class KeyboardFlowDriver {
       FocusManager.instance.highlightStrategy = strategy;
       if (start != null) await _jumpTo(start);
     }
+    // Pixel reads let native cache I/O queue zero-delay Dio callbacks in the
+    // fake clock. Flush those callbacks before testWidgets checks its timers.
+    await tester.pump(Duration.zero);
     return problems;
   }
 
@@ -384,7 +387,11 @@ final class KeyboardFlowDriver {
           }.traversalDescendants
           .where(
             (node) =>
+                node is! FocusScopeNode &&
                 node.canRequestFocus &&
+                !node.ancestors.whereType<FocusScopeNode>().any(
+                  (scope) => scope.skipTraversal,
+                ) &&
                 node.context != null &&
                 !node.rect.isEmpty,
           )

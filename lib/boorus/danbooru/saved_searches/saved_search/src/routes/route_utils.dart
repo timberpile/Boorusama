@@ -74,7 +74,7 @@ void goToSavedSearchPatchPage(
 }
 
 void goToSavedSearchEditPage(WidgetRef ref) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

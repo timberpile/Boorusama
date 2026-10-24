@@ -1,3 +1,4 @@
+import 'package:boorusama/core/configs/manage/providers.dart';
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
 
@@ -50,7 +51,12 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [routerProvider.overrideWithValue(router)],
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: [_config]),
+          ),
+          routerProvider.overrideWithValue(router),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );

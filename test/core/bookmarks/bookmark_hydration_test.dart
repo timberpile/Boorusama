@@ -529,8 +529,7 @@ void main() {
           return Future.error(
             AppError(
               type: AppErrorType.loadDataFromServerFailed,
-              message:
-                  'FormatException: invalid metadata synthetic secret+key synthetic%20secret%2Bkey synthetic-account synthetic-hash https://example.invalid/?api_key=another-secret\nraw payload',
+              message: 'FormatException: invalid metadata synthetic secret+key synthetic%20secret%2Bkey synthetic-account synthetic-hash https://example.invalid/?api_key=another-secret\nraw payload',
             ),
           );
         },
@@ -541,18 +540,16 @@ void main() {
       expect(failure.detail, isNot(contains('synthetic')));
       expect(failure.detail, isNot(contains('another-secret')));
       expect(failure.detail, isNot(contains('raw payload')));
-      final timeout =
-          await recovery(
-                fetch: (_, _) {
-                  return Future.error(
-                    AppError(
-                      type: AppErrorType.cannotReachServer,
-                      message: 'DioException [receive timeout]',
-                    ),
-                  );
-                },
-              ).recover(legacy(1), config)
-              as BookmarkRecoveryFailed;
+      final timeout = await recovery(
+        fetch: (_, _) {
+          return Future.error(
+            AppError(
+              type: AppErrorType.cannotReachServer,
+              message: 'DioException [receive timeout]',
+            ),
+          );
+        },
+      ).recover(legacy(1), config) as BookmarkRecoveryFailed;
       expect(timeout.kind, BookmarkHydrationFailureKind.timeout);
     },
   );
@@ -560,22 +557,20 @@ void main() {
   test(
     'repository error mapping preserves a parser diagnostic for recovery',
     () async {
-      final outcome =
-          await recovery(
-                fetch: (_, _) async {
-                  final result = await tryFetchRemoteData<Post?>(
-                    fetcher: () {
-                      return Future.error(
-                        const FormatException(
-                          'Rule34 API returned post 43 instead of 42',
-                        ),
-                      );
-                    },
-                  ).run();
-                  return result.fold((error) => throw error, (post) => post);
-                },
-              ).recover(legacy(1), config)
-              as BookmarkRecoveryFailed;
+      final outcome = await recovery(
+        fetch: (_, _) async {
+          final result = await tryFetchRemoteData<Post?>(
+            fetcher: () {
+              return Future.error(
+                const FormatException(
+                  'Rule34 API returned post 43 instead of 42',
+                ),
+              );
+            },
+          ).run();
+          return result.fold((error) => throw error, (post) => post);
+        },
+      ).recover(legacy(1), config) as BookmarkRecoveryFailed;
       expect(outcome.kind, BookmarkHydrationFailureKind.invalidResponse);
       expect(
         outcome.detail,
@@ -939,6 +934,7 @@ void main() {
       await repository.addBookmarkWithBookmarks([legacy(1), legacy(2)]);
       late ProviderContainer container;
       ApiRequestContext? context;
+      var cancelledOnce = false;
       container = ProviderContainer(
         overrides: [
           bookmarkRepoProvider.overrideWith((ref) => repository),
@@ -955,8 +951,11 @@ void main() {
               fetch: (_, id) async {
                 context = ApiRequestContext.current();
                 expect(context!.canStart!(), isTrue);
-                container.read(bookmarkHydrationProvider.notifier).cancel();
-                expect(context!.canStart!(), isFalse);
+                if (!cancelledOnce) {
+                  cancelledOnce = true;
+                  container.read(bookmarkHydrationProvider.notifier).cancel();
+                  expect(context!.canStart!(), isFalse);
+                }
                 return native(id);
               },
             ),
@@ -968,18 +967,20 @@ void main() {
       expect(context!.requestClass, ApiRequestClass.bulkTransfer);
       expect(context!.allowCooldownRetry, isFalse);
       final result = container.read(bookmarkHydrationProvider);
-      expect(result.updated, 1);
+      expect(result.updated, 0);
+      expect(result.skipped, 1);
       expect(result.failed, 0);
       expect(result.cancelled, isTrue);
       expect(result.running, isFalse);
       expect(
         result.logEntries.single.reason,
-        BookmarkHydrationLogReason.updated,
+        BookmarkHydrationLogReason.requestCancelled,
       );
       expect(result.logEntries.single.postId, 1);
       await container.read(bookmarkHydrationProvider.notifier).start();
       final restarted = container.read(bookmarkHydrationProvider);
-      expect(restarted.logEntries.single.postId, 2);
+      expect(restarted.updated, 2);
+      expect(restarted.logEntries.map((entry) => entry.postId), [1, 2]);
     },
   );
 
@@ -1137,8 +1138,102 @@ void main() {
     },
   );
 
+  for (final change in [
+    'deletion',
+    'deletion and re-addition',
+    'newer snapshot',
+    'cancellation',
+    'import',
+    'restore',
+  ]) {
+    test('a successful hydration response is superseded by $change', () async {
+      await repository.addBookmarkWithBookmarks([legacy(1)]);
+      final container = ProviderContainer(
+        overrides: [
+          bookmarkRepoProvider.overrideWith((ref) => repository),
+          bookmarkGroupRepoProvider.overrideWith((ref) => groups),
+          bookmarkUrlResolverProvider.overrideWith(
+            (ref, _) => const DefaultImageUrlResolver(),
+          ),
+          settingsProvider.overrideWithValue(Settings.defaultSettings),
+        ],
+      );
+      addTearDown(container.dispose);
+      final notifier = container.read(bookmarkProvider.notifier);
+      final original = (await notifier.future).items.single;
+      final entered = Completer<void>();
+      final response = Completer<Post?>();
+      final cancellation = BookmarkHydrationCancellation();
+      final hydration = notifier.hydrateBookmarks(
+        configs: [config],
+        recovery: recovery(
+          fetch: (_, _) {
+            entered.complete();
+            return response.future;
+          },
+        ),
+        cancellation: cancellation,
+        onProgress: (_) {},
+      );
+      await entered.future;
+      try {
+        switch (change) {
+          case 'deletion' || 'deletion and re-addition':
+            await notifier.removeBookmarks([original]);
+            if (change == 'deletion and re-addition') {
+              await notifier.addExistingBookmarkToGroup(
+                original,
+                defaultBookmarkGroupId,
+              );
+            }
+          case 'newer snapshot':
+            expect(
+              (await notifier.hydrateBookmarks(
+                configs: [config],
+                recovery: recovery(),
+                cancellation: BookmarkHydrationCancellation(),
+                onProgress: (_) {},
+              )).updated,
+              1,
+            );
+          case 'cancellation':
+            cancellation.cancel();
+          case 'import' || 'restore':
+            await notifier.runSerializedMutation(() async {
+              if (change == 'restore') {
+                await repository.removeBookmarks([original]);
+                await repository.addBookmarkWithBookmarks([legacy(1)]);
+              } else {
+                await repository.addBookmarkWithBookmarks([legacy(2)]);
+              }
+            });
+        }
+        final beforeResponse = await notifier.snapshotForExport();
+        response.complete(native(1));
+        final result = await hydration;
+        expect(result.updated, 0);
+        expect(result.skipped, 1);
+        expect(result.failed, 0);
+        expect(
+          result.logEntries.single.reason,
+          BookmarkHydrationLogReason.requestCancelled,
+        );
+        final afterResponse = await notifier.snapshotForExport();
+        expect(identical(beforeResponse, afterResponse), isTrue);
+        final stored = await load();
+        expect(afterResponse.items, stored);
+        if (change == 'deletion and re-addition' || change == 'restore') {
+          expect(afterResponse.items.single.id, isNot(original.id));
+        }
+      } finally {
+        if (!response.isCompleted) response.complete(native(1));
+        await hydration;
+      }
+    });
+  }
+
   test(
-    'notifier batch reloads the library once for several successful upgrades',
+    'notifier publishes successful upgrades without reloading the library',
     () async {
       await repository.addBookmarkWithBookmarks([
         legacy(1),
@@ -1170,7 +1265,7 @@ void main() {
             },
           );
       expect(result.updated, 3);
-      expect(repository.reads - reads, 1);
+      expect(repository.reads - reads, 0);
       expect(
         container
             .read(bookmarkProvider)

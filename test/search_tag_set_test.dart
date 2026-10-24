@@ -6,6 +6,41 @@ import 'package:boorusama/core/search/selected_tags/search_tag_set.dart';
 import 'package:boorusama/core/search/selected_tags/tag_search_item.dart';
 
 void main() {
+  group('category metadata identity', () {
+    test('learning a category updates one term in place', () {
+      final set = SearchTagSet()
+        ..addTags([
+          TagSearchItem.fromString('first'),
+          TagSearchItem.fromString('hatsune_miku'),
+          TagSearchItem.fromString('last'),
+        ]);
+      set.addTag(TagSearchItem.fromString('hatsune_miku', category: '4'));
+      expect(set.list, ['first', 'hatsune_miku', 'last']);
+      expect(set.tags[1].category, '4');
+      expect(set.rawTagsString, 'first hatsune_miku last');
+    });
+
+    test('bulk merge keeps category metadata without duplicating queries', () {
+      final set = SearchTagSet()
+        ..addTags([
+          TagSearchItem.fromString('cat', category: '0'),
+          TagSearchItem.fromString('cat'),
+          TagSearchItem.fromString('-cat', category: '0'),
+          const TagSearchItem.raw(tag: 'cat'),
+        ]);
+      expect(set.tags, hasLength(3));
+      expect(set.tags.first.category, '0');
+      expect(set.list, ['cat', '-cat', 'cat']);
+      expect(set.tags.last.isRaw, isTrue);
+    });
+
+    test('presentation category does not change search item equality', () {
+      expect(
+        TagSearchItem.fromString('cat', category: '0'),
+        TagSearchItem.fromString('cat'),
+      );
+    });
+  });
   group('SearchTagSet', () {
     test('add single tag', () {
       final set = SearchTagSet()..addTag(TagSearchItem.fromString('test_tag'));

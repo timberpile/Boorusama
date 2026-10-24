@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
+import '../../../core/boorus/booru/types.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/search/queries/types.dart';
 import '../../../core/tags/autocompletes/types.dart';
@@ -12,6 +13,7 @@ import '../../../core/tags/tag/types.dart';
 import '../../../foundation/loggers/providers.dart';
 import '../client_provider.dart';
 import 'metatag_extractor.dart';
+import 'site_search_options.dart';
 import 'parser.dart';
 import 'query_composer.dart';
 import 'types.dart';
@@ -113,30 +115,40 @@ final gelbooruMetatagsProvider = Provider.family<Set<Metatag>, BooruConfigAuth>(
     const Metatag.simple(name: 'parent'),
     const Metatag.simple(name: 'md5'),
     const Metatag.simple(name: 'sort'),
+    if (config.booruType == BooruType.gelbooruV2)
+      for (final key in gelbooruSiteSearchOptions(
+        config.url,
+        legacy: true,
+      ).extraMetatags)
+        Metatag.simple(name: key),
   },
 );
 
 final gelbooruSortableTagTypesProvider =
     Provider.family<Set<SortableTagType>, BooruConfigAuth>(
       (ref, config) => {
-        const SortableTagType(name: 'id'),
-        const SortableTagType(name: 'score'),
-        const SortableTagType(name: 'rating'),
-        const SortableTagType(name: 'user'),
-        const SortableTagType(name: 'height'),
-        const SortableTagType(name: 'width'),
-        const SortableTagType(name: 'parent'),
-        const SortableTagType(name: 'source'),
-        const SortableTagType(name: 'updated'),
+        for (final field in gelbooruSiteSearchOptions(
+          config.url,
+          legacy: config.booruType == BooruType.gelbooruV2,
+        ).sortFields)
+          SortableTagType(name: field),
       },
     );
 
 final gelbooruMetatagExtractorProvider =
     Provider.family<GelbooruMetatagExtractor, BooruConfigAuth>(
-      (ref, config) => GelbooruMetatagExtractor(
-        metatags: ref.watch(gelbooruMetatagsProvider(config)).toSet(),
-        sortableTypes: ref.watch(gelbooruSortableTagTypesProvider(config)),
-      ),
+      (ref, config) {
+        final site = gelbooruSiteSearchOptions(
+          config.url,
+          legacy: config.booruType == BooruType.gelbooruV2,
+        );
+        return GelbooruMetatagExtractor(
+          metatags: ref.watch(gelbooruMetatagsProvider(config)).toSet(),
+          sortableTypes: ref.watch(gelbooruSortableTagTypesProvider(config)),
+          allowRandomSort: site.randomSort,
+          allowSeededRandomSort: site.seededRandomSort,
+        );
+      },
     );
 
 final gelbooruMetatagRegexProvider = Provider.family<RegExp, BooruConfigAuth>(
@@ -150,9 +162,15 @@ final gelbooruMetatagRegexProvider = Provider.family<RegExp, BooruConfigAuth>(
         .map((e) => e.name)
         .toList();
 
+    final site = gelbooruSiteSearchOptions(
+      config.url,
+      legacy: config.booruType == BooruType.gelbooruV2,
+    );
     final pattern = buildMetatagRegexPattern(
       metatags: metatags,
       sortableTypes: sortableTypes,
+      allowRandomSort: site.randomSort,
+      allowSeededRandomSort: site.seededRandomSort,
     );
 
     return RegExp(pattern, caseSensitive: false);

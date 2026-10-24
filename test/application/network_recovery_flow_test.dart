@@ -133,6 +133,7 @@ void main() {
       final backend = FakeBooruBackend(strictPostScripts: true)
         ..enqueuePosts(page: 1, posts: const [])
         ..enqueuePosts(page: 1, query: 'empty', posts: const [])
+        ..enqueuePosts(page: 1, posts: const [])
         ..enqueuePosts(page: 1, query: 'cat', posts: [TestPost(id: 101)]);
       final harness = await _mount(tester, backend);
       final driver = AppFlowDriver(tester: tester, harness: harness);
@@ -175,6 +176,7 @@ void main() {
     (tester) async {
       final backend = FakeBooruBackend(strictPostScripts: true)
         ..enqueuePosts(page: 1, posts: const []);
+      backend.enqueuePosts(page: 1, posts: const []);
       final catGate = backend.enqueuePostGate(
         siteUrl: backend.config.url,
         query: 'cat',
@@ -206,12 +208,15 @@ void main() {
 
       await driver.clearSelectedSearchTags();
       await driver.submitSearch('dog', waitForRequest: false);
-      expect(
-        _requests(backend).where((request) => request.query == 'dog'),
-        isEmpty,
-        reason: 'the listing controller serializes refreshes',
+      await harness.pumpUntil(
+        tester,
+        () =>
+            _requests(backend).any((r) => r.query == 'dog' && r.completed) &&
+            loadedPostIds(tester).singleOrNull == 102,
+        description:
+            'dog results to load before the obsolete cat request completes',
       );
-
+      expect(catRequest.pending, isTrue);
       catGate.completeSuccess(
         testPostResult([
           TestPost(id: 101, tags: const {'cat'}),
@@ -219,11 +224,10 @@ void main() {
       );
       await harness.pumpUntil(
         tester,
-        () =>
-            _requests(backend).any((r) => r.query == 'dog' && r.completed) &&
-            loadedPostIds(tester).singleOrNull == 102,
-        description: 'queued dog refresh to replace the stale cat completion',
+        () => catRequest.completed,
+        description: 'obsolete cat response to finish',
       );
+      await harness.settle(tester);
 
       final dogRequest = _requests(backend).singleWhere(
         (request) => request.query == 'dog',
@@ -231,7 +235,7 @@ void main() {
       expect(dogRequest.id, greaterThan(catRequest.id));
       expect(
         backend.postCompletions,
-        containsAllInOrder([catRequest.id, dogRequest.id]),
+        containsAllInOrder([dogRequest.id, catRequest.id]),
       );
       expect(loadedPostIds(tester), [102]);
       expect(postController(tester).errors.value, isNull);

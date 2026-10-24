@@ -8,8 +8,10 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../../core/configs/auth/widgets.dart';
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/navigation/navigation_profile_picker.dart';
 import '../../../../../core/posts/listing/widgets.dart';
 import '../../../../../core/posts/post/providers.dart';
+import '../../../../../core/posts/favorites/widgets.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../../../../core/widgets/widgets.dart';
 import '../../listing/widgets.dart';
@@ -23,6 +25,7 @@ class DanbooruFavoritesPage extends ConsumerWidget {
     final config = ref.watchConfigAuth;
 
     return BooruConfigAuthFailsafe(
+      unauthorizedBuilder: (_) => const FavoritesUnavailablePage(),
       builder: (_) => DanbooruFavoritesPageInternal(
         username: config.login!,
       ),
@@ -74,6 +77,8 @@ class DanbooruFavoritesPageInternal extends ConsumerWidget {
                     );
                   },
                 ),
+                const NavigationProfilePicker(favorites: true),
+                const FavoritesPageMenu(),
               ],
             ),
             const SliverSizedBox(height: 5),

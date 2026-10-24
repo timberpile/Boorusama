@@ -15,7 +15,6 @@ import 'package:boorusama/core/search/histories/src/widgets/full_history_view.da
 import 'package:boorusama/core/search/histories/src/widgets/search_history_section.dart';
 import 'package:boorusama/core/search/search/src/widgets/desktop_search_bar.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
-import 'package:boorusama/core/search/search/src/widgets/search_button.dart';
 import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart';
 
 import 'support/app_flow_driver.dart';
@@ -49,14 +48,13 @@ void main() {
   );
 
   testWidgets(
-    'a multi-tag search is remembered as one entry that restores every tag '
-    'in order',
+    'each completed addition is remembered and the full query restores every tag in order',
     (tester) async {
       final app = await _SearchHistoryApp.mount(tester);
 
       await app.search(['cat', 'blue_hair']);
       await app.openSearch();
-      expect(app.history(), ['cat blue_hair']);
+      expect(app.history(), ['cat blue_hair', 'cat']);
 
       await app.tapHistory('cat blue_hair');
       expect(app.selectedTags(), ['cat', 'blue_hair']);
@@ -136,6 +134,8 @@ void main() {
       await app.search(['cat']);
       await app.openSearch();
       await app.addTag('dog');
+      await tester.tap(find.byTooltip(appStrings(tester).search_options.title));
+      await app.harness.settle(tester);
       await app.tapHistory('cat');
 
       expect(app.selectedTags(), ['dog', 'cat']);
@@ -250,7 +250,7 @@ void main() {
     final second = await _SearchHistoryApp.mount(tester, db: db);
     await second.openSearch();
 
-    expect(second.history(), ['cat blue_hair']);
+    expect(second.history(), ['cat blue_hair', 'cat']);
   });
 }
 
@@ -313,11 +313,13 @@ final class _SearchHistoryApp {
 
   Future<void> openSearch() async {
     await driver.openSearch();
+    await tester.tap(find.byTooltip(appStrings(tester).search_options.title));
     await harness.pumpUntilFound(tester, find.byType(SearchHistorySection));
+    await harness.settle(tester);
   }
 
   Future<void> goHome() async {
-    await tester.binding.handlePopRoute();
+    await tester.tap(find.byType(SearchAppBarBackButton));
     await harness.pumpUntil(
       tester,
       () => find.byType(SearchAppBar).evaluate().isEmpty,
@@ -333,25 +335,25 @@ final class _SearchHistoryApp {
   }
 
   Future<void> addRawQuery(String query) async {
-    await tapText(appStrings(tester).search.raw_query);
-    await tester.enterText(find.byType(EditableText).last, query);
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.enterText(_searchField, query);
+    await harness.settle(tester);
+    await tester.tap(
+      find.text(appStrings(tester).favorite_tags.raw_badge),
+    );
     await harness.settle(tester);
   }
 
   Future<void> runSearch() async {
     final query = selectedTags().join(' ');
-    final before = postQueries.where((q) => q == query).length;
-    // History is ordered by a millisecond timestamp, so keep searches from
-    // landing on the same one.
-    await tester.runAsync(() => Future<void>.delayed(_timestampGap));
-    await harness.pumpUntilFound(tester, find.byType(SearchButton2));
-    await tester.tap(find.byType(SearchButton2));
-    await tester.pump();
+    final field = tester.widget<EditableText>(find.byType(EditableText).first);
+    if (field.focusNode.hasFocus) {
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+    }
     await harness.pumpUntil(
       tester,
-      () => postQueries.where((q) => q == query).length > before,
-      description: 'search request for "$query"',
+      () => postQueries.contains(query),
+      description: 'automatically committed search request for "$query"',
     );
     await harness.settle(tester);
   }
@@ -377,7 +379,9 @@ final class _SearchHistoryApp {
   }
 
   Future<void> openFullHistory() async {
-    await tester.tap(find.byIcon(Symbols.manage_history));
+    final manage = find.byIcon(Symbols.manage_history);
+    await tester.ensureVisible(manage);
+    await tester.tap(manage);
     await harness.pumpUntilFound(tester, find.byType(FullHistoryView));
     await harness.settle(tester);
   }
@@ -451,5 +455,3 @@ final class _SearchHistoryApp {
       .map((text) => text.data)
       .join(' ');
 }
-
-const _timestampGap = Duration(milliseconds: 2);

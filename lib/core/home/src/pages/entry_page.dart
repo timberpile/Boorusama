@@ -7,22 +7,17 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../foundation/permissions.dart';
 import '../../../../foundation/platform.dart';
-import '../../../boorus/engine/providers.dart';
 import '../../../bulk_downloads/providers.dart';
 import '../../../changelogs/routes.dart';
-import '../../../config_widgets/website_logo.dart';
-import '../../../configs/config/providers.dart';
-import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
-import '../../../configs/manage/widgets.dart';
 import '../../../premiums/widgets.dart';
-import '../../../settings/providers.dart';
-import 'empty_booru_config_home_page.dart';
 
 class EntryPage extends ConsumerStatefulWidget {
   const EntryPage({
     super.key,
+    required this.navigationChild,
   });
+
+  final Widget navigationChild;
 
   @override
   ConsumerState<EntryPage> createState() => _EntryPageState();
@@ -66,53 +61,7 @@ class _EntryPageState extends ConsumerState<EntryPage> {
       );
     }
 
-    return _NotificationScope(
-      child: Column(
-        children: [
-          Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (context.isLargeScreen) ...[
-                  SafeArea(
-                    right: false,
-                    bottom: false,
-                    child: _SidebarSettingsListener(
-                      builder: (_, bottom, _) => bottom
-                          ? const SizedBox.shrink()
-                          : const BooruSelector(),
-                    ),
-                  ),
-                  const SafeArea(
-                    bottom: false,
-                    left: false,
-                    right: false,
-                    child: VerticalDivider(
-                      thickness: 1,
-                      width: 1,
-                    ),
-                  ),
-                ],
-                const Expanded(
-                  child: _Boorus(),
-                ),
-              ],
-            ),
-          ),
-          if (context.isLargeScreen)
-            _SidebarSettingsListener(
-              builder: (_, bottom, hideLabel) => bottom
-                  ? SizedBox(
-                      height: kBottomNavigationBarHeight - (hideLabel ? 4 : -8),
-                      child: const BooruSelector(
-                        direction: Axis.horizontal,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-        ],
-      ),
-    );
+    return _NotificationScope(child: widget.navigationChild);
   }
 }
 
@@ -128,105 +77,6 @@ class _NotificationScope extends StatelessWidget {
     return BulkDownloadErrorScope(
       child: LayoutPreviewNotificationScope(
         child: child,
-      ),
-    );
-  }
-}
-
-class _SidebarSettingsListener extends ConsumerWidget {
-  const _SidebarSettingsListener({required this.builder});
-
-  final Widget Function(BuildContext context, bool isBottom, bool hideLabel)
-  builder;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pos = ref.watch(
-      settingsProvider.select((value) => value.booruConfigSelectorPosition),
-    );
-    final hideLabel = ref.watch(
-      settingsProvider.select(
-        (value) => value.booruConfigLabelVisibility.hideBooruConfigLabel,
-      ),
-    );
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: builder(
-        context,
-        pos.isBottom,
-        hideLabel,
-      ),
-    );
-  }
-}
-
-class _Boorus extends ConsumerWidget {
-  const _Boorus();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfigSearch;
-    final booruBuilder = ref.watch(booruBuilderProvider(config.auth));
-
-    if (booruBuilder != null) {
-      return Builder(
-        key: ValueKey(config),
-        builder: (context) => booruBuilder.homePageBuilder(context),
-      );
-    } else {
-      final availableConfigs = ref.watch(booruConfigProvider);
-      return availableConfigs.isNotEmpty
-          ? _buildInvalid(availableConfigs, ref)
-          : const EmptyBooruConfigHomePage();
-    }
-  }
-
-  Widget _buildInvalid(List<BooruConfig> availableConfigs, WidgetRef ref) {
-    final context = ref.context;
-
-    return Scaffold(
-      appBar: const KurumiAppBar(),
-      body: Center(
-        child: Column(
-          children: [
-            Text(
-              context.t.booru.invalid_selected_profile,
-              style: Kurumi.themeOf(context).textTheme.titleLarge,
-            ),
-            if (availableConfigs.isNotEmpty)
-              Text(
-                context.t.booru.invalid_selected_profile_selection_request,
-                style: Kurumi.themeOf(context).textTheme.titleMedium?.copyWith(
-                  color: Kurumi.themeOf(context).colorScheme.hintColor,
-                ),
-              ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: availableConfigs.length,
-                itemBuilder: (context, index) {
-                  final config = availableConfigs[index];
-                  return ListTile(
-                    title: Text(config.name),
-                    subtitle: Text(config.url),
-                    onTap: () {
-                      ref
-                          .read(currentBooruConfigProvider.notifier)
-                          .update(
-                            config,
-                          );
-                    },
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: ConfigAwareWebsiteLogo(url: config.url),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

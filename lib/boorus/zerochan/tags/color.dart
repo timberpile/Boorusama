@@ -11,7 +11,11 @@ class ZerochanTagColorGenerator implements TagColorGenerator {
   Color? generateColor(TagColorOptions options) {
     final colors = options.colors;
 
-    return switch (options.tagType) {
+    final category = options.tagType?.trim().toLowerCase().replaceAll(
+      RegExp(r'_(fav|primary)$'),
+      '',
+    );
+    return switch (category) {
       'mangaka' ||
       'studio' ||
       // This is from a fallback in case the tag is already searched in other boorus
@@ -24,7 +28,8 @@ class ZerochanTagColorGenerator implements TagColorGenerator {
       'copyright' => colors.copyright,
       'character' => colors.character,
       'meta' => colors.meta,
-      _ => colors.general,
+      'general' || 'tag' => colors.general,
+      _ => null,
     };
   }
 

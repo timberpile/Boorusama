@@ -70,6 +70,8 @@ class Settings extends Equatable {
     required this.colors,
     required this.volumeKeyViewerNavigation,
     required this.searchBarScrollBehavior,
+    this.autoHideMainNavigation = true,
+    this.postLongPressContextMenu = false,
     required this.searchBarPosition,
     required this.hapticFeedbackLevel,
     required this.autoBackup,
@@ -78,6 +80,7 @@ class Settings extends Equatable {
     this.searchRefresh = const SearchRefreshSettings(),
     this.followingTopicSort = 'manual',
     this.topicFeedMemberSort = 'addedDate',
+    this.automaticUpdateChecks = true,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -135,12 +138,15 @@ class Settings extends Equatable {
       downloadSidecarFormat = SidecarFormat.parse(
         json['downloadSidecarFormat'],
       ),
+      automaticUpdateChecks = json['automaticUpdateChecks'] as bool? ?? true,
       downloadNetworkPolicy = DownloadNetworkPolicy.parse(
         json['downloadNetworkPolicy'],
       ),
       colors = json['colors'] != null
           ? ColorSettings.fromJson(json['colors'])
           : null,
+      autoHideMainNavigation = json['autoHideMainNavigation'] as bool? ?? true,
+      postLongPressContextMenu = json['postLongPressContextMenu'] == true,
       searchBarScrollBehavior = SearchBarScrollBehavior.parse(
         json['searchBarScrollBehavior'],
       ),
@@ -305,6 +311,7 @@ class Settings extends Equatable {
 
   final bool downloadNotificationsEnabled;
   final SidecarFormat downloadSidecarFormat;
+  final bool automaticUpdateChecks;
 
   final DownloadNetworkPolicy downloadNetworkPolicy;
 
@@ -313,6 +320,8 @@ class Settings extends Equatable {
   final bool volumeKeyViewerNavigation;
 
   final SearchBarScrollBehavior searchBarScrollBehavior;
+  final bool autoHideMainNavigation;
+  final bool postLongPressContextMenu;
 
   final SearchBarPosition searchBarPosition;
 
@@ -354,6 +363,7 @@ class Settings extends Equatable {
     bool? reduceAnimations,
     DownloadFileExistedBehavior? downloadFileExistedBehavior,
     bool? downloadNotificationsEnabled,
+    bool? automaticUpdateChecks,
     DownloadNetworkPolicy? downloadNetworkPolicy,
     SidecarFormat? downloadSidecarFormat,
     ImageListingSettings? listing,
@@ -361,6 +371,8 @@ class Settings extends Equatable {
     ColorSettings? colors,
     bool? volumeKeyViewerNavigation,
     SearchBarScrollBehavior? searchBarScrollBehavior,
+    bool? autoHideMainNavigation,
+    bool? postLongPressContextMenu,
     SearchBarPosition? searchBarPosition,
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
@@ -416,11 +428,16 @@ class Settings extends Equatable {
         downloadFileExistedBehavior ?? this.downloadFileExistedBehavior,
     downloadNotificationsEnabled:
         downloadNotificationsEnabled ?? this.downloadNotificationsEnabled,
+    automaticUpdateChecks: automaticUpdateChecks ?? this.automaticUpdateChecks,
     downloadNetworkPolicy: downloadNetworkPolicy ?? this.downloadNetworkPolicy,
     downloadSidecarFormat: downloadSidecarFormat ?? this.downloadSidecarFormat,
     colors: colors ?? this.colors,
     volumeKeyViewerNavigation:
         volumeKeyViewerNavigation ?? this.volumeKeyViewerNavigation,
+    autoHideMainNavigation:
+        autoHideMainNavigation ?? this.autoHideMainNavigation,
+    postLongPressContextMenu:
+        postLongPressContextMenu ?? this.postLongPressContextMenu,
     searchBarScrollBehavior:
         searchBarScrollBehavior ?? this.searchBarScrollBehavior,
     searchBarPosition: searchBarPosition ?? this.searchBarPosition,
@@ -467,10 +484,13 @@ class Settings extends Equatable {
       'reduceAnimations': reduceAnimations,
       'downloadFileExistedBehavior': downloadFileExistedBehavior.toData(),
       'downloadNotificationsEnabled': downloadNotificationsEnabled,
+      'automaticUpdateChecks': automaticUpdateChecks,
       'downloadNetworkPolicy': downloadNetworkPolicy.toData(),
       'downloadSidecarFormat': downloadSidecarFormat.name,
       'colors': colors?.toJson(),
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
+      'autoHideMainNavigation': autoHideMainNavigation,
+      'postLongPressContextMenu': postLongPressContextMenu,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
       'searchBarPosition': searchBarPosition.toData(),
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
@@ -513,11 +533,14 @@ class Settings extends Equatable {
     reduceAnimations,
     downloadFileExistedBehavior,
     downloadNotificationsEnabled,
+    automaticUpdateChecks,
     downloadNetworkPolicy,
     downloadSidecarFormat,
     colors,
     volumeKeyViewerNavigation,
     searchBarScrollBehavior,
+    autoHideMainNavigation,
+    postLongPressContextMenu,
     searchBarPosition,
     hapticFeedbackLevel,
     autoBackup,

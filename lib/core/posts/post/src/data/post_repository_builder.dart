@@ -80,7 +80,7 @@ class PostRepositoryBuilder<T extends Post> implements PostRepository<T> {
 
           lim ??= await getSettings().then((value) => value.postsPerPage);
 
-          final tags = controller.tags.map((e) => e.originalTag).toList();
+          final tags = controller.rawTags;
           final composedTags = tagComposer.compose(tags);
 
           return $(

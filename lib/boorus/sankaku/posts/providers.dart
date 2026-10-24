@@ -25,7 +25,8 @@ final sankakuPostRepoProvider =
 
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
           fetchSingle: (id, {options}) async {
             final stringId = id as StringPostId?;
 

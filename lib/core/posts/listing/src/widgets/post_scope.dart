@@ -155,6 +155,7 @@ class RawPostScope<T extends Post> extends ConsumerStatefulWidget {
     required this.onError,
     super.key,
     this.duplicateCheckMode = DuplicateCheckMode.id,
+    this.duplicateIdentity,
   });
 
   final PostGridFetcher<T> fetcher;
@@ -165,6 +166,7 @@ class RawPostScope<T extends Post> extends ConsumerStatefulWidget {
   builder;
 
   final DuplicateCheckMode duplicateCheckMode;
+  final Object? Function(T item)? duplicateIdentity;
   final void Function(String message) onError;
 
   @override
@@ -177,6 +179,7 @@ class _RawPostScopeState<T extends Post>
     fetcher: widget.fetcher,
     duplicateTracker: PostDuplicateTracker<T>(
       mode: widget.duplicateCheckMode,
+      identityExtractor: widget.duplicateIdentity,
     ),
     blacklistedTagsFetcher: () async => {},
     pageMode: ref.read(

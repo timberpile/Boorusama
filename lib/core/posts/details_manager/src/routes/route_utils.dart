@@ -15,7 +15,7 @@ void goToDetailsLayoutManagerPage(
   WidgetRef ref, {
   required DetailsLayoutManagerParams params,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     '/details_manager',
     extra: params,
   );

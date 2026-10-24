@@ -104,6 +104,7 @@ const _ownedCacheRoots = {
   'cacheimage-transfers',
   'boorusama-clipboard',
   'boorusama-share',
+  'boorusama-link-shares',
   'share_plus',
 };
 

@@ -20,7 +20,8 @@ final pixivPostRepoProvider =
 
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
-          getSettings: () async => ref.read(imageListingSettingsProvider),
+          getSettings: () async =>
+              ref.read(listingSettingsForAuthProvider(config.auth)),
           fetchSingle: (id, {options}) async {
             final value = switch (id) {
               NumericPostId(:final value) when value >= 1000 => value,

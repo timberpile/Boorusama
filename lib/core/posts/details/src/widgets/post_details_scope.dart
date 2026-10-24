@@ -6,6 +6,9 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../../../foundation/display.dart';
 import '../../../../settings/providers.dart';
+import '../../../../navigation/destination_activity.dart';
+import '../../../../navigation/destination_profile_scope.dart';
+import '../../../../navigation/navigation_chrome_controller.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
@@ -42,6 +45,8 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
     extends ConsumerState<PostDetailsScope<T>> {
   late final PostDetailsController<T> _controller;
   late final PostDetailsPageViewController _pageViewController;
+  NavigationChromeController? _navigationChrome;
+  Animation<double>? _routeAnimation;
 
   @override
   void initState() {
@@ -90,8 +95,50 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
     );
   }
 
+  void _syncNavigationChrome() {
+    if (_navigationChrome == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _navigationChrome?.setViewerFor(
+        this,
+        active: DestinationScope.maybeOf(context)?.active ?? false,
+        immersive: !_pageViewController.overlay.value,
+        closing: _routeAnimation?.status == AnimationStatus.reverse,
+      );
+    });
+  }
+
+  void _onRouteAnimationStatus(AnimationStatus _) => _syncNavigationChrome();
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animation = ModalRoute.of(context)?.animation;
+    if (_routeAnimation != animation) {
+      _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
+      _routeAnimation = animation;
+      animation?.addStatusListener(_onRouteAnimationStatus);
+    }
+    if (DestinationScope.maybeOf(context) != null &&
+        _navigationChrome == null) {
+      _navigationChrome = ref.read(navigationChromeProvider.notifier);
+      _pageViewController.overlay.addListener(_syncNavigationChrome);
+    }
+    _syncNavigationChrome();
+    final active = NavigationActivity.of(context);
+    _controller.setNavigationActive(active);
+    if (!active) _pageViewController.stopSlideshow();
+  }
+
   @override
   void dispose() {
+    _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
+    final chrome = _navigationChrome;
+    if (chrome != null)
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => chrome.setViewerFor(this, active: false, immersive: false),
+      );
+    _pageViewController.overlay.removeListener(_syncNavigationChrome);
     _controller.dispose();
     _pageViewController.dispose();
 

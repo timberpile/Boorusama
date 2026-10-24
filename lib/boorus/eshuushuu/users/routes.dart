@@ -33,7 +33,7 @@ void goToEshuushuuUserDetailsPage(
   required int userId,
   String? username,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: ['', 'eshuushuu', 'users', '$userId'],
       queryParameters: {

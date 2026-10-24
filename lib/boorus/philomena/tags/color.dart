@@ -10,7 +10,7 @@ class PhilomenaTagColorGenerator implements TagColorGenerator {
 
   @override
   Color? generateColor(TagColorOptions options) {
-    return switch (options.tagType) {
+    return switch (options.tagType?.trim().toLowerCase()) {
       'error' => options.colors.get('error'),
       'rating' => options.colors.get('rating'),
       'origin' => options.colors.get('origin'),
@@ -19,7 +19,9 @@ class PhilomenaTagColorGenerator implements TagColorGenerator {
       'species' => options.colors.get('species'),
       'content-official' => options.colors.get('content-official'),
       'content-fanmade' => options.colors.get('content-fanmade'),
-      _ => options.colors.general,
+      // Older engine-local cache records store the normal category as ''.
+      '' || 'general' => options.colors.general,
+      _ => null,
     };
   }
 

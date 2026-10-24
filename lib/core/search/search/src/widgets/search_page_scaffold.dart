@@ -1,8 +1,9 @@
+import '../../../../selection/ordered_selection_controller.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 import 'package:selection_mode/selection_mode.dart';
 
@@ -14,14 +15,21 @@ import '../../../../configs/config/types.dart';
 import '../../../../posts/count/widgets.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/post/types.dart';
+import '../../../../posts/links/boorusama_search_link.dart';
+import '../../../../posts/links/share_search_link_button.dart';
 import '../../../../settings/providers.dart';
 import '../../../../tags/metatag/providers.dart';
 import '../../../../widgets/widgets.dart';
 import '../../../histories/providers.dart';
+import '../../../options/providers.dart';
+import '../../../options/catalog/aliases.dart';
+import '../../../options/search_auto_commit.dart';
+import '../../../options/search_option.dart';
+import '../../../options/search_options_section.dart';
+import '../../../options/search_suggestion_panel.dart';
 import '../../../selected_tags/providers.dart';
 import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
-import '../../../suggestions/widgets.dart';
 import '../../../following_topics/types.dart';
 import '../../../following_topics/src/widgets/topic_follow_control.dart';
 import '../routes/params.dart';
@@ -29,7 +37,6 @@ import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
 import 'raw_search_page_scaffold.dart';
 import 'raw_search_region.dart';
-import 'search_button.dart';
 import 'search_controller.dart';
 import 'search_profile_session.dart';
 import 'selected_tag_list_with_data.dart';
@@ -47,7 +54,6 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   });
 
   final SearchParams params;
-
   String? get initialQuery => params.query;
   int? get initialPage => params.page;
   int? get initialScrollPosition => params.scrollPosition;
@@ -57,27 +63,19 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     PostGridController<T> postController,
   )?
   extraHeaders;
-
   final PostsOrErrorCore<T> Function(
     int page,
     SelectedTagController selectedTagController,
   )
   fetcher;
-
   final List<TextMatcher>? textMatchers;
-
   final IndexedSelectableSearchWidgetBuilder<T>? itemBuilder;
-
   final Widget Function(
     ValueNotifier<PostGridController<T>?> postController,
     SearchPageController controller,
   )?
   searchRegionBuilder;
-
-  final Widget Function(
-    SearchPageController controller,
-  )?
-  landingViewBuilder;
+  final Widget Function(SearchPageController controller)? landingViewBuilder;
 
   @override
   ConsumerState<SearchPageScaffold<T>> createState() =>
@@ -89,23 +87,16 @@ class _SearchPageScaffoldState<T extends Post>
   late final SelectedTagController _tagsController;
   late final SearchPageController _controller;
   late final SelectionModeController _searchModeController;
-
   late final ValueNotifier<PostGridController<T>?> _postController;
+  late final SearchAutoCommit _autoCommit;
   final _topicFeedback = ValueNotifier<String?>(null);
 
   @override
   void initState() {
     super.initState();
-
-    _searchModeController = SelectionModeController();
-    final extractor = ref.read(
-      metatagExtractorProvider(ref.readConfigAuth),
-    );
-
-    _tagsController = SelectedTagController(
-      metatagExtractor: extractor,
-    );
-
+    _searchModeController = OrderedSelectionController<Object>();
+    final extractor = ref.read(metatagExtractorProvider(ref.readConfigAuth));
+    _tagsController = SelectedTagController(metatagExtractor: extractor);
     _controller = SearchPageController(
       onSearch: () {
         ref
@@ -115,23 +106,63 @@ class _SearchPageScaffoldState<T extends Post>
       metatagExtractor: extractor,
       textMatchers: widget.textMatchers,
       tagsController: _tagsController,
+      optionAliases: searchOptionAliasesFor(ref.readConfigAuth.booruType),
+      optionKeys: ref
+          .read(searchCapabilitiesProvider(ref.readConfigAuth))
+          .options
+          .map((option) => option.key)
+          .toSet(),
     );
-
     final snapshot = SearchProfileSession.maybeOf(context)?.snapshot;
     snapshot?.restore(_controller);
-    if (snapshot != null && snapshot.text.text.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref
-            .read(suggestionsNotifierProvider(ref.readConfigAuth).notifier)
-            .getSuggestions(snapshot.text.text);
-      });
-    }
     _postController = ValueNotifier(null);
+    _autoCommit = SearchAutoCommit(
+      readQuery: () => _tagsController.rawTagsString,
+      readApplied: () => _controller.tagString.value,
+      commit: () {
+        if (!mounted) return;
+        _controller.commitSelection();
+      },
+      schedule: (callback) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => callback());
+        WidgetsBinding.instance.ensureVisualUpdate();
+      },
+    );
+    _controller.inputIsRaw.addListener(_requestSuggestions);
+    // RawSearchPageScaffold restores route parameters in its first initState.
+    // Restoration must not be mistaken for a user-confirmed query mutation.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _controller.tagString.value = _tagsController.rawTagsString;
+      _tagsController.addListener(_autoCommit.changed);
+      if (_controller.textController.text.isNotEmpty) _requestSuggestions();
+    });
+  }
+
+  void _requestSuggestions() {
+    if (!mounted) return;
+    final config = ref.readConfigAuth;
+    final query = _controller.textController.text;
+    final option = ref
+        .read(searchCapabilitiesProvider(config))
+        .contextFor(query)
+        ?.option;
+    ref
+        .read(suggestionsNotifierProvider(config).notifier)
+        .getSuggestions(
+          (option != null &&
+                  option.kind != SearchOptionKind.native &&
+                  option.input != SearchOptionInput.text)
+              ? ''
+              : query,
+        );
   }
 
   @override
   void dispose() {
+    _autoCommit.dispose();
+    _tagsController.removeListener(_autoCommit.changed);
+    _controller.inputIsRaw.removeListener(_requestSuggestions);
     _tagsController.dispose();
     _controller.dispose();
     _searchModeController.dispose();
@@ -148,24 +179,19 @@ class _SearchPageScaffoldState<T extends Post>
       tagsController: _tagsController,
       controller: _controller,
       selectionModeController: _searchModeController,
-      onQueryChanged: (query) {
-        ref
-            .read(suggestionsNotifierProvider(ref.readConfigAuth).notifier)
-            .getSuggestions(query);
-      },
+      onQueryChanged: (_) => _requestSuggestions(),
       extraHeaders: widget.extraHeaders,
       landingView:
           widget.landingViewBuilder?.call(_controller) ??
-          DefaultMobileSearchLandingView(
-            controller: _controller,
-          ),
+          DefaultMobileSearchLandingView(controller: _controller),
       itemBuilder: widget.itemBuilder,
       searchSuggestions: DefaultSearchSuggestions(
         multiSelectController: _searchModeController,
         config: ref.watchConfigAuth,
       ),
-      resultHeader: ValueListenableBuilder(
-        valueListenable: _controller.tagString,
+      resultHeader: MultiValueListenableBuilder2(
+        first: _controller.tagString,
+        second: _tagsController,
         builder: (context, value, _) => ValueListenableBuilder(
           valueListenable: _postController,
           builder: (context, postController, child) => postController != null
@@ -174,6 +200,7 @@ class _SearchPageScaffoldState<T extends Post>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: switch (ref
@@ -204,16 +231,46 @@ class _SearchPageScaffoldState<T extends Post>
                             constraints: BoxConstraints(
                               maxWidth: constraints.maxWidth * 0.55,
                             ),
-                            child: FollowTopicButton(
-                              query: value,
-                              queryStructure: _typedQueryStructure(
-                                _tagsController.tags,
+                            child: IntrinsicWidth(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SearchLinkShareMenu(
+                                    profileName: ref.watchConfig.name,
+                                    link: switch (_typedQueryStructure(
+                                      _tagsController.tags,
+                                    )) {
+                                      final structure? =>
+                                        BoorusamaSearchLink.fromTags(
+                                          auth: ref.watchConfigAuth,
+                                          tags: structure.typedTags,
+                                        ),
+                                      null => BoorusamaSearchLink.fromRaw(
+                                        auth: ref.watchConfigAuth,
+                                        query: value,
+                                      ),
+                                    },
+                                  ),
+                                  Flexible(
+                                    child: ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        maxWidth: constraints.maxWidth * 0.55,
+                                      ),
+                                      child: FollowTopicButton(
+                                        query: value,
+                                        queryStructure: _typedQueryStructure(
+                                          _tagsController.tags,
+                                        ),
+                                        originatingTopicId:
+                                            widget.params.originatingTopicId,
+                                        compact: true,
+                                        onFeedback: (message) =>
+                                            _topicFeedback.value = message,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                              originatingTopicId:
-                                  widget.params.originatingTopicId,
-                              compact: true,
-                              onFeedback: (message) =>
-                                  _topicFeedback.value = message,
                             ),
                           ),
                         ],
@@ -243,13 +300,11 @@ class _SearchPageScaffoldState<T extends Post>
         ),
       ),
       searchRegion:
-          widget.searchRegionBuilder?.call(
-            _postController,
-            _controller,
-          ) ??
+          widget.searchRegionBuilder?.call(_postController, _controller) ??
           DefaultSearchRegion(
             controller: _controller,
             initialQuery: widget.initialQuery,
+            fromSearchBar: widget.params.fromSearchBar ?? false,
             postController: _postController,
           ),
       onPostControllerCreated: (controller) {
@@ -266,29 +321,30 @@ SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
     ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
     : null;
 
-class DefaultMobileSearchLandingView extends StatelessWidget {
+class DefaultMobileSearchLandingView extends ConsumerWidget {
   const DefaultMobileSearchLandingView({
     super.key,
     this.notice,
     required this.controller,
   });
-
   final SearchPageController controller;
   final Widget? notice;
 
   @override
-  Widget build(BuildContext context) {
-    return SearchLandingView(
-      child: DefaultSearchLandingChildren(
-        notice: notice,
-        children: [
+  Widget build(BuildContext context, WidgetRef ref) => SearchLandingView(
+    child: DefaultSearchLandingChildren(
+      notice: notice,
+      children: [
+        if (ref
+            .watch(searchCapabilitiesProvider(ref.watchConfigAuth))
+            .options
+            .isNotEmpty)
           DefaultMobileQueryActionSection(controller: controller),
-          DefaultMobileFavoriteTagsSection(controller: controller),
-          DefaultMobileSearchHistorySection(controller: controller),
-        ],
-      ),
-    );
-  }
+        DefaultMobileFavoriteTagsSection(controller: controller),
+        DefaultMobileSearchHistorySection(controller: controller),
+      ],
+    ),
+  );
 }
 
 class DefaultMobileSearchHistorySection extends StatelessWidget {
@@ -296,53 +352,26 @@ class DefaultMobileSearchHistorySection extends StatelessWidget {
     super.key,
     required this.controller,
   });
-
   final SearchPageController controller;
-
   @override
-  Widget build(BuildContext context) {
-    return DefaultSearchHistorySection(
-      onHistoryTap: (value) {
-        controller.tapHistoryTag(value);
-      },
-    );
-  }
+  Widget build(BuildContext context) =>
+      DefaultSearchHistorySection(onHistoryTap: controller.tapHistoryTag);
 }
 
 class DefaultMobileFavoriteTagsSection extends StatelessWidget {
-  const DefaultMobileFavoriteTagsSection({
-    super.key,
-    required this.controller,
-  });
-
+  const DefaultMobileFavoriteTagsSection({super.key, required this.controller});
   final SearchPageController controller;
-
   @override
-  Widget build(BuildContext context) {
-    return DefaultFavoriteTagsSection(
-      onTagTap: (value) {
-        controller.tapFavTag(value);
-      },
-    );
-  }
+  Widget build(BuildContext context) =>
+      DefaultFavoriteTagsSection(onTagTap: controller.tapFavTag);
 }
 
 class DefaultMobileQueryActionSection extends StatelessWidget {
-  const DefaultMobileQueryActionSection({
-    super.key,
-    required this.controller,
-  });
-
+  const DefaultMobileQueryActionSection({super.key, required this.controller});
   final SearchPageController controller;
-
   @override
-  Widget build(BuildContext context) {
-    return DefaultQueryActionsSection(
-      onTagAdded: (value) => controller.tagsController.addTag(
-        TagSearchItem.raw(tag: value),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      SearchOptionsSection(controller: controller);
 }
 
 class DefaultSearchRegion extends ConsumerWidget {
@@ -351,9 +380,10 @@ class DefaultSearchRegion extends ConsumerWidget {
     required this.postController,
     this.innerSearchButton,
     this.initialQuery,
+    this.fromSearchBar = false,
     super.key,
   });
-
+  final bool fromSearchBar;
   final SearchPageController controller;
   final ValueNotifier<PostGridController?> postController;
   final String? initialQuery;
@@ -365,131 +395,19 @@ class DefaultSearchRegion extends ConsumerWidget {
       settingsProvider.select((value) => value.autoFocusSearchBar),
     );
     final searchBarPosition = ref.watch(searchBarPositionProvider);
-
     return ValueListenableBuilder(
       valueListenable: postController,
-      builder: (context, postControllerValue, _) {
-        return RawSearchRegion(
-          searchBarPosition: searchBarPosition,
-          autoFocusSearchBar: autoFocusSearchBar,
-          controller: controller,
-          tagList: SelectedTagListWithData(
-            controller: controller.tagsController,
-            config: ref.watchConfig,
-          ),
-          innerSearchButton:
-              innerSearchButton ??
-              DefaultInnerSearchButton(
-                controller: controller,
-                postController: postControllerValue,
-              ),
-          initialQuery: initialQuery,
-        );
-      },
-    );
-  }
-}
-
-class DefaultInnerSearchButton extends StatelessWidget {
-  const DefaultInnerSearchButton({
-    required this.controller,
-    this.postController,
-    super.key,
-    this.disableAnimation,
-  });
-
-  final SearchPageController controller;
-  final PostGridController? postController;
-  final bool? disableAnimation;
-
-  @override
-  Widget build(BuildContext context) {
-    return MultiValueListenableBuilder2(
-      first: controller.allowSearch,
-      second: controller.didSearchOnce,
-      builder: (context, allowSearch, searchOnce) {
-        final searchButton = Padding(
-          padding: const EdgeInsets.only(
-            right: 8,
-          ),
-          child: SearchButton2(
-            onTap: () {
-              controller.search();
-              postController?.refresh();
-              controller.focus.unfocus();
-            },
-          ),
-        );
-
-        final disable = disableAnimation ?? false;
-
-        if (disable) {
-          return searchOnce
-              ? searchButton
-              : allowSearch
-              ? searchButton
-              : const SizedBox.shrink();
-        }
-
-        return searchOnce
-            ? searchButton
-            : ExcludeFocus(
-                excluding: !allowSearch,
-                child: IgnorePointer(
-                  ignoring: !allowSearch,
-                  child: AnimatedOpacity(
-                    opacity: allowSearch ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: AnimatedScale(
-                      scale: allowSearch ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutBack,
-                      child: searchButton,
-                    ),
-                  ),
-                ),
-              );
-      },
-    );
-  }
-}
-
-class DefaultTrailingSearchButton extends StatelessWidget {
-  const DefaultTrailingSearchButton({
-    required this.controller,
-    super.key,
-  });
-
-  final SearchPageController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: controller.didSearchOnce,
-      builder: (_, searchOnce, _) {
-        return !searchOnce
-            ? const SizedBox.shrink()
-            : ValueListenableBuilder(
-                valueListenable: controller.state,
-                builder: (_, state, _) => state != SearchState.suggestions
-                    ? AnimatedRotation(
-                        duration: const Duration(milliseconds: 150),
-                        turns: state == SearchState.options ? 0.13 : 0,
-                        child: IconButton(
-                          iconSize: 28,
-                          onPressed: () {
-                            if (state != SearchState.options) {
-                              controller.changeState(SearchState.options);
-                            } else {
-                              controller.changeState(SearchState.initial);
-                            }
-                          },
-                          icon: const Icon(Symbols.add),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              );
-      },
+      builder: (context, postControllerValue, _) => RawSearchRegion(
+        searchBarPosition: searchBarPosition,
+        autoFocusSearchBar: fromSearchBar || autoFocusSearchBar,
+        controller: controller,
+        tagList: SelectedTagListWithData(
+          controller: controller.tagsController,
+          config: ref.watchConfig,
+        ),
+        innerSearchButton: innerSearchButton ?? const SizedBox.shrink(),
+        initialQuery: initialQuery,
+      ),
     );
   }
 }
@@ -500,7 +418,6 @@ class DefaultSearchSuggestions extends ConsumerWidget {
     required this.config,
     super.key,
   });
-
   final SelectionModeController multiSelectController;
   final BooruConfigAuth config;
 
@@ -509,7 +426,6 @@ class DefaultSearchSuggestions extends ConsumerWidget {
     final controller = InheritedSearchPageController.of(context);
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final searchBarPosition = ref.watch(searchBarPositionProvider);
-
     return SearchRegionSafeArea(
       selectionModeController: multiSelectController,
       child: MultiValueListenableBuilder2(
@@ -533,39 +449,10 @@ class DefaultSearchSuggestions extends ConsumerWidget {
                           orElse: () => const SizedBox.shrink(),
                         ),
                     Expanded(
-                      child: ValueListenableBuilder(
-                        valueListenable: controller.textController,
-                        builder: (context, query, child) {
-                          final suggestionTags = ref.watch(
-                            suggestionProvider((config, query.text)),
-                          );
-
-                          return TagSuggestionItems(
-                            padding: const EdgeInsets.only(
-                              left: 12,
-                              right: 12,
-                              top: 8,
-                              bottom: 16,
-                            ),
-                            reverse:
-                                searchBarPosition == SearchBarPosition.bottom,
-                            config: config,
-                            tags: suggestionTags,
-                            listbox: controller.suggestionsListbox,
-                            currentQuery: query.text,
-                            onItemPick: (tag) {
-                              controller.tapTag(tag.value);
-                            },
-                            onItemTap: (tag) {
-                              controller.tapTag(tag.value);
-                            },
-                            emptyBuilder: () => Center(
-                              child: ColoredBox(
-                                color: colorScheme.surface,
-                              ),
-                            ),
-                          );
-                        },
+                      child: SearchSuggestionPanel(
+                        config: config,
+                        controller: controller,
+                        reverse: searchBarPosition == SearchBarPosition.bottom,
                       ),
                     ),
                   ],

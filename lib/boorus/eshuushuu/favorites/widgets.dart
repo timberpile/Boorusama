@@ -24,6 +24,7 @@ class EshuushuuFavoritesPage extends ConsumerWidget {
     final extraData = EshuushuuExtraData.fromPassHash(config.passHash);
 
     return BooruConfigAuthFailsafe(
+      unauthorizedBuilder: (_) => const FavoritesUnavailablePage(),
       builder: (_) => _EshuushuuFavoritesPageInternal(
         userId: extraData.userId ?? 0,
       ),

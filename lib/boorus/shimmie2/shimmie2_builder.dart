@@ -11,7 +11,6 @@ import 'comments/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
-import 'home/widgets.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -66,10 +65,6 @@ class Shimmie2Builder extends BaseBooruBuilder {
 
   @override
   final postDetailsUIBuilder = kShimmie2PostDetailsUIBuilder;
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const Shimmie2HomePage();
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>

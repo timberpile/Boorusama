@@ -7,6 +7,59 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 
 void main() {
+  testWidgets('an open context menu owns local Back history until dismissed', (
+    tester,
+  ) async {
+    late ModalRoute<dynamic> route;
+    var canHandlePop = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        onNavigationNotification: (notification) {
+          canHandlePop = notification.canHandlePop;
+          return false;
+        },
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              route = ModalRoute.of(context)!;
+              return KurumiContextMenu(
+                menuItemsBuilder: (_) => [
+                  const KurumiContextMenuTile(title: 'Menu action'),
+                ],
+                child: const SizedBox(
+                  width: 120,
+                  height: 80,
+                  child: Center(child: Text('Post')),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    expect(route.willHandlePopInternally, isFalse);
+    await tester.longPress(find.text('Post'));
+    await tester.pumpAndSettle();
+    expect(route.willHandlePopInternally, isTrue);
+    expect(canHandlePop, isTrue);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Menu action'), findsNothing);
+    expect(route.willHandlePopInternally, isFalse);
+    expect(canHandlePop, isFalse);
+    expect(find.text('Post'), findsOneWidget);
+    await tester.longPress(find.text('Post'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(400, 400));
+    await tester.pumpAndSettle();
+    expect(route.willHandlePopInternally, isFalse);
+    await tester.longPress(find.text('Post'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+    await tester.pumpAndSettle();
+    expect(route.willHandlePopInternally, isFalse);
+  });
+
   testWidgets('tapping outside a mobile context menu only dismisses the menu', (
     tester,
   ) async {

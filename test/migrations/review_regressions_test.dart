@@ -89,7 +89,7 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         settingsProvider.overrideWithValue(Settings.defaultSettings),
-        imageListingSettingsProvider.overrideWithValue(
+        listingSettingsForAuthProvider(auth).overrideWithValue(
           Settings.defaultSettings.listing,
         ),
         shimmie2ClientProvider(auth).overrideWithValue(_Shimmie()),

@@ -11,6 +11,8 @@ import sys
 
 
 SLUG_PATTERN = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+BRANCH_PATTERN = re.compile(r"(?:bug|feature|maintenance)/[a-z0-9]+(?:-[a-z0-9]+)*\Z")
+LEGACY_BRANCH_PATTERN = re.compile(r"(?:agent|fix)/[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
 class WorktreeError(Exception):
@@ -76,8 +78,8 @@ def path_issue(path):
     return None
 
 
-def inspect(root, records, slug):
-    branch = f"agent/{slug}"
+def inspect(root, records, slug, branch=None):
+    branch = branch or f"agent/{slug}"
     path = root / ".worktrees" / slug
     expected_ref = f"refs/heads/{branch}"
     record = next(
@@ -165,7 +167,7 @@ def inspect(root, records, slug):
 
 def operate(args):
     root, records = repository()
-    branch = f"agent/{args.slug}"
+    branch = args.branch or f"agent/{args.slug}"
     path = root / ".worktrees" / args.slug
 
     if args.command == "create":
@@ -179,12 +181,12 @@ def operate(args):
         if attached:
             raise WorktreeError(
                 f"Branch {branch} already has a worktree at {', '.join(attached)}. "
-                f"Run status {args.slug} and deliberately continue there."
+                f"Run status {args.slug} --branch {branch} and deliberately continue there."
             )
         if any(Path(item["worktree"]) == path for item in records):
             raise WorktreeError(
                 f"Worktree {path} is already registered. "
-                f"Run status {args.slug} and inspect the mismatch."
+                f"Run status {args.slug} --branch {branch} and inspect the mismatch."
             )
         if os.path.lexists(path):
             raise WorktreeError(
@@ -210,7 +212,7 @@ def operate(args):
         except WorktreeError as error:
             raise WorktreeError(
                 f"Could not create {branch} at {path}: {error}. "
-                f"Inspect status {args.slug} before retrying; "
+                f"Inspect status {args.slug} --branch {branch} before retrying; "
                 "Git may have left a branch or partial worktree."
             ) from error
         print(json.dumps({
@@ -219,7 +221,7 @@ def operate(args):
         }, indent=2))
         return 0
 
-    state = inspect(root, records, args.slug)
+    state = inspect(root, records, args.slug, branch)
     if args.command == "status":
         print(json.dumps(state, indent=2))
         return 0 if state["state"] == "ready" else 1
@@ -255,7 +257,7 @@ def main():
     )
     commands = parser.add_subparsers(dest="command", required=True)
     for command, help_text in (
-        ("create", "Create agent/<slug> at the primary checkout's .worktrees/<slug> from current local develop; existing state is refused."),
+        ("create", "Create --branch at the primary checkout's .worktrees/<slug> from current local develop; existing state is refused."),
         ("status", "Inspect branch, path, HEAD, dirty/ignored state and mismatches; never change files."),
         ("remove", "Remove only a clean matching task worktree; refuse ignored files, locks and mismatches; always preserve the branch."),
     ):
@@ -265,9 +267,19 @@ def main():
         command_parser.add_argument(
             "slug", help="Lowercase ASCII letters/digits separated by single hyphens, e.g. bookmark-sort-order"
         )
+        command_parser.add_argument(
+            "--branch",
+            help=("Explicit bug/, feature/, or maintenance/ branch; required for create. "
+                  "For legacy status/remove only, omission selects agent/<slug>."),
+        )
     args = parser.parse_args()
     if not SLUG_PATTERN.fullmatch(args.slug):
         parser.error("slug must contain lowercase ASCII letters/digits separated by single hyphens")
+    if args.command == "create" and not args.branch:
+        parser.error("create requires --branch <bug|feature|maintenance>/<issue-id>-<title> (issue ID optional)")
+    if args.branch and not BRANCH_PATTERN.fullmatch(args.branch):
+        if args.command == "create" or not LEGACY_BRANCH_PATTERN.fullmatch(args.branch):
+            parser.error("branch must use bug/, feature/, or maintenance/ with a lowercase kebab-case name; agent/ and fix/ are legacy status/remove only")
     try:
         return operate(args)
     except (WorktreeError, OSError) as error:

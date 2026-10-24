@@ -4,7 +4,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../core/configs/config/providers.dart';
@@ -89,7 +88,6 @@ class Shimmie2MultiSelectionActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfigAuth;
-    final controller = SelectionMode.of(context);
     final bulkOpNotifier = ref.watch(bulkOperationProvider(config).notifier);
 
     return DefaultMultiSelectionActions(
@@ -112,10 +110,6 @@ class Shimmie2MultiSelectionActions extends ConsumerWidget {
                         if (context.mounted) {
                           _showToast(context, success);
                         }
-
-                        if (success) {
-                          controller.disable();
-                        }
                       },
                 icon: const FaIcon(
                   FontAwesomeIcons.heartCirclePlus,
@@ -135,10 +129,6 @@ class Shimmie2MultiSelectionActions extends ConsumerWidget {
                         );
                         if (context.mounted) {
                           _showToast(context, success);
-                        }
-
-                        if (success) {
-                          controller.disable();
                         }
                       },
                 icon: const FaIcon(

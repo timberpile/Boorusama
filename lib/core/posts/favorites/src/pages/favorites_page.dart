@@ -5,7 +5,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
-import '../../../../router.dart';
+import 'favorites_unavailable_page.dart';
 
 class FavoritesPage extends ConsumerWidget {
   const FavoritesPage({super.key});
@@ -15,6 +15,8 @@ class FavoritesPage extends ConsumerWidget {
     final booruBuilder = ref.watch(booruBuilderProvider(ref.watchConfigAuth));
     final builder = booruBuilder?.favoritesPageBuilder;
 
-    return builder != null ? builder(context) : const UnimplementedPage();
+    return builder != null
+        ? builder(context)
+        : const FavoritesUnavailablePage();
   }
 }

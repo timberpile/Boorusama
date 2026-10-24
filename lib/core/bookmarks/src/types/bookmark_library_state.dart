@@ -1,4 +1,8 @@
+// Dart imports:
+import 'dart:collection';
+
 // Package imports:
+import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
@@ -39,6 +43,18 @@ class BookmarkLibraryState extends Equatable {
          _buildMemberships(bookmarks, groups),
        );
 
+  const BookmarkLibraryState._derived({
+    required this.folders,
+    required this.items,
+    required this.bookmarks,
+    required this.groups,
+    required this.activeTarget,
+    required this.bookmarksById,
+    required this.bookmarksByUniqueId,
+    required this.groupsById,
+    required this.membershipsByBookmark,
+  });
+
   final List<CollectionFolder> folders;
   final List<Bookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
@@ -48,6 +64,221 @@ class BookmarkLibraryState extends Equatable {
   final Map<BookmarkUniqueId, Bookmark> bookmarksByUniqueId;
   final Map<String, BookmarkGroup> groupsById;
   final Map<BookmarkUniqueId, Set<String>> membershipsByBookmark;
+
+  /// Apply confirmed writes, preserving unchanged rows and indexes. Maps and
+  /// lists are shallow-copied only when needed; stored post snapshots are never
+  /// decoded here. Only affected membership entries are reconstructed.
+  BookmarkLibraryState applyCommittedChanges({
+    Iterable<Bookmark> upserts = const [],
+    Set<int> removedIds = const {},
+    required List<BookmarkGroup> groups,
+    required List<CollectionFolder> folders,
+    required BookmarkTarget activeTarget,
+  }) {
+    final changed = {for (final bookmark in upserts) bookmark.id: bookmark};
+    final affectedIds = <int>{...removedIds, ...changed.keys};
+    var nextItems = items;
+    var nextById = bookmarksById;
+    var nextByIdentity = bookmarksByUniqueId;
+    var nextIdentities = bookmarks;
+
+    if (affectedIds.isNotEmpty) {
+      final byId = Map<int, Bookmark>.of(bookmarksById);
+      final byIdentity = Map<BookmarkUniqueId, Bookmark>.of(
+        bookmarksByUniqueId,
+      );
+      for (final id in affectedIds) {
+        final previous = byId.remove(id);
+        if (previous != null) {
+          byIdentity.remove(previous.uniqueId);
+          if (previous.uniqueId != changed[id]?.uniqueId) {
+            nextIdentities = nextIdentities.remove(previous.uniqueId);
+          }
+        }
+      }
+      for (final bookmark in changed.values) {
+        if (bookmark.uniqueId is! BookmarkIdentity) continue;
+        byId[bookmark.id] = bookmark;
+        byIdentity[bookmark.uniqueId] = bookmark;
+        if (bookmarksById[bookmark.id]?.uniqueId != bookmark.uniqueId) {
+          nextIdentities = nextIdentities.add(bookmark.uniqueId);
+        }
+      }
+      final remaining = Map<int, Bookmark>.of(changed);
+      nextItems = List.unmodifiable([
+        for (final original in items)
+          if (remaining.remove(original.id) case final updated?)
+            updated
+          else if (!removedIds.contains(original.id))
+            original,
+        ...remaining.values,
+      ]);
+      // These local maps have no remaining writers. As with memberships,
+      // publish read-only views rather than copying the full indexes again.
+      nextById = UnmodifiableMapView(byId);
+      nextByIdentity = UnmodifiableMapView(byIdentity);
+    }
+
+    final nextGroups =
+        this.groups.length == groups.length &&
+            groups.indexed.every(
+              (entry) => _sameGroup(this.groups[entry.$1], entry.$2),
+            )
+        ? this.groups
+        : List<BookmarkGroup>.unmodifiable([
+            for (final group in groups)
+              if (_sameGroup(groupsById[group.id], group))
+                groupsById[group.id]!
+              else
+                group,
+          ]);
+    final nextGroupsById = identical(nextGroups, this.groups)
+        ? groupsById
+        : Map<String, BookmarkGroup>.unmodifiable({
+            for (final group in nextGroups) group.id: group,
+          });
+    if (!identical(nextGroups, this.groups)) {
+      for (final id in {...groupsById.keys, ...nextGroupsById.keys}) {
+        final before = groupsById[id]?.bookmarkIds ?? const <int>{};
+        final after = nextGroupsById[id]?.bookmarkIds ?? const <int>{};
+        if (const SetEquality<int>().equals(before, after)) continue;
+        affectedIds.addAll(before.difference(after));
+        affectedIds.addAll(after.difference(before));
+      }
+    }
+
+    Map<BookmarkUniqueId, Set<String>>? memberships;
+    // Remove obsolete identities first. A later upsert may reuse an identity
+    // under a new storage ID (Undo), or exchange identities with another row.
+    for (final id in affectedIds) {
+      final previous = bookmarksById[id];
+      final next = nextById[id];
+      if (previous != null && previous.uniqueId != next?.uniqueId) {
+        (memberships ??= Map.of(
+          membershipsByBookmark,
+        )).remove(previous.uniqueId);
+      }
+    }
+    for (final id in affectedIds) {
+      final next = nextById[id];
+      if (next == null) continue;
+      final updated = {
+        for (final group in nextGroups)
+          if (group.bookmarkIds.contains(id)) group.id,
+      };
+      final before = (memberships ?? membershipsByBookmark)[next.uniqueId];
+      if (before == null ||
+          !const SetEquality<String>().equals(before, updated)) {
+        (memberships ??= Map.of(membershipsByBookmark))[next.uniqueId] =
+            Set.unmodifiable(updated);
+      }
+    }
+    final nextMemberships = memberships == null
+        ? membershipsByBookmark
+        // This local map has no remaining writers; avoid copying every
+        // bookmark's membership a second time just to make it immutable.
+        : UnmodifiableMapView<BookmarkUniqueId, Set<String>>(memberships);
+    final nextFolders =
+        const ListEquality<CollectionFolder>().equals(
+          this.folders,
+          folders,
+        )
+        ? this.folders
+        : List<CollectionFolder>.unmodifiable(folders);
+    final nextTarget = _effectiveTarget(nextGroups, activeTarget);
+
+    if (identical(nextItems, items) &&
+        identical(nextGroups, this.groups) &&
+        identical(nextFolders, this.folders) &&
+        nextTarget == this.activeTarget) {
+      return this;
+    }
+    return BookmarkLibraryState._derived(
+      folders: nextFolders,
+      items: nextItems,
+      bookmarks: nextIdentities,
+      groups: nextGroups,
+      activeTarget: nextTarget,
+      bookmarksById: nextById,
+      bookmarksByUniqueId: nextByIdentity,
+      groupsById: nextGroupsById,
+      membershipsByBookmark: nextMemberships,
+    );
+  }
+
+  /// Publish a successful serialized addition without decoding existing rows or
+  /// recomputing their identities. Ambiguous writes use the authoritative recovery path.
+  BookmarkLibraryState withAddedGroupMembers({
+    required List<Bookmark> createdBookmarks,
+    required BookmarkGroup group,
+    required BookmarkTarget requestedTarget,
+  }) {
+    final previousGroup = groupsById[group.id];
+    if (previousGroup == null ||
+        !_sameGroup(
+          previousGroup,
+          group.copyWith(bookmarkIds: previousGroup.bookmarkIds),
+        ) ||
+        !group.bookmarkIds.containsAll(previousGroup.bookmarkIds)) {
+      throw StateError(
+        'Expected only bookmark additions to an existing group.',
+      );
+    }
+    final target = _effectiveTarget(groups, requestedTarget);
+    if (createdBookmarks.isEmpty &&
+        _sameGroup(previousGroup, group) &&
+        target == activeTarget) {
+      return this;
+    }
+
+    final byId = createdBookmarks.isEmpty
+        ? bookmarksById
+        : <int, Bookmark>{...bookmarksById};
+    final byIdentity = createdBookmarks.isEmpty
+        ? bookmarksByUniqueId
+        : <BookmarkUniqueId, Bookmark>{...bookmarksByUniqueId};
+    var identities = bookmarks;
+    for (final bookmark in createdBookmarks) {
+      final identity = bookmark.uniqueId;
+      if (identity is! BookmarkIdentity || byId.containsKey(bookmark.id)) {
+        throw StateError('Expected a new bookmark with a stable identity.');
+      }
+      byId[bookmark.id] = bookmark;
+      byIdentity[identity] = bookmark;
+      identities = identities.add(identity);
+    }
+    final memberships = {...membershipsByBookmark};
+    for (final id in group.bookmarkIds.difference(previousGroup.bookmarkIds)) {
+      final bookmark = byId[id];
+      if (bookmark == null) {
+        throw StateError('The group contains an unknown bookmark.');
+      }
+      final identity = bookmark.uniqueId;
+      memberships[identity] = Set.unmodifiable({
+        ...?memberships[identity],
+        group.id,
+      });
+    }
+    return BookmarkLibraryState._derived(
+      folders: folders,
+      items: createdBookmarks.isEmpty
+          ? items
+          : List.unmodifiable([...items, ...createdBookmarks]),
+      bookmarks: identities,
+      groups: List.unmodifiable([
+        for (final old in groups) old.id == group.id ? group : old,
+      ]),
+      activeTarget: target,
+      bookmarksById: createdBookmarks.isEmpty
+          ? byId
+          : UnmodifiableMapView(byId),
+      bookmarksByUniqueId: createdBookmarks.isEmpty
+          ? byIdentity
+          : UnmodifiableMapView(byIdentity),
+      groupsById: Map.unmodifiable({...groupsById, group.id: group}),
+      membershipsByBookmark: UnmodifiableMapView(memberships),
+    );
+  }
 
   Set<String> membershipsFor(BookmarkUniqueId bookmarkId) =>
       membershipsByBookmark[bookmarkId] ?? const {};
@@ -64,6 +295,17 @@ class BookmarkLibraryState extends Equatable {
   @override
   List<Object?> get props => [items, groups, activeTarget, folders];
 }
+
+// Equatable compares sets with pairwise searches. Re-reading an unchanged large
+// group must use hashed membership equality rather than quadratic comparisons.
+bool _sameGroup(BookmarkGroup? before, BookmarkGroup after) =>
+    identical(before, after) ||
+    before != null &&
+        before.id == after.id &&
+        before.name == after.name &&
+        before.folderId == after.folderId &&
+        before.position == after.position &&
+        const SetEquality<int>().equals(before.bookmarkIds, after.bookmarkIds);
 
 BookmarkTarget _effectiveTarget(
   List<BookmarkGroup> groups,

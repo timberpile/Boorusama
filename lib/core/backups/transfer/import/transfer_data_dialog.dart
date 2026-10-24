@@ -1,3 +1,5 @@
+import '../../../selection/checkbox_range_selection.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -361,95 +363,113 @@ class SelectDataStep extends ConsumerWidget {
       }
     });
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 12),
-        Text(
-          context
-              .t
-              .settings
-              .backup_and_restore
-              .receive_data
-              .choose_data_to_import,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
+    return CheckboxRangeSelection<String>(
+      entries: [for (final task in options) task.id],
+      selected: {
+        for (final task in options)
+          if (task.status == SelectStatus.selected) task.id,
+      },
+      onChanged: (selected) {
+        for (final task in options) {
+          if (selected.contains(task.id) !=
+              (task.status == SelectStatus.selected))
+            notifier.toggleTask(task.id);
+        }
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 12),
+          Text(
+            context
+                .t
+                .settings
+                .backup_and_restore
+                .receive_data
+                .choose_data_to_import,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
           ),
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(
-              onPressed: () => notifier.selectAllTasks(),
-              child: Text(context.t.select.select_all),
-            ),
-            TextButton(
-              onPressed: () => notifier.deselectAllTasks(),
-              child: Text(context.t.select.deselect_all),
-            ),
-          ],
-        ),
-        ...options.map(
-          (e) => CheckboxListTile(
-            title: Text(e.name),
-            value: e.status == SelectStatus.selected,
-            onChanged: (value) {
-              if (value == null) return;
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => notifier.selectAllTasks(),
+                child: Text(context.t.select.select_all),
+              ),
+              TextButton(
+                onPressed: () => notifier.deselectAllTasks(),
+                child: Text(context.t.select.deselect_all),
+              ),
+            ],
+          ),
+          ...options.map(
+            (e) => CheckboxRangeItem(
+              value: e.id,
+              child: CheckboxListTile(
+                title: Text(e.name),
+                value: e.status == SelectStatus.selected,
+                onChanged: (value) {
+                  if (value == null) return;
 
-              notifier.toggleTask(e.id);
-            },
-          ),
-        ),
-        const SizedBox(height: 24),
-        FilledButton(
-          onPressed: state.atLeastOneSelected
-              ? switch (serverCheckStatus) {
-                  ServerCheckStatus.initial => () {
-                    serverCheckNotifier.check();
-                  },
-                  ServerCheckStatus.available => () {
-                    notifier.startImport(importContext);
-                  },
-                  ServerCheckStatus.unavailable => () {
-                    serverCheckNotifier.check();
-                  },
-                  _ => null,
-                }
-              : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              switch (serverCheckStatus) {
-                ServerCheckStatus.initial =>
-                  context.t.settings.backup_and_restore.import,
-                ServerCheckStatus.available =>
-                  context.t.settings.backup_and_restore.import,
-                ServerCheckStatus.checking => 'Verifying...',
-                ServerCheckStatus.unavailable => context.t.generic.action.retry,
-              },
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
+                  notifier.toggleTask(e.id);
+                },
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 8),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              context.t.generic.action.cancel,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Kurumi.themeOf(context).colorScheme.onSurface,
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: state.atLeastOneSelected
+                ? switch (serverCheckStatus) {
+                    ServerCheckStatus.initial => () {
+                      serverCheckNotifier.check();
+                    },
+                    ServerCheckStatus.available => () {
+                      notifier.startImport(importContext);
+                    },
+                    ServerCheckStatus.unavailable => () {
+                      serverCheckNotifier.check();
+                    },
+                    _ => null,
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Text(
+                switch (serverCheckStatus) {
+                  ServerCheckStatus.initial =>
+                    context.t.settings.backup_and_restore.import,
+                  ServerCheckStatus.available =>
+                    context.t.settings.backup_and_restore.import,
+                  ServerCheckStatus.checking => 'Verifying...',
+                  ServerCheckStatus.unavailable =>
+                    context.t.generic.action.retry,
+                },
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Text(
+                context.t.generic.action.cancel,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Kurumi.themeOf(context).colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

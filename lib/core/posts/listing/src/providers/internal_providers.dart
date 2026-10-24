@@ -17,4 +17,5 @@ final gridCacheExtentProvider = Provider<double>(
     return calculateCacheExtentFactor(gridSize) *
         RenderAbstractViewport.defaultCacheExtent;
   },
+  dependencies: [imageListingSettingsProvider],
 );

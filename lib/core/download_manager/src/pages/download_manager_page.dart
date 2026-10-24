@@ -1,3 +1,8 @@
+import '../../../selection/ordered_selection_canvas.dart';
+import '../../../selection/ordered_selection_controller.dart';
+import '../../../selection/selection_input.dart';
+import '../../../settings/providers.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -69,7 +74,8 @@ class DownloadManagerPage extends ConsumerStatefulWidget {
 
 class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
   final scrollController = AutoScrollController();
-  final _selectionModeController = SelectionModeController();
+  final _taskScrollController = ScrollController();
+  final _selectionModeController = OrderedSelectionController<String>();
 
   @override
   void initState() {
@@ -95,6 +101,7 @@ class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
   @override
   void dispose() {
     scrollController.dispose();
+    _taskScrollController.dispose();
     _selectionModeController.dispose();
 
     super.dispose();
@@ -103,163 +110,177 @@ class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
   @override
   Widget build(BuildContext context) {
     final tasks = ref.watch(downloadFilteredProvider(widget.filter));
+    _selectionModeController.reconcileDuringBuild([
+      for (final task in tasks) task.task.taskId,
+    ], scope: widget.filter);
     final config = ref.watchConfig;
     final group = ref.watch(downloadGroupProvider);
     final isDefaultGroup = group == FileDownloader.defaultGroup;
 
     return SelectionMode(
       controller: _selectionModeController,
-      scrollController: scrollController,
-      child: Scaffold(
-        appBar: DefaultSelectionAppBar(
-          itemsCount: tasks.length,
-          appBar: KurumiAppBar(
-            title: Text(
-              context.t.download.downloads,
+      scrollController: _taskScrollController,
+      options: ref.watch(selectionOptionsProvider),
+      child: SelectionInput(
+        controller: _selectionModeController,
+        itemCount: tasks.length,
+        child: Scaffold(
+          appBar: DefaultSelectionAppBar(
+            itemsCount: tasks.length,
+            appBar: KurumiAppBar(
+              title: Text(
+                context.t.download.downloads,
+              ),
+              actions: [
+                if (isDefaultGroup)
+                  IconButton(
+                    icon: const Icon(Icons.settings),
+                    onPressed: () {
+                      openDownloadSettingsPage(ref);
+                    },
+                  ),
+                KurumiPopupMenuButton(
+                  items: [
+                    KurumiPopupMenuItem(
+                      title: Text(context.t.generic.action.select),
+                      onTap: () {
+                        _selectionModeController.enable();
+                      },
+                    ),
+                    KurumiPopupMenuItem(
+                      title: Text(context.t.generic.action.clear),
+                      onTap: () {
+                        // clear default group only
+                        ref
+                            .read(downloadTaskUpdatesProvider.notifier)
+                            .clear(
+                              FileDownloader.defaultGroup,
+                              onFailed: () {
+                                Kurumi.showSimpleSnackBar(
+                                  context: context,
+                                  content: Text(
+                                    context.t.download.nothing_to_clear,
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                );
+                              },
+                            );
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
-            actions: [
-              if (isDefaultGroup)
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  onPressed: () {
-                    openDownloadSettingsPage(ref);
+          ),
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SidecarFailureNotice(),
+                    SelectionConsumer(
+                      builder: (_, controller, _) {
+                        final multiSelect = controller.isActive;
+                        return AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 200),
+                          transitionBuilder: (child, animation) =>
+                              SizeTransition(
+                                sizeFactor: animation,
+                                child: FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                ),
+                              ),
+                          child: multiSelect
+                              ? const SizedBox.shrink()
+                              : DownloadFilterOptions(
+                                  scrollController: scrollController,
+                                  filter: widget.filter,
+                                ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: tasks.isNotEmpty
+                            ? OrderedSelectionCanvas(
+                                controller: _selectionModeController,
+                                child: _buildList(tasks, config),
+                              )
+                            : Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 24,
+                                    ),
+                                    child: Text(
+                                      ref
+                                          .watch(
+                                            downloadFilterProvider(
+                                              widget.filter,
+                                            ),
+                                          )
+                                          .emptyLocalize(context),
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                ],
+                              ),
+                      ),
+                    ),
+                    RetryAllFailedButton(filter: widget.filter),
+                  ],
+                ),
+                SelectionConsumer(
+                  builder: (context, controller, _) {
+                    final selectedItems = controller
+                        .selectedFrom(tasks)
+                        .toList();
+
+                    if (!controller.isActive) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: MultiSelectionActionBar(
+                        children: [
+                          MultiSelectButton(
+                            onPressed: selectedItems.isNotEmpty
+                                ? () async {
+                                    final futures = selectedItems
+                                        .map(
+                                          (task) => ref
+                                              .read(downloadTaskClientProvider)
+                                              .filePath(task.task),
+                                        )
+                                        .toList();
+                                    final paths = await Future.wait(futures);
+
+                                    await SharePlus.instance.share(
+                                      ShareParams(
+                                        files: paths
+                                            .map((path) => XFile(path))
+                                            .toList(),
+                                      ),
+                                    );
+                                  }
+                                : null,
+                            icon: const Icon(Symbols.share),
+                            name: context.t.post.action.share,
+                          ),
+                        ],
+                      ),
+                    );
                   },
                 ),
-              KurumiPopupMenuButton(
-                items: [
-                  KurumiPopupMenuItem(
-                    title: Text(context.t.generic.action.select),
-                    onTap: () {
-                      _selectionModeController.enable();
-                    },
-                  ),
-                  KurumiPopupMenuItem(
-                    title: Text(context.t.generic.action.clear),
-                    onTap: () {
-                      // clear default group only
-                      ref
-                          .read(downloadTaskUpdatesProvider.notifier)
-                          .clear(
-                            FileDownloader.defaultGroup,
-                            onFailed: () {
-                              Kurumi.showSimpleSnackBar(
-                                context: context,
-                                content: Text(
-                                  context.t.download.nothing_to_clear,
-                                ),
-                                duration: const Duration(seconds: 1),
-                              );
-                            },
-                          );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        body: SafeArea(
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SidecarFailureNotice(),
-                  SelectionConsumer(
-                    builder: (_, controller, _) {
-                      final multiSelect = controller.isActive;
-                      return AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        transitionBuilder: (child, animation) => SizeTransition(
-                          sizeFactor: animation,
-                          child: FadeTransition(
-                            opacity: animation,
-                            child: child,
-                          ),
-                        ),
-                        child: multiSelect
-                            ? const SizedBox.shrink()
-                            : DownloadFilterOptions(
-                                scrollController: scrollController,
-                                filter: widget.filter,
-                              ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 4),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: tasks.isNotEmpty
-                          ? SelectionCanvas(
-                              child: _buildList(tasks, config),
-                            )
-                          : Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 24,
-                                  ),
-                                  child: Text(
-                                    ref
-                                        .watch(
-                                          downloadFilterProvider(widget.filter),
-                                        )
-                                        .emptyLocalize(context),
-                                  ),
-                                ),
-                                const Spacer(),
-                              ],
-                            ),
-                    ),
-                  ),
-                  RetryAllFailedButton(filter: widget.filter),
-                ],
-              ),
-              SelectionConsumer(
-                builder: (context, controller, _) {
-                  final selectedItems = controller.selectedFrom(tasks).toList();
-
-                  if (!controller.isActive) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: MultiSelectionActionBar(
-                      children: [
-                        MultiSelectButton(
-                          onPressed: selectedItems.isNotEmpty
-                              ? () async {
-                                  final futures = selectedItems
-                                      .map(
-                                        (task) => ref
-                                            .read(downloadTaskClientProvider)
-                                            .filePath(task.task),
-                                      )
-                                      .toList();
-                                  final paths = await Future.wait(futures);
-
-                                  await SharePlus.instance.share(
-                                    ShareParams(
-                                      files: paths
-                                          .map((path) => XFile(path))
-                                          .toList(),
-                                    ),
-                                  );
-                                }
-                              : null,
-                          icon: const Icon(Symbols.share),
-                          name: context.t.post.action.share,
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -268,6 +289,7 @@ class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
 
   Widget _buildList(List<TaskUpdate> tasks, BooruConfig config) {
     return ListView.builder(
+      controller: _taskScrollController,
       itemCount: tasks.length,
       itemBuilder: (context, index) {
         final task = tasks[index];
@@ -276,9 +298,7 @@ class _DownloadManagerPageState extends ConsumerState<DownloadManagerPage> {
           item: SimpleDownloadTile(
             task: task,
             onTap: () {
-              if (_selectionModeController.isActive) {
-                _selectionModeController.toggleItem(index);
-              }
+              handleSelectionTap(context, index);
             },
             onResume: () {
               final dt = castOrNull<DownloadTask>(task.task);

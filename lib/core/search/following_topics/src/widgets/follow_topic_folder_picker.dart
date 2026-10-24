@@ -1,3 +1,5 @@
+import '../../../../selection/checkbox_range_selection.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -117,26 +119,44 @@ class _FollowTopicFolderPickerDialogState
             ],
             const SizedBox(height: 4),
             Expanded(
-              child: ListView(
-                children: [
-                  if (_currentFolderId == null)
-                    _FollowDestinationRow(
-                      name: context.t.folders.home,
-                      selected: _selected.contains(null),
-                      onChanged: (value) => _toggle(null, value),
-                    ),
-                  for (final folder in children)
-                    _FollowDestinationRow(
-                      name: folder.name,
-                      selected: _selected.contains(folder.id),
-                      onChanged: (value) => _toggle(folder.id, value),
-                      onOpen: tree!.children(folder.id).isEmpty
-                          ? null
-                          : () => setState(
-                              () => _currentFolderId = folder.id,
-                            ),
-                    ),
+              child: CheckboxRangeSelection<(String?,)>(
+                entries: [
+                  if (_currentFolderId == null) (null,),
+                  for (final folder in children) (folder.id,),
                 ],
+                selected: {for (final id in _selected) (id,)},
+                onChanged: (selected) => setState(() {
+                  _selected
+                    ..clear()
+                    ..addAll(selected.map((key) => key.$1));
+                }),
+                child: ListView(
+                  children: [
+                    if (_currentFolderId == null)
+                      CheckboxRangeItem(
+                        value: (null,),
+                        child: _FollowDestinationRow(
+                          name: context.t.folders.home,
+                          selected: _selected.contains(null),
+                          onChanged: (value) => _toggle(null, value),
+                        ),
+                      ),
+                    for (final folder in children)
+                      CheckboxRangeItem(
+                        value: (folder.id,),
+                        child: _FollowDestinationRow(
+                          name: folder.name,
+                          selected: _selected.contains(folder.id),
+                          onChanged: (value) => _toggle(folder.id, value),
+                          onOpen: tree!.children(folder.id).isEmpty
+                              ? null
+                              : () => setState(
+                                  () => _currentFolderId = folder.id,
+                                ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ],

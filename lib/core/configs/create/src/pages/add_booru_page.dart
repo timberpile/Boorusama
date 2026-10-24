@@ -374,7 +374,6 @@ class QuickProfileSetupPicker extends StatelessWidget {
     final theme = Kurumi.themeOf(context);
 
     return SafeArea(
-      bottom: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -451,6 +450,16 @@ class _QuickProfileSiteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Kurumi.themeOf(context);
+    final name = Text(
+      site.profileName,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+    );
+    final accountBadge = _QuickProfileStatusBadge(
+      key: ValueKey('quick-profile-auth-required-${site.url}'),
+      label: context.t.booru.quick_setup.account_required,
+    );
 
     return Semantics(
       button: true,
@@ -471,57 +480,71 @@ class _QuickProfileSiteTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        site.profileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    if (site.authentication ==
-                        QuickProfileAuthentication.required) ...[
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Container(
-                          key: ValueKey(
-                            'quick-profile-auth-required-${site.url}',
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            context.t.booru.quick_setup.account_required,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textScaler: MediaQuery.textScalerOf(context).clamp(
-                              maxScaleFactor: 1.2,
+                child: site.booruType == BooruType.pixiv
+                    ? Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          name,
+                          if (site.authentication ==
+                              QuickProfileAuthentication.required)
+                            accountBadge,
+                          _QuickProfileStatusBadge(
+                            key: ValueKey(
+                              'quick-profile-experimental-${site.url}',
                             ),
-                            textAlign: TextAlign.center,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                            label: context.t.pixiv.experimental.label,
                           ),
-                        ),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: name,
+                          ),
+                          if (site.authentication ==
+                              QuickProfileAuthentication.required) ...[
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: accountBadge,
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
-                  ],
-                ),
               ),
               const SizedBox(width: 8),
               const Icon(Symbols.chevron_right),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickProfileStatusBadge extends StatelessWidget {
+  const _QuickProfileStatusBadge({required this.label, super.key});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Kurumi.themeOf(context);
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.2),
+        textAlign: TextAlign.center,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
     );

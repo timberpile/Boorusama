@@ -17,6 +17,7 @@ import 'package:boorusama/core/router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:i18n/i18n.dart';
 
 void main() {
   final cases = [
@@ -189,7 +190,7 @@ Future<_EditorHarness> _pumpEditor(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(routerConfig: router),
+      child: BooruLocalization(child: MaterialApp.router(routerConfig: router)),
     ),
   );
 
@@ -284,7 +285,7 @@ BooruConfig _config({required int id, required String url}) =>
         customDownloadFileNameFormat: null,
       ).toJson(),
       'id': profileUuid(id),
-    });
+    }).toBooruConfigData().toBooruConfig(id: profileUuid(id))!;
 
 class _EditorHarness {
   const _EditorHarness({

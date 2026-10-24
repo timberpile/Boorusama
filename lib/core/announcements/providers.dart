@@ -9,6 +9,7 @@ import '../../foundation/platform.dart';
 import '../../foundation/vendors/google/providers.dart';
 import '../cache/persistent/providers.dart';
 import '../configs/config/providers.dart';
+import '../configs/manage/providers.dart';
 import '../environment/providers.dart';
 import '../http/client/providers.dart';
 import '../http/client/types.dart';
@@ -96,4 +97,4 @@ final appAnnouncementsProvider = FutureProvider<List<AppAnnouncement>>((
         host: normalizeAnnouncementHost(config.url),
         dismissedIds: ref.watch(dismissedAnnouncementIdsProvider.future),
       );
-});
+}, dependencies: [currentReadOnlyBooruConfigAuthProvider]);

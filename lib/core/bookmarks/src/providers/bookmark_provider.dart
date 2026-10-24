@@ -31,8 +31,10 @@ import '../data/bookmark_convert.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
+import '../services/bookmark_mutation_repository.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
+import '../types/bookmark_group_repository.dart';
 import '../../../groups/folder_tree.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
@@ -107,6 +109,14 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
   var _requiresRefresh = false;
   final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
+  final _mutationSessionKey = Object();
+  final _pendingHydration = <int, Bookmark>{};
+  Timer? _hydrationPublicationTimer;
+
+  // Zone-local rather than a notifier field: unrelated async readers must never
+  // borrow an in-flight operation's write-through view.
+  BookmarkMutationRepository? get _mutation =>
+      Zone.current[_mutationSessionKey] as BookmarkMutationRepository?;
 
   void _recordRemoval(BookmarkGroupRemovalResult result) {
     if (result.removedCount == 0) return;
@@ -145,7 +155,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }
 
   Future<void> undoRemoval(BookmarkGroupRemovalResult result) =>
-      runSerializedMutation(() async {
+      _runTrackedMutation(() async {
         final eligible = result.removedBookmarks
             .where((b) => identical(_removals[b.uniqueId], result))
             .toList();
@@ -161,23 +171,48 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<BookmarkRepository> get bookmarkRepository =>
       ref.read(bookmarkRepoProvider.future);
 
-  Future<BookmarkLibraryService> get _service async => BookmarkLibraryService(
-    bookmarkRepository: await bookmarkRepository,
-    groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
-    imageUrlResolver: (booruId) =>
-        ref.read(bookmarkUrlResolverProvider(booruId)),
-  );
+  Future<BookmarkLibraryService> get _service async {
+    final mutation = _mutation;
+    return BookmarkLibraryService(
+      bookmarkRepository: mutation ?? await bookmarkRepository,
+      groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
+      imageUrlResolver: (booruId) =>
+          ref.read(bookmarkUrlResolverProvider(booruId)),
+      readMutationSnapshot: mutation == null
+          ? null
+          : () => _readMutationState(
+              mutation,
+              const BookmarkTarget.defaultGroup(),
+            ),
+    );
+  }
 
   @override
   FutureOr<BookmarkLibraryState> build() async {
+    _pendingHydration.clear();
+    _hydrationPublicationTimer?.cancel();
+    _hydrationPublicationTimer = null;
+    ref.onDispose(() => _hydrationPublicationTimer?.cancel());
     final activeGroupId = ref.read(settingsProvider).activeBookmarkGroupId;
     return (await _service).load(BookmarkTarget.fromGroupId(activeGroupId));
   }
 
+  /// External callbacks (imports/restores) may write directly to repositories.
+  /// They intentionally keep the authoritative reload path.
   Future<T> runSerializedMutation<T>(
     Future<T> Function() operation, {
     bool reload = true,
+  }) => _runMutation(operation, reload: reload, tracked: false);
+
+  Future<T> _runTrackedMutation<T>(Future<T> Function() operation) =>
+      _runMutation(operation, tracked: true);
+
+  Future<T> _runMutation<T>(
+    Future<T> Function() operation, {
+    bool reload = true,
+    required bool tracked,
   }) => _serialize(() async {
+    if (!tracked) _mutation?.invalidate();
     Object? operationError;
     StackTrace? operationStackTrace;
     T? result;
@@ -185,6 +220,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       result = await operation();
       _removals.clear();
     } catch (error, stackTrace) {
+      _mutation?.invalidate();
       operationError = error;
       operationStackTrace = stackTrace;
     }
@@ -196,6 +232,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     if (reload) {
       await _publishCommittedMutation();
+    } else if (!tracked) {
+      _requiresRefresh = true;
     }
     return result as T;
   });
@@ -222,25 +260,52 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return saved;
   });
 
-  Future<T> _serialize<T>(Future<T> Function() operation) => ref
+  Future<T> _serialize<T>(
+    Future<T> Function() operation, {
+    bool publishHydration = true,
+  }) => ref
       .read(dataMutationCoordinatorProvider)
-      .runExclusive(() => _serializeLocally(operation));
+      .runExclusive(
+        () => _serializeLocally(operation, publishHydration: publishHydration),
+      );
 
-  Future<T> _serializeLocally<T>(Future<T> Function() operation) {
+  Future<T> _serializeLocally<T>(
+    Future<T> Function() operation, {
+    required bool publishHydration,
+  }) {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
+      BookmarkMutationRepository? mutation;
       try {
         if (_requiresRefresh) await _reload();
-        completer.complete(await operation());
+        if (publishHydration) _publishHydration();
+        mutation = BookmarkMutationRepository(
+          delegate: await bookmarkRepository,
+          base: await future,
+        );
+        completer.complete(
+          await runZoned(
+            operation,
+            zoneValues: {_mutationSessionKey: mutation},
+          ),
+        );
       } catch (error, stackTrace) {
+        mutation?.invalidate();
+        // A deferred callback can inherit an older operation's zone. Recovery
+        // must use storage rather than either the current or inherited delta.
+        _mutation?.invalidate();
         await _publishCommittedMutation();
         completer.completeError(error, stackTrace);
+      } finally {
+        // Async callbacks can outlive the operation that registered them.
+        mutation?.invalidate();
       }
     });
     return completer.future;
   }
 
   Future<void> _reload([BookmarkTarget? requestedTarget]) async {
+    _mutation?.invalidate();
     final target =
         requestedTarget ??
         BookmarkTarget.fromGroupId(
@@ -248,6 +313,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         );
     try {
       state = AsyncValue.data(await (await _service).load(target));
+      _pendingHydration.clear();
+      _hydrationPublicationTimer?.cancel();
+      _hydrationPublicationTimer = null;
       _requiresRefresh = false;
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -255,10 +323,51 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
   }
 
+  Future<BookmarkLibraryState> _readMutationState(
+    BookmarkMutationRepository mutation,
+    BookmarkTarget target,
+  ) async {
+    if (!mutation.isValid) return (await _service).load(target);
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final groups = await repository.getGroups();
+    final folders = await repository.getFolders();
+    FolderTree(folders).validatePlacements([
+      for (final group in groups)
+        FolderPlacement(
+          itemId: group.id,
+          folderId: group.folderId,
+          position: group.position,
+        ),
+    ]);
+    return mutation.base.applyCommittedChanges(
+      upserts: mutation.upserts,
+      removedIds: mutation.removedIds,
+      groups: groups,
+      folders: folders,
+      activeTarget: target,
+    );
+  }
+
   Future<void> _publishCommittedMutation([
     BookmarkTarget? requestedTarget,
   ]) async {
     final previousState = state;
+    final mutation = _mutation;
+    if (mutation != null && mutation.isValid) {
+      try {
+        final target =
+            requestedTarget ??
+            BookmarkTarget.fromGroupId(
+              ref.read(settingsProvider).activeBookmarkGroupId,
+            );
+        final next = await _readMutationState(mutation, target);
+        if (!identical(state.valueOrNull, next)) state = AsyncValue.data(next);
+        _requiresRefresh = false;
+        return;
+      } catch (_) {
+        mutation.invalidate();
+      }
+    }
     try {
       await _reload(requestedTarget);
     } catch (_) {
@@ -280,10 +389,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           .where((post) => !currentState.isBookmarked(post, booruId))
           .toList();
 
-      await _addPostsToGroup(config, filtered, null);
+      final result = await _addPostsToGroup(config, filtered, null);
       await _publishCommittedMutation();
-      onSuccess?.call(filtered.length);
+      onSuccess?.call(result.changedCount);
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -314,6 +424,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -324,12 +435,47 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     required BookmarkRecoveryService recovery,
     required BookmarkHydrationCancellation cancellation,
     required void Function(BookmarkHydrationProgress) onProgress,
-  }) => _serialize(() async {
-    final library = await future;
+  }) async {
+    final publicationZone = Zone.current;
+    final library = await snapshotForExport();
+    // Network requests and backoff must not hold the global write lock. Each
+    // successful response gets its own short, revalidated serialized commit.
     try {
       return await BookmarkHydrationService(
         library: await _service,
         recovery: recovery,
+        commitRecovered: (bookmark, post, codec) => _serialize(() async {
+          if (cancellation.cancelled) return false;
+          final current = (await future).bookmarksByUniqueId[bookmark.uniqueId];
+          // A deletion, replacement, recovery reload or newer snapshot supersedes
+          // this request. Do not resurrect a row or overwrite newer data.
+          if (!identical(current, bookmark) ||
+              _pendingHydration.containsKey(bookmark.id)) {
+            return false;
+          }
+          final upgraded = await (await _service).upgradeBookmarkSnapshot(
+            bookmark: bookmark,
+            post: post,
+            dataCodec: codec,
+          );
+          _pendingHydration[upgraded.id] = upgraded;
+          if (_pendingHydration.length >= 32) {
+            _publishHydration();
+          } else {
+            // Register outside the commit's reentrant coordinator zone. A
+            // deferred timer must acquire the global lock as a fresh caller.
+            _hydrationPublicationTimer ??= publicationZone.run(
+              () => Timer(
+                const Duration(milliseconds: 16),
+                () {
+                  _hydrationPublicationTimer = null;
+                  unawaited(_serialize(() async {}).catchError((Object _) {}));
+                },
+              ),
+            );
+          }
+          return true;
+        }, publishHydration: false),
       ).run(
         bookmarks: library.items,
         configs: configs,
@@ -337,14 +483,34 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         onProgress: onProgress,
       );
     } finally {
-      await _publishCommittedMutation();
+      await _serialize(() async {});
     }
-  });
+  }
+
+  // Persist each response promptly, but shallow-copy the library at most once
+  // per frame or 32 responses. Every other serialized operation flushes first,
+  // so interactive edits and export snapshots always see the committed rows.
+  void _publishHydration() {
+    if (_pendingHydration.isEmpty) return;
+    final current = state.requireValue;
+    final next = current.applyCommittedChanges(
+      upserts: _pendingHydration.values,
+      groups: current.groups,
+      folders: current.folders,
+      activeTarget: current.activeTarget,
+    );
+    _pendingHydration.clear();
+    _hydrationPublicationTimer?.cancel();
+    _hydrationPublicationTimer = null;
+    state = AsyncValue.data(next);
+  }
 
   Future<void> upgradeBookmarkSnapshot(
     Bookmark bookmark,
     Post post,
   ) => _serialize(() async {
+    final current = (await future).bookmarksByUniqueId[bookmark.uniqueId];
+    if (current == null || current.id != bookmark.id) return;
     final capability = ref
         .read(booruEngineRegistryProvider)
         .getPostCapability(post.origin.booruType);
@@ -353,7 +519,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       throw StateError('No compatible post codec is available.');
     }
     await (await _service).upgradeBookmarkSnapshot(
-      bookmark: bookmark,
+      bookmark: current,
       post: post,
       dataCodec: codec,
     );
@@ -394,7 +560,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final memberships = current.membershipsFor(uniqueId);
       final bookmarked =
           bookmark != null && memberships.contains(selectedTarget.groupId);
-      return _setPostTargetMembership(
+      return await _setPostTargetMembership(
         config,
         post,
         current,
@@ -403,6 +569,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         onRemoved: onRemoved,
       );
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.failed;
     }
@@ -425,6 +592,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         onRemoved: onRemoved,
       );
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.failed;
     }
@@ -539,17 +707,17 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       });
 
   Future<CollectionFolder> createFolder(String name, {String? parentId}) =>
-      runSerializedMutation(
+      _runTrackedMutation(
         () async => (await _service).createFolder(name, parentId: parentId),
       );
-  Future<void> renameFolder(String id, String name) => runSerializedMutation(
+  Future<void> renameFolder(String id, String name) => _runTrackedMutation(
     () async => (await _service).renameFolder(id, name),
   );
   Future<void> moveFolderItems({
     Set<String> folderIds = const {},
     Set<String> groupIds = const {},
     required String? destination,
-  }) => runSerializedMutation(
+  }) => _runTrackedMutation(
     () async => (await _service).moveFolderItems(
       folderIds: folderIds,
       groupIds: groupIds,
@@ -559,7 +727,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<BookmarkFolderDeletionPreview> previewDeleteFolder(String id) =>
       _serialize(() async => (await _service).previewDeleteFolder(id));
   Future<void> deleteFolder(BookmarkFolderDeletionPreview expected) =>
-      runSerializedMutation(() async {
+      _runTrackedMutation(() async {
         final service = await _service;
         final current = await service.previewDeleteFolder(expected.folderId);
         if (current != expected) throw BookmarkFolderChangedException(current);
@@ -590,6 +758,60 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           Error.throwWithStackTrace(error, stack);
         }
       });
+
+  Future<List<BookmarkGroup>> duplicateGroups(
+    Map<String, String> names, {
+    required List<BookmarkGroup> expectedGroups,
+  }) => _runTrackedMutation(
+    () async =>
+        (await _service).duplicateGroups(names, expectedGroups: expectedGroups),
+  );
+
+  Future<BookmarkCollectionDeletionPreview> previewDeleteSelection({
+    required Set<String> folderIds,
+    required Set<String> groupIds,
+  }) => _serialize(
+    () async => (await _service).previewDeleteSelection(
+      folderIds: folderIds,
+      groupIds: groupIds,
+    ),
+  );
+
+  Future<void> deleteSelection(
+    BookmarkCollectionDeletionPreview expected,
+  ) => _runTrackedMutation(() async {
+    final service = await _service;
+    final current = await service.previewDeleteSelection(
+      folderIds: expected.selectedFolderIds,
+      groupIds: expected.selectedGroupIds,
+    );
+    if (current != expected) throw BookmarkCollectionChangedException(current);
+    final active = ref.read(settingsProvider).activeBookmarkGroupId;
+    final clear = active != null && current.groupIds.contains(active);
+    if (clear &&
+        !await ref
+            .read(settingsNotifierProvider.notifier)
+            .updateWith((s) => s.copyWith(activeBookmarkGroupId: null))) {
+      throw StateError('Failed to clear active target');
+    }
+    try {
+      await service.deleteSelection(expected);
+      for (final id in current.orphanBookmarkIds) {
+        _removals.remove(current.snapshot.bookmarksById[id]?.uniqueId);
+      }
+    } catch (error, stack) {
+      if (clear &&
+          !await ref
+              .read(settingsNotifierProvider.notifier)
+              .updateWith((s) => s.copyWith(activeBookmarkGroupId: active))) {
+        throw BookmarkGroupDeletionRollbackException(
+          deletionError: error,
+          rollbackErrors: [StateError('Failed to restore active target')],
+        );
+      }
+      Error.throwWithStackTrace(error, stack);
+    }
+  });
 
   Future<void> renameGroup(String groupId, String name) => _serialize(() async {
     await (await ref.read(
@@ -675,6 +897,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -691,6 +914,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -719,6 +943,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -741,6 +966,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       onRemoved?.call(removal);
       onSuccess?.call();
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -751,41 +977,53 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     String groupId, {
     void Function()? onSuccess,
     void Function()? onError,
-  }) async {
-    final bookmark =
-        (await snapshotForExport()).bookmarksByUniqueId[bookmarkId];
-    if (bookmark == null) {
-      onError?.call();
-      return;
-    }
-    return removeFromGroup(
-      [bookmark],
-      groupId,
-      onSuccess: onSuccess,
-      onError: onError,
-    );
-  }
+  }) => _removeByIdentity(
+    bookmarkId,
+    groupId: groupId,
+    onSuccess: onSuccess,
+    onError: onError,
+  );
 
   Future<void> removeBookmarkFromId(
     BookmarkUniqueId bookmarkId, {
     void Function(BookmarkGroupRemovalResult)? onRemoved,
     void Function()? onSuccess,
     void Function()? onError,
-  }) async {
-    final bookmark =
-        (await snapshotForExport()).bookmarksByUniqueId[bookmarkId];
-    if (bookmark == null) {
+  }) => _removeByIdentity(
+    bookmarkId,
+    onRemoved: onRemoved,
+    onSuccess: onSuccess,
+    onError: onError,
+  );
+
+  Future<void> _removeByIdentity(
+    BookmarkUniqueId bookmarkId, {
+    String? groupId,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
+    void Function()? onSuccess,
+    void Function()? onError,
+  }) => _serialize(() async {
+    try {
+      final current = await future;
+      final bookmark = current.bookmarksByUniqueId[bookmarkId];
+      if (bookmark == null) {
+        onError?.call();
+        return;
+      }
+      final removal = await (await _service).removeBookmarksFromGroup(
+        [bookmark],
+        groupId ?? current.activeTarget.groupId,
+      );
+      await _publishCommittedMutation();
+      _recordRemoval(removal);
+      onRemoved?.call(removal);
+      onSuccess?.call();
+    } catch (_) {
+      _mutation?.invalidate();
+      await _publishCommittedMutation();
       onError?.call();
-      return;
     }
-    return removeFromGroup(
-      [bookmark],
-      (await snapshotForExport()).activeTarget.groupId,
-      onRemoved: onRemoved,
-      onSuccess: onSuccess,
-      onError: onError,
-    );
-  }
+  });
 
   Future<void> removeBookmark(
     Bookmark bookmark, {
@@ -818,13 +1056,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     void Function()? onError,
   }) => _serialize(() async {
     try {
-      await (await _service).deleteBookmarks(bookmarks);
-      for (final b in bookmarks) {
+      final selected = bookmarks.toList();
+      await (await _service).deleteBookmarks(selected);
+      for (final b in selected) {
         _removals.remove(b.uniqueId);
       }
       await _publishCommittedMutation();
       onSuccess?.call();
     } catch (_) {
+      _mutation?.invalidate();
       await _publishCommittedMutation();
       onError?.call();
     }
@@ -836,9 +1076,41 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     String? groupId,
   ) => _serialize(() async {
     final result = await _addPostsToGroup(config, posts, groupId);
-    await _publishCommittedMutation();
+    await _publishAddedGroupMembers(result.createdBookmarks, groupId);
     return result.changedCount;
   });
+
+  Future<void> _publishAddedGroupMembers(
+    List<Bookmark> createdBookmarks,
+    String? groupId,
+  ) async {
+    if (!(_mutation?.isValid ?? false)) {
+      await _publishCommittedMutation();
+      return;
+    }
+    try {
+      final repository = await ref.read(bookmarkGroupRepoProvider.future);
+      final group = await repository.getGroup(
+        groupId ?? defaultBookmarkGroupId,
+      );
+      if (group == null) {
+        throw StateError('The bookmark group no longer exists.');
+      }
+      final current = await future;
+      state = AsyncValue.data(
+        current.withAddedGroupMembers(
+          createdBookmarks: createdBookmarks,
+          group: group,
+          requestedTarget: BookmarkTarget.fromGroupId(
+            ref.read(settingsProvider).activeBookmarkGroupId,
+          ),
+        ),
+      );
+    } catch (_) {
+      // A committed write stays successful even if publishing needs recovery.
+      await _publishCommittedMutation();
+    }
+  }
 
   Future<({BookmarkGroup group, int addedCount})> createGroupWithPosts(
     String name,
@@ -911,6 +1183,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       } catch (rollbackError) {
         rollbackErrors.add(rollbackError);
       }
+      _mutation?.invalidate();
       await _publishCommittedMutation(previousTarget);
       if (rollbackErrors.isNotEmpty) {
         throw BookmarkGroupCreationRollbackException(
@@ -938,9 +1211,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     final existing = <Bookmark>[];
     final missing = <Post>[];
+    final seen = <BookmarkUniqueId>{};
     for (final post in selected) {
-      final bookmark =
-          current.bookmarksByUniqueId[_bookmarkIdentity(post, config)];
+      final identity = _bookmarkIdentity(post, config);
+      if (!seen.add(identity)) continue;
+      final bookmark = current.bookmarksByUniqueId[identity];
       if (bookmark == null) {
         missing.add(post);
       } else {
@@ -958,13 +1233,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       for (final post in missing) {
         created.add(await _createBookmark(config, post));
       }
-      final members = [...existing, ...created];
-      final changed = members.where((b) => !before.contains(b.id)).length;
-      await repository.addBookmarks(
-        groupId,
-        members.map((bookmark) => bookmark.id).toSet(),
-      );
-      return (changedCount: changed, createdBookmarks: created);
+      final addedIds = {
+        for (final bookmark in [...existing, ...created]) bookmark.id,
+      }.difference(before);
+      if (addedIds.isNotEmpty) await repository.addBookmarks(groupId, addedIds);
+      return (changedCount: addedIds.length, createdBookmarks: created);
     } catch (error, stackTrace) {
       final rollbackErrors = <Object>[];
       try {
@@ -1036,6 +1309,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         .toSet()
         .toList();
     await (await _service).deleteBookmarks(bookmarks);
+    for (final bookmark in bookmarks) {
+      _removals.remove(bookmark.uniqueId);
+    }
     await _publishCommittedMutation();
     return bookmarks.length;
   });
@@ -1154,36 +1430,35 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final identity = BookmarkIdentity.fromPost(post);
     // Mixed selections carry independent origins. Generate each source link
     // with that post's profile instead of the grid's surrounding profile.
-    final sourceConfig = post.origin.profileIdHint == null
-        ? config
-        : switch (const PostOriginResolver().resolve(
-            post.origin,
-            ref.read(booruConfigProvider),
-          )) {
-            ResolvedPostOrigin(:final config) => config.auth,
-            _ => config,
-          };
-    final repository = await bookmarkRepository;
+    final sourceConfig = switch (const PostOriginResolver().resolve(
+      post.origin,
+      ref.read(booruConfigProvider),
+    )) {
+      ResolvedPostOrigin(:final config) => config.auth,
+      _
+          when config.booruType == post.origin.booruType &&
+              normalizePostSourceHost(config.url) == post.origin.sourceHost =>
+        config,
+      _ => null,
+    };
+    final repository = _mutation ?? await bookmarkRepository;
 
-    Future<Bookmark?> findStored() async {
-      final bookmarks = await repository.getAllBookmarksOrThrow(
-        imageUrlResolver: (booruId) =>
-            ref.read(bookmarkUrlResolverProvider(booruId)),
-      );
-      for (final bookmark in bookmarks) {
-        if (bookmark.uniqueId == identity) return bookmark;
-      }
-      return null;
-    }
+    Future<Bookmark?> findStored() async =>
+        (await repository.getBookmarksByIdentityOrThrow(
+          [identity],
+          imageUrlResolver: (booruId) =>
+              ref.read(bookmarkUrlResolverProvider(booruId)),
+        ))[identity];
 
     try {
       return await repository.addBookmark(
-        sourceConfig.booruIdHint,
+        post.origin.booruId,
         post,
         imageUrlResolver: (booruId) =>
             ref.read(bookmarkUrlResolverProvider(booruId)),
-        postLinkGenerator: (_) =>
-            ref.read(postLinkGeneratorProvider(sourceConfig)),
+        postLinkGenerator: (_) => sourceConfig == null
+            ? const NoLinkPostLinkGenerator()
+            : ref.read(postLinkGeneratorProvider(sourceConfig)),
       );
     } catch (error, stackTrace) {
       try {

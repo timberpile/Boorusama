@@ -23,7 +23,7 @@ void goToArtistPage(
 ) {
   if (artistName == null) return;
 
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/artists',
       queryParameters: {
@@ -37,7 +37,7 @@ void goToArtistPage(
 void goToCharacterPage(WidgetRef ref, String character) {
   if (character.isEmpty) return;
 
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       path: '/characters',
       queryParameters: {

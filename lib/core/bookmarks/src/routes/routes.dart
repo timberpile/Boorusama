@@ -45,7 +45,16 @@ final bookmarkRoutes = GoRoute(
       path: 'details',
       name: '/bookmarks/details',
       pageBuilder: (context, state) {
-        final extra = state.extra! as Map<String, dynamic>;
+        final extra = state.extra;
+        if (extra is! Map<String, dynamic> ||
+            extra['controller'] is! PostGridController<Post> ||
+            extra['initialThumbnailUrl'] is! String) {
+          return CupertinoPage(
+            key: state.pageKey,
+            name: state.name,
+            child: const BookmarkGroupBrowserPage(),
+          );
+        }
 
         return CupertinoPage(
           key: state.pageKey,

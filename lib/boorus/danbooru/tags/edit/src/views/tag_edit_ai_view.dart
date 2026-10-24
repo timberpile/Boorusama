@@ -98,7 +98,7 @@ class _TagEditAITagViewState extends ConsumerState<TagEditAITagView> {
                                 : Kurumi.themeOf(
                                     context,
                                   ).colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                           children: [
                             TextSpan(

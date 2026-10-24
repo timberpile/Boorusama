@@ -131,8 +131,12 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
     final notifier = ref.watch(favoritesProvider(config).notifier);
     final canFavorite = ref.watch(canFavoriteProvider(config));
     final isAuthorized = loginDetails.hasLogin();
-    final addFavorite = canFavorite ? () => notifier.add(post.id) : null;
-    final removeFavorite = canFavorite ? () => notifier.remove(post.id) : null;
+    final addFavorite = canFavorite
+        ? () => notifier.add(post.id, profileId: ref.readConfig.id)
+        : null;
+    final removeFavorite = canFavorite
+        ? () => notifier.remove(post.id, profileId: ref.readConfig.id)
+        : null;
 
     return SimplePostActionToolbar<T>(
       post: post,

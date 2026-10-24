@@ -1515,6 +1515,16 @@ void main() {
       expect(live.requestedPages, [2]);
 
       pending.complete(PostResult(posts: [_liveInitial[1]], total: 3));
+      // A duplicate-only page schedules a cooldown without requesting frames.
+      // Advance the controlled clock until the next request, since settling
+      // frames alone can finish before that timer fires.
+      for (
+        var frame = 0;
+        live.requestedPages.length < 2 && frame < 100;
+        frame++
+      ) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
       await tester.pumpAndSettle();
 
       expect(live.requestedPages, [2, 3]);
@@ -1573,7 +1583,7 @@ void main() {
   ) async {
     final harness = _Harness();
     addTearDown(harness.dispose);
-    final request = (BooruConfig.empty.auth, 'artist');
+    final request = (_configs.first.auth, 'artist');
 
     harness.container.read(chipColorsFromTagStringProvider(request));
     await tester.pumpWidget(
@@ -1581,7 +1591,7 @@ void main() {
         container: harness.container,
         child: MaterialApp(
           home: CurrentBooruConfigScope(
-            config: BooruConfig.empty,
+            config: _configs.first,
             child: Consumer(
               builder: (context, ref, _) {
                 ref.watch(chipColorsFromTagStringProvider(request));
@@ -1797,7 +1807,7 @@ void main() {
         ProviderScope(
           overrides: [
             booruConfigProvider.overrideWith(
-              () => BooruConfigNotifier(initialConfigs: const []),
+              () => BooruConfigNotifier(initialConfigs: [_configs.first]),
             ),
             booruPostPresentationProvider.overrideWith((ref, request) {
               requestedType = request.origin.booruType;
@@ -2286,23 +2296,31 @@ final _globalConfig = BooruConfig.defaultConfig(
   customDownloadFileNameFormat: null,
 );
 
-final _configs = [
-  BooruConfig.defaultConfig(
-    booruType: BooruType.danbooru,
-    url: 'https://danbooru.example',
-    customDownloadFileNameFormat: null,
-  ),
-  BooruConfig.defaultConfig(
-    booruType: BooruType.e621,
-    url: 'https://e621.example',
-    customDownloadFileNameFormat: null,
-  ),
-  BooruConfig.defaultConfig(
-    booruType: BooruType.pixiv,
-    url: 'https://pixiv.example',
-    customDownloadFileNameFormat: null,
-  ),
-];
+final _configs =
+    [
+          BooruConfig.defaultConfig(
+            booruType: BooruType.danbooru,
+            url: 'https://danbooru.example',
+            customDownloadFileNameFormat: null,
+          ),
+          BooruConfig.defaultConfig(
+            booruType: BooruType.e621,
+            url: 'https://e621.example',
+            customDownloadFileNameFormat: null,
+          ),
+          BooruConfig.defaultConfig(
+            booruType: BooruType.pixiv,
+            url: 'https://pixiv.example',
+            customDownloadFileNameFormat: null,
+          ),
+        ].indexed
+        .map(
+          (entry) => BooruConfig.fromJson({
+            ...entry.$2.toJson(),
+            'id': '00000000-0000-4000-8000-00000000000${entry.$1 + 1}',
+          }),
+        )
+        .toList();
 
 final _posts = <Post>[
   _post(

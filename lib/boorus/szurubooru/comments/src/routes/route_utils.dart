@@ -10,7 +10,7 @@ Future<String?> goToSzurubooruCommentCreatePage(
   required int postId,
   String? initialContent,
 }) {
-  return ref.router.push<String>(
+  return ref.pushRoute<String>(
     Uri(
       pathSegments: [
         '',
@@ -35,7 +35,7 @@ Future<String?> goToSzurubooruCommentUpdatePage(
   required int commentId,
   required String commentBody,
 }) {
-  return ref.router.push<String>(
+  return ref.pushRoute<String>(
     Uri(
       pathSegments: [
         '',

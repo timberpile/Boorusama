@@ -360,13 +360,13 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           ? _refreshPosts()
           : _fetchPosts(_page));
 
-      if (!mountedChecker()) return;
+      if (_disposed || !mountedChecker()) return;
       if (_refreshPending) return;
 
       _clear();
       await _addAll(newItems.posts);
 
-      if (!mountedChecker()) return;
+      if (_disposed || !mountedChecker()) return;
 
       _hasMore = newItems.posts.isNotEmpty;
       count.value = newItems.total;
@@ -382,6 +382,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   Future<void> fetchMore({
     VoidCallback? onNoMoreData,
   }) {
+    if (_disposed) return Future.value();
     if (_pendingFetchMore case final pending?) return pending.future;
     if (_loading || !_hasMore) return Future.value();
 
@@ -396,6 +397,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
       try {
         final newItems = await _fetchPosts(_page);
+        if (_disposed || !mountedChecker()) return;
         if (errors.value != null) {
           if (_pageMode == PageMode.infinite) _setPage(_page - 1);
           return;
@@ -406,6 +408,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
         } else {
           onNoMoreData?.call();
         }
+        if (_disposed || !mountedChecker()) return;
         count.value = newItems.total;
         maxPage.value = newItems.maxPage;
       } catch (error) {
@@ -437,10 +440,12 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     notifyListeners();
 
     final newItems = await _fetchPosts(_page);
+    if (_disposed || !mountedChecker()) return;
     _hasMore = newItems.posts.isNotEmpty;
     if (_hasMore) {
       await _addAll(newItems.posts);
     }
+    if (_disposed || !mountedChecker()) return;
     _setRefreshing(false);
     count.value = newItems.total;
     maxPage.value = newItems.maxPage;
@@ -496,13 +501,30 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> _addAll(List<T> newItems) async {
-    for (final item in newItems) {
-      if (!_duplicateTracker.isDuplicate(item)) {
-        _items.add(item);
-        _duplicateTracker.trackItem(item);
+  Future<void> _addAll(List<T> newItems) => performanceRecorder.measureAsync(
+    PerfOperation.gridIngest,
+    () => _ingest(newItems),
+    items: newItems.length,
+  );
+
+  Future<void> _ingest(List<T> newItems) async {
+    final before = _items.length;
+    performanceRecorder.measureSync(PerfOperation.gridDeduplicate, () {
+      for (final item in newItems) {
+        if (!_duplicateTracker.isDuplicate(item)) {
+          _items.add(item);
+          _duplicateTracker.trackItem(item);
+        }
       }
-    }
+    }, items: newItems.length);
+    performanceRecorder.count(
+      PerfCounter.gridIngestCandidates,
+      newItems.length,
+    );
+    performanceRecorder.count(
+      PerfCounter.gridIngestAccepted,
+      _items.length - before,
+    );
 
     _total = _items.length;
 
@@ -549,8 +571,10 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   void _setFilteringItems(List<T> items) {
-    _filteredItems = items;
-    itemsNotifier.value = items;
+    performanceRecorder.measureSync(PerfOperation.gridPublish, () {
+      _filteredItems = items;
+      itemsNotifier.value = items;
+    }, items: items.length);
   }
 
   @override

@@ -7,92 +7,40 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
-import '../../../core/posts/listing/providers.dart';
 import '../../../core/posts/post/providers.dart';
-import '../../../core/posts/post/types.dart';
 import '../../../core/search/search/routes.dart';
 import '../../../core/search/search/widgets.dart';
 import '../posts/providers.dart';
 import '../posts/types.dart';
 
-class NozomiSearchPage extends ConsumerStatefulWidget {
-  const NozomiSearchPage({
-    required this.params,
-    super.key,
-  });
-
+class NozomiSearchPage extends ConsumerWidget {
+  const NozomiSearchPage({required this.params, super.key});
   final SearchParams params;
 
   @override
-  ConsumerState<NozomiSearchPage> createState() => _NozomiSearchPageState();
-}
-
-class _NozomiSearchPageState extends ConsumerState<NozomiSearchPage> {
-  late NozomiPostOrder _order = _parseNozomiPostOrder(widget.params.order);
-  ValueNotifier<PostGridController<Post>?>? _postController;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfig;
     final postRepo = OriginAwarePostRepository.fromConfig(
       delegate: ref.watch(
         nozomiPostRepoWithOrderProvider((
           config: config.search,
-          order: _order,
+          order: _parseNozomiPostOrder(params.order),
         )),
       ),
       config: config,
     );
-
+    // The common landing view exposes the index order through Search Options.
+    // There is no second sort state competing with the query item.
     return SearchPageScaffold<Post>(
-      params: widget.params,
-      fetcher: (page, controller) => postRepo.getPostsFromController(
-        controller.tagSet,
-        page,
-      ),
-      landingViewBuilder: (controller) => NozomiSearchLandingView(
-        controller: controller,
-        order: _order,
-        onOrderChanged: _setOrder,
-      ),
-      searchRegionBuilder: (postController, controller) {
-        _postController = postController;
-
-        return DefaultSearchRegion(
-          controller: controller,
-          initialQuery: widget.params.query,
-          postController: postController,
-        );
-      },
-      extraHeaders: (context, postController) => [
-        SliverToBoxAdapter(
-          child: NozomiSearchOrderHeader(
-            order: _order,
-            onOrderChanged: _setOrder,
-          ),
-        ),
-      ],
+      params: params,
+      fetcher: (page, controller) =>
+          postRepo.getPostsFromController(controller.tagSet, page),
     );
-  }
-
-  void _setOrder(
-    NozomiPostOrder order, {
-    bool refresh = true,
-  }) {
-    if (_order == order) return;
-
-    setState(() {
-      _order = order;
-    });
-
-    if (!refresh) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _postController?.value?.refresh();
-    });
   }
 }
 
+// Keep the existing standalone controls available to their other consumers.
+// The search page above deliberately uses the shared catalog instead.
 class NozomiSearchLandingView extends StatelessWidget {
   const NozomiSearchLandingView({
     required this.controller,
@@ -100,27 +48,19 @@ class NozomiSearchLandingView extends StatelessWidget {
     required this.onOrderChanged,
     super.key,
   });
-
   final SearchPageController controller;
   final NozomiPostOrder order;
   final ValueChanged<NozomiPostOrder> onOrderChanged;
-
   @override
-  Widget build(BuildContext context) {
-    return SearchLandingView(
-      child: DefaultSearchLandingChildren(
-        children: [
-          NozomiSearchOrderSection(
-            order: order,
-            onOrderChanged: onOrderChanged,
-          ),
-          DefaultMobileQueryActionSection(controller: controller),
-          DefaultMobileFavoriteTagsSection(controller: controller),
-          DefaultMobileSearchHistorySection(controller: controller),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SearchLandingView(
+    child: DefaultSearchLandingChildren(
+      children: [
+        NozomiSearchOrderSection(order: order, onOrderChanged: onOrderChanged),
+        DefaultMobileFavoriteTagsSection(controller: controller),
+        DefaultMobileSearchHistorySection(controller: controller),
+      ],
+    ),
+  );
 }
 
 class NozomiSearchOrderHeader extends StatelessWidget {
@@ -129,23 +69,19 @@ class NozomiSearchOrderHeader extends StatelessWidget {
     required this.onOrderChanged,
     super.key,
   });
-
   final NozomiPostOrder order;
   final ValueChanged<NozomiPostOrder> onOrderChanged;
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Align(
-        alignment: AlignmentDirectional.centerStart,
-        child: NozomiSearchOrderControl(
-          order: order,
-          onOrderChanged: onOrderChanged,
-        ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: NozomiSearchOrderControl(
+        order: order,
+        onOrderChanged: onOrderChanged,
       ),
-    );
-  }
+    ),
+  );
 }
 
 class NozomiSearchOrderSection extends StatelessWidget {
@@ -154,29 +90,16 @@ class NozomiSearchOrderSection extends StatelessWidget {
     required this.onOrderChanged,
     super.key,
   });
-
   final NozomiPostOrder order;
   final ValueChanged<NozomiPostOrder> onOrderChanged;
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          Text(
-            'Order',
-            style: Kurumi.themeOf(context).textTheme.titleSmall,
-          ),
-          const SizedBox(width: 12),
-          NozomiSearchOrderControl(
-            order: order,
-            onOrderChanged: onOrderChanged,
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: NozomiSearchOrderControl(
+      order: order,
+      onOrderChanged: onOrderChanged,
+    ),
+  );
 }
 
 class NozomiSearchOrderControl extends StatelessWidget {
@@ -185,37 +108,31 @@ class NozomiSearchOrderControl extends StatelessWidget {
     required this.onOrderChanged,
     super.key,
   });
-
   final NozomiPostOrder order;
   final ValueChanged<NozomiPostOrder> onOrderChanged;
-
   @override
-  Widget build(BuildContext context) {
-    return KurumiMaterialSegmentedButton<NozomiPostOrder>(
-      showSelectedIcon: false,
-      style: KurumiMaterialSegmentedButton.styleFrom(
-        visualDensity: VisualDensity.compact,
-      ),
-      segments: const [
-        KurumiMaterialButtonSegment(
-          value: NozomiPostOrder.date,
-          label: Text('Date'),
+  Widget build(BuildContext context) =>
+      KurumiMaterialSegmentedButton<NozomiPostOrder>(
+        showSelectedIcon: false,
+        style: KurumiMaterialSegmentedButton.styleFrom(
+          visualDensity: VisualDensity.compact,
         ),
-        KurumiMaterialButtonSegment(
-          value: NozomiPostOrder.popular,
-          label: Text('Popular'),
-        ),
-      ],
-      selected: {order},
-      onSelectionChanged: (selection) {
-        if (selection.isEmpty) return;
-        onOrderChanged(selection.first);
-      },
-    );
-  }
+        segments: const [
+          KurumiMaterialButtonSegment(
+            value: NozomiPostOrder.date,
+            label: Text('Date'),
+          ),
+          KurumiMaterialButtonSegment(
+            value: NozomiPostOrder.popular,
+            label: Text('Popular'),
+          ),
+        ],
+        selected: {order},
+        onSelectionChanged: (selection) {
+          if (selection.isNotEmpty) onOrderChanged(selection.first);
+        },
+      );
 }
 
-NozomiPostOrder _parseNozomiPostOrder(String? value) => switch (value) {
-  'popular' => NozomiPostOrder.popular,
-  _ => NozomiPostOrder.date,
-};
+NozomiPostOrder _parseNozomiPostOrder(String? value) =>
+    value == 'popular' ? NozomiPostOrder.popular : NozomiPostOrder.date;

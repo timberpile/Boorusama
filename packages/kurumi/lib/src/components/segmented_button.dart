@@ -185,7 +185,7 @@ class _KurumiSlidingSegmentedControlState<T>
   }) {
     height = size.height;
     final measuredSize = <T?, double>{}
-      ..putIfAbsent(item.key, () => widget.fixedWidth ?? size.width);
+      ..putIfAbsent(item.key, () => size.width);
 
     setState(() {
       if (isCacheEnabled) {
@@ -228,7 +228,7 @@ class _KurumiSlidingSegmentedControlState<T>
       child: InkWell(
         onTap: () => onTapItem(item),
         child: Container(
-          height: widget.height,
+          constraints: BoxConstraints(minHeight: widget.height ?? 0),
           width: maxSize ?? widget.fixedWidth,
           padding: EdgeInsets.symmetric(horizontal: widget.padding),
           child: Center(child: item.value),
@@ -253,21 +253,27 @@ class _KurumiSlidingSegmentedControlState<T>
             curve: widget.curve,
             decoration: widget.thumbDecoration,
           ),
-          Row(
-            children: widget.children.entries
-                .map((item) {
-                  return KurumiMeasureSize(
-                    onChange: (value) {
-                      calculateSize(
-                        size: value,
-                        item: item,
-                        isCacheEnabled: true,
-                      );
-                    },
-                    child: _segmentItem(item),
-                  );
-                })
-                .toList(growable: false),
+          IntrinsicHeight(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: widget.children.entries
+                  .map((item) {
+                    return Flexible(
+                      child: KurumiMeasureSize(
+                        onChange: (value) {
+                          calculateSize(
+                            size: value,
+                            item: item,
+                            isCacheEnabled: true,
+                          );
+                        },
+                        child: _segmentItem(item),
+                      ),
+                    );
+                  })
+                  .toList(growable: false),
+            ),
           ),
         ],
       ),
@@ -280,7 +286,7 @@ class _KurumiSlidingSegmentedControlState<T>
       builder: (context, orientation) {
         return Row(
           mainAxisSize: MainAxisSize.min,
-          children: [layout()],
+          children: [Flexible(child: layout())],
         );
       },
     );

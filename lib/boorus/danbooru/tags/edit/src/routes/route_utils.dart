@@ -11,7 +11,7 @@ void goToTagEditPage(
   WidgetRef ref, {
   required Post post,
 }) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

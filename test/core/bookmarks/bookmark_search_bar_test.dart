@@ -4,6 +4,8 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
+import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/core/themes/colors/types.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,17 +27,25 @@ Widget _app(
   PostGridController posts, {
   double scale = 1,
   BookmarkTagIndex? index,
+  VoidCallback? onIndexRequested,
 }) {
+  final theme = ThemeData(
+    extensions: const [KurumiExtendedColorScheme()],
+  ).withBoorusamaColors();
   return ProviderScope(
     overrides: [
-      bookmarkTagIndexProvider.overrideWith((ref, view) => index ?? _index),
+      bookmarkTagIndexProvider.overrideWith((ref, view) {
+        onIndexRequested?.call();
+        return index ?? _index;
+      }),
       bookmarkTagColorProvider.overrideWith((ref, request) => Colors.purple),
+      booruChipColorsProvider.overrideWithValue(
+        BooruChipColors.colorScheme(theme.colorScheme),
+      ),
     ],
     child: BooruLocalization(
       child: MaterialApp(
-        theme: ThemeData(
-          extensions: const [KurumiExtendedColorScheme()],
-        ).withBoorusamaColors(),
+        theme: theme,
         builder: (context, child) => KurumiTheme(
           data: KurumiThemeData.fromMaterial(Theme.of(context)),
           child: MediaQuery(
@@ -63,6 +73,29 @@ void main() {
     when(() => posts.refresh()).thenAnswer((_) async {});
   });
   tearDown(() => query.dispose());
+
+  testWidgets(
+    'diagnostic suppression affects only the idle index subscription',
+    (tester) async {
+      query.clear();
+      var requested = 0;
+      await tester.pumpWidget(
+        _app(query, posts, onIndexRequested: () => requested++),
+      );
+      await tester.pumpAndSettle();
+      const suppressed = bool.fromEnvironment(
+        'BOORUSAMA_PERF_SKIP_IDLE_BOOKMARK_INDEX',
+      );
+      expect(requested, suppressed ? 0 : 1);
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(requested, 1);
+      expect(
+        find.byKey(const ValueKey('bookmark-suggestion-blue_hair')),
+        findsOneWidget,
+      );
+    },
+  );
 
   for (final scale in [1.0, 2.0]) {
     testWidgets(
@@ -150,7 +183,12 @@ void main() {
               .firstWhere((span) => span.text == 'one piece')
               .style!
               .color,
-          Colors.purple,
+          ProviderScope.containerOf(
+                tester.element(find.byType(SelectedTagChip).first),
+              )
+              .read(booruChipColorsProvider)
+              .fromColor(Colors.purple)!
+              .foregroundColor,
         );
         verify(() => posts.refresh()).called(1);
         expect(tester.takeException(), isNull);

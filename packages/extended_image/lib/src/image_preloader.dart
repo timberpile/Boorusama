@@ -28,6 +28,9 @@ class ImagePreloader {
     CancelToken? cancelToken,
     String? customKey,
     Duration? maxAge,
+    // Scheduling owners can distinguish transport failure from completion.
+    // Direct best-effort callers retain the existing default.
+    bool propagateErrors = false,
   }) async {
     final cacheKey = customKey ?? cacheManager.generateCacheKey(url);
 
@@ -66,7 +69,7 @@ class ImagePreloader {
       _log('Successfully preloaded: $url');
     } catch (e) {
       _log('Failed to preload $url: $e');
-      // Don't rethrow - preloading is non-critical
+      if (propagateErrors) rethrow;
     } finally {
       await write.abort();
     }

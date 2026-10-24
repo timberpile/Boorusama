@@ -335,16 +335,21 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
         () => _run(() async {
           final generation = await _valid(key, maxAge);
           if (generation == null) return null;
-          generation.pins++;
-          try {
-            await _recordUse(generation);
-          } on Object {
-            generation.pins--;
-            rethrow;
-          }
-          return _lease(generation);
+          return _pinForRead(generation);
         }),
       );
+
+  // Called only while holding the serialized metadata boundary.
+  Future<ImageCacheFileLease> _pinForRead(_Generation generation) async {
+    generation.pins++;
+    try {
+      await _recordUse(generation);
+    } on Object {
+      generation.pins--;
+      rethrow;
+    }
+    return _lease(generation);
+  }
 
   ImageCacheFileLease _lease(_Generation generation) => _FileLease(
     generation.path,
@@ -365,15 +370,23 @@ class DefaultImageCacheManager implements ManagedImageCacheManager {
     var performanceFailed = false;
     try {
       // RAM bytes still require a current entry: clear/trim must invalidate them.
-      final cached = await _run(() async {
-        final generation = await _valid(key, maxAge);
-        if (generation == null) return null;
-        final bytes = _memoryCache?.get(key);
-        if (bytes != null) await _recordUse(generation);
-        return bytes;
-      });
-      if (cached != null) return cached;
-      final lease = await acquireFile(key, maxAge: maxAge);
+      // Validate and pin in one queue slot. Disk I/O remains outside the queue;
+      // clear/eviction may retire the generation but cannot delete this lease.
+      final cached =
+          await _run<({Uint8List? bytes, ImageCacheFileLease? lease})>(
+            () async {
+              final generation = await _valid(key, maxAge);
+              if (generation == null) return (bytes: null, lease: null);
+              final bytes = _memoryCache?.get(key);
+              if (bytes != null) {
+                await _recordUse(generation);
+                return (bytes: bytes, lease: null);
+              }
+              return (bytes: null, lease: await _pinForRead(generation));
+            },
+          );
+      if (cached.bytes case final bytes?) return bytes;
+      final lease = cached.lease;
       if (lease == null) return null;
       try {
         final bytes = await File(lease.path).readAsBytes();

@@ -2,6 +2,7 @@
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../foundation/app_update/src/widgets/app_update_lifecycle_listener.dart';
 import '../foundation/networking.dart';
 import 'analytics/widgets.dart';
 import 'backups/auto/trigger.dart';
@@ -28,7 +29,9 @@ class BoorusamaExternalEffects extends StatelessWidget {
             child: NetworkListener(
               child: SearchRefreshLifecycle(
                 child: DiagnosticContextScope(
-                  child: ImportRecoveryGate(child: child),
+                  child: AppUpdateLifecycleListener(
+                    child: ImportRecoveryGate(child: child),
+                  ),
                 ),
               ),
             ),

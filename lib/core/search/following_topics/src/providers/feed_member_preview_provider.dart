@@ -18,28 +18,57 @@ import '../../../../settings/providers.dart';
 import '../types/topic_feed.dart';
 import 'following_topics_notifier.dart';
 
+// All visible members of one feed share this index. Activity publications keep
+// the same immutable posts list, so they neither rebuild it nor restart decodes.
+final _feedPreviewIndexProvider = Provider.autoDispose
+    .family<Map<int, StoredPostSnapshot>, String>((ref, feedId) {
+      final posts = ref.watch(
+        followingTopicsProvider.select(
+          (value) => value.valueOrNull?.feeds
+              .where((feed) => feed.id == feedId)
+              .firstOrNull
+              ?.posts,
+        ),
+      );
+      return Map.unmodifiable({
+        for (final snapshot in posts ?? const <StoredPostSnapshot>[])
+          feedPostId(snapshot): snapshot,
+      });
+    });
+
 final feedMemberPreviewProvider = FutureProvider.autoDispose
     .family<List<ImageProvider>, ({String feedId, String sourceId})>((
       ref,
       key,
     ) async {
-      final state = ref.watch(followingTopicsProvider).valueOrNull;
-      final feed = state?.feeds.where((f) => f.id == key.feedId).firstOrNull;
-      final source = state?.topics
-          .where((s) => s.id == key.sourceId)
-          .firstOrNull;
+      final (feedProfileId, isMember, sourceProfileId, sourcePreviews) = ref
+          .watch(
+            followingTopicsProvider.select((value) {
+              final state = value.valueOrNull;
+              final feed = state?.feeds
+                  .where((f) => f.id == key.feedId)
+                  .firstOrNull;
+              final source = state?.topics
+                  .where((s) => s.id == key.sourceId)
+                  .firstOrNull;
+              return (
+                feed?.profileId,
+                feed?.sourceIds.contains(key.sourceId) ?? false,
+                source?.profileId,
+                source?.previews,
+              );
+            }),
+          );
       final profiles = ref.watch(booruConfigProvider);
-      final owner = profiles
-          .where((p) => p.id == source?.profileId)
-          .firstOrNull;
+      final owner = profiles.where((p) => p.id == sourceProfileId).firstOrNull;
       final global = ref.watch(settingsProvider.select((s) => s.listing));
       final loading = ref.watch(automaticMediaLoadingEnabledProvider);
       if (!loading ||
-          feed == null ||
-          source == null ||
+          feedProfileId == null ||
+          sourcePreviews == null ||
           owner == null ||
-          source.profileId != feed.profileId ||
-          !feed.sourceIds.contains(source.id)) {
+          sourceProfileId != feedProfileId ||
+          !isMember) {
         return const [];
       }
       final listing = switch (owner.listing) {
@@ -55,11 +84,9 @@ final feedMemberPreviewProvider = FutureProvider.autoDispose
       final codec = ref
           .watch(booruPostCapabilityProvider(owner.auth.booruType))
           ?.codec;
-      final byId = {
-        for (final snapshot in feed.posts) feedPostId(snapshot): snapshot,
-      };
+      final byId = ref.watch(_feedPreviewIndexProvider(key.feedId));
       final candidates = <List<Future<Uint8List?>>>[];
-      for (final preview in source.previews.take(4)) {
+      for (final preview in sourcePreviews.take(4)) {
         final snapshot = byId[preview.postId];
         if (snapshot == null) continue;
         try {

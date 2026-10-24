@@ -58,7 +58,8 @@ final e621PostRepoProvider =
 
           return data.toResult();
         },
-        getSettings: () async => ref.read(imageListingSettingsProvider),
+        getSettings: () async =>
+            ref.read(listingSettingsForAuthProvider(config.auth)),
       );
     });
 

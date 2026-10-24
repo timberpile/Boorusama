@@ -36,6 +36,7 @@ final preloadManagerProvider =
                   request.url,
                   headers: request.headers,
                   cancelToken: cancelToken,
+                  propagateErrors: true,
                 );
           },
           downloadConfiguration: const DownloadConfiguration(),

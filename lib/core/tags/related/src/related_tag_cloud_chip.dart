@@ -36,6 +36,7 @@ class RelatedTagCloudChip extends ConsumerWidget {
         label: Text(
           tag.replaceAll('_', ' '),
           style: TextStyle(
+            fontWeight: FontWeight.w600,
             fontSize: max((60 - (index * 2)).toDouble(), 24),
             color: isDummy ? Colors.transparent : null,
           ),

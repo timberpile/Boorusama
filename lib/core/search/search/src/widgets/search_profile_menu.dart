@@ -21,19 +21,7 @@ class SearchProfileMenu extends ConsumerWidget {
 
     String label(BooruConfig profile) {
       final name = profile.name.trim();
-      final duplicates = profiles.where((p) => p.name.trim() == name);
-      final base = name.isEmpty
-          ? profile.url
-          : duplicates.length > 1
-          ? '$name (${profile.url})'
-          : name;
-      // Identical names and URLs are valid for different accounts.
-      return profiles
-                  .where((p) => p.name.trim() == name && p.url == profile.url)
-                  .length >
-              1
-          ? '$base · ${profiles.indexOf(profile) + 1}'
-          : base;
+      return name.isEmpty ? profile.url : name;
     }
 
     return KurumiPopupMenuButton(

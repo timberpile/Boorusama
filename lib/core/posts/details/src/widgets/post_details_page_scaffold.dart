@@ -1,3 +1,5 @@
+import '../../../../navigation/destination_activity.dart';
+
 // Flutter imports:
 import 'package:flutter/services.dart';
 
@@ -20,7 +22,6 @@ import '../../../../cache/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/gesture/types.dart';
 import '../../../../premiums/providers.dart';
-import '../../../../router.dart';
 import '../../../../settings/providers.dart';
 import '../../../../videos/lock/widgets.dart';
 import '../../../details_pageview/widgets.dart';
@@ -128,6 +129,7 @@ class _PostDetailPageScaffoldState<T extends Post>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
+    visibilityNotifier.value = NavigationActivity.of(context);
     final controller = PostDetailsPageViewScope.of(context);
     if (identical(_pageViewController, controller)) return;
 
@@ -333,7 +335,8 @@ class _PostDetailPageScaffoldState<T extends Post>
             if (_previouslyPlaying) {
               widget.controller.pauseCurrentVideo();
             }
-          } else if (info.visibleFraction == 1) {
+          } else if (info.visibleFraction == 1 &&
+              NavigationActivity.of(context)) {
             visibilityNotifier.value = true;
             if (_previouslyPlaying) {
               widget.controller.playCurrentVideo();
@@ -421,14 +424,6 @@ class _PostDetailPageScaffoldState<T extends Post>
         },
         itemCount: posts.length,
         leftActions: [
-          KurumiCircularIconButton(
-            icon: const Icon(
-              Symbols.home,
-              fill: 1,
-            ),
-            onPressed: () => goToHomePage(ref),
-          ),
-          const SizedBox(width: 8),
           if (widget.controller.dislclaimer != null)
             KurumiCircularIconButton(
               icon: const Icon(

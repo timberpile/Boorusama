@@ -13,18 +13,28 @@ Future<Color?> resolveBookmarkTagColor(
   required TagColors colors,
   required Future<String?> Function(String siteUrl, String tag) categoryLookup,
   required TagColorGenerator? Function(BooruType type) colorGenerator,
+  TagColors? Function(BooruType type)? colorsForType,
+  Color Function(Color color)? transformColor,
 }) async {
   final resolved = <Color>{};
+  void addColor(Color? color) {
+    if (color != null) resolved.add(transformColor?.call(color) ?? color);
+  }
+
   for (final source in entry.sources.entries) {
+    final sourceColors = colorsForType?.call(source.key.booruType) ?? colors;
     if (source.value.isNotEmpty) {
+      // Snapshot categories are canonical names, not engine-specific codes.
       for (final category in source.value) {
         final color = switch (category) {
-          'artist' => colors.artist,
-          'character' => colors.character,
-          'copyright' => colors.copyright,
+          'artist' => sourceColors.artist,
+          'character' => sourceColors.character,
+          'copyright' => sourceColors.copyright,
+          'general' => sourceColors.general,
+          'meta' => sourceColors.meta,
           _ => null,
         };
-        if (color != null) resolved.add(color);
+        addColor(color);
       }
     } else {
       try {
@@ -39,15 +49,16 @@ Future<Color?> resolveBookmarkTagColor(
         final urls = {site, '$withoutSlash/', withoutSlash};
         for (final url in urls) {
           category = await categoryLookup(url, entry.tag);
-          if (category != null && category.isNotEmpty) break;
+          if (category != null) break;
         }
-        if (category == null || category.isEmpty || category == 'unknown') {
+        if (category == null || category == 'unknown') {
           continue;
         }
-        final color = colorGenerator(source.key.booruType)?.generateColor(
-          TagColorOptions(tagType: category, colors: colors),
+        addColor(
+          colorGenerator(source.key.booruType)?.generateColor(
+            TagColorOptions(tagType: category, colors: sourceColors),
+          ),
         );
-        if (color != null) resolved.add(color);
       } catch (_) {
         // A missing/unavailable cache must not disable offline autocomplete.
       }

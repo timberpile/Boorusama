@@ -78,6 +78,66 @@ class ImageClipboardChannelTest {
     }
 
     @Test
+    fun shareIncludesCaptionInTheSameImageIntent() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val directory = File(context.cacheDir, "boorusama-share").apply { mkdirs() }
+        val source = File(directory, "boorusama_share_post_link_${System.nanoTime()}.png")
+        val caption = "Open in Boorusama\nboorusama://post/open?v=1"
+        var owned: File? = null
+        try {
+            source.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47))
+            var launched: android.content.Intent? = null
+            ImageClipboardChannel(context, null) { launched = it }
+                .shareImageFile(source.path, "image/png", caption)
+            val send = launched!!.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+            val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+            owned = File(context.cacheDir, "boorusama-clipboard/${uri.lastPathSegment}")
+            assertEquals(android.content.Intent.ACTION_SEND, send.action)
+            assertEquals(caption, send.getStringExtra(android.content.Intent.EXTRA_TEXT))
+            assertEquals("image/png", send.type)
+            assertEquals(uri, send.clipData!!.getItemAt(0).uri)
+            assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            assertTrue(source.delete())
+            assertEquals(4, context.contentResolver.openInputStream(uri)!!.use { it.readBytes().size })
+        } finally {
+            source.delete()
+            owned?.delete()
+        }
+    }
+
+    @Test
+    fun sharePreparedJpegKeepsReadableImageAndCaptionAfterSourceDeletion() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val directory = File(context.cacheDir, "boorusama-share").apply { mkdirs() }
+        val source = File(directory, "boorusama_share_prepared_${System.nanoTime()}.jpg")
+        val bytes = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte())
+        val caption = "Open in Boorusama\nboorusama://post/open?v=1"
+        var owned: File? = null
+        try {
+            source.writeBytes(bytes)
+            var launched: android.content.Intent? = null
+            ImageClipboardChannel(context, null) { launched = it }
+                .shareImageFile(source.path, "image/jpeg", caption)
+            val chooser = launched!!
+            val send = chooser.getParcelableExtra<android.content.Intent>(android.content.Intent.EXTRA_INTENT)!!
+            val uri = send.getParcelableExtra<android.net.Uri>(android.content.Intent.EXTRA_STREAM)!!
+            owned = File(context.cacheDir, "boorusama-clipboard/${uri.lastPathSegment}")
+            assertEquals(android.content.Intent.ACTION_CHOOSER, chooser.action)
+            assertEquals(android.content.Intent.ACTION_SEND, send.action)
+            assertEquals("image/jpeg", send.type)
+            assertEquals("image/jpeg", context.contentResolver.getType(uri))
+            assertEquals(caption, send.getStringExtra(android.content.Intent.EXTRA_TEXT))
+            assertEquals(uri, send.clipData!!.getItemAt(0).uri)
+            assertTrue(send.flags and android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+            assertTrue(source.delete())
+            assertArrayEquals(bytes, context.contentResolver.openInputStream(uri)!!.use { it.readBytes() })
+        } finally {
+            source.delete()
+            owned?.delete()
+        }
+    }
+
+    @Test
     fun repeatedTransientCopyKeepsBothOwnedUrisReadableAfterClear() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val fixtureFiles = mutableListOf<File>()

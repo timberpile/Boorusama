@@ -32,7 +32,7 @@ final changelogRoutes = GoRoute(
 );
 
 Future<void> goToChangelogPage(WidgetRef ref) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/changelog',
     ).toString(),

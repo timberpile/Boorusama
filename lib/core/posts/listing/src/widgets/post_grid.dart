@@ -1,3 +1,6 @@
+import '../../../../bookmarks/src/types/bookmark_identity.dart';
+import '../../../../selection/ordered_selection_controller.dart';
+
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -17,7 +20,6 @@ import 'package:selection_mode/selection_mode.dart';
 // Project imports:
 import '../../../../../foundation/html.dart';
 import '../../../../boorus/engine/providers.dart';
-import '../../../../boorus/engine/types.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/create/routes.dart';
@@ -32,6 +34,7 @@ import '../_internal/raw_post_grid.dart';
 import '../_internal/sliver_post_grid.dart';
 import '../providers/internal_providers.dart';
 import '../providers/providers.dart';
+import '../types/post_action_snapshot.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/page_mode.dart';
 import 'infinite_scroll_listener.dart';
@@ -56,6 +59,8 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.itemBuilder,
     this.body,
     this.header,
+    this.bottomInset = 0,
+    this.selectionScope,
     this.multiSelectActions,
     this.scrollToTopButton,
     this.enablePullToRefresh,
@@ -70,6 +75,8 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final IndexedSelectableWidgetBuilder<T>? itemBuilder;
   final Widget? body;
   final Widget? header;
+  final double bottomInset;
+  final Object? selectionScope;
   final Widget? multiSelectActions;
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
@@ -90,7 +97,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
     super.initState();
 
     _selectionModeController =
-        widget.selectionModeController ?? SelectionModeController();
+        widget.selectionModeController ?? OrderedSelectionController<Object>();
   }
 
   @override
@@ -127,24 +134,15 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
             _DisableGridItemHeroOnPop(disableHero: _disableHero),
           ],
           scrollController: _autoScrollController,
+          bottomInset: widget.bottomInset,
+          selectionScope: (ref.watchConfigAuth, widget.selectionScope),
           footer: Consumer(
             builder: (_, ref, _) {
-              final booruBuilder = ref.watch(
-                booruBuilderProvider(ref.watchConfigAuth),
-              );
-
-              final multiSelectActions =
-                  widget.multiSelectActions ??
-                  switch (booruBuilder?.multiSelectionActionsBuilder) {
-                    final builder? => _OriginCompatibleMultiSelectionActions(
-                      selectionModeController: _selectionModeController,
-                      postController: widget.controller,
-                      builder: builder,
-                    ),
-                    null => null,
-                  };
-
-              return multiSelectActions ?? const SizedBox.shrink();
+              return widget.multiSelectActions ??
+                  PostSelectionActions(
+                    selectionModeController: _selectionModeController,
+                    postController: widget.controller,
+                  );
             },
           ),
           blacklistedIdString: widget.blacklistedIdString,
@@ -243,54 +241,57 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
   }
 }
 
-class _OriginCompatibleMultiSelectionActions<T extends Post>
-    extends ConsumerWidget {
-  const _OriginCompatibleMultiSelectionActions({
+class PostSelectionActions<T extends Post> extends ConsumerWidget {
+  const PostSelectionActions({
     required this.selectionModeController,
     required this.postController,
-    required this.builder,
+    super.key,
   });
 
   final SelectionModeController selectionModeController;
   final PostGridController<T> postController;
-  final MultiSelectionActionsBuilder builder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watchConfig;
     final configs = ref.watch(booruConfigProvider);
-
     return ListenableBuilder(
-      listenable: selectionModeController,
+      listenable: Listenable.merge([selectionModeController, postController]),
       builder: (context, _) {
-        final selectedPosts = selectionModeController
-            .selectedFrom(postController.items.toList())
-            .toList();
-        final compatible = selectedPosts.every((post) {
-          final resolvedConfig = switch (const PostOriginResolver().resolve(
-            post.origin,
-            configs,
-          )) {
-            ResolvedPostOrigin(config: final resolved) => resolved,
-            _ => null,
-          };
-          if (resolvedConfig?.id != config.id) return false;
-
-          final presentation = ref.watch(
-            booruPostPresentationProvider(
-              PostPresentationRequest(
-                origin: post.origin,
-                data: post.booruData,
-              ),
-            ),
-          );
-          return presentation is! GenericPostPresentation &&
-              presentation.supports(post.booruData);
-        });
-
-        return compatible
-            ? builder(context, selectionModeController, postController)
-            : const SizedBox.shrink();
+        final selectedPosts = postController.refreshing
+            ? <T>[]
+            : selectionModeController
+                  .selectedFrom(postController.items.toList())
+                  .toList();
+        final snapshot = PostActionSnapshot(selectedPosts, configs);
+        final config = snapshot.commonConfig;
+        final compatible =
+            config != null &&
+            selectedPosts.every((post) {
+              final presentation = ref.watch(
+                booruPostPresentationProvider(
+                  PostPresentationRequest(
+                    origin: post.origin,
+                    data: post.booruData,
+                  ),
+                ),
+              );
+              return presentation is! GenericPostPresentation &&
+                  presentation.supports(post.booruData);
+            });
+        final builder = compatible
+            ? ref
+                  .watch(booruBuilderProvider(config.auth))
+                  ?.multiSelectionActionsBuilder
+            : null;
+        return builder == null
+            ? DefaultMultiSelectionActions(postController: postController)
+            : CurrentBooruConfigScope(
+                config: config!,
+                child: Builder(
+                  builder: (context) =>
+                      builder(context, selectionModeController, postController),
+                ),
+              );
       },
     );
   }
@@ -358,7 +359,18 @@ class PostGridContextMenu extends StatelessWidget {
           );
         }
 
+        final selection = SelectionMode.maybeOf(context);
+        final targetKey =
+            selection is OrderedSelectionController &&
+                index < selection.entries.length
+            ? selection.entries[index]
+            : post == null
+            ? null
+            : BookmarkIdentity.tryFromPost(post) ?? ObjectKey(post);
         return CurrentBooruConfigScope(
+          // Replacing a row closes its clicked-post menu, rather than updating
+          // an already-open menu to act on the new occupant of that index.
+          key: ValueKey((targetKey, config?.id)),
           config: config ?? BooruConfig.empty,
           child: menu,
         );
@@ -399,7 +411,7 @@ class PostGridScrollToTopButton extends StatelessWidget {
 
           return Padding(
             padding: multiSelect
-                ? EdgeInsets.only(bottom: 60 + effectiveBottomPadding)
+                ? EdgeInsets.only(bottom: effectiveBottomPadding)
                 : EdgeInsets.only(bottom: effectiveBottomPadding),
             child: InfiniteScrollListener(
               scrollController: autoScrollController,
@@ -411,6 +423,7 @@ class PostGridScrollToTopButton extends StatelessWidget {
               },
               child: KurumiScrollToTop(
                 scrollController: autoScrollController,
+                layoutChanges: controller.itemsNotifier,
                 child: KurumiScrollToTopButton(
                   onPressed: () {
                     autoScrollController.jumpTo(0);

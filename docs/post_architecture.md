@@ -205,6 +205,37 @@ returning to the page.
 Container-owned state stays outside the post presentation. Examples are a
 feed's `NEW` marker and bookmark-group actions.
 
+## Selection and bounded mixed-origin preloading
+
+Post grids and other existing multi-select collections use stable,
+origin-aware identities rather than raw upstream numeric IDs or visual list
+indices. Mobile Long Press enters selection by default when no custom gesture
+is configured; explicit overrides remain respected. In active selection mode,
+taps toggle entries and hold-and-drag can select loaded ranges. Desktop
+Ctrl/Cmd+Click and Shift-modified range operations share the same selection
+model. Page navigation, headers, filters and sorting remain available, with
+selection controls and supported post actions in the bottom action area.
+Filtering or changing the query reconciles/clears selection so hidden items
+cannot receive unintended actions. Do not create new selection modes in
+single-choice controls.
+
+Single-post and multi-post actions use shared dispatch and origin-specific
+capability checks. Common actions may span compatible mixed-engine bookmarks,
+while unavailable engine-specific actions do not silently affect a supported
+subset. Each post uses its originating profile's credentials and media rules;
+no bulk action switches the global browsing profile. Bookmark membership and
+Undo continue using the shared bookmark library semantics.
+
+Mixed-profile preloading resolves only the strategy's nearby index window,
+then groups media requests by the owning profile. It does not build a
+full-collection URL index at each page boundary. Cancellation inspects active
+requests against the desired nearby URLs, and a late cancelled request cannot
+clear a newer request for the same URL. The preload completion history is
+consulted without copying the full set on every swipe; detached page listeners
+must not accumulate after controller replacement. This keeps planning work
+bounded for large mixed-origin collections, independently of any claimed
+physical-device frame-time improvement.
+
 ## Shared image cache
 
 Ordinary posts, bookmark grids, group previews, viewers and preloading use the
@@ -290,3 +321,61 @@ stay hidden. Opening the sheet does not request additional metadata.
 
 Future item 07 coordination must classify Share preparation as media transfer,
 not API metadata traffic; this flow defines no new request rate policy.
+
+### Portable Boorusama post links
+
+`BoorusamaPostLink` is a versioned public address, not a serialized profile or
+bookmark. Version 1 uses
+`boorusama://post/open?v=1&engine=<yaml-name>&site=<encoded-base-url>&key=<encoded-key>`.
+Numeric engines use `id:<id>`; Sankaku keeps its real string server ID, and
+Pixiv uses `work-page:<work-id>:<zero-based-page>`. Reject duplicate/unknown
+parameters, unsupported versions/engines, unsafe site URLs and noncanonical or
+out-of-range identifiers. Never include credentials, profile IDs or snapshots.
+The source comes from the post, not an unrelated active profile in a mixed feed.
+
+The `/open` route uses Flutter/GoRouter's existing Android and iOS custom-scheme
+registration. It chooses exactly one matching local engine/site profile,
+requires a choice for multiple matches, or offers the normal profile editor
+without changing the current browsing profile. The pending address survives
+that editor and resolves only after it closes. Fetch through the selected
+profile's origin-aware repository and verify the returned stable identity before
+displaying it. Profile shortcuts and export/import receivers remain separate.
+Desktop OS protocol registration and hosted HTTPS links are not part of V1.
+
+The current [link-file MVP](bslink-mvp.md) shares one bounded `.bslink` document
+containing this validated URI, plus a readable caption. It does not acquire an
+image or video, expose raw-URI Copy/Share controls, or mix media with the
+document. This avoids relying on messengers to recognize custom URI schemes or
+retain mixed attachments. Recipient profile resolution and post identity checks
+remain the same after decoding the document. Ordinary media sharing continues
+to use its existing image preparation and native URI ownership lifecycle.
+
+### Portable Boorusama search links
+
+Version 1 uses
+`boorusama://search/open?v=1&engine=<yaml-name>&site=<encoded-base-url>&mode=raw|tags&q=<encoded-query>`.
+The engine is intentional: an arbitrary/self-hosted site cannot reliably be
+identified by its hostname alone. The receiver must also be able to create
+the correct engine profile when no match exists. Existing post links retain
+their established v1 format.
+
+`raw` represents one booru query as entered; `tags` represents a JSON array
+of typed search tags in their original order. Neither refers to a locally
+saved Following Topic, a local profile ID, unread state, search cache, nor a
+sender-specific authentication credential. Reject malformed/oversized queries,
+unsupported versions, unknown or repeated URI parameters, unsafe source URLs,
+empty tag lists and unknown engines.
+
+Both post and search addresses use the existing `/open` route, dispatched
+by the `boorusama://` URI authority (`post` or `search`). The search page
+uses the same engine/site recipient matching as post links; a single matching
+profile opens the search, multiple matches require selection, and zero matches
+offer the standard profile editor before resuming the exact pending query.
+Rendering uses `SearchParams` and `CurrentBooruConfigScope` without changing
+the active browsing profile or creating a saved/followed search.
+
+The current search result header shares one `.bslink` document with a readable
+caption, without a thumbnail or raw-URI controls. Following Topic cards and
+feed-member menus do not expose this action: a `.bslink` represents a post or
+search reference, not local following or feed state. Position, page, locally
+chosen sorting, cache and read/follow state are not portable.

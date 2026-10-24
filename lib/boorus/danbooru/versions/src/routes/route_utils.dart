@@ -18,7 +18,7 @@ class DanbooruPostVersionRouteData {
 }
 
 void goToPostVersionPage(WidgetRef ref, Post post) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

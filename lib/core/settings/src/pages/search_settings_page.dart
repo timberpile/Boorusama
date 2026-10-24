@@ -31,6 +31,13 @@ class _SearchSettingsPageState extends ConsumerState<SearchSettingsPage> {
       title: Text(context.t.settings.search.search),
       children: [
         KurumiSwitchListTile(
+          title: Text(context.t.navigation.auto_hide),
+          value: settings.autoHideMainNavigation,
+          onChanged: (value) => notifer.updateWith(
+            (settings) => settings.copyWith(autoHideMainNavigation: value),
+          ),
+        ),
+        KurumiSwitchListTile(
           title: Text(context.t.settings.search.auto_focus_search_bar),
           value: settings.autoFocusSearchBar,
           onChanged: (value) {

@@ -1,3 +1,5 @@
+import '../../../../navigation/destination_activity.dart';
+
 // Package imports:
 import 'package:foundation/performance.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,14 +46,25 @@ class _MixedPostDetailsImagePreloaderState
   final _directionHistory = DirectionHistory();
   PostDetailsPageViewController? _pageViewController;
   int? _lastPage;
+  bool _wasActive = false;
 
   PostDetailsPageViewController get _controller => _pageViewController!;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final active = NavigationActivity.of(context);
+    final resumed = active && !_wasActive;
+    _wasActive = active;
+    if (!active) _preloadManager.cancelAll();
     final controller = PostDetailsPageViewScope.of(context);
-    if (identical(_pageViewController, controller)) return;
+    if (identical(_pageViewController, controller)) {
+      if (resumed)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _preloadAdjacentPages(controller.page);
+        });
+      return;
+    }
 
     _pageViewController?.currentPage.removeListener(_onPageChanged);
     _preloadManager.cancelAll();
@@ -74,6 +87,10 @@ class _MixedPostDetailsImagePreloaderState
   }
 
   void _preloadAdjacentPages(int currentPage) {
+    if (!mounted || !NavigationActivity.of(context)) {
+      _preloadManager.cancelAll();
+      return;
+    }
     final diagnosticRecording = performanceRecorder.enabled;
     var diagnosticResolved = 0;
     performanceRecorder.measureSync(PerfOperation.mixedPreloadResolve, () {
@@ -186,6 +203,7 @@ class _PostDetailsImagePreloaderState<T extends Post>
 
   // Direction tracking
   int? _lastPage;
+  bool _wasActive = false;
   final _directionHistory = DirectionHistory();
 
   PostDetailsPageViewController get _controller => _pageViewController!;
@@ -194,8 +212,18 @@ class _PostDetailsImagePreloaderState<T extends Post>
   void didChangeDependencies() {
     super.didChangeDependencies();
 
+    final active = NavigationActivity.of(context);
+    final resumed = active && !_wasActive;
+    _wasActive = active;
+    if (!active) _preloadManager?.cancelAll();
     final controller = PostDetailsPageViewScope.of(context);
-    if (identical(_pageViewController, controller)) return;
+    if (identical(_pageViewController, controller)) {
+      if (resumed)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _preloadAdjacentPages(controller.page);
+        });
+      return;
+    }
 
     _pageViewController?.currentPage.removeListener(_onPageChanged);
     _preloadManager?.cancelAll();
@@ -226,6 +254,10 @@ class _PostDetailsImagePreloaderState<T extends Post>
   }
 
   Future<void> _preloadAdjacentPages(int currentPage) async {
+    if (!mounted || !NavigationActivity.of(context)) {
+      _preloadManager?.cancelAll();
+      return;
+    }
     performanceRecorder.measureSync(PerfOperation.viewerPreloadDispatch, () {
       if (!mounted) return;
 

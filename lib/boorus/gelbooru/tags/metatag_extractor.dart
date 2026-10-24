@@ -10,10 +10,14 @@ class GelbooruMetatagExtractor implements MetatagExtractor {
   const GelbooruMetatagExtractor({
     required this.metatags,
     required this.sortableTypes,
+    this.allowRandomSort = false,
+    this.allowSeededRandomSort = false,
   });
 
   final Set<Metatag>? metatags;
   final Set<SortableTagType> sortableTypes;
+  final bool allowRandomSort;
+  final bool allowSeededRandomSort;
 
   @override
   String? fromString(
@@ -45,7 +49,12 @@ class GelbooruMetatagExtractor implements MetatagExtractor {
 
     // Special validation for sort metatag
     if (strippedQuery.startsWith('sort:')) {
-      return SortableTagType.isValidSortMetatag(strippedQuery, sortableTypes);
+      return SortableTagType.isValidSortMetatag(
+        strippedQuery,
+        sortableTypes,
+        allowRandomSort: allowRandomSort,
+        allowSeededRandomSort: allowSeededRandomSort,
+      );
     }
 
     return metatags?.toList().any(

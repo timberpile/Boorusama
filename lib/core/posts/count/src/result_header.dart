@@ -65,9 +65,12 @@ class ResultHeaderFromController extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (!hasCount) return const SizedBox.shrink();
 
-    return ValueListenableBuilder(
-      valueListenable: controller.count,
-      builder: (context, data, _) => switch (data) {
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        controller.count,
+        controller.refreshingNotifier,
+      ]),
+      builder: (context, _) => switch (controller.count.value) {
         final count? => ResultHeader(
           count: count,
           onRefresh: switch (onRefresh) {
@@ -75,7 +78,8 @@ class ResultHeaderFromController extends ConsumerWidget {
             _ => null,
           },
         ),
-        null => const ResultHeader.loading(),
+        null when controller.refreshing => const ResultHeader.loading(),
+        null => const SizedBox.shrink(),
       },
     );
   }

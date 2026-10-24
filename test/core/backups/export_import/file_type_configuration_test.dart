@@ -42,18 +42,18 @@ void main() {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
-    final exportFilters =
-        RegExp(
-              '<intent-filter>(.*?)</intent-filter>',
-              dotAll: true,
-            )
-            .allMatches(manifest)
-            .map((match) => match.group(1)!)
-            .where(
-              (filter) => filter.contains(mimeType),
-            );
+    final exportReceiver = RegExp(
+      r'<activity(?=[^>]*android:name="\.ExportOpenActivity")[^>]*>.*?</activity>',
+      dotAll: true,
+    ).firstMatch(manifest)?.group(0);
+    expect(exportReceiver, isNotNull);
+    final exportFilters = RegExp(
+      '<intent-filter>(.*?)</intent-filter>',
+      dotAll: true,
+    ).allMatches(exportReceiver!).map((match) => match.group(1)!);
 
     expect(exportFilters, hasLength(2));
+    expect(exportFilters, everyElement(contains(mimeType)));
     expect(
       exportFilters.any(
         (filter) => filter.contains('android.intent.action.VIEW'),
@@ -66,7 +66,41 @@ void main() {
       ),
       isTrue,
     );
-    expect(manifest, isNot(contains('application/octet-stream')));
+    expect(exportReceiver, isNot(contains('application/octet-stream')));
+    expect(exportReceiver, isNot(contains('application/json')));
+    expect(exportReceiver, isNot(contains('android:mimeType="*/*"')));
+  });
+
+  test('Android generic document viewing is limited to link-file paths', () {
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
+    ).readAsStringSync();
+    final linkReceiver = RegExp(
+      r'<activity(?=[^>]*android:name="\.LinkOpenActivity")[^>]*>.*?</activity>',
+      dotAll: true,
+    ).firstMatch(manifest)?.group(0);
+    expect(linkReceiver, isNotNull);
+    final viewFilters =
+        RegExp(
+              '<intent-filter>(.*?)</intent-filter>',
+              dotAll: true,
+            )
+            .allMatches(linkReceiver!)
+            .map((match) => match.group(1)!)
+            .where(
+              (filter) => filter.contains('android.intent.action.VIEW'),
+            );
+
+    expect(viewFilters, hasLength(2));
+    for (final filter in viewFilters) {
+      expect(filter, contains('android:scheme="content"'));
+      if (filter.contains('application/octet-stream')) {
+        expect(filter, contains(r'android:pathPattern=".*\\.bslink"'));
+      } else {
+        expect(filter, contains('application/vnd.boorusama.link'));
+      }
+      expect(filter, isNot(contains('android:mimeType="*/*"')));
+    }
   });
 
   test('Android opens exports through a separate app-task receiver', () {
@@ -92,16 +126,19 @@ void main() {
     expect(mainActivity, isNot(contains('android:taskAffinity=""')));
   });
 
-  test('Android stages each received intent with a bounded private delivery', () {
-    final channel = File(
-      'android/app/src/main/kotlin/com/timberpile/boorusama/ReceivedExportChannel.kt',
-    ).readAsStringSync();
+  test(
+    'Android stages each received intent with a bounded private delivery',
+    () {
+      final channel = File(
+        'android/app/src/main/kotlin/com/timberpile/boorusama/ReceivedExportChannel.kt',
+      ).readAsStringSync();
 
-    expect(channel, contains('MAX_EXPORT_BYTES'));
-    expect(channel, contains('ReceivedExportStaging.stage('));
-    expect(channel, contains('"id" to delivery.id'));
-    expect(channel, contains('"path" to delivery.file.absolutePath'));
-  });
+      expect(channel, contains('MAX_EXPORT_BYTES'));
+      expect(channel, contains('ReceivedExportStaging.stage('));
+      expect(channel, contains('"id" to delivery.id'));
+      expect(channel, contains('"path" to delivery.file.absolutePath'));
+    },
+  );
 
   for (final plistPath in [
     'ios/Runner/Info.plist',

@@ -1,3 +1,5 @@
+import 'package:selection_mode/selection_mode.dart';
+
 // Dart imports:
 import 'dart:math';
 
@@ -24,6 +26,11 @@ import '../types/bookmark_search_token.dart';
 import '../types/bookmark_tag_index.dart';
 import '../types/bookmark_view.dart';
 
+// Diagnostic A/B only: the normal build retains its eager subscription.
+const _skipIdleIndex = bool.fromEnvironment(
+  'BOORUSAMA_PERF_SKIP_IDLE_BOOKMARK_INDEX',
+);
+
 class BookmarkSearchBar extends ConsumerStatefulWidget {
   const BookmarkSearchBar({
     required this.controller,
@@ -48,7 +55,10 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
   void initState() {
     super.initState();
     _search = BookmarkSearchController(widget.controller);
+    if (_skipIdleIndex) _focusNode.addListener(_onDiagnosticFocusChanged);
   }
+
+  void _onDiagnosticFocusChanged() => setState(() {});
 
   @override
   void didUpdateWidget(covariant BookmarkSearchBar oldWidget) {
@@ -71,6 +81,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
     final index = ref.read(bookmarkTagIndexProvider(widget.view)).valueOrNull;
     _search.submit(knownTags: index?.byName.keys.toSet() ?? const {});
     _focusNode.unfocus();
+    SelectionMode.maybeOf(context)?.disable();
     widget.postController.refresh();
   }
 
@@ -94,7 +105,11 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
   Widget build(BuildContext context) {
     // Retain the scoped index while the bar is mounted, not only while an
     // overlay is visible. Typing never scans or fetches the bookmark library.
-    ref.watch(bookmarkTagIndexProvider(widget.view));
+    if (!_skipIdleIndex ||
+        _focusNode.hasFocus ||
+        widget.controller.text.isNotEmpty) {
+      ref.watch(bookmarkTagIndexProvider(widget.view));
+    }
     return AnimatedBuilder(
       // KurumiSearchBar retains its initial controller. Recreate the field
       // and its popover when the owning query controller changes.
@@ -159,6 +174,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                               knownTags: index?.byName.keys.toSet() ?? const {},
                             );
                             _focusNode.unfocus();
+                            SelectionMode.maybeOf(context)?.disable();
                             widget.postController.refresh();
                           },
                         ),
@@ -182,6 +198,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                                 onPressed: () {
                                   _search.clear();
                                   _focusNode.unfocus();
+                                  SelectionMode.maybeOf(context)?.disable();
                                   widget.postController.refresh();
                                 },
                               )
@@ -228,6 +245,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                                     },
                                     onDeleted: () {
                                       _search.remove(tag);
+                                      SelectionMode.maybeOf(context)?.disable();
                                       widget.postController.refresh();
                                     },
                                   ),

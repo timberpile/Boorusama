@@ -15,7 +15,7 @@ import '../types/bookmark_view.dart';
 Future<void> goToBookmarkPage(
   WidgetRef ref,
 ) {
-  return ref.router.push(
+  return ref.pushRoute(
     Uri(
       path: '/bookmarks',
     ).toString(),
@@ -43,7 +43,7 @@ Future<void> goToBookmarkGroupPage(
       return;
     }
   }
-  await ref.router.push(
+  await ref.pushRoute(
     Uri(
       path: '/bookmarks/group',
       queryParameters: {
@@ -68,7 +68,7 @@ Future<void> goToBookmarkDetailsPage(
   final bookmarkLibrary = ref.read(bookmarkProvider.notifier);
   detailsMutations.begin(sourceView: sourceView);
   try {
-    await ref.router.push(
+    await ref.pushRoute(
       Uri(
         path: '/bookmarks/details',
         queryParameters: {

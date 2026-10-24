@@ -7,7 +7,7 @@ import '../../../../../../core/router.dart';
 import '../../../../../../core/posts/post/types.dart';
 
 void goToPostFavoritesDetails(WidgetRef ref, Post post) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',
@@ -23,7 +23,7 @@ void goToPostFavoritesDetails(WidgetRef ref, Post post) {
 }
 
 void goToPostVotesDetails(WidgetRef ref, Post post) {
-  ref.router.push(
+  ref.pushRoute(
     Uri(
       pathSegments: [
         '',

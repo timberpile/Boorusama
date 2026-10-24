@@ -2,8 +2,8 @@
 
 ## Isolation and scope
 
-Use an isolated task branch/worktree; work items always require one. Small
-explicit changes may use local `develop` under the
+Use an isolated task branch/worktree for GitHub Issues. Small
+explicit issue-free changes may use local `develop` under the
 [development workflow](docs/development_workflow.md#isolation-and-small-changes).
 When the user specifies an existing task branch, continue that branch instead of
 creating a new one. Reuse its isolated worktree if present; otherwise create an
@@ -15,6 +15,23 @@ Keep changes within the request; avoid unrelated cleanup. Follow that workflow
 for checkout setup, authorization, integration, and cleanup.
 Commit all task changes before reporting completion, unless the user explicitly
 asks to leave them uncommitted. Stage only changes belonging to the task.
+
+Approval to merge a task branch (including “can be merged”) authorizes completing
+the workflow: integrate and push the approved change to `origin/develop`, close
+the associated issue after verifying publication, and delete the completed remote
+task branch as well as its local branch/worktree. Do not ask again for these
+steps. Honor explicit narrower limits such as “local only” or “keep the branch”;
+required verification and protection of unrelated work still apply.
+
+When integrating an issue-linked task into `develop`, include its GitHub issue ID
+in the resulting Conventional Commit subject, for example
+`fix: hide scroll-to-top button at the top (#63)`. This applies to squash commits,
+equivalent replay, and explicitly requested PR squash merges; preserve the issue
+ID even when intermediate commits are discarded. Include every completed issue
+ID when an explicitly approved integration covers multiple issues. Issue-free
+changes do not require an invented issue ID. Use `Refs #<issue-id>` while
+acceptance is pending and `Closes #<issue-id>` only when the issue workflow's
+completion criteria are met.
 
 ## Workflow selection
 
@@ -39,12 +56,14 @@ requested.
 
 Read only relevant code, tests, and docs. Consult
 [engineering guidelines](docs/engineering_guidelines.md) for needed detail.
-Read [queue rules](docs/work/README.md) and related tickets only for explicitly
-requested work items; one agent may claim and implement directly. Read relevant
+Use the [issue workflow](docs/issue_workflow.md) for tracked tasks and explicit
+issue work. GitHub Issues are the only task tracker; do not create local ticket
+files or a parallel repository queue. Ordinary scoped changes still need no
+issue. Read relevant
 [development workflow](docs/development_workflow.md) sections for integration,
 publication, releases, or upstream synchronization.
 
-- **Repository language:** All code comments, documentation, commit messages, work items, design/merge plans and agent handoffs must be written in **English**. Only user-facing UI localization resources may contain text in their intended target languages. Translate any new non-localization German prose to English before committing.
+- **Repository language:** All code comments, documentation, commit messages, issues, design/merge plans and agent handoffs must be written in **English**. Only user-facing UI localization resources may contain text in their intended target languages. Translate any new non-localization German prose to English before committing.
 - Always use `fvm` for Flutter/Dart.
 - Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers; no provider codegen.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.
@@ -69,7 +88,7 @@ hang guards as described in the [test guidelines](docs/engineering_guidelines.md
 Choose verification by the change's scope, following the
 [verification guidance](docs/engineering_guidelines.md#scope-appropriate-verification):
 
-- Documentation, work-item status, comments, and other non-runtime-only changes:
+- Documentation, issue status, comments, and other non-runtime-only changes:
   run relevant documentation/tooling checks; do not run application tests.
 - Scoped application changes: run affected test files or directories and nearby
   consumer tests when a meaningful boundary is crossed.

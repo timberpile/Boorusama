@@ -1,5 +1,10 @@
 # Recursive Export Selection Implementation Plan
 
+> **Historical implementation plan (completed).** Do not execute these steps
+> as a new task. Use the current subsystem docs and GitHub Issues for future
+> work. Retired local-ticket procedures below are not applicable.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace flat export and recommendation lists with one arbitrary-depth selection hierarchy while preserving pinned-search folders, profile context, current `.bsexport` compatibility, and safe no-op import behavior.
@@ -254,8 +259,7 @@ git commit -m "fix(backups): simplify template and no-op imports"
 ### Task 6: Integration verification and task completion
 
 **Files:**
-- Modify: `docs/work/in-progress/DATA-003-recursive-export-selection.md`
-- Move after verification: `docs/work/in-progress/DATA-003-recursive-export-selection.md` to `docs/work/done/DATA-003-recursive-export-selection.md`
+- Historical local task status files are retired; preserve durable export behavior in the subsystem documentation.
 
 **Interfaces:**
 - Consumes: completed Tasks 1-5.
@@ -279,9 +283,9 @@ Expected: all tests pass; if unrelated timing failures recur, report them by exa
 
 Build/install the Dev APK, obtain a device ID from Maestro, and exercise Custom export. Verify nested pinned-search expansion, partial/current/dynamic selection labels, right-aligned profile context, hierarchical recommendations, template save return, and a no-op import with warnings if a safe fixture is available. Record any unavailable data-dependent scenario explicitly.
 
-- [ ] **Step 4: Record evidence and close the queue task**
+- [ ] **Step 4 (historical): Record completion evidence**
 
-Update every acceptance criterion and add exact commands/results and limitations. Move the stable task filename to `docs/work/done/` only after the evidence supports completion.
+Record exact checks and remaining limitations in the task handoff. Tracked tasks close through the GitHub issue workflow.
 
 - [ ] **Step 5: Verify the final branch and commit**
 
@@ -292,6 +296,6 @@ Run: `git rev-list --min-parents=2 origin/develop..HEAD`
 Expected: no whitespace errors and no merge commits in the outgoing feature range.
 
 ```bash
-git add docs/work/done/DATA-003-recursive-export-selection.md
+git diff --check
 git commit -m "docs(backups): record recursive selection completion"
 ```

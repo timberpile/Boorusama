@@ -45,6 +45,7 @@ final currentReadOnlyBooruConfigNetworkProvider = Provider<NetworkSettings>(
   (ref) => ref.watch(
     networkSettingsProvider(ref.watch(currentReadOnlyBooruConfigAuthProvider)),
   ),
+  dependencies: [currentReadOnlyBooruConfigAuthProvider],
   name: 'currentReadOnlyBooruConfigNetworkProvider',
 );
 

@@ -4,10 +4,10 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/configs/manage/widgets.dart';
 import '../../../../../core/images/booru_image.dart';
 import '../../../../../core/posts/listing/providers.dart';
 import '../../../../../core/posts/listing/widgets.dart';
@@ -34,7 +34,6 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
     final profile = ref.watchConfig;
     final config = ref.watchConfigAuth;
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
-    final controller = SelectionMode.of(context);
 
     return DefaultMultiSelectionActions(
       postController: postController,
@@ -43,14 +42,11 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
           MultiSelectButton(
             onPressed: selectedPosts.isNotEmpty
                 ? () async {
-                    final shouldEnd = await goToAddToFavoriteGroupSelectionPage(
+                    await goToAddToFavoriteGroupSelectionPage(
                       context,
                       selectedPosts,
                       profile,
                     );
-                    if (shouldEnd != null && shouldEnd) {
-                      controller.disable();
-                    }
                   }
                 : null,
             icon: const Icon(Symbols.add),
@@ -66,15 +62,11 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
                         MultiSelectButton(
                           onPressed: selectedPosts.isNotEmpty
                               ? () async {
-                                  final shouldEnd =
-                                      await goToMassEditRatingSheet(
-                                        context,
-                                        ref,
-                                        selectedPosts,
-                                      );
-                                  if (shouldEnd != null && shouldEnd) {
-                                    controller.disable();
-                                  }
+                                  await goToMassEditRatingSheet(
+                                    context,
+                                    ref,
+                                    selectedPosts,
+                                  );
                                 }
                               : null,
                           icon: const Icon(Symbols.edit_square),
@@ -95,11 +87,14 @@ Future<bool?> goToMassEditRatingSheet(
   WidgetRef ref,
   List<Post> posts,
 ) {
+  final profile = ref.readConfig;
   return Kurumi.showAppModalBottomSheet<bool?>(
     context: context,
     builder: (context) {
-      return MassEditRatingSheet(
-        posts: posts,
+      // Navigator-owned sheets do not inherit the invoking grid's provider scope.
+      return CurrentBooruConfigScope(
+        config: profile,
+        child: MassEditRatingSheet(posts: List.unmodifiable(posts)),
       );
     },
   );

@@ -13,7 +13,6 @@ import 'configs/widgets.dart';
 import 'comments/widgets.dart';
 import 'favorites/widgets.dart';
 import 'home/types.dart';
-import 'home/widgets.dart';
 import 'posts/full_post_loader.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
@@ -50,10 +49,6 @@ class GelbooruV2Builder extends BaseBooruBuilder {
           url: id.url,
         ),
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const GelbooruV2HomePage();
 
   @override
   UpdateConfigPageBuilder get updateConfigPageBuilder =>

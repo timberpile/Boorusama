@@ -8,7 +8,11 @@ import 'package:kurumi/material.dart';
 import 'package:share_handler/share_handler.dart';
 
 // Project imports:
-import '../../../../../../core/configs/config/providers.dart';
+import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/navigation/destination_activity.dart';
+import '../../../../../../core/navigation/navigation_controller.dart';
+import '../../../../../../core/configs/manage/providers.dart';
+import '../../../../../../core/boorus/booru/types.dart';
 import '../../../../../../foundation/platform.dart';
 import '../../../../../../foundation/url_launcher.dart';
 import '../../../../configs/providers.dart';
@@ -45,15 +49,26 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
 
     // Get initial shared media when app is launched via share
     final initialMedia = await ShareHandler.instance.getInitialSharedMedia();
-    if (initialMedia != null) {
-      _onSharedTextsReceived(initialMedia);
+    if (initialMedia != null && mounted) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) _onSharedTextsReceived(initialMedia);
     }
   }
 
   void _onSharedTextsReceived(SharedMedia media) {
+    if (!mounted || !NavigationActivity.of(context)) return;
     final text = media.content;
-    final config = ref.readConfigAuth;
-    final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
+    final destination = ref
+        .read(navigationControllerProvider.notifier)
+        .binding
+        ?.currentDestination;
+    final owner = ref
+        .read(booruConfigProvider)
+        .where((c) => c.id == destination?.profileId)
+        .firstOrNull;
+    if (owner == null || owner.auth.booruType != BooruType.danbooru) return;
+    final config = owner.auth;
+    final loginDetails = ref.read(danbooruLoginDetailsProvider(config));
     final booruUrl = config.url;
 
     if (loginDetails.hasStrictSFW) return;
@@ -63,7 +78,7 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
 
     if (uri != null && isHttp) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
+        if (!mounted || !NavigationActivity.of(context)) return;
 
         showDialog(
           context: context,
@@ -85,6 +100,10 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
                   onPressed: () {
                     Navigator.pop(context);
 
+                    if (!ref
+                        .read(booruConfigProvider)
+                        .any((c) => c.id == owner.id && c.auth == config))
+                      return;
                     final encodedUri = Uri.encodeFull(uri.toString());
                     final url = '${booruUrl}uploads/new?url=$encodedUri';
                     launchExternalUrlString(

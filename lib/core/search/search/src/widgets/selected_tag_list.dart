@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../../configs/config/types.dart';
 import '../../../../tags/favorites/providers.dart';
 import '../../../../tags/tag/widgets.dart';
 import '../../../selected_tags/tag_search_item.dart';
@@ -19,11 +20,13 @@ class SelectedTagList extends StatelessWidget {
     required this.onUpdate,
     required this.onBulkDownload,
     super.key,
+    this.auth,
     this.extraTagsCount,
     this.profileMenu,
     this.onOtherTagsCountTap,
   });
 
+  final BooruConfigAuth? auth;
   final List<TagSearchItem> tags;
   final VoidCallback onClear;
   final void Function(TagSearchItem tag) onDelete;
@@ -76,11 +79,18 @@ class SelectedTagList extends StatelessWidget {
                   return switch (it) {
                     final TagSearchItem item => Builder(
                       builder: (context) {
-                        final chip = SelectedTagChip(
-                          tagSearchItem: item,
-                          onDeleted: () => onDelete(item),
-                          onUpdated: (tag) => onUpdate?.call(item, tag),
-                        );
+                        final chip = auth == null
+                            ? SelectedTagChip(
+                                tagSearchItem: item,
+                                onDeleted: () => onDelete(item),
+                                onUpdated: (tag) => onUpdate?.call(item, tag),
+                              )
+                            : CategoryAwareSelectedTagChip(
+                                auth: auth!,
+                                tagSearchItem: item,
+                                onDeleted: () => onDelete(item),
+                                onUpdated: (tag) => onUpdate?.call(item, tag),
+                              );
 
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 4),

@@ -1,6 +1,13 @@
-# Current continuation: background checkpoints
+# Historical cache-performance continuation
 
-## Current continuation status
+> **Historical diagnostic handoff, not active task instructions.** The
+> background checkpoint work is integrated. Read
+> [current performance diagnostics](performance_diagnostics.md) and
+> [post architecture](post_architecture.md#shared-image-cache) before new work.
+> Old branch/worktree paths and pre-integration claims below are preserved only
+> as the investigation record.
+
+## Status when this handoff was written
 
 The local branch has been rebased onto `develop` `5b618ddcc`, including the
 incremental LRU and accepted viewer swipe fix. The background checkpoint worker
@@ -16,8 +23,9 @@ acceptance. Keep populated-cache A/B measurement separate from local test eviden
 
 
 This branch now incorporates develop at `a46521eced78ae2f31a5c2517a43fc2e4e4a6072` and the checkpoint
-worker follow-up. Start with `docs/work/in-progress/0001-background-image-cache-checkpoints.md`
-(or the same filename under `blocked/` after verification). Earlier preparation
+worker follow-up. For current cache behavior start with
+[performance diagnostics](performance_diagnostics.md) and
+[post architecture](post_architecture.md#shared-image-cache). Earlier preparation
 notes below describe the historical diagnostics-only baseline, not the current
 cache algorithm. See `docs/checkpoint_verification.json` when present for actual
 runner checks; a device comparison and the required local suite are still separate.

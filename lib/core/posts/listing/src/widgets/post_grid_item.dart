@@ -31,6 +31,14 @@ abstract interface class BooruPostGridPresentation {
   });
 }
 
+abstract interface class BooruPostSingleActionsPresentation {
+  List<Widget> buildSingleSelectionActions(
+    BuildContext context, {
+    required WidgetRef ref,
+    required Post post,
+  });
+}
+
 abstract interface class BooruPostGridContextMenuPresentation {
   Widget buildGridContextMenu(
     BuildContext context, {
@@ -125,6 +133,7 @@ class PostGridItem extends ConsumerWidget {
         url: resolvedMedia.url,
         aspectRatio: aspectRatio,
         fallbackUrl: resolvedMedia.fallbackUrl,
+        fallbackUrls: resolvedMedia.fallbackUrls,
         placeholderUrl: resolvedMedia.placeholderUrl,
         placeholderAspectRatio: resolvedMedia.placeholderAspectRatio,
         placeholderFit: resolvedMedia.placeholderFit,
@@ -254,6 +263,7 @@ class _PostGridImage extends ConsumerWidget {
       aspectRatio: media.aspectRatio,
       imageUrl: media.url,
       fallbackUrl: media.fallbackUrl,
+      fallbackUrls: media.fallbackUrls,
       borderRadius: BorderRadius.circular(imageBorderRadius),
       forceCover: imageListType == ImageListType.standard,
       fit: imageListType == ImageListType.classic ? BoxFit.contain : null,

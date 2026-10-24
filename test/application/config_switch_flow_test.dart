@@ -1,5 +1,4 @@
 // Flutter imports:
-import 'package:flutter/widgets.dart';
 
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +10,7 @@ import 'package:boorusama/core/settings/types.dart';
 
 import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
+import 'support/app_flow_driver.dart';
 
 void main() {
   testWidgets(
@@ -39,9 +39,10 @@ void main() {
         backend.config.url,
       );
 
-      final configBSelector = find.byKey(ValueKey(backend.configB.id));
-      expect(configBSelector, findsOneWidget);
-      await tester.tap(configBSelector);
+      await AppFlowDriver(
+        tester: tester,
+        harness: harness,
+      ).selectProfile(backend.configB);
       await harness.pumpUntil(
         tester,
         () => backend.requests.whereType<FakeBooruPostRequest>().any(

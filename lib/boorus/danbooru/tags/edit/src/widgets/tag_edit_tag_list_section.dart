@@ -208,7 +208,7 @@ class _SliverTagEditListViewState
               color: Kurumi.themeOf(context).brightness.isLight
                   ? colors?.backgroundColor
                   : colors?.foregroundColor,
-              fontWeight: isNewlyAdded ? FontWeight.w900 : null,
+              fontWeight: isNewlyAdded ? FontWeight.w900 : FontWeight.w600,
             ),
           ),
           onTap: () => notifier.setSelectedTag(tag),

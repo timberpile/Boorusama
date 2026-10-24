@@ -124,12 +124,16 @@ class _PostListConfigurationHeaderState
                 contentPadding: EdgeInsets.zero,
                 title: Row(
                   children: [
-                    if (widget.axis == Axis.horizontal)
-                      Text(
-                        context.t.posts.counter(n: widget.postCount),
-                        style: Kurumi.themeOf(context).textTheme.titleLarge,
-                      ),
-                    const Spacer(),
+                    Expanded(
+                      child: widget.axis == Axis.horizontal
+                          ? Text(
+                              context.t.posts.counter(n: widget.postCount),
+                              style: Kurumi.themeOf(context)
+                                  .textTheme
+                                  .titleLarge,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                     FittedBox(
                       child: widget.trailing,
                     ),

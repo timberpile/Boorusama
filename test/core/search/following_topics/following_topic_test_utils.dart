@@ -3,9 +3,14 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/tags/configs/providers.dart';
+import 'package:boorusama/core/tags/configs/src/tag_info.dart';
+import 'package:boorusama/core/search/histories/providers.dart';
+import 'package:boorusama/core/search/histories/src/data/repo_empty.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
+import 'package:boorusama/core/search/following_topics/src/providers/topic_query_tag_categories_provider.dart';
 import 'package:boorusama/core/search/following_topics/src/services/search_refresh_scheduler.dart';
 
 import 'dart:typed_data';
@@ -140,6 +145,7 @@ class FollowingTopicHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    bool Function(BooruConfigAuth)? trackingSupported,
     Settings? settings,
     ImageListingSettings? listingSettings,
     ImageCacheManager? imageCacheManager,
@@ -160,6 +166,7 @@ class FollowingTopicHarness {
     BooruConfigRepository? profileRepository,
     BooruPostCapability<BooruPostData>? postCapability,
     BooruBuilder? Function(BooruConfigAuth config)? booruBuilder,
+    List<Override> overrides = const [],
   }) {
     final initialSettings = settings ?? Settings.defaultSettings;
     repository = HiveFollowingTopicRepository(
@@ -168,6 +175,18 @@ class FollowingTopicHarness {
     );
     container = ProviderContainer(
       overrides: [
+        // Metadata presentation has dedicated repository/cache coverage.
+        topicQueryTagCategoriesProvider.overrideWith((ref, key) async => {}),
+        searchHistoryRepoProvider.overrideWith(
+          (_) => Future.value(EmptySearchHistoryRepository()),
+        ),
+        tagInfoProvider.overrideWithValue(
+          const TagInfo(
+            metatags: {},
+            defaultBlacklistedTags: {},
+            r18Tags: {},
+          ),
+        ),
         loggerProvider.overrideWithValue(
           ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),
         ),
@@ -219,7 +238,7 @@ class FollowingTopicHarness {
         canFavoriteProvider.overrideWith((ref, config) => false),
         downloadServiceProvider.overrideWithValue(_TestDownloadService()),
         followingTopicTrackingSupportedProvider.overrideWith(
-          (ref, config) => supported,
+          (ref, config) => trackingSupported?.call(config) ?? supported,
         ),
         currentReadOnlyBooruConfigProvider.overrideWith(
           (ref) => ref.watch(selectedTestProfileProvider),
@@ -258,8 +277,10 @@ class FollowingTopicHarness {
                   return Either.of(const PostResult(posts: <Post>[], total: 0));
                 },
               ),
-              resolveQueryAdapter: (_) =>
-                  const DefaultSearchRefreshQueryAdapter(),
+              resolveQueryAdapter: (config) =>
+                  trackingSupported?.call(config) == false
+                  ? const UnsupportedSearchRefreshQueryAdapter()
+                  : const DefaultSearchRefreshQueryAdapter(),
               scanner: ChronologicalSearchScanner(),
             ),
           ),
@@ -295,6 +316,7 @@ class FollowingTopicHarness {
         ),
         httpHeadersProvider.overrideWith((ref, config) => {}),
         routerProvider.overrideWith((_) => router),
+        ...overrides,
       ],
     );
     container
@@ -329,6 +351,7 @@ class FollowingTopicHarness {
       wrap(
         MaterialApp(
           home: child,
+          theme: ThemeData(extensions: const [KurumiExtendedColorScheme()]),
           builder: themeBuilder,
         ),
       ),

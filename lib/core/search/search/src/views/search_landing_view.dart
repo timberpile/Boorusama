@@ -18,6 +18,7 @@ import '../../../selected_tags/tag_search_item.dart';
 import '../pages/selected_tag_edit_dialog.dart';
 import '../types/search_bar_position.dart';
 import '../widgets/constants.dart';
+import '../widgets/search_landing_viewport.dart';
 import '../widgets/favorite_tags_section.dart';
 import '../widgets/shared_search_options_section.dart';
 
@@ -75,11 +76,16 @@ class _SearchLandingViewState extends ConsumerState<SearchLandingView>
     final searchBarPosition = ref.watch(searchBarPositionProvider);
     final reverse = searchBarPosition == SearchBarPosition.bottom;
 
-    final view = SingleChildScrollView(
-      reverse: widget.reverse ?? reverse,
-      physics: const AlwaysScrollableScrollPhysics(),
-      controller: widget.scrollController,
-      child: widget.child,
+    final view = LayoutBuilder(
+      builder: (context, constraints) => SearchLandingViewport(
+        height: constraints.maxHeight,
+        child: SingleChildScrollView(
+          reverse: widget.reverse ?? reverse,
+          physics: const AlwaysScrollableScrollPhysics(),
+          controller: widget.scrollController,
+          child: widget.child,
+        ),
+      ),
     );
 
     return Container(
@@ -114,12 +120,12 @@ class DefaultSearchLandingChildren extends ConsumerWidget {
     final effectiveReverse = reverse ?? settingsReverse;
 
     final effectiveChildren = [
-      const SizedBox(height: 8),
+      const SizedBox(height: 6),
       ?notice,
       ...[
         ...children,
       ].intersperse(
-        const Divider(thickness: 1),
+        const Divider(thickness: 1, height: 12),
       ),
       SizedBox(
         height: MediaQuery.viewPaddingOf(context).bottom + 12,

@@ -31,6 +31,12 @@ Post gelbooruV2PostDtoToGelbooruPost(
   final fileUrl = imageUrlResolver.resolveImageUrl(
     dto.fileUrl ?? '',
   );
+  // Query strings and fragments are not part of the file extension. An
+  // extensionless or malformed external URL must not throw substring errors.
+  final format = path
+      .extension(Uri.tryParse(dto.fileUrl ?? '')?.path ?? '')
+      .replaceFirst('.', '')
+      .toLowerCase();
 
   final record = GelbooruV2PostRecord(
     id: dto.id!,
@@ -40,7 +46,7 @@ Post gelbooruV2PostDtoToGelbooruPost(
     tags: dto.tags.splitTagString(),
     width: dto.width?.toDouble() ?? 0,
     height: dto.height?.toDouble() ?? 0,
-    format: path.extension(dto.fileUrl ?? 'foo.png').substring(1),
+    format: format,
     source: PostSource.from(dto.source),
     rating: Rating.parse(dto.rating ?? 'safe'),
     md5: dto.hash ?? '',

@@ -1,10 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart' as km;
 import 'package:material_ui/material_ui.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/boorus/pixiv/configs/experimental_notice.dart';
+import 'package:boorusama/boorus/pixiv/pixiv.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/create/providers.dart';
 import 'package:boorusama/core/configs/create/src/pages/add_booru_page.dart';
 import 'package:boorusama/core/configs/create/src/pages/add_unknown_booru_page.dart';
 import 'package:boorusama/core/configs/create/src/pages/unsaved_alert_dialog.dart';
@@ -12,7 +16,7 @@ import 'package:boorusama/core/configs/create/src/widgets/create_booru_config_na
 import 'package:boorusama/core/configs/create/src/widgets/create_booru_submit_button.dart';
 import 'package:boorusama/core/configs/create/src/widgets/unknown_booru_submit_button.dart';
 import 'package:boorusama/core/configs/manage/src/pages/remove_booru_alert_dialog.dart';
-import 'package:boorusama/core/home/src/pages/empty_booru_config_home_page.dart';
+import 'package:boorusama/core/navigation/navigation_destination_pages.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 
 import 'support/app_flow_driver.dart';
@@ -25,6 +29,115 @@ const _viewport = Size(720, 1000);
 const _unknownSite = 'https://unknown.booru.test/';
 
 void main() {
+  for (final signedIn in [false, true]) {
+    testWidgets(
+      'Pixiv editor preserves credentials on open/cancel/save ($signedIn)',
+      (tester) async {
+        final backend = _pixivBackend();
+        final profile = BooruConfig.fromJson({
+          ...BooruConfig.defaultConfig(
+            booruType: BooruType.pixiv,
+            url: 'https://pixiv.net/',
+            customDownloadFileNameFormat: null,
+          ).toJson(),
+          'id': '00000000-0000-4000-8000-000000000059',
+          'name': 'Pixiv fixture',
+          'apiKey': signedIn ? 'synthetic-widget-test-token' : '',
+          'login': signedIn ? 'fixture-account' : '',
+          'passHash': signedIn ? '{"userName":"Fixture"}' : null,
+        });
+        final store = ApplicationTestStore.withProfiles(
+          backend.config,
+          additional: [profile],
+        );
+        final flow = await _ConfigFlow.mount(tester, backend, store);
+        await flow.openEditor(profile);
+        expect(find.byType(PixivExperimentalNotice), findsOneWidget);
+        expect(find.text('Experimental'), findsOneWidget);
+        final editor = ProviderScope.containerOf(
+          tester.element(find.byType(PixivExperimentalNotice)),
+        );
+        final draft = editor.read(
+          editBooruConfigProvider(editor.read(editBooruConfigIdProvider)),
+        );
+        expect(draft.apiKey, profile.apiKey ?? '');
+        expect(draft.login, profile.login ?? '');
+        expect(draft.passHash, profile.passHash);
+        expect(
+          find.text(appStrings(tester).pixiv.auth.credential_export_warning),
+          findsOneWidget,
+        );
+        expect(store.configWithId(profile.id), profile);
+        await tester.binding.handlePopRoute();
+        await flow.harness.pumpUntil(
+          tester,
+          () => find.byType(PixivExperimentalNotice).evaluate().isEmpty,
+          description: 'Pixiv editor to close',
+        );
+        expect(find.byType(PixivExperimentalNotice), findsNothing);
+        expect(store.configWithId(profile.id), profile);
+        await flow.openEditor(profile);
+        await flow.setProfileName('Renamed Pixiv');
+        await tester.tap(find.byType(CreateBooruSubmitButton));
+        await flow.harness.pumpUntil(
+          tester,
+          () => store.configWithId(profile.id).name == 'Renamed Pixiv',
+          description: 'Pixiv edit saved',
+        );
+        final saved = store.configWithId(profile.id);
+        expect(saved.auth.apiKey, profile.auth.apiKey);
+        expect(saved.auth.login, profile.auth.login);
+        expect(saved.auth.passHash, profile.auth.passHash);
+        await flow.openEditor(backend.config);
+        expect(find.byType(PixivExperimentalNotice), findsNothing);
+      },
+    );
+  }
+
+  testWidgets(
+    'new Pixiv route shows one notice and can cancel without creating a profile',
+    (tester) async {
+      final backend = _pixivBackend();
+      final store = ApplicationTestStore.withProfiles(backend.config);
+      final flow = await _ConfigFlow.mount(tester, backend, store);
+      await flow.driver.openProfiles();
+      await tester.tap(find.text(appStrings(tester).generic.action.add));
+      await flow.harness.pumpUntilFound(tester, find.text('Pixiv'));
+      await flow.harness.pumpUntil(
+        tester,
+        () =>
+            ModalRoute.of(tester.element(find.text('Pixiv')))!
+                .animation!
+                .status ==
+            AnimationStatus.completed,
+        description: 'quick-profile route animation to finish',
+      );
+      await tester.tap(find.text('Pixiv'));
+      await flow.harness.pumpUntilFound(
+        tester,
+        find.byType(PixivExperimentalNotice),
+      );
+      expect(find.byType(PixivExperimentalNotice), findsOneWidget);
+      expect(
+        find.text(appStrings(tester).pixiv.auth.credential_export_warning),
+        findsOneWidget,
+      );
+      await tester.binding.handlePopRoute();
+      await flow.harness.settle(tester);
+      if (find.byType(UnsavedAlertDialog).evaluate().isNotEmpty) {
+        await tester.tap(
+          find.text(appStrings(tester).booru.unsaved_changes_discard),
+        );
+      }
+      await flow.harness.pumpUntil(
+        tester,
+        () => find.byType(PixivExperimentalNotice).evaluate().isEmpty,
+        description: 'new Pixiv editor to close',
+      );
+      expect(store.configs, [backend.config]);
+    },
+  );
+
   testWidgets('creates, activates, edits, and restores a saved profile', (
     tester,
   ) async {
@@ -221,13 +334,12 @@ void main() {
             store.settings.currentBooruConfigId == backend.config.id,
         description: 'deleting active profile B to select profile A',
       );
-      await flow.harness.pumpUntil(
-        tester,
-        () => flow.postRequests
-            .skip(requestsBeforeConfirm)
-            .any((request) => request.siteUrl == backend.config.url),
-        description: 'fallback profile A listing request to start',
+      expect(
+        flow.postRequests.length,
+        requestsBeforeConfirm,
+        reason: 'profile management does not start requests in a hidden Browse branch',
       );
+      await flow.driver.selectProfile(backend.config);
       expect(store.configs.single.id, backend.config.id);
 
       final remounted = await flow.remount();
@@ -266,8 +378,8 @@ void main() {
       BooruConfig.empty,
     );
     expect(store.configs, isEmpty);
-    expect(find.byType(EmptyBooruConfigHomePage), findsOneWidget);
-    expect(find.text(appStrings(tester).booru.add_profile), findsOneWidget);
+    expect(find.byType(NavigationRecoveryPage), findsOneWidget);
+    expect(find.text(appStrings(tester).generic.action.add), findsOneWidget);
   });
 
   testWidgets(
@@ -337,6 +449,12 @@ void main() {
     },
   );
 }
+
+FakeBooruBackend _pixivBackend() => FakeBooruBackend(
+  additionalBoorus: {
+    BooruType.pixiv: createPixiv().parser.parse(),
+  },
+)..registry.register(BooruType.pixiv, createPixiv());
 
 final class _ConfigFlow {
   _ConfigFlow._(this.tester, this.store, this.harness)

@@ -17,19 +17,25 @@ import 'preload_strategy.dart';
 import 'types.dart';
 
 const kEnablePreloadLogging = false;
+const _urlHistoryLimit = 256;
+const _completedUrlTtl = Duration(seconds: 30);
+const _failedUrlRetryDelay = Duration(seconds: 5);
 
 class PreloadManager {
   PreloadManager({
     required Preloader preloader,
     DownloadConfiguration? downloadConfiguration,
     bool Function()? isEnabled,
+    Duration Function()? elapsed,
   }) : _preloader = preloader,
        _isEnabled = isEnabled ?? _alwaysEnabled,
+       _elapsed = elapsed ?? _monotonicElapsed(),
        _downloadConfiguration =
            downloadConfiguration ?? const DownloadConfiguration();
 
   final Preloader _preloader;
   final bool Function() _isEnabled;
+  final Duration Function() _elapsed;
   final DownloadConfiguration _downloadConfiguration;
 
   void _log(String message) {
@@ -40,16 +46,21 @@ class PreloadManager {
 
   final Map<String, CancelToken> _activeCancelTokens = {};
   final Set<String> _activeDownloads = {};
-  final Set<String> _completedUrls = {}; // URLs that completed successfully
+  // Completion is a short-lived hint, not proof of current disk residency.
+  final Set<String> _completedUrls = {};
+  final Map<String, Duration> _completedUntil = {};
+  final Map<String, Duration> _retryAfter = {};
+  var _disposed = false;
   final _pendingQueue = PriorityQueue<PrioritizedUrl>();
   Set<String> _currentSkipUrls = {};
 
   void preloadMedias(PreloadResult result) {
-    if (!_isEnabled()) {
+    if (_disposed || !_isEnabled()) {
       cancelAll();
       return;
     }
 
+    _pruneHistory();
     final skipUrls = result.skipUrls;
     final cancelUrls = result.cancelUrls;
 
@@ -87,14 +98,22 @@ class PreloadManager {
     Set<String> skipUrls,
   ) {
     _pendingQueue.clear();
+    final bestByUrl = <String, PrioritizedUrl>{};
 
     for (final prioritizedUrl in prioritizedUrls) {
       if (!skipUrls.contains(prioritizedUrl.url) &&
           !_completedUrls.contains(prioritizedUrl.url) &&
+          !_retryAfter.containsKey(prioritizedUrl.url) &&
           !_activeDownloads.contains(prioritizedUrl.url)) {
-        _pendingQueue.add(prioritizedUrl);
+        final previous = bestByUrl[prioritizedUrl.url];
+        if (previous == null || prioritizedUrl.compareTo(previous) < 0) {
+          bestByUrl[prioritizedUrl.url] = prioritizedUrl;
+        }
       }
     }
+    // A queued duplicate must not dispatch after its first attempt's hint
+    // expires while another URL holds a slot. A new plan restores eligibility.
+    _pendingQueue.addAll(bestByUrl.values);
 
     if (kEnablePreloadLogging && _pendingQueue.isNotEmpty) {
       _log(
@@ -117,11 +136,12 @@ class PreloadManager {
     final diagnosticRecording = performanceRecorder.enabled;
     var diagnosticBuilds = 0;
     performanceRecorder.measureSync(PerfOperation.viewerPreloadPlan, () {
-      if (!_isEnabled()) {
+      if (_disposed || !_isEnabled()) {
         cancelAll();
         return;
       }
 
+      _pruneHistory();
       final context = PreloadContext(
         currentPage: currentPage,
         itemCount: itemCount,
@@ -167,7 +187,7 @@ class PreloadManager {
         );
       }
     }
-    // Note: Don't clear _completedUrls as it represents persistent state
+    // Retain only bounded hints across route cancellation. Dispose drops them.
   }
 
   /// For testing/debugging
@@ -178,11 +198,12 @@ class PreloadManager {
   );
 
   void _startNextDownloads() {
-    if (!_isEnabled()) {
+    if (_disposed || !_isEnabled()) {
       cancelAll();
       return;
     }
 
+    _pruneHistory();
     while (_activeDownloads.length <
             _downloadConfiguration.maxConcurrentDownloads &&
         _pendingQueue.isNotEmpty) {
@@ -192,6 +213,7 @@ class PreloadManager {
       // Double-check the URL is still valid to preload
       if (!_currentSkipUrls.contains(url) &&
           !_completedUrls.contains(url) &&
+          !_retryAfter.containsKey(url) &&
           !_activeDownloads.contains(url)) {
         _logState(
           'Starting download',
@@ -210,6 +232,8 @@ class PreloadManager {
               ? 'in_skip_set'
               : _completedUrls.contains(url)
               ? 'already_completed'
+              : _retryAfter.containsKey(url)
+              ? 'retry_cooldown'
               : 'already_active';
           _log(
             '[IPM] Skipped download: url=${url.split('/').last} reason=$reason priority=${prioritizedUrl.priority}',
@@ -229,7 +253,7 @@ class PreloadManager {
       await _preloader(url, cancelToken);
       if (!cancelToken.isCancelled &&
           identical(_activeCancelTokens[url], cancelToken)) {
-        _completedUrls.add(url);
+        _rememberCompleted(url);
         _logState(
           'Download completed',
           url: url,
@@ -237,8 +261,15 @@ class PreloadManager {
         );
       }
     } catch (error) {
-      // Let caller handle all retries. If we get here, the preload failed
-      // after all retries.
+      // Only a later plan retries. A bounded cooldown prevents page-change
+      // callbacks from immediately repeating a failed transport.
+      if (!cancelToken.isCancelled &&
+          identical(_activeCancelTokens[url], cancelToken)) {
+        _retryAfter
+          ..remove(url)
+          ..[url] = _elapsed() + _failedUrlRetryDelay;
+        _pruneHistory();
+      }
       _logState(
         'Download failed',
         url: url,
@@ -255,8 +286,37 @@ class PreloadManager {
     }
   }
 
+  void _rememberCompleted(String url) {
+    _retryAfter.remove(url);
+    _completedUrls.add(url);
+    _completedUntil
+      ..remove(url)
+      ..[url] = _elapsed() + _completedUrlTtl;
+    _pruneHistory();
+  }
+
+  void _pruneHistory() {
+    final now = _elapsed();
+    void prune(Map<String, Duration> history, {Set<String>? urls}) {
+      // Fixed TTLs and monotonic time keep insertion order in expiry order.
+      while (history.isNotEmpty) {
+        final oldest = history.entries.first;
+        if (history.length <= _urlHistoryLimit && oldest.value > now) break;
+        history.remove(oldest.key);
+        urls?.remove(oldest.key);
+      }
+    }
+
+    prune(_completedUntil, urls: _completedUrls);
+    prune(_retryAfter);
+  }
+
   void dispose() {
+    _disposed = true;
     cancelAll();
+    _completedUrls.clear();
+    _completedUntil.clear();
+    _retryAfter.clear();
   }
 
   void _logState(
@@ -285,6 +345,11 @@ class PreloadManager {
 }
 
 bool _alwaysEnabled() => true;
+
+Duration Function() _monotonicElapsed() {
+  final stopwatch = Stopwatch()..start();
+  return () => stopwatch.elapsed;
+}
 
 class PreloadManagerState extends Equatable {
   const PreloadManagerState({

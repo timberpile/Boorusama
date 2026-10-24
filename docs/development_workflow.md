@@ -7,27 +7,44 @@ file covers isolation, authorization, integration, publication, and branch histo
 
 By default, create or reuse an isolated task branch/worktree before changing
 repository files. Exception: an explicitly requested small, predictable change
-that is not a work item and for which no review is requested or warranted may be
+that is not tracked by a GitHub Issue and for which no review is requested or warranted may be
 implemented and verified directly on clean local `develop`, in one scoped commit,
 without further approval. This permits direct edits and a local commit only,
 not merging or integrating a task branch. If uncertainty arises or scope grows
 beyond this exception, move the change into a task worktree before continuing.
-Work items always require their own task branch/worktree. The full regression
+GitHub Issues always require their own task branch/worktree. The full regression
 gate for develop also applies to direct local develop commits; qualification of
 the unchanged runtime candidate can be reused for documentation-only updates.
 
 For work requiring isolation, run (based on current local `develop`):
 
 ```bash
-python3 scripts/agent_worktree.py create <task-slug>
+python3 scripts/agent_worktree.py create 42-bookmark-search --branch feature/42-bookmark-search
 ```
 
 For isolated work, perform implementation and verification in the reported worktree.
 If the expected task worktree may already exist, inspect it first:
 
 ```bash
-python3 scripts/agent_worktree.py status <task-slug>
+python3 scripts/agent_worktree.py status 42-bookmark-search --branch feature/42-bookmark-search
 ```
+
+For an issue-free small task, use e.g. `--branch maintenance/update-agent-instructions`.
+New branches use `<bug|feature|maintenance>/<issue-id>-<short-title>` when linked
+to an issue, or `<bug|feature|maintenance>/<short-title>` otherwise. Use the actual
+GitHub number, never a local allocation or a legacy ticket number. Verify the
+issue association before work; the helper validates syntax and never contacts
+GitHub. Titles are lowercase kebab-case. Once work starts, keep the branch name
+stable even if the issue title or type label changes.
+
+Pass the same slug and `--branch` to create, status, and remove. Without `--branch`,
+status/remove support existing `agent/<slug>` worktrees only; create requires an
+explicit new-style branch. Existing `agent/` and `fix/` branches may be inspected
+and removed with `--branch`, but not newly created by this helper. Other legacy
+branches remain usable through normal Git commands; do not rename running work.
+For a branch that already exists without a worktree, inspect it and deliberately
+attach it with `git worktree add <isolated-path> <existing-branch>`; the helper
+never silently reuses, resets, or recreates existing state.
 
 Continue an existing worktree for the same task; never reuse it for unrelated work.
 Do not edit the user's primary checkout except under the small-change exception;
@@ -39,11 +56,20 @@ part of the requested task; no separate approval is needed unless the user says
 otherwise.
 
 Merging or integrating a task branch always requires explicit user authorization.
+Approval such as “this branch can be merged” authorizes the complete task workflow:
+verified integration, publication of the approved change to `origin/develop`,
+closure of the associated issue after verifying publication, and deletion of the
+completed remote task branch and local branch/worktree. Complete these steps
+without requesting permission again. Explicit narrower limits (for example,
+“local only”, “do not push”, or “keep the branch”) take precedence. This approval
+does not cover unrelated outgoing changes, releases, or creation of a PR.
 Modifying `develop` or any other branch/worktree outside the permissions above
 requires explicit user authorization.
-Publication and remote changes always require explicit authorization. Use `gh`
-and explicitly target `timberpile/Boorusama`; provide manual instructions for
-other repositories.
+Outside that approved task workflow, code publication, merges, releases, and
+unrelated remote changes still require explicit authorization. An explicit
+issue-creation or issue-work request also authorizes the scoped issue metadata updates in the [issue workflow](issue_workflow.md),
+not a code push or merge. Use `gh` or the connected GitHub tools and explicitly
+target `timberpile/Boorusama`; provide manual instructions for other repositories.
 
 ## Integration
 
@@ -58,7 +84,7 @@ checked commit/state and commands in the normal task report.
 
 | Change | Destination | Integration method |
 | --- | --- | --- |
-| Ordinary feature/fix or other task | Local `develop` | One descriptive Conventional Commit using squash or equivalent replay |
+| Ordinary feature/fix or other task | `develop`, then `origin/develop` under merge approval | One descriptive Conventional Commit using squash or equivalent replay |
 | Explicitly requested task PR | Remote `develop` | Manual squash merge with a descriptive Conventional Commit title |
 | `upstream/master` synchronization | `develop` | Real merge preserving upstream ancestry |
 | Release promotion from `develop` | `master` | Real merge titled `Merge branch 'develop'` |
@@ -71,17 +97,23 @@ commit title. Do not rebase or squash shared upstream/release history.
 ## Pull requests and publication
 
 - Use a PR only when the user explicitly requests one, regardless of change
-  size. Otherwise prepare the result for approved local integration, unless the
-  small-change exception above permits a direct local `develop` commit.
+  size. Otherwise prepare the result for approved integration and publication,
+  unless the small-change exception above permits a direct local `develop` commit.
 - Before authorized publication, fetch current references and reconcile the
   task branch with latest `origin/develop`. After a rebase, reread current
   `AGENTS.md` and this workflow.
 - Agree the publication branch name before pushing. The current PR policy
-  accepts `feature/<description>` and `fix/<description>` (optionally prefixed
-  with an issue number); other local prefixes may need renaming. Keep the same
-  task worktree.
+  accepts `bug/`, `feature/`, and `maintenance/` with optional issue numbers.
+  Legacy `fix/` PR branches remain accepted during the transition; do not create
+  new ones. Upstream synchronization, Dependabot, and release-promotion exceptions
+  remain unchanged. Keep the same task worktree.
+  The validator is loaded from the PR base branch: the new policy must reach
+  `develop` before a new-prefix PR can rely on it. Do not bypass that check.
 - Keep PR titles descriptive and bodies concise: explain the problem and
-  resulting behavior. Include `Closes #<issue-id>` only when an issue exists.
+  resulting behavior. Use `Refs #<issue-id>` while acceptance is pending;
+  use `Closes #<issue-id>` only when the issue exists, all agreed acceptance
+  criteria are met, and this integration completes it. Preserve the reference
+  in the final squash commit when using commit-based closure.
   Do not include validation statements, test counts/results, tool logs, or
   development history. CI status supplies the validation evidence.
 - Required CI checks must pass before marking a PR ready. Keep failing or
@@ -142,8 +174,9 @@ A release PR behind `master` needs this synchronization before its checks rerun.
 
 ## Protected branches and cleanup
 
-- Pushing `develop` needs explicit authorization. Force pushes and deletion
-  are prohibited. Before pushing, inspect outgoing merges with
+- Pushing `develop` needs explicit authorization; task merge approval includes
+  publication of that approved task as described above. Force pushes and deletion
+  of `develop` are prohibited. Before pushing, inspect outgoing merges with
   `git rev-list --min-parents=2 origin/develop..develop`; only approved upstream
   merges and release-history merges are allowed.
 - Direct commits/pushes, force pushes, and deletion of `master` are prohibited,
@@ -154,17 +187,30 @@ A release PR behind `master` needs this synchronization before its checks rerun.
   ignored files), and that no pending work or needed artifacts remain. Preserve
   unfinished work and unrelated branches/worktrees. Remove only known disposable
   task-generated files; retain anything uncertain. Never force-remove a worktree.
-  Use the helper for matching `agent/<slug>` worktrees, or `git worktree remove`
-  with the exact registered path for older task branches. Delete the exact local
+  Before removal, preserve needed handoffs and durable technical knowledge as
+  described in the [issue workflow](issue_workflow.md#documentation-and-handoffs).
+  Use `python3 scripts/agent_worktree.py remove <slug> --branch <exact-branch>`
+  for matching helper-managed worktrees; omission of `--branch` is for legacy
+  `agent/<slug>` only. Otherwise use `git worktree remove` with the exact
+  registered path. Delete the exact local
   branch with `git branch -d`. Squash merging does not make task commits ancestors
   of `develop`; if normal deletion refuses, force-delete only after verifying
-  patch/tree equivalence and that no unintegrated commits remain. Remote branch
-  deletion and other cleanup still require explicit authorization.
+  patch/tree equivalence and that no unintegrated commits remain.
+- Under task merge approval, delete the completed remote task branch only after
+  verifying the approved result is in `origin/develop` and that the remote branch
+  contains no unintegrated work. Refresh and check the exact remote tip; use an
+  expected-tip lease when deleting it so concurrent updates are preserved. Close
+  the associated issue and remove workflow-status labels after publication.
+  Remote deletion outside this approved task and other cleanup still require
+  explicit authorization.
 
 ## Issue descriptions
 
-Describe the problem, relevant reproduction context, and expected behavior
-concisely; omit validation reports, logs, and development history.
+Follow the [issue workflow](issue_workflow.md) for concise descriptions, labels,
+claims, completion, and documentation. GitHub Issues are the only tracker for new tasks. Issues and PRs are not
+mandatory for ordinary scoped changes. Historical repository work-item files
+are available in Git history only; never recreate that queue or mirror issue
+status in local Markdown tickets.
 
 ## Exclusive Android emulator procedure
 

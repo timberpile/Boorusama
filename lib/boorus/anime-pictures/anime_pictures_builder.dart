@@ -10,7 +10,6 @@ import '../../core/posts/details_parts/widgets.dart';
 import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'favorites/widgets.dart';
-import 'home/widgets.dart';
 import 'posts/post_data.dart';
 import 'posts/widgets.dart';
 import 'users/widgets.dart';
@@ -63,10 +62,6 @@ class AnimePicturesBuilder extends BaseBooruBuilder {
       (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
       );
-
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const AnimePicturesHomePage();
 
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>

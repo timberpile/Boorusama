@@ -1,3 +1,5 @@
+import 'package:boorusama/core/configs/manage/providers.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -33,6 +35,17 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [
+                _globalConfig,
+                _pageConfig,
+                _szurubooruPageConfig,
+              ],
+            ),
+          ),
+        ],
         child: TranslationProvider(
           child: CurrentBooruConfigScope(
             config: _globalConfig,
@@ -103,7 +116,18 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [routerProvider.overrideWithValue(router)],
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [
+                _globalConfig,
+                _pageConfig,
+                _szurubooruPageConfig,
+              ],
+            ),
+          ),
+          routerProvider.overrideWithValue(router),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
@@ -119,6 +143,15 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [
+                _globalConfig,
+                _pageConfig,
+                _szurubooruPageConfig,
+              ],
+            ),
+          ),
           danbooruRelatedTagRepProvider(_pageConfig.auth).overrideWithValue(
             RelatedTagRepositoryBuilder(
               fetch: (_, {category, order, limit}) =>
@@ -184,7 +217,18 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [routerProvider.overrideWithValue(router)],
+          overrides: [
+            booruConfigProvider.overrideWith(
+              () => BooruConfigNotifier(
+                initialConfigs: [
+                  _globalConfig,
+                  _pageConfig,
+                  _szurubooruPageConfig,
+                ],
+              ),
+            ),
+            routerProvider.overrideWithValue(router),
+          ],
           child: MaterialApp.router(routerConfig: router),
         ),
       );
@@ -231,7 +275,18 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [routerProvider.overrideWithValue(router)],
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [
+                _globalConfig,
+                _pageConfig,
+                _szurubooruPageConfig,
+              ],
+            ),
+          ),
+          routerProvider.overrideWithValue(router),
+        ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );

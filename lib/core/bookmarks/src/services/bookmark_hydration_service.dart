@@ -206,6 +206,7 @@ class BookmarkHydrationService {
   BookmarkHydrationService({
     required this.library,
     required this.recovery,
+    this.commitRecovered,
     DateTime Function()? now,
     Future<void> Function(Duration, BookmarkHydrationCancellation)? wait,
   }) : _now = now ?? (() => DateTime.now().toUtc()),
@@ -213,8 +214,29 @@ class BookmarkHydrationService {
            wait ?? ((duration, cancellation) => cancellation.wait(duration));
   final BookmarkLibraryService library;
   final BookmarkRecoveryService recovery;
+
+  /// The application supplies a short serialized compare-and-commit. False
+  /// means that cancellation or a newer library state superseded this request.
+  /// Standalone callers keep the existing direct-persistence behavior.
+  final Future<bool> Function(Bookmark, Post, BooruPostDataCodec)?
+  commitRecovered;
   final DateTime Function() _now;
   final Future<void> Function(Duration, BookmarkHydrationCancellation) _wait;
+
+  Future<bool> _commit(
+    Bookmark bookmark,
+    Post post,
+    BooruPostDataCodec codec,
+  ) async {
+    if (commitRecovered case final commit?)
+      return commit(bookmark, post, codec);
+    await library.upgradeBookmarkSnapshot(
+      bookmark: bookmark,
+      post: post,
+      dataCodec: codec,
+    );
+    return true;
+  }
 
   Future<BookmarkHydrationProgress> run({
     required Iterable<Bookmark> bookmarks,
@@ -324,13 +346,15 @@ class BookmarkHydrationService {
         try {
           switch (await recovery.recover(bookmark, config)) {
             case BookmarkRecoverySuccess(:final post, :final codec):
-              await library.upgradeBookmarkSnapshot(
-                bookmark: bookmark,
-                post: post,
-                dataCodec: codec,
-              );
-              updated++;
-              log(bookmark, BookmarkHydrationLogReason.updated);
+              if (await _commit(bookmark, post, codec)) {
+                updated++;
+                log(bookmark, BookmarkHydrationLogReason.updated);
+              } else {
+                // A superseded recovery is terminal, not a failed save that
+                // should be retried against an obsolete snapshot.
+                skipped++;
+                log(bookmark, BookmarkHydrationLogReason.requestCancelled);
+              }
             case BookmarkRecoverySkipped(:final reason):
               skipped++;
               log(bookmark, reason);

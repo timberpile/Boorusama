@@ -28,7 +28,8 @@ final class DanbooruPostGridPresentation
     implements
         BooruPostPresentation,
         BooruPostGridPresentation,
-        BooruPostGridContextMenuPresentation {
+        BooruPostGridContextMenuPresentation,
+        BooruPostSingleActionsPresentation {
   const DanbooruPostGridPresentation();
 
   @override
@@ -69,6 +70,19 @@ final class DanbooruPostGridPresentation
     post: post,
     index: index,
     child: child,
+  );
+
+  @override
+  List<Widget> buildSingleSelectionActions(
+    BuildContext context, {
+    required WidgetRef ref,
+    required Post post,
+  }) => buildDanbooruSinglePostActions(
+    context,
+    ref: ref,
+    post: post,
+    selection: true,
+    includeFavoriteGroup: false,
   );
 
   PostGridItemAdditions buildLegacyGridItemAdditions(
@@ -173,6 +187,7 @@ final class DanbooruPostGridPresentation
                           tag.replaceAll('_', ' '),
                           maxLines: 1,
                           style: TextStyle(
+                            fontWeight: FontWeight.w600,
                             color: Kurumi.themeOf(
                               context,
                             ).colorScheme.onErrorContainer,

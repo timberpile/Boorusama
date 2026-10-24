@@ -19,7 +19,6 @@ import '../../core/search/search/widgets.dart';
 import 'configs/widgets.dart';
 import 'favorites/providers.dart';
 import 'favorites/widgets.dart';
-import 'home/widgets.dart';
 import 'posts/post_data.dart';
 import 'posts/types.dart';
 import 'posts/widgets.dart';
@@ -75,11 +74,6 @@ class HydrusBuilder extends BaseBooruBuilder {
   @override
   FavoritesPageBuilder? get favoritesPageBuilder =>
       (context) => const HydrusFavoritesPage();
-
-  @override
-  @override
-  HomePageBuilder get homePageBuilder =>
-      (context) => const HydrusHomePage();
 
   @override
   SearchPageBuilder get searchPageBuilder =>

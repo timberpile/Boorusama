@@ -1,6 +1,9 @@
 import '../search/following_topics/topic_test_utils.dart';
+
 import 'dart:typed_data';
+
 import 'package:cache_manager/cache_manager.dart';
+
 // Dart imports:
 import 'dart:io';
 
@@ -57,6 +60,24 @@ void main() {
     )).last;
   }
 
+  test('the Default group can be copied without changing its identity or memberships', () async {
+    final bookmark = await storeBookmark('default-copy');
+    await service.load(const BookmarkTarget.defaultGroup());
+    await groupRepository.replaceMemberships(defaultBookmarkGroupId, {
+      bookmark.id,
+    });
+    final source = (await service.load(const BookmarkTarget.defaultGroup()))
+        .groupsById[defaultBookmarkGroupId]!;
+    final copies = await service.duplicateGroups(
+      {source.id: 'Default Copy'},
+      expectedGroups: [source],
+    );
+    expect(copies.single.isDefault, isFalse);
+    expect(copies.single.name, 'Default Copy');
+    expect(copies.single.bookmarkIds, source.bookmarkIds);
+    expect(await groupRepository.getGroup(defaultBookmarkGroupId), source);
+  });
+
   setUp(() async {
     fixturePostIds.clear();
     tempDirectory = await Directory.systemTemp.createTemp(
@@ -92,6 +113,106 @@ void main() {
     await groupBox.close();
     await tempDirectory.delete(recursive: true);
   });
+
+  test('collection deletion deduplicates folders and removes shared final memberships once', () async {
+    final shared = await storeBookmark('shared-selected');
+    final protected = await storeBookmark('protected-default');
+    final a = await groupRepository.createGroup('A');
+    final b = await groupRepository.createGroup('B');
+    await groupRepository.addBookmarks(a.id, {shared.id, protected.id});
+    await groupRepository.addBookmarks(b.id, {shared.id});
+    await service.load(const BookmarkTarget.defaultGroup());
+    await groupRepository.addBookmarks(defaultBookmarkGroupId, {protected.id});
+    final folder = await service.createFolder('Selected');
+    await service.moveFolderItems(groupIds: {a.id}, destination: folder.id);
+    final preview = await service.previewDeleteSelection(
+      folderIds: {folder.id},
+      groupIds: {a.id, b.id},
+    );
+    expect(preview.folderIds, {folder.id});
+    expect(preview.groupIds, {a.id, b.id});
+    expect(preview.orphanBookmarkIds, {shared.id});
+    await service.deleteSelection(preview);
+    final after = await service.load(const BookmarkTarget.defaultGroup());
+    expect(after.items.map((b) => b.uniqueId), [protected.uniqueId]);
+    expect(after.groups.single.id, defaultBookmarkGroupId);
+    expect(after.folders, isEmpty);
+  });
+
+  test(
+    'collection deletion rejects changed confirmation and protected Default',
+    () async {
+      final group = await groupRepository.createGroup('Selected');
+      final preview = await service.previewDeleteSelection(
+        folderIds: {},
+        groupIds: {group.id},
+      );
+      await groupRepository.renameGroup(group.id, 'Changed');
+      await expectLater(
+        service.deleteSelection(preview),
+        throwsA(isA<BookmarkCollectionChangedException>()),
+      );
+      expect(await groupRepository.getGroup(group.id), isNotNull);
+      await expectLater(
+        service.previewDeleteSelection(
+          folderIds: {},
+          groupIds: {defaultBookmarkGroupId},
+        ),
+        throwsStateError,
+      );
+    },
+  );
+
+  test('collection deletion restores all groups, folders and committed orphan removals on failure', () async {
+    final bookmark = await storeBookmark('collection-rollback');
+    final a = await groupRepository.createGroup('A');
+    final b = await groupRepository.createGroup('B');
+    await groupRepository.addBookmarks(a.id, {bookmark.id});
+    await groupRepository.addBookmarks(b.id, {bookmark.id});
+    final folder = await service.createFolder('Folder');
+    await service.moveFolderItems(groupIds: {a.id}, destination: folder.id);
+    final before = await service.load(const BookmarkTarget.defaultGroup());
+    final preview = await service.previewDeleteSelection(
+      folderIds: {folder.id},
+      groupIds: {b.id},
+    );
+    final failing = BookmarkLibraryService(
+      bookmarkRepository: _CommitsThenThrowsBookmarkRemovalRepository(
+        bookmarkBox,
+      ),
+      groupRepository: groupRepository,
+      imageUrlResolver: resolver,
+    );
+    await expectLater(failing.deleteSelection(preview), throwsStateError);
+    expect(await service.load(const BookmarkTarget.defaultGroup()), before);
+  });
+
+  test(
+    'multi-group duplication rolls back earlier copies when a later copy fails',
+    () async {
+      final bookmark = await storeBookmark('duplicate-collection');
+      final a = await groupRepository.createGroup('A');
+      final b = await groupRepository.createGroup('B');
+      await groupRepository.addBookmarks(a.id, {bookmark.id});
+      await groupRepository.addBookmarks(b.id, {bookmark.id});
+      final before = await service.load(const BookmarkTarget.defaultGroup());
+      final copies = _FailsSecondCopyRepository(groupBox);
+      final failing = BookmarkLibraryService(
+        bookmarkRepository: bookmarkRepository,
+        groupRepository: copies,
+        imageUrlResolver: resolver,
+      );
+      await expectLater(
+        failing.duplicateGroups(
+          {a.id: 'Copy A', b.id: 'Copy B'},
+          expectedGroups: [before.groupsById[a.id]!, before.groupsById[b.id]!],
+        ),
+        throwsStateError,
+      );
+      expect(copies.attempted, ['Copy A', 'Copy B']);
+      expect(await service.load(const BookmarkTarget.defaultGroup()), before);
+    },
+  );
 
   test('Default supports final membership removal and complete Undo', () async {
     final bookmark = await storeBookmark('default-remove');
@@ -1092,4 +1213,16 @@ class _FailingReplaceGroupRepository implements BookmarkGroupRepository {
   @override
   Future<BookmarkGroup> renameGroup(String id, String name) =>
       delegate.renameGroup(id, name);
+}
+
+class _FailsSecondCopyRepository extends BookmarkGroupRepositoryHive {
+  _FailsSecondCopyRepository(Box<BookmarkGroupHiveObject> box)
+    : super(box, organizationBox: MemoryBox<dynamic>());
+  final attempted = <String>[];
+  @override
+  Future<BookmarkGroup> createGroup(String name, {String? id}) async {
+    attempted.add(name);
+    if (name == 'Copy B') throw StateError('second copy rejected');
+    return super.createGroup(name, id: id);
+  }
 }
