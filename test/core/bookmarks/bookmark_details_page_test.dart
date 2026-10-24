@@ -391,7 +391,7 @@ void main() {
         ),
       );
       await pumpHeader();
-      expect(find.text('Remove from group'), findsOneWidget);
+      expect(find.text('Remove from'), findsOneWidget);
       expect(find.text('Delete'), findsNothing);
       expect(find.byType(AlertDialog), findsNothing);
       expect(container.read(bookmarkProvider).requireValue, same(library));

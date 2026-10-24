@@ -228,11 +228,12 @@ class BookmarkGroupSelectionTarget {
   final int? appliedCount;
 }
 
-class BookmarkMultiSelectionMenu extends ConsumerWidget {
+class BookmarkMultiSelectionMenu extends ConsumerStatefulWidget {
   const BookmarkMultiSelectionMenu({
     required this.posts,
     required this.config,
     required this.onCompleted,
+    this.currentGroupId,
     super.key,
   });
 
@@ -240,11 +241,35 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
   final BooruConfigAuth config;
   final Future<void> Function() onCompleted;
 
+  /// The listing's actual group, not the globally active bookmark target.
+  /// Null keeps All Bookmarks and ordinary post selections unchanged.
+  final String? currentGroupId;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookmarkMultiSelectionMenu> createState() =>
+      _BookmarkMultiSelectionMenuState();
+}
+
+class _BookmarkMultiSelectionMenuState
+    extends ConsumerState<BookmarkMultiSelectionMenu> {
+  var _isProcessing = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.currentGroupId != null)
+          KurumiPopupMenuItem(
+            key: const Key('bookmark-remove-current-group'),
+            title: Text(context.t.generic.action.remove),
+            onTap: () => _select(
+              context,
+              ref,
+              BookmarkMultiSelectionOperation.remove,
+              directGroupId: widget.currentGroupId,
+            ),
+          ),
         KurumiPopupMenuItem(
           title: Text(context.t.bookmark.bulk.add),
           trailing: const Icon(Icons.chevron_right),
@@ -264,22 +289,52 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
   Future<void> _select(
     BuildContext context,
     WidgetRef ref,
-    BookmarkMultiSelectionOperation operation,
-  ) async {
+    BookmarkMultiSelectionOperation operation, {
+    String? directGroupId,
+  }) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+    try {
+      await _performSelection(
+        context,
+        ref,
+        operation,
+        directGroupId: directGroupId,
+      );
+    } finally {
+      _isProcessing = false;
+    }
+  }
+
+  Future<void> _performSelection(
+    BuildContext context,
+    WidgetRef ref,
+    BookmarkMultiSelectionOperation operation, {
+    String? directGroupId,
+  }) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    final target = await showBookmarkGroupSelectionDialog(
-      navigator.context,
-      operation: operation,
-      posts: posts,
-      config: config,
-    );
+    final selectedPosts = List<Post>.unmodifiable(widget.posts);
+    final config = widget.config;
+    final onCompleted = widget.onCompleted;
+    final target = directGroupId == null
+        ? await showBookmarkGroupSelectionDialog(
+            navigator.context,
+            operation: operation,
+            posts: selectedPosts,
+            config: config,
+          )
+        : BookmarkGroupSelectionTarget(directGroupId, '');
     if (target == null || !navigator.mounted) return;
     try {
       if (operation == BookmarkMultiSelectionOperation.add) {
         final changed =
             target.appliedCount ??
-            await notifier.addPostsToGroup(config, posts, target.id);
+            await notifier.addPostsToGroup(
+              config,
+              selectedPosts,
+              target.id,
+            );
         if (!navigator.mounted) return;
         Kurumi.showSuccessToast(
           navigator.context,
@@ -290,7 +345,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
       } else {
         final result = await notifier.removePostsFromGroup(
           config,
-          posts,
+          selectedPosts,
           target.id!,
         );
         if (!navigator.mounted) return;

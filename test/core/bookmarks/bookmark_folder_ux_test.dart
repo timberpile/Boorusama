@@ -1393,7 +1393,7 @@ void main() {
         if (entry.startsWith('legacy')) {
           await tester.tap(
             find.text(
-              entry == 'legacy add' ? 'Add to group' : 'Remove from group',
+              entry == 'legacy add' ? 'Add to' : 'Remove from',
             ),
           );
           await tester.pumpAndSettle();
@@ -1513,7 +1513,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       if (entry == 'legacy add') {
-        await tester.tap(find.text('Add to group'));
+        await tester.tap(find.text('Add to'));
         await tester.pumpAndSettle();
       }
       await tester.tap(find.text('Artists'));

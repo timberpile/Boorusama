@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:i18n/i18n.dart';
 import 'package:oktoast/oktoast.dart';
@@ -149,6 +150,136 @@ void main() {
           saved.map((bookmark) => bookmark.uniqueId).toSet(),
           hasLength(2),
         );
+      },
+    );
+  }
+
+  for (final (target, deleteBeforeTap) in [
+    (defaultBookmarkGroupId, false),
+    (groupId, false),
+    (groupId, true),
+  ]) {
+    testWidgets(
+      'current-group menu removes mixed-profile equal IDs and handles Undo/deletion for $target (deleted=$deleteBeforeTap)',
+      (tester) async {
+        final profiles = [
+          for (var i = 1; i <= 2; i++)
+            BooruConfig.fromJson({
+              ...BooruConfig.empty.toJson(),
+              'id': '00000000-0000-4000-8000-00000000000$i',
+              'url': 'https://site$i.example',
+            }),
+        ];
+        final container = createContainer(profiles: profiles);
+        late BookmarkLibraryNotifier notifier;
+        final posts = [
+          for (final profile in profiles)
+            testSearchPost(42, DateTime.utc(2026)).copyWith(
+              origin: PostOrigin.fromSource(
+                booruType: profile.auth.booruType,
+                booruId: profile.booruId,
+                source: profile.url,
+                profileIdHint: profile.id,
+              ),
+            ),
+        ];
+        final other = await tester.runAsync(() async {
+          if (target == groupId) {
+            await groupRepository.createGroup('Target', id: target);
+          }
+          notifier = container.read(bookmarkProvider.notifier);
+          await notifier.future;
+          await notifier.addPostsToGroup(profiles.first.auth, posts, target);
+          final group = await notifier.createGroup('Other');
+          await notifier.addPostsToGroup(profiles.first.auth, posts, group.id);
+          return group;
+        });
+        final original = container.read(bookmarkProvider).requireValue;
+        var completed = 0;
+        await tester.binding.setSurfaceSize(const Size(320, 700));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: BooruLocalization(
+              child: MaterialApp(
+                builder: (context, child) => MediaQuery(
+                  data: MediaQuery.of(context)
+                      .copyWith(textScaler: const TextScaler.linear(2)),
+                  child: OKToast(child: child!),
+                ),
+                home: Scaffold(
+                  body: BookmarkMultiSelectionMenu(
+                    posts: posts,
+                    config: profiles.first.auth,
+                    currentGroupId: target,
+                    onCompleted: () async {
+                      completed++;
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        if (deleteBeforeTap) {
+          await tester.runAsync(() => notifier.deleteGroup(target));
+        }
+        await tester.runAsync(() async {
+          await tester.tap(
+            find.byKey(const Key('bookmark-remove-current-group')),
+          );
+          await notifier.snapshotForExport();
+        });
+        await tester.pumpAndSettle();
+        if (deleteBeforeTap) {
+          expect(completed, 0);
+          final remaining = container.read(bookmarkProvider).requireValue;
+          expect(remaining.items, hasLength(2));
+          for (final bookmark in original.items) {
+            expect(remaining.membershipsFor(bookmark.uniqueId), {other!.id});
+          }
+          expect(remaining.groups.any((group) => group.id == target), isFalse);
+          expect(find.text('Undo'), findsNothing);
+          dismissAllToast(showAnim: false);
+          await tester.pump(const Duration(seconds: 5));
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull);
+          return;
+        }
+        expect(completed, 1);
+        final removed = container.read(bookmarkProvider).requireValue;
+        expect(removed.items, hasLength(2));
+        for (final bookmark in original.items) {
+          expect(removed.membershipsFor(bookmark.uniqueId), {other!.id});
+        }
+        expect(
+          removed.groups.firstWhere((group) => group.id == target).bookmarkIds,
+          isEmpty,
+        );
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(find.text('Undo'), findsOneWidget);
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Undo'));
+          await notifier.snapshotForExport();
+        });
+        await tester.pumpAndSettle();
+        final restored = container.read(bookmarkProvider).requireValue;
+        for (final bookmark in original.items) {
+          expect(restored.membershipsFor(bookmark.uniqueId), {
+            target,
+            other!.id,
+          });
+          expect(
+            restored.bookmarksByUniqueId[bookmark.uniqueId]!.snapshot,
+            bookmark.snapshot,
+          );
+        }
+        dismissAllToast(showAnim: false);
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
       },
     );
   }

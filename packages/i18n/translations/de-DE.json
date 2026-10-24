@@ -178,6 +178,7 @@
     },
     "action": {
       "add": "Hinzufügen",
+      "remove": "Entfernen",
       "delete": "Löschen",
       "edit": "Bearbeiten",
       "ok": "OK",

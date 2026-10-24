@@ -230,6 +230,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     BookmarkMultiSelectionMenu(
                       posts: selectedPosts,
                       config: auth,
+                      currentGroupId: widget.view.groupId,
                       onCompleted: () async {},
                     ),
                   ],

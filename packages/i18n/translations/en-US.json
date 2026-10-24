@@ -275,6 +275,7 @@
     },
     "action": {
       "add": "Add",
+      "remove": "Remove",
       "delete": "Delete",
       "edit": "Edit",
       "ok": "OK",
@@ -1988,8 +1989,8 @@
     },
     "bulk": {
       "title": "Bookmarks",
-      "add": "Add to group",
-      "remove": "Remove from group",
+      "add": "Add to",
+      "remove": "Remove from",
       "delete": "Delete",
       "delete_title": "Delete bookmarks?",
       "delete_message": "This will delete all {count} selected bookmarks.",
