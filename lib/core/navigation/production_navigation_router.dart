@@ -29,6 +29,7 @@ import 'app_navigation_shell.dart';
 import 'destination_id.dart';
 import 'destination_activity.dart';
 import 'navigation_chrome_controller.dart';
+import 'navigation_chrome_route_sync.dart';
 import 'destination_profile_scope.dart';
 import 'destination_router.dart';
 import 'legacy_navigation_bridge.dart';
@@ -180,24 +181,27 @@ GoRouter createProductionNavigationRouter(Ref ref, AppNavigation navigation) {
                         .observerFor(binding.idAt(shell.currentIndex))!
                         .topRoute,
                   ]),
-                  builder: (context, _) => AppNavigationShell(
-                    interactionsBlocked:
-                        !coverage.uncovered.value ||
-                        binding.currentRoute is PopupRoute,
-                    navigationShell: shell,
-                    hasNewFollowingPosts: ref.watch(
-                      followingTopicHasNewPostsProvider,
+                  builder: (context, _) => NavigationChromeRouteSync(
+                    route: binding.currentRoute,
+                    child: AppNavigationShell(
+                      interactionsBlocked:
+                          !coverage.uncovered.value ||
+                          binding.currentRoute is PopupRoute,
+                      navigationShell: shell,
+                      hasNewFollowingPosts: ref.watch(
+                        followingTopicHasNewPostsProvider,
+                      ),
+                      active: binding.idAt(shell.currentIndex),
+                      browse: controller.browseDestination,
+                      catalog: catalog,
+                      collapsedProfiles: prefs.collapsedProfileIds,
+                      onSelect: controller.selectDestination,
+                      onFavorites: () => controller.openFavorites(
+                        catalog.eligibleFavoritesProfileIds,
+                      ),
+                      onToggleProfile: (id) =>
+                          unawaited(controller.toggleProfile(id)),
                     ),
-                    active: binding.idAt(shell.currentIndex),
-                    browse: controller.browseDestination,
-                    catalog: catalog,
-                    collapsedProfiles: prefs.collapsedProfileIds,
-                    onSelect: controller.selectDestination,
-                    onFavorites: () => controller.openFavorites(
-                      catalog.eligibleFavoritesProfileIds,
-                    ),
-                    onToggleProfile: (id) =>
-                        unawaited(controller.toggleProfile(id)),
                   ),
                 );
               },
