@@ -47,20 +47,27 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  test('loads all subsections of the bundled latest release', () async {
+  test('loads the latest bundled release without older notes', () async {
+    final releaseHeaders = RegExp(
+      r'^# (\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?)$',
+      multiLine: true,
+    ).allMatches(asset).toList();
+
+    expect(releaseHeaders.length, greaterThan(1));
+    expect(releaseHeaders.first.start, 0);
+
+    final expectedContent = asset.substring(
+      releaseHeaders.first.end + 1,
+      releaseHeaders[1].start,
+    );
+    expect(expectedContent.trim(), isNotEmpty);
+    expect(expectedContent, contains(RegExp(r'^## \S', multiLine: true)));
+    expect(expectedContent, contains(RegExp(r'^- \S', multiLine: true)));
+
     final data = await repository.loadLatestChangelog();
 
-    expect(data.version.toString(), '4.6.1-timberpile.2');
-    expect(data.content, contains('## Features\n\n'));
-    expect(data.content, contains('## Fixes and improvements\n\n'));
-    expect(
-      data.content,
-      contains(
-        '- Save favorites from multiple profiles into local bookmark groups.',
-      ),
-    );
-    expect(data.content, isNot(contains('# 4.6.1-timberpile.1')));
-    expect(data.content, isNot(contains('Save tags and post information')));
+    expect(data.version.toString(), releaseHeaders.first.group(1));
+    expect(data.content, expectedContent);
   });
 
   final cases = [
