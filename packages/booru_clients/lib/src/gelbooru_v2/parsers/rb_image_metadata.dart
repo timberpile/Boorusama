@@ -26,6 +26,10 @@ RbImageMetadata parseRbImageMetadata(
 
   addOriginal(image?.attributes['data-original']);
   addOriginal(image?.attributes['data-original-url']);
+  // A generic label in a comment or source link is not a media control.
+  final metadataLinks = document.querySelectorAll(
+    '#post-info a[href], #stats a[href], #tagLink a[href]',
+  ).toSet();
   for (final link in document.querySelectorAll('a[href]')) {
     final label = link.text.trim().replaceAll(RegExp(r'\s+'), ' ');
     final explicitId = const {'highres', 'original-image', 'original-file'}
@@ -34,7 +38,9 @@ RbImageMetadata parseRbImageMetadata(
       r'^(?:original(?: image| file)?|download original)(?:\s*\([^)]*\))?$',
       caseSensitive: false,
     ).hasMatch(label);
-    if (explicitId || explicitLabel) addOriginal(link.attributes['href']);
+    if (explicitId || (explicitLabel && metadataLinks.contains(link))) {
+      addOriginal(link.attributes['href']);
+    }
   }
 
   // Preserve the existing direct-image fallback, but never relabel a known
