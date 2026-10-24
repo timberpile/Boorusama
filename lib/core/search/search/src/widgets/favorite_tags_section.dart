@@ -92,9 +92,6 @@ class FavoriteTagsSection extends ConsumerWidget {
           ),
         );
       }),
-      if (tags.isEmpty) ...[
-        const ImportTagButton(),
-      ],
     ];
   }
 }

@@ -1,3 +1,12 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:boorusama/core/cache/providers.dart';
+import 'package:boorusama/core/search/search/src/widgets/constants.dart';
+import 'package:boorusama/core/search/search/src/widgets/favorite_tags_section.dart';
+import 'package:boorusama/core/widgets/import_tag_dialog.dart';
+
+import 'support/app_flow_driver.dart';
+import 'support/app_flow_finders.dart';
+
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
 
@@ -15,6 +24,101 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  for (final populated in [false, true]) {
+    testWidgets(
+      'Search omits Import and Favorite Tags still imports (populated=$populated)',
+      (tester) async {
+        final backend = FakeBooruBackend();
+        final repository = MemoryFavoriteTagRepository();
+        if (populated) {
+          await repository.create(name: 'cat', labels: ['Animals']);
+        }
+        final harness = HeadlessAppHarness(
+          booruBackend: backend,
+          runtime: backend.createRuntime(favoriteTagRepository: repository),
+        );
+        addTearDown(() => harness.teardown(tester));
+        await harness.pump(tester);
+        final driver = AppFlowDriver(tester: tester, harness: harness);
+        await driver.openSearch();
+        await tester.tap(
+          find.byTooltip(appStrings(tester).search_options.title),
+        );
+        await harness.settle(tester);
+        expect(find.byType(FavoriteTagsSection), findsOneWidget);
+        expect(find.byType(ImportTagButton), findsNothing);
+        if (populated) {
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(FavoriteTagsSection)),
+          );
+          await container
+              .read(
+                miscDataProvider(kSearchSelectedFavoriteTagLabelKey).notifier,
+              )
+              .put('Missing label');
+          await harness.settle(tester);
+          expect(find.byType(ImportTagButton), findsNothing);
+          expect(
+            find.descendant(
+              of: find.byType(FavoriteTagsSection),
+              matching: find.text('cat'),
+            ),
+            findsNothing,
+          );
+        }
+        await tester.tap(
+          find.descendant(
+            of: find.byType(FavoriteTagsSection),
+            matching: find.byIcon(Symbols.settings),
+          ),
+        );
+        await harness.pumpUntilFound(tester, find.byType(FavoriteTagsPage));
+        await harness.settle(tester);
+        await tester.tap(
+          find
+              .descendant(
+                of: find.descendant(
+                  of: find.byType(FavoriteTagsPage),
+                  matching: find.byType(KurumiAppBar),
+                ),
+                matching: find.byType(KurumiPopupMenuButton),
+              )
+              .first,
+        );
+        await harness.settle(tester);
+        await tester.tap(
+          find.ancestor(
+            of: find.text('Import'),
+            matching: find.byType(KurumiPopupMenuItem),
+          ),
+        );
+        await harness.pumpUntilFound(tester, find.byType(ImportTagsDialog));
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(ImportTagsDialog),
+            matching: find.byType(EditableText),
+          ),
+          'landscape',
+        );
+        await tester.pump();
+        final import = find.descendant(
+          of: find.byType(ImportTagsDialog),
+          matching: find.widgetWithText(FilledButton, 'Import'),
+        );
+        await tester.ensureVisible(import);
+        await tester.tap(import);
+        await harness.pumpUntil(
+          tester,
+          () => repository.tags.any((tag) => tag.name == 'landscape'),
+        );
+        await harness.settle(tester);
+        expect(repository.tags.map((tag) => tag.name), contains('landscape'));
+        expect(find.byType(ImportTagsDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'creates and removes a favorite tag through the UI',
     (tester) async {
