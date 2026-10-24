@@ -26,7 +26,7 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
     private val folderName = "boorusama_auto_backups"
     private val manifestName = "auto_backup_manifest.json"
 
-    private data class Child(val uri: Uri, val name: String, val mime: String, val size: Long)
+    private data class Child(val uri: Uri, val name: String, val mime: String, val size: Long?)
 
     private fun children(tree: Uri, parent: Uri): List<Child> {
         val query = DocumentsContract.buildChildDocumentsUriUsingTree(tree, DocumentsContract.getDocumentId(parent))
@@ -39,7 +39,7 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
             val items = mutableListOf<Child>()
             while (it.moveToNext()) {
                 items.add(Child(DocumentsContract.buildDocumentUriUsingTree(tree, it.getString(0)),
-                    it.getString(1) ?: "", it.getString(2) ?: "", if (it.isNull(3)) 0 else it.getLong(3)))
+                    it.getString(1) ?: "", it.getString(2) ?: "", if (it.isNull(3)) null else it.getLong(3)))
             }
             items
         }
@@ -121,7 +121,8 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                         "exists" -> file != null
                         "size" -> {
                             stage = "read_backup_size"
-                            file?.size ?: throw IOException("Backup missing")
+                            val backup = file ?: throw IOException("Backup missing")
+                            readBackupDocumentSize(backup.size) { resolver.openInputStream(backup.uri) }
                         }
                         "delete" -> {
                             stage = "delete_retained_backup"
@@ -161,7 +162,10 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                                 } ?: throw IOException("Backup write failed")
                                 stage = "verify_backup_document"
                                 // Providers may rename files; do not record a mismatched manifest entry.
-                                if (children(tree, folder).none { it.uri == document && it.name == name && it.size == source.length() }) {
+                                val saved = children(tree, folder).firstOrNull { it.uri == document && it.name == name }
+                                    ?: throw IOException("Incomplete backup")
+                                val size = readBackupDocumentSize(saved.size) { resolver.openInputStream(saved.uri) }
+                                if (size != source.length()) {
                                     throw IOException("Incomplete backup")
                                 }
                             } catch (error: Exception) {
