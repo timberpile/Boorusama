@@ -90,24 +90,49 @@ Keep the changelog's existing language, currently English. Derive the notes from
 changes actually included in the candidate. Preserve previous release sections
 and reuse any relevant draft notes, checking them against the final changes.
 
-Use these categories in this order; omit categories with no entries:
+Use these categories in this order, with Title Case headings; omit empty ones:
 
-- **Breaking changes:** lost compatibility, changed defaults with significant
+- **Breaking Changes:** lost compatibility, changed defaults with significant
   consequences, unsupported old data/exports, or required user action. State
   the consequence and any required action directly. Do not promise migration
   or recovery unless the implementation supports it.
 - **Features:** additions and substantial improvements that users will care
   about. Describe the capability or benefit, not the implementation.
-- **Fixes and improvements:** small behavior changes, polish, and bug fixes.
+- **Fixes and Improvements:** small behavior changes, polish, and bug fixes.
   Combine closely related minor fixes when that keeps the list useful.
 
-Write brief bullets, preferably short phrases. Keep one main point per bullet;
-split long sentences instead of adding clauses. Put noteworthy changes first
-within each category. Avoid technical identifiers, ticket numbers, commit logs,
-test results, and internal-only refactors unless they explain a user impact.
-Keep breaking-change consequences explicit even when they need slightly more
-space. Check both missing noteworthy changes and claims about unfinished or
-unintegrated features.
+Write short, user-facing **Title Case** phrases rather than sentences. Start
+every bullet with one relevant emoji and a space (for example,
+`- 🧭 Redesigned App Navigation`); do not add trailing periods. Keep brand
+names and acronyms correctly capitalized. Give the largest user-visible
+changes their own prominent entries at the top: a navigation overhaul should
+be called `Redesigned App Navigation`, not reduced to one effect such as
+preserving timeline positions.
+
+Group closely related minor fixes under meaningful, compact titles without
+burying major features or combining unrelated capabilities. Prefer clear user
+benefits over implementation details, but avoid vague or inflated claims.
+Keep one main point per bullet and skip minor technical-only work. Avoid issue
+numbers, commit logs, test results, and internal refactors unless they explain
+a user impact. Breaking-change consequences must remain explicit even if
+they need more than a short phrase. Check both missing noteworthy changes
+and claims about unfinished or unintegrated features.
+
+Example formatting (illustrative; write titles and emojis appropriate to each
+release, not these exact entries):
+
+```markdown
+## Features
+
+- 🧭 Redesigned App Navigation
+- 🔎 Redesigned Search with Visual Filters
+- ❤️ Sync Favorites to Bookmark Groups
+
+## Fixes and Improvements
+
+- ⚡ Faster Bookmark Browsing and Editing
+- 🛠️ Search, Navigation, and Layout Fixes
+```
 
 ## Verify and hand off
 

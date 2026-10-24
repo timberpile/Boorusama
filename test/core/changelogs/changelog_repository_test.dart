@@ -52,11 +52,12 @@ void main() {
 
     expect(data.version.toString(), '4.6.1-timberpile.2');
     expect(data.content, contains('## Features\n\n'));
-    expect(data.content, contains('## Fixes and improvements\n\n'));
+    expect(data.content, contains('- 🧭 Redesigned App Navigation'));
+    expect(data.content, contains('## Fixes and Improvements\n\n'));
     expect(
       data.content,
       contains(
-        '- Save favorites from multiple profiles into local bookmark groups.',
+        '- ❤️ Sync Favorites to Bookmark Groups',
       ),
     );
     expect(data.content, isNot(contains('# 4.6.1-timberpile.1')));

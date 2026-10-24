@@ -2,25 +2,24 @@
 
 ## Features
 
-- Keep timeline positions when switching screens.
-- Build searches with compact site-specific filters, quick choices, and graphical editors.
-- Check for GitHub updates and install verified Android updates from the app.
-- Save favorites from multiple profiles into local bookmark groups.
-- Find matching posts on other configured profiles.
-- Share and open portable post and search link files.
-- Use consistent multi-selection actions across posts and collections.
-- Filter nested bookmark groups by name.
-- Add a preset for safebooru.donmai.us.
+- 🧭 Redesigned App Navigation
+- 🔎 Redesigned Search with Visual Filters
+- 📲 In-App Android Updates
+- ❤️ Sync Favorites to Bookmark Groups
+- 🌐 Cross-Profile Post Matching
+- 🔗 Shareable Post and Search Link Files
+- ☑️ Unified Selection and Bulk Actions
+- 📂 Search Bookmark Groups and Folders
+- 🛡️ Safebooru (Danbooru) Profile Preset
 
-## Fixes and improvements
+## Fixes and Improvements
 
-- Speed up large bookmark libraries and prevent freezes when reopening All bookmarks.
-- Improve search keyboards, dialogs, Back navigation, history, and profile switching.
-- Preserve profile-specific tag colors and bold labels in searches and Topic queries.
-- Load Topic previews independently, including searches without automatic tracking.
-- Improve Realbooru media badges, video thumbnails, and preview loading.
-- Keep selection and pool controls visible above overlays, and correct scroll-to-top visibility.
-- Mark Pixiv profile setup as experimental.
+- ⚡ Faster Bookmark Browsing and Editing
+- 🏷️ Consistent Tag Colors and Styling
+- 🖼️ Previews for Untracked Topics
+- 🎞️ Improved Realbooru Previews and Badges
+- 🛠️ Search, Navigation, and Layout Fixes
+- 🧪 Pixiv Marked as Experimental
 
 # 4.6.1-timberpile.1
 
