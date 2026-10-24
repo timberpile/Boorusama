@@ -62,16 +62,25 @@ RbImageMetadata parseRbImageMetadata(
 
   var width = positive(image?.attributes['data-original-width']);
   var height = positive(image?.attributes['data-original-height']);
-  // Restrict text parsing to post metadata containers, not comments or tags
-  // elsewhere in the document. Never use the rendered img width/height.
-  final info = document.querySelector('#post-info') ??
-      document.querySelector('#stats') ??
-      document.querySelector('#tagLink');
-  final text = info?.text.replaceAll(RegExp(r'\s+'), ' ') ?? '';
-  final dimensions = RegExp(
+  // Search each supported container independently: dimensions and byte counts
+  // need not share a container, but fragments must not form a synthetic pair.
+  final metadataTexts = [
+    for (final selector in const ['#post-info', '#stats', '#tagLink'])
+      if (document.querySelector(selector) case final info?)
+        info.text.replaceAll(RegExp(r'\s+'), ' '),
+  ];
+  RegExpMatch? metadataMatch(RegExp pattern) {
+    for (final text in metadataTexts) {
+      final match = pattern.firstMatch(text);
+      if (match != null) return match;
+    }
+    return null;
+  }
+
+  final dimensions = metadataMatch(RegExp(
     r'\b(?:Original (?:Size|Resolution)|Resolution|Dimensions|Size)\s*:\s*(\d{1,7})\s*[x×]\s*(\d{1,7})\b',
     caseSensitive: false,
-  ).firstMatch(text);
+  ));
   // Do not combine unrelated half-pairs from different representations.
   if (width == null || height == null) {
     width = positive(dimensions?.group(1));
@@ -83,8 +92,10 @@ RbImageMetadata parseRbImageMetadata(
   }
 
   final byteText = image?.attributes['data-original-file-size'] ??
-      RegExp(r'\bFile size\s*:\s*(\d{1,16})\s*(?:bytes|B)\b',
-          caseSensitive: false).firstMatch(text)?.group(1);
+      metadataMatch(RegExp(
+        r'\bFile size\s*:\s*(\d{1,16})\s*(?:bytes|B)\b',
+        caseSensitive: false,
+      ))?.group(1);
   final bytes = int.tryParse(byteText?.trim() ?? '');
   return (
     originalUrl: original,
