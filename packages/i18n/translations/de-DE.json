@@ -595,6 +595,7 @@
     },
     "appearance": {
       "appearance": "Aussehen",
+      "show_bookmark_count": "Lesezeichenanzahl anzeigen",
       "show_scores": "Scores anzeigen",
       "show_post_list_config_header": "Konfigurationsheader für Beiträge anzeigen",
       "booru_config": "Booru Profil",

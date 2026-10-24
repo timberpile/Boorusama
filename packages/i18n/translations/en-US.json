@@ -800,6 +800,7 @@
     },
     "appearance": {
       "appearance": "Appearance",
+      "show_bookmark_count": "Show bookmark count",
       "customize": "Customize",
       "show_scores": "Show scores",
       "show_post_list_config_header": "Show posts configuration header",

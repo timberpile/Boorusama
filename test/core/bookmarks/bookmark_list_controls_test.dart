@@ -2,6 +2,8 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_shuffle_provider
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,10 +16,16 @@ void main() {
   Future<ProviderContainer> pumpControls(
     WidgetTester tester, {
     double scale = 1,
+    bool showCount = true,
     List<String> sources = const ['one.example', _longSource],
   }) async {
     final container = ProviderContainer(
       overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => _TestSettingsNotifier(
+            Settings.defaultSettings.copyWith(showBookmarkCount: showCount),
+          ),
+        ),
         availableBooruUrlsProvider.overrideWith(
           (ref) => Future.value(sources),
         ),
@@ -57,6 +65,27 @@ void main() {
     await tester.pumpAndSettle();
     return container;
   }
+
+  testWidgets(
+    'count visibility follows the global preference without hiding source controls',
+    (tester) async {
+      final container = await pumpControls(tester, showCount: false);
+      expect(find.text('12 bookmarks'), findsNothing);
+      expect(find.text('Source: All'), findsOneWidget);
+      final notifier = container.read(settingsNotifierProvider.notifier);
+      await notifier.updateWith(
+        (settings) => settings.copyWith(showBookmarkCount: true),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('12 bookmarks'), findsOneWidget);
+      await notifier.updateWith(
+        (settings) => settings.copyWith(showBookmarkCount: false),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('12 bookmarks'), findsNothing);
+      expect(find.text('Source: All'), findsOneWidget);
+    },
+  );
 
   for (final width in [800.0, 320.0]) {
     for (final scale in [1.0, 2.0]) {
@@ -445,4 +474,14 @@ Future<void> _tapFilter(WidgetTester tester, String label) async {
   final visible = tester.getRect(button).intersect(tester.getRect(viewport));
   expect(visible.isEmpty, isFalse);
   await tester.tapAt(visible.center);
+}
+
+class _TestSettingsNotifier extends SettingsNotifier {
+  _TestSettingsNotifier(super.initialSettings);
+
+  @override
+  Future<bool> updateWith(Settings Function(Settings) selector) async {
+    state = selector(state);
+    return true;
+  }
 }

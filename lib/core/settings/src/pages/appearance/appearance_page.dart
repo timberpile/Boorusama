@@ -81,6 +81,13 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
             (settings) => settings.copyWith(postLongPressContextMenu: value),
           ),
         ),
+        KurumiSwitchListTile(
+          title: Text(context.t.settings.appearance.show_bookmark_count),
+          value: settings.showBookmarkCount,
+          onChanged: (value) => notifier.updateWith(
+            (settings) => settings.copyWith(showBookmarkCount: value),
+          ),
+        ),
         const Divider(thickness: 1),
 
         if (ref.watch(showPremiumFeatsProvider))

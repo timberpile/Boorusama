@@ -72,6 +72,7 @@ class Settings extends Equatable {
     required this.searchBarScrollBehavior,
     this.autoHideMainNavigation = true,
     this.postLongPressContextMenu = false,
+    this.showBookmarkCount = false,
     required this.searchBarPosition,
     required this.hapticFeedbackLevel,
     required this.autoBackup,
@@ -147,6 +148,7 @@ class Settings extends Equatable {
           : null,
       autoHideMainNavigation = json['autoHideMainNavigation'] as bool? ?? true,
       postLongPressContextMenu = json['postLongPressContextMenu'] == true,
+      showBookmarkCount = json['showBookmarkCount'] == true,
       searchBarScrollBehavior = SearchBarScrollBehavior.parse(
         json['searchBarScrollBehavior'],
       ),
@@ -322,6 +324,7 @@ class Settings extends Equatable {
   final SearchBarScrollBehavior searchBarScrollBehavior;
   final bool autoHideMainNavigation;
   final bool postLongPressContextMenu;
+  final bool showBookmarkCount;
 
   final SearchBarPosition searchBarPosition;
 
@@ -373,6 +376,7 @@ class Settings extends Equatable {
     SearchBarScrollBehavior? searchBarScrollBehavior,
     bool? autoHideMainNavigation,
     bool? postLongPressContextMenu,
+    bool? showBookmarkCount,
     SearchBarPosition? searchBarPosition,
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
@@ -438,6 +442,7 @@ class Settings extends Equatable {
         autoHideMainNavigation ?? this.autoHideMainNavigation,
     postLongPressContextMenu:
         postLongPressContextMenu ?? this.postLongPressContextMenu,
+    showBookmarkCount: showBookmarkCount ?? this.showBookmarkCount,
     searchBarScrollBehavior:
         searchBarScrollBehavior ?? this.searchBarScrollBehavior,
     searchBarPosition: searchBarPosition ?? this.searchBarPosition,
@@ -491,6 +496,7 @@ class Settings extends Equatable {
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
       'autoHideMainNavigation': autoHideMainNavigation,
       'postLongPressContextMenu': postLongPressContextMenu,
+      'showBookmarkCount': showBookmarkCount,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
       'searchBarPosition': searchBarPosition.toData(),
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
@@ -541,6 +547,7 @@ class Settings extends Equatable {
     searchBarScrollBehavior,
     autoHideMainNavigation,
     postLongPressContextMenu,
+    showBookmarkCount,
     searchBarPosition,
     hapticFeedbackLevel,
     autoBackup,

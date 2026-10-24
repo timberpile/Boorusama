@@ -1116,7 +1116,10 @@ class _BookmarkViewerHarness extends StatelessWidget {
     overrides: [
       settingsNotifierProvider.overrideWith(
         () => SettingsNotifier(
-          Settings.defaultSettings.copyWith(reduceAnimations: true),
+          Settings.defaultSettings.copyWith(
+            reduceAnimations: true,
+            showBookmarkCount: true,
+          ),
         ),
       ),
       colorSchemeProvider.overrideWithValue(
@@ -1126,7 +1129,10 @@ class _BookmarkViewerHarness extends StatelessWidget {
         (ref) => Stream.value([ConnectivityResult.wifi]),
       ),
       settingsProvider.overrideWithValue(
-        Settings.defaultSettings.copyWith(reduceAnimations: true),
+        Settings.defaultSettings.copyWith(
+          reduceAnimations: true,
+          showBookmarkCount: true,
+        ),
       ),
       initialSettingsBooruConfigProvider.overrideWithValue(_config),
       booruConfigProvider.overrideWith(
