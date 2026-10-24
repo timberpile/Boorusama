@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
+import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -44,6 +45,18 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
         }
     }
 
+    // Exception messages and payloads can contain document URIs, local paths or
+    // export data. Report only our stage, the exception type and stack locations.
+    private fun reportFailure(result: MethodChannel.Result, stage: String, error: Exception) {
+        val code = if (error is SecurityException) "backup_folder_access_required" else "backup_storage_failed"
+        val causeType = error.javaClass.simpleName
+        Log.e("BoorusamaBackup", "Backup failed at $stage ($causeType)\n" +
+            error.stackTrace.take(8).joinToString("\n"))
+        main.post {
+            result.error(code, "Backup failed at $stage", mapOf("stage" to stage, "causeType" to causeType))
+        }
+    }
+
     init {
         channel.setMethodCallHandler { call, result ->
             if (call.method == "pickDirectory") {
@@ -58,24 +71,28 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                         }, PICK_FOLDER)
                     } catch (error: Exception) {
                         pickerResult = null
-                        result.error("backup_folder_access_required", "Folder selection unavailable", null)
+                        reportFailure(result, "open_folder_picker", error)
                     }
                 }
                 return@setMethodCallHandler
             }
             worker.execute {
+                var stage = "validate_location"
                 try {
                     val location = Uri.parse(call.argument<String>("location") ?: "")
                     require(location.scheme == "content" && location.pathSegments.firstOrNull() == "tree")
                     require(location.pathSegments.size in 2..3)
                     val tree = location.buildUpon().path(null).appendPath("tree")
                         .appendPath(location.pathSegments[1]).build()
+                    stage = "check_persisted_permission"
                     if (!resolver.persistedUriPermissions.any { it.uri == tree && it.isReadPermission && it.isWritePermission }) {
                         throw SecurityException("Folder approval required")
                     }
+                    stage = "resolve_root"
                     val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
                     if (call.method == "directoryDisplayName") {
                         // Display lookup must not create or require a backup subfolder.
+                        stage = "read_folder_name"
                         val name = resolver.query(root,
                             arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use {
                             if (it.moveToFirst()) it.getString(0) else null
@@ -83,15 +100,18 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                         main.post { result.success(name) }
                         return@execute
                     }
+                    stage = "find_backup_folder"
                     val existingFolder = children(tree, root).firstOrNull { it.name == folderName }
                     if (existingFolder != null && existingFolder.mime != DocumentsContract.Document.MIME_TYPE_DIR) {
                         throw IOException("Backup folder unavailable")
                     }
                     val folder = existingFolder?.uri ?: if (call.method == "prepare") {
+                        stage = "create_backup_folder"
                         DocumentsContract.createDocument(resolver, root, DocumentsContract.Document.MIME_TYPE_DIR, folderName)
                             ?: throw IOException("Could not create folder")
                     } else throw IOException("Backup folder unavailable")
                     val name = location.pathSegments.getOrNull(2)
+                    stage = "list_backup_folder"
                     val items = children(tree, folder)
                     val file = items.firstOrNull { it.name == name && it.mime != DocumentsContract.Document.MIME_TYPE_DIR }
                     val value: Any = when (call.method) {
@@ -99,52 +119,72 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                         "list" -> items.filter { it.mime != DocumentsContract.Document.MIME_TYPE_DIR &&
                             (it.name.endsWith(".zip") || it.name.endsWith(".bsexport")) }.map { it.name }
                         "exists" -> file != null
-                        "size" -> file?.size ?: throw IOException("Backup missing")
+                        "size" -> {
+                            stage = "read_backup_size"
+                            file?.size ?: throw IOException("Backup missing")
+                        }
                         "delete" -> {
+                            stage = "delete_retained_backup"
                             require(name != null && (name.endsWith(".zip") || name.endsWith(".bsexport")))
                             if (file != null && !DocumentsContract.deleteDocument(resolver, file.uri)) throw IOException("Delete failed")
                             true
                         }
                         "readManifest" -> {
+                            stage = "read_manifest"
                             val manifest = items.firstOrNull { it.name == manifestName }
                             if (manifest == null) "{\"backups\":[]}" else resolver.openInputStream(manifest.uri)?.bufferedReader()?.use { it.readText() }
                                 ?: throw IOException("Manifest unavailable")
                         }
                         "writeManifest" -> {
+                            stage = "open_manifest"
                             val manifest = items.firstOrNull { it.name == manifestName }?.uri
                                 ?: DocumentsContract.createDocument(resolver, folder, "application/json", manifestName)
                                 ?: throw IOException("Manifest unavailable")
                             val content = call.argument<String>("content") ?: throw IOException("Missing manifest")
+                            stage = "write_manifest"
                             resolver.openOutputStream(manifest, "wt")?.bufferedWriter()?.use { it.write(content) }
                                 ?: throw IOException("Manifest write failed")
                             true
                         }
                         "writeBackup" -> {
+                            stage = "validate_staged_package"
                             require(name != null && name.endsWith(".bsexport") && file == null)
                             val source = File(call.argument<String>("source") ?: "").canonicalFile
                             require(listOf(cache, codeCache).any { source.path.startsWith(it.canonicalPath + File.separator) })
+                            stage = "create_backup_document"
                             val document = DocumentsContract.createDocument(resolver, folder, ReceivedExportChannel.EXPORT_MIME_TYPE, name)
                                 ?: throw IOException("Backup creation failed")
                             try {
+                                stage = "copy_backup_document"
                                 resolver.openOutputStream(document, "w")?.use { output ->
                                     source.inputStream().use { input -> input.copyTo(output) }
                                 } ?: throw IOException("Backup write failed")
+                                stage = "verify_backup_document"
                                 // Providers may rename files; do not record a mismatched manifest entry.
                                 if (children(tree, folder).none { it.uri == document && it.name == name && it.size == source.length() }) {
                                     throw IOException("Incomplete backup")
                                 }
                             } catch (error: Exception) {
-                                DocumentsContract.deleteDocument(resolver, document)
+                                // Cleanup must not replace the original copy/verification failure.
+                                try {
+                                    if (!DocumentsContract.deleteDocument(resolver, document)) {
+                                        Log.w("BoorusamaBackup", "Incomplete backup cleanup was rejected")
+                                    }
+                                } catch (cleanup: Exception) {
+                                    Log.w("BoorusamaBackup", "Incomplete backup cleanup failed (${cleanup.javaClass.simpleName})")
+                                }
                                 throw error
                             }
                             true
                         }
-                        else -> throw IllegalArgumentException("Unknown operation")
+                        else -> {
+                            stage = "dispatch_operation"
+                            throw IllegalArgumentException("Unknown operation")
+                        }
                     }
                     main.post { result.success(value) }
                 } catch (error: Exception) {
-                    val code = if (error is SecurityException || error is IllegalArgumentException) "backup_folder_access_required" else "backup_storage_failed"
-                    main.post { result.error(code, "Backup folder access failed", null) }
+                    reportFailure(result, stage, error)
                 }
             }
         }
@@ -165,7 +205,7 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
             resolver.takePersistableUriPermission(tree, flags)
             result.success(tree.toString())
         } catch (error: Exception) {
-            result.error("backup_folder_access_required", "Could not keep folder access", null)
+            reportFailure(result, "persist_folder_permission", error)
         }
         return true
     }
