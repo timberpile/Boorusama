@@ -52,7 +52,7 @@ Post gelbooruV2PostDtoToGelbooruPost(
     md5: dto.hash ?? '',
     hasComment: dto.commentCount != null && dto.commentCount! > 0,
     hasParentOrChildren: dto.parentId != null && dto.parentId != 0,
-    fileSize: 0,
+    fileSize: dto.fileSize ?? 0,
     score: dto.score ?? 0,
     createdAt: switch (dto.createdAt) {
       final String value => parseRFC822String(value),

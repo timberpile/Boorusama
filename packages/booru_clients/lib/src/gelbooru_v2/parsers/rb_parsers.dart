@@ -4,6 +4,7 @@ import 'package:html/parser.dart' show parse;
 
 import '../../gelbooru/types/types.dart';
 import '../types.dart';
+import 'rb_image_metadata.dart';
 
 List<TagDto> parseRbTagsHtml(Response response, Map<String, dynamic> context) {
   final html = response.data as String;
@@ -70,23 +71,26 @@ PostV2Dto? parseRbPostHtml(
   final postId = _extractPostId(document);
   if (postId == null) return null;
 
-  // Try to get file URL from video or image
-  String? fileUrl;
-
-  // Check for video first
   final videoSource = document.querySelector('#gelcomVideoPlayer source');
-  if (videoSource != null) {
-    fileUrl = videoSource.attributes['src'];
-  } else {
-    // Check for image
-    final imageElement = document.querySelector('#image');
-    fileUrl = imageElement?.attributes['src'];
-  }
+  final displayedUrl = _resolveRbMediaUrl(
+    videoSource != null
+        ? videoSource.attributes['src']
+        : document.querySelector('#image')?.attributes['src'],
+    baseUrl,
+  );
+  if (displayedUrl == null) return null;
+  final imageMetadata = videoSource == null
+      ? parseRbImageMetadata(
+          document,
+          displayedUrl: displayedUrl,
+          resolveUrl: (value) => _resolveRbMediaUrl(value, baseUrl),
+        )
+      : null;
+  final fileUrl = videoSource != null
+      ? displayedUrl
+      : imageMetadata?.originalUrl ?? '';
 
-  fileUrl = _resolveRbMediaUrl(fileUrl, baseUrl);
-  if (fileUrl == null) return null;
-
-  final fileUri = Uri.tryParse(fileUrl);
+  final fileUri = Uri.tryParse(fileUrl.isEmpty ? displayedUrl : fileUrl);
   final filePath = fileUri?.path ?? '';
 
   // Extract hash and directory
@@ -130,8 +134,11 @@ PostV2Dto? parseRbPostHtml(
   return PostV2Dto(
     id: postId,
     fileUrl: fileUrl,
-    sampleUrl: fileUrl,
+    sampleUrl: displayedUrl,
     previewUrl: previewUrl,
+    width: imageMetadata?.width,
+    height: imageMetadata?.height,
+    fileSize: imageMetadata?.fileSize,
     directory: directory,
     hash: hash,
     image: image,
