@@ -134,6 +134,7 @@ class PostV2Dto {
   final String? hash;
   final int? width;
   final int? height;
+
   /// Original file bytes when explicitly supplied; null means unknown.
   final int? fileSize;
   final int? id;
@@ -179,7 +180,7 @@ class PostFavoriteDto extends Equatable {
     this.user,
   });
 
-  final String? id;
+  final int? id;
   final String? previewUrl;
   final String? tags;
   final String? rating;
