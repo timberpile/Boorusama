@@ -81,11 +81,13 @@ class GridThumbnailSettings extends Equatable {
     required this.imageQuality,
     required this.animatedPostsDefaultState,
     required this.gridSize,
+    this.allowLargeCachedGif = false,
   });
 
   final ImageQuality imageQuality;
   final AnimatedPostsDefaultState animatedPostsDefaultState;
   final GridSize gridSize;
+  final bool allowLargeCachedGif;
 
   // GIF Auto retains each generator's existing animation policy.
   ImageQuality get resolvedImageQuality =>
@@ -102,5 +104,6 @@ class GridThumbnailSettings extends Equatable {
     imageQuality,
     animatedPostsDefaultState,
     gridSize,
+    allowLargeCachedGif,
   ];
 }

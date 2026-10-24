@@ -1,4 +1,6 @@
 // Package imports:
+import 'dart:typed_data';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
@@ -44,6 +46,7 @@ class BooruImage extends ConsumerWidget {
     this.placeholderWidget,
     this.controller,
     this.imageCacheManager,
+    this.cachedImageBytes,
   });
 
   final BooruConfigAuth config;
@@ -67,6 +70,7 @@ class BooruImage extends ConsumerWidget {
   final Widget? placeholderWidget;
   final ExtendedImageController? controller;
   final ImageCacheManager? imageCacheManager;
+  final Uint8List? cachedImageBytes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -164,6 +168,7 @@ class BooruImage extends ConsumerWidget {
       controller: controller,
       androidVersion: deviceInfo.androidDeviceInfo?.version.sdkInt,
       imageCacheManager: imageCacheManager ?? fallbackCacheManager,
+      cachedImageBytes: cachedImageBytes,
     );
   }
 }
@@ -198,6 +203,7 @@ class BooruRawImage extends StatelessWidget {
     this.controller,
     this.androidVersion,
     this.imageCacheManager,
+    this.cachedImageBytes,
   });
 
   final Dio dio;
@@ -229,6 +235,7 @@ class BooruRawImage extends StatelessWidget {
   final ExtendedImageController? controller;
   final int? androidVersion;
   final ImageCacheManager? imageCacheManager;
+  final Uint8List? cachedImageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +271,19 @@ class BooruRawImage extends StatelessWidget {
                     ? BoxFit.cover
                     : BoxFit.contain);
             final borderRadius = this.borderRadius ?? _defaultRadius;
+
+            if (cachedImageBytes case final bytes?) {
+              return ExtendedImage(
+                image: MemoryImage(bytes),
+                borderRadius: borderRadius,
+                width: width,
+                height: height,
+                fit: fit,
+                controller: effectiveController,
+                placeholderWidget: placeholderWidget ?? imagePlaceHolder,
+                errorWidget: placeholderWidget ?? imagePlaceHolder,
+              );
+            }
 
             return imageUrl.isNotEmpty
                 ? ExtendedImage.network(
