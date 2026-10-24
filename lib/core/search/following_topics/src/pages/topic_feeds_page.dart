@@ -30,6 +30,7 @@ import '../../../../navigation/destination_activity.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/feed_history_session.dart';
+import '../services/feed_history_end_policy.dart';
 import '../providers/following_topics_notifier.dart';
 import '../providers/search_refresh_coordinator.dart';
 import '../types/topic_feed.dart';
@@ -697,6 +698,25 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
 
   FeedHistorySession _createHistory() => FeedHistorySession(
     sources: widget.sources,
+    confirmExhaustion: (source, page, result) {
+      final owner = ref
+          .read(booruConfigProvider)
+          .where((config) => config.id == source.profileId)
+          .firstOrNull;
+      return owner != null &&
+          confirmsFeedHistoryEnd(
+            result,
+            booruType: owner.auth.booruType,
+            siteUrl: owner.url,
+            page: page,
+            limit: 20,
+          );
+    },
+    onExhausted: (source, end) async {
+      await ref
+          .read(followingTopicsProvider.notifier)
+          .recordHistoryEnd(source, end);
+    },
     recent: [
       for (final post in widget.feed.posts)
         _decodeFeedPost(ref, post, widget.config),
@@ -885,6 +905,8 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                     refreshChecked: widget.refreshChecked,
                     refreshTotal: widget.refreshTotal,
                     unavailable: _historyCoverageIncomplete,
+                    completedSourceIds: _history.exhaustedSourceIds,
+                    historyComplete: _history.exhausted,
                   ),
                 ),
               ],
@@ -977,16 +999,27 @@ class _FeedStatusHeader extends StatelessWidget {
     required this.refreshChecked,
     required this.refreshTotal,
     required this.unavailable,
+    this.completedSourceIds = const {},
+    this.historyComplete = false,
   });
 
   final List<FollowingTopic> sources;
   final int refreshChecked;
   final int refreshTotal;
   final bool unavailable;
+  final Set<String> completedSourceIds;
+  final bool historyComplete;
 
   @override
   Widget build(BuildContext context) {
     final refreshing = refreshTotal > 0;
+    final completed = sources
+        .where(
+          (source) =>
+              source.historyEnd != null ||
+              completedSourceIds.contains(source.id),
+        )
+        .length;
     final remaining = (refreshTotal - refreshChecked).clamp(0, refreshTotal);
     final checkedAt = sources
         .map((source) => source.lastSuccessfulCheckAt)
@@ -1004,6 +1037,14 @@ class _FeedStatusHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             FeedLastChecked(checkedAt: checkedAt),
+            if (historyComplete)
+              Text(context.t.following_topics.history_complete)
+            else if (completed > 0)
+              Text(
+                context.t.following_topics.history_sources_complete
+                    .replaceAll('{complete}', '$completed')
+                    .replaceAll('{total}', '${sources.length}'),
+              ),
             if (refreshing) ...[
               const SizedBox(height: 8),
               Text(

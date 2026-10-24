@@ -3,6 +3,7 @@ import 'search_refresh.dart';
 import 'topic_feed.dart';
 import 'topic_organization.dart';
 import 'following_topic.dart';
+import 'feed_history_end.dart';
 
 final class DuplicateFollowingTopicException implements Exception {}
 
@@ -49,6 +50,10 @@ abstract interface class FollowingTopicRepository {
   Future<void> replaceOrganization(TopicOrganization organization);
   Future<void> deleteSharedFolderAndTopics(String folderId);
   Future<FollowingTopic?> getById(String id);
+  Future<FollowingTopic?> recordHistoryEnd(
+    FollowingTopic expected,
+    FeedHistoryEnd end,
+  );
   Future<FollowingTopic?> findByQuery(String profileId, String query);
   Future<FollowingTopic> create({
     required String profileId,

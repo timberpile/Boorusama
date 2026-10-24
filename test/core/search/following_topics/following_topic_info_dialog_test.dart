@@ -87,6 +87,28 @@ void main() {
     return observed;
   }
 
+  testWidgets(
+    'Info shows a persisted history end at narrow width and large text',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final harness = FollowingTopicHarness();
+      addTearDown(harness.dispose);
+      await tester.runAsync(() async {
+        await harness.seed([source()]);
+        final topic = (await harness.repository.getById('cats'))!;
+        await harness.repository.recordHistoryEnd(
+          topic,
+          const FeedHistoryEnd(oldestPostIdentity: '20:example.com:8'),
+        );
+        await harness.container.read(followingTopicsProvider.future);
+      });
+      await mount(tester, harness, narrow: true);
+      expect(find.text('Oldest post reached'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final name in <String?>[null, 'Cats', 'cat']) {
     testWidgets('Info labels stored query and explicit name $name', (
       tester,

@@ -30,6 +30,7 @@ import '../types/topic_feed.dart';
 import '../types/topic_organization.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_repository.dart';
+import '../types/feed_history_end.dart';
 
 final followingTopicsProvider =
     AsyncNotifierProvider<FollowingTopicsNotifier, FollowingTopicsState>(
@@ -1442,6 +1443,11 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   Future<T> _mutate<T>(
     Future<T> Function(FollowingTopicRepository repository) operation,
   ) => runSerializedMutation(operation);
+
+  Future<FollowingTopic?> recordHistoryEnd(
+    FollowingTopic expected,
+    FeedHistoryEnd end,
+  ) => _mutate((repository) => repository.recordHistoryEnd(expected, end));
 
   Future<void> _requireIndependentTopic(
     FollowingTopicRepository repository,
