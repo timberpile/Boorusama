@@ -15,6 +15,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
+import '../../../../bookmarks/src/types/bookmark.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
@@ -117,20 +118,18 @@ List<PostActionDefinition> postActionDefinitions(
       groups.putIfAbsent(source, () => []).add(target.post);
     }
   }
+  final normalDownloadParams = <BooruConfig, DownloadNotifierParams>{};
+  for (final entry in groups.entries) {
+    final params = ref.watch(
+      downloadNotifierParamsProvider((entry.key.auth, entry.key.download)),
+    );
+    if (params.filenameBuilder != null &&
+        (entry.value.length == 1 || params.canDownloadMultipleFiles())) {
+      normalDownloadParams[entry.key] = params;
+    }
+  }
   final canDownloadResolved =
-      snapshot.allResolved &&
-      groups.entries.every(
-        (entry) =>
-            entry.value.length == 1 ||
-            ref
-                .watch(
-                  downloadNotifierParamsProvider((
-                    entry.key.auth,
-                    entry.key.download,
-                  )),
-                )
-                .canDownloadMultipleFiles(),
-      );
+      snapshot.allResolved && normalDownloadParams.length == groups.length;
   final canFavorite =
       snapshot.allResolved &&
       snapshot.targets.every((target) {
@@ -181,39 +180,57 @@ List<PostActionDefinition> postActionDefinitions(
         execute: () => run(() async {
           if (downloadOverride != null) {
             await downloadOverride();
-          } else if (!canDownloadResolved && canUseStoredDownload) {
-            await ref
-                .read(bookmarkProvider.notifier)
-                .downloadBookmarks(
-                  fallbackAuth,
-                  fallbackDownload,
-                  stored.nonNulls.toList(),
-                );
           } else {
-            // Resolve every service before the first await. All targets are
-            // validated; an unsupported subset is never silently discarded.
+            // Capture all services and fallback snapshots before the first await.
+            // One orphan/unsupported group must not downgrade supported sources
+            // to legacy Original-only downloads or discard selected posts.
             final operations = [
-              for (final entry in groups.entries)
+              for (final entry in normalDownloadParams.entries)
                 (
-                  posts: List<Post>.unmodifiable(entry.value),
+                  posts: List<Post>.unmodifiable(groups[entry.key]!),
                   notifier: ref.read(
-                    downloadNotifierProvider(
-                      ref.read(
-                        downloadNotifierParamsProvider((
-                          entry.key.auth,
-                          entry.key.download,
-                        )),
-                      ),
-                    ).notifier,
+                    downloadNotifierProvider(entry.value).notifier,
                   ),
                 ),
             ];
+            final fallbackOperations = [
+              for (final entry in groups.entries)
+                if (!normalDownloadParams.containsKey(entry.key))
+                  (
+                    auth: entry.key.auth,
+                    download: entry.key.download,
+                    bookmarks: List<Bookmark>.unmodifiable([
+                      for (final post in entry.value)
+                        library!.bookmarkForPost(post)!,
+                    ]),
+                  ),
+              if (snapshot.targets.any((target) => target.config == null))
+                (
+                  auth: fallbackAuth,
+                  download: fallbackDownload,
+                  bookmarks: List<Bookmark>.unmodifiable([
+                    for (final target in snapshot.targets)
+                      if (target.config == null)
+                        library!.bookmarkForPost(target.post)!,
+                  ]),
+                ),
+            ];
+            final fallbackNotifier = fallbackOperations.isEmpty
+                ? null
+                : ref.read(bookmarkProvider.notifier);
             for (final operation in operations) {
               if (operation.posts.length == 1) {
                 await operation.notifier.download(operation.posts.single);
               } else {
                 await operation.notifier.bulkDownload(operation.posts);
               }
+            }
+            for (final operation in fallbackOperations) {
+              await fallbackNotifier!.downloadBookmarks(
+                operation.auth,
+                operation.download,
+                operation.bookmarks,
+              );
             }
           }
         }),
