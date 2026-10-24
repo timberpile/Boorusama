@@ -3,6 +3,7 @@ import 'package:boorusama/core/groups/folder_tree.dart';
 import '../search/following_topics/topic_test_utils.dart';
 
 import 'package:selection_mode/selection_mode.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter/foundation.dart';
@@ -89,6 +90,155 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  for (final folder in [false, true]) {
+    for (final hasPoster in [false, true]) {
+      testWidgets(
+        'mounted ${folder ? "folder" : "group"} cover follows GIF autoplay (poster=$hasPoster)',
+        (tester) async {
+          await tester.runAsync(() async {
+            final root = await Directory.systemTemp.createTemp(
+              'preview-autoplay-',
+            );
+            final cache = DrainingImageCacheManager(
+              cacheRootPathProvider: () => root.path,
+            );
+            final adapter = ControlledImageAdapter();
+            final dio = Dio()..httpClientAdapter = adapter;
+            final bookmark = Bookmark(
+              id: 42,
+              postId: 42,
+              createdAt: DateTime(2026),
+              updatedAt: DateTime(2026),
+              width: 1200,
+              height: 1200,
+              md5: '',
+              tags: const {},
+              realSourceUrl: null,
+              format: 'gif',
+              metadata: const {},
+              imageUrlResolver: const DefaultImageUrlResolver(),
+              booruId: _config.booruId,
+              sourceUrl: _config.url,
+              thumbnailUrl: hasPoster
+                  ? 'https://preview.test/poster.jpg'
+                  : 'https://preview.test/poster.gif',
+              sampleUrl: 'https://preview.test/sample.gif',
+              originalUrl: 'https://preview.test/original.gif',
+            );
+            final library = BookmarkLibraryState(
+              bookmarks: [bookmark],
+              folders: folder
+                  ? const [CollectionFolder(id: 'folder', name: 'Folder')]
+                  : const [],
+              groups: [
+                BookmarkGroup(
+                  id: '550e8400-e29b-41d4-a716-446655440042',
+                  name: 'Group',
+                  bookmarkIds: {bookmark.id},
+                  folderId: folder ? 'folder' : null,
+                ),
+              ],
+              activeTarget: const BookmarkTarget.defaultGroup(),
+            );
+            final settings = _PreviewSettingsNotifier(
+              Settings.defaultSettings.copyWith(
+                reduceAnimations: true,
+                listing: Settings.defaultSettings.listing.copyWith(
+                  animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+                ),
+              ),
+            );
+            final controller = _controller([bookmark.post]);
+            try {
+              await tester.pumpWidget(
+                _BookmarkViewerHarness(
+                  controller: controller,
+                  home: const BookmarkGroupBrowserPage(),
+                  bookmarkNotifier: _CacheBookmarkNotifier(library),
+                  commonCache: cache,
+                  imageDio: dio,
+                  previewSettingsNotifier: settings,
+                ),
+              );
+              await tester.pumpAndSettle();
+              if (hasPoster) {
+                await pumpUntil(
+                  tester,
+                  () => adapter.pending.containsKey(bookmark.thumbnailUrl),
+                  reason: 'static preview request',
+                );
+                adapter.complete(bookmark.thumbnailUrl, lowerPng);
+                await waitForPixel(tester, [255, 0, 0, 255]);
+              } else {
+                expect(find.byType(BooruImage), findsNothing);
+              }
+              expect(
+                adapter.requests.map((r) => r.uri.toString()),
+                hasPoster ? [bookmark.thumbnailUrl] : isEmpty,
+              );
+              await settings.updateWith(
+                (current) => current.copyWith(
+                  listing: current.listing.copyWith(
+                    animatedPostsDefaultState:
+                        AnimatedPostsDefaultState.autoplay,
+                  ),
+                ),
+              );
+              await tester.pump();
+              await pumpUntil(
+                tester,
+                () => adapter.pending.containsKey(bookmark.sampleUrl),
+                reason: 'enabled GIF preview request',
+              );
+              adapter.complete(bookmark.sampleUrl, targetPng);
+              await waitForPixel(tester, [0, 0, 255, 255]);
+              expect(
+                adapter.requests.where(
+                  (r) => r.uri.toString() == bookmark.sampleUrl,
+                ),
+                hasLength(1),
+              );
+              expect(
+                adapter.requests.any(
+                  (r) => r.uri.toString() == bookmark.originalUrl,
+                ),
+                isFalse,
+              );
+              await settings.updateWith(
+                (current) => current.copyWith(
+                  listing: current.listing.copyWith(
+                    animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+              expect(
+                tester
+                    .widgetList<BooruImage>(find.byType(BooruImage))
+                    .any((image) => image.imageUrl == bookmark.sampleUrl),
+                isFalse,
+              );
+              expect(
+                adapter.requests.where(
+                  (r) => r.uri.toString() == bookmark.sampleUrl,
+                ),
+                hasLength(1),
+              );
+              expect(tester.takeException(), isNull);
+            } finally {
+              await tester.pumpWidget(const SizedBox());
+              controller.dispose();
+              dio.close(force: true);
+              await cache.drain();
+              await cache.dispose();
+              await root.delete(recursive: true);
+            }
+          });
+        },
+      );
+    }
+  }
+
   testWidgets(
     'nested bookmark groups render literal leaf names and restore breadcrumb history',
     (tester) async {
@@ -1098,6 +1248,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
     this.home,
     this.commonCache,
     this.imageDio,
+    this.previewSettingsNotifier,
   });
 
   final PostGridController<Post> controller;
@@ -1110,17 +1261,20 @@ class _BookmarkViewerHarness extends StatelessWidget {
   final Widget? home;
   final ImageCacheManager? commonCache;
   final Dio? imageDio;
+  final SettingsNotifier? previewSettingsNotifier;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
       settingsNotifierProvider.overrideWith(
-        () => SettingsNotifier(
-          Settings.defaultSettings.copyWith(
-            reduceAnimations: true,
-            showBookmarkCount: true,
-          ),
-        ),
+        () =>
+            previewSettingsNotifier ??
+            SettingsNotifier(
+              Settings.defaultSettings.copyWith(
+                reduceAnimations: true,
+                showBookmarkCount: true,
+              ),
+            ),
       ),
       colorSchemeProvider.overrideWithValue(
         ColorScheme.fromSeed(seedColor: Colors.blue),
@@ -1128,11 +1282,8 @@ class _BookmarkViewerHarness extends StatelessWidget {
       connectivityProvider.overrideWith(
         (ref) => Stream.value([ConnectivityResult.wifi]),
       ),
-      settingsProvider.overrideWithValue(
-        Settings.defaultSettings.copyWith(
-          reduceAnimations: true,
-          showBookmarkCount: true,
-        ),
+      settingsProvider.overrideWith(
+        (ref) => ref.watch(settingsNotifierProvider),
       ),
       initialSettingsBooruConfigProvider.overrideWithValue(_config),
       booruConfigProvider.overrideWith(
@@ -1484,4 +1635,13 @@ Future<void> _tapFilter(WidgetTester tester, String label) async {
   final visible = tester.getRect(button).intersect(tester.getRect(viewport));
   expect(visible.isEmpty, isFalse);
   await tester.tapAt(visible.center);
+}
+
+class _PreviewSettingsNotifier extends SettingsNotifier {
+  _PreviewSettingsNotifier(super.initialSettings);
+  @override
+  Future<bool> updateWith(Settings Function(Settings) selector) async {
+    state = selector(state);
+    return true;
+  }
 }

@@ -28,6 +28,8 @@ import '../widgets/bookmark_collection_deletion_summary.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
+import '../../../posts/listing/types.dart';
+import '../../../settings/providers.dart';
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_provider.dart';
 import '../../../groups/folder_tree.dart';
@@ -1099,8 +1101,29 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
   );
 }
 
-String bookmarkGroupPreviewUrl(Bookmark bookmark) =>
-    bookmark.isVideo ? bookmark.thumbnailUrl : bookmark.sampleUrl;
+String bookmarkGroupPreviewUrl(
+  Bookmark bookmark, {
+  bool autoplayGif = true,
+}) {
+  if (bookmark.isVideo) return bookmark.thumbnailUrl;
+  final isGif =
+      bookmark.post.isGif ||
+      (bookmark.format ?? '').toLowerCase().replaceFirst('.', '') == 'gif' ||
+      [bookmark.sampleUrl, bookmark.originalUrl].any(
+        (url) =>
+            Uri.tryParse(url)?.path.toLowerCase().endsWith('.gif') ?? false,
+      );
+  if (autoplayGif || !isGif) return bookmark.sampleUrl;
+
+  // Never fetch an animation just to display its first frame. Extensionless
+  // and potentially animated WebP/AVIF variants are not proven static posters.
+  for (final url in [bookmark.thumbnailUrl, bookmark.sampleUrl]) {
+    if (url.isEmpty || url == bookmark.originalUrl) continue;
+    final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
+    if (['.jpg', '.jpeg', '.png', '.bmp'].any(path.endsWith)) return url;
+  }
+  return '';
+}
 
 class _BookmarkGroupPreviewImage extends ConsumerWidget {
   const _BookmarkGroupPreviewImage({required this.bookmark});
@@ -1109,12 +1132,24 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final autoplayGif = ref.watch(
+      settingsProvider.select(
+        (settings) =>
+            settings.listing.animatedPostsDefaultState ==
+            AnimatedPostsDefaultState.autoplay,
+      ),
+    );
+    final imageUrl = bookmarkGroupPreviewUrl(
+      bookmark,
+      autoplayGif: autoplayGif,
+    );
+    if (imageUrl.isEmpty) return const SizedBox.expand();
     final host = Uri.tryParse(bookmark.sourceUrl)?.host ?? '';
     final imageConfig = ref.watch(
       firstMatchingConfigByBooruTypeProvider((bookmark.booruId, host)),
     );
     return BooruImage(
-      imageUrl: bookmarkGroupPreviewUrl(bookmark),
+      imageUrl: imageUrl,
       config: imageConfig?.auth ?? ref.watchConfigAuth,
 
       fit: BoxFit.cover,
