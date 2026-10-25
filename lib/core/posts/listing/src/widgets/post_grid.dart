@@ -61,6 +61,7 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.header,
     this.bottomInset = 0,
     this.selectionScope,
+    this.selectionKeysBuilder,
     this.multiSelectActions,
     this.scrollToTopButton,
     this.enablePullToRefresh,
@@ -77,6 +78,9 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final Widget? header;
   final double bottomInset;
   final Object? selectionScope;
+
+  /// Optional typed display entries, while the controller stays a Post list.
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final Widget? multiSelectActions;
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
@@ -136,6 +140,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           scrollController: _autoScrollController,
           bottomInset: widget.bottomInset,
           selectionScope: (ref.watchConfigAuth, widget.selectionScope),
+          selectionKeysBuilder: widget.selectionKeysBuilder,
           footer: Consumer(
             builder: (_, ref, _) {
               return widget.multiSelectActions ??
@@ -301,12 +306,14 @@ class PostGridContextMenu extends StatelessWidget {
   const PostGridContextMenu({
     required this.controller,
     required this.index,
+    this.selectionIndex,
     required this.child,
     super.key,
   });
 
   final PostGridController<Post> controller;
   final int index;
+  final int? selectionIndex;
   final Widget child;
 
   @override
@@ -349,6 +356,7 @@ class PostGridContextMenu extends StatelessWidget {
             context,
             post: post,
             index: index,
+            selectionIndex: selectionIndex,
             child: child,
           );
         } else {
@@ -360,10 +368,11 @@ class PostGridContextMenu extends StatelessWidget {
         }
 
         final selection = SelectionMode.maybeOf(context);
+        final selectedIndex = selectionIndex ?? index;
         final targetKey =
             selection is OrderedSelectionController &&
-                index < selection.entries.length
-            ? selection.entries[index]
+                selectedIndex < selection.entries.length
+            ? selection.entries[selectedIndex]
             : post == null
             ? null
             : BookmarkIdentity.tryFromPost(post) ?? ObjectKey(post);

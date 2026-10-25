@@ -4,6 +4,8 @@ import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../types/bookmark_group.dart';
+import '../../types/pool_bookmark.dart';
+import '../../types/pool_bookmark_repository.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../types/bookmark_group_repository.dart';
 import 'bookmark_group_hive_object.dart';
@@ -12,7 +14,8 @@ class BookmarkGroupRepositoryHive
     implements
         BookmarkGroupRepository,
         BookmarkFolderRepository,
-        BookmarkRecentGroupRepository {
+        BookmarkRecentGroupRepository,
+        PoolBookmarkRepository {
   BookmarkGroupRepositoryHive(
     this._box, {
     Uuid uuid = const Uuid(),
@@ -23,6 +26,45 @@ class BookmarkGroupRepositoryHive
   final Box<BookmarkGroupHiveObject> _box;
   final Uuid _uuid;
   final Box<dynamic>? _organizationBox;
+  Object? _cachedPoolRows;
+  List<PoolBookmark> _cachedPools = const [];
+
+  @override
+  Future<List<PoolBookmark>> readPoolBookmarks() async {
+    final raw = _organizationBox?.get('poolBookmarks') ?? const [];
+    if (identical(raw, _cachedPoolRows)) return _cachedPools;
+    final parsed = List<PoolBookmark>.unmodifiable([
+      for (final row in raw as List)
+        PoolBookmark.fromJson(Map<String, dynamic>.from(row as Map)),
+    ]);
+    _cachedPoolRows = raw;
+    return _cachedPools = parsed;
+  }
+
+  @override
+  Future<void> writePoolBookmarks(List<PoolBookmark> bookmarks) async {
+    final storage = _organizationBox;
+    if (storage == null) {
+      if (bookmarks.isEmpty) return;
+      throw StateError('Pool bookmark storage unavailable');
+    }
+    final identities = <Object>{};
+    final localIds = <String>{};
+    final groups = (await getGroups()).map((g) => g.id).toSet();
+    for (final bookmark in bookmarks) {
+      if (!Uuid.isValidUUID(fromString: bookmark.localId) ||
+          !identities.add(bookmark.identity) ||
+          !localIds.add(bookmark.localId) ||
+          bookmark.groupIds.isEmpty ||
+          !groups.containsAll(bookmark.groupIds)) {
+        throw const FormatException('Invalid Pool bookmark memberships');
+      }
+    }
+    await storage.put(
+      'poolBookmarks',
+      bookmarks.map((b) => b.toJson()).toList(),
+    );
+  }
 
   @override
   Future<List<String>> readRecentGroupIds() async {
@@ -100,12 +142,26 @@ class BookmarkGroupRepositoryHive
   Future<BookmarkGroup> duplicateGroup(String id, {String? name}) async {
     final source = _requireGroup(id);
     final duplicate = await createGroup(name ?? source.name);
-    return _write(
-      duplicate.copyWith(
-        bookmarkIds: source.bookmarkIds,
-        folderId: source.folderId,
-      ),
-    );
+    final pools = await readPoolBookmarks();
+    try {
+      final result = await _write(
+        duplicate.copyWith(
+          bookmarkIds: source.bookmarkIds,
+          folderId: source.folderId,
+        ),
+      );
+      await writePoolBookmarks([
+        for (final pool in pools)
+          if (pool.groupIds.contains(source.id))
+            pool.withGroups({...pool.groupIds, duplicate.id})
+          else
+            pool,
+      ]);
+      return result;
+    } catch (_) {
+      await _box.delete(duplicate.id);
+      rethrow;
+    }
   }
 
   @override
@@ -156,8 +212,18 @@ class BookmarkGroupRepositoryHive
         .where((other) => other.id != group.id)
         .expand((other) => other.bookmarkIds)
         .toSet();
+    final pools = await readPoolBookmarks();
     return BookmarkGroupDeletionPreview(
       group: group,
+      poolIds: {
+        for (final pool in pools)
+          if (pool.groupIds.contains(group.id)) pool.localId,
+      },
+      orphanPoolIds: {
+        for (final pool in pools)
+          if (pool.groupIds.length == 1 && pool.groupIds.contains(group.id))
+            pool.localId,
+      },
       orphanBookmarkIds: group.bookmarkIds.difference(otherBookmarkIds),
     );
   }
@@ -166,7 +232,20 @@ class BookmarkGroupRepositoryHive
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) async {
     final preview = await previewDeleteGroup(id);
     if (preview.group.isDefault) throw StateError('Default cannot be deleted.');
-    await _box.delete(preview.group.id);
+    final pools = await readPoolBookmarks();
+    final nextPools = [
+      for (final pool in pools)
+        if (pool.groupIds.difference({preview.group.id}) case final groups
+            when groups.isNotEmpty)
+          pool.withGroups(groups),
+    ];
+    await writePoolBookmarks(nextPools);
+    try {
+      await _box.delete(preview.group.id);
+    } catch (_) {
+      await writePoolBookmarks(pools);
+      rethrow;
+    }
     return preview;
   }
 

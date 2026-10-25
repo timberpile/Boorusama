@@ -7,8 +7,13 @@ import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
 
-BackupProfileReference bookmarkProfileReference(Bookmark bookmark) {
-  final origin = bookmark.post.origin;
+BackupProfileReference bookmarkProfileReference(Bookmark bookmark) =>
+    bookmarkOriginProfileReference(bookmark.post.origin);
+
+BackupProfileReference poolBookmarkProfileReference(PoolBookmark pool) =>
+    bookmarkOriginProfileReference(pool.origin);
+
+BackupProfileReference bookmarkOriginProfileReference(PostOrigin origin) {
   final site = normalizePostSourceHost(origin.sourceHost);
   return BackupProfileReference(
     id:
@@ -62,3 +67,27 @@ Bookmark bookmarkWithProfileHint(Bookmark bookmark, String profileId) {
     post: bookmark.post.copyWith(origin: PostOrigin.fromSnapshot(mappedOrigin)),
   );
 }
+
+List<PoolBookmark> selectedProfilePools(
+  BookmarkBackupData data,
+  ResolvedImportSource resolution,
+) {
+  if (resolution.action == ImportAction.skip) return const [];
+  if (resolution.action == ImportAction.replace) return data.pools;
+  final groups = {
+    for (final item in resolution.items)
+      if (item.action != ImportAction.skip && item.id.startsWith('group:'))
+        item.id.substring(6),
+  };
+  return data.pools.where((p) => p.groupIds.any(groups.contains)).toList();
+}
+
+PoolBookmark poolBookmarkWithProfileHint(PoolBookmark pool, String profileId) =>
+    pool.copyWith(
+      origin: PostOrigin.fromSource(
+        booruType: pool.origin.booruType,
+        booruId: pool.origin.booruId,
+        source: pool.origin.sourceHost,
+        profileIdHint: profileId,
+      ),
+    );

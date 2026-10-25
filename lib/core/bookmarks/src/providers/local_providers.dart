@@ -30,11 +30,11 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
 ) async {
   ref.cacheFor(const Duration(seconds: 3));
-  final bookmarks = await ref.watch(
-    bookmarkProvider.selectAsync((state) => state.items),
+  final (bookmarks, pools) = await ref.watch(
+    bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
   );
 
-  return bookmarks.fold<Map<String, int>>(
+  final result = bookmarks.fold<Map<String, int>>(
     {},
     (map, bookmark) {
       for (final tag in bookmark.tags) {
@@ -43,6 +43,12 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
       return map;
     },
   );
+  for (final pool in pools) {
+    for (final tag in pool.tags) {
+      result.update(tag, (n) => n + 1, ifAbsent: () => 1);
+    }
+  }
+  return result;
 });
 
 final selectedBooruUrlProvider = StateProvider.autoDispose<String?>((ref) {
@@ -57,18 +63,24 @@ final selectedBookmarkSortTypeProvider =
 final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   ref,
 ) async {
-  final bookmarks = await ref.watch(
-    bookmarkProvider.selectAsync((state) => state.items),
+  final (bookmarks, pools) = await ref.watch(
+    bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
   );
 
-  return bookmarks.fold(
+  final hosts = bookmarks.fold(
     <String>{},
     (hosts, bookmark) {
       final uri = Uri.tryParse(bookmark.sourceUrl);
       if (uri?.host != null) hosts.add(uri!.host);
       return hosts;
     },
-  ).toList();
+  );
+  hosts.addAll(
+    pools
+        .map((p) => Uri.tryParse('https://${p.origin.sourceHost}')?.host)
+        .nonNulls,
+  );
+  return hosts.toList();
 });
 
 final bookmarkTagGroupsProvider = FutureProvider.autoDispose

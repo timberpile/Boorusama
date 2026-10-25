@@ -9,6 +9,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 // Project imports:
 import '../../../posts/post/types.dart';
 import 'bookmark.dart';
+import 'pool_bookmark.dart';
 import '../../../groups/folder_tree.dart';
 import 'bookmark_group.dart';
 
@@ -17,7 +18,9 @@ class BookmarkLibraryState extends Equatable {
     required List<Bookmark> bookmarks,
     required List<BookmarkGroup> groups,
     List<CollectionFolder> folders = const [],
-  }) : folders = List.unmodifiable(folders),
+    List<PoolBookmark> pools = const [],
+  }) : pools = List.unmodifiable(pools),
+       folders = List.unmodifiable(folders),
        items = List.unmodifiable(bookmarks),
        bookmarks = bookmarks
            .where((bookmark) => bookmark.uniqueId is BookmarkIdentity)
@@ -42,6 +45,7 @@ class BookmarkLibraryState extends Equatable {
 
   const BookmarkLibraryState._derived({
     required this.folders,
+    required this.pools,
     required this.items,
     required this.bookmarks,
     required this.groups,
@@ -51,6 +55,7 @@ class BookmarkLibraryState extends Equatable {
     required this.membershipsByBookmark,
   });
 
+  final List<PoolBookmark> pools;
   final List<CollectionFolder> folders;
   final List<Bookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
@@ -64,6 +69,7 @@ class BookmarkLibraryState extends Equatable {
   /// lists are shallow-copied only when needed; stored post snapshots are never
   /// decoded here. Only affected membership entries are reconstructed.
   BookmarkLibraryState applyCommittedChanges({
+    List<PoolBookmark>? pools,
     Iterable<Bookmark> upserts = const [],
     Set<int> removedIds = const {},
     required List<BookmarkGroup> groups,
@@ -180,12 +186,19 @@ class BookmarkLibraryState extends Equatable {
         ? this.folders
         : List<CollectionFolder>.unmodifiable(folders);
 
-    if (identical(nextItems, items) &&
+    final nextPools =
+        pools == null ||
+            const ListEquality<PoolBookmark>().equals(this.pools, pools)
+        ? this.pools
+        : List<PoolBookmark>.unmodifiable(pools);
+    if (identical(nextPools, this.pools) &&
+        identical(nextItems, items) &&
         identical(nextGroups, this.groups) &&
         identical(nextFolders, this.folders)) {
       return this;
     }
     return BookmarkLibraryState._derived(
+      pools: nextPools,
       folders: nextFolders,
       items: nextItems,
       bookmarks: nextIdentities,
@@ -247,6 +260,7 @@ class BookmarkLibraryState extends Equatable {
       });
     }
     return BookmarkLibraryState._derived(
+      pools: pools,
       folders: folders,
       items: createdBookmarks.isEmpty
           ? items
@@ -290,7 +304,7 @@ class BookmarkLibraryState extends Equatable {
           : null);
 
   @override
-  List<Object?> get props => [items, groups, folders];
+  List<Object?> get props => [items, groups, folders, pools];
 }
 
 // Equatable compares sets with pairwise searches. Re-reading an unchanged large

@@ -1,3 +1,6 @@
+import '../types/bookmark_grid_entry.dart';
+import '../types/pool_bookmark.dart';
+
 // Dart imports:
 import 'dart:ui' show Brightness;
 
@@ -70,6 +73,7 @@ BookmarkTagIndexBuilder _tagBuilder(List<BooruConfig> configs) =>
 final bookmarkTagIndexProvider = FutureProvider.autoDispose
     .family<BookmarkTagIndex, BookmarkView>((ref, view) async {
       final builder = ref.watch(_bookmarkTagIndexBuilderProvider(view));
+      final overlay = ref.watch(_poolTagOverlayProvider(view));
       final viewerVisible = ref.watch(
         bookmarkDetailsMutationProvider.select((state) => state.isVisible),
       );
@@ -95,7 +99,8 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
             ?library.bookmarksById[id],
         ],
       };
-      return await builder.updateAsync(
+      final index =
+          await builder.updateAsync(
             source == null
                 ? bookmarks
                 : bookmarks.where(
@@ -107,7 +112,36 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
                 : null,
           ) ??
           BookmarkTagIndex(const []);
+      return overlay.build(
+        index,
+        selectPoolBookmarks(
+          state: library,
+          view: view,
+          selectedTags: const [],
+          selectedBooruUrl: source,
+        ),
+        (library.pools, source),
+      );
     });
+
+final _poolTagOverlayProvider = Provider.autoDispose
+    .family<_PoolTagOverlay, BookmarkView>((ref, view) => _PoolTagOverlay());
+
+class _PoolTagOverlay {
+  BookmarkTagIndex? _base;
+  Object? _revision;
+  BookmarkTagIndex? _value;
+  BookmarkTagIndex build(
+    BookmarkTagIndex base,
+    List<PoolBookmark> pools,
+    Object revision,
+  ) {
+    if (identical(base, _base) && revision == _revision) return _value!;
+    _base = base;
+    _revision = revision;
+    return _value = base.withPoolBookmarks(pools);
+  }
+}
 
 // The draft and selected query are part of the key. A previous asynchronous
 // index build cannot publish suggestions into a different search or page.

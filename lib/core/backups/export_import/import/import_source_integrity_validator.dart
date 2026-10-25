@@ -139,6 +139,17 @@ final class ImportSourceIntegrityValidator {
       final bookmarkIds = bookmarks.bookmarks
           .map((bookmark) => bookmark.id)
           .toSet();
+      final groupIds = bookmarks.groups.map((g) => g.id).toSet();
+      for (final pool in bookmarks.pools) {
+        if (pool.groupIds.isEmpty || !groupIds.containsAll(pool.groupIds)) {
+          issues.add(
+            ImportPlanIssue(
+              code: 'missing_pool_group_reference',
+              sourceId: sourceId,
+            ),
+          );
+        }
+      }
       for (final group in bookmarks.groups) {
         if (!bookmarkIds.containsAll(group.bookmarkIds)) {
           issues.add(

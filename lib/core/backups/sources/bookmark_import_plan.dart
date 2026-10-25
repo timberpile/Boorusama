@@ -102,8 +102,10 @@ class BookmarkImportPlan extends Equatable {
     required this.missingBookmarks,
     required this.groups,
     this.folders = const [],
+    this.pools = const [],
   });
 
+  final List<PoolBookmark> pools;
   final List<Bookmark> bookmarks;
   final List<Bookmark> missingBookmarks;
   final List<BookmarkGroupImport> groups;
@@ -121,6 +123,7 @@ class BookmarkImportPlan extends Equatable {
       bookmarks: bookmarks,
       missingBookmarks: missingBookmarks,
       folders: folders,
+      pools: pools,
       groups: [
         for (final group in groups)
           group.conflicts ? group.resolve(choices[group.id]!) : group,
@@ -134,11 +137,18 @@ class BookmarkImportPlan extends Equatable {
     bookmarks: bookmarks,
     missingBookmarks: missingBookmarks,
     folders: folders,
+    pools: pools,
     groups: [
       for (final group in groups) resolvedGroups[group.id] ?? group,
     ],
   );
 
   @override
-  List<Object?> get props => [bookmarks, missingBookmarks, groups, folders];
+  List<Object?> get props => [
+    bookmarks,
+    missingBookmarks,
+    groups,
+    folders,
+    pools,
+  ];
 }

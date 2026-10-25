@@ -27,9 +27,11 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
     this.imageCacheManager,
     this.imageConfig,
     this.presentation,
+    this.selectionIndex,
   });
 
   final int index;
+  final int? selectionIndex;
   final AutoScrollController autoScrollController;
   final PostGridController<T> controller;
   final bool useHero;
@@ -55,7 +57,7 @@ class DefaultImageGridItem<T extends Post> extends StatelessWidget {
           return Consumer(
             builder: (_, ref, _) => PostGridItem(
               post: post,
-              index: index,
+              index: selectionIndex ?? index,
               useHero: useHero,
               multiSelectEnabled: multiSelect,
               config: config,

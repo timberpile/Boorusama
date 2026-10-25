@@ -687,6 +687,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       for (final bookmark in selectedProfileBookmarks(data, resolution)) {
         addReference(bookmarkProfileReference(bookmark), 'bookmarks');
       }
+      for (final pool in selectedProfilePools(data, resolution)) {
+        addReference(poolBookmarkProfileReference(pool), 'bookmarks');
+      }
     }
     if (resolvedById[followingTopicsBackupSourceId]?.action !=
         ImportAction.skip) {
@@ -932,6 +935,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         ImageUrlResolver resolver(int? booruId) =>
             ref.read(bookmarkUrlResolverProvider(booruId));
         _localSnapshot = BookmarkImportLocalSnapshot(
+          pools: await groupRepository.getPoolBookmarks(),
           bookmarks: await bookmarkRepository.getAllBookmarksOrThrow(
             imageUrlResolver: resolver,
           ),
@@ -1320,7 +1324,22 @@ final class PackageTransactionSource implements ImportTransactionSource {
                 )),
           ),
     };
+    final selectedPools = selectedProfilePools(incoming, resolution);
+    final mappedPools = {
+      for (final pool in selectedPools)
+        if (!preserveOrigins)
+          pool.localId: poolBookmarkWithProfileHint(
+            pool,
+            _profileId(poolBookmarkProfileReference(pool)) ??
+                (throw StateError(
+                  'Pool profile missing from approved preflight',
+                )),
+          ),
+    };
     final data = BookmarkBackupData(
+      pools: [
+        for (final pool in incoming.pools) mappedPools[pool.localId] ?? pool,
+      ],
       bookmarks: [
         for (final bookmark in incoming.bookmarks)
           mappedBookmarks[bookmark.id] ?? bookmark,
@@ -1357,7 +1376,15 @@ final class PackageTransactionSource implements ImportTransactionSource {
         for (final bookmark in data.bookmarks)
           if (!allGroupedIds.contains(bookmark.id)) bookmark.id,
     };
+    final selectedGroupIds = chosenGroups.map((g) => g.id).toSet();
     final selected = BookmarkBackupData(
+      pools: [
+        for (final pool in data.pools)
+          if (pool.groupIds.intersection(selectedGroupIds).isNotEmpty)
+            pool.withGroups(
+              pool.groupIds.where(selectedGroupIds.contains).toSet(),
+            ),
+      ],
       bookmarks: data.bookmarks
           .where((bookmark) => chosenBookmarkIds.contains(bookmark.id))
           .toList(),
@@ -1424,6 +1451,25 @@ final class PackageTransactionSource implements ImportTransactionSource {
           bookmarkWithProfileHint(bookmark, hint),
         );
       }
+    }
+    final poolHints = {
+      for (final pool in selected.pools)
+        pool.identity: pool.origin.profileIdHint,
+    };
+    final storedPools = await groupRepository.getPoolBookmarks();
+    if (storedPools.any(
+      (p) =>
+          poolHints[p.identity] != null &&
+          poolHints[p.identity] != p.origin.profileIdHint,
+    )) {
+      await groupRepository.replacePoolBookmarks([
+        for (final pool in storedPools)
+          if (poolHints[pool.identity] case final hint?
+              when hint != pool.origin.profileIdHint)
+            poolBookmarkWithProfileHint(pool, hint)
+          else
+            pool,
+      ]);
     }
   }
 

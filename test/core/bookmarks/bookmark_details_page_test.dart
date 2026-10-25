@@ -1413,6 +1413,7 @@ final class _NativePresentation
     BuildContext context, {
     required Post post,
     required int index,
+    int? selectionIndex,
     required Widget child,
   }) => Consumer(
     builder: (context, ref, _) => Text(

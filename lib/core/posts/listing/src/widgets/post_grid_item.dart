@@ -55,6 +55,7 @@ abstract interface class BooruPostGridContextMenuPresentation {
     BuildContext context, {
     required Post post,
     required int index,
+    int? selectionIndex,
     required Widget child,
   });
 }

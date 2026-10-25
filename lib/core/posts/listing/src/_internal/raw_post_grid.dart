@@ -63,6 +63,7 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
     this.footer,
     this.bottomInset = 0,
     this.selectionScope,
+    this.selectionKeysBuilder,
     this.blacklistedIdString,
     this.refreshAtStart = true,
     this.enablePullToRefresh = true,
@@ -82,6 +83,7 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
   final Widget? footer;
   final double bottomInset;
   final Object? selectionScope;
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final Widget body;
   final Widget gridHeader;
   final Widget topPageIndicator;
@@ -142,11 +144,13 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   void didUpdateWidget(RawPostGrid<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.selectionScope != oldWidget.selectionScope) {
+    if (widget.selectionScope != oldWidget.selectionScope ||
+        widget.selectionKeysBuilder != oldWidget.selectionKeysBuilder) {
       if (_selectionModeController
           case final OrderedSelectionController<Object> selection) {
         selection.reconcileDuringBuild(
-          _identities.resolve(controller.items.toList()),
+          widget.selectionKeysBuilder?.call(controller.items.toList()) ??
+              _identities.resolve(controller.items.toList()),
           scope: widget.selectionScope,
         );
       } else {
@@ -243,7 +247,9 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   void _synchronizeSelection({required bool duringBuild}) {
     if (_selectionModeController
         case final OrderedSelectionController<Object> selection) {
-      final keys = _identities.resolve(controller.items.toList());
+      final keys =
+          widget.selectionKeysBuilder?.call(controller.items.toList()) ??
+          _identities.resolve(controller.items.toList());
       if (duringBuild) {
         selection.reconcileDuringBuild(keys, scope: widget.selectionScope);
       } else {
@@ -278,7 +284,9 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
               selectionModeController: _selectionModeController,
               selectionOptions: _selectionOptions,
               autoScrollController: _autoScrollController,
-              itemCount: items.length,
+              itemCount:
+                  widget.selectionKeysBuilder?.call(items).length ??
+                  items.length,
               bottomInset: widget.bottomInset,
               child: _Scaffold(
                 body: ConditionalParentWidget(

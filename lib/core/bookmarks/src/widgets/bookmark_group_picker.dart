@@ -20,6 +20,7 @@ import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_target.dart';
+import '../types/pool_bookmark.dart';
 import 'bookmark_folder_picker_contents.dart';
 import 'bookmark_group_name_dialog.dart';
 
@@ -155,10 +156,19 @@ class BookmarkGroupPicker extends ConsumerStatefulWidget {
     this.anchored = false,
     this.onDismiss,
     super.key,
-  });
+  }) : pool = null;
+
+  const BookmarkGroupPicker.pool({
+    required this.config,
+    required PoolBookmark this.pool,
+    this.anchored = false,
+    this.onDismiss,
+    super.key,
+  }) : post = null;
 
   final BooruConfigAuth config;
-  final Post post;
+  final Post? post;
+  final PoolBookmark? pool;
   final bool anchored;
   final VoidCallback? onDismiss;
 
@@ -169,12 +179,23 @@ class BookmarkGroupPicker extends ConsumerStatefulWidget {
 
 class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
   BooruConfigAuth get config => widget.config;
-  Post get post => widget.post;
+  Post get post => widget.post!;
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-    final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
+    final memberships = switch (widget.pool) {
+      final PoolBookmark pool =>
+        library?.pools
+                .where((p) => p.identity == pool.identity)
+                .firstOrNull
+                ?.groupIds ??
+            const <String>{},
+      null =>
+        library?.membershipsFor(
+              bookmarkIdentityForPost(post, config.booruIdHint),
+            ) ??
+            const <String>{},
+    };
 
     final recentGroups =
         ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
@@ -259,14 +280,23 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
   ) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    final outcome = await notifier.togglePostTarget(
-      config,
-      post,
-      target: BookmarkTarget.group(groupId),
-      onRemoved: (r) {
-        if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
-      },
-    );
+    void removed(r) {
+      if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
+    }
+
+    final outcome = switch (widget.pool) {
+      final PoolBookmark pool => await notifier.togglePoolTarget(
+        pool,
+        groupId: groupId,
+        onRemoved: removed,
+      ),
+      null => await notifier.togglePostTarget(
+        config,
+        post,
+        target: BookmarkTarget.group(groupId),
+        onRemoved: removed,
+      ),
+    };
     final completed = _handleToggleOutcome(navigator, outcome);
     if (completed && navigator.mounted) _dismiss(navigator);
   }
@@ -298,10 +328,9 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       await notifier.createGroupWithPosts(
         name,
         config,
-        [
-          post,
-        ],
+        widget.pool == null ? [post] : [],
         folderId: folderId,
+        pools: [if (widget.pool case final pool?) pool],
       );
       added();
     } catch (_) {

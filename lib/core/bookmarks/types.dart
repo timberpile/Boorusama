@@ -8,3 +8,6 @@ export 'src/types/bookmark_repository.dart';
 export 'src/types/bookmark_repository_factory.dart';
 export 'src/types/bookmark_target.dart';
 export 'src/types/bookmark_view.dart';
+
+export 'src/types/pool_bookmark.dart';
+export 'src/types/pool_bookmark_repository.dart';

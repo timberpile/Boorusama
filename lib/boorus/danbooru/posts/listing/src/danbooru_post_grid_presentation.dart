@@ -65,10 +65,11 @@ final class DanbooruPostGridPresentation
     BuildContext context, {
     required Post post,
     required int index,
+    int? selectionIndex,
     required Widget child,
   }) => DanbooruPostContextMenu(
     post: post,
-    index: index,
+    index: selectionIndex ?? index,
     child: child,
   );
 

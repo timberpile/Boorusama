@@ -20,6 +20,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
     super.key,
     required this.controller,
     required this.index,
+    this.selectionIndex,
     required this.child,
   });
 
@@ -27,6 +28,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
   final Widget child;
 
   final int index;
+  final int? selectionIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,7 +59,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
                 trailing: const Icon(Icons.checklist),
                 onTap: () {
                   controller.enable(
-                    initialSelected: [index],
+                    initialSelected: [selectionIndex ?? index],
                   );
                 },
               ),

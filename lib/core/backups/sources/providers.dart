@@ -166,6 +166,7 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
         children: bookmarkExportNodes(
           buildBookmarkBackupData(
             bookmarks: bookmarks?.items ?? [],
+            pools: bookmarks?.pools ?? [],
             groups: bookmarks?.groups ?? [],
             folders: bookmarks?.folders ?? [],
             scope: const BookmarkExportScope.all(),

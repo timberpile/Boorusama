@@ -1928,6 +1928,9 @@
     }
   },
   "bookmark": {
+    "pool_filter_help": "Pool filters use indexed member tags. Large or partially indexed Pools may not reflect every member. Required tags can come from different members; an absent excluded tag does not prove it is absent from the whole Pool.",
+    "pool_refresh": "Refresh metadata",
+    "pool_unavailable": "This Pool is unavailable under its originating profile. Its bookmark has been kept.",
     "maintenance": {
       "advanced": "Advanced",
       "title": "Maintenance",

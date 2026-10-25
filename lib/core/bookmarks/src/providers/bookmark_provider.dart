@@ -29,6 +29,8 @@ import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../services/bookmark_mutation_repository.dart';
 import '../types/bookmark.dart';
+import '../types/pool_bookmark.dart';
+import '../types/pool_bookmark_repository.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_group_repository.dart';
 import '../../../groups/folder_tree.dart';
@@ -109,6 +111,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
   var _requiresRefresh = false;
   final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
+  final _poolRemovals = <Object, BookmarkGroupRemovalResult>{};
   final _mutationSessionKey = Object();
   final _pendingHydration = <int, Bookmark>{};
   Timer? _hydrationPublicationTimer;
@@ -121,6 +124,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   void _recordRemoval(BookmarkGroupRemovalResult result) {
     if (result.removedCount == 0) return;
     _removals.clear();
+    _poolRemovals.clear();
+    for (final pool in result.removedPools) {
+      _poolRemovals[pool.identity] = result;
+    }
     for (final bookmark in result.removedBookmarks) {
       _removals[bookmark.uniqueId] = result;
     }
@@ -159,12 +166,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         final eligible = result.removedBookmarks
             .where((b) => identical(_removals[b.uniqueId], result))
             .toList();
-        if (eligible.length != result.removedCount) {
+        final eligiblePools = result.removedPools
+            .where((p) => identical(_poolRemovals[p.identity], result))
+            .toList();
+        if (eligible.length + eligiblePools.length != result.removedCount) {
           throw StateError('A later removal superseded this Undo.');
         }
         await (await _service).undoRemoval(result);
         for (final b in eligible) {
           _removals.remove(b.uniqueId);
+        }
+        for (final pool in eligiblePools) {
+          _poolRemovals.remove(pool.identity);
         }
       });
 
@@ -215,6 +228,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     try {
       result = await operation();
       _removals.clear();
+      _poolRemovals.clear();
     } catch (error, stackTrace) {
       _mutation?.invalidate();
       operationError = error;
@@ -233,6 +247,90 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     return result as T;
   });
+
+  Future<int> _addPoolsToGroup(
+    List<PoolBookmark> drafts,
+    String groupId,
+  ) async {
+    if (drafts.isEmpty) return 0;
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    if (await repository.getGroup(groupId) == null)
+      throw StateError('Bookmark group unavailable');
+    final next = {
+      for (final pool in await repository.getPoolBookmarks())
+        pool.identity: pool,
+    };
+    var added = 0;
+    for (final draft in drafts) {
+      final current = next[draft.identity];
+      if (current?.groupIds.contains(groupId) ?? false) continue;
+      next[draft.identity] = (current ?? draft).withGroups({
+        ...?current?.groupIds,
+        groupId,
+      });
+      _poolRemovals.remove(draft.identity);
+      added++;
+    }
+    await repository.replacePoolBookmarks(next.values.toList());
+    return added;
+  }
+
+  Future<BookmarkToggleOutcome> togglePoolTarget(
+    PoolBookmark draft, {
+    required String groupId,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
+  }) => _serialize(() async {
+    try {
+      final repository = await ref.read(bookmarkGroupRepoProvider.future);
+      if (await repository.getGroup(groupId) == null)
+        return BookmarkToggleOutcome.failed;
+      final current = (await repository.getPoolBookmarks())
+          .where((p) => p.identity == draft.identity)
+          .firstOrNull;
+      if (current?.groupIds.contains(groupId) ?? false) {
+        final result = await (await _service).removeBookmarksFromGroup(
+          [],
+          groupId,
+          poolLocalIds: {current!.localId},
+        );
+        if (result.removedCount > 0) await _rememberManualGroup(groupId);
+        await _publishCommittedMutation();
+        _recordRemoval(result);
+        onRemoved?.call(result);
+        return BookmarkToggleOutcome.removed;
+      }
+      await _addPoolsToGroup([draft], groupId);
+      await _rememberManualGroup(groupId);
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.added;
+    } catch (_) {
+      _mutation?.invalidate();
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.failed;
+    }
+  });
+
+  Future<void> refreshPoolBookmark(PoolBookmark summary) =>
+      runSerializedMutation(() async {
+        final repository = await ref.read(bookmarkGroupRepoProvider.future);
+        final pools = await repository.getPoolBookmarks();
+        final existing = pools
+            .where(
+              (p) =>
+                  p.identity == summary.identity &&
+                  p.localId == summary.localId,
+            )
+            .firstOrNull;
+        if (existing == null)
+          throw StateError('Pool bookmark changed during refresh');
+        await repository.replacePoolBookmarks([
+          for (final pool in pools)
+            if (pool.identity == summary.identity)
+              summary.withGroups(pool.groupIds)
+            else
+              pool,
+        ]);
+      });
 
   Future<BookmarkLibraryState> snapshotForExport() => _serialize(() => future);
 
@@ -312,6 +410,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         ),
     ]);
     return mutation.base.applyCommittedChanges(
+      pools: await repository.getPoolBookmarks(),
       upserts: mutation.upserts,
       removedIds: mutation.removedIds,
       groups: groups,
@@ -947,13 +1046,55 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Iterable<Post> posts,
     String? groupId, {
     bool manual = false,
+    List<PoolBookmark> pools = const [],
   }) => _serialize(() async {
-    final result = await _addPostsToGroup(config, posts, groupId);
-    if (manual && result.changedCount > 0) {
-      await _rememberManualGroup(groupId ?? defaultBookmarkGroupId);
+    if (pools.isEmpty) {
+      final result = await _addPostsToGroup(config, posts, groupId);
+      if (manual && result.changedCount > 0) {
+        await _rememberManualGroup(groupId ?? defaultBookmarkGroupId);
+      }
+      await _publishAddedGroupMembers(result.createdBookmarks, groupId);
+      return result.changedCount;
     }
-    await _publishAddedGroupMembers(result.createdBookmarks, groupId);
-    return result.changedCount;
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final targetId = groupId ?? defaultBookmarkGroupId;
+    final previous = await repository.getGroup(targetId);
+    if (previous == null)
+      throw StateError('The bookmark group no longer exists');
+    final oldPools = await repository.getPoolBookmarks();
+    final result = await _addPostsToGroup(config, posts, groupId);
+    var poolCount = 0;
+    try {
+      poolCount = await _addPoolsToGroup(pools, targetId);
+    } catch (error, stack) {
+      final errors = <Object>[];
+      try {
+        await repository.replacePoolBookmarks(oldPools);
+      } catch (e) {
+        errors.add(e);
+      }
+      try {
+        await repository.replaceMemberships(targetId, previous.bookmarkIds);
+      } catch (e) {
+        errors.add(e);
+      }
+      try {
+        await (await _service).deleteBookmarks(result.createdBookmarks);
+      } catch (e) {
+        errors.add(e);
+      }
+      if (errors.isNotEmpty)
+        throw BookmarkLibraryRollbackException(
+          operationError: error,
+          rollbackErrors: errors,
+        );
+      Error.throwWithStackTrace(error, stack);
+    }
+    if (manual && result.changedCount + poolCount > 0) {
+      await _rememberManualGroup(targetId);
+    }
+    await _publishCommittedMutation();
+    return result.changedCount + poolCount;
   });
 
   Future<void> _publishAddedGroupMembers(
@@ -990,6 +1131,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
+    List<PoolBookmark> pools = const [],
   }) => _serialize(() async {
     for (final post in posts) {
       BookmarkIdentity.fromPost(post);
@@ -1010,9 +1152,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     var createdBookmarks = const <Bookmark>[];
     late final ({int changedCount, List<Bookmark> createdBookmarks}) result;
+    var addedPools = 0;
     try {
       result = await _addPostsToGroup(config, posts, group.id);
       createdBookmarks = result.createdBookmarks;
+      addedPools = await _addPoolsToGroup(pools, group.id);
     } catch (error, stackTrace) {
       if (error case BookmarkPostBatchRollbackException(
         createdBookmarks: final leakedBookmarks,
@@ -1042,9 +1186,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
-    if (result.changedCount > 0) await _rememberManualGroup(group.id);
+    if (result.changedCount + addedPools > 0) await _rememberManualGroup(group.id);
     await _publishCommittedMutation();
-    return (group: group, addedCount: result.changedCount);
+    return (group: group, addedCount: result.changedCount + addedPools);
   });
 
   Future<({int changedCount, List<Bookmark> createdBookmarks})>
@@ -1122,8 +1266,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<BookmarkGroupRemovalResult> removePostsFromGroup(
     BooruConfigAuth config,
     Iterable<Post> posts,
-    String groupId,
-  ) => _serialize(() async {
+    String groupId, {
+    Set<String> poolLocalIds = const {},
+  }) => _serialize(() async {
     final current = await future;
     final bookmarks = posts
         .map(
@@ -1139,6 +1284,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final result = await (await _service).removeBookmarksFromGroup(
       bookmarks,
       groupId,
+      poolLocalIds: poolLocalIds,
     );
     if (result.removedCount > 0) await _rememberManualGroup(groupId);
     await _publishCommittedMutation();
