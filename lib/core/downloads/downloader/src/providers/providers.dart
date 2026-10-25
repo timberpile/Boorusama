@@ -13,7 +13,7 @@ import '../../../urls/providers.dart';
 import '../data/providers.dart';
 import 'download_notifier.dart';
 
-final downloadNotifierParamsProvider =
+final sourceDownloadNotifierParamsProvider =
     Provider.family<
       DownloadNotifierParams,
       (BooruConfigAuth, BooruConfigDownload)
@@ -23,11 +23,7 @@ final downloadNotifierParamsProvider =
         return (
           auth: auth,
           download: download,
-          profileIconUrl: ref.watch(
-            currentReadOnlyBooruConfigProvider.select(
-              (value) => value.profileIcon?.url,
-            ),
-          ),
+          profileIconUrl: null,
           downloadFileUrlExtractor: ref.watch(
             downloadFileUrlExtractorProvider(auth),
           ),
@@ -49,7 +45,6 @@ final downloadNotifierParamsProvider =
         );
       },
       dependencies: [
-        currentReadOnlyBooruConfigProvider,
         downloadFileUrlExtractorProvider,
         analyticsDownloadObserverProvider,
         downloadFilenameBuilderProvider,
@@ -58,5 +53,38 @@ final downloadNotifierParamsProvider =
         settingsProvider,
         downloadServiceProvider,
         loggerProvider,
+      ],
+    );
+
+// Page presentation may override the read-only profile. Keep that icon-only
+// dependency out of the global Bookmark library's source download services.
+final downloadNotifierParamsProvider =
+    Provider.family<
+      DownloadNotifierParams,
+      (BooruConfigAuth, BooruConfigDownload)
+    >(
+      (ref, params) {
+        final source = ref.watch(sourceDownloadNotifierParamsProvider(params));
+        return (
+          auth: source.auth,
+          download: source.download,
+          profileIconUrl: ref.watch(
+            currentReadOnlyBooruConfigProvider.select(
+              (value) => value.profileIcon?.url,
+            ),
+          ),
+          downloadFileUrlExtractor: source.downloadFileUrlExtractor,
+          filenameBuilder: source.filenameBuilder,
+          observer: source.observer,
+          canDownloadMultipleFiles: source.canDownloadMultipleFiles,
+          headers: source.headers,
+          settings: source.settings,
+          downloader: source.downloader,
+          logger: source.logger,
+        );
+      },
+      dependencies: [
+        sourceDownloadNotifierParamsProvider,
+        currentReadOnlyBooruConfigProvider,
       ],
     );

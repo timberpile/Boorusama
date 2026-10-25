@@ -428,3 +428,41 @@ final fallbackFileNameBuilder = DownloadFileNameBuilder<Post>(
     TokenHandler('height', (post, config) => post.height.toString()),
   ],
 );
+
+/// Stored posts can use the common token/extension policy without an engine's
+/// optional filename service. Source identity keeps orphan IDs independent.
+DownloadFilenameGenerator<Post> snapshotFileNameBuilderFor(Post post) {
+  final host = post.origin.sourceHost;
+  final prefix = host.isEmpty
+      ? 'media_${sha256.convert(utf8.encode(post.originalImageUrl)).toString().substring(0, 12)}'
+      : host.replaceAll(RegExp('[^a-zA-Z0-9._-]'), '_');
+  return DownloadFileNameBuilder<Post>(
+    defaultFileNameFormat: '${prefix}_{id}.{extension}',
+    defaultBulkDownloadFileNameFormat: '${prefix}_{id}.{extension}',
+    sampleData: [],
+    tokenHandlers: [
+      TokenHandler('width', (post, _) => post.width.toString()),
+      TokenHandler('height', (post, _) => post.height.toString()),
+    ],
+  );
+}
+
+/// Different renditions must not overwrite each other when a user's template
+/// contains only the post ID. Original names and unknown roles stay compatible.
+String qualifyRenditionFileName(
+  String fileName, {
+  required String? quality,
+  required String downloadUrl,
+}) {
+  if (quality == null ||
+      quality.isEmpty ||
+      quality == 'original' ||
+      fileName.isEmpty) {
+    return fileName;
+  }
+  final suffix = quality == 'custom'
+      ? 'custom_${sha256.convert(utf8.encode(downloadUrl)).toString().substring(0, 12)}'
+      : quality.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
+  final ext = extension(fileName);
+  return '${fileName.substring(0, fileName.length - ext.length)}_$suffix$ext';
+}

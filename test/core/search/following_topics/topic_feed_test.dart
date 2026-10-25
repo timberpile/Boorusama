@@ -4,6 +4,8 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/defaults/widgets.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/downloads/filename/providers.dart';
+import 'package:boorusama/core/downloads/filename/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/images/types.dart';
@@ -48,6 +50,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig, otherSite],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -1119,6 +1128,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig, _otherFeedConfig],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -1181,6 +1197,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig, _otherFeedConfig],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -1246,6 +1269,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),

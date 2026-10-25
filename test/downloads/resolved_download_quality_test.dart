@@ -89,6 +89,7 @@ void main() {
         });
 
         late String url;
+        late String fileName;
         late SidecarSnapshot? sidecar;
         Map<String, String>? headers;
         if (single) {
@@ -104,6 +105,7 @@ void main() {
           expect(downloads.requests, hasLength(1));
           final request = downloads.requests.single;
           url = request.url;
+          fileName = request.filename;
           sidecar = request.sidecar;
           headers = request.headers;
         } else {
@@ -147,6 +149,7 @@ void main() {
           expect(state.allRecords, hasLength(1));
           final record = state.allRecords.single;
           url = record.url;
+          fileName = record.fileName;
           sidecar = record.sidecar;
           headers = record.headers;
         }
@@ -156,6 +159,9 @@ void main() {
         expect(url, selection.expectedUrl);
         expect(sidecar, isNotNull);
         expect(sidecar!.quality, selection.expectedQuality);
+        if (selection.expectedQuality != 'original') {
+          expect(fileName, contains('_${selection.expectedQuality}'));
+        }
         if (selection.expectedCookie case final cookie?) {
           expect(headers?['cookie'], cookie);
         }

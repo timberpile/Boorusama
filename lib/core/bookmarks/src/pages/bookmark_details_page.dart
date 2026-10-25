@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/filename/types.dart';
 import '../../../posts/details/types.dart';
 import '../../../posts/details_parts/types.dart';
@@ -186,11 +187,20 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
                 required: true,
                 widget: IconButton(
                   splashRadius: 16,
-                  onPressed: () => ref.bookmarks.downloadBookmarks(
-                    config.auth,
-                    config.download,
-                    [bookmark],
-                  ),
+                  onPressed: () async {
+                    if (ref.read(booruRepoProvider(config.auth)) == null) {
+                      await ref.bookmarks.downloadBookmarks(
+                        config.auth,
+                        config.download,
+                        [bookmark],
+                      );
+                      return;
+                    }
+                    final params = ref.read(
+                      downloadNotifierParamsProvider((config.auth, config.download)),
+                    );
+                    await ref.read(downloadNotifierProvider(params).notifier).download(post);
+                  },
                   icon: const Icon(Symbols.download),
                 ),
                 title: context.t.download.download,

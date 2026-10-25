@@ -11,18 +11,14 @@ import 'package:kurumi/kurumi.dart';
 
 // Project imports:
 import '../../../../foundation/data_mutation_coordinator.dart';
+import '../../../../foundation/loggers.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
-import '../../../configs/network/providers.dart';
-import '../../../ddos/handler/providers.dart';
-import '../../../download_activity/activity.dart';
 import '../../../downloads/downloader/providers.dart';
-import '../../../downloads/downloader/types.dart';
 import '../../../downloads/filename/types.dart';
-import '../../../downloads/sidecar/types.dart';
-import '../../../http/client/providers.dart';
+import '../../../downloads/urls/providers.dart';
 import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
 import '../../../router.dart';
@@ -44,7 +40,11 @@ import '../types/bookmark_view.dart';
 final bookmarkLibraryProvider =
     AsyncNotifierProvider<BookmarkLibraryNotifier, BookmarkLibraryState>(
       BookmarkLibraryNotifier.new,
-      dependencies: [settingsProvider, booruConfigProvider],
+      dependencies: [
+        settingsProvider,
+        booruConfigProvider,
+        sourceDownloadNotifierParamsProvider,
+      ],
     );
 
 final bookmarkProvider = bookmarkLibraryProvider;
@@ -1321,107 +1321,129 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigDownload download,
     List<Bookmark> bookmarks,
   ) async {
-    final settings = ref.read(settingsProvider);
-    final networkConstraint = await resolveDownloadNetworkConstraint(
-      ref,
-      settings.downloadNetworkPolicy,
-    );
-    if (networkConstraint == null) return;
-
-    final downloader = ref.read(downloadServiceProvider);
     final configs = ref.read(booruConfigProvider);
-    final tasks = bookmarks.map((bookmark) async {
-      final post = bookmark.toPost();
-      final sourceAuth = switch (const PostOriginResolver().resolve(
-        post.origin,
+    final settings = ref.read(settingsProvider);
+    final downloader = ref.read(downloadServiceProvider);
+    final logger = ref.read(loggerProvider);
+    final groups = <(BooruConfig?, int, String), List<Bookmark>>{};
+    final engines = ref.read(booruEngineRegistryProvider);
+    for (final bookmark in bookmarks) {
+      final origin = bookmark.post.origin;
+      final source = switch (const PostOriginResolver().resolve(
+        origin,
         configs,
       )) {
-        ResolvedPostOrigin(:final config) => config.auth,
+        ResolvedPostOrigin(:final config) => config,
         _ => null,
       };
-      // Missing or ambiguous origins must not borrow another profile's credentials.
-      final request = sourceAuth == null
-          ? const NetworkSettings().resolveMedia(bookmark.originalUrl)
-          : ref
-                .read(networkSettingsProvider(sourceAuth))
-                .resolveMedia(
-                  bookmark.originalUrl,
-                  headers: ref.read(httpHeadersProvider(sourceAuth)),
-                );
-      final bypassHeaders = await ref.read(
-        bypassDdosHeadersProvider(request.url).future,
-      );
-      final fileName = await fallbackFileNameBuilder.generate(
-        settings,
-        download,
-        bookmark.toPost(),
-        downloadUrl: bookmark.originalUrl,
-      );
-      final result = await downloader.download(
-        DownloadOptions.fromSettings(
-          settings,
-          config: download,
-          url: request.url,
-          sidecar: settings.downloadSidecarFormat == SidecarFormat.off
-              ? null
-              : SidecarSnapshot.fromPost(
-                  post,
-                  format: settings.downloadSidecarFormat,
-                  quality: 'original',
-                  site: post.origin.sourceHost.isEmpty
-                      ? null
-                      : 'https://${post.origin.sourceHost}',
-                  postUrl: bookmark.sourceUrl,
-                ),
-          metadata: DownloaderMetadata(
-            thumbnailUrl: bookmark.thumbnailUrl,
-            isVideo: bookmark.isVideo,
-            mediaHostOverridden: request.overridden,
-            fileSize: null,
-            siteUrl: bookmark.sourceUrl,
-            group: null,
-          ),
-          filename: fileName,
-          headers: {...request.headers, ...bypassHeaders},
-          networkConstraint: networkConstraint,
-        ),
-      );
-      return (
-        result: result,
-        fileName: fileName,
-        thumbnailUrl: bookmark.thumbnailUrl,
-      );
-    }).toList();
-
-    final results = await Future.wait(tasks);
-    for (final outcome in results) {
-      ref
-          .read(immediateDownloadActivitiesProvider.notifier)
-          .recordImmediateOutcome(
-            outcome.result,
-            label: outcome.fileName,
-            thumbnailUrl: outcome.thumbnailUrl,
-          );
+      groups
+          .putIfAbsent((
+            source,
+            origin.booruType.id,
+            origin.sourceHost,
+          ), () => [])
+          .add(bookmark);
     }
-    final failures = results
-        .map((outcome) => outcome.result)
-        .whereType<DownloadFailure>()
-        .toList();
-    if (failures.isEmpty) return;
-    final context = ref.read(appNavigationProvider).navigatorKey.currentContext;
-    final uniqueErrors = failures
-        .map((error) => error.error.getErrorMessage())
-        .toSet()
-        .take(3)
-        .join('\n');
-    if (context != null && context.mounted) {
-      Kurumi.showErrorToast(
-        context,
-        'Download failed:\n$uniqueErrors',
-        duration: const Duration(seconds: 5),
-      );
+    // Capture source services before awaiting. The surrounding profile is never
+    // authority for an orphan's credentials, filename template or destination.
+    final operations = [
+      for (final entry in groups.entries)
+        () {
+          final (source, _, host) = entry.key;
+          final nativePayload = entry.value.every(
+            (bookmark) =>
+                engines
+                    .getPostCapability(bookmark.post.origin.booruType)
+                    ?.codecFor(bookmark.post.origin, bookmark.post.booruData) !=
+                null,
+          );
+          final origin = entry.value.first.post.origin;
+          final DownloadNotifierParams params;
+          if (source != null) {
+            final ordinary = ref.read(
+              sourceDownloadNotifierParamsProvider((
+                source.auth,
+                source.download,
+              )),
+            );
+            params = (
+              auth: ordinary.auth,
+              download: ordinary.download,
+              profileIconUrl: source.profileIcon?.url,
+              downloadFileUrlExtractor: nativePayload
+                  ? ordinary.downloadFileUrlExtractor
+                  : const UrlInsidePostExtractor(),
+              filenameBuilder: nativePayload && ordinary.filenameBuilder != null
+                  ? ordinary.filenameBuilder
+                  : snapshotFileNameBuilderFor(entry.value.first.post),
+              observer: ordinary.observer,
+              canDownloadMultipleFiles: ordinary.canDownloadMultipleFiles,
+              headers: ordinary.headers,
+              settings: ordinary.settings,
+              downloader: ordinary.downloader,
+              logger: ordinary.logger,
+            );
+          } else {
+            params = (
+              auth: BooruConfigAuth(
+                booruId: origin.booruId,
+                booruIdHint: origin.booruId,
+                url: host.isEmpty ? '' : 'https://$host',
+                apiKey: null,
+                login: null,
+                passHash: null,
+                proxySettings: null,
+                networkSettings: null,
+              ),
+              download: const BooruConfigDownload(
+                fileNameFormat: null,
+                bulkFileNameFormat: null,
+                location: null,
+              ),
+              profileIconUrl: null,
+              downloadFileUrlExtractor: const UrlInsidePostExtractor(),
+              filenameBuilder: snapshotFileNameBuilderFor(
+                entry.value.first.post,
+              ),
+              observer: null,
+              canDownloadMultipleFiles:
+                  origin.booruType.canDownloadMultipleFiles
+                  ? _snapshotBulkAllowed
+                  : _snapshotBulkDenied,
+              headers: const <String, String>{},
+              settings: settings,
+              downloader: downloader,
+              logger: logger,
+            );
+          }
+          return (
+            notifier: ref.read(downloadNotifierProvider(params).notifier),
+            bookmarks: List<Bookmark>.unmodifiable(entry.value),
+          );
+        }(),
+    ];
+    for (final operation in operations) {
+      final links = {
+        for (final bookmark in operation.bookmarks)
+          bookmark.post: bookmark.sourceUrl,
+      };
+      if (operation.bookmarks.length == 1) {
+        final bookmark = operation.bookmarks.single;
+        await operation.notifier.download(
+          bookmark.post,
+          postUrl: bookmark.sourceUrl,
+        );
+      } else {
+        await operation.notifier.bulkDownload(
+          [for (final bookmark in operation.bookmarks) bookmark.post],
+          postUrlBuilder: (post) => links[post],
+        );
+      }
     }
   }
+
+  static bool _snapshotBulkAllowed() => true;
+  static bool _snapshotBulkDenied() => false;
 
   Future<Bookmark> _createBookmark(
     BooruConfigAuth config,

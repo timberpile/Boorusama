@@ -28,6 +28,7 @@ import 'package:boorusama/core/configs/manage/widgets.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/downloads/filename/providers.dart';
+import 'package:boorusama/core/downloads/filename/types.dart';
 import 'package:boorusama/core/downloads/urls/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
@@ -450,7 +451,10 @@ Future<void> _pumpActions(
         downloadFileUrlExtractorProvider.overrideWith(
           (ref, auth) => const UrlInsidePostExtractor(),
         ),
-        downloadFilenameBuilderProvider.overrideWith((ref, auth) => null),
+        // This fixture advertises Download, so supply a usable filename service.
+        downloadFilenameBuilderProvider.overrideWith(
+          (ref, auth) => fallbackFileNameBuilder,
+        ),
         downloadMultipleFileCheckProvider.overrideWith(
           (ref, auth) =>
               () => false,

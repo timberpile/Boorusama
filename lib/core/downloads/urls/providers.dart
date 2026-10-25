@@ -105,7 +105,11 @@ final class UrlInsidePostExtractor implements DownloadFileUrlExtractor {
     return selected != null
         ? DownloadUrlData.urlOnly(
             selected.$1,
-            resolvedQuality: selected.$2,
+            resolvedQuality:
+                post.originalImageUrl.isNotEmpty &&
+                    selected.$1 == post.originalImageUrl
+                ? 'original'
+                : selected.$2,
           )
         : null;
   }
