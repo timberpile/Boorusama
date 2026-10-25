@@ -52,6 +52,11 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
                         .toList(),
         );
         if (selectedPosts.isEmpty) {
+          if (selectedPostsBuilder == null ||
+              controller.selection.isEmpty ||
+              postController.refreshing) {
+            return const SizedBox.shrink();
+          }
           final extras = extraActions?.call(selectedPosts) ?? const <Widget>[];
           return extras.isEmpty
               ? const SizedBox.shrink()
