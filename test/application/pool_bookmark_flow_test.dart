@@ -20,7 +20,6 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/pool_bookmark_button.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
-import 'package:boorusama/core/configs/config/providers.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
@@ -47,6 +46,47 @@ import 'support/fake_image_dio.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  testWidgets('re-adding a Pool supersedes an older removal Undo', (
+    tester,
+  ) async {
+    final setup = await _mount(tester, seedReference: true);
+    final notifier = setup.container.read(bookmarkProvider.notifier);
+    final library = await setup.harness.pumpUntilComplete(
+      tester,
+      setup.container.read(bookmarkProvider.future),
+    );
+    final saved = library.pools.single;
+    final removal = await setup.harness.pumpUntilComplete(
+      tester,
+      notifier.removePostsFromGroup(
+        setup.harness.booruBackend.config.auth,
+        const [],
+        poolGroupA,
+        poolLocalIds: {saved.localId},
+      ),
+    );
+    expect(setup.container.read(bookmarkProvider).requireValue.pools, isEmpty);
+    await setup.harness.pumpUntilComplete(
+      tester,
+      notifier.togglePoolTarget(saved, groupId: poolGroupA),
+    );
+    final rejected = await setup.harness.pumpUntilComplete(
+      tester,
+      notifier
+          .undoRemoval(removal)
+          .then((_) => false, onError: (Object _) => true),
+    );
+    expect(rejected, isTrue);
+    final current = setup.container
+        .read(bookmarkProvider)
+        .requireValue
+        .pools
+        .single;
+    expect(current.localId, saved.localId);
+    expect(current.groupIds, {poolGroupA});
+    expect(setup.posts.bookmarks, isEmpty);
+  });
+
   testWidgets(
     'rapid refreshes coalesce an active Series lookup and reuse its scoped result',
     (tester) async {
