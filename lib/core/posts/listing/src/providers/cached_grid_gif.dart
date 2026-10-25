@@ -4,6 +4,10 @@ import 'dart:ui' as ui;
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// Yield between bounded batches so long cached animations remain eligible
+// without monopolizing the event queue while validation is pending.
+const _gridGifValidationBatchFrames = 16;
+
 typedef CachedGridGifRequest = ({
   ImageCacheManager manager,
   String url,
@@ -12,10 +16,13 @@ typedef CachedGridGifRequest = ({
 
 final cachedGridGifProvider = FutureProvider.autoDispose
     .family<Uint8List?, CachedGridGifRequest>((ref, request) {
+      var cancelled = false;
+      ref.onDispose(() => cancelled = true);
       return readCachedGridGif(
         request.manager,
         request.url,
         originalSize: request.originalSize,
+        isCancelled: () => cancelled,
       );
     });
 
@@ -25,12 +32,16 @@ Future<Uint8List?> readCachedGridGif(
   ImageCacheManager manager,
   String url, {
   int? originalSize,
+  bool Function()? isCancelled,
 }) async {
+  bool cancelled() => isCancelled?.call() ?? false;
   try {
+    if (cancelled()) return null;
     final bytes = await manager.getCachedFileBytes(
       manager.generateCacheKey(url),
     );
-    if (bytes == null ||
+    if (cancelled() ||
+        bytes == null ||
         (originalSize != null && bytes.length != originalSize) ||
         !isCompleteGridGif(bytes)) {
       return null;
@@ -41,18 +52,28 @@ Future<Uint8List?> readCachedGridGif(
       targetHeight: 1,
     );
     try {
-      final frame = await codec.getNextFrame();
-      frame.image.dispose();
+      if (codec.frameCount < 1) {
+        return null;
+      }
+      // A valid first frame does not prove later LZW payloads can decode.
+      for (var index = 0; index < codec.frameCount; index++) {
+        if (index > 0 && index % _gridGifValidationBatchFrames == 0) {
+          await Future<void>(() {});
+        }
+        if (cancelled()) return null;
+        final frame = await codec.getNextFrame();
+        frame.image.dispose();
+      }
     } finally {
       codec.dispose();
     }
-    return bytes;
+    return cancelled() ? null : bytes;
   } on Object {
     return null;
   }
 }
 
-/// Validate GIF block boundaries, palettes, image data and the final trailer.
+/// Validate GIF block structure and the final trailer; decoding is separate.
 /// The cache's committed-file checks exclude staged/truncated cache generations.
 bool isCompleteGridGif(Uint8List bytes) {
   if (bytes.length < 14) return false;

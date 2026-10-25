@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:boorusama/core/posts/listing/src/providers/cached_grid_gif.dart';
-import 'package:boorusama/core/posts/listing/src/types/grid_thumbnail_url_generator_default.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:cache_manager/cache_manager.dart';
@@ -152,6 +153,76 @@ void main() {
     },
   );
 
+  test(
+    'a corrupt later animation frame cannot enable cached autoplay',
+    () async {
+      final invalid = largeGridGif(frameCount: 2, corruptLastFrame: true);
+      expect(invalid.length, greaterThan(maxAutoplayGridGifBytes));
+      expect(isCompleteGridGif(invalid), isTrue);
+      final codec = await ui.instantiateImageCodec(
+        invalid,
+        targetWidth: 1,
+        targetHeight: 1,
+      );
+      try {
+        expect(codec.frameCount, 2);
+        (await codec.getNextFrame()).image.dispose();
+        await expectLater(codec.getNextFrame(), throwsA(isA<Exception>()));
+      } finally {
+        codec.dispose();
+      }
+      await cache.saveFile(cache.generateCacheKey(url), invalid);
+      expect(
+        await readCachedGridGif(cache, url, originalSize: invalid.length) ==
+            null,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'all frames of a valid cached animation enable playback',
+    () async {
+      final animation = largeGridGif(frameCount: 2);
+      await cache.saveFile(cache.generateCacheKey(url), animation);
+      expect(
+        await readCachedGridGif(cache, url, originalSize: animation.length),
+        isNotNull,
+      );
+    },
+  );
+
+  test(
+    'long complete cached animations remain eligible after batched validation',
+    () async {
+      final animation = largeGridGif(frameCount: 1025);
+      final key = cache.generateCacheKey(url);
+      await cache.saveFile(key, animation);
+      expect(
+        await readCachedGridGif(cache, url, originalSize: animation.length),
+        isNotNull,
+      );
+      expect(await cache.getCachedFilePath(key), isNotNull);
+    },
+  );
+
+  test(
+    'canceling admission while cache bytes are pending discards the result',
+    () async {
+      final pending = _PendingCacheRead();
+      var cancelled = false;
+      final result = readCachedGridGif(
+        pending,
+        url,
+        isCancelled: () => cancelled,
+      );
+      await pending.started.future;
+      cancelled = true;
+      pending.bytes.complete(bytes);
+      expect(await result, isNull);
+    },
+  );
+
   test('deleted committed files are treated as cache misses', () async {
     final key = cache.generateCacheKey(url);
     await cache.saveFile(key, bytes);
@@ -159,4 +230,19 @@ void main() {
     await File(path!).delete();
     expect(await readCachedGridGif(cache, url), isNull);
   });
+}
+
+class _PendingCacheRead implements ImageCacheManager {
+  final started = Completer<void>();
+  final bytes = Completer<Uint8List?>();
+  @override
+  Future<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) {
+    started.complete();
+    return bytes.future;
+  }
+
+  @override
+  String generateCacheKey(String url, {String? customKey}) => url;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
