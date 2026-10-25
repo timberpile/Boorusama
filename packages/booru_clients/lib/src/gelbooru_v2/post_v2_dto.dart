@@ -12,6 +12,7 @@ class PostV2Dto {
     this.hash,
     this.width,
     this.height,
+    this.fileSize,
     this.id,
     this.image,
     this.change,
@@ -133,6 +134,9 @@ class PostV2Dto {
   final String? hash;
   final int? width;
   final int? height;
+
+  /// Original file bytes when explicitly supplied; null means unknown.
+  final int? fileSize;
   final int? id;
   final String? image;
   final int? change;

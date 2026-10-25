@@ -1,0 +1,132 @@
+{
+  "sanitization": "Retained media elements, original controls, trusted metadata containers and numeric metadata only; removed titles, alt text, tags, account data, scripts, comments, forms, advertising and unrelated links.",
+  "records": [
+    {
+      "postId": "930837",
+      "capturedAtUtc": "2026-10-24T21:57:52.462612Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=930837",
+      "fixture": "930837.html",
+      "displayedUrl": "https://realbooru.com//images/71/c5/71c5a32e1a43697e918564f550bd8402.jpeg",
+      "originalControlUrl": "https://realbooru.com//images/71/c5/71c5a32e1a43697e918564f550bd8402.jpeg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/71/c5/71c5a32e1a43697e918564f550bd8402.jpeg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/71/c5/71c5a32e1a43697e918564f550bd8402.jpeg"
+    },
+    {
+      "postId": "958645",
+      "capturedAtUtc": "2026-10-24T21:57:51.916496Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=958645",
+      "fixture": "958645.html",
+      "displayedUrl": null,
+      "originalControlUrl": null,
+      "video": true,
+      "videoUrl": "https://realbooru.com//images/c6/5a/c65a95804d64e7e6e325d51cc03f1c1e.mp4",
+      "resolvedVideoUrl": "https://realbooru.com/images/c6/5a/c65a95804d64e7e6e325d51cc03f1c1e.mp4"
+    },
+    {
+      "postId": "930689",
+      "capturedAtUtc": "2026-10-24T21:57:53.016248Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=930689",
+      "fixture": "930689.html",
+      "displayedUrl": "https://realbooru.com//images/fa/52/fa529dc24be28549a282a52f91de3e58.jpeg",
+      "originalControlUrl": "https://realbooru.com//images/fa/52/fa529dc24be28549a282a52f91de3e58.jpeg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/fa/52/fa529dc24be28549a282a52f91de3e58.jpeg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/fa/52/fa529dc24be28549a282a52f91de3e58.jpeg"
+    },
+    {
+      "postId": "994004",
+      "capturedAtUtc": "2026-10-24T21:57:51.391867Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=994004",
+      "fixture": "994004.html",
+      "displayedUrl": "https://realbooru.com//images/fa/2c/fa2cbfab876869c6586022e5bc01fccb.jpeg",
+      "originalControlUrl": "https://realbooru.com//images/fa/2c/fa2cbfab876869c6586022e5bc01fccb.jpeg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/fa/2c/fa2cbfab876869c6586022e5bc01fccb.jpeg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/fa/2c/fa2cbfab876869c6586022e5bc01fccb.jpeg"
+    },
+    {
+      "postId": "743034",
+      "capturedAtUtc": "2026-10-24T23:58:34.830801Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=743034",
+      "fixture": "743034.html",
+      "displayedUrl": "https://realbooru.com//images/b9/d0/b9d05cca30622415aad637b720d04319.jpeg",
+      "originalControlUrl": "https://realbooru.com//images/b9/d0/b9d05cca30622415aad637b720d04319.jpeg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/b9/d0/b9d05cca30622415aad637b720d04319.jpeg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/b9/d0/b9d05cca30622415aad637b720d04319.jpeg"
+    },
+    {
+      "postId": "743033",
+      "capturedAtUtc": "2026-10-24T23:58:35.345564Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=743033",
+      "fixture": "743033.html",
+      "displayedUrl": "https://realbooru.com//images/d3/07/d307131a55629ceb8008025f2411af69.jpeg",
+      "originalControlUrl": "https://realbooru.com//images/d3/07/d307131a55629ceb8008025f2411af69.jpeg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/d3/07/d307131a55629ceb8008025f2411af69.jpeg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/d3/07/d307131a55629ceb8008025f2411af69.jpeg"
+    },
+    {
+      "postId": "588549",
+      "capturedAtUtc": "2026-10-24T23:58:35.884814Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=588549",
+      "fixture": "588549.html",
+      "displayedUrl": "https://realbooru.com//images/f4/41/f4412f9d2fa8c4b2bf04900a4ca18167.jpg",
+      "originalControlUrl": "https://realbooru.com//images/f4/41/3515945c8131a6cc54b4baa87676597ff39b6e7e.jpg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/f4/41/f4412f9d2fa8c4b2bf04900a4ca18167.jpg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/f4/41/3515945c8131a6cc54b4baa87676597ff39b6e7e.jpg"
+    },
+    {
+      "postId": "580874",
+      "capturedAtUtc": "2026-10-24T23:58:36.402132Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=580874",
+      "fixture": "580874.html",
+      "displayedUrl": "https://realbooru.com//images/c8/2e/c82e8871732382244ed26dc1d00bbef8.jpg",
+      "originalControlUrl": "https://realbooru.com//images/c8/2e/f8fe0c72ff843d76bfb3792a68255bf63944c2ef.jpg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/c8/2e/c82e8871732382244ed26dc1d00bbef8.jpg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/c8/2e/f8fe0c72ff843d76bfb3792a68255bf63944c2ef.jpg"
+    },
+    {
+      "postId": "571346",
+      "capturedAtUtc": "2026-10-24T23:58:36.922843Z",
+      "unavailable": false,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=571346",
+      "fixture": "571346.html",
+      "displayedUrl": "https://realbooru.com//images/96/b2/96b216d9df796a0ec398a1a1d695a187.jpg",
+      "originalControlUrl": "https://realbooru.com//images/96/b2/b9826615721a8a35b9d999cd3d42f50c2f3a9130.jpg",
+      "video": false,
+      "videoUrl": null,
+      "resolvedDisplayedUrl": "https://realbooru.com/images/96/b2/96b216d9df796a0ec398a1a1d695a187.jpg",
+      "resolvedOriginalControlUrl": "https://realbooru.com/images/96/b2/b9826615721a8a35b9d999cd3d42f50c2f3a9130.jpg"
+    },
+    {
+      "postId": "0",
+      "capturedAtUtc": "2026-10-24T23:58:37.305695Z",
+      "unavailable": true,
+      "source": "https://realbooru.com/index.php?page=post&s=view&id=0",
+      "fixture": "0.html",
+      "displayedUrl": null,
+      "originalControlUrl": null,
+      "video": false,
+      "videoUrl": null
+    }
+  ]
+}
