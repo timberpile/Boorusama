@@ -1,6 +1,6 @@
 # Pool and Series Bookmarks
 
-**Status:** Agreed feature design for [Issue #68](https://github.com/timberpile/Boorusama/issues/68). No implementation on this documentation branch.
+**Status:** Agreed feature design for [Issue #68](https://github.com/timberpile/Boorusama/issues/68). Implemented and verified locally at runtime commit `54b633a9a`; see [acceptance evidence](../handoffs/continuation-2026-10-25-68.md). Develop integration and publication require explicit approval.
 
 ## Product model
 

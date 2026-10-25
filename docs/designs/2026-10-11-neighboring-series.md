@@ -6,8 +6,9 @@ Reconciled during the 2026-10-24 branch review.
 
 ## Status and authoritative decisions
 
-This branch contains a pure grouping projection and its tests, **not an
-integrated feature**. The current issue and the
+The reconciled feature is implemented and verified locally at runtime commit
+`54b633a9a`; see [acceptance evidence](../handoffs/continuation-2026-10-25-68.md).
+Develop integration and publication still require explicit approval. The current issue and the
 [2026-10-21 agreed scope](https://github.com/timberpile/Boorusama/blob/0d2cbfc6bd09c0d26789d24552ca496855791b53/docs/designs/2026-10-21-issues-and-pool-bookmarks.md#review-5-agreed-scope)
 supersede the earlier proposal in this file. The
 [historical proposal](https://github.com/timberpile/Boorusama/blob/03aa7860529ac1928e3e5874259870c9bc3a9646/docs/designs/2026-10-11-neighboring-series.md)
