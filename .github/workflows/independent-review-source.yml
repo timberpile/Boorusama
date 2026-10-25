@@ -1,0 +1,35 @@
+name: Temporary independent issue source snapshot
+
+on:
+  push:
+    branches: [maintenance/independent-issues-handoff-2026-10-25]
+    paths: [.github/workflows/independent-review-source.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export tracked Git source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git for-each-ref --format='%(objectname) %(refname)' refs/remotes/origin > "$RUNNER_TEMP/source-refs.txt"
+          mapfile -t refs < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
+          git bundle create "$RUNNER_TEMP/independent-issues-source.bundle" "${refs[@]}"
+          git bundle verify "$RUNNER_TEMP/independent-issues-source.bundle"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: independent-issues-source
+          path: |
+            ${{ runner.temp }}/independent-issues-source.bundle
+            ${{ runner.temp }}/source-refs.txt
+          retention-days: 1
+          if-no-files-found: error
