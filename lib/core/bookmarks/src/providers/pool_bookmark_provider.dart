@@ -88,6 +88,11 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
             supportsUploadOrder: pool.supportsUploadOrder,
           );
       final blacklist = await blacklistFuture;
+      // An interrupted refresh cannot replace the last safe persisted summary.
+      // Initial references may still be saved with explicitly unknown metadata.
+      if (existing != null && index.hasFailedRequests) {
+        throw StateError('Pool metadata unavailable');
+      }
       final visible = filterTags(index.members, blacklist).where(
         (p) =>
             poolCoverAllowsRating(config, p.rating) &&

@@ -20,6 +20,7 @@ final class PoolSummaryIndexer {
     required bool supportsUploadOrder,
   }) async {
     final members = await _tryFetch('pool:$poolId', memberBudget);
+    var hasFailedRequests = members == null;
     final unique = {for (final post in members ?? <Post>[]) post.id: post};
     final complete =
         members != null &&
@@ -37,6 +38,7 @@ final class PoolSummaryIndexer {
     if (!complete && supportsUploadOrder) {
       final descending = await _tryFetch('pool:$poolId order:created_at', 1);
       final ascending = await _tryFetch('pool:$poolId order:created_at_asc', 1);
+      hasFailedRequests |= descending == null || ascending == null;
       newest = descending?.firstOrNull?.createdAt;
       oldest = ascending?.firstOrNull?.createdAt;
     }
@@ -46,6 +48,7 @@ final class PoolSummaryIndexer {
       newest = null;
     }
     return PoolSummaryIndex(
+      hasFailedRequests: hasFailedRequests,
       members: unique.values.toList(),
       tags: {for (final post in unique.values) ...post.tags},
       coverage: complete
@@ -72,12 +75,14 @@ final class PoolSummaryIndexer {
 /// Only its bounded summary, never this object, is persisted.
 final class PoolSummaryIndex {
   const PoolSummaryIndex({
+    required this.hasFailedRequests,
     required this.members,
     required this.tags,
     required this.coverage,
     required this.oldestUpload,
     required this.newestUpload,
   });
+  final bool hasFailedRequests;
   final List<Post> members;
   final Set<String> tags;
   final PoolTagCoverage coverage;
