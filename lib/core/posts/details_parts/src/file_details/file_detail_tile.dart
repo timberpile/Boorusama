@@ -23,44 +23,57 @@ class FileDetailTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
 
-    return ListTile(
-      visualDensity: VisualDensity.compact,
-      leading: Text(
-        title,
-        style: Kurumi.themeOf(context).textTheme.titleLarge?.copyWith(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-        ),
+    final label = Text(
+      title,
+      style: Kurumi.themeOf(context).textTheme.titleLarge
+          ?.copyWith(fontSize: 14, fontWeight: FontWeight.w700),
+    );
+    final content = Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
       ),
-      trailing: LayoutBuilder(
-        builder: (context, constrainst) => Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: colorScheme.surfaceContainer,
-            borderRadius: const BorderRadius.all(Radius.circular(4)),
-          ),
-          width: constrainst.maxWidth * 0.55,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (value case final v?) ...[
-                Expanded(child: v),
-              ] else if (valueLabel case final vl?) ...[
-                Expanded(
-                  child: Text(
-                    vl,
-                    style: TextStyle(
-                      color: colorScheme.onSecondaryContainer,
-                      fontSize: 14,
-                    ),
-                  ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (value case final widget?)
+            Expanded(child: widget)
+          else if (valueLabel case final text?)
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  color: colorScheme.onSecondaryContainer,
+                  fontSize: 14,
                 ),
-              ],
-              ?valueTrailing,
-            ],
-          ),
-        ),
+              ),
+            ),
+          ?valueTrailing,
+        ],
       ),
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked =
+            constraints.maxWidth < 360 &&
+            MediaQuery.textScalerOf(context).scale(14) > 20;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: stacked
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [label, const SizedBox(height: 4), content],
+                )
+              : Row(
+                  children: [
+                    Expanded(flex: 45, child: label),
+                    const SizedBox(width: 8),
+                    Expanded(flex: 55, child: content),
+                  ],
+                ),
+        );
+      },
     );
   }
 }

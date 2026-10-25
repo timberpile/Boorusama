@@ -40,7 +40,7 @@ Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
     thumbnailImageUrl: previewUrl,
     sampleImageUrl: isGif ? originalUrl : sampleUrl ?? originalUrl,
     originalImageUrl: originalUrl,
-    rating: Rating.parse(dto.rating),
+    rating: Rating.parseLegacy(dto.rating),
     hasComment: dto.commentCount != null && dto.commentCount! > 0,
     isTranslated: dto.hasNotes ?? false,
     hasParentOrChildren:
@@ -82,6 +82,17 @@ Post? postDtoToPost(PostDto dto, PostMetadata? metadata) {
   return e621PostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.e621),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: file.size,
+      originalWidth: file.width?.toDouble(),
+      originalHeight: file.height?.toDouble(),
+      originalFormat: file.ext,
+      score: dto.score?.total,
+      favoriteCount: dto.favCount,
+      commentCount: dto.commentCount,
+      description: dto.description,
+    ),
   );
 }
 

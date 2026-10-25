@@ -118,7 +118,7 @@ PostV2Dto? parseRbPostHtml(
   final owner = _extractOwner(document);
 
   // Extract change/upload timestamp
-  final change = _extractChangeTimestamp(document);
+  final postedDay = _extractPostedDay(document);
 
   final tags = _extractTags(document);
 
@@ -146,7 +146,9 @@ PostV2Dto? parseRbPostHtml(
     score: score,
     source: source,
     owner: owner,
-    change: change,
+    // This label establishes a calendar upload day, not an exact timestamp.
+    createdAt: postedDay?.toIso8601String(),
+    change: postedDay == null ? null : postedDay.millisecondsSinceEpoch ~/ 1000,
   );
 }
 
@@ -185,39 +187,30 @@ String _extractTags(Document document) {
 
 String? _extractOwner(Document document) {
   // Look for uploader in the post info section
-  final uploaderLink = document.querySelector('a[href*="profile&id="]');
+  final uploaderLink = document.querySelector(
+    '#tagLink a[href*="profile&id="]',
+  );
   return uploaderLink?.text.trim();
 }
 
-int? _extractChangeTimestamp(Document document) {
-  // Look for posted date text
-  final postInfo = document.querySelector('#tagLink')?.text ?? '';
-  final dateMatch = RegExp(r'Posted at ([^by]+) by').firstMatch(postInfo);
-
-  if (dateMatch != null) {
-    final dateString = dateMatch.group(1)?.trim();
-    if (dateString != null) {
-      // Try to parse date - this is a simple implementation
-      // Format appears to be "Sep, 13 2025"
-      try {
-        final parts = dateString.split(' ');
-        if (parts.length >= 3) {
-          final month = _monthNameToNumber(parts[0].replaceAll(',', ''));
-          final day = int.tryParse(parts[1]);
-          final year = int.tryParse(parts[2]);
-
-          if (month != null && day != null && year != null) {
-            final dateTime = DateTime(year, month, day);
-            return dateTime.millisecondsSinceEpoch ~/ 1000; // Unix timestamp
-          }
-        }
-      } catch (e) {
-        // Ignore parsing errors
-      }
-    }
-  }
-
-  return null;
+DateTime? _extractPostedDay(Document document) {
+  final text = document.querySelector('#tagLink')?.text ?? '';
+  final match = RegExp(
+    r'Posted at\s+([A-Za-z]{3}),?\s+(\d{1,2})\s+(\d{4})\s+by\b',
+    caseSensitive: false,
+  ).firstMatch(text);
+  if (match == null) return null;
+  final monthText = match.group(1)!;
+  final month = _monthNameToNumber(
+    monthText[0].toUpperCase() + monthText.substring(1).toLowerCase(),
+  );
+  final day = int.tryParse(match.group(2)!);
+  final year = int.tryParse(match.group(3)!);
+  if (month == null || day == null || year == null) return null;
+  final date = DateTime.utc(year, month, day);
+  return date.year == year && date.month == month && date.day == day
+      ? date
+      : null;
 }
 
 const _months = {

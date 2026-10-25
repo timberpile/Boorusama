@@ -53,12 +53,12 @@ Post postDtoToPost(
     sampleImageUrl: sampleUrl,
     originalImageUrl: e.url ?? '',
     tags: allTags,
-    rating: Rating.general,
+    rating: Rating.unknown,
     hasComment: hasComments,
     isTranslated: false,
     hasParentOrChildren: false,
     source: PostSource.from(_extractSource(e.miscmeta)),
-    score: e.favorites ?? 0,
+    score: 0,
     duration: kNoduration,
     fileSize: e.filesize ?? 0,
     format: e.ext ?? '',
@@ -84,6 +84,15 @@ Post postDtoToPost(
   return eshuushuuPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.eshuushuu),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.filesize,
+      originalWidth: e.width?.toDouble(),
+      originalHeight: e.height?.toDouble(),
+      originalFormat: e.ext,
+      favoriteCount: e.favorites,
+      description: e.caption,
+    ),
   );
 }
 

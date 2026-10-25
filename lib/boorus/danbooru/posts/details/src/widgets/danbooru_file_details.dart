@@ -35,7 +35,13 @@ class DanbooruFileDetails extends ConsumerWidget {
     return FileDetailsSection(
       post: post,
       rating: tagDetails != null ? tagDetails.rating : post.rating,
-      uploader: switch (ref.watch(danbooruCreatorProvider(post.uploaderId))) {
+      uploader: switch (ref.watch(
+        danbooruCreatorProvider(
+          post.uploaderId != null && post.uploaderId! > 0
+              ? post.uploaderId
+              : null,
+        ),
+      )) {
         null => null,
         final uploader => UploaderFileDetailTile(
           uploaderName: uploader.name,

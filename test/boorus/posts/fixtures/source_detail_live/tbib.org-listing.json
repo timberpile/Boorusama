@@ -1,0 +1,35 @@
+{
+  "family": "gelbooru_v2",
+  "host": "tbib.org",
+  "endpoint": "https://tbib.org/index.php?page=dapi&s=post&q=index&json=1&limit=1&tags=rating:safe",
+  "capturedAt": "2026-10-25T02:26:11.835031+00:00",
+  "authenticated": false,
+  "status": 200,
+  "contentType": "text/html",
+  "shape": "json",
+  "sourceFields": [
+    "change",
+    "directory",
+    "hash",
+    "height",
+    "id",
+    "image",
+    "owner",
+    "parent_id",
+    "rating",
+    "sample",
+    "sample_height",
+    "sample_width",
+    "score",
+    "tags",
+    "width"
+  ],
+  "post": {
+    "height": 1024,
+    "id": 28818810,
+    "owner": "source_account",
+    "rating": "safe",
+    "score": null,
+    "width": 2048
+  }
+}

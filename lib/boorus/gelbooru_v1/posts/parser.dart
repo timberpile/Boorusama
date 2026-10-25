@@ -21,7 +21,7 @@ Post postDtoToPost(
     sampleImageUrl: normalizeUrl(post.sampleUrl),
     originalImageUrl: normalizeUrl(post.fileUrl),
     tags: post.tags.splitTagString(),
-    rating: Rating.parse(post.rating),
+    rating: Rating.parseLegacy(post.rating),
     hasComment: false,
     isTranslated: false,
     hasParentOrChildren: false,
@@ -44,5 +44,9 @@ Post postDtoToPost(
   return gelbooruV1PostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.gelbooruV1),
+  ).withDetailFacts(
+    PostDetailFacts(
+      score: post.score,
+    ),
   );
 }

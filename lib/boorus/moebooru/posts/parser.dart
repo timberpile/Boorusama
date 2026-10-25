@@ -27,7 +27,7 @@ Post postDtoToPost(PostDto postDto, PostMetadata? metadata) {
     originalImageUrl: postDto.fileUrl ?? '',
     tags: postDto.tags.splitTagString(),
     source: PostSource.from(postDto.source),
-    rating: Rating.parse(postDto.rating ?? ''),
+    rating: Rating.parseLegacy(postDto.rating ?? ''),
     hasComment: false,
     isTranslated: false,
     hasParentOrChildren: hasParentOrChildren,
@@ -49,5 +49,13 @@ Post postDtoToPost(PostDto postDto, PostMetadata? metadata) {
   return moebooruPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.moebooru),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: postDto.fileSize,
+      originalWidth: postDto.width?.toDouble(),
+      originalHeight: postDto.height?.toDouble(),
+      originalFormat: postDto.fileExt ?? originalFormatFromUrl(postDto.fileUrl),
+      score: postDto.score,
+    ),
   );
 }

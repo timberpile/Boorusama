@@ -27,7 +27,7 @@ Post postDtoToPost(
     sampleImageUrl: e.sampleUrl() ?? '',
     originalImageUrl: e.fileUrl() ?? '',
     tags: e.tags?.map((e) => e.toLowerCase()).toSet() ?? {},
-    rating: Rating.general,
+    rating: Rating.unknown,
     hasComment: false,
     isTranslated: false,
     hasParentOrChildren: false,
@@ -50,6 +50,13 @@ Post postDtoToPost(
   return zerochanPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.zerochan),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.full?.isNotEmpty == true ? e.size : null,
+      originalWidth: e.full?.isNotEmpty == true ? e.width?.toDouble() : null,
+      originalHeight: e.full?.isNotEmpty == true ? e.height?.toDouble() : null,
+      originalFormat: originalFormatFromUrl(e.full),
+    ),
   );
 }
 

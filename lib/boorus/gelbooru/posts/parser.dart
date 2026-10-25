@@ -1,7 +1,6 @@
 // Package imports:
 import 'package:booru_clients/gelbooru.dart';
 import 'package:foundation/foundation.dart';
-import 'package:path/path.dart' as path;
 
 // Project imports:
 import '../../../core/boorus/booru/types.dart';
@@ -30,9 +29,9 @@ Post gelbooruPostDtoToGelbooruPost(
     tags: decodedTags,
     width: dto.width?.toDouble() ?? 0,
     height: dto.height?.toDouble() ?? 0,
-    format: path.extension(dto.fileUrl ?? 'foo.png').substring(1),
+    format: originalFormatFromUrl(dto.fileUrl) ?? '',
     source: PostSource.from(dto.source),
-    rating: Rating.parse(dto.rating ?? 'general'),
+    rating: Rating.parseLegacy(dto.rating),
     md5: dto.md5 ?? '',
     hasComment: dto.hasComments ?? false,
     hasParentOrChildren:
@@ -49,5 +48,13 @@ Post gelbooruPostDtoToGelbooruPost(
   return gelbooruPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.gelbooru),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalWidth: dto.width?.toDouble(),
+      originalHeight: dto.height?.toDouble(),
+      originalFormat: originalFormatFromUrl(dto.fileUrl),
+      score: dto.score,
+      commentCount: dto.commentCount,
+    ),
   );
 }

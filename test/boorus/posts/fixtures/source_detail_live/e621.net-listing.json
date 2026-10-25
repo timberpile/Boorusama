@@ -1,0 +1,58 @@
+{
+  "family": "e621",
+  "host": "e621.net",
+  "endpoint": "https://e621.net/posts.json?limit=1&tags=rating:s",
+  "capturedAt": "2026-10-25T02:26:12.584597+00:00",
+  "authenticated": false,
+  "status": 200,
+  "contentType": "application/json",
+  "shape": "json",
+  "sourceFields": [
+    "approver_id",
+    "change_seq",
+    "comment_count",
+    "created_at",
+    "description",
+    "duration",
+    "fav_count",
+    "file",
+    "flags",
+    "has_notes",
+    "id",
+    "is_favorited",
+    "locked_tags",
+    "pools",
+    "preview",
+    "rating",
+    "relationships",
+    "sample",
+    "score",
+    "sources",
+    "tags",
+    "updated_at",
+    "uploader_id",
+    "uploader_name",
+    "vote"
+  ],
+  "post": {
+    "id": 6806110,
+    "created_at": "2026-10-24T22:16:41.017-04:00",
+    "file": {
+      "width": 1000,
+      "height": 1873,
+      "ext": "png",
+      "size": 1755752,
+      "url": "https://fixtures.invalid/original.png"
+    },
+    "score": {
+      "up": 0,
+      "down": 0,
+      "total": 0
+    },
+    "rating": "s",
+    "fav_count": 0,
+    "uploader_id": 880215,
+    "description": "",
+    "comment_count": 0
+  }
+}

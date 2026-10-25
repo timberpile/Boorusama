@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import '../../../rating/types.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../sources/types.dart';
 import 'booru_post_data.dart';
 import 'post_core_data.dart';
@@ -10,6 +11,7 @@ import 'post_media_aspect_ratios.dart';
 import 'post_media_variants.dart';
 import 'post_origin.dart';
 import 'post_record.dart';
+import 'post_detail_facts.dart';
 import '../mixins/image_info_mixin.dart';
 import '../mixins/media_info_mixin.dart';
 import '../mixins/video_info_mixin.dart';
@@ -49,11 +51,21 @@ base class Post extends Equatable
   final PostCoreData core;
   final BooruPostData booruData;
 
+  PostDetailFacts get detailFacts => core.detailFacts;
+
+  Post withDetailFacts(PostDetailFacts facts) => copyWith(
+    core: PostCoreData.fromPost(this, detailFacts: facts),
+  );
+
   /// The source site's genuine identifier for links, filenames and exports.
   /// Conventional boorus use their positive numeric post ID. Sources whose
   /// app ID is synthetic implement [SitePostIdData] and may return null.
   String? get sitePostId => switch (booruData) {
     final SitePostIdData data => data.sitePostId,
+    _
+        when origin.booruType == BooruType.pixiv ||
+            origin.booruType == BooruType.sankaku =>
+      null,
     _ when id > 0 => id.toString(),
     _ => null,
   };

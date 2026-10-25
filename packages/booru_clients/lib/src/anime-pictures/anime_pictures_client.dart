@@ -122,8 +122,11 @@ class AnimePicturesClient {
     return results.map((item) => AutocompleteDto.fromJson(item)).toList();
   }
 
-  Future<AnimePicturesDownloadUrlData?> getDownloadUrl(int postId) async {
-    final postDetails = await getPostDetails(id: postId);
+  Future<AnimePicturesDownloadUrlData?> getDownloadUrl(
+    int postId, {
+    PostDetailsDto? details,
+  }) async {
+    final postDetails = details ?? await getPostDetails(id: postId);
 
     final fileUrl = postDetails.fileUrl;
 

@@ -16,6 +16,12 @@ enum Rating {
     _ => unknown,
   };
 
+  /// Older booru APIs spell their existing `s` classification as `safe`.
+  factory Rating.parseLegacy(dynamic value) =>
+      value is String && value.toLowerCase() == 'safe'
+      ? Rating.sensitive
+      : Rating.parse(value);
+
   bool isNSFW() => this == explicit || this == questionable;
   bool isSFW() => !isNSFW();
 

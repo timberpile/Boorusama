@@ -25,21 +25,19 @@ String? shareMediaDescription({
   if (!describesOriginal) return null;
 
   final details = <String>[];
-  if (post.width.isFinite &&
-      post.height.isFinite &&
-      post.width > 0 &&
-      post.height > 0 &&
-      post.width == post.width.truncateToDouble() &&
-      post.height == post.height.truncateToDouble()) {
-    details.add('${post.width.toInt()} × ${post.height.toInt()}');
+  final facts = post.detailFacts;
+  final width = facts.originalWidth;
+  final height = facts.originalHeight;
+  if (width != null &&
+      height != null &&
+      width == width.truncateToDouble() &&
+      height == height.truncateToDouble()) {
+    details.add('${width.toInt()} × ${height.toInt()}');
   }
-  if (post.fileSize > 0) {
-    details.add(Filesize.parse(post.fileSize, round: 1));
+  if (facts.originalByteSize case final size?) {
+    details.add(Filesize.parse(size, round: 1));
   }
-  final format = post.format
-      .trim()
-      .replaceFirst(RegExp(r'^\.'), '')
-      .toLowerCase();
+  final format = facts.originalFormat;
   final originalPath = Uri.tryParse(post.originalImageUrl)?.path;
   final extension = originalPath == null
       ? null

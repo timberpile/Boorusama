@@ -1,3 +1,4 @@
+import '../shared/source_post_detail_loader.dart';
 // Project imports:
 import '../../core/boorus/defaults/widgets.dart';
 import '../../core/boorus/engine/types.dart';
@@ -14,6 +15,8 @@ class HybooruBuilder extends BaseBooruBuilder {
   late final postPresentation = TypedBooruPostPresentation<EmptyPostData>(
     typeKey: 'hybooru',
     uiBuilder: postDetailsUIBuilder,
+    detailsWrapperBuilder: ({required post, required child}) =>
+        SourcePostDetailLoader(post: post, child: child),
   );
 
   @override

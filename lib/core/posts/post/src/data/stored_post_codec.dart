@@ -1,8 +1,10 @@
 // Project imports:
 import '../../../rating/types.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../sources/types.dart';
 import '../types/booru_post_data.dart';
 import '../types/post.dart';
+import '../types/post_detail_facts.dart';
 import '../types/post_core_data.dart';
 import '../types/post_origin.dart';
 import '../types/stored_post_snapshot.dart';
@@ -33,7 +35,7 @@ final class StoredPostDecodeFailure extends StoredPostDecodeResult {
 final class StoredPostCodec {
   const StoredPostCodec();
 
-  static const commonSchemaVersion = 1;
+  static const commonSchemaVersion = 2;
 
   StoredPostSnapshot encode<D extends BooruPostData>(
     Post post, {
@@ -84,7 +86,7 @@ final class StoredPostCodec {
 
     final PostCoreData core;
     try {
-      core = _decodeCommon(snapshot.common);
+      core = _decodeCommon(snapshot.common, origin);
     } on _UnsupportedCommonVersion catch (error) {
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.unsupportedCommonVersion,
@@ -154,6 +156,7 @@ final class StoredPostCodec {
 
 Map<String, Object?> _encodeCommon(PostCoreData data) => {
   'schemaVersion': StoredPostCodec.commonSchemaVersion,
+  'detailFacts': data.detailFacts.toJson(),
   'id': data.id,
   'createdAt': ?data.createdAt?.toUtc().toIso8601String(),
   'thumbnailImageUrl': data.thumbnailImageUrl,
@@ -202,13 +205,16 @@ Map<String, Object?>? _encodeMetadata(PostMetadata? metadata) =>
       null => null,
     };
 
-PostCoreData _decodeCommon(Map<String, Object?> json) {
+PostCoreData _decodeCommon(Map<String, Object?> json, PostOrigin origin) {
   final version = json['schemaVersion'];
-  if (version != StoredPostCodec.commonSchemaVersion) {
+  if (version != 1 && version != StoredPostCodec.commonSchemaVersion) {
     throw _UnsupportedCommonVersion(version);
   }
 
   return PostCoreData(
+    detailFacts: version == 1
+        ? const PostDetailFacts()
+        : PostDetailFacts.fromJson(json['detailFacts']),
     id: _required<int>(json['id'], 'id'),
     createdAt: switch (json['createdAt']) {
       final String value => DateTime.parse(value),
@@ -248,7 +254,16 @@ PostCoreData _decodeCommon(Map<String, Object?> json) {
     artistTags: _optionalStringSet(json['artistTags']),
     characterTags: _optionalStringSet(json['characterTags']),
     copyrightTags: _optionalStringSet(json['copyrightTags']),
-    rating: Rating.parse(json['rating']),
+    rating:
+        version == 1 &&
+            const [
+              BooruType.philomena,
+              BooruType.hydrus,
+              BooruType.eshuushuu,
+              BooruType.zerochan,
+            ].contains(origin.booruType)
+        ? Rating.unknown
+        : Rating.parse(json['rating']),
     hasComment: _required<bool>(json['hasComment'], 'hasComment'),
     isTranslated: _required<bool>(json['isTranslated'], 'isTranslated'),
     hasParentOrChildren: _required<bool>(

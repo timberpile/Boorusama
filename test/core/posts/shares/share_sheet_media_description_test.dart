@@ -155,15 +155,23 @@ void main() {
 
     await _openSheet(
       tester,
-      post: dummyPost(
-        id: 47,
-        sampleImageUrl: 'https://site.test/sample.png',
-        originalImageUrl: 'https://site.test/original.jpg',
-        width: 2400,
-        height: 1600,
-        fileSize: 2097152,
-        format: 'jpg',
-      ),
+      post:
+          dummyPost(
+            id: 47,
+            sampleImageUrl: 'https://site.test/sample.png',
+            originalImageUrl: 'https://site.test/original.jpg',
+            width: 2400,
+            height: 1600,
+            fileSize: 2097152,
+            format: 'jpg',
+          ).withDetailFacts(
+            PostDetailFacts(
+              originalWidth: 2400,
+              originalHeight: 1600,
+              originalByteSize: 2097152,
+              originalFormat: 'jpg',
+            ),
+          ),
       extractor: _PendingExtractor(),
       imageCacheManager: cache,
     );
@@ -347,15 +355,23 @@ void main() {
       final extractor = _PendingExtractor();
       await _openSheet(
         tester,
-        post: dummyPost(
-          id: 42,
-          sampleImageUrl: 'https://site.test/sample.jpg',
-          originalImageUrl: 'https://site.test/original.jpg',
-          width: 1920,
-          height: 1080,
-          fileSize: 1048576,
-          format: 'jpg',
-        ),
+        post:
+            dummyPost(
+              id: 42,
+              sampleImageUrl: 'https://site.test/sample.jpg',
+              originalImageUrl: 'https://site.test/original.jpg',
+              width: 1920,
+              height: 1080,
+              fileSize: 1048576,
+              format: 'jpg',
+            ).withDetailFacts(
+              PostDetailFacts(
+                originalWidth: 1920,
+                originalHeight: 1080,
+                originalByteSize: 1048576,
+                originalFormat: 'jpg',
+              ),
+            ),
         extractor: extractor,
       );
 
@@ -372,15 +388,23 @@ void main() {
   ) async {
     await _openSheet(
       tester,
-      post: dummyPost(
-        id: 43,
-        sampleImageUrl: 'https://site.test/sample.jpg',
-        originalImageUrl: 'https://site.test/original.jpg',
-        width: 1920,
-        height: 1080,
-        fileSize: 1048576,
-        format: 'jpg',
-      ),
+      post:
+          dummyPost(
+            id: 43,
+            sampleImageUrl: 'https://site.test/sample.jpg',
+            originalImageUrl: 'https://site.test/original.jpg',
+            width: 1920,
+            height: 1080,
+            fileSize: 1048576,
+            format: 'jpg',
+          ).withDetailFacts(
+            PostDetailFacts(
+              originalWidth: 1920,
+              originalHeight: 1080,
+              originalByteSize: 1048576,
+              originalFormat: 'jpg',
+            ),
+          ),
       extractor: _PendingExtractor(),
     );
 
@@ -399,14 +423,21 @@ void main() {
   ) async {
     await _openSheet(
       tester,
-      post: dummyPost(
-        id: 44,
-        sampleImageUrl: 'https://site.test/sample.png',
-        originalImageUrl: 'https://site.test/original.png',
-        width: 800,
-        height: 600,
-        format: 'png',
-      ),
+      post:
+          dummyPost(
+            id: 44,
+            sampleImageUrl: 'https://site.test/sample.png',
+            originalImageUrl: 'https://site.test/original.png',
+            width: 800,
+            height: 600,
+            format: 'png',
+          ).withDetailFacts(
+            PostDetailFacts(
+              originalWidth: 800,
+              originalHeight: 600,
+              originalFormat: 'png',
+            ),
+          ),
       extractor: _PendingExtractor(),
       mediaUrlResolver: _OriginalMediaUrlResolver(),
     );
@@ -424,17 +455,26 @@ void main() {
         tester,
         post:
             dummyPost(
-              id: 46,
-              thumbnailImageUrl: 'https://site.test/thumb.jpg',
-              sampleImageUrl: 'https://site.test/big-preview.jpg',
-              originalImageUrl: 'https://site.test/big-preview.jpg',
-              width: 2400,
-              height: 1600,
-              fileSize: 2097152,
-              format: 'jpg',
-            ).copyWith(
-              origin: PostOrigin.forBooruType(BooruType.animePictures),
-            ),
+                  id: 46,
+                  thumbnailImageUrl: 'https://site.test/thumb.jpg',
+                  sampleImageUrl: 'https://site.test/big-preview.jpg',
+                  originalImageUrl: 'https://site.test/big-preview.jpg',
+                  width: 2400,
+                  height: 1600,
+                  fileSize: 2097152,
+                  format: 'jpg',
+                )
+                .withDetailFacts(
+                  PostDetailFacts(
+                    originalWidth: 2400,
+                    originalHeight: 1600,
+                    originalByteSize: 2097152,
+                    originalFormat: 'jpg',
+                  ),
+                )
+                .copyWith(
+                  origin: PostOrigin.forBooruType(BooruType.animePictures),
+                ),
         extractor: _PendingExtractor(),
       );
 
@@ -454,14 +494,21 @@ void main() {
   ) async {
     await _openSheet(
       tester,
-      post: dummyPost(
-        id: 45,
-        sampleImageUrl: 'https://site.test/sample.jpg',
-        originalImageUrl: 'https://site.test/original.png',
-        width: 800,
-        height: 600,
-        format: 'jpg',
-      ),
+      post:
+          dummyPost(
+            id: 45,
+            sampleImageUrl: 'https://site.test/sample.jpg',
+            originalImageUrl: 'https://site.test/original.png',
+            width: 800,
+            height: 600,
+            format: 'jpg',
+          ).withDetailFacts(
+            PostDetailFacts(
+              originalWidth: 800,
+              originalHeight: 600,
+              originalFormat: 'jpg',
+            ),
+          ),
       extractor: _PendingExtractor(),
     );
 
@@ -506,7 +553,7 @@ void main() {
         format: 'mp4',
         videoUrl: 'https://site.test/full.mp4',
         originalImageUrl: 'https://site.test/full.mp4',
-      ),
+      ).withDetailFacts(PostDetailFacts(originalFormat: 'mp4')),
       extractor: const UrlInsidePostExtractor(),
     );
 
@@ -539,15 +586,18 @@ void main() {
       when(fileSystem.getTemporaryPath).thenAnswer((_) => temporaryPath.future);
       await _openSheet(
         tester,
-        post: dummyPost(
-          id: 43,
-          format: testCase.video ? 'mp4' : 'jpg',
-          sampleImageUrl: 'https://site.test/sample.jpg',
-          originalImageUrl: testCase.video
-              ? 'https://site.test/full.mp4'
-              : 'https://site.test/original.jpg',
-          videoUrl: testCase.video ? 'https://site.test/full.mp4' : '',
-        ),
+        post:
+            dummyPost(
+              id: 43,
+              format: testCase.video ? 'mp4' : 'jpg',
+              sampleImageUrl: 'https://site.test/sample.jpg',
+              originalImageUrl: testCase.video
+                  ? 'https://site.test/full.mp4'
+                  : 'https://site.test/original.jpg',
+              videoUrl: testCase.video ? 'https://site.test/full.mp4' : '',
+            ).withDetailFacts(
+              PostDetailFacts(originalFormat: testCase.video ? 'mp4' : 'jpg'),
+            ),
         extractor: extractor,
         fileSystem: fileSystem,
       );

@@ -23,9 +23,9 @@ class DanbooruPostStatsTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SimplePostStatsTile(
-      score: post.score,
-      favCount: data?.favCount ?? 0,
-      totalComments: commentCount ?? 0,
+      score: post.detailFacts.score,
+      favCount: post.detailFacts.favoriteCount,
+      totalComments: commentCount,
       votePercentText: _generatePercentText(data),
       onScoreTap: () => goToPostVotesDetails(ref, post),
       onFavCountTap: () => goToPostFavoritesDetails(ref, post),

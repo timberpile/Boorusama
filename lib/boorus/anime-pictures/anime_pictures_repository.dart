@@ -16,20 +16,19 @@ import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/tags/autocompletes/types.dart';
 import '../../core/tags/tag/types.dart';
-import 'client_provider.dart';
-import 'downloads/file_url_extractor.dart';
+import 'downloads/url_provider.dart';
+import 'posts/media_dio_provider.dart';
+
+import 'package:dio/dio.dart';
+
 import 'downloads/providers.dart';
 import 'posts/post_codec.dart';
 import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
-final animePicturesDownloadFileUrlExtractorProvider =
-    Provider.family<DownloadFileUrlExtractor, BooruConfigAuth>((ref, config) {
-      return AnimePicturesDownloadFileUrlExtractor(
-        client: ref.watch(animePicturesClientProvider(config)),
-      );
-    });
+export 'downloads/url_provider.dart'
+    show animePicturesDownloadFileUrlExtractorProvider;
 
 class AnimePicturesRepository extends BooruRepositoryDefault {
   const AnimePicturesRepository({required this.ref});
@@ -44,6 +43,10 @@ class AnimePicturesRepository extends BooruRepositoryDefault {
 
   @override
   final Ref ref;
+
+  @override
+  Dio dio(BooruConfigAuth config) =>
+      ref.watch(animePicturesMediaDioProvider(config));
 
   @override
   Map<String, String> extraHttpHeaders(BooruConfigAuth config) {

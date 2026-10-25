@@ -10,20 +10,47 @@ const _kCommentParams =
 mixin DanbooruClientComments {
   Dio get dio;
 
-  Future<int> getCommentCount({
-    required int postId,
-  }) async {
+  /// A bounded complete set of visible IDs can establish a total. A partial
+  /// comment page never becomes a total, even on sites with a lower page cap.
+  Future<int?> getCommentCount({required int postId}) async {
+    final query = {
+      'search[post_id]': postId,
+      'search[is_deleted]': false,
+      'search[order]': 'id_desc',
+      'only': 'id,is_deleted',
+    };
+    const limit = 100;
     final response = await dio.get(
       '/comments.json',
+      queryParameters: {...query, 'limit': limit},
+    );
+    final rows = response.data;
+    if (rows is! List || rows.length > limit) return null;
+    if (rows.isEmpty) return 0;
+    final ids = <int>[];
+    var count = 0;
+    for (final row in rows) {
+      if (row is! Map || row['id'] is! int || (row['id'] as int) <= 0)
+        return null;
+      final id = row['id'] as int;
+      if (ids.isNotEmpty && id >= ids.last) return null;
+      ids.add(id);
+      if (row['is_deleted'] == false)
+        count++;
+      else if (row['is_deleted'] != true)
+        return null;
+    }
+    final continuation = await dio.get(
+      '/comments.json',
       queryParameters: {
-        'search[post_id]': postId,
-        'only': 'id,is_deleted',
+        ...query,
+        'search[id]': '<${ids.last}',
+        'limit': 1,
       },
     );
-
-    return (response.data as List)
-        .where((item) => (item['is_deleted'] ?? false) == false)
-        .length;
+    return continuation.data is List && (continuation.data as List).isEmpty
+        ? count
+        : null;
   }
 
   Future<List<CommentDto>> getComments({

@@ -21,7 +21,7 @@ Post postDtoToPost(
     sampleImageUrl: e.fileUrl ?? '',
     originalImageUrl: e.fileUrl ?? '',
     tags: e.tags?.toSet() ?? {},
-    rating: Rating.parse(e.rating),
+    rating: Rating.parseLegacy(e.rating),
     hasComment: switch (e.comments) {
       final comments? when comments.isNotEmpty => true,
       _ => false,
@@ -77,6 +77,15 @@ Post postDtoToPost(
   return shimmie2PostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.shimmie2),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.filesize,
+      originalWidth: e.width?.toDouble(),
+      originalHeight: e.height?.toDouble(),
+      originalFormat: _resolveFormat(e),
+      score: e.score ?? e.numericScore,
+      favoriteCount: e.favorites,
+    ),
   );
 }
 
