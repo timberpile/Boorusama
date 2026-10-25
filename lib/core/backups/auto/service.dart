@@ -6,7 +6,6 @@ import '../../../foundation/loggers.dart';
 import '../export_import/export/export_filename.dart';
 import '../export_import/export/export_service.dart';
 import '../export_import/models/export_selection.dart';
-import '../types/backup_registry.dart';
 import '../zip/types.dart';
 import 'types.dart';
 
@@ -23,7 +22,7 @@ class AutoBackupService {
 
   final ExportService exportService;
   final Logger logger;
-  final BackupRegistry registry;
+  final ExportSourceCatalog registry;
   final AutoBackupRepository repository;
   final DateTime Function() now;
 

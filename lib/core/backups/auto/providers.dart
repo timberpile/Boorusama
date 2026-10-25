@@ -9,6 +9,7 @@ import '../../../foundation/platform.dart';
 import '../../downloads/path/types.dart';
 import '../export_import/export/export_flow_notifier.dart';
 import '../sources/providers.dart';
+import 'failure.dart';
 import 'repo.dart';
 import 'repo_android.dart';
 import 'service.dart';
@@ -17,7 +18,7 @@ final autoBackupServiceProvider = Provider<AutoBackupService>((ref) {
   return AutoBackupService(
     exportService: ref.watch(exportServiceProvider),
     logger: ref.watch(loggerProvider),
-    registry: ref.watch(backupRegistryProvider),
+    registry: ref.watch(exportSourceCatalogProvider),
     repository: ref.watch(autoBackupRepositoryProvider),
   );
 });
@@ -46,13 +47,19 @@ final autoBackupDirectoryDisplayPathProvider = FutureProvider.autoDispose
 
 // Retain automatic failures when the transient backup operation provider closes.
 final autoBackupFailureProvider =
-    NotifierProvider<AutoBackupFailureNotifier, bool>(
+    NotifierProvider<AutoBackupFailureNotifier, AutoBackupFailure?>(
       AutoBackupFailureNotifier.new,
     );
 
-class AutoBackupFailureNotifier extends Notifier<bool> {
+class AutoBackupFailureNotifier extends Notifier<AutoBackupFailure?> {
   @override
-  bool build() => false;
+  AutoBackupFailure? build() => null;
 
-  void setFailed(bool failed) => state = failed;
+  void clear() => state = null;
+
+  AutoBackupFailure report(Object error) {
+    final failure = AutoBackupFailure.fromError(error);
+    state = failure;
+    return failure;
+  }
 }

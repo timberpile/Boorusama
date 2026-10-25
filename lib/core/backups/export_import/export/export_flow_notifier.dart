@@ -8,7 +8,9 @@ import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../bookmarks/providers.dart';
 import '../../../bookmarks/types.dart';
+
 import 'package:i18n/i18n.dart';
+
 import '../../../configs/manage/providers.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../sources/providers.dart';
@@ -162,10 +164,8 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   // selection, export mode, and credential choice.
   ExportFlowState build() => const ExportFlowState.initial();
 
-  List<ExportSelectionDescriptor> get descriptors => [
-    for (final source in ref.read(exportImportSourcesProvider))
-      source.selectionDescriptor,
-  ];
+  List<ExportSelectionDescriptor> get descriptors =>
+      ref.read(exportSourceCatalogProvider).selectionDescriptors;
 
   void useFullExport() => state = state.copyWith(
     isFull: true,
@@ -333,7 +333,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   );
 
   ExportSelection selection() => state.isFull
-      ? ExportSelection.full(_Catalog(descriptors))
+      ? ExportSelection.full(ref.read(exportSourceCatalogProvider))
       : ExportSelection.custom(state.nodes);
 
   Future<String> createExport() async {
@@ -376,13 +376,6 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       rethrow;
     }
   }
-}
-
-final class _Catalog implements ExportSourceCatalog {
-  const _Catalog(this.selectionDescriptors);
-
-  @override
-  final List<ExportSelectionDescriptor> selectionDescriptors;
 }
 
 final exportTemplatesProvider =

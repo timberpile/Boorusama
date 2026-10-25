@@ -230,6 +230,23 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
   ];
 });
 
+// Full exports and automatic backups must select the sources that the package
+// writer can capture, including the conditional legacy feed adapter.
+final exportSourceCatalogProvider = Provider<ExportSourceCatalog>((ref) {
+  return _ExportSourceCatalog([
+    for (final source in ref.watch(exportImportSourcesProvider))
+      source.selectionDescriptor,
+  ]);
+});
+
+final class _ExportSourceCatalog implements ExportSourceCatalog {
+  _ExportSourceCatalog(List<ExportSelectionDescriptor> descriptors)
+    : selectionDescriptors = List.unmodifiable(descriptors);
+
+  @override
+  final List<ExportSelectionDescriptor> selectionDescriptors;
+}
+
 final backupPresentationSourcesProvider = Provider<List<BackupDataSource>>((
   ref,
 ) {
