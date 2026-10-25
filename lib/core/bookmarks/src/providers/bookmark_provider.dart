@@ -1325,7 +1325,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final settings = ref.read(settingsProvider);
     final downloader = ref.read(downloadServiceProvider);
     final logger = ref.read(loggerProvider);
-    final groups = <(BooruConfig?, int, String), List<Bookmark>>{};
+    final groups = <(BooruConfig?, int, String, bool), List<Bookmark>>{};
+    final sourceCounts = <(BooruConfig?, int, String), int>{};
+    final sourceIndices = <Post, int>{};
     final engines = ref.read(booruEngineRegistryProvider);
     for (final bookmark in bookmarks) {
       final origin = bookmark.post.origin;
@@ -1336,11 +1338,26 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         ResolvedPostOrigin(:final config) => config,
         _ => null,
       };
+      final sourceKey = (source, origin.booruType.id, origin.sourceHost);
+      sourceIndices[bookmark.post] =
+          sourceCounts.update(
+            sourceKey,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          ) -
+          1;
+      final nativePayload =
+          source != null &&
+          engines
+                  .getPostCapability(origin.booruType)
+                  ?.codecFor(origin, bookmark.post.booruData) !=
+              null;
       groups
           .putIfAbsent((
             source,
             origin.booruType.id,
             origin.sourceHost,
+            nativePayload,
           ), () => [])
           .add(bookmark);
     }
@@ -1349,14 +1366,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final operations = [
       for (final entry in groups.entries)
         () {
-          final (source, _, host) = entry.key;
-          final nativePayload = entry.value.every(
-            (bookmark) =>
-                engines
-                    .getPostCapability(bookmark.post.origin.booruType)
-                    ?.codecFor(bookmark.post.origin, bookmark.post.booruData) !=
-                null,
-          );
+          final (source, _, host, nativePayload) = entry.key;
           final origin = entry.value.first.post.origin;
           final DownloadNotifierParams params;
           if (source != null) {
@@ -1419,6 +1429,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           return (
             notifier: ref.read(downloadNotifierProvider(params).notifier),
             bookmarks: List<Bookmark>.unmodifiable(entry.value),
+            // Partitioning payloads must retain the original source group's
+            // bulk filename template and bulk permission check.
+            totalCount: sourceCounts[(source, entry.key.$2, host)]!,
           );
         }(),
     ];
@@ -1427,7 +1440,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         for (final bookmark in operation.bookmarks)
           bookmark.post: bookmark.sourceUrl,
       };
-      if (operation.bookmarks.length == 1) {
+      if (operation.totalCount == 1) {
         final bookmark = operation.bookmarks.single;
         await operation.notifier.download(
           bookmark.post,
@@ -1437,6 +1450,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await operation.notifier.bulkDownload(
           [for (final bookmark in operation.bookmarks) bookmark.post],
           postUrlBuilder: (post) => links[post],
+          totalCount: operation.totalCount,
+          indexOf: (post) => sourceIndices[post]!,
         );
       }
     }

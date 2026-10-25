@@ -92,6 +92,8 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? group,
     String? downloadPath,
     String? Function(Post)? postUrlBuilder,
+    int? totalCount,
+    int Function(Post)? indexOf,
   }) async {
     // ensure that the booru supports bulk download
     if (!arg.canDownloadMultipleFiles()) {
@@ -127,8 +129,8 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
         group: group,
         downloadPath: downloadPath,
         bulkMetadata: {
-          'total': posts.length.toString(),
-          'index': i.toString(),
+          'total': (totalCount ?? posts.length).toString(),
+          'index': (indexOf?.call(post) ?? i).toString(),
         },
         networkConstraint: networkConstraint,
       );

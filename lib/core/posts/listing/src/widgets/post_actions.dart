@@ -15,7 +15,6 @@ import 'package:kurumi/material.dart';
 
 import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
-import '../../../../bookmarks/src/types/bookmark.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
@@ -106,7 +105,7 @@ List<PostActionDefinition> postActionDefinitions(
 
   final library = ref.watch(bookmarkProvider).valueOrNull;
   final stored = [
-    for (final post in snapshot.posts) library?.bookmarkForPost(post),
+    for (final post in snapshot.posts) library?.storedBookmarkForPost(post),
   ];
   final canUseStoredDownload =
       snapshot.hasTargets && stored.every((p) => p != null);
@@ -180,10 +179,20 @@ List<PostActionDefinition> postActionDefinitions(
         execute: () => run(() async {
           if (downloadOverride != null) {
             await downloadOverride();
+          } else if (canUseStoredDownload) {
+            // Stored payload support, source policy and safe snapshot fallback
+            // are decided together by the shared bookmark download path.
+            // Keep the selected live Post when an older saved row also exists.
+            await ref.read(bookmarkProvider.notifier).downloadBookmarks(
+              fallbackAuth,
+              fallbackDownload,
+              [
+                for (final (index, post) in snapshot.posts.indexed)
+                  stored[index]!.copyWith(post: post),
+              ],
+            );
           } else {
-            // Capture all services and fallback snapshots before the first await.
-            // One orphan/unsupported group must not downgrade supported sources
-            // to legacy Original-only downloads or discard selected posts.
+            // Live selections retain the source's ordinary download policy.
             final operations = [
               for (final entry in normalDownloadParams.entries)
                 (
@@ -193,44 +202,12 @@ List<PostActionDefinition> postActionDefinitions(
                   ),
                 ),
             ];
-            final fallbackOperations = [
-              for (final entry in groups.entries)
-                if (!normalDownloadParams.containsKey(entry.key))
-                  (
-                    auth: entry.key.auth,
-                    download: entry.key.download,
-                    bookmarks: List<Bookmark>.unmodifiable([
-                      for (final post in entry.value)
-                        library!.bookmarkForPost(post)!,
-                    ]),
-                  ),
-              if (snapshot.targets.any((target) => target.config == null))
-                (
-                  auth: fallbackAuth,
-                  download: fallbackDownload,
-                  bookmarks: List<Bookmark>.unmodifiable([
-                    for (final target in snapshot.targets)
-                      if (target.config == null)
-                        library!.bookmarkForPost(target.post)!,
-                  ]),
-                ),
-            ];
-            final fallbackNotifier = fallbackOperations.isEmpty
-                ? null
-                : ref.read(bookmarkProvider.notifier);
             for (final operation in operations) {
               if (operation.posts.length == 1) {
                 await operation.notifier.download(operation.posts.single);
               } else {
                 await operation.notifier.bulkDownload(operation.posts);
               }
-            }
-            for (final operation in fallbackOperations) {
-              await fallbackNotifier!.downloadBookmarks(
-                operation.auth,
-                operation.download,
-                operation.bookmarks,
-              );
             }
           }
         }),

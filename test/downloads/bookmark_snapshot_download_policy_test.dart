@@ -1,3 +1,4 @@
+import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/app_scope.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
@@ -117,6 +118,94 @@ void main() {
       );
     },
   );
+  for (final bulkAllowed in [true, false]) {
+    test(
+      'same-source native and legacy payloads keep policy (bulk=$bulkAllowed)',
+      () async {
+        final backend = FakeBooruBackend();
+        final downloads = MemoryDownloadService();
+        final owner = BooruConfig.fromJson({
+          ...backend.config.toJson(),
+          'id': backend.config.id,
+          'customDownloadFileNameFormat': 'single_{id}.{extension}',
+          'customBulkDownloadFileNameFormat': 'bulk_{index}.{extension}',
+        });
+        final runtime = backend.createRuntime(
+          configs: [owner],
+          downloadService: downloads,
+        );
+        final initial = runtime.initialState;
+        final container = ProviderContainer(
+          overrides: [
+            ...buildBoorusamaOverrides(
+              runtime,
+              RebootData(
+                config: initial.initialConfig,
+                configs: initial.configs,
+                settings: initial.settings,
+              ),
+            ),
+            downloadMultipleFileCheckProvider.overrideWith(
+              (_, _) =>
+                  () => bulkAllowed,
+            ),
+            bypassDdosHeadersProvider.overrideWith(
+              (_, _) => Future.value(<String, String>{}),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(bookmarkProvider.future);
+        final posts = [
+          for (final id in [42, 43])
+            TestPost(
+              id: id,
+              origin: postOriginFromConfig(backend.config),
+              originalImageUrl: '${backend.config.url}legacy/$id.jpg',
+              booruData: id == 42
+                  ? const EmptyPostData(typeKey: 'test')
+                  : const LegacyPostData(typeKey: 'legacy_fixture', custom: {}),
+            ),
+        ];
+        final bookmarks = [
+          for (final post in posts)
+            Bookmark.fromSnapshot(
+              id: post.id,
+              createdAt: DateTime.utc(2026),
+              updatedAt: DateTime.utc(2026),
+              snapshot: const StoredPostCodec().encode(
+                post,
+                dataCodec: const EmptyPostDataCodec('test'),
+              ),
+              post: post,
+              postId: post.id,
+            ),
+        ];
+        await container
+            .read(bookmarkProvider.notifier)
+            .downloadBookmarks(
+              backend.config.auth,
+              backend.config.download,
+              bookmarks,
+            );
+        expect(
+          downloads.requests.map((r) => r.url),
+          bulkAllowed
+              ? [
+                  '${backend.config.url}posts/42.jpg',
+                  '${backend.config.url}legacy/43.jpg',
+                ]
+              : isEmpty,
+        );
+        if (bulkAllowed) {
+          expect(
+            downloads.requests.map((r) => r.filename),
+            ['bulk_0.jpg', 'bulk_1.jpg'],
+          );
+        }
+      },
+    );
+  }
   for (final orphan in [false, true]) {
     for (final quality in DownloadQuality.values) {
       for (final bulk in [false, true]) {

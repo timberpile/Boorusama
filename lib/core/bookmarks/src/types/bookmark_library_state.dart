@@ -292,6 +292,17 @@ class BookmarkLibraryState extends Equatable {
         post.origin.booruType.id,
       )];
 
+  /// Legacy rows without an upstream identity can still download their exact
+  /// displayed snapshot. Never use this fallback to authorize bookmark writes
+  /// or to associate a different Post merely because its numeric ID matches.
+  Bookmark? storedBookmarkForPost(Post post) =>
+      bookmarkForPost(post) ??
+      (BookmarkIdentity.tryFromPost(post) == null
+          ? items
+                .where((bookmark) => identical(bookmark.post, post))
+                .firstOrNull
+          : null);
+
   @override
   List<Object?> get props => [items, groups, activeTarget, folders];
 }
