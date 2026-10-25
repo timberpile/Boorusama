@@ -17,11 +17,15 @@ abstract interface class ViewerPreloadMetadataResolver {
 ImageMedia? thumbnailOnlyViewerPreloadMedia(
   Post post, {
   required String? displayUrl,
+  String? thumbnailUrl,
 }) {
   final original = post.originalImageUrl;
-  final thumbnail = post.thumbnailImageUrl == original
-      ? ''
-      : post.thumbnailImageUrl;
+  final thumbnail =
+      [
+        if (thumbnailUrl != null) thumbnailUrl,
+        post.thumbnailImageUrl,
+      ].where((url) => url.isNotEmpty && url != original).firstOrNull ??
+      '';
   if (displayUrl == null) {
     return thumbnail.isEmpty ? null : ImageMedia.fromUrl(thumbnail);
   }

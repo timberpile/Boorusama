@@ -178,6 +178,9 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
       config: config,
       imageUrl: imageUrl,
       lowerMedia: placeholderMedia,
+      intermediateImageUrls: imageUrl == post.originalImageUrl
+          ? [post.sampleImageUrl]
+          : const [],
       aspectRatio: aspectRatio,
       geometryAspectRatio: post.width > 0 && post.height > 0
           ? post.width / post.height

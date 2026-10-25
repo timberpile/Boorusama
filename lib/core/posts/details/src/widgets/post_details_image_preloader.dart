@@ -13,6 +13,8 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
+import '../../../../settings/providers.dart';
+import '../../../../settings/types.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../listing/providers.dart';
 import '../../../media_preload/providers.dart';
@@ -259,19 +261,16 @@ class _MixedPostDetailsImagePreloaderState
                 settings: ref.read(gridThumbnailSettingsProvider(auth)),
               )
               .url;
-          return (
-            group: auth,
-            media: post.originalImageUrl == imageUrl
-                ? ImageMedia.fromUrl(
-                    thumbnail,
-                    estimatedSizeBytes: post.fileSize,
-                  )
-                : ImageMedia(
-                    thumbnailUrl: thumbnail,
-                    originalUrl: imageUrl,
-                    estimatedSizeBytes: post.fileSize,
-                  ),
+          final media = thumbnailOnlyViewerPreloadMedia(
+            post,
+            thumbnailUrl: thumbnail,
+            displayUrl: imageUrl == post.originalImageUrl
+                ? ref.read(postQualityProvider(auth)) == PostQuality.original
+                      ? post.sampleImageUrl
+                      : null
+                : imageUrl,
           );
+          return media == null ? null : (group: auth, media: media);
         },
       );
     });
@@ -413,18 +412,17 @@ class _PostDetailsImagePreloaderState<T extends Post>
             post.videoThumbnailUrl,
             estimatedSizeBytes: post.fileSize,
           ),
-          final post
-              when post.originalImageUrl == widget.imageUrlBuilder(post) =>
-            ImageMedia.fromUrl(
-              gridThumbnailUrlBuilder.resolve(post, settings: settings).url,
-              estimatedSizeBytes: post.fileSize,
-            ),
-          final post => ImageMedia(
+          final post => thumbnailOnlyViewerPreloadMedia(
+            post,
             thumbnailUrl: gridThumbnailUrlBuilder
                 .resolve(post, settings: settings)
                 .url,
-            originalUrl: widget.imageUrlBuilder(post),
-            estimatedSizeBytes: post.fileSize,
+            displayUrl: widget.imageUrlBuilder(post) == post.originalImageUrl
+                ? ref.read(postQualityProvider(widget.authConfig)) ==
+                          PostQuality.original
+                      ? post.sampleImageUrl
+                      : null
+                : widget.imageUrlBuilder(post),
           ),
         },
       );

@@ -531,6 +531,62 @@ void main() {
       },
     );
   }
+  testWidgets('zoom is inert when Original is the default quality', (
+    tester,
+  ) async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    _mobileViewport(tester, size: const Size(800, 1200));
+    final adapter = ControlledImageAdapter();
+    final harness = _Harness(
+      loadOriginalOnZoom: true,
+      postQuality: PostQuality.original,
+      imageAdapter: adapter,
+      imageCache: TestImageCache({
+        'thumbnail-1': lowerPng,
+        'sample-1': targetPng,
+      }),
+    );
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.runAsync(
+      () => pumpUntil(
+        tester,
+        () => adapter.pending.keys.any((url) => url.endsWith('/original-1')),
+        reason: 'default Original request',
+      ),
+    );
+    final original = adapter.pending.keys.singleWhere(
+      (url) => url.endsWith('/original-1'),
+    );
+    adapter.complete(original, originalPng);
+    await tester.runAsync(() => waitForPixel(tester, [0, 255, 0, 255]));
+    final details = _detailsController(tester);
+    expect(details.originalImagePostKeys.value, isEmpty);
+    final first = await tester.startGesture(
+      const Offset(300, 550),
+      pointer: 21,
+    );
+    final second = await tester.startGesture(
+      const Offset(500, 550),
+      pointer: 22,
+    );
+    await tester.pump();
+    await first.moveTo(const Offset(180, 550));
+    await second.moveTo(const Offset(620, 550));
+    await tester.pump();
+    await first.up();
+    await second.up();
+    await tester.pumpAndSettle();
+    expect(_pageViewController(tester).zoom.value, isTrue);
+    expect(details.originalImagePostKeys.value, isEmpty);
+    expect(
+      adapter.requests.where((r) => r.uri.toString() == original),
+      hasLength(1),
+    );
+    expect(await paintedPixel(tester), [0, 255, 0, 255]);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final placeholder in ['blocked', 'empty URL']) {
     testWidgets('$placeholder media cannot edge-navigate while zoomed', (
       tester,
@@ -1904,6 +1960,7 @@ class _Harness {
     bool emptyFirstImage = false,
     bool invalidImage = false,
     bool loadOriginalOnZoom = false,
+    PostQuality postQuality = PostQuality.high,
     HttpClientAdapter? imageAdapter,
     ImageCacheManager? imageCache,
     this.initialThumbnailUrl,
@@ -1919,6 +1976,7 @@ class _Harness {
                ),
                viewer: Settings.defaultSettings.viewer.copyWith(
                  loadOriginalOnZoom: loadOriginalOnZoom,
+                 postQuality: postQuality,
                  swipeMode: vertical
                      ? PostDetailsSwipeMode.vertical
                      : PostDetailsSwipeMode.horizontal,
@@ -1948,6 +2006,7 @@ class _Harness {
              (ref, config) => _MediaResolver(
                Uri.tryParse(config.url)?.host ?? '',
                emptyFirstImage: emptyFirstImage,
+               postQuality: postQuality,
              ),
            ),
            booruRepoProvider.overrideWith((ref, config) => null),
@@ -2464,14 +2523,23 @@ class _PresentationProbe extends ConsumerWidget {
 }
 
 final class _MediaResolver implements MediaUrlResolver {
-  const _MediaResolver(this.host, {this.emptyFirstImage = false});
+  const _MediaResolver(
+    this.host, {
+    this.emptyFirstImage = false,
+    this.postQuality = PostQuality.high,
+  });
+  final PostQuality postQuality;
 
   final String host;
   final bool emptyFirstImage;
 
   @override
   String resolveMediaUrl(Post post, BooruConfigViewer config) =>
-      emptyFirstImage && post.id == 1 ? '' : '$host/media/${post.id}';
+      emptyFirstImage && post.id == 1
+      ? ''
+      : postQuality == PostQuality.original
+      ? post.originalImageUrl
+      : '$host/media/${post.id}';
 
   @override
   double? resolveMediaAspectRatio(Post post, BooruConfigViewer config) =>

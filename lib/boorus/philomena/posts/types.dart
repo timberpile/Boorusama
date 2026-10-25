@@ -219,6 +219,10 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
     Post post,
     BooruConfigViewer config,
   ) {
+    if (!post.isVideo &&
+        config.imageDetaisQuality == null &&
+        postQuality == PostQuality.original)
+      return originalViewerImageUrl(post);
     final representation = post.philomenaData?.representation;
     if (representation == null) return _commonMedia(post);
     final quality = config.imageDetaisQuality;
@@ -253,7 +257,12 @@ class PhilomenaMediaUrlResolver implements MediaUrlResolver {
   double? resolveMediaAspectRatio(
     Post post,
     BooruConfigViewer config,
-  ) => config.imageDetaisQuality != null && post.philomenaData != null
+  ) =>
+      !post.isVideo &&
+          config.imageDetaisQuality == null &&
+          postQuality == PostQuality.original
+      ? originalViewerImageAspectRatio(post)
+      : config.imageDetaisQuality != null && post.philomenaData != null
       ? post.aspectRatio
       : post.isGif
       ? post.effectiveSampleAspectRatio

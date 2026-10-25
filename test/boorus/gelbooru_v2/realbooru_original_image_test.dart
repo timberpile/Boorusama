@@ -5,9 +5,61 @@ import 'dart:io';
 import 'package:booru_clients/src/gelbooru_v2/parsers/rb_parsers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/parser.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/posts/details/types.dart';
+import 'package:boorusama/core/posts/media_preload/src/viewer_preload_metadata.dart';
+import 'package:boorusama/core/settings/types.dart';
 
 void main() {
   group('Realbooru media parsing', () {
+    for (final knownOriginal in [false, true]) {
+      test(
+        'Original viewer and capped preload reuse parsed source renditions (known=$knownOriginal)',
+        () {
+          final dto = parseRbPostHtml(
+            _response('''
+          <input name="id" value="42">
+          <img id="image" src="/samples/ab/cd/sample_0123456789abcdef0123456789abcdef.jpg">
+          ${knownOriginal ? '<a id="highres" href="/images/ab/cd/0123456789abcdef0123456789abcdef.png">Original</a>' : ''}
+        '''),
+            const {'baseUrl': 'https://realbooru.test/'},
+          )!;
+          final post = gelbooruV2PostDtoToGelbooruPostNoMetadata(
+            dto,
+            const GelbooruV2ImageUrlResolver(),
+          );
+          final config = BooruConfig.defaultConfig(
+            booruType: BooruType.gelbooruV2,
+            url: 'https://realbooru.test',
+            customDownloadFileNameFormat: null,
+          );
+          const original = DefaultMediaUrlResolver(
+            postQuality: PostQuality.original,
+          );
+          const high = DefaultMediaUrlResolver(postQuality: PostQuality.high);
+          final visible = original.resolveMediaUrl(post, config.viewer);
+          expect(
+            high.resolveMediaUrl(post, config.viewer),
+            post.sampleImageUrl,
+          );
+          expect(
+            visible,
+            knownOriginal ? post.originalImageUrl : post.sampleImageUrl,
+          );
+          expect(post.originalImageUrl.isNotEmpty, knownOriginal);
+          final preload = thumbnailOnlyViewerPreloadMedia(
+            post,
+            displayUrl: visible,
+          );
+          if (knownOriginal)
+            expect(preload?.allUrls, isNot(contains(post.originalImageUrl)));
+        },
+      );
+    }
+
     test('keeps a listing thumbnail instead of inventing a jpg original', () {
       final post = parseRbPostsHtml(
         _response(_fixture('realbooru_search_result.html')),

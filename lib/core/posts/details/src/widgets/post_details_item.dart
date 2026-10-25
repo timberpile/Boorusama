@@ -23,6 +23,7 @@ import '../../../listing/types.dart';
 import '../../../post/types.dart';
 import '../providers/note_overlay_provider.dart';
 import '../../../../settings/providers.dart';
+import '../../../../settings/types.dart';
 import 'play_pause_animation_overlay.dart';
 import 'post_details_controller.dart';
 import 'post_details_page_view_scope.dart';
@@ -139,7 +140,9 @@ class _PostDetailsItemState<T extends Post>
 
     final loadOriginalOnZoom = ref.watch(
       imageViewerSettingsProvider.select(
-        (settings) => settings.loadOriginalOnZoom,
+        (settings) =>
+            settings.loadOriginalOnZoom &&
+            settings.postQuality != PostQuality.original,
       ),
     );
     final snapZoomToFit = ref.watch(

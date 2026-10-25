@@ -19,27 +19,36 @@ class DanbooruMediaUrlResolver implements MediaUrlResolver {
   String resolveMediaUrl(
     Post rawPost,
     BooruConfigViewer config,
-  ) => castOrNull<Post>(rawPost).toOption().fold(
-    () => rawPost.sampleImageUrl,
-    (post) => post.isGif
-        ? post.sampleImageUrl
-        : config.imageDetaisQuality.toOption().fold(
-            () => switch (postQuality) {
-              PostQuality.high => post.sampleImageUrl,
-              PostQuality.medium => post.url720x720,
-            },
-            (quality) => switch (PostQualityType.parse(quality)) {
-              PostQualityType.v180x180 => post.url180x180,
-              PostQualityType.v360x360 => post.url360x360,
-              PostQualityType.v720x720 => post.url720x720,
-              PostQualityType.sample =>
-                post.isVideo ? post.url720x720 : post.sampleImageUrl,
-              PostQualityType.original =>
-                post.isVideo ? post.url720x720 : post.originalImageUrl,
-              null => post.url720x720,
-            },
-          ),
-  );
+  ) =>
+      !rawPost.isVideo &&
+          config.imageDetaisQuality == null &&
+          postQuality == PostQuality.original
+      ? originalViewerImageUrl(rawPost)
+      : castOrNull<Post>(rawPost).toOption().fold(
+          () => rawPost.sampleImageUrl,
+          (post) => post.isGif
+              ? post.sampleImageUrl
+              : config.imageDetaisQuality.toOption().fold(
+                  () => switch (postQuality) {
+                    PostQuality.high => post.sampleImageUrl,
+                    PostQuality.medium => post.url720x720,
+                    PostQuality.original =>
+                      post.isVideo
+                          ? post.url720x720
+                          : originalViewerImageUrl(post),
+                  },
+                  (quality) => switch (PostQualityType.parse(quality)) {
+                    PostQualityType.v180x180 => post.url180x180,
+                    PostQualityType.v360x360 => post.url360x360,
+                    PostQualityType.v720x720 => post.url720x720,
+                    PostQualityType.sample =>
+                      post.isVideo ? post.url720x720 : post.sampleImageUrl,
+                    PostQualityType.original =>
+                      post.isVideo ? post.url720x720 : post.originalImageUrl,
+                    null => post.url720x720,
+                  },
+                ),
+        );
 
   @override
   String resolveVideoUrl(

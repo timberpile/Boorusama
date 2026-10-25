@@ -4,6 +4,36 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/fakes/test_post.dart';
 
 void main() {
+  test('an Original grid fallback cannot enter a speculative request', () {
+    final post = TestPost(
+      id: 1,
+      thumbnailImageUrl: 'thumb',
+      sampleImageUrl: 'sample',
+      originalImageUrl: 'original',
+    );
+    expect(
+      thumbnailOnlyViewerPreloadMedia(
+        post,
+        displayUrl: 'sample',
+        thumbnailUrl: 'original',
+      )!.allUrls,
+      {'thumb', 'sample'},
+    );
+    final onlyOriginal = TestPost(
+      id: 1,
+      thumbnailImageUrl: 'original',
+      sampleImageUrl: 'original',
+      originalImageUrl: 'original',
+    );
+    expect(
+      thumbnailOnlyViewerPreloadMedia(
+        onlyOriginal,
+        displayUrl: 'original',
+        thumbnailUrl: 'original',
+      ),
+      isNull,
+    );
+  });
   test('an Original viewer choice preloads only a distinct intermediate', () {
     final post = TestPost(
       id: 1,

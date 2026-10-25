@@ -57,6 +57,19 @@ void main() {
     },
   );
 
+  for (final zoom in [false, true]) {
+    testWidgets('Original quality omits manual loading (zoom=$zoom)', (
+      tester,
+    ) async {
+      final buttons = await _buildButtons(
+        tester,
+        loadOriginalOnZoom: zoom,
+        postQuality: PostQuality.original,
+      );
+      expect(buttons.map((b) => b.title), isNot(contains('Load original')));
+    });
+  }
+
   testWidgets(
     'omits temporary viewer transformations after behavior verification',
     (tester) async {
@@ -97,6 +110,7 @@ Future<List<ButtonData>> _buildButtons(
   WidgetTester tester, {
   required bool loadOriginalOnZoom,
   bool includeViewerTransformations = false,
+  PostQuality postQuality = PostQuality.high,
 }) async {
   final post = Post(
     origin: PostOrigin.forBooruType(BooruType.unknown),
@@ -127,6 +141,7 @@ Future<List<ButtonData>> _buildButtons(
   List<ButtonData>? buttons;
   final viewerSettings = Settings.defaultSettings.viewer.copyWith(
     loadOriginalOnZoom: loadOriginalOnZoom,
+    postQuality: postQuality,
   );
   final transformationController = includeViewerTransformations
       ? TransformationController()

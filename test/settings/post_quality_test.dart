@@ -1,9 +1,11 @@
 import 'dart:async';
+
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings_repository.dart';
 import 'package:boorusama/core/analytics/providers.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -16,6 +18,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 
 void main() {
+  test('Original uses a new scalar without changing legacy saved meanings', () {
+    for (final value in [
+      0,
+      1,
+      2,
+      '0',
+      '1',
+      '2',
+      'automatic',
+      'low',
+      'high',
+      'medium',
+    ]) {
+      expect(PostQuality.parse(value), PostQuality.medium);
+    }
+    for (final value in [null, 3, 4, '3', '4', 'original', 'highest']) {
+      expect(PostQuality.parse(value), PostQuality.high);
+    }
+    for (final value in [5, '5']) {
+      expect(PostQuality.parse(value), PostQuality.original);
+    }
+    expect(PostQuality.original.toData(), 5);
+  });
   test(
     'queued quality edits preserve a pending refresh choice in persisted Hive state',
     () async {
