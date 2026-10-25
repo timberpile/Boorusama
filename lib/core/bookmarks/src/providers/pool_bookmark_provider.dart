@@ -30,20 +30,16 @@ final poolBookmarkCapabilityProvider =
 /// No credentials are hashed or persisted. A changed visibility policy hides
 /// the old cover until an explicit bounded refresh selects a safe new one.
 String poolCoverPolicy(BooruConfig config, Set<String> blacklist) {
-  final json = config.toJson();
   return sha256
       .convert(
         utf8.encode(
           jsonEncode({
-            for (final key in [
-              'ratingFilter',
-              'granularRatingFilters',
-              'alwaysIncludeTags',
-              'deletedItemBehavior',
-              'bannedPostVisibility',
-              'blacklistConfigs',
-            ])
-              key: json[key],
+            'ratingFilter': config.ratingFilter.index,
+            'granularRatingFilters': config.granularRatingFilters
+                ?.toFilterString(sort: true),
+            'alwaysIncludeTags': config.alwaysIncludeTags?.toJsonString(),
+            'deletedItemBehavior': config.deletedItemBehavior.index,
+            'bannedPostVisibility': config.bannedPostVisibility.index,
             'blacklist': blacklist.toList()..sort(),
           }),
         ),

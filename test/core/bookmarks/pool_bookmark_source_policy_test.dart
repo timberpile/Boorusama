@@ -67,6 +67,18 @@ void main() {
     );
   });
 
+  test('custom rating changes invalidate covers even when the filter mode stays custom', () {
+    BooruConfig custom(String allowed) => BooruConfig.fromJson({
+      ...config(poolProfile).toJson(),
+      'ratingFilter': BooruConfigRatingFilter.custom.index,
+      'granularRatingFilterString': allowed,
+    });
+    final safe = custom('g');
+    final explicit = custom('e');
+    expect(safe.granularRatingFilters, isNot(explicit.granularRatingFilters));
+    expect(poolCoverPolicy(safe, {}), isNot(poolCoverPolicy(explicit, {})));
+  });
+
   test('Pool-only selected groups contribute dependencies and remap only profile hints', () {
     final pool = testPool();
     final data = BookmarkBackupData(
