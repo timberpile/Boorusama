@@ -1,6 +1,6 @@
 # Issue #68 local implementation and acceptance
 
-Branch: `feature/group-neighboring-series`. Runtime candidate: `54b633a9a`.
+Branch: `feature/group-neighboring-series`. Runtime candidate after independent review: `c3685c16c`.
 Based on develop `a7cdaaff3a285b3ae6e87c9755a28301af02c0e6`.
 Implementation and local verification are complete. No branch push, develop
 integration or issue closure is authorized yet.
@@ -18,8 +18,8 @@ downloads or favorites its remote members.
 A summary uses at most three metadata requests, examines at most 40 members,
 and uses at most two single-result upload-extrema queries. Unknown, partial and
 complete coverage remain distinct. Positive and negative local filtering uses
-stored tag union even when partial; filtering starts no requests. Refresh replaces
-stale tags. Unknown oldest upload can fall back to known newest upload; collection
+stored tag union even when partial; filtering starts no requests. Successful refresh replaces
+stale tags; failed member/date requests preserve the last safe saved summary. Unknown oldest upload can fall back to known newest upload; collection
 creation/update dates never substitute for member uploads.
 
 Only confirmed Series can project adjacent saved Posts into a gallery card.
@@ -62,7 +62,7 @@ future engine identifiers survive round trips.
   `4d542e161d8e636b9574e16e2b5e77a790b896b1eb2b99dc6ceb83a1c0d8a44e`.
   Existing toolchain deprecation/support warnings remain.
 
-## Android acceptance
+## Android acceptance before the review correction
 
 Real Maestro actions on API 37 emulator `emulator-5554`, without clearing data:
 
@@ -87,3 +87,32 @@ Real Maestro actions on API 37 emulator `emulator-5554`, without clearing data:
 Obtain explicit approval for develop integration/publication. If develop changes,
 reconcile and run the complete suite on the combined runtime candidate. Issue #77
 is a separate unapproved branch and is not included in this acceptance.
+
+## Independent review correction
+
+The requested independent GPT-6.1 Sol XHigh review found that failed bounded
+member requests became an empty summary and could erase saved tags, cover and
+upload extrema during an explicit refresh. Commit `c3685c16c` records request
+failure separately and stops an existing reference's refresh before persistence.
+A successful empty result can still replace the old summary; an initial offline
+reference remains explicitly unknown. The saved cover-policy check continues to
+hide old covers after visibility/blacklist changes. The reviewer rechecked this
+repair and found no remaining defect.
+
+Final correction verification on `c3685c16c`, still based on `a7cdaaff3`:
+
+- `./scripts/run_regression_tests.sh`: exit 0; 5,033 application tests, 1,535
+  tests across all 13 package/CLI suites, both shell suites and 72 Python tests.
+  Two existing go_router skips retained. Log: `/tmp/boorusama-68-review-full.log`.
+- `fvm flutter test --no-pub --concurrency=6 test/core/bookmarks`: 579 passed.
+  Actual provider tests cover failed member requests, failed date requests,
+  successful empty refresh, and initial offline creation. The reviewer separately
+  ran 10 refresh/source-policy tests successfully.
+- Analysis of the two changed runtime files and new regression file: exit 0,
+  two existing informational diagnostics, no warnings/errors. Format and
+  `git diff --check` passed.
+
+The earlier Android evidence above predates this correction. No new device run
+is claimed for this bounded metadata failure-path change. Publication still
+requires the explicit issue-specific approval recorded above and qualification
+against the then-current develop candidate.
