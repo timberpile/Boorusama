@@ -1959,6 +1959,7 @@
     "loading": "Loading bookmarks...",
     "load_failed": "Error loading bookmarks",
     "groups": {
+      "recent": "Recent",
       "all": "All",
       "ungrouped": "No Group",
       "default_group": "Default",
@@ -1971,12 +1972,11 @@
         "other": "$n groups contain this bookmark"
       },
       "create": "Create group",
-      "create_new": "Create new group",
+      "create_new": "Group",
       "duplicate": "Duplicate",
       "rename": "Rename",
       "delete": "Delete",
       "name": "Group name",
-      "active": "Active",
       "merge": "Merge",
       "replace": "Replace",
       "import_conflict_title": "Bookmark group already exists",
@@ -2020,6 +2020,8 @@
     "server_favorites": {
       "title": "Favorites Sync",
       "description": "Save server favorites to local bookmark groups.",
+      "ignore_bookmark_status": "Ignore synced groups for bookmark status",
+      "ignore_bookmark_status_description": "Only other bookmark groups highlight the bookmark button.",
       "default_group": "Default bookmark group",
       "bookmark_group": "Bookmark group",
       "inherited_group": "Use default · {group}",

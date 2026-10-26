@@ -226,25 +226,16 @@ int _compareUploadDate(Bookmark a, Bookmark b, {required bool newestFirst}) {
 class BookmarkMembershipPresentation extends Equatable {
   const BookmarkMembershipPresentation({
     required this.isBookmarked,
-    required this.isInActiveTarget,
     required this.namedGroupCount,
-    required this.activeTargetUnavailable,
-    required this.showNamedGroupCount,
   });
 
   final bool isBookmarked;
-  final bool isInActiveTarget;
   final int namedGroupCount;
-  final bool activeTargetUnavailable;
-  final bool showNamedGroupCount;
 
   @override
   List<Object?> get props => [
     isBookmarked,
-    isInActiveTarget,
     namedGroupCount,
-    activeTargetUnavailable,
-    showNamedGroupCount,
   ];
 }
 
@@ -257,15 +248,9 @@ BookmarkMembershipPresentation selectBookmarkMembershipPresentation(
   final isBookmarked =
       bookmarked ?? state.bookmarksByUniqueId.containsKey(bookmarkId);
   final memberships = groupMemberships ?? state.membershipsFor(bookmarkId);
-  final activeGroupId = state.activeTarget.groupId;
   return BookmarkMembershipPresentation(
     isBookmarked: isBookmarked,
-    isInActiveTarget: memberships.contains(activeGroupId),
     namedGroupCount: memberships.length,
-    activeTargetUnavailable: false,
-    showNamedGroupCount:
-        memberships.isNotEmpty &&
-        (!memberships.contains(activeGroupId) || memberships.length > 1),
   );
 }
 

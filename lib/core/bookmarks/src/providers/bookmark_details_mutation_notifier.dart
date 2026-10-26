@@ -41,8 +41,9 @@ class BookmarkDetailsMutationState {
 
   BookmarkMembershipPresentation presentationFor(
     BookmarkLibraryState library,
-    BookmarkUniqueId bookmarkId,
-  ) {
+    BookmarkUniqueId bookmarkId, {
+    Set<String> ignoredGroupIds = const {},
+  }) {
     var bookmarked = library.bookmarksByUniqueId.containsKey(bookmarkId);
     final memberships = {...library.membershipsFor(bookmarkId)};
     for (final entry in pending.entries) {
@@ -59,6 +60,10 @@ class BookmarkDetailsMutationState {
           bookmarked = memberships.isNotEmpty;
         }
       }
+    }
+    if (memberships.any(ignoredGroupIds.contains)) {
+      memberships.removeAll(ignoredGroupIds);
+      bookmarked = memberships.isNotEmpty;
     }
     return selectBookmarkMembershipPresentation(
       library,
@@ -111,12 +116,12 @@ class BookmarkDetailsMutationNotifier
     required BooruConfigAuth config,
     required Post post,
     required BookmarkLibraryState library,
+    BookmarkTarget target = const BookmarkTarget.defaultGroup(),
   }) {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     if (uniqueId is UnbookmarkablePostIdentity) {
       return BookmarkToggleOutcome.missingPostIdentity;
     }
-    final target = library.activeTarget;
     final key = (bookmarkId: uniqueId, target: target);
     if (_pending.remove(key) case final pending?) {
       _publishPending();

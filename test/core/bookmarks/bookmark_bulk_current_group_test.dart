@@ -72,8 +72,9 @@ void main() {
       ),
     );
     final action = tester.widget<KurumiPopupMenuItem>(find.byKey(actionKey));
-    action.onTap.call();
-    action.onTap.call();
+    expect(action.onTap, isNotNull);
+    action.onTap!.call();
+    action.onTap!.call();
     expect(notifier.calls, 1);
     notifier.release.complete();
     await tester.pumpAndSettle();
@@ -115,7 +116,9 @@ void main() {
       expect(find.text('Remove from'), findsOneWidget);
       expect(find.text('Remove'), findsOneWidget);
       expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
-      tester.widget<KurumiPopupMenuItem>(find.byKey(actionKey)).onTap.call();
+      final action = tester.widget<KurumiPopupMenuItem>(find.byKey(actionKey));
+      expect(action.onTap, isNotNull);
+      action.onTap!.call();
       await tester.pump();
       posts.clear();
       expect(notifier.calls, 1);

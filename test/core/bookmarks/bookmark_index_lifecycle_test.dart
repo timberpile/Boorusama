@@ -3,7 +3,6 @@ import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/suggestion_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -28,7 +27,6 @@ void main() {
           ),
         ],
         groups: const [],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
     final profiles = _Profiles();
@@ -56,7 +54,6 @@ void main() {
       notifier.library.applyCommittedChanges(
         groups: notifier.library.groups,
         folders: notifier.library.folders,
-        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
     await container.pump();
@@ -78,7 +75,6 @@ void main() {
           ),
         ],
         groups: const [],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
     await container.pump();
@@ -93,7 +89,6 @@ void main() {
       BookmarkLibraryState(
         bookmarks: rows,
         groups: const [],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
     final container = ProviderContainer(
@@ -129,7 +124,6 @@ void main() {
           ...rows.skip(1),
         ],
         groups: notifier.library.groups,
-        activeTarget: notifier.library.activeTarget,
       ),
     );
     final subscription = container.listen(provider, (_, _) {});
@@ -148,7 +142,6 @@ void main() {
             BookmarkLibraryState(
               bookmarks: const [],
               groups: const [],
-              activeTarget: const BookmarkTarget.defaultGroup(),
             ),
           ),
         ),

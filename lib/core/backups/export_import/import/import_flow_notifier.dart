@@ -1465,7 +1465,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     if (id != 'bookmarks') return;
     bookmarkRefreshFailed = false;
     try {
-      await ref.read(bookmarkProvider.notifier).syncActiveTargetFromSettings();
+      await ref.read(bookmarkProvider.notifier).refresh();
     } catch (_) {
       bookmarkRefreshFailed = true;
     }

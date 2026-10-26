@@ -105,7 +105,10 @@ class FavoriteHarness {
   late Box<BookmarkGroupHiveObject> groupBox;
   late BooruConfig profile;
 
-  Future<void> open({bool sharedAuth = false}) async {
+  Future<void> open({
+    bool sharedAuth = false,
+    List<Override> Function(BooruConfig)? extraOverrides,
+  }) async {
     profile = BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),
       'id': '00000000-0000-4000-8000-000000000001',
@@ -141,6 +144,7 @@ class FavoriteHarness {
     );
     container = ProviderContainer(
       overrides: [
+        ...?extraOverrides?.call(profile),
         miscDataStoreProvider.overrideWithValue(store),
         booruConfigRepoProvider.overrideWithValue(profiles),
         booruConfigProvider.overrideWith(

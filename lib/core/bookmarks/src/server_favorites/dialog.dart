@@ -145,6 +145,18 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
                 value: _groupLabel(_draft.globalGroupId),
                 onTap: enabled && library.hasValue ? () => _choose() : null,
               ),
+              SwitchListTile(
+                key: const ValueKey('server-favorites-ignore-bookmark-status'),
+                contentPadding: EdgeInsets.zero,
+                title: Text(t.ignore_bookmark_status),
+                subtitle: Text(t.ignore_bookmark_status_description),
+                value: _draft.ignoreBookmarkStatus,
+                onChanged: enabled
+                    ? (value) => setState(() {
+                        _draft = _draft.withIgnoreBookmarkStatus(value);
+                      })
+                    : null,
+              ),
               _fetchAction(
                 key: const ValueKey('server-favorites-fetch-all'),
                 label: t.save_fetch_all,

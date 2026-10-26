@@ -393,9 +393,7 @@ void main() {
             postId: () => 42,
           ),
         ]);
-        await harness.container
-            .read(bookmarkProvider.notifier)
-            .syncActiveTargetFromSettings();
+        await harness.container.read(bookmarkProvider.notifier).refresh();
         final notifier = harness.container.read(importFlowProvider.notifier);
         await notifier.load(packagePaths['']!);
         final topics = harness.container

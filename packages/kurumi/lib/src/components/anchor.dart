@@ -135,7 +135,11 @@ class _KurumiAnchorState extends State<KurumiAnchor>
               widget.controller.hide();
             }
           },
-          child: Builder(builder: _buildOverlay),
+          child: NotificationListener<ScrollNotification>(
+            // A popup owns its scrolling; the page behind it must not react.
+            onNotification: (_) => true,
+            child: Builder(builder: _buildOverlay),
+          ),
         ),
         child: widget.child,
       ),

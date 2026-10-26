@@ -109,6 +109,65 @@ void main() {
     return container;
   }
 
+  test('only successful manual changes reorder recent groups', () async {
+    final container = createContainer();
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+    final first = await notifier.createGroup('First');
+    final second = await notifier.createGroup('Second');
+    final config = BooruConfig.empty.auth;
+    final post = _validBookmark.toPost();
+    await notifier.setPostTargetMembership(
+      config,
+      post,
+      target: BookmarkTarget.group(first.id),
+      bookmarked: true,
+    );
+    expect(await groupRepository.readRecentGroupIds(), [first.id]);
+    await notifier.addPostsToGroup(config, [post], second.id);
+    expect(await groupRepository.readRecentGroupIds(), [
+      first.id,
+    ], reason: 'Automatic and import batches must not reorder Recent.');
+    await notifier.setPostTargetMembership(
+      config,
+      post,
+      target: BookmarkTarget.group(second.id),
+      bookmarked: false,
+    );
+    expect(await groupRepository.readRecentGroupIds(), [second.id, first.id]);
+    await notifier.setPostTargetMembership(
+      config,
+      post,
+      target: BookmarkTarget.group(first.id),
+      bookmarked: true,
+    );
+    expect(await groupRepository.readRecentGroupIds(), [
+      second.id,
+      first.id,
+    ], reason: 'No-op membership writes do not count.');
+    final missing = BookmarkTarget.group(
+      '550e8400-e29b-41d4-a716-446655440099',
+    );
+    expect(
+      await notifier.setPostTargetMembership(
+        config,
+        post,
+        target: missing,
+        bookmarked: true,
+      ),
+      BookmarkToggleOutcome.failed,
+    );
+    expect(await groupRepository.readRecentGroupIds(), [second.id, first.id]);
+    await notifier.addPostsToGroup(config, [post], second.id, manual: true);
+    await notifier.setPostTargetMembership(
+      config,
+      post,
+      target: BookmarkTarget.group(first.id),
+      bookmarked: false,
+    );
+    expect(await groupRepository.readRecentGroupIds(), [first.id, second.id]);
+  });
+
   for (final withHint in [true, false]) {
     test(
       'mixed bulk bookmarks keep distinct identities and links (profile hint: $withHint)',
@@ -510,7 +569,7 @@ void main() {
   );
 
   test(
-    'nested group creation and recursive deletion clear the active target',
+    'nested group creation and recursive deletion preserve folder structure',
     () async {
       final container = createContainer();
       final notifier = container.read(bookmarkProvider.notifier);
@@ -520,7 +579,6 @@ void main() {
       final group = await notifier.createGroup(
         'Cookie//literal',
         folderId: child.id,
-        activate: true,
       );
       final before = await notifier.future;
       expect(before.folders, hasLength(2));
@@ -528,7 +586,6 @@ void main() {
         before.groups.where((g) => !g.isDefault).single.folderId,
         child.id,
       );
-      expect(before.activeTarget.groupId, group.id);
       final duplicate = await notifier.duplicateGroup(group.id, 'Copy');
       expect(duplicate.folderId, child.id);
       expect(() => before.folders.clear(), throwsUnsupportedError);
@@ -537,17 +594,15 @@ void main() {
       final after = await notifier.future;
       expect(after.folders, isEmpty);
       expect(after.groups.where((g) => !g.isDefault), isEmpty);
-      expect(after.activeTarget.groupId, defaultBookmarkGroupId);
-      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
     },
   );
   test(
-    'deleting a selected active group clears the active target once',
+    'deleting selected groups removes both groups',
     () async {
       final container = createContainer();
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
-      final a = await notifier.createGroup('Selected A', activate: true);
+      final a = await notifier.createGroup('Selected A');
       final b = await notifier.createGroup('Selected B');
       final preview = await notifier.previewDeleteSelection(
         folderIds: {},
@@ -556,8 +611,6 @@ void main() {
       await notifier.deleteSelection(preview);
       final after = await notifier.future;
       expect(after.groups.where((g) => !g.isDefault), isEmpty);
-      expect(after.activeTarget.groupId, defaultBookmarkGroupId);
-      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
     },
   );
 
@@ -687,30 +740,6 @@ void main() {
     expect((await groupRepository.getGroup(groupId))?.bookmarkIds, isEmpty);
   });
 
-  test(
-    'active target publishes the newly persisted group deterministically',
-    () async {
-      await groupRepository.createGroup('Target', id: groupId);
-      final container = createContainer();
-      final notifier = container.read(bookmarkProvider.notifier);
-      await notifier.future;
-
-      final saved = await notifier.setActiveTarget(
-        BookmarkTarget.group(groupId),
-      );
-
-      expect(saved, isTrue);
-      expect(
-        container.read(bookmarkProvider).value?.activeTarget.groupId,
-        groupId,
-      );
-      expect(
-        container.read(settingsProvider).activeBookmarkGroupId,
-        groupId,
-      );
-    },
-  );
-
   test('an export snapshot waits for preceding bookmark mutations', () async {
     final container = createContainer();
     final notifier = container.read(bookmarkProvider.notifier);
@@ -737,62 +766,65 @@ void main() {
     expect((await snapshot).items.single.originalUrl, bookmark.originalUrl);
   });
 
-  test(
-    'settings synchronization publishes the persisted active group',
-    () async {
-      await groupRepository.createGroup('Imported target', id: groupId);
-      final container = createContainer();
-      final notifier = container.read(bookmarkProvider.notifier);
-      await notifier.future;
-      await container
-          .read(settingsNotifierProvider.notifier)
-          .updateWith(
-            (settings) => settings.copyWith(activeBookmarkGroupId: groupId),
-          );
-
-      await notifier.syncActiveTargetFromSettings();
-
-      expect((await notifier.future).activeTarget.groupId, groupId);
-    },
-  );
-
-  test('a missing group cannot become the active target', () async {
+  test('refresh publishes externally imported groups', () async {
     final container = createContainer();
     final notifier = container.read(bookmarkProvider.notifier);
     await notifier.future;
-
-    final saved = await notifier.setActiveTarget(
-      BookmarkTarget.group('550e8400-e29b-41d4-a716-446655440999'),
-    );
-
-    expect(saved, isFalse);
-    expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
-    expect(
-      container.read(bookmarkProvider).requireValue.activeTarget.groupId,
-      defaultBookmarkGroupId,
-    );
+    await groupRepository.createGroup('Imported', id: groupId);
+    await notifier.refresh();
+    expect((await notifier.future).groupsById, contains(groupId));
   });
 
-  test(
-    'a group is removed when its requested activation cannot be saved',
-    () async {
-      final container = createContainer(
-        settingsNotifier: _FailingSettingsNotifier(Settings.defaultSettings),
-      );
-      final notifier = container.read(bookmarkProvider.notifier);
-      await notifier.future;
+  test('group creation does not write settings', () async {
+    final container = createContainer(
+      settingsNotifier: _FailingSettingsNotifier(Settings.defaultSettings),
+    );
+    final notifier = container.read(bookmarkProvider.notifier);
+    await notifier.future;
+    final group = await notifier.createGroup('Created');
+    expect((await notifier.future).groupsById, contains(group.id));
+  });
 
-      await expectLater(
-        notifier.createGroup('Unsaved', activate: true),
-        throwsStateError,
-      );
-
-      expect(
-        (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
-        isEmpty,
-      );
-    },
-  );
+  for (final failBookmarkWrite in [false, true]) {
+    test(
+      'picker creation does not write settings (failure: $failBookmarkWrite)',
+      () async {
+        await groupRepository.createGroup('Original', id: groupId);
+        final container = createContainer(
+          settingsNotifier: _FailingSettingsNotifier(
+            Settings.defaultSettings,
+          ),
+          bookmarkRepositoryOverride: failBookmarkWrite
+              ? _FailingAddBookmarkRepository(bookmarkBox)
+              : null,
+        );
+        final notifier = container.read(bookmarkProvider.notifier);
+        await notifier.future;
+        final post = _validBookmark.toPost();
+        final creating = notifier.createGroupWithPosts(
+          'Picker',
+          BooruConfigAuth.fromConfig(BooruConfig.empty),
+          [post],
+        );
+        if (failBookmarkWrite) {
+          await expectLater(creating, throwsStateError);
+          expect(
+            (await groupRepository.getGroups()).where(
+              (g) => g.name == 'Picker',
+            ),
+            isEmpty,
+          );
+        } else {
+          final result = await creating;
+          expect(result.addedCount, 1);
+          expect(
+            (await groupRepository.getGroup(result.group.id))!.bookmarkIds,
+            hasLength(1),
+          );
+        }
+      },
+    );
+  }
 
   test(
     'creating a group rolls back when a new bookmark cannot be stored',
@@ -819,10 +851,6 @@ void main() {
       expect(
         (await groupRepository.getGroups()).where((g) => !g.isDefault).toList(),
         isEmpty,
-      );
-      expect(
-        container.read(settingsProvider).activeBookmarkGroupId,
-        defaultBookmarkGroupId,
       );
     },
   );
@@ -897,10 +925,6 @@ void main() {
         (await groupRepository.getGroup(result.group.id))?.bookmarkIds,
         {bookmarks.single.id},
       );
-      expect(
-        container.read(settingsProvider).activeBookmarkGroupId,
-        result.group.id,
-      );
       expect(container.read(bookmarkProvider).hasValue, isTrue);
       expect(
         (await notifier.snapshotForExport()).groupsById,
@@ -910,10 +934,10 @@ void main() {
   );
 
   test(
-    'creating a group reports a failed active target rollback',
+    'failed group assignment rolls back without settings writes',
     () async {
       final container = createContainer(
-        settingsNotifier: _FailsSecondSettingsUpdateNotifier(
+        settingsNotifier: _FailingSettingsNotifier(
           Settings.defaultSettings,
         ),
         groupRepositoryOverride: _FailingMembershipGroupRepository(groupBox),
@@ -931,13 +955,7 @@ void main() {
 
       await expectLater(
         notifier.createGroupWithPosts('Atomic', config, [post]),
-        throwsA(
-          isA<BookmarkGroupCreationRollbackException>().having(
-            (error) => error.rollbackErrors,
-            'rollback errors',
-            hasLength(1),
-          ),
-        ),
+        throwsStateError,
       );
 
       expect(
@@ -1020,12 +1038,10 @@ void main() {
     final stored = (await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     )).single;
-    final active = await groupRepository.createGroup('Active');
+    final destination = await groupRepository.createGroup('Destination');
     final other = await groupRepository.createGroup('Other');
     await groupRepository.addBookmarks(other.id, {stored.id});
-    final settings = Settings.defaultSettings.copyWith(
-      activeBookmarkGroupId: active.id,
-    );
+    final settings = Settings.defaultSettings;
     final container = createContainer(
       settingsNotifier: _TestSettingsNotifier(settings),
     );
@@ -1036,15 +1052,26 @@ void main() {
     );
 
     final outcomes = await Future.wait([
-      notifier.togglePostTarget(config, stored.toPost()),
-      notifier.togglePostTarget(config, stored.toPost()),
+      notifier.togglePostTarget(
+        config,
+        stored.toPost(),
+        target: BookmarkTarget.group(destination.id),
+      ),
+      notifier.togglePostTarget(
+        config,
+        stored.toPost(),
+        target: BookmarkTarget.group(destination.id),
+      ),
     ]);
 
     expect(outcomes, [
       BookmarkToggleOutcome.added,
       BookmarkToggleOutcome.removed,
     ]);
-    expect((await groupRepository.getGroup(active.id))?.bookmarkIds, isEmpty);
+    expect(
+      (await groupRepository.getGroup(destination.id))?.bookmarkIds,
+      isEmpty,
+    );
     expect((await groupRepository.getGroup(other.id))?.bookmarkIds, {
       stored.id,
     });
@@ -1102,7 +1129,6 @@ void main() {
         ),
         stored.toPost(),
         target: const BookmarkTarget.defaultGroup(),
-        activateTarget: true,
       );
 
       expect(outcome, BookmarkToggleOutcome.removed);
@@ -1233,10 +1259,6 @@ void main() {
         ),
         isEmpty,
       );
-      expect(
-        container.read(settingsProvider).activeBookmarkGroupId,
-        defaultBookmarkGroupId,
-      );
     },
   );
 
@@ -1317,32 +1339,27 @@ void main() {
   );
 
   test(
-    'an active group is not deleted when clearing its target fails',
+    'group deletion does not write settings',
     () async {
       final group = await groupRepository.createGroup('Protected');
-      final settings = Settings.defaultSettings.copyWith(
-        activeBookmarkGroupId: group.id,
-      );
+      final settings = Settings.defaultSettings;
       final container = createContainer(
         settingsNotifier: _FailingSettingsNotifier(settings),
       );
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
 
-      await expectLater(notifier.deleteGroup(group.id), throwsStateError);
+      await notifier.deleteGroup(group.id);
 
-      expect(await groupRepository.getGroup(group.id), group);
-      expect(container.read(settingsProvider).activeBookmarkGroupId, group.id);
+      expect(await groupRepository.getGroup(group.id), isNull);
     },
   );
 
   test(
-    'a committed deletion succeeds and keeps its cleared target when publishing fails',
+    'a committed deletion succeeds when publishing fails',
     () async {
       final group = await groupRepository.createGroup('Committed');
-      final settings = Settings.defaultSettings.copyWith(
-        activeBookmarkGroupId: group.id,
-      );
+      final settings = Settings.defaultSettings;
       final publication = _FailingPublicationGroupRepository(groupBox);
       final container = createContainer(
         settingsNotifier: _TestSettingsNotifier(settings),
@@ -1357,7 +1374,6 @@ void main() {
       expect(publication.failedReads, 2);
       expect(preview.group.id, group.id);
       expect(await groupRepository.getGroup(group.id), isNull);
-      expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
       expect(container.read(bookmarkProvider).hasValue, isTrue);
       expect(
         (await notifier.snapshotForExport()).groupsById,
@@ -1368,9 +1384,7 @@ void main() {
 
   test('a committed group delete error is reconciled as success', () async {
     final group = await groupRepository.createGroup('Committed delete');
-    final settings = Settings.defaultSettings.copyWith(
-      activeBookmarkGroupId: group.id,
-    );
+    final settings = Settings.defaultSettings;
     final container = createContainer(
       settingsNotifier: _TestSettingsNotifier(settings),
       groupRepositoryOverride: _CommitsThenThrowsDeleteGroupRepository(
@@ -1384,7 +1398,6 @@ void main() {
 
     expect(preview.group.id, group.id);
     expect(await groupRepository.getGroup(group.id), isNull);
-    expect(container.read(settingsProvider).activeBookmarkGroupId, isNull);
   });
 
   test(
@@ -1713,20 +1726,6 @@ class _FailingSettingsNotifier extends SettingsNotifier {
 
   @override
   Future<bool> updateWith(Settings Function(Settings) selector) async => false;
-}
-
-class _FailsSecondSettingsUpdateNotifier extends SettingsNotifier {
-  _FailsSecondSettingsUpdateNotifier(super.initialSettings);
-
-  var _updateCount = 0;
-
-  @override
-  Future<bool> updateWith(Settings Function(Settings) selector) async {
-    _updateCount++;
-    if (_updateCount == 2) return false;
-    state = selector(state);
-    return true;
-  }
 }
 
 class _FailingAddBookmarkRepository extends BookmarkHiveRepository {

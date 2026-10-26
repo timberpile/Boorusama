@@ -516,7 +516,6 @@ class _EmptyBookmarks extends BookmarkLibraryNotifier {
   BookmarkLibraryState build() => BookmarkLibraryState(
     bookmarks: const [],
     groups: const [],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 

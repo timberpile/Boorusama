@@ -8,7 +8,6 @@ import 'package:boorusama/core/bookmarks/src/providers/suggestion_provider.dart'
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,7 +57,6 @@ void main() {
               bookmarkIds: {1},
             ),
           ],
-          activeTarget: const BookmarkTarget.defaultGroup(),
         ),
       );
       await container.pump();
@@ -109,7 +107,6 @@ void main() {
           ),
           BookmarkGroup(id: groupId, name: 'Target', bookmarkIds: {1}),
         ],
-        activeTarget: BookmarkTarget.group(groupId),
       );
       final notifier = _Library(initial);
       final container = ProviderContainer(
@@ -141,7 +138,6 @@ void main() {
             initial.groups.last.copyWith(bookmarkIds: {2}),
           ],
           folders: initial.folders,
-          activeTarget: initial.activeTarget,
         ),
       );
       await container.pump();
@@ -193,7 +189,6 @@ void main() {
           ),
           BookmarkGroup(id: groupId, name: 'Target', bookmarkIds: const {1, 2}),
         ],
-        activeTarget: BookmarkTarget.group(groupId),
       );
       final notifier = _Library(initial);
       final container = ProviderContainer(
@@ -226,7 +221,6 @@ void main() {
           initial.groups.last.copyWith(bookmarkIds: {2}),
         ],
         folders: initial.folders,
-        activeTarget: initial.activeTarget,
       );
       notifier.publish(removed);
       await container.pump();
@@ -252,7 +246,6 @@ void main() {
         ],
         groups: removed.groups,
         folders: removed.folders,
-        activeTarget: removed.activeTarget,
       );
       notifier.publish(replaced);
       expect((await container.read(groupProvider.future)).byName.keys, [
@@ -287,7 +280,6 @@ void main() {
         ),
         BookmarkGroup(id: groupId, name: 'Other', bookmarkIds: {}),
       ],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     final notifier = _Library(initial);
     final container = ProviderContainer(
@@ -321,7 +313,6 @@ void main() {
         initial.groups.last.copyWith(name: 'Renamed'),
       ],
       folders: initial.folders,
-      activeTarget: initial.activeTarget,
     );
     notifier.publish(metadata);
     await container.pump();
@@ -343,7 +334,6 @@ void main() {
           metadata.groups.last.copyWith(bookmarkIds: {1}),
         ],
         folders: metadata.folders,
-        activeTarget: metadata.activeTarget,
       ),
     );
     await container.pump();
@@ -366,7 +356,6 @@ void main() {
             upserts: [row.copyWith(sourceUrl: 'https://other.example')],
             groups: container.read(bookmarkProvider).requireValue.groups,
             folders: metadata.folders,
-            activeTarget: metadata.activeTarget,
           ),
     );
     await container.pump();

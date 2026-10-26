@@ -70,17 +70,14 @@ class _ServerFavoriteTargetPickerState
                 Icons.block_outlined,
               ),
             ],
-            footerBuilder: (context, folderId) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_failed) Text(context.t.bookmark.groups.operation_failed),
-                ListTile(
-                  leading: const Icon(Icons.add),
-                  title: Text(context.t.bookmark.groups.create_new),
-                  onTap: _creating ? null : () => _create(folderId),
-                ),
-              ],
-            ),
+            onCreateGroup: _create,
+            createGroupEnabled: !_creating,
+            footerBuilder: _failed
+                ? (context, folderId) => Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(context.t.bookmark.groups.operation_failed),
+                  )
+                : null,
             groupBuilder: (context, group) => option(
               ServerFavoriteTarget.group(group.id),
               group.displayName(context),

@@ -1,6 +1,7 @@
 // Flutter imports:
 
 // Package imports:
+import 'package:anchor_ui/anchor_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -109,12 +110,10 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
           name: group.displayName(context),
           selected: memberships.contains(group.id),
         ),
-        footerBuilder: (context, folderId) => BookmarkPickerMenuItem(
-          icon: const Icon(Icons.add),
-          title: context.t.bookmark.groups.create_new,
-          onTap: () =>
-              _afterDismiss(() => _createGroup(navigator.context, folderId)),
-        ),
+        onCreateGroup: (folderId) {
+          AnchorData.maybeOf(context)?.controller.hide();
+          _afterDismiss(() => _createGroup(navigator.context, folderId));
+        },
       ),
     );
   }
@@ -148,7 +147,6 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
         target: groupId == null
             ? const BookmarkTarget.defaultGroup()
             : BookmarkTarget.group(groupId),
-        activateTarget: true,
         onRemoved: (r) {
           if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
         },

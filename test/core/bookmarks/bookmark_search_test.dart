@@ -4,7 +4,6 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_search_token.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_tag_index.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -66,7 +65,6 @@ void main() {
         bookmarkIds: const {1, 2},
       ),
     ],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   final cases = [

@@ -53,7 +53,13 @@ void main() {
         );
         expect(reopened.showBookmarkCount, isTrue);
         expect(reopened.reduceAnimations, isTrue);
-        expect(reopened.activeBookmarkGroupId, initial.activeBookmarkGroupId);
+        expect(
+          reopened.copyWith(
+            showBookmarkCount: initial.showBookmarkCount,
+            reduceAnimations: initial.reduceAnimations,
+          ),
+          initial,
+        );
         final disabled = reopened.copyWith(showBookmarkCount: false);
         expect(await repository.save(disabled), isTrue);
         expect(

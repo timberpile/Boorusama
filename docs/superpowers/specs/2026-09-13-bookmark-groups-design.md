@@ -1,5 +1,7 @@
 # Bookmark Groups Design
 
+> Issue #80 update (2026-10-26): the active bookmark group was removed throughout Bookmarks. Group navigation has no mutation side effects, picker icons indicate actual membership, and manual actions choose destinations explicitly. Historical activation instructions below are superseded.
+
 ## Goal
 
 Reintroduce the complete local bookmark-group experience from commit

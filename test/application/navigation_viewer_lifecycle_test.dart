@@ -10,6 +10,7 @@ import 'package:kurumi/material.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_page.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_details_page.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_details_mutation_notifier.dart';
 import 'package:boorusama/core/posts/details_parts/widgets.dart';
 import 'package:boorusama/core/posts/details/src/routes/details_route_context.dart';
@@ -18,6 +19,7 @@ import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
 
 import '../support/boorusama_test_runtime.dart';
 import 'support/app_flow_driver.dart';
+import 'support/app_flow_finders.dart';
 
 import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
@@ -191,7 +193,24 @@ void main() {
         matching: find.byType(IconButton),
       );
       await tester.tap(bookmark);
-      await harness.pumpUntil(tester, () => repository.bookmarks.length == 1);
+      await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+      expect(repository.bookmarks, isEmpty);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(BookmarkGroupPicker),
+              matching: find.text(
+                appStrings(tester).bookmark.groups.default_group,
+              ),
+            )
+            .first,
+      );
+      await harness.pumpUntil(
+        tester,
+        () =>
+            repository.bookmarks.length == 1 &&
+            find.byType(BookmarkGroupPicker).evaluate().isEmpty,
+      );
       final saved = repository.bookmarks.single;
       final browseViewer = controller.binding!.currentRoute!;
       var browseCompleted = 0;

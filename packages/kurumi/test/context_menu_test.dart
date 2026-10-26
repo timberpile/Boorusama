@@ -245,4 +245,69 @@ void main() {
     expect(find.byType(Badge), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
   });
+  testWidgets('disabled popup items have no action and keep the popup open', (
+    tester,
+  ) async {
+    final controller = AnchorController();
+    addTearDown(controller.dispose);
+    var calls = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: KurumiAnchor(
+            controller: controller,
+            overlayBuilder: (_) => SizedBox(
+              width: 220,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const KurumiPopupMenuItem(
+                    title: Text('Unavailable'),
+                    onTap: null,
+                  ),
+                  KurumiPopupMenuItem(
+                    title: const Text('Available'),
+                    onTap: () => calls++,
+                  ),
+                ],
+              ),
+            ),
+            child: TextButton(
+              onPressed: controller.show,
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    final semantics = tester.ensureSemantics();
+    try {
+      final item = find.ancestor(
+        of: find.text('Unavailable'),
+        matching: find.byType(KurumiPopupMenuItem),
+      );
+      expect(
+        tester.getSemantics(item),
+        matchesSemantics(
+          label: 'Unavailable',
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: false,
+          hasTapAction: false,
+        ),
+      );
+      await tester.tap(find.text('Unavailable'));
+      await tester.pumpAndSettle();
+      expect(find.text('Available'), findsOneWidget);
+      expect(calls, 0);
+      await tester.tap(find.text('Available'));
+      await tester.pumpAndSettle();
+      expect(find.text('Available'), findsNothing);
+      expect(calls, 1);
+    } finally {
+      semantics.dispose();
+    }
+  });
 }

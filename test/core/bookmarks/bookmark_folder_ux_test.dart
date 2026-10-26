@@ -929,7 +929,6 @@ void main() {
         expect(router.routeInformationProvider.value.uri.path, '/');
         expect(find.text('1 item selected'), findsOneWidget);
       }
-      expect(library.targets, isEmpty);
       await tester.tap(find.byTooltip('Close'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('All'));
@@ -1237,7 +1236,7 @@ void main() {
           of: picker,
           matching: find.byType(BookmarkPickerMenuItem),
         );
-        expect(rows, findsWidgets);
+        // Empty folders retain navigation and creation without any list rows.
         final rectangles = <Rect>[];
         for (final row in rows.evaluate()) {
           final item = find.byWidget(row.widget);
@@ -1250,44 +1249,87 @@ void main() {
           );
           rectangles.add(tester.getRect(item));
         }
-        expect(
-          rectangles.map((r) => r.height).toSet().length,
-          1,
-          reason: rectangles.map((r) => r.height).toList().toString(),
-        );
-        final back = find.descendant(of: picker, matching: find.text('Back'));
+        if (rectangles.isNotEmpty) {
+          expect(
+            rectangles.map((r) => r.height).toSet().length,
+            1,
+            reason: rectangles.map((r) => r.height).toList().toString(),
+          );
+        }
         final dividers = find.descendant(
           of: picker,
           matching: find.byType(Divider),
         );
         expect(
           dividers,
-          back.evaluate().isEmpty ? findsOneWidget : findsNWidgets(2),
+          findsOneWidget,
         );
         for (final divider in tester.widgetList<Divider>(dividers)) {
-          expect(divider.height, 8);
+          expect(divider.height, 4);
           expect(divider.indent, 12);
           expect(divider.endIndent, 12);
         }
         final creation = tester.getRect(
-          find.descendant(of: picker, matching: find.text('Create new group')),
+          find.byKey(const ValueKey('bookmark-picker-create-group')),
+        );
+        final navigation = tester.getRect(
+          find.byKey(const ValueKey('bookmark-picker-navigation')),
+        );
+        expect(creation.center.dy, navigation.center.dy);
+        expect(creation.right, navigation.right);
+        if (rectangles.isNotEmpty) {
+          expect(creation.height, rectangles.first.height);
+          expect(navigation.height, rectangles.first.height);
+        }
+        final back = find.byKey(const ValueKey('bookmark-picker-back'));
+        if (back.evaluate().isNotEmpty) {
+          final backRect = tester.getRect(back);
+          expect(backRect.right, creation.left);
+          expect(backRect.height, creation.height);
+          final firstEntry = find.descendant(
+            of: find.byKey(const ValueKey('bookmark-picker-hierarchy')),
+            matching: find.byType(BookmarkPickerMenuItem),
+          );
+          if (firstEntry.evaluate().isNotEmpty) {
+            final entryIcon = find
+                .descendant(
+                  of: firstEntry.first,
+                  matching: find.byWidgetPredicate(
+                    (widget) => widget is legacy.Icon,
+                  ),
+                )
+                .first;
+            expect(
+              tester
+                  .getRect(
+                    find.descendant(
+                      of: back,
+                      matching: find.byIcon(Icons.arrow_back),
+                    ),
+                  )
+                  .left,
+              tester.getRect(entryIcon).left,
+            );
+          }
+        }
+        expect(
+          tester.getRect(dividers).top,
+          greaterThanOrEqualTo(navigation.bottom),
         );
         expect(
-          tester.getRect(dividers.last).bottom,
-          lessThanOrEqualTo(creation.top),
+          find.descendant(of: picker, matching: find.text('Home')),
+          findsNothing,
         );
-        if (back.evaluate().isNotEmpty) {
-          expect(
-            tester.getRect(dividers.first).top,
-            greaterThanOrEqualTo(tester.getRect(back).bottom),
-          );
-        }
       }
 
       expectMenu();
       if (entry == 'anchored') {
         expect(find.byType(KurumiAnchor), findsWidgets);
-        expect(tester.getSize(picker).width, lessThanOrEqualTo(200));
+        final bounds = tester.getRect(picker);
+        final viewportWidth =
+            tester.view.physicalSize.width / tester.view.devicePixelRatio;
+        expect(bounds.left, greaterThanOrEqualTo(0));
+        expect(bounds.right, lessThanOrEqualTo(viewportWidth));
         expect(_alertDialogs(), findsNothing);
       }
       await tester.tap(find.text('Artists'));
@@ -1296,7 +1338,7 @@ void main() {
       await tester.tap(find.text('Cookie'));
       await tester.pumpAndSettle();
       expectMenu();
-      await tester.tap(find.text('Back'));
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.text('Nested'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -1324,12 +1366,30 @@ void main() {
       await tester.tap(find.text('Open picker'));
       await tester.pumpAndSettle();
       final picker = find.byType(BookmarkFolderPickerContents);
-      expect(tester.getSize(picker).height, lessThanOrEqualTo(420));
+      final media = MediaQuery.of(tester.element(picker));
+      expect(
+        tester.getSize(picker).height,
+        lessThanOrEqualTo(
+          (media.size.height -
+                  media.viewInsets.bottom -
+                  media.padding.vertical) *
+              .75,
+        ),
+      );
+      final bounds = tester.getRect(picker);
+      expect(bounds.top, greaterThanOrEqualTo(media.padding.top));
+      expect(
+        bounds.bottom,
+        lessThanOrEqualTo(media.size.height - media.padding.bottom),
+      );
       await tester.scrollUntilVisible(
         find.text('Saved 39'),
         150,
         scrollable: find
-            .descendant(of: picker, matching: find.byType(Scrollable))
+            .descendant(
+              of: find.byKey(const ValueKey('bookmark-picker-hierarchy')),
+              matching: find.byType(Scrollable),
+            )
             .first,
       );
       await tester.pumpAndSettle();
@@ -1417,6 +1477,37 @@ void main() {
         expect(library.toggles, isEmpty);
         await tester.tap(find.text('Artists'));
         await tester.pumpAndSettle();
+        final navigation = tester.getRect(
+          find.byKey(const ValueKey('bookmark-picker-navigation')),
+        );
+        final pathFinder = find.byKey(const ValueKey('bookmark-picker-path'));
+        final path = tester.widget<legacy.Text>(pathFinder);
+        expect(path.data, 'Artists');
+        expect(path.maxLines, 1);
+        expect(path.overflow, TextOverflow.ellipsis);
+        expect(
+          path.style!.color,
+          legacy.Theme.of(tester.element(pathFinder))
+              .colorScheme
+              .onSurfaceVariant,
+        );
+        final back = tester.getRect(
+          find.byKey(const ValueKey('bookmark-picker-back')),
+        );
+        expect(back.left, navigation.left);
+        expect(back.center.dy, tester.getRect(pathFinder).center.dy);
+        final create = find.byKey(
+          const ValueKey('bookmark-picker-create-group'),
+        );
+        if (create.evaluate().isNotEmpty) {
+          expect(tester.getRect(create).right, navigation.right);
+          expect(tester.getRect(create).center.dy, back.center.dy);
+          expect(
+            tester.getRect(pathFinder).right,
+            lessThanOrEqualTo(tester.getRect(create).left),
+          );
+        }
+        expect(find.text('Home'), findsNothing);
         expect(find.text('Shared'), findsOneWidget);
         final membershipIcon = tester.widget<Icon>(
           find.byIcon(Symbols.bookmarks),
@@ -1425,6 +1516,13 @@ void main() {
         expect(find.textContaining('Artists /'), findsNothing);
         await tester.tap(find.text('Cookie'));
         await tester.pumpAndSettle();
+        expect(tester.widget<legacy.Text>(pathFinder).data, 'Artists / Cookie');
+        expect(
+          tester
+              .getRect(find.byKey(const ValueKey('bookmark-picker-navigation')))
+              .height,
+          navigation.height,
+        );
         expect(find.text('Shared'), findsOneWidget);
         expect(library.toggles, isEmpty);
         // Update the snapshot while the picker stays open, then navigate back.
@@ -1437,9 +1535,14 @@ void main() {
           ],
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Back').first);
+        final backTarget = tester.getRect(
+          find.byKey(const ValueKey('bookmark-picker-back')),
+        );
+        // The far edge of the path belongs to Back, right up to Group.
+        await tester.tapAt(Offset(backTarget.right - 2, backTarget.center.dy));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Home').first);
+        expect(tester.widget<legacy.Text>(pathFinder).data, 'Artists');
+        await tester.tap(find.byTooltip('Back').first);
         await tester.pumpAndSettle();
         final updated = tester.widget<BookmarkFolderMembershipIcon>(
           find.descendant(
@@ -1520,7 +1623,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cookie'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Create new group'));
+      await tester.tap(find.text('Group'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(legacy.TextField), 'Nested group');
       await tester.tap(find.text('Save'));
@@ -1622,7 +1725,7 @@ void main() {
           find.text('A long group name without a folder prefix'),
           findsOneWidget,
         );
-        expect(find.text('Back'), findsOneWidget);
+        expect(find.byTooltip('Back'), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
     );
@@ -1750,7 +1853,6 @@ BookmarkLibraryState _state({
   bookmarks: bookmarks,
   groups: groups,
   folders: folders,
-  activeTarget: const BookmarkTarget.defaultGroup(),
 );
 
 Future<GoRouter> _pump(
@@ -1894,7 +1996,6 @@ class _Library extends BookmarkLibraryNotifier {
   BookmarkLibraryState library;
   var failMoves = false;
   var failDuplicates = false;
-  final targets = <BookmarkTarget>[];
   final toggles = <BookmarkTarget>[];
   final legacyGroups = <String>[];
   final moves =
@@ -1911,15 +2012,8 @@ class _Library extends BookmarkLibraryNotifier {
   }
 
   @override
-  Future<bool> setActiveTarget(BookmarkTarget target) async {
-    targets.add(target);
-    return true;
-  }
-
-  @override
   Future<BookmarkGroup> createGroup(
     String name, {
-    bool activate = false,
     String? folderId,
   }) async {
     final group = _group(
@@ -2046,11 +2140,10 @@ class _Library extends BookmarkLibraryNotifier {
   Future<BookmarkToggleOutcome> togglePostTarget(
     BooruConfigAuth config,
     Post post, {
-    BookmarkTarget? target,
-    bool activateTarget = false,
+    BookmarkTarget target = const BookmarkTarget.defaultGroup(),
     void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) async {
-    toggles.add(target!);
+    toggles.add(target);
     return BookmarkToggleOutcome.added;
   }
 }

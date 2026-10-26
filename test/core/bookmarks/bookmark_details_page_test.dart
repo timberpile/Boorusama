@@ -138,7 +138,6 @@ void main() {
                   folderId: folder ? 'folder' : null,
                 ),
               ],
-              activeTarget: const BookmarkTarget.defaultGroup(),
             );
             final settings = _PreviewSettingsNotifier(
               Settings.defaultSettings.copyWith(
@@ -261,7 +260,6 @@ void main() {
             folderId: 'child',
           ),
         ],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final controller = _controller([]);
       addTearDown(controller.dispose);
@@ -317,7 +315,6 @@ void main() {
                 groups: [
                   BookmarkGroup(id: id, name: title, bookmarkIds: const {}),
                 ],
-                activeTarget: const BookmarkTarget.defaultGroup(),
               ),
             ),
             home: MediaQuery(
@@ -403,7 +400,6 @@ void main() {
             bookmarkIds: const {1, 2, 3, 4},
           ),
         ],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final unusedController = _controller([]);
       addTearDown(unusedController.dispose);
@@ -600,7 +596,6 @@ void main() {
         final state = BookmarkLibraryState(
           bookmarks: [bookmark],
           groups: const [],
-          activeTarget: const BookmarkTarget.defaultGroup(),
         );
         final controller = PostGridController<Post>(
           fetcher: (_) => TaskEither.right(
@@ -1371,7 +1366,6 @@ final class _EmptyBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: const [],
     groups: const [],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 
@@ -1493,7 +1487,6 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: [bookmark],
     groups: [group],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   @override
@@ -1516,7 +1509,6 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
       BookmarkLibraryState(
         bookmarks: [upgraded],
         groups: [group],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       ),
     );
   }

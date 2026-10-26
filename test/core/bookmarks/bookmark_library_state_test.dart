@@ -8,7 +8,6 @@ import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 
@@ -59,11 +58,10 @@ void main() {
     ),
   ];
 
-  BookmarkLibraryState createState({BookmarkTarget? activeTarget}) {
+  BookmarkLibraryState createState() {
     return BookmarkLibraryState(
       bookmarks: bookmarks,
       groups: groups,
-      activeTarget: activeTarget ?? BookmarkTarget.group(firstGroupId),
     );
   }
 
@@ -78,7 +76,6 @@ void main() {
       groups: [
         BookmarkGroup(id: firstGroupId, name: 'Old', bookmarkIds: const {77}),
       ],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
 
     expect(state.isBookmarked(invalid.post, invalid.booruId), isFalse);
@@ -102,7 +99,6 @@ void main() {
         groups.first,
         groups[1].copyWith(bookmarkIds: {3, 1}),
       ],
-      activeTarget: BookmarkTarget.group(firstGroupId),
     );
     final reference = state.items
         .where(
@@ -190,7 +186,6 @@ void main() {
           bookmarkIds: const {1, 2, 3, 4, 5, 6},
         ),
       ],
-      activeTarget: BookmarkTarget.group(firstGroupId),
     );
 
     expect(
@@ -203,50 +198,32 @@ void main() {
     );
   });
 
-  test('falls back to No Group when the persisted target is missing', () {
-    final state = BookmarkLibraryState(
-      bookmarks: bookmarks,
-      groups: groups,
-      activeTarget: BookmarkTarget.group(
-        'b7b44fc8-f16c-4189-a0eb-2f255202e2fa',
-      ),
-    );
-
-    expect(state.activeTarget, const BookmarkTarget.defaultGroup());
-  });
-
-  test('reports active membership and total named memberships', () {
+  test('reports membership and total named memberships', () {
     final presentation = selectBookmarkMembershipPresentation(
       createState(),
       bookmarks[2].uniqueId,
     );
 
     expect(presentation.isBookmarked, isTrue);
-    expect(presentation.isInActiveTarget, isTrue);
     expect(presentation.namedGroupCount, 2);
-    expect(presentation.activeTargetUnavailable, isFalse);
-    expect(presentation.showNamedGroupCount, isTrue);
   });
 
-  test('marks No Group unavailable without hiding named memberships', () {
+  test('counts membership independently of a selected view', () {
     final presentation = selectBookmarkMembershipPresentation(
-      createState(activeTarget: const BookmarkTarget.defaultGroup()),
+      createState(),
       bookmarks[0].uniqueId,
     );
-
-    expect(presentation.isInActiveTarget, isFalse);
-    expect(presentation.activeTargetUnavailable, isFalse);
-    expect(presentation.showNamedGroupCount, isTrue);
+    expect(presentation.isBookmarked, isTrue);
+    expect(presentation.namedGroupCount, 1);
   });
 
-  test('hides a redundant count for one membership in the active group', () {
+  test('counts one named membership', () {
     final presentation = selectBookmarkMembershipPresentation(
       createState(),
       bookmarks[0].uniqueId,
     );
 
     expect(presentation.namedGroupCount, 1);
-    expect(presentation.showNamedGroupCount, isFalse);
   });
 
   test('reports mixed aggregate membership counts from unique selections', () {

@@ -186,7 +186,6 @@ void main() {
         upserts: [changed],
         groups: base.groups,
         folders: base.folders,
-        activeTarget: base.activeTarget,
       );
     });
     expect(result.bookmarksById[changed.id], same(changed));

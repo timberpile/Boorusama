@@ -117,6 +117,7 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
       title: Text(context.t.bookmark.groups.selector),
       content: SizedBox(
         width: 360,
+        height: 320,
         child: BookmarkFolderPickerContents(
           folders: library?.folders ?? const [],
           groups: library?.groups ?? const [],
@@ -133,37 +134,32 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
             ),
             onTap: () => Navigator.pop(context, group.id),
           ),
-          footerBuilder: allowCreate
-              ? (context, folderId) => ListTile(
-                  leading: const Icon(Icons.add),
-                  title: Text(context.t.bookmark.groups.create_new),
-                  onTap: () async {
-                    final name = await showBookmarkGroupNameDialog(
-                      context,
-                      title: context.t.bookmark.groups.create,
-                    );
-                    if (name == null || !context.mounted) return;
-                    try {
-                      final group = await ref
-                          .read(bookmarkProvider.notifier)
-                          .createGroup(
-                            name,
-                            activate: true,
-                            folderId: folderId,
-                          );
-                      if (context.mounted) {
-                        Navigator.pop(context, group.id);
-                      }
-                    } catch (_) {
-                      if (context.mounted) {
-                        Kurumi.showErrorToast(
-                          context,
-                          context.t.bookmark.groups.operation_failed,
+          onCreateGroup: allowCreate
+              ? (folderId) async {
+                  final name = await showBookmarkGroupNameDialog(
+                    context,
+                    title: context.t.bookmark.groups.create,
+                  );
+                  if (name == null || !context.mounted) return;
+                  try {
+                    final group = await ref
+                        .read(bookmarkProvider.notifier)
+                        .createGroup(
+                          name,
+                          folderId: folderId,
                         );
-                      }
+                    if (context.mounted) {
+                      Navigator.pop(context, group.id);
                     }
-                  },
-                )
+                  } catch (_) {
+                    if (context.mounted) {
+                      Kurumi.showErrorToast(
+                        context,
+                        context.t.bookmark.groups.operation_failed,
+                      );
+                    }
+                  }
+                }
               : null,
         ),
       ),
@@ -334,6 +330,7 @@ class _BookmarkMultiSelectionMenuState
               config,
               selectedPosts,
               target.id,
+              manual: true,
             );
         if (!navigator.mounted) return;
         Kurumi.showSuccessToast(
@@ -410,6 +407,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
       ),
       content: SizedBox(
         width: 360,
+        height: 320,
         child: BookmarkFolderPickerContents(
           folders: state?.folders ?? const [],
           groups: visibleGroups,
@@ -423,22 +421,15 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
             BookmarkGroupSelectionTarget(group.id, group.displayName(context)),
             summary.countFor(group.id),
           ),
-          footerBuilder: (context, folderId) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!add && visibleGroups.isEmpty)
-                Padding(
+          onCreateGroup: add
+              ? (folderId) => _create(context, ref, folderId)
+              : null,
+          footerBuilder: !add && visibleGroups.isEmpty
+              ? (context, folderId) => Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(context.t.bookmark.bulk.no_applicable),
-                ),
-              if (add)
-                ListTile(
-                  leading: const Icon(Icons.add),
-                  title: Text(context.t.bookmark.bulk.create_group),
-                  onTap: () => _create(context, ref, folderId),
-                ),
-            ],
-          ),
+                )
+              : null,
         ),
       ),
       actions: [

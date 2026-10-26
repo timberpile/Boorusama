@@ -1,3 +1,5 @@
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -63,11 +65,11 @@ void main() {
       after.bookmarksById.keys.toSet(),
     );
     expect(after.membershipsFor(saved.uniqueId), {
-      before.activeTarget.groupId,
+      defaultBookmarkGroupId,
       group.id,
     });
     // A cold reload must produce the same contents and all derived indexes.
-    await library.syncActiveTargetFromSettings();
+    await library.refresh();
     final reloaded = await library.snapshotForExport();
     expect(after, reloaded);
     expect(after.bookmarksById, reloaded.bookmarksById);

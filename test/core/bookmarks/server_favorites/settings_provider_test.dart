@@ -32,7 +32,6 @@ class _Library extends BookmarkLibraryNotifier {
       BookmarkGroup(id: 'empty', name: 'Empty', bookmarkIds: {}),
       BookmarkGroup(id: 'populated', name: 'Populated', bookmarkIds: {1}),
     ],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   @override

@@ -229,23 +229,63 @@ void main() {
       of: contents,
       matching: find.text(label),
     );
-    final scrollable = find.descendant(
-      of: contents,
-      matching: find.byWidgetPredicate(
-        (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
-      ),
-    );
-    await tester.scrollUntilVisible(
-      row,
-      tester.getSize(scrollable).height / 2,
-      scrollable: scrollable,
-    );
+    if (row.hitTestable().evaluate().isEmpty) {
+      final scrollable = find.descendant(
+        of: find.byKey(const ValueKey('bookmark-picker-hierarchy')),
+        matching: find.byWidgetPredicate(
+          (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+        ),
+      );
+      await tester.scrollUntilVisible(
+        row,
+        tester.getSize(scrollable).height / 2,
+        scrollable: scrollable,
+      );
+    }
     await tester.pump();
     await tap(tester, row);
   }
 
   Future<ServerFavoriteSettings> saved() =>
       container.read(serverFavoriteSettingsProvider.future);
+
+  testWidgets(
+    'ignore synced bookmark status is a saved draft and survives reload',
+    (tester) async {
+      await prepare();
+      await mount(tester);
+      await open(tester);
+      final toggle = find.byKey(
+        const ValueKey('server-favorites-ignore-bookmark-status'),
+      );
+      await tap(tester, toggle);
+      expect(
+        container
+            .read(serverFavoriteSettingsProvider)
+            .requireValue
+            .ignoreBookmarkStatus,
+        isTrue,
+      );
+      await tap(tester, find.byKey(const ValueKey('server-favorites-close')));
+      await open(tester);
+      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+      await tap(tester, toggle);
+      await tap(tester, getSave());
+      expect(
+        container
+            .read(serverFavoriteSettingsProvider)
+            .requireValue
+            .ignoreBookmarkStatus,
+        isFalse,
+      );
+      container.invalidate(serverFavoriteSettingsProvider);
+      await container.read(serverFavoriteSettingsProvider.future);
+      await open(tester);
+      expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+      expect(h.source.calls, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets(
     'the labeled editor keeps available profiles first and groups every unavailable profile last',
@@ -552,7 +592,7 @@ void main() {
       await mount(tester, legacyBridge: false);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Create new group');
+      await pick(tester, 'Group');
       await tester.enterText(find.byType(material.TextField), 'New target');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
@@ -624,7 +664,7 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Saved');
-      await pick(tester, 'Create new group');
+      await pick(tester, 'Group');
       tester.view.viewInsets = const FakeViewPadding(bottom: 280);
       addTearDown(tester.view.resetViewInsets);
       await tester.pumpAndSettle();

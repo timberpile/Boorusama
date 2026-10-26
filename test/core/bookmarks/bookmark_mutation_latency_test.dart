@@ -53,7 +53,7 @@ void main() {
       bookmarkRepository: repository,
       groupRepository: groups,
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-    ).load(published.activeTarget);
+    ).load();
     expect(published, reloaded);
     expect(published.bookmarksById, reloaded.bookmarksById);
     expect(published.bookmarksByUniqueId, reloaded.bookmarksByUniqueId);
@@ -176,7 +176,6 @@ void main() {
     final group = await notifier.createGroup('Before');
     final before = await notifier.snapshotForExport();
     await notifier.renameGroup(group.id, 'After');
-    await notifier.setActiveTarget(BookmarkTarget.group(group.id));
     final after = await notifier.snapshotForExport();
     expect(identical(before.items, after.items), isTrue);
     expect(identical(before.bookmarksById, after.bookmarksById), isTrue);

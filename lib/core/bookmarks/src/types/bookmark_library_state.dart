@@ -11,13 +11,11 @@ import '../../../posts/post/types.dart';
 import 'bookmark.dart';
 import '../../../groups/folder_tree.dart';
 import 'bookmark_group.dart';
-import 'bookmark_target.dart';
 
 class BookmarkLibraryState extends Equatable {
   BookmarkLibraryState({
     required List<Bookmark> bookmarks,
     required List<BookmarkGroup> groups,
-    required BookmarkTarget activeTarget,
     List<CollectionFolder> folders = const [],
   }) : folders = List.unmodifiable(folders),
        items = List.unmodifiable(bookmarks),
@@ -26,7 +24,6 @@ class BookmarkLibraryState extends Equatable {
            .map((bookmark) => bookmark.uniqueId)
            .toISet(),
        groups = List.unmodifiable(groups),
-       activeTarget = _effectiveTarget(groups, activeTarget),
        bookmarksById = Map.unmodifiable({
          for (final bookmark in bookmarks)
            if (bookmark.uniqueId is BookmarkIdentity) bookmark.id: bookmark,
@@ -48,7 +45,6 @@ class BookmarkLibraryState extends Equatable {
     required this.items,
     required this.bookmarks,
     required this.groups,
-    required this.activeTarget,
     required this.bookmarksById,
     required this.bookmarksByUniqueId,
     required this.groupsById,
@@ -59,7 +55,6 @@ class BookmarkLibraryState extends Equatable {
   final List<Bookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
   final List<BookmarkGroup> groups;
-  final BookmarkTarget activeTarget;
   final Map<int, Bookmark> bookmarksById;
   final Map<BookmarkUniqueId, Bookmark> bookmarksByUniqueId;
   final Map<String, BookmarkGroup> groupsById;
@@ -73,7 +68,6 @@ class BookmarkLibraryState extends Equatable {
     Set<int> removedIds = const {},
     required List<BookmarkGroup> groups,
     required List<CollectionFolder> folders,
-    required BookmarkTarget activeTarget,
   }) {
     final changed = {for (final bookmark in upserts) bookmark.id: bookmark};
     final affectedIds = <int>{...removedIds, ...changed.keys};
@@ -185,12 +179,10 @@ class BookmarkLibraryState extends Equatable {
         )
         ? this.folders
         : List<CollectionFolder>.unmodifiable(folders);
-    final nextTarget = _effectiveTarget(nextGroups, activeTarget);
 
     if (identical(nextItems, items) &&
         identical(nextGroups, this.groups) &&
-        identical(nextFolders, this.folders) &&
-        nextTarget == this.activeTarget) {
+        identical(nextFolders, this.folders)) {
       return this;
     }
     return BookmarkLibraryState._derived(
@@ -198,7 +190,6 @@ class BookmarkLibraryState extends Equatable {
       items: nextItems,
       bookmarks: nextIdentities,
       groups: nextGroups,
-      activeTarget: nextTarget,
       bookmarksById: nextById,
       bookmarksByUniqueId: nextByIdentity,
       groupsById: nextGroupsById,
@@ -211,7 +202,6 @@ class BookmarkLibraryState extends Equatable {
   BookmarkLibraryState withAddedGroupMembers({
     required List<Bookmark> createdBookmarks,
     required BookmarkGroup group,
-    required BookmarkTarget requestedTarget,
   }) {
     final previousGroup = groupsById[group.id];
     if (previousGroup == null ||
@@ -224,10 +214,7 @@ class BookmarkLibraryState extends Equatable {
         'Expected only bookmark additions to an existing group.',
       );
     }
-    final target = _effectiveTarget(groups, requestedTarget);
-    if (createdBookmarks.isEmpty &&
-        _sameGroup(previousGroup, group) &&
-        target == activeTarget) {
+    if (createdBookmarks.isEmpty && _sameGroup(previousGroup, group)) {
       return this;
     }
 
@@ -268,7 +255,6 @@ class BookmarkLibraryState extends Equatable {
       groups: List.unmodifiable([
         for (final old in groups) old.id == group.id ? group : old,
       ]),
-      activeTarget: target,
       bookmarksById: createdBookmarks.isEmpty
           ? byId
           : UnmodifiableMapView(byId),
@@ -304,7 +290,7 @@ class BookmarkLibraryState extends Equatable {
           : null);
 
   @override
-  List<Object?> get props => [items, groups, activeTarget, folders];
+  List<Object?> get props => [items, groups, folders];
 }
 
 // Equatable compares sets with pairwise searches. Re-reading an unchanged large
@@ -317,16 +303,6 @@ bool _sameGroup(BookmarkGroup? before, BookmarkGroup after) =>
         before.folderId == after.folderId &&
         before.position == after.position &&
         const SetEquality<int>().equals(before.bookmarkIds, after.bookmarkIds);
-
-BookmarkTarget _effectiveTarget(
-  List<BookmarkGroup> groups,
-  BookmarkTarget requested,
-) {
-  return switch (requested.groupId) {
-    final id when groups.any((group) => group.id == id) => requested,
-    _ => const BookmarkTarget.defaultGroup(),
-  };
-}
 
 Map<BookmarkUniqueId, Set<String>> _buildMemberships(
   List<Bookmark> bookmarks,

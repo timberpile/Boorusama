@@ -9,7 +9,6 @@ import '../../../posts/post/types.dart';
 import '../../../router.dart';
 import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
-import '../types/bookmark_target.dart';
 import '../types/bookmark_view.dart';
 
 Future<void> goToBookmarkPage(
@@ -27,22 +26,6 @@ Future<void> goToBookmarkGroupPage(
   BookmarkView view, {
   required String title,
 }) async {
-  if (view.kind != BookmarkViewKind.all) {
-    final activated = await ref
-        .read(bookmarkProvider.notifier)
-        .setActiveTarget(
-          BookmarkTarget.group(view.groupId!),
-        );
-    if (!activated) {
-      if (ref.context.mounted) {
-        Kurumi.showErrorToast(
-          ref.context,
-          ref.context.t.bookmark.groups.operation_failed,
-        );
-      }
-      return;
-    }
-  }
   await ref.pushRoute(
     Uri(
       path: '/bookmarks/group',

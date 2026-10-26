@@ -5,7 +5,6 @@ import 'package:boorusama/core/ddos/handler/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
@@ -78,7 +77,6 @@ void main() {
             ),
         ],
         groups: const [],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       expect(library.bookmarkForPost(posts.first), isNull);
       expect(
@@ -200,7 +198,6 @@ void main() {
               ),
           ],
           groups: const [],
-          activeTarget: const BookmarkTarget.defaultGroup(),
         );
         final harness = await HeadlessAppHarness.mount(
           tester,

@@ -1,7 +1,6 @@
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -23,7 +22,6 @@ void main() {
   ) => BookmarkLibraryState(
     bookmarks: rows,
     groups: groups,
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   void expectIndexesMatch(
@@ -55,7 +53,6 @@ void main() {
       upserts: [restored],
       groups: groups,
       folders: const [],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     expectIndexesMatch(after, library([restored], groups));
     expect(before.membershipsFor(original.uniqueId), {defaultBookmarkGroupId});
@@ -77,7 +74,6 @@ void main() {
         upserts: updates,
         groups: groups,
         folders: const [],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       expectIndexesMatch(after, library(swapped, groups));
     }
@@ -101,7 +97,6 @@ void main() {
     final after = before.applyCommittedChanges(
       groups: groups,
       folders: const [],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     expectIndexesMatch(after, library([first, second], groups));
     expect(identical(before.items, after.items), isTrue);
@@ -145,7 +140,6 @@ void main() {
       upserts: [updated, third],
       groups: groups,
       folders: const [],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     expectIndexesMatch(after, library([updated, third], groups));
     expect(before.items, [first, second]);
@@ -168,7 +162,6 @@ void main() {
             group(defaultBookmarkGroupId, {1}),
           ],
           folders: const [],
-          activeTarget: const BookmarkTarget.defaultGroup(),
         ),
       ),
       isTrue,
@@ -190,7 +183,6 @@ void main() {
         upserts: [updated],
         groups: before.groups,
         folders: before.folders,
-        activeTarget: before.activeTarget,
       );
       expectIndexesMatch(after, library([updated], before.groups));
       expect(identical(before.bookmarks, after.bookmarks), isTrue);

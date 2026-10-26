@@ -22,7 +22,6 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_repository.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
@@ -62,12 +61,11 @@ void main() {
 
   test('the Default group can be copied without changing its identity or memberships', () async {
     final bookmark = await storeBookmark('default-copy');
-    await service.load(const BookmarkTarget.defaultGroup());
+    await service.load();
     await groupRepository.replaceMemberships(defaultBookmarkGroupId, {
       bookmark.id,
     });
-    final source = (await service.load(const BookmarkTarget.defaultGroup()))
-        .groupsById[defaultBookmarkGroupId]!;
+    final source = (await service.load()).groupsById[defaultBookmarkGroupId]!;
     final copies = await service.duplicateGroups(
       {source.id: 'Default Copy'},
       expectedGroups: [source],
@@ -121,7 +119,7 @@ void main() {
     final b = await groupRepository.createGroup('B');
     await groupRepository.addBookmarks(a.id, {shared.id, protected.id});
     await groupRepository.addBookmarks(b.id, {shared.id});
-    await service.load(const BookmarkTarget.defaultGroup());
+    await service.load();
     await groupRepository.addBookmarks(defaultBookmarkGroupId, {protected.id});
     final folder = await service.createFolder('Selected');
     await service.moveFolderItems(groupIds: {a.id}, destination: folder.id);
@@ -133,7 +131,7 @@ void main() {
     expect(preview.groupIds, {a.id, b.id});
     expect(preview.orphanBookmarkIds, {shared.id});
     await service.deleteSelection(preview);
-    final after = await service.load(const BookmarkTarget.defaultGroup());
+    final after = await service.load();
     expect(after.items.map((b) => b.uniqueId), [protected.uniqueId]);
     expect(after.groups.single.id, defaultBookmarkGroupId);
     expect(after.folders, isEmpty);
@@ -171,7 +169,7 @@ void main() {
     await groupRepository.addBookmarks(b.id, {bookmark.id});
     final folder = await service.createFolder('Folder');
     await service.moveFolderItems(groupIds: {a.id}, destination: folder.id);
-    final before = await service.load(const BookmarkTarget.defaultGroup());
+    final before = await service.load();
     final preview = await service.previewDeleteSelection(
       folderIds: {folder.id},
       groupIds: {b.id},
@@ -184,7 +182,7 @@ void main() {
       imageUrlResolver: resolver,
     );
     await expectLater(failing.deleteSelection(preview), throwsStateError);
-    expect(await service.load(const BookmarkTarget.defaultGroup()), before);
+    expect(await service.load(), before);
   });
 
   test(
@@ -195,7 +193,7 @@ void main() {
       final b = await groupRepository.createGroup('B');
       await groupRepository.addBookmarks(a.id, {bookmark.id});
       await groupRepository.addBookmarks(b.id, {bookmark.id});
-      final before = await service.load(const BookmarkTarget.defaultGroup());
+      final before = await service.load();
       final copies = _FailsSecondCopyRepository(groupBox);
       final failing = BookmarkLibraryService(
         bookmarkRepository: bookmarkRepository,
@@ -210,24 +208,24 @@ void main() {
         throwsStateError,
       );
       expect(copies.attempted, ['Copy A', 'Copy B']);
-      expect(await service.load(const BookmarkTarget.defaultGroup()), before);
+      expect(await service.load(), before);
     },
   );
 
   test('Default supports final membership removal and complete Undo', () async {
     final bookmark = await storeBookmark('default-remove');
-    await service.load(const BookmarkTarget.defaultGroup());
+    await service.load();
     final removal = await service.removeBookmarksFromGroup([
       bookmark,
     ], defaultBookmarkGroupId);
     expect(removal.deletedCount, 1);
     expect(
-      (await service.load(const BookmarkTarget.defaultGroup())).items,
+      (await service.load()).items,
       isEmpty,
     );
     expect(await groupRepository.getGroup(defaultBookmarkGroupId), isNotNull);
     await service.undoRemoval(removal);
-    final restored = await service.load(const BookmarkTarget.defaultGroup());
+    final restored = await service.load();
     expect(restored.items.single.uniqueId, bookmark.uniqueId);
     expect(restored.membershipsFor(bookmark.uniqueId), {
       defaultBookmarkGroupId,
@@ -236,7 +234,7 @@ void main() {
 
   test('folder deletion preserves an explicit Default membership', () async {
     final bookmark = await storeBookmark('default-survivor');
-    await service.load(const BookmarkTarget.defaultGroup());
+    await service.load();
     final folder = await service.createFolder('Folder');
     await groupRepository.createGroup('Artists', id: firstGroupId);
     await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
@@ -247,7 +245,7 @@ void main() {
     final preview = await service.previewDeleteFolder(folder.id);
     expect(preview.orphanBookmarkIds, isEmpty);
     await service.deleteFolder(preview);
-    final state = await service.load(const BookmarkTarget.defaultGroup());
+    final state = await service.load();
     expect(state.items.single, bookmark);
     expect(state.membershipsFor(bookmark.uniqueId), {defaultBookmarkGroupId});
   });
@@ -259,13 +257,13 @@ void main() {
       final member = await storeBookmark('member');
       await groupRepository.createGroup('Default', id: firstGroupId);
       await groupRepository.addBookmarks(firstGroupId, {member.id});
-      final migrated = await service.load(const BookmarkTarget.defaultGroup());
+      final migrated = await service.load();
       expect(migrated.groups.where((g) => g.isDefault), hasLength(1));
       expect(migrated.groupsById[defaultBookmarkGroupId]!.bookmarkIds, {
         orphan.id,
       });
       expect(migrated.groupsById[firstGroupId]!.isDefault, isFalse);
-      expect(await service.load(const BookmarkTarget.defaultGroup()), migrated);
+      expect(await service.load(), migrated);
       await groupBox.close();
       groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
       groupRepository = BookmarkGroupRepositoryHive(
@@ -277,12 +275,12 @@ void main() {
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
       );
-      expect(await service.load(const BookmarkTarget.defaultGroup()), migrated);
+      expect(await service.load(), migrated);
     },
   );
 
   test('Default is protected in repository and folder service APIs', () async {
-    await service.load(const BookmarkTarget.defaultGroup());
+    await service.load();
     await expectLater(
       groupRepository.renameGroup(defaultBookmarkGroupId, 'Changed'),
       throwsStateError,
@@ -333,7 +331,7 @@ void main() {
       final newer = second.copyWith(updatedAt: DateTime.utc(2026, 10, 9));
       await bookmarkRepository.updateBookmark(newer);
       await service.undoRemoval(result);
-      final state = await service.load(const BookmarkTarget.defaultGroup());
+      final state = await service.load();
       final restored = state.bookmarksByUniqueId[first.uniqueId]!;
       expect(restored.snapshot, first.snapshot);
       expect(restored.createdAt, first.createdAt);
@@ -376,14 +374,14 @@ void main() {
       final bookmark = await storeBookmark('clear-image');
       await groupRepository.createGroup('First', id: firstGroupId);
       await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
-      final before = await service.load(const BookmarkTarget.defaultGroup());
+      final before = await service.load();
       final key = images.generateCacheKey(bookmark.originalUrl);
       await images.saveFile(key, Uint8List.fromList([1, 2, 3]));
       final legacy = File('${tempDirectory.path}/bookmarks/images/legacy.jpg');
       await legacy.parent.create(recursive: true);
       await legacy.writeAsBytes([9, 8, 7]);
       await images.clearAllCache();
-      final after = await service.load(const BookmarkTarget.defaultGroup());
+      final after = await service.load();
       expect(after.bookmarksById, before.bookmarksById);
       expect(after.groups, before.groups);
       expect(await images.getCachedFileBytes(key), isNull);
@@ -397,10 +395,9 @@ void main() {
       await groupRepository.createGroup('First', id: firstGroupId);
       await groupRepository.addBookmarks(firstGroupId, {99});
 
-      final state = await service.load(BookmarkTarget.group(firstGroupId));
+      final state = await service.load();
 
       expect(state.groupsById[firstGroupId]!.bookmarkIds, isEmpty);
-      expect(state.activeTarget.groupId, firstGroupId);
     },
   );
 
@@ -414,7 +411,7 @@ void main() {
     );
 
     await expectLater(
-      service.load(const BookmarkTarget.defaultGroup()),
+      service.load(),
       throwsA(isA<BookmarkRepositoryReadException>()),
     );
 
@@ -457,7 +454,7 @@ void main() {
     expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
       bookmark.id,
     });
-    expect((await service.load(const BookmarkTarget.defaultGroup())).items, [
+    expect((await service.load()).items, [
       bookmark,
     ]);
   });
@@ -473,7 +470,7 @@ void main() {
       existingBookmark: bookmark,
     );
 
-    final state = await service.load(const BookmarkTarget.defaultGroup());
+    final state = await service.load();
     expect(state.items, [bookmark]);
     expect(state.membershipsFor(bookmark.uniqueId), {
       firstGroupId,
@@ -501,7 +498,7 @@ void main() {
       );
 
       expect(
-        (await service.load(const BookmarkTarget.defaultGroup())).items,
+        (await service.load()).items,
         isEmpty,
       );
     },
@@ -593,7 +590,7 @@ void main() {
       expect(result.removedCount, 1);
       expect(result.deletedCount, 1);
       expect(
-        (await service.load(const BookmarkTarget.defaultGroup())).items,
+        (await service.load()).items,
         isEmpty,
       );
     },
@@ -614,7 +611,7 @@ void main() {
       expect(result.removedCount, 1);
       expect(result.deletedCount, 1);
       expect(
-        (await service.load(const BookmarkTarget.defaultGroup())).items,
+        (await service.load()).items,
         isEmpty,
       );
     },
@@ -631,7 +628,7 @@ void main() {
       await groupRepository.addBookmarks(second.id, {shared.id});
 
       final preview = await service.deleteGroup(firstGroupId);
-      final state = await service.load(const BookmarkTarget.defaultGroup());
+      final state = await service.load();
 
       expect(preview.orphanBookmarkIds, {orphan.id});
       expect(state.items.map((bookmark) => bookmark.id), [shared.id]);
@@ -654,7 +651,7 @@ void main() {
       expect(await images.getCachedFileBytes(key), [4, 5, 6]);
 
       expect(
-        (await service.load(const BookmarkTarget.defaultGroup())).items,
+        (await service.load()).items,
         isEmpty,
       );
       expect(
@@ -690,7 +687,7 @@ void main() {
         bookmark.id,
       });
       expect(
-        (await service.load(const BookmarkTarget.defaultGroup())).items,
+        (await service.load()).items,
         [bookmark],
       );
     },

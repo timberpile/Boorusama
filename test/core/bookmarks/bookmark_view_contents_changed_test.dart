@@ -2,7 +2,6 @@ import 'package:boorusama/core/bookmarks/src/data/bookmark_view_refresh_gate.dar
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -33,18 +32,16 @@ void main() {
         ),
         BookmarkGroup(id: otherId, name: 'Other', bookmarkIds: {2}),
       ],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
   });
 
-  test('active target and group labels do not refresh post contents', () {
+  test('group labels do not refresh post contents', () {
     final after = before.applyCommittedChanges(
       groups: [
         before.groups.first,
         before.groups.last.copyWith(name: 'Renamed'),
       ],
       folders: before.folders,
-      activeTarget: BookmarkTarget.group(otherId),
     );
     for (final view in [
       const BookmarkView.all(),
@@ -62,7 +59,6 @@ void main() {
         before.groups.last.copyWith(bookmarkIds: {1, 2}),
       ],
       folders: before.folders,
-      activeTarget: before.activeTarget,
     );
     expect(
       bookmarkViewContentsChanged(before, after, const BookmarkView.all()),
@@ -89,7 +85,6 @@ void main() {
         upserts: [second.copyWith(updatedAt: DateTime.utc(2026))],
         groups: before.groups,
         folders: before.folders,
-        activeTarget: before.activeTarget,
       );
       expect(
         bookmarkViewContentsChanged(before, after, const BookmarkView.all()),
@@ -118,7 +113,6 @@ void main() {
         before.groups.last,
       ],
       folders: before.folders,
-      activeTarget: before.activeTarget,
     );
     expect(
       bookmarkViewContentsChanged(before, after, const BookmarkView.all()),

@@ -4,6 +4,8 @@
 
 Offer an optional, additive download of server-side Favorites to ordinary local bookmark groups across supported profiles. Do not create a destructive or bidirectional synchronization system.
 
+The optional **Ignore synced groups for bookmark status** preference excludes all assigned favorites groups from toolbar bookmark highlighting and counts. It is on by default, persists locally with sync preferences, and does not change memberships or picker icons. Membership in any other group still highlights the button. Settings changes remain drafts until Save.
+
 ## Expected behavior
 
 Every profile's Favorites page provides **Favorites Sync** in its overflow menu. There is no separate Server Favorites settings page. The same compact, scrollable dialog always shows:

@@ -322,14 +322,37 @@ class KurumiContextMenuController {
 }
 
 class KurumiContextMenuDivider extends StatelessWidget {
-  const KurumiContextMenuDivider({super.key});
+  const KurumiContextMenuDivider({this.title, super.key});
+
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
-    return const Divider(
-      endIndent: 12,
-      indent: 12,
-      height: 8,
+    final title = this.title;
+    if (title == null) {
+      return const Divider(endIndent: 12, indent: 12, height: 4);
+    }
+    final theme = Theme.of(context);
+    final color = theme.dividerTheme.color ?? theme.colorScheme.outlineVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Row(
+          children: [
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth / 2),
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(color: color),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Divider(height: 8, color: color)),
+          ],
+        ),
+      ),
     );
   }
 }

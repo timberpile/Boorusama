@@ -1,4 +1,5 @@
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -31,7 +32,6 @@ void main() {
         bookmarkIds: {bookmark.id},
       ),
     ],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   test(
@@ -76,7 +76,6 @@ void main() {
     final emptyLibrary = BookmarkLibraryState(
       bookmarks: const [],
       groups: const [],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
 
     expect(
@@ -107,20 +106,28 @@ void main() {
     final groupALibrary = BookmarkLibraryState(
       bookmarks: [bookmark],
       groups: groups,
-      activeTarget: BookmarkTarget.group(groupAId),
     );
     final groupBLibrary = BookmarkLibraryState(
       bookmarks: [bookmark],
       groups: groups,
-      activeTarget: BookmarkTarget.group(groupBId),
     );
 
     expect(
-      notifier.toggle(config: config, post: post, library: groupALibrary),
+      notifier.toggle(
+        config: config,
+        post: post,
+        library: groupALibrary,
+        target: BookmarkTarget.group(groupAId),
+      ),
       BookmarkToggleOutcome.removed,
     );
     expect(
-      notifier.toggle(config: config, post: post, library: groupBLibrary),
+      notifier.toggle(
+        config: config,
+        post: post,
+        library: groupBLibrary,
+        target: BookmarkTarget.group(groupBId),
+      ),
       BookmarkToggleOutcome.added,
     );
     expect(notifier.pending, hasLength(2));
@@ -139,15 +146,17 @@ void main() {
         BookmarkGroup(id: first, name: 'First', bookmarkIds: {bookmark.id}),
         BookmarkGroup(id: second, name: 'Second', bookmarkIds: {bookmark.id}),
       ],
-      activeTarget: BookmarkTarget.group(first),
     );
-    notifier.toggle(config: config, post: post, library: grouped);
+    notifier.toggle(
+      config: config,
+      post: post,
+      library: grouped,
+      target: BookmarkTarget.group(first),
+    );
     var presentation = container
         .read(bookmarkDetailsMutationProvider)
         .presentationFor(grouped, bookmark.uniqueId);
-    expect(presentation.isInActiveTarget, isFalse);
     expect(presentation.namedGroupCount, 1);
-    expect(presentation.showNamedGroupCount, isTrue);
     expect(presentation.isBookmarked, isTrue);
     final otherPost = Bookmark.empty
         .copyWith(sourceUrl: 'https://example.com', postId: () => 99)
@@ -165,25 +174,31 @@ void main() {
     final secondTarget = BookmarkLibraryState(
       bookmarks: grouped.items,
       groups: grouped.groups,
-      activeTarget: BookmarkTarget.group(second),
     );
-    notifier.toggle(config: config, post: post, library: secondTarget);
+    notifier.toggle(
+      config: config,
+      post: post,
+      library: secondTarget,
+      target: BookmarkTarget.group(second),
+    );
     final ungrouped = BookmarkLibraryState(
       bookmarks: grouped.items,
       groups: grouped.groups,
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     presentation = container
         .read(bookmarkDetailsMutationProvider)
         .presentationFor(ungrouped, bookmark.uniqueId);
     expect(presentation.isBookmarked, isFalse);
-    expect(presentation.isInActiveTarget, isFalse);
     expect(presentation.namedGroupCount, 0);
-    notifier.toggle(config: config, post: post, library: grouped);
+    notifier.toggle(
+      config: config,
+      post: post,
+      library: grouped,
+      target: BookmarkTarget.group(first),
+    );
     presentation = container
         .read(bookmarkDetailsMutationProvider)
         .presentationFor(grouped, bookmark.uniqueId);
-    expect(presentation.isInActiveTarget, isTrue);
     expect(presentation.namedGroupCount, 1);
     expect(grouped.membershipsFor(bookmark.uniqueId), {first, second});
   });
@@ -196,14 +211,13 @@ void main() {
     final empty = BookmarkLibraryState(
       bookmarks: const [],
       groups: const [],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     notifier.toggle(config: config, post: post, library: empty);
     expect(
       container
           .read(bookmarkDetailsMutationProvider)
           .presentationFor(empty, bookmark.uniqueId)
-          .isInActiveTarget,
+          .isBookmarked,
       isTrue,
     );
     notifier.toggle(config: config, post: post, library: empty);
@@ -211,7 +225,7 @@ void main() {
       container
           .read(bookmarkDetailsMutationProvider)
           .presentationFor(empty, bookmark.uniqueId)
-          .isInActiveTarget,
+          .isBookmarked,
       isFalse,
     );
   });
@@ -251,7 +265,6 @@ void main() {
       final emptyLibrary = BookmarkLibraryState(
         bookmarks: const [],
         groups: const [],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       final target = _RecordingBookmarkNotifier(failingPosts: {post});
 
@@ -277,7 +290,6 @@ final class _RecordingBookmarkNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: const [],
     groups: const [],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 
   @override
