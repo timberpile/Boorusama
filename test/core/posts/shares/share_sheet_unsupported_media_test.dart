@@ -117,7 +117,7 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('Share image'));
+      await tester.tap(find.byTooltip('Share Image'));
       await pumpUntilShareCondition(
         tester,
         () => find
@@ -141,12 +141,12 @@ void main() {
       findsWidgets,
     );
     expect(find.text('Retry'), findsNothing);
-    expect(find.byTooltip('Share image'), findsOneWidget);
+    expect(find.byTooltip('Share Image'), findsOneWidget);
     expect(
       tester
           .widget<IconButton>(
             find.ancestor(
-              of: find.byTooltip('Share image'),
+              of: find.byTooltip('Share Image'),
               matching: find.byType(IconButton),
             ),
           )

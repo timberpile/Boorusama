@@ -661,7 +661,7 @@ void main() {
               profileId: '00000000-0000-4000-8000-00000000000c',
             ),
           );
-          expect(find.text('Last checked: ${date.label}'), findsOneWidget);
+          expect(find.text('Last Checked: ${date.label}'), findsOneWidget);
           expect(find.textContaining('2026-09-14'), findsNothing);
         });
       },
@@ -687,7 +687,7 @@ void main() {
             ),
           );
           await settle(tester);
-          expect(find.text('Last checked: vor einer Minute'), findsOneWidget);
+          expect(find.text('Last Checked: vor einer Minute'), findsOneWidget);
           expect(find.textContaining('1 Minuten'), findsNothing);
         },
       );

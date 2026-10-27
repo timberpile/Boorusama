@@ -49,7 +49,7 @@ void main() {
   ) async {
     await open(tester, onResult: (_) {});
     expect(find.text('Query: cat rating:safe'), findsOneWidget);
-    expect(find.text('Search query'), findsNothing);
+    expect(find.text('Search Query'), findsNothing);
     expect(find.byType(TextField), findsOneWidget);
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.controller!.text, isEmpty);

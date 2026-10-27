@@ -13,6 +13,7 @@ class ButtonData extends KurumiButtonData {
   const ButtonData({
     required super.widget,
     required super.title,
+    super.icon,
     super.onTap,
     super.enabled,
     super.required = false,
@@ -29,6 +30,7 @@ class SimpleButtonData extends ButtonData {
     super.required,
     super.placement,
   }) : super(
+         icon: Icon(icon),
          widget: IconButton(
            icon: Icon(icon),
            onPressed: onPressed,

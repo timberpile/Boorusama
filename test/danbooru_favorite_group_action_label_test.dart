@@ -95,7 +95,7 @@ void main() {
       expect(find.byType(MultiSelectionActionBar), findsNothing);
       expect(find.text('Download'), findsNothing);
       expect(find.text('Bookmark'), findsNothing);
-      expect(find.text('Add to account favorite group'), findsNothing);
+      expect(find.text('Add to Account Favorite Group'), findsNothing);
     });
   }
 
@@ -114,7 +114,8 @@ void main() {
       expect(find.byIcon(Icons.more_horiz), findsOneWidget);
       await tester.tap(find.byIcon(Icons.more_horiz));
       await tester.pumpAndSettle();
-      expect(find.text('Add to account favorite group'), findsOneWidget);
+      expect(find.text('Add to Account Favorite Group'), findsOneWidget);
+      expect(find.byIcon(Icons.folder_special), findsOneWidget);
     },
   );
 
@@ -129,11 +130,11 @@ void main() {
         width: 360,
       );
 
-      expect(find.text('Add to account favorite group'), findsNothing);
+      expect(find.text('Add to Account Favorite Group'), findsNothing);
       await tester.tap(find.byIcon(Icons.more_horiz).last);
       await tester.pumpAndSettle();
 
-      expect(find.text('Add to account favorite group'), findsOneWidget);
+      expect(find.text('Add to Account Favorite Group'), findsOneWidget);
     },
   );
 
@@ -149,7 +150,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.more_horiz).last);
       await tester.pumpAndSettle();
 
-      expect(find.text('Add to account favorite group'), findsOneWidget);
+      expect(find.text('Add to Account Favorite Group'), findsOneWidget);
       expect(find.text('Edit Rating'), findsNothing);
       expect(
         find.byWidgetPredicate(
@@ -193,7 +194,7 @@ void main() {
 
         expect(find.text('Download'), findsOneWidget);
         expect(find.text('Bookmark'), findsOneWidget);
-        expect(find.text('Add to account favorite group'), findsOneWidget);
+        expect(find.text('Add to Account Favorite Group'), findsOneWidget);
         expect(find.text('Edit Rating'), findsNothing);
         expect(
           find.byWidgetPredicate(
@@ -219,7 +220,7 @@ void main() {
 
       expect(find.text('Download'), findsOneWidget);
       expect(find.text('Bookmark'), findsOneWidget);
-      expect(find.text('Add to account favorite group'), findsNothing);
+      expect(find.text('Add to Account Favorite Group'), findsNothing);
       expect(
         find.byWidgetPredicate(
           (widget) =>
@@ -282,7 +283,7 @@ void main() {
 
         await tester.tap(find.byIcon(Icons.more_horiz).last);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Add to account favorite group'));
+        await tester.tap(find.text('Add to Account Favorite Group'));
 
         expect(navigator.pushedRouteNames, contains('add_to_favorite_group'));
       },
@@ -330,7 +331,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Add to account favorite group'), findsOneWidget);
+    expect(find.text('Add to Account Favorite Group'), findsOneWidget);
   });
 }
 

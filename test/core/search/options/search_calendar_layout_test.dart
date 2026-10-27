@@ -63,7 +63,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.byTooltip('Choose date'));
+    await tester.tap(find.byTooltip('Choose Date'));
     await tester.pumpAndSettle();
     final day = find.text('31');
     expect(day, findsOneWidget);

@@ -209,7 +209,7 @@ void main() {
       await _settle(tester);
       await tester.tap(find.byIcon(Icons.more_vert));
       await _settle(tester);
-      expect(find.text('Remove all selected tags'), findsOneWidget);
+      expect(find.text('Remove All Selected Tags'), findsOneWidget);
       expect(find.text('Bulk Download'), findsOneWidget);
       await tester.tap(
         find
@@ -227,7 +227,7 @@ void main() {
       expect(fetches, ['${testProfile.url}|cat|1']);
       await tester.tap(find.byIcon(Icons.more_vert));
       await _settle(tester);
-      await tester.tap(find.text('Remove all selected tags'));
+      await tester.tap(find.text('Remove All Selected Tags'));
       await _settle(tester);
       expect(controller.tagsController.tags, isEmpty);
       expect(find.byIcon(Icons.more_vert), findsNothing);

@@ -60,16 +60,19 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
                 required: true,
                 widget: btn,
                 title: context.t.post.action.favorite,
+                icon: const Icon(Icons.favorite_border),
               ),
             ButtonData(
               required: true,
               widget: BookmarkPostButton(post: post, config: auth),
               title: context.t.post.action.bookmark,
+              icon: const Icon(Icons.bookmark_border),
             ),
             ButtonData(
               required: true,
               widget: DownloadPostButton(post: post),
               title: context.t.download.download,
+              icon: const Icon(Icons.download),
             ),
             ButtonData(
               required: true,
@@ -80,6 +83,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
                 download: download,
               ),
               title: context.t.post.action.share,
+              icon: const Icon(Icons.share),
             ),
             if (commentPageBuilder != null)
               ButtonData(
@@ -87,6 +91,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
                   onPressed: () => goToCommentPage(context, ref, post),
                 ),
                 title: context.t.comment.comments,
+                icon: const Icon(Icons.comment_outlined),
                 onTap: () => goToCommentPage(context, ref, post),
               ),
             ...buttons,

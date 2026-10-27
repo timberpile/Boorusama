@@ -236,7 +236,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add group'));
+      await tester.tap(find.text('Add Group'));
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 240);
       addTearDown(tester.view.resetViewInsets);
@@ -450,7 +450,7 @@ void main() {
         await tester.tap(
           find.widgetWithText(
             MultiSelectButton,
-            folder ? 'Rename folder' : 'Rename',
+            folder ? 'Rename Folder' : 'Rename',
           ),
         );
         await tester.pumpAndSettle();
@@ -460,7 +460,7 @@ void main() {
         await tester.tap(
           find.widgetWithText(
             MultiSelectButton,
-            folder ? 'Rename folder' : 'Rename',
+            folder ? 'Rename Folder' : 'Rename',
           ),
         );
         await tester.pumpAndSettle();
@@ -531,7 +531,7 @@ void main() {
       find.descendant(of: _alertDialogs(), matching: find.text('Destination')),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Move here'));
+    await tester.tap(find.text('Move Here'));
     await tester.pumpAndSettle();
     expect(find.text('1 item selected'), findsOneWidget);
     expect(library.library.groups.single.folderId, isNull);
@@ -694,6 +694,7 @@ void main() {
         expect(find.text('Rename'), findsOneWidget);
         expect(find.text('Duplicate'), findsOneWidget);
         expect(find.text('Delete'), findsOneWidget);
+        expect(find.text('Select'), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );
@@ -878,8 +879,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Add groups folder'), findsOneWidget);
-        expect(find.text('Add group'), findsOneWidget);
+        expect(find.text('New Folder'), findsOneWidget);
+        expect(find.text('Add Group'), findsOneWidget);
+        expect(find.byIcon(Icons.create_new_folder_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.bookmark_add_outlined), findsOneWidget);
         await tester.tapAt(const Offset(5, 5));
         await tester.pumpAndSettle();
         await _menu(tester, 'alpha group');
@@ -964,7 +967,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add groups folder'));
+      await tester.tap(find.text('New Folder'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(legacy.TextField), ' Child ');
       await tester.tap(find.text('Save'));
@@ -977,7 +980,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add group'));
+      await tester.tap(find.text('Add Group'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(legacy.TextField), ' New ');
       await tester.tap(find.text('Save'));
@@ -1051,7 +1054,7 @@ void main() {
           find.descendant(of: dialog, matching: find.text('Home')),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Move here'));
+        await tester.tap(find.text('Move Here'));
         await tester.pumpAndSettle();
         expect(library.moves.single.destination, isNull);
         expect(
@@ -1097,7 +1100,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Move here'));
+      await tester.tap(find.text('Move Here'));
       await tester.pumpAndSettle();
       expect(library.moves.single.groupIds, {_id('g')});
       expect(library.moves.single.folderIds, {'child'});
@@ -1453,7 +1456,7 @@ void main() {
         if (entry.startsWith('legacy')) {
           await tester.tap(
             find.text(
-              entry == 'legacy add' ? 'Add to' : 'Remove from',
+              entry == 'legacy add' ? 'Add To' : 'Remove From',
             ),
           );
           await tester.pumpAndSettle();
@@ -1616,7 +1619,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       if (entry == 'legacy add') {
-        await tester.tap(find.text('Add to'));
+        await tester.tap(find.text('Add To'));
         await tester.pumpAndSettle();
       }
       await tester.tap(find.text('Artists'));
@@ -1743,7 +1746,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add group'));
+      await tester.tap(find.text('Add Group'));
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 240);
       addTearDown(tester.view.resetViewInsets);
@@ -1815,7 +1818,7 @@ Future<void> _menu(WidgetTester tester, String label) async {
 legacy.FilledButton _moveButton(WidgetTester tester) =>
     tester.widget<legacy.FilledButton>(
       find.ancestor(
-        of: find.text('Move here'),
+        of: find.text('Move Here'),
         matching: find.byType(legacy.FilledButton),
       ),
     );

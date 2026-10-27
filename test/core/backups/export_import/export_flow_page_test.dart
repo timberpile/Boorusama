@@ -86,8 +86,8 @@ void main() {
       await gesture.moveTo(tester.getCenter(find.text('three')));
       await tester.pump();
       expect(ids, {'one', 'two', 'three'});
-      expect(find.text('All current'), findsOneWidget);
-      expect(find.text('All, including future items'), findsNothing);
+      expect(find.text('All Current'), findsOneWidget);
+      expect(find.text('All, Including Future Items'), findsNothing);
       await gesture.moveTo(tester.getCenter(find.text('two')));
       await tester.pump();
       expect(ids, {'one', 'two'});
@@ -124,11 +124,11 @@ void main() {
   const cases = [
     (
       selection: ExportNodeSelection.all('bookmarks'),
-      label: 'All, including future items',
+      label: 'All, Including Future Items',
     ),
     (
       selection: ExportNodeSelection.explicit('bookmarks', {'one', 'two'}),
-      label: 'All current',
+      label: 'All Current',
     ),
   ];
   for (final c in cases) {
@@ -425,12 +425,12 @@ void main() {
 
     await pump({'bookmark:a', 'bookmark:b'});
     await tester.pumpAndSettle();
-    expect(find.text('All current'), findsNWidgets(2));
+    expect(find.text('All Current'), findsNWidgets(2));
 
     await pump({'group:one'});
     await tester.pumpAndSettle();
-    expect(find.text('All, including future items'), findsOneWidget);
-    expect(find.text('All current'), findsOneWidget);
+    expect(find.text('All, Including Future Items'), findsOneWidget);
+    expect(find.text('All Current'), findsOneWidget);
   });
 
   testWidgets('searches and feeds show subdued trailing profile names', (
@@ -536,7 +536,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Custom export'));
+    await tester.tap(find.text('Custom Export'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
@@ -564,15 +564,15 @@ void main() {
     await tester.enterText(patternField, 'favorites-{date:yyyy-MM-dd}');
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.text('Save as template'),
+      find.text('Save as Template'),
       500,
       scrollable: formScrollable,
     );
-    await tester.tap(find.text('Save as template'));
+    await tester.tap(find.text('Save as Template'));
     await tester.pumpAndSettle();
     final dialog = find.byType(AlertDialog);
     expect(
-      find.descendant(of: dialog, matching: find.text('Save as template')),
+      find.descendant(of: dialog, matching: find.text('Save as Template')),
       findsOneWidget,
     );
     expect(
@@ -647,11 +647,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Custom export'));
+    await tester.tap(find.text('Custom Export'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Suggested import behavior'));
+    await tester.tap(find.text('Suggested Import Behavior'));
     await tester.pumpAndSettle();
     await tester.tap(
       find.byKey(const ValueKey('recommendation:bookmarks')),
@@ -700,11 +700,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Custom export'));
+      await tester.tap(find.text('Custom Export'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(Checkbox).first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Suggested import behavior'));
+      await tester.tap(find.text('Suggested Import Behavior'));
       await tester.pumpAndSettle();
 
       final recommendations = find.byKey(
@@ -773,9 +773,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Custom export'), findsOneWidget);
+    expect(find.text('Custom Export'), findsOneWidget);
     expect(find.text('Bookmark groups · 1 selected'), findsOneWidget);
-    await tester.tap(find.text('Edit selection'));
+    await tester.tap(find.text('Edit Selection'));
     expect(edited, true);
   });
 
@@ -809,7 +809,7 @@ void main() {
     );
 
     expect(
-      find.text('Bookmark groups · All, including future items'),
+      find.text('Bookmark groups · All, Including Future Items'),
       findsOneWidget,
     );
     expect(find.text('Settings · Selected'), findsOneWidget);

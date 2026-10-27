@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../selection/collection_selection_bar.dart';
 import '../../../../widgets/multi_select_button.dart';
+import '../../../../widgets/popup_menu_action_label.dart';
 import '../../../../selection/ordered_selection_canvas.dart';
 
 import 'package:flutter/services.dart';
@@ -316,7 +317,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
               actions: [
                 ...[
                   IconButton(
-                    tooltip: strings.filter_topics,
+                    tooltip: context.t.generic.action.search,
                     icon: const Icon(Symbols.search),
                     onPressed: () => setState(() {
                       _filterVisible = !_filterVisible;
@@ -342,19 +343,31 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                     itemBuilder: (context) => [
                       PopupMenuItem(
                         value: FollowingTopicSort.manual,
-                        child: Text(strings.sort_manual),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.drag_handle,
+                          label: strings.sort_manual,
+                        ),
                       ),
                       PopupMenuItem(
                         value: FollowingTopicSort.nameAsc,
-                        child: Text(context.t.sort.name_asc),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.sort_by_alpha,
+                          label: context.t.sort.name_asc,
+                        ),
                       ),
                       PopupMenuItem(
                         value: FollowingTopicSort.updatesFirst,
-                        child: Text(strings.sort_updates_first),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.new_releases_outlined,
+                          label: strings.sort_updates_first,
+                        ),
                       ),
                       PopupMenuItem(
                         value: FollowingTopicSort.lastPostOldest,
-                        child: Text(strings.sort_last_post_oldest),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.history,
+                          label: strings.sort_last_post_oldest,
+                        ),
                       ),
                     ],
                   ),
@@ -369,24 +382,34 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                       PopupMenuItem(
                         value: _FollowingTopicPageAction.bulkAdd,
                         enabled: ref.watch(booruConfigProvider).isNotEmpty,
-                        child: Text(strings.bulk_add),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.playlist_add,
+                          label: strings.bulk_add,
+                        ),
                       ),
                       PopupMenuItem(
                         value: _FollowingTopicPageAction.createFolder,
-                        child: Text(strings.create_folder),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.create_new_folder_outlined,
+                          label: strings.create_folder,
+                        ),
                       ),
                       if (directFolder != null)
                         PopupMenuItem(
                           value: _FollowingTopicPageAction.folderSettings,
-                          child: Text(strings.edit_folder),
+                          child: PopupMenuActionLabel(
+                            icon: Icons.tune,
+                            label: strings.edit_folder,
+                          ),
                         ),
                       PopupMenuItem(
                         value: _FollowingTopicPageAction.refresh,
                         enabled: _folderId == null
                             ? canRefreshAll
                             : canRefreshFolder,
-                        child: Text(
-                          _folderId == null
+                        child: PopupMenuActionLabel(
+                          icon: Icons.refresh,
+                          label: _folderId == null
                               ? strings.refresh_all
                               : strings.refresh_folder,
                         ),
@@ -1006,17 +1029,20 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                               setState(() => _filterProfileId = value),
                           items: [
                             DropdownMenuItem(
-                              child: Text(strings.all_profiles),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.public, size: 20),
+                                  const SizedBox(width: 8),
+                                  Flexible(child: Text(strings.all_profiles)),
+                                ],
+                              ),
                             ),
                             for (final profile in profiles)
                               DropdownMenuItem(
                                 value: profile.id,
-                                child: Text(
-                                  followingTopicProfileCaption(
-                                    profile,
-                                    profiles,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                child: FollowingTopicProfileOption(
+                                  profile: profile,
                                 ),
                               ),
                           ],
@@ -1038,14 +1064,18 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                             ),
                             if (!filtering) ...[
                               const SizedBox(height: 12),
-                              FilledButton.icon(
-                                onPressed: _showEmptyFollow,
-                                icon: const Icon(Symbols.rss_feed),
-                                label: Text(strings.follow_a_topic),
+                              Tooltip(
+                                message: strings.follow_a_topic,
+                                child: FilledButton.icon(
+                                  onPressed: _showEmptyFollow,
+                                  icon: const Icon(Symbols.rss_feed),
+                                  label: Text(strings.follow),
+                                ),
                               ),
-                              TextButton(
+                              TextButton.icon(
                                 onPressed: _bulkAdd,
-                                child: Text(strings.bulk_add),
+                                icon: const Icon(Icons.playlist_add),
+                                label: Text(strings.bulk_add),
                               ),
                             ],
                           ],
@@ -1655,9 +1685,7 @@ class _FollowTopicQueryDialogState extends State<_FollowTopicQueryDialog> {
               for (final profile in widget.profiles)
                 DropdownMenuItem(
                   value: profile.id,
-                  child: Text(
-                    followingTopicProfileCaption(profile, widget.profiles),
-                  ),
+                  child: FollowingTopicProfileOption(profile: profile),
                 ),
             ],
             onChanged: (value) => setState(

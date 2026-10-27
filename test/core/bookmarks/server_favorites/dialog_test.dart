@@ -311,10 +311,10 @@ void main() {
       expect(find.text('Account one'), findsOneWidget);
       expect(find.text('Unsupported account'), findsOneWidget);
       expect(find.text('Signed-out account'), findsOneWidget);
-      expect(find.text('Default bookmark group'), findsOneWidget);
-      expect(find.text('Bookmark group'), findsNWidgets(2));
+      expect(find.text('Default Bookmark Group'), findsOneWidget);
+      expect(find.text('Bookmark Group'), findsNWidgets(2));
       expect(find.text('Use default · None'), findsNWidgets(2));
-      expect(find.text('Save & Fetch all'), findsOneWidget);
+      expect(find.text('Save & Fetch All'), findsOneWidget);
       expect(find.text('Save & Fetch'), findsNWidgets(2));
       expect(find.text('Unavailable profiles'), findsOneWidget);
       expect(
@@ -1123,7 +1123,7 @@ void main() {
           .setGlobal(group.id);
       await tap(tester, getSave());
       expect(find.textContaining('The target changed.'), findsOneWidget);
-      await tap(tester, find.text('Reload settings'));
+      await tap(tester, find.text('Reload Settings'));
       expect(
         find.descendant(
           of: getGlobal(),
@@ -1138,7 +1138,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.widget<FilledButton>(getSave()).onPressed, isNull);
       expect(tester.widget<TextButton>(getFetch()).onPressed, isNull);
-      await tap(tester, find.text('Reload settings'));
+      await tap(tester, find.text('Reload Settings'));
       await tap(tester, getSave());
       expect(find.byType(ServerFavoritesDialog), findsNothing);
       expect(h.source.calls, 0);

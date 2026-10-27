@@ -159,14 +159,7 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
                     for (final profile in widget.profiles)
                       DropdownMenuItem(
                         value: profile.id,
-                        child: Text(
-                          followingTopicProfileCaption(
-                            profile,
-                            widget.profiles,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: FollowingTopicProfileOption(profile: profile),
                       ),
                   ],
                   onChanged: _saving

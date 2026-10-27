@@ -11,6 +11,7 @@ class BookmarkOptionSelector<T> extends StatelessWidget {
     required this.optionLabel,
     required this.onSelected,
     this.optionIcon,
+    this.optionLeading,
     this.optionSemanticLabel,
     this.prefixLabel,
     super.key,
@@ -22,18 +23,29 @@ class BookmarkOptionSelector<T> extends StatelessWidget {
   final String Function(T) optionLabel;
   final ValueChanged<T> onSelected;
   final IconData Function(T)? optionIcon;
+  final Widget Function(T)? optionLeading;
   final String Function(T)? optionSemanticLabel;
   final String? prefixLabel;
 
   Widget _optionTitle(T option) {
     final icon = optionIcon?.call(option);
-    if (icon == null) return Text(optionLabel(option));
+    final leading = optionLeading?.call(option);
+    if (icon == null && leading == null) return Text(optionLabel(option));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18),
+        if (leading != null)
+          leading
+        else if (icon != null)
+          Icon(icon, size: 18),
         const SizedBox(width: 8),
-        Text(optionLabel(option)),
+        Flexible(
+          child: Text(
+            optionLabel(option),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
@@ -89,8 +101,11 @@ class BookmarkOptionSelector<T> extends StatelessWidget {
                 Text('${prefix}:', maxLines: 1),
                 const SizedBox(width: 6),
               ],
-              if (optionIcon != null) ...[
-                Icon(optionIcon!(value), size: 18),
+              if (optionLeading != null || optionIcon != null) ...[
+                if (optionLeading != null)
+                  optionLeading!(value)
+                else
+                  Icon(optionIcon!(value), size: 18),
                 const SizedBox(width: 6),
               ],
               Text(label, maxLines: 1),

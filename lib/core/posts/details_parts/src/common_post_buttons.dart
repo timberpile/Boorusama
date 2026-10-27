@@ -77,7 +77,7 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
       if (config != null)
         if (post.tags.isNotEmpty)
           SimpleButtonData(
-            icon: Icons.label,
+            icon: Icons.tag,
             title: context.t.post.action.view_tags,
             onPressed: () => goToShowTaglistPage(
               ref,

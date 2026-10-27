@@ -40,7 +40,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final editButton = find.byTooltip('Edit file name');
+    final editButton = find.byTooltip('Edit File Name');
     await tester.ensureVisible(editButton);
     await tester.tap(editButton);
     await tester.pumpAndSettle();

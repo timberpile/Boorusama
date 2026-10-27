@@ -192,7 +192,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Set up a custom site'));
+    await tester.tap(find.text('Set Up a Custom Site'));
     await tester.pump();
 
     expect(find.text('Site URL'), findsOneWidget);
@@ -213,11 +213,11 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Set up a custom site'));
+    await tester.tap(find.text('Set Up a Custom Site'));
     await tester.pump();
 
     expect(
-      tester.getTopLeft(find.text('Create a new profile')).dy,
+      tester.getTopLeft(find.text('Create a New Profile')).dy,
       lessThan(100),
     );
   });

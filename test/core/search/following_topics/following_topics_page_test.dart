@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/config_widgets/website_logo.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/search/src/routes/params.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
@@ -14,6 +15,7 @@ import 'package:boorusama/core/search/following_topics/routes.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_folder_card.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_profile_caption.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart' as legacy;
@@ -123,12 +125,12 @@ void main() {
         expect(find.widgetWithText(MultiSelectButton, label), findsNothing);
       }
       harness.box.failWrites = true;
-      await tester.tap(find.widgetWithText(MultiSelectButton, 'Mark read'));
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Mark Read'));
       await drain(tester);
       expect(find.text('1 item selected'), findsOneWidget);
       expect((await harness.repository.getById('cats'))!.hasNewPosts, isTrue);
       harness.box.failWrites = false;
-      await tester.tap(find.widgetWithText(MultiSelectButton, 'Mark read'));
+      await tester.tap(find.widgetWithText(MultiSelectButton, 'Mark Read'));
       await drain(tester);
       expect((await harness.repository.getById('cats'))!.hasNewPosts, isFalse);
       expect(find.text('1 item selected'), findsNothing);
@@ -280,7 +282,7 @@ void main() {
       'Dogs',
     );
     await tester.enterText(
-      find.widgetWithText(TextField, 'Exact query'),
+      find.widgetWithText(TextField, 'Exact Query'),
       'dog',
     );
     await tester.tap(find.byType(DropdownButtonFormField<String>));
@@ -324,8 +326,24 @@ void main() {
     await choose(tester, 'Edit');
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await settle(tester);
-    expect(find.text('Shared · https://active.example'), findsWidgets);
-    await tester.tap(find.text('Shared · https://other.example').last);
+    expect(find.text('Shared'), findsWidgets);
+    expect(find.byType(FollowingTopicProfileOption), findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byType(FollowingTopicProfileOption),
+        matching: find.byType(ConfigAwareWebsiteLogo),
+      ),
+      findsWidgets,
+    );
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) =>
+                widget is DropdownMenuItem<String> &&
+                widget.value == otherTestProfile.id,
+          )
+          .last,
+    );
     await settle(tester);
     await tester.tap(find.text('Save'));
     await drain(tester);
@@ -347,7 +365,7 @@ void main() {
     await pump(tester);
     await choose(tester, 'Edit');
     await tester.enterText(
-      find.widgetWithText(TextField, 'Exact query'),
+      find.widgetWithText(TextField, 'Exact Query'),
       'dog',
     );
     final releaseSave = Completer<void>();
@@ -384,7 +402,7 @@ void main() {
 
     await choose(tester, 'Edit');
     await tester.enterText(
-      find.widgetWithText(TextField, 'Exact query'),
+      find.widgetWithText(TextField, 'Exact Query'),
       ' dog  rating:safe ',
     );
     await tester.enterText(
@@ -426,7 +444,7 @@ void main() {
       await pump(tester);
       await choose(tester, 'Edit');
       await tester.enterText(
-        find.widgetWithText(TextField, 'Exact query'),
+        find.widgetWithText(TextField, 'Exact Query'),
         'dog',
       );
       harness.box.failWrites = true;
@@ -490,7 +508,7 @@ void main() {
     await pump(tester);
 
     expect(find.byType(TextField), findsNothing);
-    await tester.tap(find.byTooltip('Filter topics'));
+    await tester.tap(find.byTooltip('Search'));
     await settle(tester);
     expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'dogs');
@@ -498,7 +516,7 @@ void main() {
     expect(find.text('Dogs'), findsOneWidget);
     expect(find.text('Cats'), findsNothing);
 
-    await tester.tap(find.byTooltip('Filter topics'));
+    await tester.tap(find.byTooltip('Search'));
     await settle(tester);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Dogs'), findsOneWidget);
@@ -512,7 +530,8 @@ void main() {
     await harness.seed([]);
     await pump(tester);
 
-    await tester.tap(find.text('Follow a topic'));
+    expect(find.byTooltip('Follow a Topic'), findsOneWidget);
+    await tester.tap(find.text('Follow'));
     await settle(tester);
     expect(find.text('Follow Topic'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
@@ -533,11 +552,15 @@ void main() {
     final folder = await notifier.createSharedFolder('Empty');
     await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
 
-    await tester.tap(find.text('Follow a topic'));
+    expect(find.byTooltip('Follow a Topic'), findsOneWidget);
+    await tester.tap(find.text('Follow'));
     await settle(tester);
     await tester.enterText(find.byType(TextField), 'cat');
     await tester.pump();
-    final follow = find.widgetWithText(FilledButton, 'Follow');
+    final follow = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.widgetWithText(FilledButton, 'Follow'),
+    );
     expect(find.widgetWithText(FilledButton, 'Next'), findsNothing);
     expect(tester.widget<FilledButton>(follow).onPressed, isNotNull);
     await tester.ensureVisible(follow);
@@ -678,7 +701,7 @@ void main() {
         final start = startWithFolder ? 'Favorites' : 'Cats';
         final other = startWithFolder ? 'Cats' : 'Favorites';
         expect(find.byTooltip('Select'), findsNothing);
-        expect(find.byTooltip('Sort by'), findsOneWidget);
+        expect(find.byTooltip('Sort By'), findsOneWidget);
         expect(pageOverflow(), findsOneWidget);
         // Per-item action menus remain normal actions, not selection gestures.
         await openMenu(tester);
@@ -706,7 +729,7 @@ void main() {
         expect(find.text('1 item selected'), findsOneWidget);
         expect(find.widgetWithText(MultiSelectButton, 'Move'), findsOneWidget);
         expect(find.byTooltip('Close'), findsOneWidget);
-        expect(find.byTooltip('Sort by'), findsOneWidget);
+        expect(find.byTooltip('Sort By'), findsOneWidget);
         expect(
           pageOverflow(),
           findsOneWidget,
@@ -714,7 +737,7 @@ void main() {
         expect(find.text('Remove'), findsOneWidget);
         expect(find.text('Unfollow'), findsNothing);
         if (!startWithFolder) {
-          expect(find.text('Mark read'), findsOneWidget);
+          expect(find.text('Mark Read'), findsOneWidget);
         }
         expect(
           find.byType(PopupMenuButton<FollowingTopicAction>),
@@ -743,7 +766,7 @@ void main() {
         expect(find.byTooltip('Close'), findsNothing);
         expect(find.text('Following Topics'), findsOneWidget);
         expect(find.widgetWithText(MultiSelectButton, 'Move'), findsNothing);
-        expect(find.byTooltip('Sort by'), findsOneWidget);
+        expect(find.byTooltip('Sort By'), findsOneWidget);
         expect(pageOverflow(), findsOneWidget);
         // Cancel clears both sets, so a new selection starts with one item.
         await tester.longPress(find.text(start));
@@ -814,7 +837,7 @@ void main() {
       expect(find.text('Following Topics'), findsOneWidget);
       expect(find.widgetWithText(MultiSelectButton, 'Move'), findsNothing);
       expect(find.byIcon(Icons.check_circle), findsNothing);
-      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(find.byTooltip('Sort By'), findsOneWidget);
       expect(pageOverflow(), findsOneWidget);
       expect(harness.requests, isEmpty);
     },
@@ -853,7 +876,7 @@ void main() {
           ),
         );
         await settle(tester);
-        await tester.tap(find.text('Move up'));
+        await tester.tap(find.text('Move Up'));
         await drain(tester);
         expect(
           harness.container
@@ -878,9 +901,9 @@ void main() {
     await tester.longPress(find.text('Cats'));
     await settle(tester);
     await openPageMenu(tester);
-    expect(find.text('Mark read'), findsNothing);
-    expect(find.text('Enable auto-update'), findsNothing);
-    expect(find.text('Disable auto-update'), findsNothing);
+    expect(find.text('Mark Read'), findsNothing);
+    expect(find.text('Enable Auto-Update'), findsNothing);
+    expect(find.text('Disable Auto-Update'), findsNothing);
     expect(find.text('Remove'), findsOneWidget);
     expect(find.text('Unfollow'), findsNothing);
   });
@@ -975,21 +998,21 @@ void main() {
       await harness.seed([topicFixture()]);
       await pump(tester);
 
-      expect(find.byTooltip('Sort by'), findsOneWidget);
+      expect(find.byTooltip('Sort By'), findsOneWidget);
       expect(find.byTooltip('Bulk Follow'), findsNothing);
-      expect(find.byTooltip('Refresh settings'), findsNothing);
-      expect(find.byTooltip('Manage folders'), findsNothing);
+      expect(find.byTooltip('Refresh Settings'), findsNothing);
+      expect(find.byTooltip('Manage Folders'), findsNothing);
       expect(find.byTooltip('Refresh All'), findsNothing);
 
       await openPageMenu(tester);
       for (final label in [
         'Bulk Follow',
-        'Create folder',
+        'Create Folder',
         'Refresh All',
       ]) {
         expect(find.text(label), findsOneWidget);
       }
-      expect(find.text('Refresh settings'), findsNothing);
+      expect(find.text('Refresh Settings'), findsNothing);
       expect(find.text('Refresh'), findsNothing);
     },
   );
@@ -1007,13 +1030,13 @@ void main() {
     await notifier.moveTopicToSharedFolder('cats', folder.id);
     await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
 
-    expect(find.byTooltip('Sort by'), findsOneWidget);
+    expect(find.byTooltip('Sort By'), findsOneWidget);
     await openPageMenu(tester);
-    for (final label in ['Bulk Follow', 'Create folder', 'Refresh']) {
+    for (final label in ['Bulk Follow', 'Create Folder', 'Refresh']) {
       expect(find.text(label), findsOneWidget);
     }
     for (final label in [
-      'Refresh settings',
+      'Refresh Settings',
       'Refresh All',
     ]) {
       expect(find.text(label), findsNothing);
@@ -1033,10 +1056,10 @@ void main() {
       initialize();
       await harness.seed([topicFixture()]);
       await pump(tester);
-      expect(find.textContaining('Last checked:'), findsNothing);
+      expect(find.textContaining('Last Checked:'), findsNothing);
       await choose(tester, 'Details');
-      expect(find.textContaining('Last checked:'), findsOneWidget);
-      expect(find.text('Refresh interval: Adaptive · 1 day'), findsOneWidget);
+      expect(find.textContaining('Last Checked:'), findsOneWidget);
+      expect(find.text('Refresh Interval: Adaptive · 1 day'), findsOneWidget);
       expect(harness.requests, isEmpty);
     },
   );
@@ -1048,7 +1071,7 @@ void main() {
     await harness.seed([topicFixture()]);
     await pump(tester);
 
-    expect(find.byTooltip('Refresh settings'), findsNothing);
+    expect(find.byTooltip('Refresh Settings'), findsNothing);
     await choose(tester, 'Details');
     expect(find.text('Auto Update'), findsNothing);
     expect(find.byType(SwitchListTile), findsNothing);
@@ -1073,14 +1096,14 @@ void main() {
       ]);
       await pump(tester);
 
-      expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+      expect(find.text('Last Post: 2 hours ago'), findsOneWidget);
       expect(
-        tester.getCenter(find.text('Last post: 2 hours ago')).dy,
+        tester.getCenter(find.text('Last Post: 2 hours ago')).dy,
         tester.getCenter(find.text('https://active.example')).dy,
       );
       expect(
         tester.getTopRight(find.byType(FollowingTopicCard)).dx -
-            tester.getTopRight(find.text('Last post: 2 hours ago')).dx,
+            tester.getTopRight(find.text('Last Post: 2 hours ago')).dx,
         lessThan(32),
       );
       expect(harness.requests, isEmpty);
@@ -1123,7 +1146,7 @@ void main() {
     final caption = tester.widget<Text>(find.text(longUrl));
     expect(caption.maxLines, 1);
     expect(caption.overflow, TextOverflow.ellipsis);
-    expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+    expect(find.text('Last Post: 2 hours ago'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1141,17 +1164,17 @@ void main() {
 
     await withClock(Clock(() => now), () async {
       await pump(tester);
-      expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+      expect(find.text('Last Post: 2 hours ago'), findsOneWidget);
 
       now = DateTime.utc(2026, 9, 14, 13);
       await tester.pump(const Duration(minutes: 1));
-      expect(find.text('Last post: 3 hours ago'), findsOneWidget);
+      expect(find.text('Last Post: 3 hours ago'), findsOneWidget);
     });
   });
 
   for (final c in [
-    (checked: false, label: 'Last post: Not checked'),
-    (checked: true, label: 'Last post: No posts'),
+    (checked: false, label: 'Last Post: Not checked'),
+    (checked: true, label: 'Last Post: No posts'),
   ]) {
     testWidgets('shows ${c.label} when no cached post time is available', (
       tester,
@@ -1179,7 +1202,7 @@ void main() {
       ]);
       await pump(tester);
 
-      expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+      expect(find.text('Last Post: 2 hours ago'), findsOneWidget);
       expect(
         find.text('Could not connect. Try refreshing again.'),
         findsOneWidget,
@@ -1209,7 +1232,7 @@ void main() {
       ]);
       await pump(tester);
 
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
       expect(find.byType(PopupMenuItem<FollowingTopicSort>), findsNWidgets(4));
       expect(
@@ -1225,12 +1248,12 @@ void main() {
           FollowingTopicSort.lastPostOldest,
         ],
       );
-      expect(find.text('Manual order'), findsOneWidget);
-      expect(find.text('Updates first'), findsOneWidget);
-      expect(find.text('Oldest post first'), findsOneWidget);
+      expect(find.text('Manual Order'), findsOneWidget);
+      expect(find.text('Updates First'), findsOneWidget);
+      expect(find.text('Oldest Post First'), findsOneWidget);
       expect(find.text('Unseen first'), findsNothing);
       expect(find.text('Newest post first'), findsNothing);
-      await tester.tap(find.text('Updates first'));
+      await tester.tap(find.text('Updates First'));
       await settle(tester);
 
       expect(
@@ -1243,9 +1266,9 @@ void main() {
       ]);
       expect(harness.requests, isEmpty);
 
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      await tester.tap(find.text('Manual order'));
+      await tester.tap(find.text('Manual Order'));
       await settle(tester);
       expect(
         tester.getTopLeft(find.text('Cats')).dy,
@@ -1297,9 +1320,9 @@ void main() {
     ]);
     await pump(tester);
 
-    await tester.tap(find.byTooltip('Sort by'));
+    await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates first'));
+    await tester.tap(find.text('Updates First'));
     await settle(tester);
 
     expect(
@@ -1364,9 +1387,9 @@ void main() {
     await notifier.moveTopicToSharedFolder('newer', folder.id);
     await pump(tester);
 
-    await tester.tap(find.byTooltip('Sort by'));
+    await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates first'));
+    await tester.tap(find.text('Updates First'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
@@ -1417,9 +1440,9 @@ void main() {
     ]);
     await pump(tester);
 
-    await tester.tap(find.byTooltip('Sort by'));
+    await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Oldest post first'));
+    await tester.tap(find.text('Oldest Post First'));
     await settle(tester);
 
     expect(
@@ -1448,8 +1471,8 @@ void main() {
       ]) {
         await openMenu(tester, c.name);
         for (final action in [
-          (label: 'Move up', enabled: c.moveUp),
-          (label: 'Move down', enabled: c.moveDown),
+          (label: 'Move Up', enabled: c.moveUp),
+          (label: 'Move Down', enabled: c.moveDown),
         ]) {
           final item = tester.widget<PopupMenuItem<FollowingTopicAction>>(
             find.ancestor(
@@ -1482,13 +1505,13 @@ void main() {
       ),
     ]);
     await pump(tester);
-    await tester.tap(find.byTooltip('Sort by'));
+    await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates first'));
+    await tester.tap(find.text('Updates First'));
     await settle(tester);
     await openMenu(tester, 'Dogs');
 
-    for (final label in ['Move up', 'Move down']) {
+    for (final label in ['Move Up', 'Move Down']) {
       expect(find.text(label), findsNothing);
     }
   });
@@ -1520,9 +1543,9 @@ void main() {
     await notifier.moveTopicToSharedFolder('older', folder.id);
     await pump(tester);
 
-    await tester.tap(find.byTooltip('Sort by'));
+    await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Oldest post first'));
+    await tester.tap(find.text('Oldest Post First'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
@@ -1600,7 +1623,7 @@ void main() {
     expect(find.text('Other profile'), findsOneWidget);
     expect(find.text('NEW'), findsNWidgets(2));
     expect(find.text('Never checked'), findsNothing);
-    expect(find.textContaining('Last checked:'), findsNothing);
+    expect(find.textContaining('Last Checked:'), findsNothing);
     expect(
       find.text('Could not connect. Try refreshing again.'),
       findsOneWidget,
@@ -1663,7 +1686,7 @@ void main() {
       await harness.seed([topicFixture(error: c.kind)]);
       await pump(tester);
       expect(find.text(c.message), findsOneWidget);
-      expect(find.textContaining('Last checked:'), findsNothing);
+      expect(find.textContaining('Last Checked:'), findsNothing);
     });
   }
 
@@ -1862,7 +1885,7 @@ void main() {
         ),
       ]);
       await pump(tester);
-      await choose(tester, 'Move down');
+      await choose(tester, 'Move Down');
       expect(
         tester.getTopLeft(find.text('Dogs')).dy,
         lessThan(tester.getTopLeft(find.text('Cats')).dy),
@@ -1875,7 +1898,7 @@ void main() {
         (await harness.repository.getById('dogs'))!.profileId,
         '00000000-0000-4000-8000-000000000063',
       );
-      await choose(tester, 'Move up');
+      await choose(tester, 'Move Up');
       expect((await harness.repository.getOrganization()).homeSearchIds, [
         'cats',
         'dogs',

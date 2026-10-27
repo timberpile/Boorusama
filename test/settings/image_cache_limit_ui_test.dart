@@ -94,8 +94,8 @@ void main() {
         );
         await tester.pumpWidget(page(Settings.defaultSettings));
         await tester.pumpAndSettle();
-        expect(find.text('Image cache limit'), findsOneWidget);
-        expect(find.text('Bookmark images'), findsNothing);
+        expect(find.text('Image Cache Limit'), findsOneWidget);
+        expect(find.text('Bookmark Images'), findsNothing);
         final container = ProviderScope.containerOf(
           tester.element(find.byType(DataAndStoragePage)),
         );
@@ -139,9 +139,9 @@ void main() {
           await settleSettings();
         }
 
-        await select('Image cache limit', '500 MB');
-        await select('Video cache limit', '2 GB');
-        await select('Image cache limit', 'Custom...');
+        await select('Image Cache Limit', '500 MB');
+        await select('Video Cache Limit', '2 GB');
+        await select('Image Cache Limit', 'Custom...');
         expect(find.text('10 GB'), findsOneWidget);
         await tester.tap(find.byIcon(Icons.add));
         await tester.pumpAndSettle();
@@ -155,8 +155,8 @@ void main() {
         );
         expect(reopened.toJson()['imageCacheMaxSize'], '500MB');
         expect(reopened.toJson()['videoCacheMaxSize'], '2GB');
-        await select('Image cache limit', 'Disabled');
-        await select('Image cache limit', 'Custom...');
+        await select('Image Cache Limit', 'Disabled');
+        await select('Image Cache Limit', 'Custom...');
         expect(find.text('50 GB'), findsOneWidget);
         await container
             .read(settingsNotifierProvider.notifier)
@@ -169,7 +169,7 @@ void main() {
         expect(find.text('40 GB'), findsOneWidget);
         await tester.tap(find.text('OK'));
         await settleSettings();
-        await select('Image cache limit', 'Disabled');
+        await select('Image Cache Limit', 'Disabled');
 
         reopened = (await repository.load().run()).getOrElse(
           (_) => throw StateError('settings failed'),

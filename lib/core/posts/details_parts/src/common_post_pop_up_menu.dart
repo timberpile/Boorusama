@@ -45,6 +45,7 @@ class CommonPostPopupMenu extends ConsumerWidget {
             if (copy && config != null && configViewer != null)
               KurumiPopupMenuItem(
                 title: Text(context.t.post.action.share),
+                icon: const Icon(Icons.share),
                 onTap: () => ref
                     .read(shareProvider)
                     .sharePost(
@@ -62,6 +63,9 @@ class CommonPostPopupMenu extends ConsumerWidget {
             for (final button in buttons)
               KurumiPopupMenuItem(
                 title: Text(button.title),
+                icon: button.widget is IconButton
+                    ? (button.widget as IconButton).icon
+                    : null,
                 onTap: () => button.onTap?.call(),
               ),
           ],

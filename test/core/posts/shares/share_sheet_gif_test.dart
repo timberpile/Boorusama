@@ -241,7 +241,7 @@ void main() {
         ),
         isEmpty,
       );
-      expect(find.byTooltip('Share video'), findsOneWidget);
+      expect(find.byTooltip('Share Video'), findsOneWidget);
     },
   );
 
@@ -842,7 +842,7 @@ void main() {
         tester,
         () => Directory('${root!.path}/boorusama-share').listSync().isEmpty,
       );
-      expect(find.byTooltip('Share video'), findsOneWidget);
+      expect(find.byTooltip('Share Video'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

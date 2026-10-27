@@ -86,7 +86,7 @@ void main() {
     (
       name: 'clicking OK',
       confirm: (WidgetTester tester) => tester.tap(
-        find.text(appStrings(tester).generic.action.ok).last,
+        find.byTooltip(appStrings(tester).generic.action.ok).last,
         kind: PointerDeviceKind.mouse,
       ),
     ),
@@ -222,11 +222,11 @@ void main() {
       await app.openFullHistory();
       final strings = appStrings(tester);
 
-      await app.tapText(strings.search.history.clear);
+      await app.tapTooltip(strings.search.history.clear);
       await app.tapText(strings.generic.action.cancel);
       expect(app.fullHistory(), ['cat']);
 
-      await app.tapText(strings.search.history.clear);
+      await app.tapTooltip(strings.search.history.clear);
       await app.tapText(strings.generic.action.ok);
       expect(app.fullHistory(), isEmpty);
 
@@ -360,6 +360,11 @@ final class _SearchHistoryApp {
 
   Future<void> tapText(String text) async {
     await tester.tap(find.text(text).last);
+    await harness.settle(tester);
+  }
+
+  Future<void> tapTooltip(String tooltip) async {
+    await tester.tap(find.byTooltip(tooltip));
     await harness.settle(tester);
   }
 

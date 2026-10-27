@@ -285,7 +285,7 @@ void main() {
         );
         await h.pump(tester, scaled(const TopicFeedsPage()));
         final profile = find.text(testProfile.url);
-        final last = find.textContaining('Last post:');
+        final last = find.textContaining('Last Post:');
         expect(
           tester.getCenter(last).dy,
           closeTo(tester.getCenter(profile).dy, 1),

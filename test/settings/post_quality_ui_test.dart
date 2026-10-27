@@ -91,7 +91,7 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Post quality'), findsOneWidget);
+      expect(find.text('Post Quality'), findsOneWidget);
       final selector = tester.widget<KurumiOptionDropDownButton<PostQuality>>(
         find.byType(KurumiOptionDropDownButton<PostQuality>),
       );

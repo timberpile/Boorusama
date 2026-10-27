@@ -144,7 +144,7 @@ void main() {
         tester.getTopLeft(find.text('Zebra')).dy,
         lessThan(tester.getTopLeft(find.text('apple')).dy),
       );
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Name (A-Z)'));
       await drain(tester);

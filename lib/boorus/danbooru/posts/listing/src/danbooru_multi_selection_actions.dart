@@ -49,7 +49,7 @@ class DanbooruMultiSelectionActions extends ConsumerWidget {
                     );
                   }
                 : null,
-            icon: const Icon(Symbols.add),
+            icon: const Icon(Icons.folder_special),
             name: context.t.post.action.add_to_favorite_group,
             menuOnly: true,
           ),

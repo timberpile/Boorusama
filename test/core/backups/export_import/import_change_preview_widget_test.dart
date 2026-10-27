@@ -64,7 +64,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Planned changes'));
+    await tester.tap(find.text('Planned Changes'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Profiles'));
     await tester.pumpAndSettle();
@@ -146,7 +146,7 @@ void main() {
                     ],
                   ),
                 ],
-                sourceNames: const {'following_feeds': 'Topic feeds'},
+                sourceNames: const {'following_feeds': 'Topic Feeds'},
                 profileNames: const {'old-id': 'Personal', 'new-id': 'Work'},
               ),
             ),
@@ -154,9 +154,9 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.text('Planned changes'));
+    await tester.tap(find.text('Planned Changes'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Topic feeds'));
+    await tester.tap(find.text('Topic Feeds'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Artist watch → Favorite artists'));
     await tester.pumpAndSettle();
@@ -202,7 +202,7 @@ void main() {
                       ],
                     ),
                 ],
-                sourceNames: const {'following_feeds': 'Topic feeds'},
+                sourceNames: const {'following_feeds': 'Topic Feeds'},
                 profileNames: const {},
               ),
             ),
@@ -211,10 +211,10 @@ void main() {
       );
       expect(find.text('5 changes'), findsOneWidget);
       expect(find.text('+5'), findsOneWidget);
-      await tester.tap(find.text('Planned changes'));
+      await tester.tap(find.text('Planned Changes'));
       await tester.pumpAndSettle();
       expect(find.text('5 changes'), findsNWidgets(2));
-      await tester.tap(find.text('Topic feeds'));
+      await tester.tap(find.text('Topic Feeds'));
       await tester.pumpAndSettle();
       expect(find.text('2 changes'), findsOneWidget);
       expect(find.text('+2'), findsOneWidget);
@@ -271,7 +271,7 @@ void main() {
       ),
     );
     expect(find.text('1 change'), findsOneWidget);
-    await tester.tap(find.text('Planned changes'));
+    await tester.tap(find.text('Planned Changes'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Topics'));
     await tester.pumpAndSettle();
@@ -334,7 +334,7 @@ void main() {
                         ),
                       ],
                       sourceNames: const {
-                        'bookmarks': 'Bookmark groups',
+                        'bookmarks': 'Bookmark Groups',
                         'pinned_searches': 'Topics',
                       },
                       profileNames: const {'profile': 'Personal'},
@@ -349,12 +349,12 @@ void main() {
         expect(find.text('+13'), findsOneWidget);
         expect(find.text('−4'), findsOneWidget);
         expect(find.text('Long bookmark collection title'), findsNothing);
-        await tester.tap(find.text('Planned changes'));
+        await tester.tap(find.text('Planned Changes'));
         await tester.pumpAndSettle();
         expect(find.text('16 changes'), findsOneWidget);
         expect(find.text('1 change'), findsOneWidget);
         await tester.tap(
-          find.text('Bookmark groups'),
+          find.text('Bookmark Groups'),
         );
         await tester.pumpAndSettle();
         expect(find.text('Long bookmark collection title'), findsOneWidget);
@@ -386,22 +386,22 @@ void main() {
         expect(find.textContaining('∅'), findsNothing);
 
         await tester.ensureVisible(
-          find.text('Bookmark groups'),
+          find.text('Bookmark Groups'),
         );
         await tester.tap(
-          find.text('Bookmark groups'),
+          find.text('Bookmark Groups'),
         );
         await tester.pumpAndSettle();
         expect(find.text('Long bookmark collection title'), findsNothing);
         expect(find.text('scenery sky'), findsOneWidget);
         await tester.ensureVisible(
-          find.text('Planned changes'),
+          find.text('Planned Changes'),
         );
-        await tester.tap(find.text('Planned changes'));
+        await tester.tap(find.text('Planned Changes'));
         await tester.pumpAndSettle();
         expect(find.text('17 changes'), findsOneWidget);
         expect(find.text('scenery sky'), findsNothing);
-        await tester.tap(find.text('Planned changes'));
+        await tester.tap(find.text('Planned Changes'));
         await tester.pumpAndSettle();
         expect(find.text('scenery sky'), findsOneWidget);
         expect(find.text('Long bookmark collection title'), findsNothing);

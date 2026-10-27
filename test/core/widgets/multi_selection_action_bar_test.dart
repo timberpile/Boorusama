@@ -71,6 +71,19 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Action 4').hitTestable(), findsOneWidget);
           expect(find.text('Action 5').hitTestable(), findsOneWidget);
+          final overflowRow = find
+              .ancestor(
+                of: find.text('Action 4'),
+                matching: find.byType(Row),
+              )
+              .first;
+          expect(
+            find.descendant(
+              of: overflowRow,
+              matching: find.byIcon(Icons.copy),
+            ),
+            findsOneWidget,
+          );
         } else {
           expect(find.byType(KurumiPopupMenuButton), findsNothing);
         }

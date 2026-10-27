@@ -1,5 +1,6 @@
 import '../../../selection/collection_selection_bar.dart';
 import '../../../widgets/multi_select_button.dart';
+import '../../../widgets/popup_menu_action_label.dart';
 import '../types/bookmark_library_state.dart';
 import '../../../selection/ordered_selection_canvas.dart';
 
@@ -233,6 +234,7 @@ class _BookmarkGroupBrowserPageState
                 if (!_selecting)
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert),
+                    tooltip: context.t.generic.action.more,
                     onSelected: (action) => switch (action) {
                       'folder' => _createFolder(),
                       'group' => _create(context, ref),
@@ -241,11 +243,17 @@ class _BookmarkGroupBrowserPageState
                     itemBuilder: (context) => [
                       PopupMenuItem(
                         value: 'folder',
-                        child: Text(context.t.bookmark.groups.add_folder),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.create_new_folder_outlined,
+                          label: context.t.bookmark.groups.add_folder,
+                        ),
                       ),
                       PopupMenuItem(
                         value: 'group',
-                        child: Text(context.t.bookmark.groups.add),
+                        child: PopupMenuActionLabel(
+                          icon: Icons.bookmark_add_outlined,
+                          label: context.t.bookmark.groups.add,
+                        ),
                       ),
                     ],
                   ),
@@ -1029,37 +1037,43 @@ class _GroupCard extends StatelessWidget {
                             Icons.more_vert,
                             color: Colors.white,
                           ),
+                          tooltip: context.t.generic.action.more,
                           onSelected: (action) => switch (action) {
                             'rename' => onRename?.call(),
                             'duplicate' => onDuplicate?.call(),
                             'delete' => onDelete?.call(),
                             'move' => onMove?.call(),
-                            'select' => onSelect?.call(),
                             _ => null,
                           },
                           itemBuilder: (context) => [
                             PopupMenuItem(
-                              value: 'select',
-                              child: Text(context.t.folders.select),
-                            ),
-                            PopupMenuItem(
                               value: 'move',
-                              child: Text(context.t.folders.move),
+                              child: PopupMenuActionLabel(
+                                icon: Icons.drive_file_move_outline,
+                                label: context.t.folders.move,
+                              ),
                             ),
                             PopupMenuItem(
                               value: 'rename',
-                              child: Text(context.t.bookmark.groups.rename),
+                              child: PopupMenuActionLabel(
+                                icon: Icons.edit_outlined,
+                                label: context.t.bookmark.groups.rename,
+                              ),
                             ),
                             if (onDuplicate != null)
                               PopupMenuItem(
                                 value: 'duplicate',
-                                child: Text(
-                                  context.t.bookmark.groups.duplicate,
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.copy,
+                                  label: context.t.bookmark.groups.duplicate,
                                 ),
                               ),
                             PopupMenuItem(
                               value: 'delete',
-                              child: Text(context.t.bookmark.groups.delete),
+                              child: PopupMenuActionLabel(
+                                icon: Icons.delete_outline,
+                                label: context.t.bookmark.groups.delete,
+                              ),
                             ),
                           ],
                         ),

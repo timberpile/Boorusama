@@ -93,8 +93,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Tag count'), findsOneWidget);
-      await tester.tap(find.text('Tag count'));
+      expect(find.text('Tag Count'), findsOneWidget);
+      await tester.tap(find.text('Tag Count'));
       await tester.pump();
       expect(
         controller.textController.text,

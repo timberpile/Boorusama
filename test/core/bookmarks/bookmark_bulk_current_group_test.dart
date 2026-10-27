@@ -52,8 +52,8 @@ void main() {
     );
     expect(find.byKey(actionKey), findsNothing);
     expect(find.byType(KurumiPopupMenuItem), findsNWidgets(2));
-    expect(find.text('Add to'), findsOneWidget);
-    expect(find.text('Remove from'), findsOneWidget);
+    expect(find.text('Add To'), findsOneWidget);
+    expect(find.text('Remove From'), findsOneWidget);
     expect(find.text('Remove'), findsNothing);
     expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
     expect(notifier.calls, 0);
@@ -112,8 +112,8 @@ void main() {
         ),
       );
       expect(find.byType(KurumiPopupMenuItem), findsNWidgets(3));
-      expect(find.text('Add to'), findsOneWidget);
-      expect(find.text('Remove from'), findsOneWidget);
+      expect(find.text('Add To'), findsOneWidget);
+      expect(find.text('Remove From'), findsOneWidget);
       expect(find.text('Remove'), findsOneWidget);
       expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
       final action = tester.widget<KurumiPopupMenuItem>(find.byKey(actionKey));

@@ -83,7 +83,7 @@ void main() {
     await tester.tap(privacy);
     await tester.pump();
     await harness.settle(tester);
-    await tester.tap(find.text('App lock'));
+    await tester.tap(find.text('App Lock'));
     await tester.pump();
     await harness.settle(tester);
 

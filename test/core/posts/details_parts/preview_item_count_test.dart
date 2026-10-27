@@ -147,7 +147,7 @@ void main() {
         await _tapLoadMore(tester, 1);
         await _pumpUntilGridCount(tester, 19, expectedPostWidgets: 19);
         expect(find.textContaining('Show '), findsNothing);
-        expect(find.textContaining('Show less'), findsNothing);
+        expect(find.textContaining('Show Less'), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );

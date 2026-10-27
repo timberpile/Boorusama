@@ -6,6 +6,7 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../widgets/popup_menu_action_label.dart';
 import '../types/topic_organization.dart';
 import '../types/following_topic_sort.dart';
 import '../types/following_topic.dart';
@@ -205,27 +206,42 @@ class FollowingTopicFolderCard extends StatelessWidget {
                           PopupMenuItem(
                             value: FollowingTopicAction.refresh,
                             enabled: canRefresh,
-                            child: Text(strings.refresh),
+                            child: PopupMenuActionLabel(
+                              icon: Icons.refresh,
+                              label: strings.refresh,
+                            ),
                           ),
                           PopupMenuItem(
                             value: FollowingTopicAction.edit,
-                            child: Text(strings.edit_folder),
+                            child: PopupMenuActionLabel(
+                              icon: Icons.tune,
+                              label: strings.edit_folder,
+                            ),
                           ),
                           if (showMoveActions)
                             PopupMenuItem(
                               value: FollowingTopicAction.moveUp,
                               enabled: canMoveUp,
-                              child: Text(strings.move_up),
+                              child: PopupMenuActionLabel(
+                                icon: Icons.arrow_upward,
+                                label: strings.move_up,
+                              ),
                             ),
                           if (showMoveActions)
                             PopupMenuItem(
                               value: FollowingTopicAction.moveDown,
                               enabled: canMoveDown,
-                              child: Text(strings.move_down),
+                              child: PopupMenuActionLabel(
+                                icon: Icons.arrow_downward,
+                                label: strings.move_down,
+                              ),
                             ),
                           PopupMenuItem(
                             value: FollowingTopicAction.delete,
-                            child: Text(context.t.generic.action.delete),
+                            child: PopupMenuActionLabel(
+                              icon: Icons.delete_outline,
+                              label: context.t.generic.action.delete,
+                            ),
                           ),
                         ],
                       ),

@@ -38,7 +38,7 @@ void main() {
     (tester) async {
       await openPicker(tester);
       expect(find.text('Follow'), findsOneWidget);
-      expect(find.text('Create feed'), findsNothing);
+      expect(find.text('Create Feed'), findsNothing);
       expect(find.text('artist_tag'), findsOneWidget);
       expect(find.text('Home'), findsOneWidget);
       expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);

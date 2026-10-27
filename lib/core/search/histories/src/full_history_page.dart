@@ -38,7 +38,8 @@ class _FullHistoryPageState extends ConsumerState<FullHistoryPage> {
       appBar: KurumiAppBar(
         title: Text(context.t.search.history.history),
         actions: [
-          TextButton(
+          IconButton(
+            tooltip: context.t.search.history.clear,
             onPressed: () => showDialog(
               context: context,
               routeSettings: const RouteSettings(name: 'clear_all_history'),
@@ -72,7 +73,7 @@ class _FullHistoryPageState extends ConsumerState<FullHistoryPage> {
                 ],
               ),
             ),
-            child: Text(context.t.search.history.clear),
+            icon: const Icon(Icons.delete_sweep_outlined),
           ),
         ],
       ),

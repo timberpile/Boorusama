@@ -41,11 +41,11 @@ void main() {
   ) async {
     await pumpEditor(tester);
 
-    await tester.tap(find.byTooltip('Show filters'));
+    await tester.tap(find.byTooltip('Show Filters'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Hide filters'));
+    await tester.tap(find.byTooltip('Hide Filters'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
   });
@@ -54,19 +54,19 @@ void main() {
     tester,
   ) async {
     await pumpEditor(tester);
-    await tester.tap(find.byTooltip('Show filters'));
+    await tester.tap(find.byTooltip('Show Filters'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'ca');
     await tester.pumpAndSettle();
     expect(find.text('cat'), findsOneWidget);
     expect(find.text('dog'), findsNothing);
 
-    await tester.tap(find.byTooltip('Hide filters'));
+    await tester.tap(find.byTooltip('Hide Filters'));
     await tester.pumpAndSettle();
     expect(find.text('cat'), findsOneWidget);
     expect(find.text('dog'), findsNothing);
 
-    await tester.tap(find.byTooltip('Show filters'));
+    await tester.tap(find.byTooltip('Show Filters'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
     expect(find.text('ca'), findsOneWidget);
@@ -80,24 +80,24 @@ void main() {
     final semantics = tester.ensureSemantics();
 
     expect(
-      tester.getSemantics(find.bySemanticsLabel('Show filters')),
+      tester.getSemantics(find.bySemanticsLabel('Show Filters')),
       matchesSemantics(
         hasTapAction: true,
         isButton: true,
         hasToggledState: true,
-        label: 'Show filters',
+        label: 'Show Filters',
       ),
     );
 
-    await tester.tap(find.byTooltip('Show filters'));
+    await tester.tap(find.byTooltip('Show Filters'));
     await tester.pumpAndSettle();
     expect(
-      tester.getSemantics(find.bySemanticsLabel('Hide filters')),
+      tester.getSemantics(find.bySemanticsLabel('Hide Filters')),
       matchesSemantics(
         hasTapAction: true,
         isButton: true,
         hasToggledState: true,
-        label: 'Hide filters',
+        label: 'Hide Filters',
         isToggled: true,
       ),
     );

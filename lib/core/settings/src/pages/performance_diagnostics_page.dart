@@ -107,12 +107,13 @@ class _PerformanceDiagnosticsPageState
                       icon: const Icon(Icons.copy),
                       label: Text(strings.copy),
                     ),
-                    TextButton(
+                    TextButton.icon(
                       onPressed:
                           recorder.hasSession && !recorder.recording && !busy
                           ? diagnostics.clear
                           : null,
-                      child: Text(strings.clear),
+                      icon: const Icon(Icons.delete_outline),
+                      label: Text(strings.clear),
                     ),
                   ],
                 ),

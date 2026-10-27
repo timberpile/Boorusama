@@ -1,4 +1,5 @@
 import 'package:boorusama/core/groups/folder_tree.dart';
+import 'package:boorusama/core/config_widgets/website_logo.dart';
 
 import '../search/following_topics/topic_test_utils.dart';
 
@@ -447,6 +448,8 @@ void main() {
       expect(find.text('Source: missing.example'), findsOneWidget);
       await _tapFilter(tester, 'Source: missing.example');
       await pumpHeader();
+      expect(find.byType(ConfigAwareWebsiteLogo), findsWidgets);
+      expect(find.byIcon(Icons.public), findsOneWidget);
       await tester.tap(
         find.ancestor(
           of: find.text('All'),
@@ -474,7 +477,7 @@ void main() {
       // Retry is valid: a random permutation can coincidentally repeat.
       var changed = false;
       for (var attempt = 0; attempt < 8 && !changed; attempt++) {
-        await tester.tap(find.byTooltip('Shuffle bookmarks'));
+        await tester.tap(find.byTooltip('Shuffle Bookmarks'));
         await pumpHeader();
         changed = !listEquals(
           firstOrder,
@@ -537,7 +540,7 @@ void main() {
         ),
       );
       await pumpHeader();
-      expect(find.text('Remove from'), findsOneWidget);
+      expect(find.text('Remove From'), findsOneWidget);
       expect(find.text('Delete'), findsNothing);
       expect(find.byType(AlertDialog), findsNothing);
       expect(container.read(bookmarkProvider).requireValue, same(library));

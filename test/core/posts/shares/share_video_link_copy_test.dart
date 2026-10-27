@@ -115,7 +115,7 @@ void main() {
         ),
       );
       await tester.runAsync(() async {
-        await tester.tap(find.byTooltip('Copy video link'));
+        await tester.tap(find.byTooltip('Copy Video Link'));
         await pumpUntilShareCondition(
           tester,
           () =>
@@ -138,7 +138,7 @@ void main() {
           tester,
           () =>
               find.text('Copied').evaluate().isNotEmpty &&
-              shareActionEnabled(tester, 'Copy video link'),
+              shareActionEnabled(tester, 'Copy Video Link'),
           reason: 'The acknowledged video link copy must finish',
         ),
       );
@@ -229,9 +229,9 @@ void main() {
 
       expect(find.text(testCase.videoUrl), findsNothing);
       expect(find.text('Prepared when selected'), findsNothing);
-      expect(find.byTooltip('Copy video link'), findsOneWidget);
-      expect(find.byTooltip('Share video'), findsOneWidget);
-      await tester.tap(find.byTooltip('Copy video link'));
+      expect(find.byTooltip('Copy Video Link'), findsOneWidget);
+      expect(find.byTooltip('Share Video'), findsOneWidget);
+      await tester.tap(find.byTooltip('Copy Video Link'));
       await tester.pumpAndSettle();
 
       expect(copied, 'https://cdn.test/exact.mp4?token=resolved');
@@ -301,8 +301,8 @@ void main() {
     );
 
     for (final tooltip in [
-      'Copy video link',
-      'Share video',
+      'Copy Video Link',
+      'Share Video',
     ]) {
       expect(
         tester
@@ -462,8 +462,8 @@ void main() {
         );
 
         for (final tooltip in [
-          'Copy video link',
-          'Share video',
+          'Copy Video Link',
+          'Share Video',
         ]) {
           expect(
             tester
@@ -478,7 +478,7 @@ void main() {
           );
         }
         expect(find.text('https://site.test/full.mp4'), findsNothing);
-        await tester.tap(find.byTooltip('Copy video link'));
+        await tester.tap(find.byTooltip('Copy Video Link'));
         await tester.pumpAndSettle();
         expect(copied, 'https://site.test/full.mp4');
         await tester.pump(const Duration(seconds: 3));

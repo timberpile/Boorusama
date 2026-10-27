@@ -2,6 +2,8 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_shuffle_provider
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:material_ui/material_ui.dart';
@@ -9,6 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
+
+import '../../application/support/fake_image_dio.dart';
+import '../posts/details/progressive_image_test_utils.dart';
 
 const _longSource = 'very-long-source-with-a-full-host-name.example.com';
 
@@ -21,6 +26,9 @@ void main() {
   }) async {
     final container = ProviderContainer(
       overrides: [
+        automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+        deterministicFaviconDioOverride(),
+        defaultImageCacheManagerProvider.overrideWithValue(TestImageCache({})),
         settingsNotifierProvider.overrideWith(
           () => _TestSettingsNotifier(
             Settings.defaultSettings.copyWith(showBookmarkCount: showCount),
@@ -301,7 +309,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('Upload date: Newest'), findsOneWidget);
+    expect(find.bySemanticsLabel('Upload Date: Newest'), findsOneWidget);
     expect(find.bySemanticsLabel('Bookmarks: Oldest'), findsOneWidget);
 
     await tester.tap(options.first);
@@ -334,7 +342,7 @@ void main() {
       (_, next) => seeds.add(next.seed),
     );
     addTearDown(subscription.close);
-    expect(find.byTooltip('Shuffle bookmarks'), findsNothing);
+    expect(find.byTooltip('Shuffle Bookmarks'), findsNothing);
     await _tapFilter(tester, 'Newest');
     await tester.pumpAndSettle();
     await tester.tap(
@@ -347,7 +355,7 @@ void main() {
     expect(seeds, hasLength(1));
     final first = container.read(bookmarkShuffleProvider);
     expect(first.seed, isNotNull);
-    await tester.tap(find.byTooltip('Shuffle bookmarks'));
+    await tester.tap(find.byTooltip('Shuffle Bookmarks'));
     await tester.pumpAndSettle();
     final second = container.read(bookmarkShuffleProvider);
     expect(second.seed, isNot(first.seed));
@@ -380,7 +388,7 @@ void main() {
       BookmarkSortType.oldest,
     );
     expect(container.read(bookmarkShuffleProvider).seed, isNull);
-    expect(find.byTooltip('Shuffle bookmarks'), findsNothing);
+    expect(find.byTooltip('Shuffle Bookmarks'), findsNothing);
     await _tapFilter(tester, 'Oldest');
     await tester.pumpAndSettle();
     await tester.tap(
@@ -411,8 +419,8 @@ void main() {
           BookmarkSortType.random;
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.byTooltip('Shuffle bookmarks'));
-      await tester.tap(find.byTooltip('Shuffle bookmarks'));
+      await tester.ensureVisible(find.byTooltip('Shuffle Bookmarks'));
+      await tester.tap(find.byTooltip('Shuffle Bookmarks'));
       tester.view.viewInsets = const FakeViewPadding(bottom: 260);
       addTearDown(tester.view.resetViewInsets);
       await _tapFilter(tester, 'Source: $_longSource');
@@ -442,7 +450,7 @@ void main() {
         container.read(selectedBookmarkSortTypeProvider),
         BookmarkSortType.oldest,
       );
-      expect(find.byTooltip('Shuffle bookmarks'), findsNothing);
+      expect(find.byTooltip('Shuffle Bookmarks'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );

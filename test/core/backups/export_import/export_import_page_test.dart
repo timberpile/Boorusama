@@ -43,7 +43,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Import file'));
+        await tester.tap(find.text('Import File'));
         await tester.pumpAndSettle();
         expect(picker.custom, isFalse);
         expect(picker.extensions, isNull);
@@ -117,8 +117,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Import from clipboard'), findsOneWidget);
-      expect(find.text('Paste Base64 export'), findsNothing);
+      expect(find.text('Import from Clipboard'), findsOneWidget);
+      expect(find.text('Paste Base64 Export'), findsNothing);
     },
   );
 
@@ -146,7 +146,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Include private data?'), findsOneWidget);
-    expect(find.text('Start sending'), findsOneWidget);
+    expect(find.text('Start Sending'), findsOneWidget);
   });
 
   testWidgets('clipboard failures use a friendly recovery message', (
@@ -171,7 +171,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Import from clipboard'));
+    await tester.tap(find.text('Import from Clipboard'));
     await tester.pump();
 
     expect(
@@ -204,7 +204,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Create export'), findsOneWidget);
+    expect(find.text('Create Export'), findsOneWidget);
   });
 }
 

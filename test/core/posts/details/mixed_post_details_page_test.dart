@@ -308,7 +308,7 @@ void main() {
       await second.up();
       await decodePump(tester);
       expect(
-        _zoomAction('Next page'),
+        _zoomAction('Next Page'),
         findsNothing,
         reason: 'the cropped sample does not prove full-image edges',
       );
@@ -441,7 +441,7 @@ void main() {
         reason: 'the available preview must paint inside the actual AutoComic viewport',
       );
       screenshot.dispose();
-      expect(_zoomAction('Next page'), findsNothing);
+      expect(_zoomAction('Next Page'), findsNothing);
       adapter.complete(
         adapter.pending.keys.singleWhere((url) => url.contains('/media/1')),
         comicPng,
@@ -612,7 +612,7 @@ void main() {
       }
       await _swipeOutwardAtRightEdge(tester);
       expect(_pageViewController(tester).page, 0);
-      expect(_zoomAction('Next page'), findsNothing);
+      expect(_zoomAction('Next Page'), findsNothing);
     });
   }
 
@@ -633,7 +633,7 @@ void main() {
 
     await _swipeOutwardAtRightEdge(tester);
     expect(_pageViewController(tester).page, 0);
-    expect(_zoomAction('Next page'), findsNothing);
+    expect(_zoomAction('Next Page'), findsNothing);
   });
 
   testWidgets('changes one post only after releasing an outward edge drag', (
@@ -671,7 +671,7 @@ void main() {
     await tester.pump();
     expect(pageView.zoom.value, isTrue);
     expect(pageView.swipe.value, isFalse);
-    expect(_comicButton('Next page'), findsNothing);
+    expect(_comicButton('Next Page'), findsNothing);
     expect(
       tester
           .widget<ZoomEdgePageGesture>(find.byType(ZoomEdgePageGesture).first)
@@ -1108,8 +1108,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(pageView.zoom.value, isTrue);
-      expect(_zoomAction('Previous page'), findsNothing);
-      expect(_zoomAction('Next page'), findsOneWidget);
+      expect(_zoomAction('Previous Page'), findsNothing);
+      expect(_zoomAction('Next Page'), findsOneWidget);
       final transform = tester
           .widget<PostViewerTransformationScope>(
             find.byType(PostViewerTransformationScope),
@@ -1124,7 +1124,7 @@ void main() {
       await pan.up();
       await tester.pumpAndSettle();
       expect(pageView.page, 0);
-      _invokeZoomAction(tester, 'Next page');
+      _invokeZoomAction(tester, 'Next Page');
       await tester.pumpAndSettle();
       expect(pageView.page, 1);
     },
@@ -1149,14 +1149,14 @@ void main() {
         .controller
         .transformationController;
     expect(pageView.overlay.value, isTrue);
-    expect(_comicButton('Next page'), findsNothing);
+    expect(_comicButton('Next Page'), findsNothing);
 
     transform.value = Matrix4.diagonal3Values(2, 2, 1);
     await tester.pump();
 
     expect(pageView.zoom.value, isTrue);
     expect(pageView.overlay.value, isTrue);
-    expect(_zoomAction('Next page'), findsOneWidget);
+    expect(_zoomAction('Next Page'), findsOneWidget);
 
     tester
         .widget<InteractiveViewerExtended>(
@@ -1166,7 +1166,7 @@ void main() {
         ?.call();
     await tester.pump();
     expect(pageView.overlay.value, isFalse);
-    expect(_zoomAction('Next page'), findsOneWidget);
+    expect(_zoomAction('Next Page'), findsOneWidget);
 
     tester
         .widget<InteractiveViewerExtended>(
@@ -1176,7 +1176,7 @@ void main() {
         ?.call();
     await tester.pump();
     expect(pageView.overlay.value, isTrue);
-    expect(_zoomAction('Next page'), findsOneWidget);
+    expect(_zoomAction('Next Page'), findsOneWidget);
   });
 
   testWidgets('keeps initially hidden toolbar hidden through vertical zoom', (
@@ -1203,7 +1203,7 @@ void main() {
     await tester.pump();
     expect(pageView.zoom.value, isTrue);
     expect(pageView.overlay.value, isFalse);
-    expect(_zoomAction('Next page'), findsOneWidget);
+    expect(_zoomAction('Next Page'), findsOneWidget);
 
     tester
         .widget<InteractiveViewerExtended>(
@@ -1213,7 +1213,7 @@ void main() {
         ?.call();
     await tester.pump();
     expect(pageView.overlay.value, isTrue);
-    expect(_zoomAction('Next page'), findsOneWidget);
+    expect(_zoomAction('Next Page'), findsOneWidget);
   });
 
   testWidgets(
@@ -1239,23 +1239,23 @@ void main() {
           )
           .controller
           .transformationController;
-      expect(_comicButton('Next page'), findsNothing);
+      expect(_comicButton('Next Page'), findsNothing);
       details.loadOriginalImage(_liveInitial[1]);
       await _waitForCurrentImage(tester);
       pageView.zoom.value = true;
       await tester.pump();
 
       expect(live.requestedPages, [2]);
-      expect(_zoomAction('Next page'), findsNothing);
+      expect(_zoomAction('Next Page'), findsNothing);
       await tester.pump();
       expect(details.currentPost.value.id, 22);
 
       pending.complete(PostResult(posts: [_liveNext], total: 3));
       await tester.pumpAndSettle();
       expect(pageView.totalPage, 3);
-      expect(_zoomAction('Next page'), findsOneWidget);
+      expect(_zoomAction('Next Page'), findsOneWidget);
       transform.value = Matrix4.diagonal3Values(2, 2, 1);
-      _invokeZoomAction(tester, 'Next page');
+      _invokeZoomAction(tester, 'Next Page');
       await tester.pumpAndSettle();
 
       expect(details.currentPost.value.id, 33);
@@ -1304,7 +1304,7 @@ void main() {
     expect(pageView.page, 1);
     await tester.pumpAndSettle();
     expect(live.requestedPages, [2, 2]);
-    expect(_zoomAction('Next page'), findsOneWidget);
+    expect(_zoomAction('Next Page'), findsOneWidget);
     expect(_detailsController(tester), same(details));
   });
 
@@ -1334,13 +1334,13 @@ void main() {
       transform.value = Matrix4.diagonal3Values(2, 2, 1)
         ..setTranslationRaw(-400, -200, 0);
       await tester.pump();
-      expect(_zoomAction('Next page'), findsNothing);
+      expect(_zoomAction('Next Page'), findsNothing);
 
       final held = await tester.startGesture(const Offset(200, 400));
       await held.moveBy(const Offset(-170, 0));
       pending.complete(PostResult(posts: [_liveNext], total: 3));
       await tester.pumpAndSettle();
-      expect(_zoomAction('Next page'), findsOneWidget);
+      expect(_zoomAction('Next Page'), findsOneWidget);
       await held.up();
       await tester.pumpAndSettle();
       expect(pageView.page, 1);
@@ -1371,7 +1371,7 @@ void main() {
       await tester.pump();
 
       expect(live.requestedPages, [2]);
-      expect(_comicButton('Next page'), findsNothing);
+      expect(_comicButton('Next Page'), findsNothing);
       expect(details.currentPost.value.id, 22);
       expect(pageView.page, 1);
     },
@@ -1410,7 +1410,7 @@ void main() {
       expect(live.requestedPages, [2, 3, 4]);
       expect(pageView.totalPage, 3);
       expect(details.currentPost.value.id, 22);
-      _invokeZoomAction(tester, 'Next page');
+      _invokeZoomAction(tester, 'Next Page');
       await tester.pumpAndSettle();
       expect(details.currentPost.value.id, 33);
       expect(_detailsController(tester), same(details));
@@ -1441,8 +1441,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(live.requestedPages, [2, 3, 4]);
-      expect(_zoomAction('Load more'), findsOneWidget);
-      expect(_comicButton('Next page'), findsNothing);
+      expect(_zoomAction('Load More'), findsOneWidget);
+      expect(_comicButton('Next Page'), findsNothing);
       expect(pageView.totalPage, 2);
       await tester.pump(const Duration(seconds: 2));
       expect(live.requestedPages, [2, 3, 4]);
@@ -1451,14 +1451,14 @@ void main() {
         tester,
         settle: false,
         indicatorIcon: Icons.expand_more,
-        indicatorLabel: 'Load more',
+        indicatorLabel: 'Load More',
       );
       await tester.pump(const Duration(milliseconds: 40));
       expect(_edgeContentIsFaded(tester), isFalse);
       expect(pageView.page, 1);
       await tester.pumpAndSettle();
       expect(live.requestedPages, [2, 3, 4, 5]);
-      expect(_zoomAction('Next page'), findsOneWidget);
+      expect(_zoomAction('Next Page'), findsOneWidget);
       expect(details.currentPost.value.id, 22);
     },
   );
@@ -1491,7 +1491,7 @@ void main() {
       _invokeZoomAction(tester, 'Retry');
       await tester.pumpAndSettle();
       expect(live.requestedPages, [2, 3, 3]);
-      expect(_zoomAction('Next page'), findsOneWidget);
+      expect(_zoomAction('Next Page'), findsOneWidget);
       expect(details.currentPost.value.id, 22);
     },
   );
@@ -1515,8 +1515,8 @@ void main() {
     await tester.pump();
 
     expect(live.requestedPages, [2, 3]);
-    expect(_comicButton('Next page'), findsNothing);
-    expect(_comicButton('Load more'), findsNothing);
+    expect(_comicButton('Next Page'), findsNothing);
+    expect(_comicButton('Load More'), findsNothing);
     expect(details.currentPost.value.id, 22);
   });
 

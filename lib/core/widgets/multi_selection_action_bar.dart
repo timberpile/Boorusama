@@ -51,6 +51,7 @@ class MultiSelectionActionBar extends ConsumerWidget {
                     MultiSelectButton() => ButtonData(
                       widget: button,
                       title: button.name,
+                      icon: button.icon,
                       onTap: button.onPressed,
                       enabled: button.onPressed != null,
                       required: button.primary,
@@ -61,6 +62,7 @@ class MultiSelectionActionBar extends ConsumerWidget {
                     MultiSelectPopupButton() => ButtonData(
                       widget: button,
                       title: button.name,
+                      icon: button.icon,
                       required: true,
                     ),
                     _ => ButtonData(

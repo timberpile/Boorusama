@@ -19,6 +19,7 @@ class KurumiButtonData {
   const KurumiButtonData({
     required this.widget,
     required this.title,
+    this.icon,
     this.onTap,
     this.enabled = true,
     this.required = false,
@@ -27,6 +28,7 @@ class KurumiButtonData {
 
   final Widget widget;
   final String title;
+  final Widget? icon;
   final VoidCallback? onTap;
   final bool enabled;
   final bool required;
@@ -419,64 +421,80 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
         constraints: BoxConstraints(
           maxWidth: min(MediaQuery.widthOf(context), 200),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: overflowButtons.asMap().entries.map(
-            (entry) {
-              final enabled = entry.value.enabled;
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: overflowButtons.asMap().entries.map(
+              (entry) {
+                final enabled = entry.value.enabled;
 
-              void handleTap() {
-                if (!enabled) return;
+                void handleTap() {
+                  if (!enabled) return;
 
-                final controller = AnchorData.maybeOf(
-                  context,
-                )?.controller;
-                controller?.hide();
-                widget.onMenuTap?.call();
-                final globalIndex = entry.key + visibleCount;
-                if (entry.value.onTap != null) {
-                  entry.value.onTap!();
-                } else {
-                  widget.onOverflow?.call(globalIndex);
+                  final controller = AnchorData.maybeOf(
+                    context,
+                  )?.controller;
+                  controller?.hide();
+                  widget.onMenuTap?.call();
+                  final globalIndex = entry.key + visibleCount;
+                  if (entry.value.onTap != null) {
+                    entry.value.onTap!();
+                  } else {
+                    widget.onOverflow?.call(globalIndex);
+                  }
                 }
-              }
 
-              return Semantics(
-                button: true,
-                enabled: enabled,
-                label: entry.value.title,
-                onTap: enabled ? handleTap : null,
-                excludeSemantics: true,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: enabled ? handleTap : null,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: isDesktop ? 8 : 10,
-                      ),
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              entry.value.title,
-                              style: enabled
-                                  ? null
-                                  : TextStyle(
-                                      color: Theme.of(context).disabledColor,
-                                    ),
+                return Semantics(
+                  button: true,
+                  enabled: enabled,
+                  label: entry.value.title,
+                  onTap: enabled ? handleTap : null,
+                  excludeSemantics: true,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: enabled ? handleTap : null,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: isDesktop ? 8 : 10,
+                        ),
+                        child: Row(
+                          children: [
+                            if (entry.value.icon case final icon?) ...[
+                              IconTheme.merge(
+                                data: IconThemeData(
+                                  size: 20,
+                                  color: enabled
+                                      ? Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant
+                                      : Theme.of(context).disabledColor,
+                                ),
+                                child: icon,
+                              ),
+                              const SizedBox(width: 12),
+                            ],
+                            Flexible(
+                              child: Text(
+                                entry.value.title,
+                                style: enabled
+                                    ? null
+                                    : TextStyle(
+                                        color: Theme.of(context).disabledColor,
+                                      ),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
-          ).toList(),
+                );
+              },
+            ).toList(),
+          ),
         ),
       ),
       child: Builder(

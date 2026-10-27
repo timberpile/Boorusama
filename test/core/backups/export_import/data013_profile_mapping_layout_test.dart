@@ -92,7 +92,7 @@ void main() {
         expect(information.width, greaterThan(scenario.width - 80));
         expect(selector.top, greaterThan(information.bottom));
         expect(find.text('or'), findsNothing);
-        expect(find.text('Create profile'), findsNothing);
+        expect(find.text('Create Profile'), findsNothing);
         final semantics = tester.ensureSemantics();
         await tester.pump();
         expect(

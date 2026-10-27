@@ -88,6 +88,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                         notifier.remove(post.id, profileId: ref.readConfig.id),
                   ),
                   title: context.t.post.action.favorite,
+                  icon: const Icon(Icons.favorite_border),
                 ),
               if (hasLogin)
                 ButtonData(
@@ -100,6 +101,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                         : null,
                   ),
                   title: context.t.post.action.upvote,
+                  icon: const Icon(Icons.thumb_up_outlined),
                 ),
               if (hasLogin)
                 ButtonData(
@@ -112,6 +114,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                         : null,
                   ),
                   title: context.t.post.action.downvote,
+                  icon: const Icon(Icons.thumb_down_outlined),
                 ),
               ButtonData(
                 required: true,
@@ -120,10 +123,12 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   config: config,
                 ),
                 title: context.t.post.action.bookmark,
+                icon: const Icon(Icons.bookmark_border),
               ),
               ButtonData(
                 widget: DownloadPostButton(post: post),
                 title: context.t.download.download,
+                icon: const Icon(Icons.download),
               ),
               ButtonData(
                 widget: SharePostButton(
@@ -133,12 +138,14 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   download: download,
                 ),
                 title: context.t.post.action.share,
+                icon: const Icon(Icons.share),
               ),
               ButtonData(
                 widget: CommentPostButton(
                   onPressed: () => goToCommentPage(context, ref, post),
                 ),
                 title: context.t.comment.comments,
+                icon: const Icon(Icons.comment_outlined),
                 onTap: () => goToCommentPage(context, ref, post),
               ),
               if (hasLogin)

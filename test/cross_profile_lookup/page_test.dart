@@ -215,7 +215,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Results loaded: 1'), findsOneWidget);
       expect(find.textContaining('Opened'), findsNothing);
-      await tester.tap(find.text('Load more'));
+      await tester.tap(find.text('Load More'));
       await tester.pumpAndSettle();
       expect(pages, [1, 2]);
       expect(find.textContaining('Results: 2'), findsOneWidget);
@@ -223,7 +223,7 @@ void main() {
         find.byKey(ValueKey('match-${targetProfile.id}-42')),
         findsOneWidget,
       );
-      expect(find.text('Load more'), findsNothing);
+      expect(find.text('Load More'), findsNothing);
     },
   );
 
@@ -335,8 +335,8 @@ void main() {
       textScale: 2,
       fetch: (_, _) async => PostResult.empty(),
     );
-    await tester.scrollUntilVisible(find.text('Unsupported profiles'), 150);
-    expect(find.text('Unsupported profiles'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Unsupported Profiles'), 150);
+    expect(find.text('Unsupported Profiles'), findsOneWidget);
     expect(find.byKey(ValueKey('profile-${unsupported.id}')), findsNothing);
     await tester.scrollUntilVisible(
       find.byKey(ValueKey('profile-${targetProfile.id}')),

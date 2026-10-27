@@ -14,6 +14,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../configs/config/types.dart';
+import '../../../../widgets/popup_menu_action_label.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
@@ -188,6 +189,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                           ]..sort();
                           final overflow = PopupMenuButton<String>(
                             icon: const Icon(Symbols.more_vert),
+                            tooltip: context.t.generic.action.more,
                             onSelected: (action) async {
                               if (action == 'refresh') {
                                 await _refreshFeed(context, ref, feed.id);
@@ -272,29 +274,47 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                               PopupMenuItem(
                                 value: 'refresh',
                                 enabled: state.refreshingFeedId == null,
-                                child: Text(strings.refresh),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.refresh,
+                                  label: strings.refresh,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: 'info',
-                                child: Text(strings.feed_info),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.info_outline,
+                                  label: strings.feed_info,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: 'up',
                                 enabled: index > 0,
-                                child: Text(strings.move_up),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.arrow_upward,
+                                  label: strings.move_up,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: 'down',
                                 enabled: index < siblings.length - 1,
-                                child: Text(strings.move_down),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.arrow_downward,
+                                  label: strings.move_down,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: 'edit',
-                                child: Text(context.t.generic.action.edit),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.edit_outlined,
+                                  label: context.t.generic.action.edit,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: 'delete',
-                                child: Text(context.t.generic.action.delete),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.delete_outline,
+                                  label: context.t.generic.action.delete,
+                                ),
                               ),
                             ],
                           );
@@ -560,6 +580,7 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
           title: Text(feed?.name ?? strings.topic_feeds),
           actions: [
             PopupMenuButton<String>(
+              tooltip: context.t.generic.action.more,
               onSelected: (action) async {
                 if (action == 'refresh') {
                   await _refreshFeed(context, ref, widget.feedId);
@@ -574,12 +595,18 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
                       feedEnabled &&
                       feed != null &&
                       state?.refreshingFeedId == null,
-                  child: Text(strings.refresh),
+                  child: PopupMenuActionLabel(
+                    icon: Icons.refresh,
+                    label: strings.refresh,
+                  ),
                 ),
                 if (isFolderFeed)
                   PopupMenuItem(
                     value: 'settings',
-                    child: Text(strings.feed_settings),
+                    child: PopupMenuActionLabel(
+                      icon: Icons.tune,
+                      label: strings.feed_settings,
+                    ),
                   ),
               ],
             ),
@@ -966,9 +993,10 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (_hasUpdates)
-                      FilledButton(
+                      FilledButton.icon(
                         onPressed: _showLatestPosts,
-                        child: Text(
+                        icon: const Icon(Icons.update),
+                        label: Text(
                           context.t.following_topics.feed_updates_available,
                         ),
                       ),
@@ -977,9 +1005,10 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                         !_historyCoverageIncomplete &&
                         !controller.refreshing &&
                         controller.hasMore)
-                      FilledButton(
+                      FilledButton.icon(
                         onPressed: _loadOlderPosts,
-                        child: Text(
+                        icon: const Icon(Icons.expand_more),
+                        label: Text(
                           context.t.following_topics.load_older_posts,
                         ),
                       ),

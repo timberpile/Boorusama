@@ -729,7 +729,7 @@ void main() {
       await harness.pump(tester, const FollowingTopicsPage());
       expect(find.text('Cats'), findsOneWidget);
       expect(find.text('dog'), findsNothing);
-      expect(find.byTooltip('Topic feeds'), findsNothing);
+      expect(find.byTooltip('Topic Feeds'), findsNothing);
       await harness.pump(tester, const TopicFeedsPage());
       expect(find.text('Animals'), findsOneWidget);
       expect(find.text('Birds'), findsOneWidget);

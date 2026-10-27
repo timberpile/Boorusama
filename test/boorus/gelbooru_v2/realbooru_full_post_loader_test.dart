@@ -149,7 +149,7 @@ void main() {
         });
         await tester.tap(find.byIcon(Icons.more_horiz).first);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Load original').hitTestable());
+        await tester.tap(find.text('Load Original').hitTestable());
         await tester.runAsync(() async {
           if (!sameUrl) {
             await pumpUntil(

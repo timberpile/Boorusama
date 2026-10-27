@@ -69,6 +69,7 @@ class PostContextMenuActions extends StatelessWidget {
           for (final action in postActionDefinitions(context, ref, snapshot))
             KurumiContextMenuTile(
               title: action.label,
+              trailing: Icon(action.icon),
               enabled: action.enabled,
               onTap: () => action.execute(),
             ),
