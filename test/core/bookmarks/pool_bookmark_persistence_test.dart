@@ -74,7 +74,7 @@ void main() {
     await organization.put('poolBookmarks', [
       testPool(groups: {poolGroupB}).toJson(),
     ]);
-    final state = await service.load(const BookmarkTarget.defaultGroup());
+    final state = await service.load();
     expect(state.pools.single.identity, testPool().identity);
     expect(state.pools.single.groupIds, {defaultBookmarkGroupId});
     expect(state.items, isEmpty);
@@ -85,7 +85,7 @@ void main() {
     await posts.updateBookmark(post);
     await groups.addBookmarks(poolGroupA, {post.id});
     expect(
-      (await service.load(BookmarkTarget.group(poolGroupA))).pools,
+      (await service.load()).pools,
       isEmpty,
     );
     await groups.writePoolBookmarks([testPool()]);

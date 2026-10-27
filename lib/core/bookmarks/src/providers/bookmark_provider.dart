@@ -1186,7 +1186,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
-    if (result.changedCount + addedPools > 0) await _rememberManualGroup(group.id);
+    if (result.changedCount + addedPools > 0)
+      await _rememberManualGroup(group.id);
     await _publishCommittedMutation();
     return (group: group, addedCount: result.changedCount + addedPools);
   });

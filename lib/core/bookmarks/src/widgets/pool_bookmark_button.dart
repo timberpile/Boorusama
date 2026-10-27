@@ -51,8 +51,7 @@ class _PoolBookmarkButtonState extends ConsumerState<PoolBookmarkButton> {
                   child: CircularProgressIndicator.adaptive(strokeWidth: 2),
                 )
               : Badge(
-                  isLabelVisible:
-                      saved != null && saved.groupIds.length > 1,
+                  isLabelVisible: saved != null && saved.groupIds.length > 1,
                   label: Text('${saved?.groupIds.length ?? 0}'),
                   child: Icon(Symbols.bookmark, fill: isBookmarked ? 1 : 0),
                 ),
@@ -90,7 +89,8 @@ class _PoolBookmarkButtonState extends ConsumerState<PoolBookmarkButton> {
       if (mounted) {
         await showDialog<void>(
           context: context,
-          builder: (_) => BookmarkGroupPicker.pool(config: config.auth, pool: draft),
+          builder: (_) =>
+              BookmarkGroupPicker.pool(config: config.auth, pool: draft),
         );
       }
     } catch (_) {

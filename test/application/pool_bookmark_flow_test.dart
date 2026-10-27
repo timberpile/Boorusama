@@ -159,6 +159,9 @@ void main() {
       setup.indexGate!.completeSuccess(
         PostResult(posts: harness.booruBackend.posts, total: 2),
       );
+      await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+      await harness.settle(tester);
+      await tester.tap(find.text('Pool target'));
       await harness.pumpUntil(
         tester,
         () =>
@@ -233,7 +236,11 @@ void main() {
         );
         await harness.pumpUntilFound(tester, find.byType(PoolBookmarkButton));
         await harness.settle(tester);
-        await tester.longPress(find.byType(PoolBookmarkButton));
+        if (scale == 1) {
+          await tester.tap(find.byType(PoolBookmarkButton));
+        } else {
+          await tester.longPress(find.byType(PoolBookmarkButton));
+        }
         await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
         expect(tester.takeException(), isNull);
         await harness.settle(tester);
@@ -405,7 +412,7 @@ void main() {
       expect(menu.posts, hasLength(3));
       expect(menu.pools, hasLength(1));
       expect(setup.posts.bookmarks, hasLength(3));
-      await tester.tap(find.text('Remove from'));
+      await tester.tap(find.text('Remove From'));
       await harness.pumpUntilFound(tester, find.text('Pool target'));
       await harness.settle(tester);
       await tester.tap(find.text('Pool target'));

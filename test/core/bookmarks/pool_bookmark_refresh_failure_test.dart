@@ -59,7 +59,6 @@ void main() {
             bookmarkIds: const {},
           ),
         ],
-        activeTarget: const BookmarkTarget.defaultGroup(),
       );
       var calls = 0;
       final container = ProviderContainer(
