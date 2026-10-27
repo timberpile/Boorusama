@@ -242,6 +242,21 @@ class SearchPageController extends ChangeNotifier {
     );
   }
 
+  /// Commits both an edited chip and any parked input without losing syntax.
+  /// Active IME composition and incomplete supported operators must finish first.
+  bool commitPendingInput() {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (!textController.value.composing.isCollapsed) return false;
+      if (textController.text.trim().isEmpty && editingTag.value == null) {
+        return true;
+      }
+      final before = inputDraft;
+      submit(textController.text);
+      if (inputDraft == before) return false;
+    }
+    return textController.text.trim().isEmpty && editingTag.value == null;
+  }
+
   void submit(String value) {
     if (!textController.value.composing.isCollapsed) return;
     if (value.trim().isEmpty) {

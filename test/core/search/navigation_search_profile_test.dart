@@ -1,5 +1,9 @@
 import 'dart:async';
 
+import 'package:kurumi/kurumi.dart';
+
+import 'package:boorusama/core/search/search/src/types/topic_search_origin.dart';
+
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 
@@ -86,9 +90,12 @@ void main() {
         addTearDown(harness.dispose);
         await ensureI18nInitialized('en-US');
         const query = '-cat (dog ~ bird) rating:safe';
-        await harness.seed([
-          topicFixture(id: 'original-topic', profileId: first.id, query: query),
-        ]);
+        final original = topicFixture(
+          id: 'original-topic',
+          profileId: first.id,
+          query: query,
+        );
+        await harness.seed([original]);
         const following = DestinationId.app(AppDestination.following);
         const browse = DestinationId.browse('independent-browse');
         final binding = DestinationRouterBinding(
@@ -105,10 +112,14 @@ void main() {
                 GoRoute(
                   path: 'search',
                   builder: (_, _) => InheritedInitialSearchQuery(
-                    params: const SearchParams(
+                    params: SearchParams(
                       query: query,
                       queryType: QueryType.simple,
                       originatingTopicId: 'original-topic',
+                      topicOrigin: TopicSearchOrigin(
+                        topic: original,
+                        profile: first,
+                      ),
                     ),
                     child: SearchPage(initialConfig: first),
                   ),
@@ -148,6 +159,9 @@ void main() {
                 ),
               ],
               child: MaterialApp.router(
+                theme: ThemeData(
+                  extensions: const [KurumiExtendedColorScheme()],
+                ),
                 routerConfig: router,
                 builder: themeBuilder,
               ),
@@ -216,7 +230,18 @@ void main() {
           tester
               .widget<FollowTopicButton>(find.byType(FollowTopicButton))
               .originatingTopicId,
-          isNull,
+          'original-topic',
+        );
+        expect(
+          tester
+              .widget<FollowTopicButton>(find.byType(FollowTopicButton))
+              .original!
+              .topic,
+          same(original),
+        );
+        expect(
+          tester.widget<TopicFollowPill>(find.byType(TopicFollowPill)).modified,
+          isTrue,
         );
         var oldFinished = false;
         unawaited(oldResponse.future.then((_) => oldFinished = true));
@@ -260,6 +285,68 @@ void main() {
               .single
               .profileId,
           first.id,
+        );
+        // Follow this modified query as one new Topic, then replace engines
+        // again. The old route's Topic ID must never reappear as the owner.
+        await tester.tap(find.byType(FollowTopicButton));
+        await _until(
+          tester,
+          () => find.byType(AlertDialog).hitTestable().evaluate().isNotEmpty,
+        );
+        await tester.tap(find.text('Home'));
+        await tester.tap(find.text('Done'));
+        await _until(
+          tester,
+          () =>
+              find.byType(AlertDialog).evaluate().isEmpty &&
+              tester
+                      .widget<FollowTopicButton>(find.byType(FollowTopicButton))
+                      .original
+                      ?.topic
+                      .id !=
+                  original.id,
+        );
+        final adopted = tester
+            .widget<FollowTopicButton>(find.byType(FollowTopicButton))
+            .original!
+            .topic;
+        expect(adopted.profileId, next.id);
+        expect(
+          tester.widget<TopicFollowPill>(find.byType(TopicFollowPill)).modified,
+          isFalse,
+        );
+        for (final destination in [first, next]) {
+          await tester.tap(find.byType(ProfileContextMenuButton));
+          await _until(
+            tester,
+            () =>
+                find.text(destination.name).hitTestable().evaluate().isNotEmpty,
+          );
+          await tester.tap(find.text(destination.name));
+          await _until(
+            tester,
+            () =>
+                owners.last.id == destination.id &&
+                find.byType(FollowTopicButton).evaluate().isNotEmpty,
+          );
+          final button = tester.widget<FollowTopicButton>(
+            find.byType(FollowTopicButton),
+          );
+          expect(button.original!.topic.id, adopted.id);
+          expect(button.originatingTopicId, adopted.id);
+          expect(
+            tester
+                .widget<SearchPageScaffold<Post>>(
+                  find.byType(SearchPageScaffold<Post>),
+                )
+                .params
+                .originatingTopicId,
+            adopted.id,
+          );
+        }
+        expect(
+          (await harness.repository.getById(original.id))!.query,
+          original.query,
         );
         final controller = observed.last;
         binding.select(browse);

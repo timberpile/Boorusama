@@ -9,6 +9,8 @@ final class DuplicateFollowingTopicException implements Exception {}
 
 final class MissingFollowingTopicProfileException implements Exception {}
 
+final class StaleFollowingTopicEditException implements Exception {}
+
 abstract interface class FollowingTopicRepository {
   Future<List<FollowingTopic>> getAll();
   Future<List<TopicFeed>> getFeeds();
@@ -68,6 +70,10 @@ abstract interface class FollowingTopicRepository {
     required String profileId,
     required String query,
     required String? name,
+    // Omission preserves compatible metadata; a callback may explicitly clear it.
+    SearchQueryStructure? Function()? queryStructure,
+    bool? autoUpdateEnabled,
+    FollowingTopic? expectedTopic,
   });
   Future<FollowingTopic> rename(String id, String? name);
   Future<FollowingTopic> saveTopicInNewFolder({

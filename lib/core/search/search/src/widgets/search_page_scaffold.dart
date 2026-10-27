@@ -3,6 +3,7 @@ import '../../../../selection/ordered_selection_controller.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:rich_text_controller/rich_text_controller.dart';
 import 'package:selection_mode/selection_mode.dart';
@@ -35,6 +36,7 @@ import '../../../suggestions/providers.dart';
 import '../../../following_topics/types.dart';
 import '../../../following_topics/src/widgets/topic_follow_control.dart';
 import '../routes/params.dart';
+import '../types/topic_search_origin.dart';
 import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
 import 'raw_search_page_scaffold.dart';
@@ -174,8 +176,45 @@ class _SearchPageScaffoldState<T extends Post>
     super.dispose();
   }
 
+  Future<void> _openFollow(ValueNotifier<TopicSearchOrigin?>? origin) async {
+    // The result header is replaced when committing a query. Own the modal
+    // flow here so including pending input cannot dispose its context/ref.
+    if (origin?.value != null && !_controller.commitPendingInput()) {
+      _topicFeedback.value = context.t.following_topics.edit_invalid_query;
+      _controller.focus.requestFocus();
+      return;
+    }
+    final query = _tagsController.rawTagsString;
+    if (query.trim().isEmpty) {
+      _topicFeedback.value = context.t.following_topics.edit_invalid_query;
+      return;
+    }
+    final profileId = ref.readConfig.id;
+    _topicFeedback.value = null;
+    await showTopicFollowFlow(
+      context,
+      ref,
+      profileId: profileId,
+      query: query,
+      queryStructure: _typedQueryStructure(_tagsController.tags),
+      originatingTopicId: origin?.value?.topic.id,
+      original: origin?.value,
+      onOriginChanged: (updated) {
+        if (mounted) origin?.value = updated;
+      },
+      onFeedback: (message) {
+        if (mounted &&
+            ref.readConfig.id == profileId &&
+            _controller.tagString.value == query) {
+          _topicFeedback.value = message;
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final origin = TopicSearchOriginScope.of(context);
     final profile = ref.watchConfig;
     final options = ref.watch(searchCapabilitiesProvider(profile.auth));
     final idOption = options.options
@@ -320,8 +359,11 @@ class _SearchPageScaffoldState<T extends Post>
                                             _tagsController.tags,
                                           ),
                                           originatingTopicId:
-                                              widget.params.originatingTopicId,
+                                              origin?.value?.topic.id,
+                                          original: origin?.value,
+                                          onOpen: () => _openFollow(origin),
                                           compact: true,
+                                          showCount: false,
                                           onFeedback: (message) =>
                                               _topicFeedback.value = message,
                                         ),

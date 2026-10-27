@@ -1,3 +1,5 @@
+import '../types/following_topic_repository.dart';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../../selection/collection_selection_bar.dart';
@@ -1490,33 +1492,34 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
         );
       case FollowingTopicAction.edit:
         final profiles = ref.read(booruConfigProvider);
-        final result = await showEditFollowingTopicDialog(
+        await showEditFollowingTopicDialog(
           context,
           topic: topic,
           profiles: profiles,
           trackingSupported: (auth) =>
               ref.read(followingTopicTrackingSupportedProvider(auth)),
-          onSave: (profileId, query, name, autoUpdateEnabled) => ref
-              .read(followingTopicsProvider.notifier)
-              .edit(
-                topic.id,
-                profileId: profileId,
-                query: query,
-                name: name,
-                autoUpdateEnabled: autoUpdateEnabled,
-              ),
+          onSave: (profile, query, name, autoUpdateEnabled, structure) async {
+            final profileId = profile.id;
+            final currentProfile = ref
+                .read(booruConfigProvider)
+                .where((p) => p.id == profileId)
+                .firstOrNull;
+            if (currentProfile == null || currentProfile.auth != profile.auth) {
+              throw MissingFollowingTopicProfileException();
+            }
+            final notifier = ref.read(followingTopicsProvider.notifier);
+            final saved = await notifier.editLocally(
+              topic.id,
+              profileId: profileId,
+              query: query,
+              name: name,
+              autoUpdateEnabled: autoUpdateEnabled,
+              queryStructure: () => structure,
+              expectedTopic: topic,
+            );
+            return (topic: saved.topic, refresh: null);
+          },
         );
-        if (!mounted || result == null) return;
-        if (result.refresh
-            case SearchRefreshFailed(
-              :final kind,
-            )
-            when kind != SearchRefreshErrorKind.unsupported) {
-          Kurumi.showErrorToast(
-            context,
-            context.t.following_topics.edit_baseline_failed,
-          );
-        }
       case FollowingTopicAction.moveUp || FollowingTopicAction.moveDown:
         await _runAction(
           () => ref

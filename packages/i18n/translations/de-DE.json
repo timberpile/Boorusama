@@ -40,6 +40,11 @@
     "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
   },
   "following_topics": {
+    "edit_update": "Thema aktualisieren",
+    "edit_updated": "Thema aktualisiert",
+    "edit_invalid_query": "Vervollständige eine gültige Suchanfrage vor dem Aktualisieren.",
+    "edit_conflict": "Dieses Thema wurde geändert oder gelöscht. Öffne es erneut, um die aktuelle Version zu bearbeiten.",
+
     "backup_contents": "Enthält Ordner und Feed-Einstellungen; zwischengespeicherte Beiträge und Bilder sind nicht enthalten.",
     "error_other": "Dieses Thema konnte nicht aktualisiert werden. Versuche es erneut.",
     "edit_baseline_failed": "Thema aktualisiert, aber die Vorschau konnte nicht geladen werden. Aktualisiere es später.",

@@ -5,23 +5,26 @@ import '../../../../configs/config/types.dart';
 import '../types/search_refresh.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_repository.dart';
-import 'following_topic_profile_caption.dart';
 
-Future<({FollowingTopic topic, SearchRefreshOutcome? refresh})?>
-showEditFollowingTopicDialog(
+typedef FollowingTopicEditResult = ({
+  FollowingTopic topic,
+  SearchRefreshOutcome? refresh,
+});
+typedef SaveFollowingTopicEdit = Future<FollowingTopicEditResult> Function(
+  BooruConfig profile,
+  String query,
+  String? name,
+  bool autoUpdateEnabled,
+  SearchQueryStructure? queryStructure,
+);
+
+Future<FollowingTopicEditResult?> showEditFollowingTopicDialog(
   BuildContext context, {
   required FollowingTopic topic,
   required List<BooruConfig> profiles,
   required bool Function(BooruConfigAuth) trackingSupported,
-  required Future<({FollowingTopic topic, SearchRefreshOutcome? refresh})>
-  Function(
-    String profileId,
-    String query,
-    String? name,
-    bool autoUpdateEnabled,
-  )
-  onSave,
-}) => showDialog(
+  required SaveFollowingTopicEdit onSave,
+}) => showDialog<FollowingTopicEditResult>(
   context: context,
   barrierDismissible: false,
   builder: (_) => EditFollowingTopicDialog(
@@ -40,70 +43,71 @@ class EditFollowingTopicDialog extends StatefulWidget {
     required this.onSave,
     super.key,
   });
-
   final FollowingTopic topic;
   final List<BooruConfig> profiles;
   final bool Function(BooruConfigAuth) trackingSupported;
-  final Future<({FollowingTopic topic, SearchRefreshOutcome? refresh})>
-  Function(
-    String profileId,
-    String query,
-    String? name,
-    bool autoUpdateEnabled,
-  )
-  onSave;
-
+  final SaveFollowingTopicEdit onSave;
   @override
   State<EditFollowingTopicDialog> createState() =>
       _EditFollowingTopicDialogState();
 }
 
-enum _EditError { duplicate, missingProfile, saveFailed }
-
 class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
-  late final _name = TextEditingController(text: widget.topic.name);
-  late final _query = TextEditingController(text: widget.topic.query);
-  late String? _profileId = widget.topic.profileId;
+  late final _name = TextEditingController(
+    text: widget.topic.name,
+  );
   late bool _autoUpdateEnabled = widget.topic.autoUpdateEnabled;
-  _EditError? _error;
+  String? _error;
   var _saving = false;
+  BooruConfig? get _profile =>
+      widget.profiles.where((p) => p.id == widget.topic.profileId).firstOrNull;
 
   @override
   void dispose() {
     _name.dispose();
-    _query.dispose();
     super.dispose();
   }
 
+  Future<FollowingTopicEditResult> _persist(
+    String query,
+    SearchQueryStructure? structure,
+  ) => widget.onSave(
+    _profile!,
+    query,
+    _name.text,
+    _autoUpdateEnabled,
+    structure,
+  );
+
   Future<void> _save() async {
-    final profileId = _profileId;
-    if (profileId == null ||
-        !widget.profiles.any((profile) => profile.id == profileId)) {
-      setState(() => _error = _EditError.missingProfile);
-      return;
-    }
+    if (_saving || _profile == null) return;
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
-      final result = await widget.onSave(
-        profileId,
-        _query.text,
-        _name.text,
-        _autoUpdateEnabled,
+      final result = await _persist(
+        widget.topic.query,
+        widget.topic.queryStructure,
       );
-      if (mounted) {
-        setState(() => _saving = false);
-        await WidgetsBinding.instance.endOfFrame;
-        if (mounted) Navigator.pop(context, result);
-      }
+      if (mounted) Navigator.pop(context, result);
     } on DuplicateFollowingTopicException {
-      if (mounted) setState(() => _error = _EditError.duplicate);
+      if (mounted) {
+        setState(() => _error = context.t.following_topics.edit_duplicate);
+      }
     } on MissingFollowingTopicProfileException {
-      if (mounted) setState(() => _error = _EditError.missingProfile);
+      if (mounted)
+        setState(
+          () => _error = context.t.following_topics.edit_missing_profile,
+        );
+    } on StaleFollowingTopicEditException {
+      if (mounted) {
+        setState(() => _error = context.t.following_topics.edit_conflict);
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = _EditError.saveFailed);
+      if (mounted) {
+        setState(() => _error = context.t.following_topics.save_failed);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -112,18 +116,14 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
   @override
   Widget build(BuildContext context) {
     final strings = context.t.following_topics;
-    final selected = widget.profiles
-        .where((profile) => profile.id == _profileId)
-        .firstOrNull;
-    final warning = switch (_error) {
-      _EditError.duplicate => strings.edit_duplicate,
-      _EditError.missingProfile => strings.edit_missing_profile,
-      _EditError.saveFailed => strings.save_failed,
-      null when selected == null => strings.edit_missing_profile,
-      null when selected != null && !widget.trackingSupported(selected.auth) =>
-        strings.edit_unsupported,
-      null => null,
-    };
+    final selected = _profile;
+    final warning =
+        _error ??
+        (selected == null
+            ? strings.edit_missing_profile
+            : !widget.trackingSupported(selected.auth)
+            ? strings.edit_unsupported
+            : null);
     return PopScope(
       canPop: !_saving,
       child: AlertDialog(
@@ -131,63 +131,41 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
         content: SizedBox(
           width: 460,
           child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _name,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: strings.edit_name,
-                    hintText: strings.edit_name_hint,
-                  ),
-                  onChanged: (_) => setState(() => _error = null),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _query,
-                  decoration: InputDecoration(labelText: strings.edit_query),
-                  onChanged: (_) => setState(() => _error = null),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  initialValue: selected?.id,
-                  decoration: InputDecoration(labelText: strings.edit_profile),
-                  items: [
-                    for (final profile in widget.profiles)
-                      DropdownMenuItem(
-                        value: profile.id,
-                        child: FollowingTopicProfileOption(profile: profile),
-                      ),
-                  ],
-                  onChanged: _saving
-                      ? null
-                      : (value) => setState(() {
-                          _profileId = value;
-                          _error = null;
-                        }),
-                ),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(strings.auto_update_topic),
-                  value: _autoUpdateEnabled,
-                  onChanged: _saving
-                      ? null
-                      : (value) => setState(() => _autoUpdateEnabled = value),
-                ),
-                if (warning != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    warning,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+            child: AbsorbPointer(
+              absorbing: _saving,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: _name,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      labelText: strings.edit_name,
+                      hintText: strings.edit_name_hint,
                     ),
+                    onChanged: (_) => setState(() => _error = null),
                   ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(strings.auto_update_topic),
+                    value: _autoUpdateEnabled,
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _autoUpdateEnabled = value),
+                  ),
+                  if (warning != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      warning,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
@@ -197,7 +175,7 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
             child: Text(context.t.generic.action.cancel),
           ),
           FilledButton(
-            onPressed: _saving || _query.text.trim().isEmpty ? null : _save,
+            onPressed: _saving || selected == null ? null : _save,
             child: Text(strings.save),
           ),
         ],

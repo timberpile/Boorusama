@@ -1011,7 +1011,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       if (folderId != null) {
         addedByFolder.putIfAbsent(folderId, () => []).add(topic.id);
       }
-      added.add(topic);
+      // Settings may have been copied into sidecar storage after creation.
+      added.add((await repository.getById(topic.id))!);
     }
     if (addedByFolder.isNotEmpty) {
       organization = await repository.getOrganization();
@@ -1048,6 +1049,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     required String query,
     required String? name,
     bool? autoUpdateEnabled,
+    SearchQueryStructure? Function()? queryStructure,
   }) async {
     final result = await editLocally(
       id,
@@ -1055,6 +1057,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       query: query,
       name: name,
       autoUpdateEnabled: autoUpdateEnabled,
+      queryStructure: queryStructure,
     );
     if (!result.material) {
       return (topic: result.topic, refresh: null);
@@ -1071,11 +1074,15 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     required String query,
     required String? name,
     bool? autoUpdateEnabled,
+    SearchQueryStructure? Function()? queryStructure,
+    FollowingTopic? expectedTopic,
   }) async {
     final result = await _mutate((repository) async {
       if (!ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
         throw MissingFollowingTopicProfileException();
       }
+      if (expectedTopic != null && await repository.getById(id) == null)
+        throw StaleFollowingTopicEditException();
       await _requireIndependentTopic(repository, id);
       final previous = (await repository.getById(id))!;
       final material =
@@ -1085,11 +1092,10 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         profileId: profileId,
         query: query,
         name: name,
+        queryStructure: queryStructure,
+        autoUpdateEnabled: autoUpdateEnabled,
+        expectedTopic: expectedTopic,
       );
-      if (autoUpdateEnabled != null &&
-          autoUpdateEnabled != previous.autoUpdateEnabled) {
-        await repository.setAutoUpdate([id], autoUpdateEnabled);
-      }
       return (topic: edited, material: material);
     });
     if (!result.material) {

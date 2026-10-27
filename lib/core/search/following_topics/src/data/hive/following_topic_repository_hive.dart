@@ -957,8 +957,24 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     required String profileId,
     required String query,
     required String? name,
+    SearchQueryStructure? Function()? queryStructure,
+    bool? autoUpdateEnabled,
+    FollowingTopic? expectedTopic,
   }) => _serialize(() async {
+    final existing = _box.get(id);
+    if (expectedTopic != null && existing == null) {
+      throw StaleFollowingTopicEditException();
+    }
     final current = _toTopic(_requireObject(id));
+    if (expectedTopic != null &&
+        (current.createdAt != expectedTopic.createdAt ||
+            current.profileId != expectedTopic.profileId ||
+            current.query != expectedTopic.query ||
+            current.queryStructure != expectedTopic.queryStructure ||
+            current.name != expectedTopic.name ||
+            current.autoUpdateEnabled != expectedTopic.autoUpdateEnabled)) {
+      throw StaleFollowingTopicEditException();
+    }
     if (_feedSourceIds().contains(current.id)) {
       throw StateError('Feed sources cannot be edited as followed topics.');
     }
@@ -994,7 +1010,9 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
             id: current.id,
             profileId: profileId,
             query: trimmedQuery,
-            queryStructure: current.query == trimmedQuery
+            queryStructure: queryStructure != null
+                ? queryStructure()
+                : current.query == trimmedQuery
                 ? current.queryStructure
                 : null,
             name: name,
@@ -1006,17 +1024,34 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
             recentPostIdentities: const [],
             unreadCount: 0,
           )
-        : current.copyWithName(name);
+        : current.copyWithName(name, queryStructure: queryStructure);
     final object = _toObject(updated);
     final feeds = material
         ? _feeds().where((feed) => feed.sourceIds.contains(id)).toList()
         : const <TopicFeed>[];
     final saved = {
+      if (autoUpdateEnabled != null)
+        'search:auto_update_overrides': _organizationBox?.get(
+          'search:auto_update_overrides',
+        ),
       for (final feed in feeds)
         'feed:${feed.id}': _organizationBox?.get('feed:${feed.id}'),
     };
     try {
       await _box.put(object.id, object);
+      if (autoUpdateEnabled != null) {
+        final storage = _organizationBox;
+        if (storage == null) throw StateError('Topic settings unavailable');
+        final overrides = <dynamic, dynamic>{
+          ...?(saved['search:auto_update_overrides'] as Map?),
+        };
+        if (autoUpdateEnabled) {
+          overrides.remove(id);
+        } else {
+          overrides[id] = false;
+        }
+        await storage.put('search:auto_update_overrides', overrides);
+      }
       for (final feed in feeds) {
         final filtered = feed
             .reconcileSources(
@@ -1030,10 +1065,13 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       }
     } catch (_) {
       await _box.put(current.id, _toObject(current));
-      await _organizationBox?.putAll({
-        for (final entry in saved.entries)
-          if (entry.value != null) entry.key: entry.value,
-      });
+      for (final entry in saved.entries) {
+        if (entry.value == null) {
+          await _organizationBox?.delete(entry.key);
+        } else {
+          await _organizationBox?.put(entry.key, entry.value);
+        }
+      }
       rethrow;
     }
     return _toTopic(object);
@@ -1920,12 +1958,17 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
 }
 
 extension on FollowingTopic {
-  FollowingTopic copyWithName(String? name) {
+  FollowingTopic copyWithName(
+    String? name, {
+    SearchQueryStructure? Function()? queryStructure,
+  }) {
     return FollowingTopic(
       id: id,
       profileId: profileId,
       query: query,
-      queryStructure: queryStructure,
+      queryStructure: queryStructure != null
+          ? queryStructure()
+          : this.queryStructure,
       name: name,
       position: position,
       createdAt: createdAt,

@@ -8,18 +8,35 @@ import '../../../../groups/folder_navigation.dart';
 import '../providers/following_topics_notifier.dart';
 import '../types/topic_organization.dart';
 import 'search_folder_dialog.dart';
+import 'topic_modification_badge.dart';
 
-Future<Set<String?>?> showFollowTopicFolderPickerDialog(
+sealed class FollowTopicPickerResult {
+  const FollowTopicPickerResult();
+}
+
+class FollowTopicDestinations extends FollowTopicPickerResult {
+  FollowTopicDestinations(Set<String?> folders)
+    : folders = Set.unmodifiable(folders);
+  final Set<String?> folders;
+}
+
+class UpdatedOriginalTopic extends FollowTopicPickerResult {
+  const UpdatedOriginalTopic();
+}
+
+Future<FollowTopicPickerResult?> showFollowTopicFolderPickerDialog(
   BuildContext context, {
   required String query,
   required Set<String?> selectedFolderIds,
   required Future<TopicFolder?> Function(String? parentId) onCreateFolder,
-}) => showDialog<Set<String?>>(
+  Future<bool> Function()? onUpdateOriginal,
+}) => showDialog<FollowTopicPickerResult>(
   context: context,
   builder: (_) => _FollowTopicFolderPickerDialog(
     query: query,
     selectedFolderIds: selectedFolderIds,
     onCreateFolder: onCreateFolder,
+    onUpdateOriginal: onUpdateOriginal,
   ),
 );
 
@@ -28,8 +45,10 @@ class _FollowTopicFolderPickerDialog extends ConsumerStatefulWidget {
     required this.query,
     required this.selectedFolderIds,
     required this.onCreateFolder,
+    this.onUpdateOriginal,
   });
 
+  final Future<bool> Function()? onUpdateOriginal;
   final String query;
   final Set<String?> selectedFolderIds;
   final Future<TopicFolder?> Function(String? parentId) onCreateFolder;
@@ -44,6 +63,20 @@ class _FollowTopicFolderPickerDialogState
   late final _selected = {...widget.selectedFolderIds};
   String? _currentFolderId;
   var _creatingFolder = false;
+  var _updatingOriginal = false;
+
+  Future<void> _updateOriginal() async {
+    if (_updatingOriginal || _creatingFolder) return;
+    setState(() => _updatingOriginal = true);
+    try {
+      final updated = await widget.onUpdateOriginal!();
+      if (updated && mounted) {
+        Navigator.pop(context, const UpdatedOriginalTopic());
+      }
+    } finally {
+      if (mounted) setState(() => _updatingOriginal = false);
+    }
+  }
 
   void _toggle(String? folderId, bool selected) {
     setState(() {
@@ -162,19 +195,62 @@ class _FollowTopicFolderPickerDialogState
           ],
         ),
       ),
-      actions: [
-        FilledButton.tonalIcon(
-          onPressed: _creatingFolder ? null : _createFolder,
-          icon: const Icon(Icons.create_new_folder_outlined),
-          label: Text(strings.new_folder),
-        ),
-        FilledButton(
-          onPressed: _creatingFolder
-              ? null
-              : () => Navigator.pop(context, Set.unmodifiable(_selected)),
-          child: Text(context.t.generic.done),
-        ),
-      ],
+      actions: widget.onUpdateOriginal != null
+          ? [
+              Row(
+                children: [
+                  TopicModificationBadge(
+                    modified: true,
+                    child: IconButton(
+                      tooltip: strings.original_update,
+                      onPressed: _creatingFolder || _updatingOriginal
+                          ? null
+                          : _updateOriginal,
+                      icon: const Icon(Icons.save_outlined),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: strings.new_folder,
+                    onPressed: _creatingFolder || _updatingOriginal
+                        ? null
+                        : _createFolder,
+                    icon: const Icon(Icons.create_new_folder_outlined),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(64, 48),
+                      ),
+                      onPressed: _creatingFolder || _updatingOriginal
+                          ? null
+                          : () => Navigator.pop(
+                              context,
+                              FollowTopicDestinations(_selected),
+                            ),
+                      child: Text(context.t.generic.done, maxLines: 1),
+                    ),
+                  ),
+                ],
+              ),
+            ]
+          : [
+              FilledButton.tonalIcon(
+                onPressed: _creatingFolder ? null : _createFolder,
+                icon: const Icon(Icons.create_new_folder_outlined),
+                label: Text(strings.new_folder),
+              ),
+              FilledButton(
+                onPressed: _creatingFolder
+                    ? null
+                    : () => Navigator.pop(
+                        context,
+                        FollowTopicDestinations(_selected),
+                      ),
+                child: Text(context.t.generic.done),
+              ),
+            ],
     );
   }
 }

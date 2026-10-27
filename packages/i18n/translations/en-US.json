@@ -67,6 +67,19 @@
     "backup_import_skipped": "Imported {count} topic feeds; {existing} already existed. Skipped {skipped} feeds because their profile was missing or ambiguous."
   },
   "following_topics": {
+    "edit_update": "Update Topic",
+    "edit_updated": "Topic updated",
+    "original_modified": "Original Topic modified",
+    "original_update": "Update Original Topic",
+    "original_update_title": "Update Original Topic?",
+    "original_current_query": "Current Query",
+    "original_new_query": "New Query",
+    "original_current_profile": "Current Profile: $profile",
+    "original_new_profile": "New Profile: $profile",
+    "original_update_explanation": "The existing Topic will be updated. Its name and folder placement will stay the same.",
+    "edit_invalid_query": "Finish entering a valid query before updating.",
+    "edit_conflict": "This topic changed or was deleted. Reopen it to edit the latest version.",
+
     "backup_contents": "Includes folders and feed settings; cached posts and images are not included.",
     "refresh_in": "in $duration",
     "name_line": "Name: $name",

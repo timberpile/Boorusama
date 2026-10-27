@@ -1,3 +1,10 @@
+import 'package:boorusama/foundation/platform.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
+import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
+
+import 'topic_query_test_builder.dart';
+
+import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/widgets/multi_selection_action_bar.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
@@ -15,7 +22,6 @@ import 'package:boorusama/core/search/following_topics/routes.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_folder_card.dart';
-import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_profile_caption.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart' as legacy;
@@ -30,6 +36,8 @@ void main() {
 
   void initialize({Completer<void>? ready, bool loadImages = false}) {
     harness = FollowingTopicHarness(
+      overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+      booruBuilder: (_) => TopicQueryTestBuilder(),
       repositoryReady: ready,
       loadImages: loadImages,
     );
@@ -38,12 +46,41 @@ void main() {
   }
 
   Future<void> pump(WidgetTester tester) =>
-      harness.pump(tester, const FollowingTopicsPage());
+      pumpTopicQueryRouter(harness, tester, const FollowingTopicsPage());
+
+  Future<void> openTopic(WidgetTester tester) async {
+    if (find.text('Edit Topic').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Cancel'));
+      await settle(tester);
+    }
+    await tester.tap(find.byType(FollowingTopicCard).first);
+    await drain(tester);
+    await settle(tester);
+  }
+
+  Future<void> replaceQuery(WidgetTester tester, String query) async {
+    await openTopic(tester);
+    await tester.tap(find.byType(CategoryAwareSelectedTagChip));
+    await tester.enterText(find.byType(EditableText), query);
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await drain(tester);
+    await settle(tester);
+  }
+
+  Future<void> showUpdate(WidgetTester tester) async {
+    if (find.text('Update Original Topic?').evaluate().isNotEmpty) return;
+    await tester.tap(find.byType(TopicFollowPill));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Update Original Topic'));
+    await settle(tester);
+  }
 
   testWidgets(
     'selection refresh matches both supported and mixed folder menus',
     (tester) async {
       harness = FollowingTopicHarness(
+        overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+        booruBuilder: (_) => TopicQueryTestBuilder(),
         trackingSupported: (auth) => auth.url == testProfile.url,
       );
       addTearDown(harness.dispose);
@@ -236,7 +273,11 @@ void main() {
       final folder = await notifier.createSharedFolder('Favorites');
       if (location == 'folder') {
         await notifier.moveTopicToSharedFolder('cats', folder.id);
-        await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
+        await pumpTopicQueryRouter(
+          harness,
+          tester,
+          FollowingTopicsPage(folderId: folder.id),
+        );
       } else {
         await pump(tester);
       }
@@ -274,25 +315,31 @@ void main() {
     );
     final folder = await notifier.createSharedFolder('Favorites');
     await notifier.moveTopicToSharedFolder('cats', folder.id);
-    await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
+    await pumpTopicQueryRouter(
+      harness,
+      tester,
+      FollowingTopicsPage(folderId: folder.id),
+    );
 
     await choose(tester, 'Edit');
     await tester.enterText(
       find.widgetWithText(TextField, 'Name (optional)'),
       'Dogs',
     );
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Exact Query'),
-      'dog',
-    );
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await settle(tester);
-    await tester.tap(find.text('https://other.example').last);
-    await settle(tester);
     await tester.tap(find.text('Save'));
+    await drain(tester);
+    await settle(tester);
+    await replaceQuery(tester, 'dog');
+    await tester.tap(find.byTooltip('Choose a Profile'));
+    await settle(tester);
+    await tester.tap(find.text('other.example').last);
+    await settle(tester);
+    await showUpdate(tester);
+    await tester.tap(find.text('Update Topic'));
     await settle(tester);
     await drain(tester);
 
+    await tester.pump(const Duration(seconds: 3));
     final edited = (await harness.repository.getById('cats'))!;
     expect(edited.name, 'Dogs');
     expect(edited.query, 'dog');
@@ -310,52 +357,46 @@ void main() {
     );
   });
 
-  testWidgets('the editor distinguishes profiles with the same name', (
-    tester,
-  ) async {
-    harness = FollowingTopicHarness(
-      profiles: [
-        testProfile.copyWith(name: 'Shared'),
-        otherTestProfile.copyWith(name: 'Shared'),
-      ],
-    );
-    addTearDown(harness.dispose);
-    await harness.seed([topicFixture()]);
-    await pump(tester);
+  testWidgets(
+    'the shared Search selector can switch between same-named profiles',
+    (
+      tester,
+    ) async {
+      harness = FollowingTopicHarness(
+        overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+        booruBuilder: (_) => TopicQueryTestBuilder(),
+        profiles: [
+          testProfile.copyWith(name: 'Shared'),
+          otherTestProfile.copyWith(name: 'Shared'),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.seed([topicFixture()]);
+      await pump(tester);
 
-    await choose(tester, 'Edit');
-    await tester.tap(find.byType(DropdownButtonFormField<String>));
-    await settle(tester);
-    expect(find.text('Shared'), findsWidgets);
-    expect(find.byType(FollowingTopicProfileOption), findsWidgets);
-    expect(
-      find.descendant(
-        of: find.byType(FollowingTopicProfileOption),
-        matching: find.byType(ConfigAwareWebsiteLogo),
-      ),
-      findsWidgets,
-    );
-    await tester.tap(
-      find
-          .byWidgetPredicate(
-            (widget) =>
-                widget is DropdownMenuItem<String> &&
-                widget.value == otherTestProfile.id,
-          )
-          .last,
-    );
-    await settle(tester);
-    await tester.tap(find.text('Save'));
-    await drain(tester);
-    await settle(tester);
+      await openTopic(tester);
+      await tester.tap(find.byTooltip('Choose a Profile'));
+      await settle(tester);
+      expect(find.text('Shared'), findsWidgets);
+      expect(find.byType(ConfigAwareWebsiteLogo), findsWidgets);
+      await tester.tap(find.text('Shared').last);
+      await settle(tester);
+      await showUpdate(tester);
+      await tester.tap(find.text('Update Topic'));
+      await drain(tester);
+      await settle(tester);
 
-    expect(find.text('Edit Topic'), findsNothing);
-    expect(
-      (await harness.repository.getById('cats'))!.profileId,
-      '00000000-0000-4000-8000-000000000063',
-    );
-    expect(find.text('Shared · https://other.example'), findsOneWidget);
-  });
+      expect(find.text('Edit Topic'), findsNothing);
+      expect(
+        (await harness.repository.getById('cats'))!.profileId,
+        '00000000-0000-4000-8000-000000000063',
+      );
+      await tester.pump(const Duration(seconds: 3));
+      await tester.tap(find.byType(SearchAppBarBackButton));
+      await settle(tester);
+      expect(find.text('Shared · https://other.example'), findsOneWidget);
+    },
+  );
 
   testWidgets('barrier and Back cannot dismiss an editor during save', (
     tester,
@@ -364,25 +405,24 @@ void main() {
     await harness.seed([topicFixture()]);
     await pump(tester);
     await choose(tester, 'Edit');
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Exact Query'),
-      'dog',
-    );
+    await replaceQuery(tester, 'dog');
     final releaseSave = Completer<void>();
     harness.box.writeGate = releaseSave;
-    await tester.tap(find.text('Save'));
+    await showUpdate(tester);
+    await tester.tap(find.text('Update Topic'));
     await tester.pump();
 
     await tester.tapAt(const Offset(5, 5));
     await settle(tester);
-    expect(find.text('Edit Topic'), findsOneWidget);
+    expect(find.text('Update Original Topic?'), findsOneWidget);
     await tester.binding.handlePopRoute();
     await settle(tester);
-    expect(find.text('Edit Topic'), findsOneWidget);
+    expect(find.text('Update Original Topic?'), findsOneWidget);
 
     releaseSave.complete();
     await drain(tester);
     await settle(tester);
+    await tester.pump(const Duration(seconds: 3));
     expect(find.text('Edit Topic'), findsNothing);
     expect((await harness.repository.getById('cats'))!.query, 'dog');
   });
@@ -402,14 +442,12 @@ void main() {
 
     await choose(tester, 'Edit');
     await tester.enterText(
-      find.widgetWithText(TextField, 'Exact Query'),
-      ' dog  rating:safe ',
-    );
-    await tester.enterText(
       find.widgetWithText(TextField, 'Name (optional)'),
       'Changed',
     );
-    await tester.tap(find.text('Save'));
+    await replaceQuery(tester, ' dog  rating:safe ');
+    await showUpdate(tester);
+    await tester.tap(find.text('Update Topic'));
     await settle(tester);
 
     expect(
@@ -418,7 +456,7 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Edit Topic'), findsOneWidget);
+    expect(find.text('Update Topic'), findsOneWidget);
     expect((await harness.repository.getById('cats'))!.name, 'Cats');
     expect(
       (await harness.repository.getById('cats'))!.query,
@@ -430,6 +468,10 @@ void main() {
     );
     expect(harness.requests, isEmpty);
     await tester.tap(find.text('Cancel'));
+    await settle(tester);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    await tester.tap(find.byType(SearchAppBarBackButton));
     await settle(tester);
     expect(find.text('Edit Topic'), findsNothing);
   });
@@ -443,31 +485,87 @@ void main() {
       await harness.seed([topicFixture()]);
       await pump(tester);
       await choose(tester, 'Edit');
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Exact Query'),
-        'dog',
-      );
+      await replaceQuery(tester, 'dog');
       harness.box.failWrites = true;
-      await tester.tap(find.text('Save'));
+      await showUpdate(tester);
+      await tester.tap(find.text('Update Topic'));
       await settle(tester);
 
       expect(
         find.text('Could not save the topic. Try again.'),
         findsOneWidget,
       );
-      expect(find.text('Edit Topic'), findsOneWidget);
+      expect(find.text('Update Topic'), findsOneWidget);
       expect(
         (await harness.repository.getById('cats'))!.query,
         'cat  rating:safe order:score',
       );
       expect(harness.requests, isEmpty);
+      harness.box.failWrites = false;
+      await showUpdate(tester);
+      await tester.tap(find.text('Update Topic'));
+      await drain(tester);
+      await settle(tester);
+      await drain(tester);
+      await tester.pump(const Duration(seconds: 3));
+      expect(find.text('Update Topic'), findsNothing);
+      expect((await harness.repository.getById('cats'))!.query, 'dog');
+      expect(await harness.repository.getAll(), hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'editing never marks read and cancellation preserves the saved Topic',
+    (tester) async {
+      initialize();
+      final original = topicFixture();
+      await harness.seed([original]);
+      await pump(tester);
+      await choose(tester, 'Edit');
+      await tester.enterText(find.byType(TextField), 'Draft name');
+      expect(await harness.repository.getById(original.id), original);
+      expect(harness.requests, isEmpty);
+
+      await tester.tap(find.text('Cancel'));
+      await settle(tester);
+      expect(await harness.repository.getById(original.id), original);
+    },
+  );
+
+  testWidgets(
+    'Update returns before a slow refresh and keeps the saved query',
+    (tester) async {
+      initialize();
+      await harness.seed([topicFixture()]);
+      await pump(tester);
+      final gate = Completer<void>();
+      harness.refreshGate = gate;
+      await choose(tester, 'Edit');
+      await replaceQuery(tester, 'dog');
+      await showUpdate(tester);
+      await tester.tap(find.text('Update Topic'));
+      await drain(tester);
+      await settle(tester);
+      await drain(tester);
+      await settle(tester);
+      expect(find.text('Update Topic'), findsNothing);
+      expect(find.text('Edit Topic'), findsNothing);
+      expect((await harness.repository.getById('cats'))!.query, 'dog');
+      expect(gate.isCompleted, isFalse);
+      gate.complete();
+      await drain(tester);
+      await tester.pump(const Duration(seconds: 3));
     },
   );
 
   testWidgets('an unsupported profile warns before an edit is saved', (
     tester,
   ) async {
-    harness = FollowingTopicHarness(supported: false);
+    harness = FollowingTopicHarness(
+      overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+      booruBuilder: (_) => TopicQueryTestBuilder(),
+      supported: false,
+    );
     addTearDown(harness.dispose);
     await harness.seed([topicFixture()]);
     await pump(tester);
@@ -550,7 +648,11 @@ void main() {
     await harness.seed([topicFixture(query: 'cat')]);
     final notifier = harness.container.read(followingTopicsProvider.notifier);
     final folder = await notifier.createSharedFolder('Empty');
-    await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
+    await pumpTopicQueryRouter(
+      harness,
+      tester,
+      FollowingTopicsPage(folderId: folder.id),
+    );
 
     expect(find.byTooltip('Follow a Topic'), findsOneWidget);
     await tester.tap(find.text('Follow'));
@@ -976,7 +1078,11 @@ void main() {
   testWidgets(
     'unsupported profiles keep their cached topics visible and disable refresh all',
     (tester) async {
-      harness = FollowingTopicHarness(supported: false);
+      harness = FollowingTopicHarness(
+        overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+        booruBuilder: (_) => TopicQueryTestBuilder(),
+        supported: false,
+      );
       addTearDown(harness.dispose);
       await harness.seed([topicFixture()]);
       await pump(tester);
@@ -1028,7 +1134,11 @@ void main() {
     );
     final folder = await notifier.createSharedFolder('Animals');
     await notifier.moveTopicToSharedFolder('cats', folder.id);
-    await harness.pump(tester, FollowingTopicsPage(folderId: folder.id));
+    await pumpTopicQueryRouter(
+      harness,
+      tester,
+      FollowingTopicsPage(folderId: folder.id),
+    );
 
     expect(find.byTooltip('Sort By'), findsOneWidget);
     await openPageMenu(tester);
@@ -1121,7 +1231,11 @@ void main() {
       'id': '00000000-0000-4000-8000-00000000000c',
       'url': longUrl,
     });
-    harness = FollowingTopicHarness(profiles: [profile, otherTestProfile]);
+    harness = FollowingTopicHarness(
+      overrides: [appPlatformProvider.overrideWithValue(AppPlatform.android)],
+      booruBuilder: (_) => TopicQueryTestBuilder(),
+      profiles: [profile, otherTestProfile],
+    );
     addTearDown(harness.dispose);
     harness.container
         .read(selectedTestProfileProvider.notifier)
