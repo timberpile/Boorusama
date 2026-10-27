@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/rendering.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
@@ -78,6 +79,124 @@ void main() {
         semantics.dispose();
       }
     });
+  }
+
+  for (final (name, scale) in [
+    ('Modify Search', 1.0),
+    ('Modify Search', 2.0),
+    ('Suche anpassen', 1.0),
+    ('Suche anpassen', 2.0),
+  ]) {
+    testWidgets(
+      'wrapped $name preserves button and icon geometry at $scale',
+      (
+        tester,
+      ) async {
+        Future<void> mount({required bool wrap}) => tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsProvider.overrideWithValue(Settings.defaultSettings),
+            ],
+            child: BooruLocalization(
+              child: MaterialApp(
+                home: Scaffold(
+                  body: MediaQuery(
+                    data: MediaQueryData(
+                      size: const Size(800, 600),
+                      textScaler: TextScaler.linear(scale),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 320,
+                          child: MultiSelectionActionBar(
+                            children: [
+                              MultiSelectButton(
+                                name: 'Download',
+                                icon: const Icon(Icons.download),
+                                onPressed: () {},
+                              ),
+                              const MultiSelectPopupButton(
+                                name: 'Bookmark',
+                                icon: Icon(Icons.bookmark),
+                                enabled: true,
+                                items: [Text('Groups')],
+                              ),
+                              MultiSelectPopupButton(
+                                name: name,
+                                icon: const Icon(Icons.manage_search),
+                                enabled: true,
+                                wrapLabel: wrap,
+                                items: [
+                                  KurumiPopupMenuItem(
+                                    title: const Text('This Post and Newer'),
+                                    onTap: () {},
+                                  ),
+                                ],
+                              ),
+                              MultiSelectButton(
+                                name: 'Other',
+                                icon: const Icon(Icons.copy),
+                                onPressed: () {},
+                              ),
+                              MultiSelectButton(
+                                name: 'More',
+                                icon: const Icon(Icons.more_horiz),
+                                onPressed: () {},
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final button = find.byWidgetPredicate(
+          (widget) => widget is MultiSelectPopupButton && widget.name == name,
+        );
+        final icon = find.byIcon(Icons.manage_search);
+        await mount(wrap: false);
+        final buttonBefore = tester.getRect(button);
+        final iconBefore = tester.getRect(icon);
+        final neighborBefore = tester.getRect(find.byIcon(Icons.bookmark));
+        await mount(wrap: true);
+        expect(tester.getRect(button), buttonBefore);
+        expect(tester.getRect(icon), iconBefore);
+        expect(tester.getRect(find.byIcon(Icons.bookmark)), neighborBefore);
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.text(name),
+        );
+        expect(tester.widget<Text>(find.text(name)).maxLines, 2);
+        expect(paragraph.didExceedMaxLines, isFalse);
+        if (scale == 1) {
+          final first = paragraph.getBoxesForSelection(
+            TextSelection(baseOffset: 0, extentOffset: name.indexOf(' ')),
+          );
+          final second = paragraph.getBoxesForSelection(
+            TextSelection(
+              baseOffset: name.indexOf(' ') + 1,
+              extentOffset: name.length,
+            ),
+          );
+          expect(second.single.top, greaterThan(first.single.top));
+        }
+        final labelBounds = tester.getRect(find.text(name));
+        expect(labelBounds.top, greaterThanOrEqualTo(iconBefore.bottom));
+        expect(labelBounds.bottom, lessThanOrEqualTo(buttonBefore.bottom));
+        await tester.tap(button);
+        await tester.pumpAndSettle();
+        expect(find.text('This Post and Newer'), findsOneWidget);
+        await tester.tap(find.text('This Post and Newer'));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   testWidgets('popup actions remain directly usable on constrained rows', (

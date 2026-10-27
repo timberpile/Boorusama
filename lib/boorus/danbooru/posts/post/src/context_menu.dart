@@ -40,7 +40,9 @@ class DanbooruPostContextMenu extends ConsumerWidget {
 
     return KurumiContextMenu(
       menuItemsBuilder: (context) => [
-        PostContextMenuActions(snapshot: snapshot),
+        PostContextMenuActions(
+          snapshot: snapshot,
+        ),
         BookmarkContextMenuSection(
           post: post,
           config: booruConfig,

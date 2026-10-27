@@ -4,11 +4,13 @@ import 'post_grid_item.dart';
 import '../../../../configs/manage/providers.dart';
 import '../types/post_action_snapshot.dart';
 import 'post_actions.dart';
+import '../types/post_search_actions.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:selection_mode/selection_mode.dart';
 
@@ -87,6 +89,7 @@ class _PostActionsBar extends ConsumerWidget {
       downloadOverride: onBulkDownload,
     );
     final singlePost = snapshot.isSingle ? snapshot.posts.single : null;
+    final searchActions = PostSearchActionsScope.maybeOf(context);
     final presentation = singlePost == null
         ? null
         : ref.watch(
@@ -135,6 +138,41 @@ class _PostActionsBar extends ConsumerWidget {
             name: action.label,
             icon: Icon(action.icon),
             onPressed: action.enabled ? () => action.execute() : null,
+          ),
+        if (singlePost != null &&
+            searchActions != null &&
+            searchActions.availableFor(singlePost, snapshot.commonConfig?.id))
+          MultiSelectPopupButton(
+            name: context.t.post.action.modify_search,
+            wrapLabel: true,
+            enabled: true,
+            icon: const Icon(Icons.manage_search),
+            items: [
+              for (final direction in PostIdSearchDirection.values)
+                KurumiPopupMenuItem(
+                  title: Text(switch (direction) {
+                    PostIdSearchDirection.fromHere =>
+                      context.t.post.action.posts_from_here,
+                    PostIdSearchDirection.untilHere =>
+                      context.t.post.action.posts_until_here,
+                  }),
+                  onTap: () {
+                    final selection = SelectionMode.of(context);
+                    final feedback = Navigator.of(
+                      context,
+                      rootNavigator: true,
+                    ).context;
+                    if (searchActions.apply(singlePost, direction)) {
+                      selection.disable();
+                    } else if (feedback.mounted) {
+                      Kurumi.showErrorToast(
+                        feedback,
+                        context.t.post.action.operation_failed,
+                      );
+                    }
+                  },
+                ),
+            ],
           ),
         ...extraActions,
         if (singlePost != null &&

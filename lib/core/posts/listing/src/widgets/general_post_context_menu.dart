@@ -43,7 +43,9 @@ class GeneralPostContextMenu extends ConsumerWidget {
         ], ref.watch(booruConfigProvider));
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
-            PostContextMenuActions(snapshot: snapshot),
+            PostContextMenuActions(
+              snapshot: snapshot,
+            ),
             BookmarkContextMenuSection(
               post: post,
               config: booruConfig,

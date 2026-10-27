@@ -53,7 +53,10 @@ class PostActionDefinition {
 
 /// Defers capability/status subscriptions until the context menu is opened.
 class PostContextMenuActions extends StatelessWidget {
-  const PostContextMenuActions({super.key, required this.snapshot});
+  const PostContextMenuActions({
+    super.key,
+    required this.snapshot,
+  });
 
   final PostActionSnapshot snapshot;
 

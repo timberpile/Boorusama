@@ -14,6 +14,8 @@ import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../posts/count/widgets.dart';
 import '../../../../posts/listing/providers.dart';
+import '../../../../posts/listing/src/types/post_search_actions.dart';
+import '../../../../configs/manage/providers.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../posts/links/boorusama_search_link.dart';
 import '../../../../posts/links/share_search_link_button.dart';
@@ -37,6 +39,7 @@ import '../types/search_bar_position.dart';
 import '../views/search_landing_view.dart';
 import 'raw_search_page_scaffold.dart';
 import 'raw_search_region.dart';
+import 'post_id_search_filter.dart';
 import 'search_controller.dart';
 import 'search_profile_session.dart';
 import 'selected_tag_list_with_data.dart';
@@ -173,145 +176,201 @@ class _SearchPageScaffoldState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    return RawSearchPageScaffold(
-      fetcher: widget.fetcher,
-      params: widget.params,
-      tagsController: _tagsController,
-      controller: _controller,
-      selectionModeController: _searchModeController,
-      onQueryChanged: (_) => _requestSuggestions(),
-      extraHeaders: widget.extraHeaders,
-      landingView:
-          widget.landingViewBuilder?.call(_controller) ??
-          DefaultMobileSearchLandingView(controller: _controller),
-      itemBuilder: widget.itemBuilder,
-      searchSuggestions: DefaultSearchSuggestions(
-        multiSelectController: _searchModeController,
-        config: ref.watchConfigAuth,
-      ),
-      resultHeader: MultiValueListenableBuilder2(
-        first: _controller.tagString,
-        second: _tagsController,
-        builder: (context, value, _) => ValueListenableBuilder(
-          valueListenable: _postController,
-          builder: (context, postController, child) => postController != null
-              ? LayoutBuilder(
-                  builder: (context, constraints) => Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: switch (ref
-                                .watchConfigAuth
-                                .booruType
-                                .postCountMethod) {
-                              PostCountMethod.endpoint =>
-                                ResultHeaderWithProvider(
-                                  selectedTagsString: value,
-                                  onRefresh: null,
-                                  fallback: ResultHeaderFromController(
+    final profile = ref.watchConfig;
+    final options = ref.watch(searchCapabilitiesProvider(profile.auth));
+    final idOption = options.options
+        .where(
+          (option) =>
+              option.kind == SearchOptionKind.postId && option.key == 'id',
+        )
+        .firstOrNull;
+    final canModifyId =
+        idOption?.compose('>=1') != null && idOption?.compose('<=1') != null;
+    bool stillSearching() =>
+        mounted &&
+        _controller.didSearchOnce.value &&
+        _controller.textController.text.trim().isEmpty &&
+        _controller.textController.value.composing.isCollapsed &&
+        _controller.editingTag.value == null &&
+        _controller.tagString.value == _tagsController.rawTagsString &&
+        ref.readConfig.id == profile.id &&
+        idOption != null &&
+        refinePostIdSearch(
+              tags: _tagsController.tags,
+              option: idOption,
+              postId: 1,
+              direction: PostIdSearchDirection.fromHere,
+            ) !=
+            null;
+    final actions = PostSearchActions(
+      profileId: profile.id,
+      isActive: () => canModifyId && stillSearching(),
+      apply: (post, direction) {
+        if (!canModifyId || !stillSearching()) return false;
+        if (const PostOriginResolver().resolve(
+              post.origin,
+              ref.read(booruConfigProvider),
+            )
+            case ResolvedPostOrigin(:final config) when config == profile) {
+          final updated = refinePostIdSearch(
+            tags: _tagsController.tags,
+            option: idOption!,
+            postId: post.id,
+            direction: direction,
+          );
+          if (updated == null) return false;
+          _tagsController
+            ..clear()
+            ..addTags(updated);
+          _controller.commitSelection();
+          _controller.closeEditor();
+          return true;
+        }
+        return false;
+      },
+    );
+    return PostSearchActionsScope(
+      actions: actions,
+      child: RawSearchPageScaffold(
+        fetcher: widget.fetcher,
+        params: widget.params,
+        tagsController: _tagsController,
+        controller: _controller,
+        selectionModeController: _searchModeController,
+        onQueryChanged: (_) => _requestSuggestions(),
+        extraHeaders: widget.extraHeaders,
+        landingView:
+            widget.landingViewBuilder?.call(_controller) ??
+            DefaultMobileSearchLandingView(controller: _controller),
+        itemBuilder: widget.itemBuilder,
+        searchSuggestions: DefaultSearchSuggestions(
+          multiSelectController: _searchModeController,
+          config: ref.watchConfigAuth,
+        ),
+        resultHeader: MultiValueListenableBuilder2(
+          first: _controller.tagString,
+          second: _tagsController,
+          builder: (context, value, _) => ValueListenableBuilder(
+            valueListenable: _postController,
+            builder: (context, postController, child) => postController != null
+                ? LayoutBuilder(
+                    builder: (context, constraints) => Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: switch (ref
+                                  .watchConfigAuth
+                                  .booruType
+                                  .postCountMethod) {
+                                PostCountMethod.endpoint =>
+                                  ResultHeaderWithProvider(
+                                    selectedTagsString: value,
+                                    onRefresh: null,
+                                    fallback: ResultHeaderFromController(
+                                      controller: postController,
+                                      onRefresh: null,
+                                      hasCount: true,
+                                    ),
+                                  ),
+                                PostCountMethod.search =>
+                                  ResultHeaderFromController(
                                     controller: postController,
                                     onRefresh: null,
                                     hasCount: true,
                                   ),
-                                ),
-                              PostCountMethod.search =>
-                                ResultHeaderFromController(
-                                  controller: postController,
-                                  onRefresh: null,
-                                  hasCount: true,
-                                ),
-                              PostCountMethod.notSupported =>
-                                const SizedBox.shrink(),
-                            },
-                          ),
-                          ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: constraints.maxWidth * 0.55,
+                                PostCountMethod.notSupported =>
+                                  const SizedBox.shrink(),
+                              },
                             ),
-                            child: IntrinsicWidth(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SearchLinkShareMenu(
-                                    profileName: ref.watchConfig.name,
-                                    link: switch (_typedQueryStructure(
-                                      _tagsController.tags,
-                                    )) {
-                                      final structure? =>
-                                        BoorusamaSearchLink.fromTags(
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: constraints.maxWidth * 0.55,
+                              ),
+                              child: IntrinsicWidth(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SearchLinkShareMenu(
+                                      profileName: ref.watchConfig.name,
+                                      link: switch (_typedQueryStructure(
+                                        _tagsController.tags,
+                                      )) {
+                                        final structure? =>
+                                          BoorusamaSearchLink.fromTags(
+                                            auth: ref.watchConfigAuth,
+                                            tags: structure.typedTags,
+                                          ),
+                                        null => BoorusamaSearchLink.fromRaw(
                                           auth: ref.watchConfigAuth,
-                                          tags: structure.typedTags,
+                                          query: value,
                                         ),
-                                      null => BoorusamaSearchLink.fromRaw(
-                                        auth: ref.watchConfigAuth,
-                                        query: value,
-                                      ),
-                                    },
-                                  ),
-                                  Flexible(
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxWidth: constraints.maxWidth * 0.55,
-                                      ),
-                                      child: FollowTopicButton(
-                                        query: value,
-                                        queryStructure: _typedQueryStructure(
-                                          _tagsController.tags,
+                                      },
+                                    ),
+                                    Flexible(
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth: constraints.maxWidth * 0.55,
                                         ),
-                                        originatingTopicId:
-                                            widget.params.originatingTopicId,
-                                        compact: true,
-                                        onFeedback: (message) =>
-                                            _topicFeedback.value = message,
+                                        child: FollowTopicButton(
+                                          query: value,
+                                          queryStructure: _typedQueryStructure(
+                                            _tagsController.tags,
+                                          ),
+                                          originatingTopicId:
+                                              widget.params.originatingTopicId,
+                                          compact: true,
+                                          onFeedback: (message) =>
+                                              _topicFeedback.value = message,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      ValueListenableBuilder(
-                        valueListenable: _topicFeedback,
-                        builder: (context, error, _) => switch (error) {
-                          final message? when value.trim().isNotEmpty =>
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              child: Text(
-                                message,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
+                                  ],
                                 ),
                               ),
                             ),
-                          _ => const SizedBox.shrink(),
-                        },
-                      ),
-                    ],
-                  ),
-                )
-              : const SizedBox.shrink(),
-        ),
-      ),
-      searchRegion:
-          widget.searchRegionBuilder?.call(_postController, _controller) ??
-          DefaultSearchRegion(
-            controller: _controller,
-            initialQuery: widget.initialQuery,
-            fromSearchBar: widget.params.fromSearchBar ?? false,
-            postController: _postController,
+                          ],
+                        ),
+                        ValueListenableBuilder(
+                          valueListenable: _topicFeedback,
+                          builder: (context, error, _) => switch (error) {
+                            final message? when value.trim().isNotEmpty =>
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  message,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                            _ => const SizedBox.shrink(),
+                          },
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
-      onPostControllerCreated: (controller) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _postController.value = controller;
-        });
-      },
+        ),
+        searchRegion:
+            widget.searchRegionBuilder?.call(_postController, _controller) ??
+            DefaultSearchRegion(
+              controller: _controller,
+              initialQuery: widget.initialQuery,
+              fromSearchBar: widget.params.fromSearchBar ?? false,
+              postController: _postController,
+            ),
+        onPostControllerCreated: (controller) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _postController.value = controller;
+          });
+        },
+      ),
     );
   }
 }

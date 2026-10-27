@@ -504,6 +504,9 @@
     },
     "action": {
       "operation_failed": "Could not complete the post action. Try again.",
+      "modify_search": "Modify Search",
+      "posts_from_here": "This Post and Newer",
+      "posts_until_here": "This Post and Older",
       "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "Create GIF",

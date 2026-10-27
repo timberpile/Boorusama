@@ -196,6 +196,7 @@
       "reset": "Zurücksetzen",
       "more": "Mehr",
       "apply": "Anwenden",
+      "back": "Zurück",
       "show_all": "Alle anzeigen",
       "show_less": "Weniger anzeigen",
       "view_all": "Alle anzeigen",
@@ -351,6 +352,9 @@
     },
     "action": {
       "operation_failed": "Die Beitragsaktion konnte nicht abgeschlossen werden. Versuche es erneut.",
+      "modify_search": "Suche anpassen",
+      "posts_from_here": "Dieser und neuere Beiträge",
+      "posts_until_here": "Dieser und ältere Beiträge",
       "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "GIF erstellen",
