@@ -6,6 +6,7 @@ import 'package:xml/xml.dart';
 
 import '../../gelbooru/types/types.dart';
 import '../types.dart';
+import 'common.dart';
 
 GelbooruV2Posts parseGelPosts(
   Response response,
@@ -33,6 +34,10 @@ GelbooruV2Posts parseGelPosts(
     ),
     final String s when s.trimLeft().startsWith('<') => () {
       final root = XmlDocument.parse(s).rootElement;
+      if (root.name.local != 'posts' ||
+          root.getAttribute('success') == 'false') {
+        throw const FormatException('Invalid post-list API response');
+      }
       return (
         posts: root
             .findElements('post')
@@ -53,7 +58,9 @@ GelbooruV2Posts parseGelPosts(
     ),
   };
 
-  final filterNulls = result.posts.where((e) => e.hash != null).toList();
+  final filterNulls = requiresPostIdentityValidation(response)
+      ? result.posts
+      : result.posts.where((e) => e.hash != null).toList();
 
   return GelbooruV2Posts(
     posts: filterNulls,

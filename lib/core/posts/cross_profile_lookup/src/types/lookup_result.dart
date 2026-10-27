@@ -3,6 +3,13 @@ import '../../../post/types.dart';
 
 enum PostLookupMatchKind { exactFile, pixivSource, sourceUrl }
 
+enum PixivLookupCoverageIssue {
+  authentication,
+  restricted,
+  originalsUnavailable,
+  ugoira,
+}
+
 sealed class PostLookupResult {
   const PostLookupResult();
 }
@@ -16,6 +23,7 @@ final class PostLookupPage extends PostLookupResult {
     required this.hasMore,
     required this.hasFilteredMatches,
     this.matchKind = PostLookupMatchKind.exactFile,
+    this.coverageIssue,
   }) : posts = List.unmodifiable(posts);
 
   final PostLookupMatchKind matchKind;
@@ -23,13 +31,15 @@ final class PostLookupPage extends PostLookupResult {
   final List<Post> posts;
   final int page;
   final bool hasMore;
+  final PixivLookupCoverageIssue? coverageIssue;
 
   /// Distinguishes known local filtering from an ordinary empty result without
   /// retaining the hidden posts or exposing their metadata to the picker.
   final bool hasFilteredMatches;
 
   /// A single item on an incomplete or later page is not a unique result.
-  bool get canOpenDirectly => page == 1 && posts.length == 1 && !hasMore;
+  bool get canOpenDirectly =>
+      page == 1 && posts.length == 1 && !hasMore && coverageIssue == null;
 }
 
 enum PostLookupUnavailableReason {

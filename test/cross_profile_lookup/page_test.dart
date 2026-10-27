@@ -189,7 +189,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Results: 2'), findsOneWidget);
-      expect(find.text('#42'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('match-${targetProfile.id}-42')),
+        findsOneWidget,
+      );
       await tester.tap(find.byKey(ValueKey('match-${targetProfile.id}-43')));
       await tester.pumpAndSettle();
       expect(find.text('Opened 43 with Target'), findsOneWidget);
@@ -269,7 +272,10 @@ void main() {
       );
       await tester.pump();
       expect(find.textContaining('Opened'), findsNothing);
-      expect(find.text('#42'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('match-${targetProfile.id}-42')),
+        findsOneWidget,
+      );
       expect(find.textContaining('Searching'), findsOneWidget);
       router.pop();
       await tester.pumpAndSettle();
@@ -312,8 +318,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(calls, [targetProfile, changed]);
-      expect(find.text('#42'), findsNothing);
-      expect(find.text('#99'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('match-${targetProfile.id}-42')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(ValueKey('match-${targetProfile.id}-99')),
+        findsOneWidget,
+      );
     },
   );
 

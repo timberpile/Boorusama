@@ -4,6 +4,11 @@ import '../../../post/types.dart';
 import '../../../sources/types.dart';
 import '../types/lookup_result.dart';
 import 'exact_post_lookup.dart';
+import 'pixiv_lookup_capabilities.dart';
+import '../types/source_reference.dart';
+import '../types/pixiv_artwork_reference.dart';
+
+export '../types/source_reference.dart';
 
 /// Source matching never establishes identical file content. Validate the
 /// returned metadata rather than trusting a site's metatag implementation.
@@ -22,6 +27,42 @@ final class SourcePostLookup {
     required PostLookupMatchKind kind,
     int page = 1,
     required PostLookupCancellation cancellation,
+  }) => findReference(
+    source.source.url,
+    kind: kind,
+    page: page,
+    cancellation: cancellation,
+  );
+
+  Future<PostLookupResult> findArtwork(
+    String id, {
+    required int variant,
+    int page = 1,
+    required PostLookupCancellation cancellation,
+  }) {
+    final queries = pixivSourceQueries(targetOrigin, id);
+    if (variant < 0 || variant >= queries.length) {
+      return Future.value(
+        const PostLookupUnavailable(
+          PostLookupUnavailableReason.unsupported,
+        ),
+      );
+    }
+    return _search(
+      queries[variant],
+      id: id,
+      kind: PostLookupMatchKind.pixivSource,
+      page: page,
+      cancellation: cancellation,
+      requireSourceIdentity: true,
+    );
+  }
+
+  Future<PostLookupResult> findReference(
+    String? sourceUrl, {
+    required PostLookupMatchKind kind,
+    int page = 1,
+    required PostLookupCancellation cancellation,
   }) async {
     if (page < 1) {
       throw ArgumentError.value(page, 'page', 'Must be positive');
@@ -33,8 +74,8 @@ final class SourcePostLookup {
         PostLookupUnavailableReason.invalidTarget,
       );
     }
-    final id = pixivArtworkId(source.source.url);
-    final url = lookupSourceUrl(source.source.url);
+    final id = pixivArtworkId(sourceUrl);
+    final url = lookupSourceUrl(sourceUrl);
     final query = switch (kind) {
       PostLookupMatchKind.pixivSource
           when targetOrigin.booruType == BooruType.danbooru && id != null =>
@@ -47,6 +88,33 @@ final class SourcePostLookup {
     if (query == null) {
       return const PostLookupUnavailable(
         PostLookupUnavailableReason.unsupported,
+      );
+    }
+    return _search(
+      query,
+      id: id,
+      url: url,
+      kind: kind,
+      page: page,
+      cancellation: cancellation,
+    );
+  }
+
+  Future<PostLookupResult> _search(
+    String query, {
+    String? id,
+    String? url,
+    required PostLookupMatchKind kind,
+    required int page,
+    required PostLookupCancellation cancellation,
+    bool requireSourceIdentity = false,
+  }) async {
+    if (page < 1) throw ArgumentError.value(page, 'page', 'Must be positive');
+    if (cancellation.isCancelled) return const PostLookupCancelled();
+    if (targetOrigin.sourceHost.isEmpty ||
+        (targetOrigin.profileIdHint?.trim().isEmpty ?? true)) {
+      return const PostLookupUnavailable(
+        PostLookupUnavailableReason.invalidTarget,
       );
     }
     try {
@@ -64,14 +132,31 @@ final class SourcePostLookup {
             ? const PostLookupCancelled()
             : PostLookupFailed(error),
         (result) {
-          if (result.posts.any((post) => post.origin != targetOrigin)) {
+          if (result.posts.any(
+            (post) => post.id <= 0 || post.origin != targetOrigin,
+          )) {
+            return const PostLookupInvalidResponse();
+          }
+          if (requireSourceIdentity &&
+              result.posts.any(
+                (post) =>
+                    PixivArtworkReference.parseSharedText(
+                      post.source.url?.replaceAll('&amp;', '&'),
+                    ) ==
+                    null,
+              )) {
             return const PostLookupInvalidResponse();
           }
           final matches = result.posts
               .where(
                 (post) => switch (kind) {
                   PostLookupMatchKind.pixivSource =>
-                    pixivArtworkId(post.source.url) == id,
+                    (requireSourceIdentity
+                            ? PixivArtworkReference.parseSharedText(
+                                post.source.url?.replaceAll('&amp;', '&'),
+                              )?.id
+                            : pixivArtworkId(post.source.url)) ==
+                        id,
                   _ => lookupSourceUrl(post.source.url) == url,
                 },
               )
@@ -113,43 +198,3 @@ final class SourcePostLookup {
 
 bool supportsSourceUrlLookup(BooruType type) =>
     type == BooruType.danbooru || type == BooruType.gelbooru;
-
-/// Only single URL tokens are safe to interpolate into a site's search grammar.
-/// Preserve query parameters and path case; they may identify a different work.
-String? lookupSourceUrl(String? raw) {
-  if (raw == null || raw.isEmpty || RegExp(r'''[\s*"'\\]''').hasMatch(raw)) {
-    return null;
-  }
-  final uri = Uri.tryParse(raw);
-  if (uri == null ||
-      !['http', 'https'].contains(uri.scheme) ||
-      uri.host.isEmpty ||
-      uri.userInfo.isNotEmpty) {
-    return null;
-  }
-  return uri.removeFragment().toString();
-}
-
-String? pixivArtworkId(String? raw) {
-  final url = lookupSourceUrl(raw);
-  if (url == null) return null;
-  final uri = Uri.parse(url);
-  final host = uri.host.toLowerCase();
-  String? id;
-  if (host == 'pixiv.net' || host.endsWith('.pixiv.net')) {
-    id = RegExp(r'^/(?:[a-z]{2}/)?artworks/([0-9]+)/?$')
-        .firstMatch(uri.path)
-        ?.group(1);
-    if (uri.path == '/member_illust.php') {
-      id ??= uri.queryParameters['illust_id'];
-    }
-  }
-  if (host == 'pximg.net' ||
-      host.endsWith('.pximg.net') ||
-      host.endsWith('.pixiv.net')) {
-    id ??= RegExp(r'/([0-9]+)_p[0-9]+(?:_[a-zA-Z0-9]+)?\.[a-zA-Z0-9]+$')
-        .firstMatch(uri.path)
-        ?.group(1);
-  }
-  return id != null && RegExp(r'^[1-9][0-9]*$').hasMatch(id) ? id : null;
-}

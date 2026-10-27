@@ -278,6 +278,8 @@
   },
   "post": {
     "cross_profile": {
+      "shared_pixiv_title": "Pixiv-Bild finden",
+      "pixiv_artwork": "Pixiv-Bild #$id",
       "action": "In anderen Profilen finden",
       "exact_file": "Identische Datei",
       "source_match": "Gleiche Quell-URL",
@@ -292,7 +294,12 @@
       "no_profiles": "Keine weiteren Profile eingerichtet",
       "result_count": "$count Treffer",
       "results_so_far": "$count Treffer geladen – weitere sind möglicherweise verfügbar",
-      "load_more": "Mehr laden"
+      "load_more": "Mehr laden",
+      "pixiv_auth_required": "Melde dich in einem Pixiv-Profil an, um identische Dateien zu suchen.",
+      "ugoira_hash_unavailable": "Für dieses animierte Pixiv-Werk ist kein Abgleich identischer Dateien verfügbar.",
+      "originals_incomplete": "Einige Pixiv-Originale konnten nicht geprüft werden. Die Ergebnisse sind möglicherweise unvollständig.",
+      "originals_restricted": "Pixiv oder die Einstellungen deines Pixiv-Profils blockieren den Zugriff auf die Originale dieses Werks.",
+      "incomplete_count": "Geladene Ergebnisse: $count"
     },
     "app_link": {
       "share_post_caption": "Post {id} auf {profile}",

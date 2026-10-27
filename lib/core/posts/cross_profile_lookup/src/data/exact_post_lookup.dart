@@ -32,12 +32,22 @@ final class ExactPostLookup {
       apiMode &&
       switch (targetOrigin.booruType) {
         BooruType.danbooru || BooruType.gelbooru => true,
-        BooruType.gelbooruV2 => targetOrigin.sourceHost == 'rule34.xxx',
+        BooruType.gelbooruV2 => const {
+          'rule34.xxx',
+          'safebooru.org',
+        }.contains(targetOrigin.sourceHost),
         _ => false,
       };
 
   Future<PostLookupResult> find(
     Post source, {
+    int page = 1,
+    PostLookupCancellation? cancellation,
+  }) => findHash(source.md5, page: page, cancellation: cancellation);
+
+  /// A verified original-file digest does not require a fabricated source Post.
+  Future<PostLookupResult> findHash(
+    String md5, {
     int page = 1,
     PostLookupCancellation? cancellation,
   }) async {
@@ -59,7 +69,7 @@ final class ExactPostLookup {
       );
     }
 
-    final hash = normalizeMd5(source.md5);
+    final hash = normalizeMd5(md5);
     if (hash == null) {
       return const PostLookupUnavailable(
         PostLookupUnavailableReason.missingHash,
@@ -103,7 +113,9 @@ final class ExactPostLookup {
     // A server may ignore an unknown metatag. Never label its normal feed as
     // matches, and never relabel source-account objects as target-account posts.
     for (final post in result.posts) {
-      if (post.origin != targetOrigin || normalizeMd5(post.md5) != hash) {
+      if (post.id <= 0 ||
+          post.origin != targetOrigin ||
+          normalizeMd5(post.md5) != hash) {
         return const PostLookupInvalidResponse();
       }
     }

@@ -404,6 +404,8 @@
   },
   "post": {
     "cross_profile": {
+      "shared_pixiv_title": "Find Pixiv Artwork",
+      "pixiv_artwork": "Pixiv Artwork #$id",
       "action": "Find on Other Profiles",
       "exact_file": "Exact File Match",
       "source_match": "Source URL Match",
@@ -418,7 +420,12 @@
       "no_profiles": "No other profiles configured",
       "result_count": "Results: $count",
       "results_so_far": "Results loaded: $count — more may be available",
-      "load_more": "Load More"
+      "load_more": "Load More",
+      "pixiv_auth_required": "Sign in to a Pixiv profile to check exact-file matches.",
+      "ugoira_hash_unavailable": "Exact-file matching is unavailable for this animated Pixiv artwork.",
+      "originals_incomplete": "Some Pixiv originals could not be checked. Lookup results may be incomplete.",
+      "originals_restricted": "Pixiv or your Pixiv profile settings block access to this artwork's originals.",
+      "incomplete_count": "Results loaded: $count"
     },
     "app_link": {
       "share_post_caption": "Post {id} on {profile}",

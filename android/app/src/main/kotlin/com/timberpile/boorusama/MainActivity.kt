@@ -18,10 +18,32 @@ class MainActivity: FlutterFragmentActivity() {
     private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel? = null
     private var performanceDiagnosticsChannel: PerformanceDiagnosticsChannel? = null
     private var githubApkInstallChannel: GitHubApkInstallChannel? = null
+    private var sharedTextDeliveryChannel: MethodChannel? = null
+    private val pendingSharedTextIntents = PendingSharedTextIntents<Intent> {
+        super.onNewIntent(it)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+        sharedTextDeliveryChannel = MethodChannel(
+            messenger,
+            "com.timberpile.boorusama/shared_text_delivery",
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "resume" -> {
+                        pendingSharedTextIntents.resume()
+                        result.success(null)
+                    }
+                    "pause" -> {
+                        pendingSharedTextIntents.pause()
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
         searchRefreshEnvironmentChannel = SearchRefreshEnvironmentChannel(applicationContext, messenger)
         performanceDiagnosticsChannel = PerformanceDiagnosticsChannel(applicationContext, messenger)
         githubApkInstallChannel = GitHubApkInstallChannel(this, messenger)
@@ -47,12 +69,22 @@ class MainActivity: FlutterFragmentActivity() {
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
         setIntent(intent)
+        // share_handler retains the launch share, but drops onNewIntent text
+        // while its EventSink is absent. Replay those through the same plugin
+        // once the existing Dart receiver is ready; other Intents stay immediate.
+        val textShare = intent.action == Intent.ACTION_SEND &&
+            intent.type?.startsWith("text/") == true &&
+            intent.hasExtra(Intent.EXTRA_TEXT)
+        if (!textShare || !pendingSharedTextIntents.enqueueIfWaiting(intent)) {
+            super.onNewIntent(intent)
+        }
         receivedExportChannel?.receive(intent)
     }
 
     override fun onDestroy() {
+        sharedTextDeliveryChannel?.setMethodCallHandler(null)
+        pendingSharedTextIntents.clear()
         receivedExportChannel?.close()
         autoBackupChannel?.close()
         exportSaveChannel?.close()

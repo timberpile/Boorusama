@@ -23,6 +23,9 @@ GoRoute crossProfileLookupRoute() => GoRoute(
   path: 'cross-profile-lookup',
   builder: (context, state) => switch (state.extra) {
     final Post source => CrossProfileLookupPage(source: source),
+    final PixivArtworkReference artwork => CrossProfileLookupPage.pixiv(
+      artwork: artwork,
+    ),
     _ => Scaffold(
       body: Center(child: Text(context.t.post.cross_profile.failed)),
     ),
@@ -30,8 +33,17 @@ GoRoute crossProfileLookupRoute() => GoRoute(
 );
 
 class CrossProfileLookupPage extends ConsumerStatefulWidget {
-  const CrossProfileLookupPage({required this.source, super.key});
-  final Post source;
+  const CrossProfileLookupPage({required Post source, super.key})
+    : source = source,
+      artwork = null;
+  const CrossProfileLookupPage.pixiv({
+    required PixivArtworkReference artwork,
+    super.key,
+  }) : artwork = artwork,
+       source = null;
+
+  final Post? source;
+  final PixivArtworkReference? artwork;
 
   @override
   ConsumerState<CrossProfileLookupPage> createState() => _PostLookupPageState();
@@ -51,15 +63,25 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
     });
   }
 
-  void _syncProfiles() {
-    final profiles = ref.read(booruConfigProvider);
-    final sourceConfig = switch (const PostOriginResolver().resolve(
-      widget.source.origin,
+  bool _supports(BooruConfig profile) => widget.artwork != null
+      ? supportsSharedPixivLookup(profile)
+      : supportsExactPostLookup(profile);
+
+  BooruConfig? _sourceConfig(List<BooruConfig> profiles) {
+    final source = widget.source;
+    if (source == null) return null;
+    return switch (const PostOriginResolver().resolve(
+      source.origin,
       profiles,
     )) {
       ResolvedPostOrigin(:final config) => config,
       _ => null,
     };
+  }
+
+  void _syncProfiles() {
+    final profiles = ref.read(booruConfigProvider);
+    final sourceConfig = _sourceConfig(profiles);
     for (final entry in _results.entries.toList()) {
       if (!profiles.contains(entry.value.profile)) {
         _cancellations.remove(entry.key)?.cancel();
@@ -69,8 +91,8 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
     }
     for (final profile in profiles) {
       if (profile.id !=
-              (sourceConfig?.id ?? widget.source.origin.profileIdHint) &&
-          supportsExactPostLookup(profile) &&
+              (sourceConfig?.id ?? widget.source?.origin.profileIdHint) &&
+          _supports(profile) &&
           _results[profile.id]?.profile != profile) {
         unawaited(_select(profile));
       }
@@ -100,9 +122,11 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
         matchKind: more ? previous?.matchKind : null,
       );
     });
-    final session = ref.read(crossProfileLookupSessionProvider(widget.source));
+    final lookup = widget.artwork != null
+        ? ref.read(sharedPixivLookupSessionProvider(widget.artwork!)).find
+        : ref.read(crossProfileLookupSessionProvider(widget.source!)).find;
     final result = await _queue.run(
-      () => session.find(target, page: page, cancellation: cancellation),
+      () => lookup(target, page: page, cancellation: cancellation),
     );
     if (!mounted || cancellation.isCancelled) return;
     if (!ref.read(booruConfigProvider).contains(target)) {
@@ -116,7 +140,9 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
             posts.isEmpty &&
                 !hasMore &&
                 (!more || (previous?.posts.isEmpty ?? true))
-            ? CrossProfileResultStatus.noMatch
+            ? result.coverageIssue == null
+                  ? CrossProfileResultStatus.noMatch
+                  : CrossProfileResultStatus.incomplete
             : CrossProfileResultStatus.success,
         posts: {
           for (final post in [
@@ -125,7 +151,9 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
           ])
             post.id: post,
         }.values.toList(),
-        complete: !hasMore,
+        complete: !hasMore && result.coverageIssue == null,
+        hasMore: hasMore,
+        coverageIssue: result.coverageIssue,
         matchKind: result.matchKind,
       ),
       PostLookupUnavailable(:final reason) => CrossProfileResult(
@@ -141,6 +169,9 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
       _ => CrossProfileResult(
         profile: target,
         status: CrossProfileResultStatus.error,
+        posts: more ? previous?.posts ?? [] : [],
+        matchKind: more ? previous?.matchKind : null,
+        hasMore: more,
       ),
     };
     setState(() {
@@ -166,49 +197,77 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
   @override
   Widget build(BuildContext context) {
     // Keep the refresh cache scoped to the lifetime of this results page.
-    ref.watch(crossProfileLookupSessionProvider(widget.source));
+    if (widget.artwork case final artwork?) {
+      ref.watch(sharedPixivLookupSessionProvider(artwork));
+      ref.listen(sharedPixivLookupSessionProvider(artwork), (previous, next) {
+        if (previous == null || identical(previous, next)) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted ||
+              !identical(
+                ref.read(sharedPixivLookupSessionProvider(artwork)),
+                next,
+              )) {
+            return;
+          }
+          for (final cancellation in _cancellations.values) {
+            cancellation.cancel();
+          }
+          _results.clear();
+          _pages.clear();
+          _syncProfiles();
+        });
+      });
+    } else {
+      ref.watch(crossProfileLookupSessionProvider(widget.source!));
+    }
     ref.listen(booruConfigProvider, (_, _) => _syncProfiles());
     final profiles = ref.watch(booruConfigProvider);
-    final sourceConfig = switch (const PostOriginResolver().resolve(
-      widget.source.origin,
-      profiles,
-    )) {
-      ResolvedPostOrigin(:final config) => config,
-      _ => null,
-    };
+    final sourceConfig = _sourceConfig(profiles);
     final targets = profiles.where(
-      (p) => p.id != (sourceConfig?.id ?? widget.source.origin.profileIdHint),
+      (p) => p.id != (sourceConfig?.id ?? widget.source?.origin.profileIdHint),
     );
     return Scaffold(
-      appBar: KurumiAppBar(title: Text(context.t.post.cross_profile.action)),
+      appBar: KurumiAppBar(
+        title: Text(
+          widget.artwork != null
+              ? context.t.post.cross_profile.shared_pixiv_title
+              : context.t.post.cross_profile.action,
+        ),
+      ),
       body: SafeArea(
         child: CrossProfileResults(
-          reference: Row(
-            children: [
-              if (sourceConfig != null)
-                SizedBox.square(
-                  dimension: 72,
-                  child: BooruImage(
-                    config: sourceConfig.auth,
-                    imageUrl: widget.source.thumbnailImageUrl,
-                    fit: BoxFit.cover,
+          reference: widget.artwork != null
+              ? Text(
+                  context.t.post.cross_profile.pixiv_artwork(
+                    id: widget.artwork!.id,
                   ),
+                )
+              : Row(
+                  children: [
+                    if (sourceConfig != null)
+                      SizedBox.square(
+                        dimension: 72,
+                        child: BooruImage(
+                          config: sourceConfig.auth,
+                          imageUrl: widget.source!.thumbnailImageUrl,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '${widget.source!.origin.sourceHost}\n#${widget.source!.sitePostId ?? widget.source!.id}',
+                      ),
+                    ),
+                  ],
                 ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '${widget.source.origin.sourceHost}\n#${widget.source.sitePostId ?? widget.source.id}',
-                ),
-              ),
-            ],
-          ),
           results: [
             for (final profile in targets)
               _results[profile.id]?.profile == profile
                   ? _results[profile.id]!
                   : CrossProfileResult(
                       profile: profile,
-                      status: supportsExactPostLookup(profile)
+                      status: _supports(profile)
                           ? CrossProfileResultStatus.idle
                           : CrossProfileResultStatus.unsupported,
                     ),
