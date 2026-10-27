@@ -116,3 +116,32 @@ The earlier Android evidence above predates this correction. No new device run
 is claimed for this bounded metadata failure-path change. Publication still
 requires the explicit issue-specific approval recorded above and qualification
 against the then-current develop candidate.
+
+
+## Rebase compatibility — 2026-10-27
+
+Rebased onto `develop` at `482ae4b1e5fd1e34b344a5c61959a210b8527281`.
+The current Bookmark Group contract from #80 is retained: no active group,
+Pool taps/long presses open group choice, and successful manual membership
+changes update Recent Groups. Post and Pool creation/bulk operations preserve
+the same recency behavior. Existing #66 search actions and #50 UI labels/icons
+remain in place.
+
+Resolved repository/state/picker conflicts by preserving both Pool persistence
+and the current group APIs. Tests no longer pass removed active-target settings
+to library loading. The real Pool flow verifies tap and long press, waits for
+bounded metadata completion before choosing a group, and uses the current
+Remove From action label.
+
+Post-rebase verification on `7d744fc22`:
+
+- `fvm flutter test --no-pub --concurrency=6 test/core/bookmarks
+  test/application/pool_bookmark_flow_test.dart test/core/backups`: **1,189 passed**.
+- `fvm flutter analyze --no-pub --no-fatal-infos`: exit 0, no errors/warnings;
+  informational lint diagnostics remain.
+- FVM format and `git diff --check develop` passed.
+
+No complete repository regression or fresh Android/live-source check was run
+for this rebase. Previous full-suite/device evidence above predates the rebase.
+The user requested review prioritization; integration/publication remains
+unauthorized for this branch. The rebased history is local only.
