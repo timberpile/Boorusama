@@ -1,10 +1,10 @@
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../images/booru_image.dart';
 import '../post/types.dart';
-import '../post/providers.dart';
 import 'types.dart';
 
 enum CrossProfileResultStatus {
@@ -83,16 +83,19 @@ class CrossProfileResults extends StatelessWidget {
           style: Theme.of(context).textTheme.labelLarge,
         ),
         const SizedBox(height: 4),
-        Text(
-          results
-              .where((r) => r.status == CrossProfileResultStatus.unsupported)
-              .map(
-                (r) =>
-                    '${r.profile.name} (${postOriginFromConfig(r.profile).sourceHost})',
-              )
-              .join('\n'),
+        Column(
           key: const ValueKey('unsupported-profiles'),
-          style: Theme.of(context).textTheme.bodySmall,
+          children: [
+            for (final result in results.where(
+              (r) => r.status == CrossProfileResultStatus.unsupported,
+            ))
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: _ProfileIcon(profile: result.profile),
+                title: Text(result.profile.name),
+                dense: true,
+              ),
+          ],
         ),
       ],
     ],
@@ -131,12 +134,7 @@ class CrossProfileResultSection extends StatelessWidget {
       CrossProfileResultStatus.error => t.failed,
       CrossProfileResultStatus.incomplete =>
         coverageMessage ?? t.originals_incomplete,
-      CrossProfileResultStatus.success =>
-        result.coverageIssue != null
-            ? t.incomplete_count(count: result.posts.length)
-            : result.complete
-            ? t.result_count(count: result.posts.length)
-            : t.results_so_far(count: result.posts.length),
+      CrossProfileResultStatus.success => null,
     };
     final kindLabel = switch (result.matchKind) {
       PostLookupMatchKind.exactFile => t.exact_file,
@@ -154,11 +152,9 @@ class CrossProfileResultSection extends StatelessWidget {
         children: [
           ListTile(
             key: ValueKey('profile-${result.profile.id}'),
+            leading: _ProfileIcon(profile: result.profile),
             title: Text(result.profile.name),
-            subtitle: Text(
-              '${postOriginFromConfig(result.profile).sourceHost}\n$message',
-            ),
-            isThreeLine: true,
+            subtitle: message == null ? null : Text(message),
             trailing: result.status == CrossProfileResultStatus.loading
                 ? const SizedBox.square(
                     dimension: 24,
@@ -228,4 +224,21 @@ class CrossProfileResultSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProfileIcon extends StatelessWidget {
+  const _ProfileIcon({required this.profile});
+
+  final BooruConfig profile;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 24,
+    child: ConfigAwareWebsiteLogo.fromConfig(
+      profile.auth,
+      width: 24,
+      height: 24,
+      customIconUrl: profile.profileIcon?.url,
+    ),
+  );
 }

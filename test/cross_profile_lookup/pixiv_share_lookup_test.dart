@@ -5,6 +5,7 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/cross_profile_lookup/page.dart';
 import 'package:boorusama/core/posts/cross_profile_lookup/providers.dart';
 import 'package:boorusama/core/posts/cross_profile_lookup/src/data/source_post_lookup.dart';
@@ -23,6 +24,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../core/posts/links/boorusama_post_link_test.dart' show config;
+import 'widget_test_support.dart';
 import 'providers_test.dart'
     show Profiles, Repository, sourceProfile, targetProfile, post;
 
@@ -85,6 +87,9 @@ Future<GoRouter> pumpPixivLookup(
         routerProvider.overrideWithValue(router),
         booruConfigProvider.overrideWith(() => profiles),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+        defaultImageCacheManagerProvider.overrideWithValue(
+          UnusedLookupImageCache(),
+        ),
         originAwarePostRepoProvider.overrideWith(
           (ref, profile) => _Repository((page) => fetch(profile, page)),
         ),
@@ -205,7 +210,7 @@ void main() {
       expect(calls, unorderedEquals([sourceProfile, targetProfile]));
       expect(find.text('Pixiv Artwork Match'), findsNWidgets(2));
       expect(find.text('Exact File Match'), findsNothing);
-      expect(find.textContaining('Results: 1'), findsNWidgets(2));
+      expect(find.textContaining('Results:'), findsNothing);
       await tester.scrollUntilVisible(
         find.byKey(const ValueKey('unsupported-profiles')),
         150,
@@ -237,7 +242,7 @@ void main() {
   );
 
   testWidgets(
-    'partial counts remain inexact and pagination deduplicates source matches',
+    'pagination preserves continuation and deduplicates source matches',
     (tester) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1;
@@ -261,14 +266,17 @@ void main() {
         },
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('Results loaded: 1'), findsOneWidget);
+      expect(find.textContaining('Results loaded:'), findsNothing);
       expect(find.textContaining('Results: 1000'), findsNothing);
-      await tester.ensureVisible(find.text('Load More'));
+      await tester.ensureVisible(find.text('Find More'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Load More'));
+      await tester.tap(find.text('Find More'));
       await tester.pumpAndSettle();
       expect(pages, [1, 2]);
-      expect(find.textContaining('Results: 2'), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('match-${targetProfile.id}-43')),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );
@@ -309,7 +317,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Sign in to a Pixiv profile'), findsOneWidget);
       expect(find.textContaining('No visible matches'), findsNothing);
-      expect(find.text('Load More'), findsNothing);
+      expect(find.text('Find More'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -347,7 +355,7 @@ void main() {
       expect(find.textContaining('block access'), findsOneWidget);
       expect(find.textContaining('Some Pixiv originals'), findsNothing);
       expect(find.textContaining('No visible matches'), findsNothing);
-      expect(find.text('Load More'), findsNothing);
+      expect(find.text('Find More'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -390,9 +398,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Exact File Match'), findsOneWidget);
       expect(find.textContaining('Some Pixiv originals'), findsOneWidget);
-      expect(find.textContaining('Results loaded: 1'), findsOneWidget);
+      expect(find.textContaining('Results loaded:'), findsNothing);
       expect(find.textContaining('Results: 1'), findsNothing);
-      expect(find.text('Load More'), findsNothing);
+      expect(find.text('Find More'), findsNothing);
     },
   );
 

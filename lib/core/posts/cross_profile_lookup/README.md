@@ -4,7 +4,7 @@ Tracked by [#49](https://github.com/timberpile/Boorusama/issues/49). The single-
 context menu and viewer action menu open a profile-based result page. Supported
 profiles other than the source account search automatically, with at most three
 concurrent profile searches. Results always stay visible until the user opens a
-thumbnail. Unsupported profiles appear in a compact name/domain list at the bottom.
+thumbnail. Unsupported profiles appear with their icons and names at the bottom.
 
 ## Post-context matching and capabilities (#49)
 
@@ -74,9 +74,10 @@ presentation components shared with the intended #54 workflow. They accept:
 - An arbitrary source reference widget (post preview or shared artwork reference).
 - A per-profile `PostLookupMatchKind`: exact file, Pixiv artwork, or source URL.
 - Per-profile idle/loading/success/no-match/unsupported/missing-hash/error states.
-- Each profile's name/domain, multiple thumbnail results, and open/load callbacks.
-- A completeness flag: incomplete lists show only the number loaded, while a
-  complete list can show its visible result count.
+- Each profile's icon and name, multiple thumbnail results, and open/load callbacks.
+- Completeness and continuation flags determine whether Find More is available.
+  Headers omit profile URLs and result-count lines; loading, failure and access
+  warnings remain visible. Custom profile icons use the existing logo component.
 
 The widgets do not issue queries or choose accounts. #49 supplies automatically
 searched profile groups. Manually supplied targets and #54's independently updated

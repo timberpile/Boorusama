@@ -256,7 +256,7 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        '${widget.source!.origin.sourceHost}\n#${widget.source!.sitePostId ?? widget.source!.id}',
+                        '#${widget.source!.sitePostId ?? widget.source!.id}',
                       ),
                     ),
                   ],
