@@ -133,6 +133,18 @@ final bookmarkTagColorProvider = FutureProvider.autoDispose
         final index = ref.watch(bookmarkTagIndexProvider(view));
         final entry = index.valueOrNull?.byName[tag];
         if (entry == null) return null;
+        return ref.watch(
+          localTagEntryColorProvider((entry, brightness)).future,
+        );
+      },
+      dependencies: [localTagEntryColorProvider],
+    );
+
+/// Shared offline coloring for saved tags from bookmarks and cached feeds.
+final localTagEntryColorProvider = FutureProvider.autoDispose
+    .family<Color?, (BookmarkTagEntry, Brightness)>(
+      (ref, request) {
+        final (entry, brightness) = request;
         final needsCache = entry.sources.values.any(
           (categories) => categories.isEmpty,
         );

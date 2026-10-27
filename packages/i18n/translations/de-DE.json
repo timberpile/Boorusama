@@ -40,6 +40,8 @@
     "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
   },
   "following_topics": {
+    "feed_filter_hint": "Gespeicherte Beiträge durchsuchen...",
+    "feed_filter_close": "Suche schließen",
     "edit_update": "Thema aktualisieren",
     "edit_updated": "Thema aktualisiert",
     "edit_invalid_query": "Vervollständige eine gültige Suchanfrage vor dem Aktualisieren.",
