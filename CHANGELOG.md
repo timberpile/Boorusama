@@ -1,3 +1,28 @@
+# 4.6.1-timberpile.3
+
+## Features
+
+- 🎨 Redesigned Artist Page
+- 🔖 Redesigned Bookmarking Workflow
+- 🔗 Find Shared Pixiv Artwork Across Profiles
+- 🖼️ Original Viewer Quality with Progressive Loading
+- 🔎 Filter Cached Topic Feed Posts by Tags and Source
+- ✏️ Edit and Update Followed Topics from Search
+- ↕️ Refine Searches from a Selected Post
+- 🎞️ Autoplay for Large Cached GIFs
+- 📚 Remember Completed Topic Feed History
+
+## Fixes and Improvements
+
+- 💾 Fixed Android Backup Saving
+- 📥 Fixed Bookmark Download Quality and Filenames
+- 📂 Fixed Bulk Bookmark Group Actions
+- 🧾 Fixed Incorrect and Missing Post Details
+- 🎞️ Fixed Bookmark Previews Ignoring GIF Autoplay Settings
+- 🧭 Fixed Disappearing Bottom Navigation After Leaving Feeds
+- 🔢 Optional Bookmark Count Display
+- ✨ Consistent Labels, Icons, and Lookup Results
+
 # 4.6.1-timberpile.2
 
 ## Features
