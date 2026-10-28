@@ -2272,6 +2272,23 @@
       "other": "$n others"
     }
   },
+  "artist_page": {
+    "aliases": "Aliases",
+    "socials": "Socials",
+    "copy_artist_tag": "Copy Artist Tag",
+    "social_user_id": "user ID $id",
+    "social_channel_id": "channel ID $id",
+    "known_names": "Known Names",
+    "known_names_short": "Names",
+    "related_tags_short": "Tags",
+    "by_count": "By count",
+    "alphabetical": "A–Z",
+    "tag_post_count": "$count posts with this tag",
+    "external_profiles": "External Profiles",
+    "wiki": "Wiki",
+    "related_tags": "Related Tags",
+    "posts": "Posts"
+  },
   "posts": {
     "actions": {
       "view_options": "View Options",

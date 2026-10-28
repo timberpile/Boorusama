@@ -17,15 +17,30 @@ class SourceLink extends ConsumerWidget {
     required this.name,
     super.key,
     this.url,
+    this.avatarBuilder,
   });
 
   final Widget title;
   final String? url;
   final Widget Function() actionBuilder;
   final String name;
+  final Widget Function(Widget avatar)? avatarBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final avatar = CircleAvatar(
+      backgroundColor: Kurumi.themeOf(
+        context,
+      ).colorScheme.tertiaryContainer,
+      child: Center(
+        child: Text(
+          name.getFirstCharacter().toUpperCase(),
+          style: TextStyle(
+            color: Kurumi.themeOf(context).colorScheme.onTertiaryContainer,
+          ),
+        ),
+      ),
+    );
     return RemoveLeftPaddingOnLargeScreen(
       child: ListTile(
         visualDensity: VisualDensity.compact,
@@ -57,19 +72,7 @@ class SourceLink extends ConsumerWidget {
                 ),
               )
             : null,
-        leading: CircleAvatar(
-          backgroundColor: Kurumi.themeOf(
-            context,
-          ).colorScheme.tertiaryContainer,
-          child: Center(
-            child: Text(
-              name.getFirstCharacter().toUpperCase(),
-              style: TextStyle(
-                color: Kurumi.themeOf(context).colorScheme.onTertiaryContainer,
-              ),
-            ),
-          ),
-        ),
+        leading: avatarBuilder?.call(avatar) ?? avatar,
         trailing: actionBuilder(),
       ),
     );

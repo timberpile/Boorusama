@@ -19,6 +19,7 @@ import 'topic_modification_badge.dart';
 import 'update_original_topic_dialog.dart';
 import '../../../search/src/types/topic_search_origin.dart';
 import 'search_folder_dialog.dart';
+import 'follow_button_shape.dart';
 
 class FollowTopicButton extends ConsumerStatefulWidget {
   const FollowTopicButton({
@@ -182,7 +183,7 @@ class TopicFollowPill extends StatelessWidget {
               ? FilledButton.tonal(
                   onPressed: onPressed,
                   style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
+                    shape: followButtonShape,
                     minimumSize: const Size(64, 48),
                     padding: EdgeInsets.symmetric(
                       horizontal: compact ? 12 : 16,
@@ -193,7 +194,7 @@ class TopicFollowPill extends StatelessWidget {
               : FilledButton(
                   onPressed: onPressed,
                   style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
+                    shape: followButtonShape,
                     minimumSize: const Size(64, 48),
                     padding: EdgeInsets.symmetric(
                       horizontal: compact ? 12 : 16,

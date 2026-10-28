@@ -44,6 +44,7 @@ class BooruImage extends ConsumerWidget {
     this.forceLoadPlaceholder = false,
     this.hideMismatchedPlaceholder = false,
     this.placeholderWidget,
+    this.errorWidget,
     this.controller,
     this.imageCacheManager,
     this.cachedImageBytes,
@@ -68,6 +69,7 @@ class BooruImage extends ConsumerWidget {
   final bool forceLoadPlaceholder;
   final bool hideMismatchedPlaceholder;
   final Widget? placeholderWidget;
+  final Widget? errorWidget;
   final ExtendedImageController? controller;
   final ImageCacheManager? imageCacheManager;
   final Uint8List? cachedImageBytes;
@@ -149,6 +151,7 @@ class BooruImage extends ConsumerWidget {
               forceLoadPlaceholder: forceLoadPlaceholder,
               hideMismatchedPlaceholder: hideMismatchedPlaceholder,
               placeholderWidget: placeholderWidget,
+              errorWidget: errorWidget,
               imageCacheManager: imageCacheManager,
             ),
       placeholderAspectRatio: placeholderAspectRatio,
@@ -165,6 +168,7 @@ class BooruImage extends ConsumerWidget {
       hideMismatchedPlaceholder: hideMismatchedPlaceholder,
       headers: imageRequest.headers,
       placeholderWidget: placeholderWidget,
+      errorWidget: errorWidget,
       controller: controller,
       androidVersion: deviceInfo.androidDeviceInfo?.version.sdkInt,
       imageCacheManager: imageCacheManager ?? fallbackCacheManager,
@@ -200,6 +204,7 @@ class BooruRawImage extends StatelessWidget {
     this.hideMismatchedPlaceholder = false,
     this.gaplessPlayback = false,
     this.placeholderWidget,
+    this.errorWidget,
     this.controller,
     this.androidVersion,
     this.imageCacheManager,
@@ -232,6 +237,7 @@ class BooruRawImage extends StatelessWidget {
   final bool hideMismatchedPlaceholder;
   final bool gaplessPlayback;
   final Widget? placeholderWidget;
+  final Widget? errorWidget;
   final ExtendedImageController? controller;
   final int? androidVersion;
   final ImageCacheManager? imageCacheManager;
@@ -349,6 +355,7 @@ class BooruRawImage extends StatelessWidget {
                           ),
                         ),
                     errorWidget:
+                        errorWidget ??
                         fallbackWidget ??
                         switch (fallbackUrl) {
                           final String url

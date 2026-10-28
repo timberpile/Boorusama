@@ -52,6 +52,7 @@ import '../widgets/following_topic_folder_card.dart';
 import '../widgets/search_folder_dialog.dart';
 import '../widgets/following_topic_info_dialog.dart';
 import '../widgets/topic_follow_control.dart';
+import '../widgets/follow_button_shape.dart';
 import 'topic_feeds_page.dart';
 
 enum _FollowingTopicPageAction {
@@ -1069,6 +1070,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                               Tooltip(
                                 message: strings.follow_a_topic,
                                 child: FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    shape: followActionButtonShape,
+                                  ),
                                   onPressed: _showEmptyFollow,
                                   icon: const Icon(Symbols.rss_feed),
                                   label: Text(strings.follow),
@@ -1704,6 +1708,9 @@ class _FollowTopicQueryDialogState extends State<_FollowTopicQueryDialog> {
         child: Text(context.t.generic.action.cancel),
       ),
       FilledButton(
+        style: widget.followDirectly
+            ? FilledButton.styleFrom(shape: followActionButtonShape)
+            : null,
         onPressed: _query.text.trim().isEmpty
             ? null
             : () => Navigator.pop(

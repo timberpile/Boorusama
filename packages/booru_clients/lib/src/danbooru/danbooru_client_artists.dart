@@ -65,7 +65,10 @@ mixin DanbooruClientArtists {
 
     if (nonDeleted.isEmpty) return null;
 
-    return nonDeleted.first;
+    // Alias searches can return a different artist before the canonical tag.
+    // Prefer the exact tag while retaining the existing alias-only fallback.
+    return nonDeleted.where((artist) => artist.name == name).firstOrNull ??
+        nonDeleted.first;
   }
 
   Future<List<ArtistCommentaryDto>> getArtistCommentaries({
