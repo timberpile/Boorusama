@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import '../search/following_topics/topic_test_utils.dart';
 
 import 'dart:convert';
@@ -1057,6 +1060,7 @@ class _Harness {
     }
     final container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         booruEngineRegistryProvider.overrideWith(_engineRegistry),
         bookmarkRepoProvider.overrideWith((ref) => bookmarks),
         bookmarkGroupRepoProvider.overrideWith((ref) => groups),

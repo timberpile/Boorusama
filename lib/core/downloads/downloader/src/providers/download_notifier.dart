@@ -314,12 +314,19 @@ Future<DownloadTaskInfo?> _download(
         return info;
       }(),
       final DownloadFailure e => () {
-        final msg = e.error.getErrorMessage();
-
-        logger.error(
+        final cause = switch (e.error) {
+          HttpDownloadError(:final exception) => exception,
+          FileSystemDownloadError(:final error) => error,
+          final error => error,
+        };
+        logger.handledError(
           'Single Download',
-          'Download failed: ${e.error.runtimeType}',
-          sensitiveMessage: msg,
+          'save_media',
+          error: cause,
+          outcome: switch (e.error) {
+            FileSystemDownloadError(:final type) => type.name,
+            _ => 'download_failed',
+          },
         );
       }(),
     };

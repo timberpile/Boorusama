@@ -1,4 +1,6 @@
 // Project imports:
+import '../../../../../foundation/loggers/handled_error.dart';
+import '../../../../../foundation/loggers/logger.dart';
 import '../../../rating/types.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../sources/types.dart';
@@ -26,14 +28,17 @@ final class StoredPostDecodeSuccess extends StoredPostDecodeResult {
 }
 
 final class StoredPostDecodeFailure extends StoredPostDecodeResult {
-  const StoredPostDecodeFailure(this.reason, {this.error});
+  const StoredPostDecodeFailure(this.reason, {this.error, this.stackTrace});
 
   final StoredPostDecodeFailureReason reason;
   final Object? error;
+  final StackTrace? stackTrace;
 }
 
 final class StoredPostCodec {
-  const StoredPostCodec();
+  const StoredPostCodec({this.logger});
+
+  final Logger? logger;
 
   static const commonSchemaVersion = 2;
 
@@ -77,25 +82,31 @@ final class StoredPostCodec {
     late final PostOrigin origin;
     try {
       origin = PostOrigin.fromSnapshot(snapshot.origin);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _logDecodeFailure('decode_origin', error, stackTrace);
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.malformedOrigin,
         error: error,
+        stackTrace: stackTrace,
       );
     }
 
     final PostCoreData core;
     try {
       core = _decodeCommon(snapshot.common, origin);
-    } on _UnsupportedCommonVersion catch (error) {
+    } on _UnsupportedCommonVersion catch (error, stackTrace) {
+      _logDecodeFailure('decode_common_version', error, stackTrace);
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.unsupportedCommonVersion,
         error: error,
+        stackTrace: stackTrace,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _logDecodeFailure('decode_common', error, stackTrace);
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.malformedCommonData,
         error: error,
+        stackTrace: stackTrace,
       );
     }
 
@@ -103,6 +114,20 @@ final class StoredPostCodec {
 
     return StoredPostDecodeSuccess(
       Post(origin: origin, core: core, booruData: data),
+    );
+  }
+
+  void _logDecodeFailure(
+    String operation,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    logger?.handledError(
+      'Post Snapshot',
+      operation,
+      error: error,
+      stackTrace: stackTrace,
+      outcome: 'snapshot_rejected',
     );
   }
 
@@ -121,6 +146,11 @@ final class StoredPostCodec {
       );
     }
     if (snapshot.codecVersion > codec.currentVersion) {
+      logger?.warn(
+        'Post Snapshot',
+        'decode_custom:${origin.booruType.name}; unsupported_version=${snapshot.codecVersion}; '
+            'supported_version=${codec.currentVersion}; outcome=generic_post_retained',
+      );
       return UnknownPostData(
         typeKey: typeKey,
         schemaVersion: snapshot.codecVersion,
@@ -135,6 +165,11 @@ final class StoredPostCodec {
         version: snapshot.codecVersion,
       );
       if (!codec.supports(decoded) || decoded.typeKey != codec.typeKey) {
+        logger?.warn(
+          'Post Snapshot',
+          'decode_custom:${origin.booruType.name}; incompatible_payload; '
+              'outcome=generic_post_retained',
+        );
         return UnknownPostData(
           typeKey: typeKey,
           schemaVersion: snapshot.codecVersion,
@@ -143,7 +178,15 @@ final class StoredPostCodec {
         );
       }
       return decoded;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      logger?.handledError(
+        'Post Snapshot',
+        'decode_custom:${origin.booruType.name}:v${snapshot.codecVersion}',
+        error: error,
+        stackTrace: stackTrace,
+        outcome: 'generic_post_retained',
+        level: LogLevel.warning,
+      );
       return UnknownPostData(
         typeKey: typeKey,
         schemaVersion: snapshot.codecVersion,

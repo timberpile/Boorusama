@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
@@ -122,6 +124,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           importFlowProvider.overrideWith(() => notifier),
           backupRegistryProvider.overrideWithValue(BackupRegistry()),
           exportSelectionLabelsProvider.overrideWithValue(
@@ -664,6 +667,7 @@ class _MappingReviewNotifier extends ImportFlowNotifier {
 
 Widget _mappingApp(_MappingReviewNotifier notifier) => ProviderScope(
   overrides: [
+    loggerProvider.overrideWithValue(AppLogger()),
     importFlowProvider.overrideWith(() => notifier),
     backupRegistryProvider.overrideWithValue(BackupRegistry()),
     exportSelectionLabelsProvider.overrideWithValue(

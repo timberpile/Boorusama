@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
+import '../../../../../foundation/loggers.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../downloads/filename/types.dart';
 import '../types/booru_config.dart';
@@ -16,8 +17,10 @@ import 'booru_config_converter.dart';
 class HiveBooruConfigRepository implements BooruConfigRepository {
   HiveBooruConfigRepository({
     required this.box,
+    this.logger,
   });
   final Box<String> box;
+  final Logger? logger;
 
   static String defaultValue() => jsonEncode(
     BooruConfigData.anonymous(
@@ -83,7 +86,14 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
       return booruConfigData.toBooruConfig(
         id: id,
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      logger?.handledError(
+        'Profiles',
+        'write_profile',
+        error: error,
+        stackTrace: stackTrace,
+        outcome: 'write_not_confirmed',
+      );
       return null;
     }
   }

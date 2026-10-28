@@ -8,6 +8,8 @@ import 'package:boorusama/core/backups/export_import/clipboard/export_clipboard_
 import 'package:boorusama/core/backups/export_import/export/export_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/export_import_page.dart';
 import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/picker.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_page.dart';
@@ -26,6 +28,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               appFilePickerProvider.overrideWithValue(picker),
               appPlatformProvider.overrideWithValue(AppPlatform.android),
               exportClipboardServiceProvider.overrideWithValue(

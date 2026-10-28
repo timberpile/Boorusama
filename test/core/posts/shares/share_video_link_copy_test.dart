@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/boorus/e621/downloads/providers.dart';
@@ -80,6 +83,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             downloadFileUrlExtractorProvider.overrideWith(
               (ref, config) => _VideoExtractor(),
             ),
@@ -192,6 +196,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             downloadFileUrlExtractorProvider.overrideWith(
               (ref, config) => extractor,
             ),
@@ -264,6 +269,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           downloadFileUrlExtractorProvider.overrideWith(
             (ref, config) => const UrlInsidePostExtractor(),
           ),
@@ -430,6 +436,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               downloadFileUrlExtractorProvider.overrideWith(
                 (ref, config) => testCase.extractor,
               ),

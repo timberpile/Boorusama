@@ -63,13 +63,15 @@ final class SqliteSearchHistoryRepositoryFactory
 
     try {
       return SearchHistoryRepositorySqlite(db: db)..initialize();
-    } on Exception catch (e) {
-      logger
-        ..error(
-          _kServiceName,
-          'Failed to initialize SQLite database for search history: $e',
-        )
-        ..warn(_kServiceName, 'Fallback to empty search history repository');
+    } on Exception catch (error, stackTrace) {
+      logger.handledError(
+        _kServiceName,
+        'initialize_schema',
+        error: error,
+        stackTrace: stackTrace,
+        outcome: 'empty_repository',
+        level: LogLevel.warning,
+      );
 
       db.close();
       return EmptySearchHistoryRepository();

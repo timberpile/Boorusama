@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -80,6 +83,7 @@ Future<void> _openSheet(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
         downloadFileUrlExtractorProvider.overrideWith(
           (ref, config) => extractor,

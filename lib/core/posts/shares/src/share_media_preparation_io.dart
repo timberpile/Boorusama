@@ -25,8 +25,10 @@ enum ShareMediaFailure {
 }
 
 class ShareMediaException implements Exception {
-  const ShareMediaException(this.failure);
+  const ShareMediaException(this.failure, {this.cause, this.stackTrace});
   final ShareMediaFailure failure;
+  final Object? cause;
+  final StackTrace? stackTrace;
 }
 
 class ShareMediaLease {
@@ -112,8 +114,12 @@ class ShareMediaPreparation {
     final directory = _directory;
     try {
       await directory.create(recursive: true);
-    } on FileSystemException {
-      throw const ShareMediaException(ShareMediaFailure.storage);
+    } on FileSystemException catch (error, stackTrace) {
+      throw ShareMediaException(
+        ShareMediaFailure.storage,
+        cause: error,
+        stackTrace: stackTrace,
+      );
     }
     checkShareCancellation(cancelToken);
     final random = Random.secure();
@@ -189,21 +195,37 @@ class ShareMediaPreparation {
         path: file.path,
         mimeType: _mimeType(effectiveExtension),
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (await file.exists()) await file.delete();
       if (error is ShareMediaException) rethrow;
       if (error is DioException) {
         if (CancelToken.isCancel(error)) {
-          throw const ShareMediaException(ShareMediaFailure.cancelled);
+          throw ShareMediaException(
+            ShareMediaFailure.cancelled,
+            cause: error,
+            stackTrace: stackTrace,
+          );
         }
         if (error.response?.statusCode == 401 ||
             error.response?.statusCode == 403) {
-          throw const ShareMediaException(ShareMediaFailure.authentication);
+          throw ShareMediaException(
+            ShareMediaFailure.authentication,
+            cause: error,
+            stackTrace: stackTrace,
+          );
         }
-        throw const ShareMediaException(ShareMediaFailure.network);
+        throw ShareMediaException(
+          ShareMediaFailure.network,
+          cause: error,
+          stackTrace: stackTrace,
+        );
       }
       if (error is FileSystemException) {
-        throw const ShareMediaException(ShareMediaFailure.storage);
+        throw ShareMediaException(
+          ShareMediaFailure.storage,
+          cause: error,
+          stackTrace: stackTrace,
+        );
       }
       rethrow;
     }
@@ -284,17 +306,33 @@ class ShareMediaPreparation {
       );
     } on ShareMediaException {
       rethrow;
-    } on DioException catch (error) {
+    } on DioException catch (error, stackTrace) {
       if (CancelToken.isCancel(error)) {
-        throw const ShareMediaException(ShareMediaFailure.cancelled);
+        throw ShareMediaException(
+          ShareMediaFailure.cancelled,
+          cause: error,
+          stackTrace: stackTrace,
+        );
       }
       if (error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
-        throw const ShareMediaException(ShareMediaFailure.authentication);
+        throw ShareMediaException(
+          ShareMediaFailure.authentication,
+          cause: error,
+          stackTrace: stackTrace,
+        );
       }
-      throw const ShareMediaException(ShareMediaFailure.network);
-    } on FileSystemException {
-      throw const ShareMediaException(ShareMediaFailure.storage);
+      throw ShareMediaException(
+        ShareMediaFailure.network,
+        cause: error,
+        stackTrace: stackTrace,
+      );
+    } on FileSystemException catch (error, stackTrace) {
+      throw ShareMediaException(
+        ShareMediaFailure.storage,
+        cause: error,
+        stackTrace: stackTrace,
+      );
     } finally {
       await owned?.release();
       await write?.abort();

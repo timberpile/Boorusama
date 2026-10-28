@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../../foundation/clipboard.dart';
 import '../../../../foundation/filesystem.dart';
+import '../../../../foundation/loggers.dart';
 import '../../../config_widgets/website_logo.dart';
 import '../../../../foundation/platform.dart';
 import '../../../configs/config/types.dart';
@@ -691,16 +692,34 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           position: ToastPosition.bottom,
         );
       }
-    } on GifConversionException catch (error) {
+    } on GifConversionException catch (error, stackTrace) {
       if (mounted &&
           error.failure != GifConversionFailure.cancelled &&
           token?.isCancelled != true) {
+        ref
+            .read(loggerProvider)
+            .handledError(
+              'Media Share',
+              'convert_gif:${error.failure.name}',
+              error: error.cause ?? error,
+              stackTrace: stackTrace,
+              outcome: 'share_not_completed',
+            );
         _showFailure(payload, share, gifErrorMessage(context, error));
       }
-    } on ShareMediaException catch (error) {
+    } on ShareMediaException catch (error, stackTrace) {
       if (mounted &&
           error.failure != ShareMediaFailure.cancelled &&
           token?.isCancelled != true) {
+        ref
+            .read(loggerProvider)
+            .handledError(
+              'Media Share',
+              'prepare_media:${error.failure.name}',
+              error: error.cause ?? error,
+              stackTrace: error.stackTrace ?? stackTrace,
+              outcome: 'share_not_completed',
+            );
         _showFailure(
           payload,
           share,
@@ -717,8 +736,17 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
               : context.t.post.action.clipboard_unavailable,
         );
       }
-    } on Exception {
+    } on Exception catch (error, stackTrace) {
       if (mounted && token?.isCancelled != true) {
+        ref
+            .read(loggerProvider)
+            .handledError(
+              'Media Share',
+              share ? 'platform_share' : 'clipboard_copy',
+              error: error,
+              stackTrace: stackTrace,
+              outcome: 'handoff_not_completed',
+            );
         _showFailure(
           payload,
           share,

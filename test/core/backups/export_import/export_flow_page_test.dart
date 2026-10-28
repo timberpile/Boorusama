@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter/gestures.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +28,7 @@ void main() {
   test('legacy templates resolve No Group to the real Default group', () {
     final container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         exportImportSourcesProvider.overrideWithValue(const []),
       ],
     );
@@ -521,6 +524,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           exportImportSourcesProvider.overrideWithValue(const [_FakeSource()]),
           exportSelectionPresentationProvider.overrideWithValue(
             const ExportSelectionPresentation(items: {}),
@@ -628,6 +632,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           exportImportSourcesProvider.overrideWithValue(
             const [_FakeCollectionSource()],
           ),
@@ -673,6 +678,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             exportImportSourcesProvider.overrideWithValue(
               const [_FakeFollowingTopicSource()],
             ),

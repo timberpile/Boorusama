@@ -5,6 +5,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../../foundation/filesystem.dart';
+import '../../../../foundation/loggers.dart';
 import '../../../../foundation/info/package_info.dart';
 import '../../../bookmarks/providers.dart';
 import '../../../bookmarks/types.dart';
@@ -371,7 +372,16 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
           );
       state = state.copyWith(status: ExportFlowStatus.ready, packagePath: path);
       return path;
-    } catch (error) {
+    } catch (error, stackTrace) {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Export',
+            'create_package',
+            error: error,
+            stackTrace: stackTrace,
+            outcome: 'export_not_ready',
+          );
       state = state.copyWith(status: ExportFlowStatus.error, error: error);
       rethrow;
     }

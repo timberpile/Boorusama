@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+
 import '../../../downloads/urls/types.dart';
 import '../../../downloads/urls/providers.dart';
 import '../../post/types.dart';
@@ -167,17 +168,33 @@ Future<DownloadUrlData> resolveShareMediaUrl({
     };
   } on ShareMediaException {
     rethrow;
-  } on DioException catch (error) {
+  } on DioException catch (error, stackTrace) {
     if (CancelToken.isCancel(error)) {
-      throw const ShareMediaException(ShareMediaFailure.cancelled);
+      throw ShareMediaException(
+        ShareMediaFailure.cancelled,
+        cause: error,
+        stackTrace: stackTrace,
+      );
     }
     if (error.response?.statusCode == 401 ||
         error.response?.statusCode == 403) {
-      throw const ShareMediaException(ShareMediaFailure.authentication);
+      throw ShareMediaException(
+        ShareMediaFailure.authentication,
+        cause: error,
+        stackTrace: stackTrace,
+      );
     }
-    throw const ShareMediaException(ShareMediaFailure.network);
-  } on Exception {
-    throw const ShareMediaException(ShareMediaFailure.network);
+    throw ShareMediaException(
+      ShareMediaFailure.network,
+      cause: error,
+      stackTrace: stackTrace,
+    );
+  } on Exception catch (error, stackTrace) {
+    throw ShareMediaException(
+      ShareMediaFailure.network,
+      cause: error,
+      stackTrace: stackTrace,
+    );
   }
   final uri = Uri.tryParse(result?.url ?? '');
   checkShareCancellation(cancelToken);

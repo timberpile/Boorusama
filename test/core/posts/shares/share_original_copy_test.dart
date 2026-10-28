@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:io';
 import 'dart:async';
 
@@ -115,6 +118,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             appFileSystemProvider.overrideWithValue(fs),
             downloadFileUrlExtractorProvider.overrideWith(
               (ref, config) => extractor,
@@ -238,6 +242,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               appFileSystemProvider.overrideWithValue(fs),
               downloadFileUrlExtractorProvider.overrideWith(
                 (ref, config) => _ExactExtractor(),

@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/configs/config/types.dart';
@@ -50,6 +53,7 @@ void main() {
       });
       final container = ProviderContainer(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           automaticMediaLoadingEnabledProvider.overrideWithValue(true),
           originAwarePostRepoProvider.overrideWith(
             (ref, config) => _RecordingRepo(repository, (q, options) {
@@ -112,13 +116,15 @@ void main() {
     'negative cache expires after thirty seconds',
     () => fakeAsync((clock) {
       var calls = 0;
+      final logger = AppLogger();
       final container = ProviderContainer(
         overrides: [
+          loggerProvider.overrideWithValue(logger),
           automaticMediaLoadingEnabledProvider.overrideWithValue(true),
           originAwarePostRepoProvider.overrideWith(
             (ref, _) => TestSearchPostRepository((_, _, _) async {
               calls++;
-              throw StateError('preview unavailable');
+              throw StateError('private-preview-query');
             }),
           ),
         ],
@@ -133,12 +139,15 @@ void main() {
       listener = container.listen(provider, (_, _) {});
       expect(container.read(provider).hasError, isTrue);
       expect(calls, 1);
+      expect(logger.logs, hasLength(1));
+      expect(logger.dump(), isNot(contains('private-preview-query')));
       listener.close();
       clock.elapse(const Duration(seconds: 2));
       listener = container.listen(provider, (_, _) {});
       clock.flushMicrotasks();
       expect(container.read(provider).hasError, isTrue);
       expect(calls, 2);
+      expect(logger.logs, hasLength(2));
       listener.close();
       container.dispose();
     }),
@@ -149,6 +158,7 @@ void main() {
     () => fakeAsync((clock) {
       final container = ProviderContainer(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           automaticMediaLoadingEnabledProvider.overrideWithValue(false),
           originAwarePostRepoProvider.overrideWith(
             (ref, _) => throw StateError('must not fetch'),
@@ -172,6 +182,7 @@ void main() {
       final finish = Completer<void>();
       final container = ProviderContainer(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           automaticMediaLoadingEnabledProvider.overrideWithValue(true),
           originAwarePostRepoProvider.overrideWith(
             (ref, _) => TestSearchPostRepository((_, _, _) async {

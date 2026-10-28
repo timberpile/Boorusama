@@ -4,7 +4,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 // Project imports:
 import '../filesystem.dart';
-import '../loggers/logger.dart';
+import '../loggers.dart';
 
 mixin DatabaseUtilsMixin {
   Database get db;
@@ -31,10 +31,13 @@ Future<Database?> createDb({
     await fs.createDirectory(folderPath, recursive: true);
 
     return sqlite3.open(join(folderPath, name));
-  } on Exception catch (e) {
-    logger?.error(
-      name,
-      'Failed to initialize SQLite database: $e',
+  } on Exception catch (error, stackTrace) {
+    logger?.handledError(
+      'Database',
+      'open_sqlite',
+      error: error,
+      stackTrace: stackTrace,
+      outcome: 'database_unavailable',
     );
     return null;
   }

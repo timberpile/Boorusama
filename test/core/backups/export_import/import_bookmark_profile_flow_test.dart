@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:io';
 import 'dart:convert';
 
@@ -170,6 +173,7 @@ void main() {
           final beforeSearches = (await searchRepository.getAll()).toList();
           final container = ProviderContainer(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               booruEngineRegistryProvider.overrideWith(
                 (ref) => BooruEngineRegistry(),
               ),

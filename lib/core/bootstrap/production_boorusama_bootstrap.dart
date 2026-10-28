@@ -259,7 +259,9 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
           externalUrlLauncher: const PluginExternalUrlLauncher(),
           booruDb: booruDb,
           booruRegistry: booruRegistry,
-          bookmarkRepositoryFactory: const HiveBookmarkRepositoryFactory(),
+          bookmarkRepositoryFactory: HiveBookmarkRepositoryFactory(
+            logger: logger,
+          ),
           bookmarkGroupRepositoryFactory:
               const HiveBookmarkGroupRepositoryFactory(),
           globalBlacklistedTagRepositoryFactory:

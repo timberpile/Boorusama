@@ -2,6 +2,7 @@
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
+import '../../../../../foundation/loggers/logger.dart';
 import '../../types/bookmark_repository.dart';
 import '../../types/bookmark_repository_factory.dart';
 import '../../../../boorus/booru/types.dart';
@@ -10,16 +11,24 @@ import 'bookmark_hive_object.dart';
 import 'repository.dart';
 
 final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
-  const HiveBookmarkRepositoryFactory({this.boxName = 'favorites'});
+  const HiveBookmarkRepositoryFactory({
+    this.boxName = 'favorites',
+    this.logger,
+  });
 
   final String boxName;
+  final Logger? logger;
 
   @override
   Future<BookmarkRepository> create({
     BooruPostDataCodec? Function(BooruType type)? postDataCodec,
   }) async {
     final box = await Hive.openBox<BookmarkHiveObject>(boxName);
-    return BookmarkHiveRepository(box, postDataCodec: postDataCodec);
+    return BookmarkHiveRepository(
+      box,
+      postDataCodec: postDataCodec,
+      logger: logger,
+    );
   }
 
   @override

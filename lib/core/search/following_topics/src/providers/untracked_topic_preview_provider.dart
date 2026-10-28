@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../../foundation/loggers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../errors/error.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/coordination.dart';
 import '../../../../posts/post/providers.dart';
@@ -81,7 +83,30 @@ final untrackedTopicPreviewProvider = FutureProvider.autoDispose
         );
         retain(const Duration(minutes: 5));
         return urls;
-      } catch (_) {
+      } catch (error, stackTrace) {
+        if (!disposed &&
+            !token.isCancelled &&
+            error is! RequestCancelledError &&
+            error is! ApiRequestDeferredException &&
+            !(error is DioException &&
+                error.error is ApiRequestDeferredException)) {
+          ref
+              .read(loggerProvider)
+              .handledError(
+                'Following',
+                switch (error) {
+                  ServerError(:final httpStatusCode) =>
+                    'load_untracked_preview:http_status=$httpStatusCode',
+                  AppError(:final type) =>
+                    'load_untracked_preview:${type.name}',
+                  _ => 'load_untracked_preview',
+                },
+                error: error,
+                stackTrace: stackTrace,
+                outcome: 'negative_cache',
+                level: LogLevel.warning,
+              );
+        }
         // Brief negative caching avoids repeated failures during list rebuilds.
         // Disposal/cancellation must not retain a stale result.
         if (!token.isCancelled) retain(const Duration(seconds: 30));

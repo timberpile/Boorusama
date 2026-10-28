@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -35,6 +38,7 @@ void main() {
     directory = await Directory.systemTemp.createTemp('empty_sqlite_export_');
     container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         appFileSystemProvider.overrideWithValue(
           _TestFileSystem(directory.path),
         ),

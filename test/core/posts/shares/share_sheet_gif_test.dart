@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 // ignore_for_file: avoid_slow_async_io
 import 'dart:async';
 import 'dart:io';
@@ -1035,6 +1038,7 @@ Future<void> _open(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         gifEncoderBackendProvider.overrideWithValue(backend),
         gifSaveServiceProvider.overrideWithValue(
           GifSaveService(

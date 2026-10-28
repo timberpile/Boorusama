@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_query_text.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/untracked_topic_preview_provider.dart';
@@ -16,6 +18,7 @@ void main() {
     final harness = FollowingTopicHarness(
       supported: false,
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         untrackedTopicPreviewProvider.overrideWith(
           (ref, _) => throw StateError('feed must not fetch previews'),
         ),
@@ -52,6 +55,7 @@ void main() {
           final harness = FollowingTopicHarness(
             supported: false,
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               untrackedTopicPreviewProvider.overrideWith((ref, _) async {
                 if (fail) throw StateError('independent preview failed');
                 return [
@@ -117,6 +121,7 @@ void main() {
         final harness = FollowingTopicHarness(
           supported: false,
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             untrackedTopicPreviewProvider.overrideWith(
               (ref, _) async => throw StateError('preview failed'),
             ),

@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/ddos/handler/providers.dart';
@@ -73,6 +75,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         appFileSystemProvider.overrideWithValue(fs),
         defaultImageCacheManagerProvider.overrideWithValue(cache),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),

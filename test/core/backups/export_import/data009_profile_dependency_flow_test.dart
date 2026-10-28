@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -46,6 +49,7 @@ void main() {
       final profiles = [_profile(firstId), _profile(secondId)];
       final container = ProviderContainer(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           appFileSystemProvider.overrideWithValue(fs),
           appVersionProvider.overrideWith((ref) => null),
           booruConfigProvider.overrideWith(
