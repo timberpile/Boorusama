@@ -154,7 +154,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           gridHeader: ValueListenableBuilder(
             valueListenable: widget.controller.errors,
             builder: (_, errors, _) => errors == null
-                ? widget.header ?? _GridHeader<T>()
+                ? widget.header ?? PostGridConfigurationHeader<T>()
                 : const SizedBox.shrink(),
           ),
           topPageIndicator: Consumer(
@@ -525,13 +525,15 @@ class _PageIndicator<T extends Post> extends ConsumerWidget {
 
 final _expandedProvider = StateProvider.autoDispose<bool?>((ref) => null);
 
-class _GridHeader<T extends Post> extends ConsumerWidget {
-  const _GridHeader({
+class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
+  const PostGridConfigurationHeader({
     this.axis = Axis.horizontal,
+    this.blacklistOnly = false,
     super.key,
   });
 
   final Axis axis;
+  final bool blacklistOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -550,6 +552,7 @@ class _GridHeader<T extends Post> extends ConsumerWidget {
     return ValueListenableBuilder(
       valueListenable: controller.hasBlacklist,
       builder: (_, hasBlacklist, _) {
+        if (blacklistOnly && !hasBlacklist) return const SizedBox.shrink();
         return ValueListenableBuilder(
           valueListenable: controller.tagCounts,
           builder: (_, tagCounts, _) {
@@ -591,7 +594,7 @@ class _GridHeader<T extends Post> extends ConsumerWidget {
                 initiallyExpanded: axis == Axis.vertical || (expand ?? false),
                 onExpansionChanged: (value) => expandNotifier.state = value,
                 hasBlacklist: hasBlacklist,
-                trailing: axis == Axis.horizontal
+                trailing: !blacklistOnly && axis == Axis.horizontal
                     ? PostGridConfigIconButton(
                         postController: controller,
                       )

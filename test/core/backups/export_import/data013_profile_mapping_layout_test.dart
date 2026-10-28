@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
@@ -46,6 +48,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               importFlowProvider.overrideWith(() => notifier),
               backupRegistryProvider.overrideWithValue(BackupRegistry()),
               exportSelectionLabelsProvider.overrideWithValue(
@@ -92,7 +95,7 @@ void main() {
         expect(information.width, greaterThan(scenario.width - 80));
         expect(selector.top, greaterThan(information.bottom));
         expect(find.text('or'), findsNothing);
-        expect(find.text('Create profile'), findsNothing);
+        expect(find.text('Create Profile'), findsNothing);
         final semantics = tester.ensureSemantics();
         await tester.pump();
         expect(

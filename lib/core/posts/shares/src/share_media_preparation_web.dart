@@ -16,8 +16,10 @@ enum ShareMediaFailure {
 }
 
 class ShareMediaException implements Exception {
-  const ShareMediaException(this.failure);
+  const ShareMediaException(this.failure, {this.cause, this.stackTrace});
   final ShareMediaFailure failure;
+  final Object? cause;
+  final StackTrace? stackTrace;
 }
 
 class ShareMediaLease {

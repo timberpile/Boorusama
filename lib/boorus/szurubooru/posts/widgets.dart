@@ -147,17 +147,14 @@ class SzurubooruStatsTileSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<Post>(context);
-    final data = InheritedPost.presentationOf(
-      context,
-    ).data<SzurubooruPostData>();
 
     return SliverToBoxAdapter(
       child: Column(
         children: [
           SimplePostStatsTile(
-            totalComments: data?.commentCount ?? 0,
-            favCount: data?.favoriteCount ?? 0,
-            score: post.score,
+            totalComments: post.detailFacts.commentCount,
+            favCount: post.detailFacts.favoriteCount,
+            score: post.detailFacts.score,
           ),
         ],
       ),

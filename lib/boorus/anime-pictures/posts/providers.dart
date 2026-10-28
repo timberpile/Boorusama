@@ -14,6 +14,7 @@ import '../../../core/settings/providers.dart';
 import '../../../foundation/riverpod/riverpod.dart';
 import '../client_provider.dart';
 import 'parser.dart';
+import '../downloads/url_provider.dart';
 
 final animePicturesPostRepoProvider =
     Provider.family<PostRepository, BooruConfigSearch>((ref, config) {
@@ -24,10 +25,10 @@ final animePicturesPostRepoProvider =
         fetchSingle: (id, {options}) {
           final numericId = id as NumericPostId?;
           if (numericId == null) return Future.value();
-          return client.getPostDetails(id: numericId.value).then((e) {
-            final post = e.post;
-            return post != null ? dtoToAnimePicturesPost(post) : null;
-          });
+          return ref.read(
+            animePicturesResolvedPostProvider((config.auth, numericId.value))
+                .future,
+          );
         },
         fetch: (tags, page, {limit, options}) async {
           final request = splitSearchIdParameters(tags, const {'stars_by'});
@@ -68,3 +69,26 @@ final animePicturesMediaUrlResolverProvider =
     Provider.family<MediaUrlResolver, BooruConfigAuth>(
       (ref, config) => ref.watch(defaultMediaUrlResolverProvider(config)),
     );
+
+final animePicturesResolvedPostProvider = FutureProvider.autoDispose
+    .family<Post?, (BooruConfigAuth, int)>((ref, request) async {
+      ref.cacheFor(const Duration(seconds: 30));
+      final (config, id) = request;
+      final resolver = ref.watch(
+        animePicturesDownloadFileUrlExtractorProvider(config),
+      );
+      final details = await ref.watch(postDetailsProvider(request).future);
+      final post = details.post;
+      if (post == null) return null;
+      String? original;
+      try {
+        original = (await resolver.resolveOriginal(id, details: details))?.url;
+      } catch (_) {
+        // Authored metadata remains useful when Original is access restricted.
+      }
+      return dtoToAnimePicturesPost(
+        post,
+        details: details,
+        originalUrl: original,
+      );
+    });

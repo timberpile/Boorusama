@@ -10,6 +10,8 @@ import '../../../../navigation/operation_source_picker.dart';
 import '../../../selected_tags/types.dart';
 import '../views/simple_tag_search_view.dart';
 import 'params.dart';
+import '../types/topic_search_origin.dart';
+import '../../../following_topics/providers.dart';
 
 Future<void> goToSearchPage(
   WidgetRef ref, {
@@ -26,6 +28,14 @@ Future<void> goToSearchPage(
 }) async {
   final source = config ?? await chooseOperationSource(ref);
   if (!ref.context.mounted || source == null) return;
+  final topic = originatingTopicId == null
+      ? null
+      : ref
+            .read(followingTopicsProvider)
+            .valueOrNull
+            ?.topics
+            .where((topic) => topic.id == originatingTopicId)
+            .firstOrNull;
   await ref.pushRoute(
     Uri(
       path: '/search',
@@ -45,6 +55,9 @@ Future<void> goToSearchPage(
     extra: SearchRouteContext(
       config: source,
       originatingTopicId: originatingTopicId,
+      topicOrigin: topic == null
+          ? null
+          : TopicSearchOrigin(topic: topic, profile: source),
     ),
   );
 }
@@ -52,16 +65,18 @@ Future<void> goToSearchPage(
 /// Route-local ownership for searches opened from a saved Topic.
 ///
 /// Keeping the owner here prevents a Topic from changing the global browsing
-/// profile, while the originating ID lets Follow/Following resolve an exact
-/// independent copy until the query or profile no longer matches it.
+/// profile. The immutable snapshot keeps the original identity and editable
+/// state associated with the timeline while its query and profile evolve.
 final class SearchRouteContext {
   const SearchRouteContext({
     required this.config,
     this.originatingTopicId,
+    this.topicOrigin,
   });
 
   final BooruConfig config;
   final String? originatingTopicId;
+  final TopicSearchOrigin? topicOrigin;
 }
 
 void goToQuickSearchPage(

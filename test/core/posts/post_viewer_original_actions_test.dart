@@ -34,11 +34,27 @@ void main() {
 
       expect(
         buttons.map((button) => button.title),
-        contains('Load original'),
+        contains(
+          tester
+              .element(find.byType(CommonPostButtonsBuilder))
+              .t
+              .post
+              .action
+              .load_original,
+        ),
       );
       expect(
         buttons.map((button) => button.title),
-        isNot(contains('View original')),
+        isNot(
+          contains(
+            tester
+                .element(find.byType(CommonPostButtonsBuilder))
+                .t
+                .post
+                .action
+                .view_original,
+          ),
+        ),
       );
     },
   );
@@ -52,10 +68,79 @@ void main() {
       );
 
       final titles = buttons.map((button) => button.title);
-      expect(titles, isNot(contains('Load original')));
-      expect(titles, isNot(contains('View original')));
+      expect(
+        titles,
+        isNot(
+          contains(
+            tester
+                .element(find.byType(CommonPostButtonsBuilder))
+                .t
+                .post
+                .action
+                .load_original,
+          ),
+        ),
+      );
+      expect(
+        titles,
+        isNot(
+          contains(
+            tester
+                .element(find.byType(CommonPostButtonsBuilder))
+                .t
+                .post
+                .action
+                .view_original,
+          ),
+        ),
+      );
     },
   );
+
+  testWidgets(
+    'Post Viewer customization uses the UI-specific label',
+    (tester) async {
+      final buttons = await _buildButtons(
+        tester,
+        loadOriginalOnZoom: true,
+        showPremiumFeatures: true,
+      );
+
+      final customization = buttons.singleWhere(
+        (button) => button.title == 'Customize UI',
+      );
+      expect(
+        buttons.map((button) => button.title),
+        isNot(contains('Customize')),
+      );
+      expect((customization.icon! as Icon).icon, Icons.brush);
+    },
+  );
+
+  for (final zoom in [false, true]) {
+    testWidgets('Original quality omits manual loading (zoom=$zoom)', (
+      tester,
+    ) async {
+      final buttons = await _buildButtons(
+        tester,
+        loadOriginalOnZoom: zoom,
+        postQuality: PostQuality.original,
+      );
+      expect(
+        buttons.map((b) => b.title),
+        isNot(
+          contains(
+            tester
+                .element(find.byType(CommonPostButtonsBuilder))
+                .t
+                .post
+                .action
+                .load_original,
+          ),
+        ),
+      );
+    });
+  }
 
   testWidgets(
     'omits temporary viewer transformations after behavior verification',
@@ -97,6 +182,8 @@ Future<List<ButtonData>> _buildButtons(
   WidgetTester tester, {
   required bool loadOriginalOnZoom,
   bool includeViewerTransformations = false,
+  bool showPremiumFeatures = false,
+  PostQuality postQuality = PostQuality.high,
 }) async {
   final post = Post(
     origin: PostOrigin.forBooruType(BooruType.unknown),
@@ -127,6 +214,7 @@ Future<List<ButtonData>> _buildButtons(
   List<ButtonData>? buttons;
   final viewerSettings = Settings.defaultSettings.viewer.copyWith(
     loadOriginalOnZoom: loadOriginalOnZoom,
+    postQuality: postQuality,
   );
   final transformationController = includeViewerTransformations
       ? TransformationController()
@@ -140,7 +228,7 @@ Future<List<ButtonData>> _buildButtons(
       child: ProviderScope(
         overrides: [
           imageViewerSettingsProvider.overrideWithValue(viewerSettings),
-          showPremiumFeatsProvider.overrideWithValue(false),
+          showPremiumFeatsProvider.overrideWithValue(showPremiumFeatures),
         ],
         child: MaterialApp(
           home: Builder(

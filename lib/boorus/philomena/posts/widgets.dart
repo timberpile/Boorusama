@@ -23,9 +23,9 @@ class PhilomenaStatsTileSection extends ConsumerWidget {
 
     return SliverToBoxAdapter(
       child: SimplePostStatsTile(
-        totalComments: data?.commentCount ?? 0,
-        favCount: data?.favCount ?? 0,
-        score: post.score,
+        totalComments: post.detailFacts.commentCount,
+        favCount: post.detailFacts.favoriteCount,
+        score: post.detailFacts.score,
         votePercentText: _generatePercentText(post, data),
       ),
     );
@@ -42,13 +42,12 @@ class PhilomenaArtistInfoSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<Post>(context);
-    final data = InheritedPost.presentationOf(
-      context,
-    ).data<PhilomenaPostData>();
 
     return SliverToBoxAdapter(
       child: ArtistSection(
-        commentary: ArtistCommentary.description(data?.description ?? ''),
+        commentary: ArtistCommentary.description(
+          post.detailFacts.description ?? '',
+        ),
         artistTags: post.artistTags ?? {},
         source: post.source,
       ),

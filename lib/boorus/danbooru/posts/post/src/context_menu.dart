@@ -40,7 +40,9 @@ class DanbooruPostContextMenu extends ConsumerWidget {
 
     return KurumiContextMenu(
       menuItemsBuilder: (context) => [
-        PostContextMenuActions(snapshot: snapshot),
+        PostContextMenuActions(
+          snapshot: snapshot,
+        ),
         BookmarkContextMenuSection(
           post: post,
           config: booruConfig,
@@ -49,6 +51,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
         if (selectionModeController case final controller?)
           KurumiContextMenuTile(
             title: context.t.generic.action.select,
+            trailing: const Icon(Icons.checklist),
             onTap: () {
               controller.enable(
                 initialSelected: [index],
@@ -80,20 +83,29 @@ List<Widget> buildDanbooruSinglePostActions(
     action();
   }
 
-  Widget tile(String title, VoidCallback onTap) => selection
+  Widget tile(String title, IconData icon, VoidCallback onTap) => selection
       ? MultiSelectButton(
           name: title,
-          icon: const Icon(Icons.more_horiz),
+          icon: Icon(icon),
           menuOnly: true,
           onPressed: () => execute(onTap),
         )
       : popup
-      ? KurumiPopupMenuItem(title: Text(title), onTap: () => execute(onTap))
-      : KurumiContextMenuTile(title: title, onTap: () => execute(onTap));
+      ? KurumiPopupMenuItem(
+          title: Text(title),
+          icon: Icon(icon),
+          onTap: () => execute(onTap),
+        )
+      : KurumiContextMenuTile(
+          title: title,
+          trailing: Icon(icon),
+          onTap: () => execute(onTap),
+        );
   return [
     if (login.hasLogin() && includeFavoriteGroup)
       tile(
         context.t.post.action.add_to_favorite_group,
+        Icons.folder_special,
         () => goToAddToFavoriteGroupSelectionPage(
           context,
           List.unmodifiable([post]),
@@ -102,11 +114,13 @@ List<Widget> buildDanbooruSinglePostActions(
       ),
     tile(
       context.t.post.action.view_tag_history,
+      Icons.history,
       () => goToPostVersionPage(ref, post),
     ),
     if (login.hasLogin())
       tile(
         context.t.generic.action.edit,
+        Icons.edit_outlined,
         () => ref.danbooruEdit(post),
       ),
   ];

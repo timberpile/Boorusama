@@ -43,6 +43,7 @@ class SearchHistorySection extends ConsumerWidget {
           storageId: 'search-history',
           trailing: onFullHistoryRequested != null
               ? IconButton(
+                  tooltip: context.t.search.history.history,
                   onPressed: onFullHistoryRequested,
                   icon: const Icon(Symbols.manage_history),
                 )

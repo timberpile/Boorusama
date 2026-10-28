@@ -65,15 +65,15 @@ void main() {
   ) async {
     final hydration = _HydrationNotifier();
     await pumpPage(tester, hydration, home: const DeveloperOptionsPage());
-    await tester.tap(find.text('Performance diagnostics'));
+    await tester.tap(find.text('Performance Diagnostics'));
     await tester.pumpAndSettle();
     expect(find.byType(PerformanceDiagnosticsPage), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Start new recording'), 150);
-    expect(find.text('Start new recording'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Record'), 150);
+    expect(find.text('Record'), findsOneWidget);
     expect(hydration.started, 0);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Hydrate bookmark metadata'));
+    await tester.tap(find.text('Hydrate Bookmark Metadata'));
     await tester.pumpAndSettle();
     expect(find.byType(BookmarkMaintenancePage), findsOneWidget);
     expect(hydration.started, 0);
@@ -92,15 +92,15 @@ void main() {
         home: const DeveloperOptionsPage(),
         environment: 'prod',
       );
-      expect(find.text('Performance diagnostics'), findsNothing);
-      expect(find.text('Hydrate bookmark metadata'), findsNothing);
+      expect(find.text('Performance Diagnostics'), findsNothing);
+      expect(find.text('Hydrate Bookmark Metadata'), findsNothing);
       await pumpPage(
         tester,
         hydration,
         home: const PerformanceDiagnosticsPage(),
         environment: 'prod',
       );
-      expect(find.text('Start new recording'), findsNothing);
+      expect(find.text('Record'), findsNothing);
       expect(hydration.started, 0);
       expect(tester.takeException(), isNull);
     },
@@ -121,11 +121,11 @@ void main() {
         isNull,
       );
       expect(hydration.started, 0);
-      await tester.scrollUntilVisible(find.text('Copy log'), 200);
+      await tester.scrollUntilVisible(find.text('Copy Log'), 200);
       expect(
         tester
             .widget<OutlinedButton>(
-              find.widgetWithText(OutlinedButton, 'Copy log'),
+              find.widgetWithText(OutlinedButton, 'Copy Log'),
             )
             .onPressed,
         isNull,
@@ -182,8 +182,8 @@ void main() {
         ),
       );
       await pumpPage(tester, hydration);
-      await tester.scrollUntilVisible(find.text('Copy log'), 200);
-      await tester.ensureVisible(find.text('Copy log'));
+      await tester.scrollUntilVisible(find.text('Copy Log'), 200);
+      await tester.ensureVisible(find.text('Copy Log'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Latest 100 entries'), findsOneWidget);
       expect(
@@ -200,7 +200,7 @@ void main() {
         find.textContaining('Skipped — no matching profile'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Copy log'));
+      await tester.tap(find.text('Copy Log'));
       await tester.pumpAndSettle();
       expect(copied!.split('\n\n'), hasLength(100));
       expect(copied!.split('\n\n').first, contains('Post #105\nUpdated'));
@@ -397,7 +397,6 @@ class _LibraryNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: empty ? [] : [Bookmark.empty],
     groups: const [],
-    activeTarget: const BookmarkTarget.defaultGroup(),
   );
 }
 

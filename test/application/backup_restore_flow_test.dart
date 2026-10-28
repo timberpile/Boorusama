@@ -145,7 +145,7 @@ void main() {
       expect(find.text('Backup and Restore'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.scrollUntilVisible(
-        find.text('Import file'),
+        find.text('Import File'),
         200,
         scrollable: find
             .descendant(
@@ -154,7 +154,7 @@ void main() {
             )
             .first,
       );
-      expect(find.text('Import file').hitTestable(), findsOneWidget);
+      expect(find.text('Import File').hitTestable(), findsOneWidget);
     },
   );
 

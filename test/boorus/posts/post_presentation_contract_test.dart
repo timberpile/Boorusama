@@ -293,6 +293,8 @@ void main() {
         switch (testCase.type) {
           BooruType.danbooru ||
           BooruType.gelbooruV2 ||
+          BooruType.animePictures ||
+          BooruType.hybooru ||
           BooruType.moebooru => isNotNull,
           _ => isNull,
         },

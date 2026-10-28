@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:typed_data';
 
 import 'package:boorusama/core/developer_options/providers.dart';
@@ -41,6 +44,7 @@ void main() {
         addTearDown(() => dio.close(force: true));
         final container = ProviderContainer(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             automaticMediaLoadingEnabledProvider.overrideWithValue(true),
             originAwarePostRepoProvider.overrideWith((ref, config) {
               expect(config, testProfile);

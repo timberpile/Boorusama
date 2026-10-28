@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:coreutils/coreutils.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
@@ -53,62 +52,66 @@ class FileDetailsSection extends StatelessWidget {
   Widget _buildTile() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final fileSizeText = post.fileSize > 0
-            ? ' • ${Filesize.parse(post.fileSize, round: 1)}'
-            : '';
-
-        final resolutionText = post.width > 0 && post.height > 0
-            ? '${post.width.toInt()}x${post.height.toInt()} • '
-            : '';
-
-        final format = normalizeUrl(post.format);
-
-        // if start with a dot, remove it
-        final fileFormatText = format.startsWith('.')
-            ? format.substring(1).toUpperCase()
-            : format.toUpperCase();
-
-        final ratingText = rating.name.getFirstCharacter().toUpperCase();
+        final facts = post.detailFacts;
+        final size = facts.originalByteSize;
+        final width = facts.originalWidth;
+        final height = facts.originalHeight;
+        final format = facts.originalFormat;
+        final siteId = switch (post.sitePostId?.trim()) {
+          null || '' || '0' => null,
+          final value => value,
+        };
+        final summary = [
+          if (width != null && height != null)
+            '${width.toInt()}x${height.toInt()}',
+          if (format != null) format.toUpperCase(),
+          if (size != null) Filesize.parse(size, round: 1),
+          if (rating != Rating.unknown)
+            rating.name.getFirstCharacter().toUpperCase(),
+        ].join(' • ');
 
         final children = [
-          FileDetailTile(
-            title: 'ID',
-            valueLabel: post.id.toString(),
-            valueTrailing: FileDetailsInWell(
-              borderRadius: BorderRadius.circular(4),
-              child: Transform.scale(
-                scale: 0.8,
-                child: const FaIcon(
-                  FontAwesomeIcons.copy,
-                  size: 20,
+          if (siteId != null)
+            FileDetailTile(
+              title: 'ID',
+              valueLabel: siteId,
+              valueTrailing: FileDetailsInWell(
+                borderRadius: BorderRadius.circular(4),
+                child: Transform.scale(
+                  scale: 0.8,
+                  child: const FaIcon(
+                    FontAwesomeIcons.copy,
+                    size: 20,
+                  ),
                 ),
+                onTap: () {
+                  AppClipboard.copyWithDefaultToast(
+                    context,
+                    siteId,
+                  );
+                },
               ),
-              onTap: () {
-                AppClipboard.copyWithDefaultToast(
-                  context,
-                  post.id.toString(),
-                );
-              },
             ),
-          ),
-          FileDetailTile(
-            title: context.t.post.detail.rating,
-            valueLabel: rating.name.pascalCase,
-          ),
-          if (post.fileSize > 0)
+          if (rating != Rating.unknown)
+            FileDetailTile(
+              title: context.t.post.detail.rating,
+              valueLabel: rating.name.pascalCase,
+            ),
+          if (size != null)
             FileDetailTile(
               title: context.t.post.detail.size,
-              valueLabel: Filesize.parse(post.fileSize, round: 1),
+              valueLabel: Filesize.parse(size, round: 1),
             ),
-          if (post.width > 0 && post.height > 0)
+          if (width != null && height != null)
             FileDetailTile(
               title: context.t.post.detail.resolution,
-              valueLabel: '${post.width.toInt()}x${post.height.toInt()}',
+              valueLabel: '${width.toInt()}x${height.toInt()}',
             ),
-          FileDetailTile(
-            title: context.t.post.detail.file_format,
-            valueLabel: format,
-          ),
+          if (format != null)
+            FileDetailTile(
+              title: context.t.post.detail.file_format,
+              valueLabel: format,
+            ),
           if (post.createdAt case final createdAt?)
             FileDetailTile(
               title: context.t.post.detail.upload_date,
@@ -127,6 +130,7 @@ class FileDetailsSection extends StatelessWidget {
           ...?customDetails,
         ];
 
+        if (children.isEmpty) return const SizedBox.shrink();
         return ExpansionTile(
           shape: const Border(),
           collapsedShape: const Border(),
@@ -134,12 +138,14 @@ class FileDetailsSection extends StatelessWidget {
           title: Text(
             context.t.post.detail.file_details,
           ),
-          subtitle: Text(
-            '$resolutionText$fileFormatText$fileSizeText • $ratingText',
-            style: TextStyle(
-              color: Kurumi.themeOf(context).colorScheme.hintColor,
-            ),
-          ),
+          subtitle: summary.isEmpty
+              ? null
+              : Text(
+                  summary,
+                  style: TextStyle(
+                    color: Kurumi.themeOf(context).colorScheme.hintColor,
+                  ),
+                ),
           children: constraints.maxWidth < 480
               ? children
               : [
@@ -188,6 +194,7 @@ class UploaderFileDetailTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (uploaderName.trim().isEmpty) return const SizedBox.shrink();
     return FileDetailTile(
       title: context.t.post.detail.uploader,
       value: FileDetailsInWell(

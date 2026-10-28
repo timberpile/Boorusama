@@ -1,0 +1,38 @@
+{
+  "family": "shimmie2",
+  "host": "rule34.paheal.net",
+  "endpoint": "https://rule34.paheal.net/api/danbooru/find_posts?limit=1",
+  "capturedAt": "2026-10-25T02:26:13.392336+00:00",
+  "authenticated": false,
+  "status": 200,
+  "contentType": "application/xml",
+  "shape": "xml",
+  "sourceFields": [
+    "author",
+    "date",
+    "file_name",
+    "file_url",
+    "height",
+    "id",
+    "md5",
+    "preview_height",
+    "preview_url",
+    "preview_width",
+    "rating",
+    "score",
+    "source",
+    "tags",
+    "width"
+  ],
+  "post": {
+    "id": "7490329",
+    "file_url": "https://fixtures.invalid/original",
+    "height": "1152",
+    "width": "2048",
+    "preview_url": "https://fixtures.invalid/original",
+    "rating": "?",
+    "date": "2026-10-25 02:25:44",
+    "score": "0",
+    "author": "source_account"
+  }
+}

@@ -28,6 +28,68 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Original uses source media, preserves explicit overrides and leaves video quality independent', () {
+    for (final engine in [
+      BooruType.danbooru,
+      BooruType.e621,
+      BooruType.philomena,
+      BooruType.gelbooruV2,
+      BooruType.hydrus,
+    ]) {
+      final profile = _profile(
+        engine,
+        'https://original.example',
+        PostQuality.original,
+      );
+      final container = _container([profile]);
+      final resolver = switch (engine) {
+        BooruType.danbooru => container.read(
+          danbooruMediaUrlResolverProvider(profile.auth),
+        ),
+        BooruType.e621 => container.read(
+          e621MediaUrlResolverProvider(profile.auth),
+        ),
+        BooruType.philomena => container.read(
+          philomenaMediaUrlResolverProvider(profile.auth),
+        ),
+        BooruType.hydrus => container.read(
+          sampleMediaUrlResolverProvider(profile.auth),
+        ),
+        _ => container.read(defaultMediaUrlResolverProvider(profile.auth)),
+      };
+      for (final format in ['png', 'gif']) {
+        expect(
+          resolver.resolveMediaUrl(
+            _post(profile, format: format),
+            profile.viewer,
+          ),
+          '${profile.url}/original',
+          reason: '$engine $format',
+        );
+      }
+      final override = BooruConfig.fromJson({
+        ...profile.toJson(),
+        'id': '00000000-0000-4000-8000-000000000003',
+        'imageDetaisQuality': 'preview',
+      });
+      if (engine == BooruType.e621 || engine == BooruType.gelbooruV2) {
+        expect(
+          resolver.resolveMediaUrl(_post(profile), override.viewer),
+          '${profile.url}/thumb',
+        );
+      }
+      final withoutOriginal = _post(profile, original: '');
+      expect(
+        resolver.resolveMediaUrl(withoutOriginal, profile.viewer),
+        '${profile.url}/sample',
+      );
+      expect(
+        resolver.resolveVideoUrl(_post(profile, format: 'mp4'), profile.viewer),
+        '${profile.url}/video',
+      );
+      container.dispose();
+    }
+  });
   final first = _profile(
     BooruType.danbooru,
     'https://one.example',
@@ -182,14 +244,14 @@ void main() {
   );
 
   testWidgets(
-    'mixed preloads match auth quality and skip explicit original overrides',
+    'mixed preloads cap Original at High in both directions and preserve source overrides',
     (
       tester,
     ) async {
       final highest = _profile(
         BooruType.philomena,
         'https://three.example',
-        PostQuality.high,
+        PostQuality.original,
       );
       final profiles = [
         first,
@@ -265,6 +327,10 @@ void main() {
       await tester.pumpAndSettle();
       pages.currentPage.value = 2;
       await tester.pumpAndSettle();
+      for (final page in [1, 0, 2]) {
+        pages.currentPage.value = page;
+        await tester.pumpAndSettle();
+      }
       expect(calls, contains((second.auth, '${second.url}/thumb')));
       expect(calls, contains((highest.auth, '${highest.url}/sample')));
       expect(calls.where((entry) => entry.$2.endsWith('/original')), isEmpty);
@@ -308,35 +374,36 @@ BooruConfig _profile(BooruType type, String url, PostQuality quality) =>
       ),
     );
 
-Post _post(BooruConfig profile, {String format = 'png'}) => Post(
-  origin: PostOrigin.fromSource(
-    booruType: BooruType.fromLegacyId(profile.booruId),
-    booruId: profile.booruId,
-    source: profile.url,
-  ),
-  core: PostCoreData(
-    id: 1,
-    thumbnailImageUrl: '${profile.url}/thumb',
-    sampleImageUrl: '${profile.url}/sample',
-    originalImageUrl: '${profile.url}/original',
-    videoUrl: '${profile.url}/video',
-    videoThumbnailUrl: '${profile.url}/poster',
-    width: 200,
-    height: 400,
-    format: format,
-    md5: '',
-    fileSize: 100,
-    duration: 0,
-    tags: const {},
-    rating: Rating.general,
-    hasComment: false,
-    isTranslated: false,
-    hasParentOrChildren: false,
-    source: PostSource.none(),
-    score: 0,
-    thumbnailAspectRatio: 1,
-    sampleAspectRatio: 0.5,
-    originalAspectRatio: 0.5,
-  ),
-  booruData: const EmptyPostData(typeKey: 'fixture'),
-);
+Post _post(BooruConfig profile, {String format = 'png', String? original}) =>
+    Post(
+      origin: PostOrigin.fromSource(
+        booruType: BooruType.fromLegacyId(profile.booruId),
+        booruId: profile.booruId,
+        source: profile.url,
+      ),
+      core: PostCoreData(
+        id: 1,
+        thumbnailImageUrl: '${profile.url}/thumb',
+        sampleImageUrl: '${profile.url}/sample',
+        originalImageUrl: original ?? '${profile.url}/original',
+        videoUrl: '${profile.url}/video',
+        videoThumbnailUrl: '${profile.url}/poster',
+        width: 200,
+        height: 400,
+        format: format,
+        md5: '',
+        fileSize: 100,
+        duration: 0,
+        tags: const {},
+        rating: Rating.general,
+        hasComment: false,
+        isTranslated: false,
+        hasParentOrChildren: false,
+        source: PostSource.none(),
+        score: 0,
+        thumbnailAspectRatio: 1,
+        sampleAspectRatio: 0.5,
+        originalAspectRatio: 0.5,
+      ),
+      booruData: const EmptyPostData(typeKey: 'fixture'),
+    );

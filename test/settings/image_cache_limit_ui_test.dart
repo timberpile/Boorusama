@@ -48,7 +48,7 @@ void main() {
           child: ProviderScope(
             overrides: [
               settingsNotifierProvider.overrideWith(
-                () => SettingsNotifier(initial),
+                () => _ObservedSettingsNotifier(initial),
               ),
               settingsRepoProvider.overrideWithValue(repository),
               appFileSystemProvider.overrideWithValue(
@@ -94,8 +94,8 @@ void main() {
         );
         await tester.pumpWidget(page(Settings.defaultSettings));
         await tester.pumpAndSettle();
-        expect(find.text('Image cache limit'), findsOneWidget);
-        expect(find.text('Bookmark images'), findsNothing);
+        expect(find.text('Image Cache Limit'), findsOneWidget);
+        expect(find.text('Bookmark Images'), findsNothing);
         final container = ProviderScope.containerOf(
           tester.element(find.byType(DataAndStoragePage)),
         );
@@ -106,6 +106,14 @@ void main() {
         await real(
           () => manager.saveFile('live-limit', Uint8List.fromList([1, 2, 3])),
         );
+
+        Future<void> settleSettings() async {
+          final notifier = container.read(
+            settingsNotifierProvider.notifier,
+          ) as _ObservedSettingsNotifier;
+          expect(await notifier.pendingUpdate, isTrue);
+          await tester.pumpAndSettle();
+        }
 
         Future<void> select(String title, String value) async {
           final tile = find.ancestor(
@@ -128,15 +136,12 @@ void main() {
           expect(choice.hitTestable(), findsOneWidget);
           await tester.tap(choice);
           await tester.pumpAndSettle();
-          await real(
-            () => Future<void>.delayed(const Duration(milliseconds: 20)),
-          );
-          await tester.pumpAndSettle();
+          await settleSettings();
         }
 
-        await select('Image cache limit', '500 MB');
-        await select('Video cache limit', '2 GB');
-        await select('Image cache limit', 'Custom...');
+        await select('Image Cache Limit', '500 MB');
+        await select('Video Cache Limit', '2 GB');
+        await select('Image Cache Limit', 'Custom...');
         expect(find.text('10 GB'), findsOneWidget);
         await tester.tap(find.byIcon(Icons.add));
         await tester.pumpAndSettle();
@@ -150,8 +155,8 @@ void main() {
         );
         expect(reopened.toJson()['imageCacheMaxSize'], '500MB');
         expect(reopened.toJson()['videoCacheMaxSize'], '2GB');
-        await select('Image cache limit', 'Disabled');
-        await select('Image cache limit', 'Custom...');
+        await select('Image Cache Limit', 'Disabled');
+        await select('Image Cache Limit', 'Custom...');
         expect(find.text('50 GB'), findsOneWidget);
         await container
             .read(settingsNotifierProvider.notifier)
@@ -163,14 +168,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('40 GB'), findsOneWidget);
         await tester.tap(find.text('OK'));
-        await real(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-        await tester.pumpAndSettle();
-        await select('Image cache limit', 'Disabled');
-        await real(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
+        await settleSettings();
+        await select('Image Cache Limit', 'Disabled');
+
         reopened = (await repository.load().run()).getOrElse(
           (_) => throw StateError('settings failed'),
         );
@@ -203,4 +203,16 @@ class _CacheTestFileSystem extends IoFileSystem {
   final String root;
   @override
   Future<String?> getTemporaryPath() async => root;
+}
+
+// Observe the operation initiated by the UI instead of assuming native Hive I/O
+// completes during a short wall-clock delay under parallel suite execution.
+class _ObservedSettingsNotifier extends SettingsNotifier {
+  _ObservedSettingsNotifier(super.initialSettings);
+
+  Future<bool> pendingUpdate = Future.value(true);
+
+  @override
+  Future<bool> updateWith(Settings Function(Settings) selector) =>
+      pendingUpdate = super.updateWith(selector);
 }

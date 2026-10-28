@@ -92,9 +92,6 @@ class FavoriteTagsSection extends ConsumerWidget {
           ),
         );
       }),
-      if (tags.isEmpty) ...[
-        const ImportTagButton(),
-      ],
     ];
   }
 }
@@ -119,6 +116,7 @@ class OptionTagsArenaNoEdit extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
+          tooltip: context.t.favorite_tags.title,
           icon: const Icon(Symbols.settings, size: 20),
           onPressed: () => ref.pushRoute('/favorite_tags'),
         ),

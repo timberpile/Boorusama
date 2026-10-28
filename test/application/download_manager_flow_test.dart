@@ -39,7 +39,11 @@ void main() {
     expect(options.filename, task.filename);
     expect(options.filename, endsWith('.jpg'));
     expect(options.metadata?.siteUrl, flow.backend.config.url);
-    expect(options.metadata?.fileSize, flow.backend.posts.first.fileSize);
+    expect(
+      options.metadata?.fileSize,
+      isNull,
+      reason: 'a custom extracted URL has no verified Original byte size',
+    );
     expect(
       tester.takeException(),
       isNull,

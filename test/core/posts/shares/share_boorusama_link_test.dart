@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/ddos/handler/providers.dart';
@@ -73,6 +75,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         appFileSystemProvider.overrideWithValue(fs),
         defaultImageCacheManagerProvider.overrideWithValue(cache),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
@@ -136,13 +139,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('share-bslink-image')), findsNothing);
-    expect(find.byTooltip('Copy Boorusama link'), findsNothing);
-    expect(find.byTooltip('Share image and Boorusama link'), findsNothing);
+    expect(find.byTooltip('Copy Boorusama Link'), findsNothing);
+    expect(find.byTooltip('Share Image and Boorusama Link'), findsNothing);
     expect(find.textContaining('boorusama://'), findsNothing);
-    expect(find.byTooltip('Copy post link'), findsOneWidget);
-    expect(find.byTooltip('Share booru link'), findsOneWidget);
-    expect(find.byTooltip('Copy image link'), findsOneWidget);
-    expect(find.byTooltip('Copy post ID'), findsOneWidget);
+    expect(find.byTooltip('Copy Post Link'), findsOneWidget);
+    expect(find.byTooltip('Share Booru Link'), findsOneWidget);
+    expect(find.byTooltip('Copy Image Link'), findsOneWidget);
+    expect(find.byTooltip('Copy Post ID'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

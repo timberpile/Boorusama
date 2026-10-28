@@ -5,7 +5,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:share_handler/share_handler.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/types.dart';
@@ -14,6 +13,10 @@ import '../../../../../../core/navigation/navigation_controller.dart';
 import '../../../../../../core/configs/manage/providers.dart';
 import '../../../../../../core/boorus/booru/types.dart';
 import '../../../../../../foundation/platform.dart';
+import '../../../../../../foundation/loggers.dart';
+import '../../../../../../core/router.dart';
+import '../../../../../../core/posts/cross_profile_lookup/types.dart';
+import '../../../../../../core/posts/shares/src/incoming_shared_text_source.dart';
 import '../../../../../../foundation/url_launcher.dart';
 import '../../../../configs/providers.dart';
 
@@ -30,7 +33,9 @@ class UploadToDanbooru extends ConsumerStatefulWidget {
 }
 
 class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
-  StreamSubscription? _sharedMediaSubscription;
+  StreamSubscription<String>? _sharedMediaSubscription;
+  IncomingSharedTextSource? _sharedTextSource;
+  final _openArtworks = <String>{};
 
   @override
   void initState() {
@@ -41,23 +46,51 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
   // Platform messages are asynchronous, so we initialize in an async method.
   Future<void> initPlatformState() async {
     // Only support Android for now
-    if (!isAndroid()) return;
+    if (!ref.read(appPlatformProvider).isAndroid) return;
 
-    _sharedMediaSubscription = ShareHandler.instance.sharedMediaStream.listen(
+    final source = ref.read(incomingSharedTextSourceProvider);
+    _sharedTextSource = source;
+    _sharedMediaSubscription = source.texts.listen(
       _onSharedTextsReceived,
+      onError: (Object error) => _reportFailure('receive_text', error),
     );
 
-    // Get initial shared media when app is launched via share
-    final initialMedia = await ShareHandler.instance.getInitialSharedMedia();
-    if (initialMedia != null && mounted) {
-      await WidgetsBinding.instance.endOfFrame;
-      if (mounted) _onSharedTextsReceived(initialMedia);
+    // Initial delivery waits for the router to mount; the same artwork received
+    // through the warm stream cannot open a second results page in the meantime.
+    try {
+      final initialText = await source.initialText();
+      if (initialText != null && mounted) {
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted) _onSharedTextsReceived(initialText);
+      }
+    } catch (error) {
+      _reportFailure('read_initial_text', error);
+    }
+    // The initial plugin call also orders this after EventChannel subscription.
+    // Release buffered native shares only after the launch share/router frame.
+    if (mounted) {
+      try {
+        await source.resumeWarmDelivery();
+      } catch (error) {
+        _reportFailure('resume_text_delivery', error);
+      }
     }
   }
 
-  void _onSharedTextsReceived(SharedMedia media) {
+  void _reportFailure(String operation, Object error) {
+    if (!mounted) return;
+    ref
+        .read(loggerProvider)
+        .warn('Shared Text', '$operation; error=${error.runtimeType}');
+  }
+
+  void _onSharedTextsReceived(String text) {
     if (!mounted || !NavigationActivity.of(context)) return;
-    final text = media.content;
+    final artwork = PixivArtworkReference.parseSharedText(text);
+    if (artwork != null) {
+      unawaited(_openSharedArtwork(artwork));
+      return;
+    }
     final destination = ref
         .read(navigationControllerProvider.notifier)
         .binding
@@ -73,7 +106,7 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
 
     if (loginDetails.hasStrictSFW) return;
 
-    final uri = text != null ? Uri.tryParse(text) : null;
+    final uri = Uri.tryParse(text);
     final isHttp = uri?.scheme == 'http' || uri?.scheme == 'https';
 
     if (uri != null && isHttp) {
@@ -121,8 +154,29 @@ class _UploadToDanbooruState extends ConsumerState<UploadToDanbooru> {
     }
   }
 
+  Future<void> _openSharedArtwork(PixivArtworkReference artwork) async {
+    if (!_openArtworks.add(artwork.id)) return;
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      await ref.pushRoute<void>('/cross-profile-lookup', extra: artwork);
+    } catch (error) {
+      _reportFailure('open_artwork_lookup', error);
+    } finally {
+      _openArtworks.remove(artwork.id);
+    }
+  }
+
   @override
   void dispose() {
+    final source = _sharedTextSource;
+    if (source != null) {
+      unawaited(
+        source.pauseWarmDelivery().catchError(
+          (Object error) => _reportFailure('pause_text_delivery', error),
+        ),
+      );
+    }
     _sharedMediaSubscription?.cancel();
     super.dispose();
   }

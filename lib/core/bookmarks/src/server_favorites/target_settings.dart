@@ -40,6 +40,7 @@ class ServerFavoriteTarget extends Equatable {
 class ServerFavoriteSettings extends Equatable {
   ServerFavoriteSettings({
     this.globalGroupId,
+    this.ignoreBookmarkStatus = true,
     Map<String, ServerFavoriteTarget> profiles = const {},
   }) : profiles = Map.unmodifiable(profiles);
 
@@ -63,12 +64,20 @@ class ServerFavoriteSettings extends Equatable {
       return ServerFavoriteSettings(
         globalGroupId: global as String?,
         profiles: targets,
+        ignoreBookmarkStatus: switch ((json as Map)['ignoreBookmarkStatus']) {
+          null => true,
+          final bool value => value,
+          _ => throw const FormatException(
+            'Invalid bookmark status preference',
+          ),
+        },
       );
     }
     // Never silently turn an invalid opt-out into global inheritance.
     throw const FormatException('Invalid server favorite settings');
   }
 
+  final bool ignoreBookmarkStatus;
   final String? globalGroupId;
   final Map<String, ServerFavoriteTarget> profiles;
 
@@ -86,8 +95,18 @@ class ServerFavoriteSettings extends Equatable {
     for (final target in profiles.values) ?target.groupId,
   };
 
-  ServerFavoriteSettings withGlobal(String? groupId) =>
-      ServerFavoriteSettings(globalGroupId: groupId, profiles: profiles);
+  ServerFavoriteSettings withGlobal(String? groupId) => ServerFavoriteSettings(
+    globalGroupId: groupId,
+    profiles: profiles,
+    ignoreBookmarkStatus: ignoreBookmarkStatus,
+  );
+
+  ServerFavoriteSettings withIgnoreBookmarkStatus(bool value) =>
+      ServerFavoriteSettings(
+        globalGroupId: globalGroupId,
+        profiles: profiles,
+        ignoreBookmarkStatus: value,
+      );
 
   ServerFavoriteSettings withProfile(
     String profileId,
@@ -103,19 +122,21 @@ class ServerFavoriteSettings extends Equatable {
     return ServerFavoriteSettings(
       globalGroupId: globalGroupId,
       profiles: updated,
+      ignoreBookmarkStatus: ignoreBookmarkStatus,
     );
   }
 
   Map<String, Object?> toJson() => {
     'version': 1,
     'globalGroupId': globalGroupId,
+    'ignoreBookmarkStatus': ignoreBookmarkStatus,
     'profiles': {
       for (final entry in profiles.entries) entry.key: entry.value.toJson(),
     },
   };
 
   @override
-  List<Object?> get props => [globalGroupId, profiles];
+  List<Object?> get props => [globalGroupId, profiles, ignoreBookmarkStatus];
 }
 
 enum ServerFavoriteProblem {

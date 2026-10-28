@@ -4,6 +4,7 @@ import 'package:html/parser.dart' show parse;
 
 import '../../gelbooru/types/types.dart';
 import '../types.dart';
+import 'rb_image_metadata.dart';
 
 List<TagDto> parseRbTagsHtml(Response response, Map<String, dynamic> context) {
   final html = response.data as String;
@@ -70,23 +71,26 @@ PostV2Dto? parseRbPostHtml(
   final postId = _extractPostId(document);
   if (postId == null) return null;
 
-  // Try to get file URL from video or image
-  String? fileUrl;
-
-  // Check for video first
   final videoSource = document.querySelector('#gelcomVideoPlayer source');
-  if (videoSource != null) {
-    fileUrl = videoSource.attributes['src'];
-  } else {
-    // Check for image
-    final imageElement = document.querySelector('#image');
-    fileUrl = imageElement?.attributes['src'];
-  }
+  final displayedUrl = _resolveRbMediaUrl(
+    videoSource != null
+        ? videoSource.attributes['src']
+        : document.querySelector('#image')?.attributes['src'],
+    baseUrl,
+  );
+  if (displayedUrl == null) return null;
+  final imageMetadata = videoSource == null
+      ? parseRbImageMetadata(
+          document,
+          displayedUrl: displayedUrl,
+          resolveUrl: (value) => _resolveRbMediaUrl(value, baseUrl),
+        )
+      : null;
+  final fileUrl = videoSource != null
+      ? displayedUrl
+      : imageMetadata?.originalUrl ?? '';
 
-  fileUrl = _resolveRbMediaUrl(fileUrl, baseUrl);
-  if (fileUrl == null) return null;
-
-  final fileUri = Uri.tryParse(fileUrl);
+  final fileUri = Uri.tryParse(fileUrl.isEmpty ? displayedUrl : fileUrl);
   final filePath = fileUri?.path ?? '';
 
   // Extract hash and directory
@@ -114,7 +118,7 @@ PostV2Dto? parseRbPostHtml(
   final owner = _extractOwner(document);
 
   // Extract change/upload timestamp
-  final change = _extractChangeTimestamp(document);
+  final postedDay = _extractPostedDay(document);
 
   final tags = _extractTags(document);
 
@@ -130,8 +134,11 @@ PostV2Dto? parseRbPostHtml(
   return PostV2Dto(
     id: postId,
     fileUrl: fileUrl,
-    sampleUrl: fileUrl,
+    sampleUrl: displayedUrl,
     previewUrl: previewUrl,
+    width: imageMetadata?.width,
+    height: imageMetadata?.height,
+    fileSize: imageMetadata?.fileSize,
     directory: directory,
     hash: hash,
     image: image,
@@ -139,7 +146,9 @@ PostV2Dto? parseRbPostHtml(
     score: score,
     source: source,
     owner: owner,
-    change: change,
+    // This label establishes a calendar upload day, not an exact timestamp.
+    createdAt: postedDay?.toIso8601String(),
+    change: postedDay == null ? null : postedDay.millisecondsSinceEpoch ~/ 1000,
   );
 }
 
@@ -178,39 +187,30 @@ String _extractTags(Document document) {
 
 String? _extractOwner(Document document) {
   // Look for uploader in the post info section
-  final uploaderLink = document.querySelector('a[href*="profile&id="]');
+  final uploaderLink = document.querySelector(
+    '#tagLink a[href*="profile&id="]',
+  );
   return uploaderLink?.text.trim();
 }
 
-int? _extractChangeTimestamp(Document document) {
-  // Look for posted date text
-  final postInfo = document.querySelector('#tagLink')?.text ?? '';
-  final dateMatch = RegExp(r'Posted at ([^by]+) by').firstMatch(postInfo);
-
-  if (dateMatch != null) {
-    final dateString = dateMatch.group(1)?.trim();
-    if (dateString != null) {
-      // Try to parse date - this is a simple implementation
-      // Format appears to be "Sep, 13 2025"
-      try {
-        final parts = dateString.split(' ');
-        if (parts.length >= 3) {
-          final month = _monthNameToNumber(parts[0].replaceAll(',', ''));
-          final day = int.tryParse(parts[1]);
-          final year = int.tryParse(parts[2]);
-
-          if (month != null && day != null && year != null) {
-            final dateTime = DateTime(year, month, day);
-            return dateTime.millisecondsSinceEpoch ~/ 1000; // Unix timestamp
-          }
-        }
-      } catch (e) {
-        // Ignore parsing errors
-      }
-    }
-  }
-
-  return null;
+DateTime? _extractPostedDay(Document document) {
+  final text = document.querySelector('#tagLink')?.text ?? '';
+  final match = RegExp(
+    r'Posted at\s+([A-Za-z]{3}),?\s+(\d{1,2})\s+(\d{4})\s+by\b',
+    caseSensitive: false,
+  ).firstMatch(text);
+  if (match == null) return null;
+  final monthText = match.group(1)!;
+  final month = _monthNameToNumber(
+    monthText[0].toUpperCase() + monthText.substring(1).toLowerCase(),
+  );
+  final day = int.tryParse(match.group(2)!);
+  final year = int.tryParse(match.group(3)!);
+  if (month == null || day == null || year == null) return null;
+  final date = DateTime.utc(year, month, day);
+  return date.year == year && date.month == month && date.day == day
+      ? date
+      : null;
 }
 
 const _months = {
@@ -392,7 +392,21 @@ String? _resolveRbMediaUrl(String? value, String baseUrl) {
     _ => null,
   };
 
-  return resolved?.toString();
+  if (resolved == null) return null;
+  final base = Uri.tryParse(baseUrl);
+  // Current detail HTML adds a slash to the source's rooted media paths.
+  // Match listing/cache keys; do not rewrite an external host's URL semantics.
+  if (base != null &&
+      (base.scheme == 'http' || base.scheme == 'https') &&
+      base.host.isNotEmpty &&
+      resolved.origin == base.origin &&
+      (resolved.path.startsWith('//images/') ||
+          resolved.path.startsWith('//thumbnails/'))) {
+    return resolved
+        .replace(path: resolved.path.replaceFirst(RegExp('^/+'), '/'))
+        .toString();
+  }
+  return resolved.toString();
 }
 
 String? _parseLastPagePid(Document document) {

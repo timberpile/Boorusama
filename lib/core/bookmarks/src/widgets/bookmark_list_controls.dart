@@ -1,21 +1,26 @@
 // Package imports:
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../../../settings/providers.dart';
 import 'bookmark_booru_type_selector.dart';
 import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
 
-class BookmarkListControls extends StatelessWidget {
+class BookmarkListControls extends ConsumerWidget {
   const BookmarkListControls({required this.count, this.gridConfig, super.key});
 
   final int count;
   final Widget? gridConfig;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final showCount = ref.watch(
+      settingsProvider.select((s) => s.showBookmarkCount),
+    );
     return ColoredBox(
       color: Kurumi.themeOf(context).colorScheme.surface,
       child: Padding(
@@ -44,22 +49,23 @@ class BookmarkListControls extends StatelessWidget {
                             BookmarkBooruSourceUrlSelector(),
                           ],
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 8,
+                        if (showCount)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 8,
+                            ),
+                            child: Text(
+                              context.t.bookmark.counter(n: count),
+                              maxLines: 1,
+                              style: Kurumi.themeOf(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Kurumi.themeOf(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
                           ),
-                          child: Text(
-                            context.t.bookmark.counter(n: count),
-                            maxLines: 1,
-                            style: Kurumi.themeOf(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Kurumi.themeOf(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
-                        ),
                       ],
                     ),
                   ),

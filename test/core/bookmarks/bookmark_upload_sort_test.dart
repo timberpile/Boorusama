@@ -2,7 +2,6 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -142,7 +141,6 @@ void main() {
           bookmarkIds: const {1, 2, 4},
         ),
       ],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
 
     final groupView = BookmarkView.group(groupId);

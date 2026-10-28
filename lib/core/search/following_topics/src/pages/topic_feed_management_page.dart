@@ -9,6 +9,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../configs/manage/providers.dart';
+import '../../../../widgets/popup_menu_action_label.dart';
 import '../../../search/routes.dart';
 import '../providers/following_topics_notifier.dart';
 import '../types/topic_feed.dart';
@@ -58,19 +59,31 @@ class TopicFeedManagementPage extends ConsumerWidget {
               itemBuilder: (context) => [
                 PopupMenuItem(
                   value: TopicFeedMemberSort.addedDate,
-                  child: Text(strings.sort_feed_added_date),
+                  child: PopupMenuActionLabel(
+                    icon: Icons.calendar_today,
+                    label: strings.sort_feed_added_date,
+                  ),
                 ),
                 PopupMenuItem(
                   value: TopicFeedMemberSort.newestFirst,
-                  child: Text(strings.sort_feed_newest_first),
+                  child: PopupMenuActionLabel(
+                    icon: Icons.arrow_downward,
+                    label: strings.sort_feed_newest_first,
+                  ),
                 ),
                 PopupMenuItem(
                   value: TopicFeedMemberSort.lastRefresh,
-                  child: Text(strings.sort_feed_last_refresh),
+                  child: PopupMenuActionLabel(
+                    icon: Icons.schedule,
+                    label: strings.sort_feed_last_refresh,
+                  ),
                 ),
                 PopupMenuItem(
                   value: TopicFeedMemberSort.oldestFirst,
-                  child: Text(strings.sort_feed_oldest_first),
+                  child: PopupMenuActionLabel(
+                    icon: Icons.arrow_upward,
+                    label: strings.sort_feed_oldest_first,
+                  ),
                 ),
               ],
             ),

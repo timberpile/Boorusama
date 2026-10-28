@@ -20,7 +20,7 @@ Post postSummaryToPost(
     sampleImageUrl: _buildFileUrl(e, baseUrl),
     originalImageUrl: _buildFileUrl(e, baseUrl),
     tags: const {}, // PostSummary doesn't include tags
-    rating: Rating.general, // No rating in summary
+    rating: Rating.unknown, // No rating in summary
     hasComment: false,
     isTranslated: false,
     hasParentOrChildren: false,
@@ -43,6 +43,12 @@ Post postSummaryToPost(
   return hybooruPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.hybooru),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalWidth: e.width?.toDouble(),
+      originalHeight: e.height?.toDouble(),
+      originalFormat: e.extension,
+    ),
   );
 }
 
@@ -80,6 +86,13 @@ Post postDtoToPost(
   return hybooruPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.hybooru),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.size,
+      originalWidth: e.width?.toDouble(),
+      originalHeight: e.height?.toDouble(),
+      originalFormat: e.extension,
+    ),
   );
 }
 
@@ -110,7 +123,7 @@ String _buildFileUrl(dynamic post, String baseUrl, {bool thumbnail = false}) {
 }
 
 Rating _mapRating(double? rating) {
-  if (rating == null) return Rating.general;
+  if (rating == null) return Rating.unknown;
 
   // Map 0-1 rating to our enum
   if (rating >= 0.8) return Rating.explicit;

@@ -1015,6 +1015,36 @@ void main() {
   });
 
   test(
+    'history boundaries survive Hive close/reopen with unchanged definitions',
+    () async {
+      final source = await repository.create(
+        profileId: '00000000-0000-4000-8000-000000000004',
+        query: 'cat',
+        name: 'Cats',
+        createdAt: createdAt,
+      );
+      const end = FeedHistoryEnd(
+        oldestPostIdentity: '20:safebooru.donmai.us:8',
+      );
+      await repository.recordHistoryEnd(source, end);
+      await box.close();
+      await organizationBox.close();
+      box = await Hive.openBox<FollowingTopicHiveObject>(boxName);
+      organizationBox = await Hive.openBox<dynamic>('folder_test');
+      repository = HiveFollowingTopicRepository(
+        box: box,
+        organizationBox: organizationBox,
+      );
+      final reopened = (await repository.getById(source.id))!;
+      expect(reopened.historyEnd, end);
+      expect(reopened.query, source.query);
+      expect(reopened.createdAt, source.createdAt);
+      expect(reopened.runtimeRevision, source.runtimeRevision);
+      expect(reopened.unreadCount, source.unreadCount);
+    },
+  );
+
+  test(
     'stores a blank name as null and finds the same normalized query',
     () async {
       final created = await repository.create(

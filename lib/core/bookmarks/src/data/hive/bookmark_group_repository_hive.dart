@@ -9,7 +9,10 @@ import '../../types/bookmark_group_repository.dart';
 import 'bookmark_group_hive_object.dart';
 
 class BookmarkGroupRepositoryHive
-    implements BookmarkGroupRepository, BookmarkFolderRepository {
+    implements
+        BookmarkGroupRepository,
+        BookmarkFolderRepository,
+        BookmarkRecentGroupRepository {
   BookmarkGroupRepositoryHive(
     this._box, {
     Uuid uuid = const Uuid(),
@@ -20,6 +23,29 @@ class BookmarkGroupRepositoryHive
   final Box<BookmarkGroupHiveObject> _box;
   final Uuid _uuid;
   final Box<dynamic>? _organizationBox;
+
+  @override
+  Future<List<String>> readRecentGroupIds() async {
+    final raw = _organizationBox?.get('recentManualGroupIds');
+    if (raw is! List) return const [];
+    return raw
+        .whereType<String>()
+        .where(_box.containsKey)
+        .toSet()
+        .take(3)
+        .toList();
+  }
+
+  @override
+  Future<void> recordManualGroupInteraction(String groupId) async {
+    final id = _normalizeId(groupId);
+    if (!_box.containsKey(id)) return;
+    final previous = await readRecentGroupIds();
+    await _organizationBox?.put('recentManualGroupIds', [
+      id,
+      ...previous.where((value) => value != id).take(2),
+    ]);
+  }
 
   Future<void> close() async {
     await _box.close();

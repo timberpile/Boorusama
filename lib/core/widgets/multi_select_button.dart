@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 // Package imports:
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -9,6 +11,7 @@ class MultiSelectButton extends StatelessWidget {
     required this.onPressed,
     this.menuOnly = false,
     this.primary = false,
+    this.wrapLabel = false,
     super.key,
   });
 
@@ -19,6 +22,7 @@ class MultiSelectButton extends StatelessWidget {
   final void Function()? onPressed;
   final bool menuOnly;
   final bool primary;
+  final bool wrapLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -54,25 +58,87 @@ class MultiSelectButton extends StatelessWidget {
                 ),
                 child: icon,
               ),
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: 4,
-                  right: 4,
-                  bottom: 4,
-                ),
-                child: Text(
-                  name,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    letterSpacing: 0.5,
-                    color: onPressed != null ? null : colorScheme.hintColor,
+              if (wrapLabel)
+                _WrappedButtonLabel(
+                  name: name,
+                  enabled: onPressed != null,
+                )
+              else ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 4,
+                    right: 4,
+                    bottom: 4,
+                  ),
+                  child: Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      letterSpacing: 0.5,
+                      color: onPressed != null ? null : colorScheme.hintColor,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Reuses the single-line label and spacing budget to keep the icon and hit
+/// target fixed. Only the caption scales down when its words need more room.
+class _WrappedButtonLabel extends StatelessWidget {
+  const _WrappedButtonLabel({required this.name, required this.enabled});
+
+  final String name;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontSize: 10,
+      letterSpacing: 0.5,
+      color: enabled ? null : Kurumi.themeOf(context).colorScheme.hintColor,
+    );
+    final painter = TextPainter(
+      text: TextSpan(
+        text: name,
+        style: DefaultTextStyle.of(context).style.merge(style),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 2,
+    );
+    painter.layout();
+    final lineHeight = painter.preferredLineHeight;
+    final wordWidth = painter.minIntrinsicWidth;
+    painter.dispose();
+
+    return SizedBox(
+      height: lineHeight + 8,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: LayoutBuilder(
+          builder: (context, constraints) => FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: constraints.hasBoundedWidth
+                  ? math.max(constraints.maxWidth, wordWidth)
+                  : null,
+              child: Text(
+                name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: style.copyWith(height: 1),
+              ),
+            ),
           ),
         ),
       ),
@@ -98,6 +164,7 @@ class MultiSelectPopupButton extends StatelessWidget {
     required this.name,
     required this.enabled,
     required this.items,
+    this.wrapLabel = false,
     super.key,
   });
 
@@ -105,6 +172,7 @@ class MultiSelectPopupButton extends StatelessWidget {
   final String name;
   final bool enabled;
   final List<Widget> items;
+  final bool wrapLabel;
 
   @override
   Widget build(BuildContext context) => KurumiPopupMenuButton(
@@ -114,6 +182,7 @@ class MultiSelectPopupButton extends StatelessWidget {
     child: MultiSelectButton(
       icon: icon,
       name: name,
+      wrapLabel: wrapLabel,
       onPressed: enabled ? () {} : null,
     ),
   );

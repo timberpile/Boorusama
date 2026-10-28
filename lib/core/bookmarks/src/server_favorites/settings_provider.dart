@@ -11,7 +11,6 @@ import '../providers/bookmark_provider.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
 import '../types/bookmark_group.dart';
-import '../types/bookmark_target.dart';
 import 'binding.dart';
 import 'target_settings.dart';
 
@@ -191,9 +190,7 @@ class ServerFavoriteSettingsNotifier
           groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
           imageUrlResolver: (id) => ref.read(bookmarkUrlResolverProvider(id)),
         );
-        final snapshot = await service.load(
-          const BookmarkTarget.defaultGroup(),
-        );
+        final snapshot = await service.load();
         final removals = <BookmarkGroupRemovalResult>[];
         try {
           for (final group in clears) {

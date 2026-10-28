@@ -66,6 +66,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     Post post, {
     String? overrideUrl,
     String? quality,
+    String? postUrl,
   }) async {
     final perm = await _getPermissionStatus();
     final observer = arg.observer;
@@ -77,6 +78,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
       permission: perm,
       overrideUrl: overrideUrl,
       quality: quality,
+      postUrl: postUrl,
       onStarted: () {
         observer?.onSingleDownloadStart();
       },
@@ -89,6 +91,9 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     List<Post> posts, {
     String? group,
     String? downloadPath,
+    String? Function(Post)? postUrlBuilder,
+    int? totalCount,
+    int Function(Post)? indexOf,
   }) async {
     // ensure that the booru supports bulk download
     if (!arg.canDownloadMultipleFiles()) {
@@ -118,13 +123,14 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
       await _download(
         ref,
         post,
+        postUrl: postUrlBuilder?.call(post),
         params: arg,
         permission: perm,
         group: group,
         downloadPath: downloadPath,
         bulkMetadata: {
-          'total': posts.length.toString(),
-          'index': i.toString(),
+          'total': (totalCount ?? posts.length).toString(),
+          'index': (indexOf?.call(post) ?? i).toString(),
         },
         networkConstraint: networkConstraint,
       );
@@ -144,6 +150,7 @@ Future<DownloadTaskInfo?> _download(
   //FIXME: bad solution, need better design
   String? overrideUrl,
   String? quality,
+  String? postUrl,
   DownloadNetworkConstraint? networkConstraint,
 }) async {
   final downloadConfig = params.download;
@@ -223,7 +230,11 @@ Future<DownloadTaskInfo?> _download(
             downloadUrl: urlData.url,
           );
 
-    final fileName = await fileNameFuture;
+    final fileName = qualifyRenditionFileName(
+      await fileNameFuture,
+      quality: urlData.resolvedQuality,
+      downloadUrl: urlData.url,
+    );
 
     final network = ref.read(networkSettingsProvider(params.auth));
     final request = network.resolveMedia(
@@ -249,14 +260,19 @@ Future<DownloadTaskInfo?> _download(
                 format: params.settings.downloadSidecarFormat,
                 quality: urlData.resolvedQuality ?? 'custom',
                 site: params.auth.url,
-                postUrl: ref
-                    .read(postLinkGeneratorProvider(params.auth))
-                    .getLink(downloadable),
+                postUrl:
+                    postUrl ??
+                    ref
+                        .read(postLinkGeneratorProvider(params.auth))
+                        .getLink(downloadable),
               ),
         metadata: DownloaderMetadata(
           mediaHostOverridden: request.overridden,
           thumbnailUrl: downloadable.thumbnailImageUrl,
-          fileSize: downloadable.fileSize,
+          fileSize:
+              urlData.resolvedQuality == 'original' && downloadable.fileSize > 0
+              ? downloadable.fileSize
+              : null,
           siteUrl: params.auth.url,
           profileIconUrl: params.profileIconUrl,
           group: group,
@@ -298,12 +314,19 @@ Future<DownloadTaskInfo?> _download(
         return info;
       }(),
       final DownloadFailure e => () {
-        final msg = e.error.getErrorMessage();
-
-        logger.error(
+        final cause = switch (e.error) {
+          HttpDownloadError(:final exception) => exception,
+          FileSystemDownloadError(:final error) => error,
+          final error => error,
+        };
+        logger.handledError(
           'Single Download',
-          'Download failed: ${e.error.runtimeType}',
-          sensitiveMessage: msg,
+          'save_media',
+          error: cause,
+          outcome: switch (e.error) {
+            FileSystemDownloadError(:final type) => type.name,
+            _ => 'download_failed',
+          },
         );
       }(),
     };

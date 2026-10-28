@@ -9,9 +9,9 @@ import '_internal/details_widget_frame.dart';
 
 class SimplePostStatsTile extends StatelessWidget {
   const SimplePostStatsTile({
-    required this.totalComments,
-    required this.favCount,
-    required this.score,
+    this.totalComments,
+    this.favCount,
+    this.score,
     super.key,
     this.padding,
     this.onFavCountTap,
@@ -20,9 +20,9 @@ class SimplePostStatsTile extends StatelessWidget {
     this.votePercentText,
   });
 
-  final int totalComments;
-  final int favCount;
-  final int score;
+  final int? totalComments;
+  final int? favCount;
+  final int? score;
   final EdgeInsets? padding;
   final void Function()? onFavCountTap;
   final void Function()? onScoreTap;
@@ -31,6 +31,11 @@ class SimplePostStatsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final favCount = this.favCount;
+    final score = this.score;
+    final totalComments = this.totalComments;
+    if (favCount == null && score == null && totalComments == null)
+      return const SizedBox.shrink();
     return DetailsWidgetSeparator(
       padding:
           padding ??
@@ -40,76 +45,79 @@ class SimplePostStatsTile extends StatelessWidget {
           ),
       child: Wrap(
         children: [
-          _StatButton(
-            enable: onFavCountTap != null,
-            onTap: () => onFavCountTap?.call(),
-            child: RichText(
-              text: TextSpan(
-                text: '$favCount ',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Kurumi.themeOf(context).colorScheme.primary,
-                ),
-                children: [
-                  TextSpan(
-                    text: context.t.favorites.counter(n: favCount),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: Kurumi.themeOf(context).colorScheme.hintColor,
-                    ),
+          if (favCount != null)
+            _StatButton(
+              enable: onFavCountTap != null,
+              onTap: () => onFavCountTap?.call(),
+              child: RichText(
+                text: TextSpan(
+                  text: '$favCount ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Kurumi.themeOf(context).colorScheme.primary,
                   ),
-                ],
+                  children: [
+                    TextSpan(
+                      text: context.t.favorites.counter(n: favCount),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Kurumi.themeOf(context).colorScheme.hintColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          _StatButton(
-            enable: onScoreTap != null,
-            onTap: () => onScoreTap?.call(),
-            child: RichText(
-              text: TextSpan(
-                text: '$score ',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Kurumi.themeOf(context).colorScheme.primary,
-                ),
-                children: [
-                  TextSpan(
-                    text:
-                        '${context.t.post.detail.score(n: score)} ${votePercentText ?? ''}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: Kurumi.themeOf(context).colorScheme.hintColor,
-                    ),
+          if (score != null)
+            _StatButton(
+              enable: onScoreTap != null,
+              onTap: () => onScoreTap?.call(),
+              child: RichText(
+                text: TextSpan(
+                  text: '$score ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Kurumi.themeOf(context).colorScheme.primary,
                   ),
-                ],
+                  children: [
+                    TextSpan(
+                      text:
+                          '${context.t.post.detail.score(n: score)} ${votePercentText ?? ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Kurumi.themeOf(context).colorScheme.hintColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          _StatButton(
-            enable: onTotalCommentsTap != null,
-            onTap: () => onTotalCommentsTap?.call(),
-            child: RichText(
-              text: TextSpan(
-                text: '$totalComments ',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Kurumi.themeOf(context).colorScheme.primary,
-                ),
-                children: [
-                  TextSpan(
-                    text: context.t.comment.counter(n: totalComments),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: Kurumi.themeOf(context).colorScheme.hintColor,
-                    ),
+          if (totalComments != null)
+            _StatButton(
+              enable: onTotalCommentsTap != null,
+              onTap: () => onTotalCommentsTap?.call(),
+              child: RichText(
+                text: TextSpan(
+                  text: '$totalComments ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Kurumi.themeOf(context).colorScheme.primary,
                   ),
-                ],
+                  children: [
+                    TextSpan(
+                      text: context.t.comment.counter(n: totalComments),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: Kurumi.themeOf(context).colorScheme.hintColor,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

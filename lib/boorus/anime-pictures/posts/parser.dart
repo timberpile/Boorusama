@@ -12,12 +12,14 @@ import 'types.dart';
 Post dtoToAnimePicturesPost(
   PostDto e, {
   PostMetadata? metadata,
+  PostDetailsDto? details,
+  String? originalUrl,
 }) {
   final record = AnimePicturesPostRecord(
     id: e.id ?? 0,
     thumbnailImageUrl: e.mediumPreview ?? '',
     sampleImageUrl: e.bigPreview ?? '',
-    originalImageUrl: e.bigPreview ?? '',
+    originalImageUrl: originalUrl ?? e.bigPreview ?? '',
     tags: const {},
     rating: switch (e.erotics) {
       EroticLevel.none => Rating.general,
@@ -42,7 +44,7 @@ Post dtoToAnimePicturesPost(
     width: e.width?.toDouble() ?? 0,
     createdAt: e.pubtime != null ? DateTime.tryParse(e.pubtime!) : null,
     uploaderId: e.juserId,
-    uploaderName: null,
+    uploaderName: details?.user?.name,
     metadata: metadata,
     tagsCount: e.tagsCount ?? 0,
     status: AnimePicturesPostStatus.from(
@@ -53,6 +55,18 @@ Post dtoToAnimePicturesPost(
   return animePicturesPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.animePictures),
+  ).withDetailFacts(
+    PostDetailFacts(
+      score: e.scoreNumber,
+      originalByteSize: originalUrl?.isNotEmpty == true ? e.size : null,
+      originalWidth: originalUrl?.isNotEmpty == true
+          ? e.width?.toDouble()
+          : null,
+      originalHeight: originalUrl?.isNotEmpty == true
+          ? e.height?.toDouble()
+          : null,
+      originalFormat: originalUrl?.isNotEmpty == true ? e.ext : null,
+    ),
   );
 }
 

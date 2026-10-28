@@ -4,6 +4,8 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import 'follow_button_shape.dart';
+
 Future<String?> showFollowTopicDialog(
   BuildContext context, {
   required String query,
@@ -131,6 +133,11 @@ class _FollowTopicDialogState extends State<FollowTopicDialog> {
                       child: Text(context.t.generic.action.cancel),
                     ),
                     FilledButton(
+                      style: widget.isFollowing
+                          ? null
+                          : FilledButton.styleFrom(
+                              shape: followActionButtonShape,
+                            ),
                       onPressed: _submitting ? null : _submit,
                       child: Text(
                         widget.isFollowing ? strings.save : strings.follow,

@@ -8,6 +8,7 @@ import 'package:timeago/timeago.dart' as timeago;
 // Project imports:
 import '../../../../configs/config/types.dart';
 import '../../../../widgets/time_pulse.dart';
+import '../../../../widgets/popup_menu_action_label.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
 import 'following_topic_query_text.dart';
@@ -209,38 +210,57 @@ class FollowingTopicCard extends StatelessWidget {
                     if (!selecting)
                       PopupMenuButton<FollowingTopicAction>(
                         icon: const Icon(Symbols.more_vert),
+                        tooltip: context.t.generic.action.more,
                         onSelected: onAction,
                         itemBuilder: (context) =>
                             actionItemBuilder?.call(context) ??
                             [
                               PopupMenuItem(
                                 value: FollowingTopicAction.info,
-                                child: Text(strings.info),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.info_outline,
+                                  label: strings.info,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: FollowingTopicAction.refresh,
                                 enabled: !refreshing,
-                                child: Text(strings.refresh),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.refresh,
+                                  label: strings.refresh,
+                                ),
                               ),
                               PopupMenuItem(
                                 value: FollowingTopicAction.edit,
-                                child: Text(context.t.generic.action.edit),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.edit_outlined,
+                                  label: context.t.generic.action.edit,
+                                ),
                               ),
                               if (showMoveActions)
                                 PopupMenuItem(
                                   value: FollowingTopicAction.moveUp,
                                   enabled: canMoveUp,
-                                  child: Text(strings.move_up),
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.arrow_upward,
+                                    label: strings.move_up,
+                                  ),
                                 ),
                               if (showMoveActions)
                                 PopupMenuItem(
                                   value: FollowingTopicAction.moveDown,
                                   enabled: canMoveDown,
-                                  child: Text(strings.move_down),
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.arrow_downward,
+                                    label: strings.move_down,
+                                  ),
                                 ),
                               PopupMenuItem(
                                 value: FollowingTopicAction.delete,
-                                child: Text(strings.remove),
+                                child: PopupMenuActionLabel(
+                                  icon: Icons.person_remove_outlined,
+                                  label: strings.remove,
+                                ),
                               ),
                             ],
                       ),

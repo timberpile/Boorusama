@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
-import '../../../groups/folder_navigation.dart';
 import '../../../groups/folder_tree.dart';
 import '../types/bookmark_group.dart';
 import 'bookmark_collection_order.dart';
@@ -15,6 +14,9 @@ class BookmarkFolderPickerContents extends StatefulWidget {
     required this.groupBuilder,
     this.homeChildren = const [],
     this.footerBuilder,
+    this.onCreateGroup,
+    this.createGroupEnabled = true,
+    this.pinnedFooter,
     this.membershipGroupIds,
     this.onRootBack,
     this.compact = false,
@@ -26,6 +28,9 @@ class BookmarkFolderPickerContents extends StatefulWidget {
   final Widget Function(BuildContext, BookmarkGroup) groupBuilder;
   final List<Widget> homeChildren;
   final Widget Function(BuildContext, String?)? footerBuilder;
+  final ValueChanged<String?>? onCreateGroup;
+  final bool createGroupEnabled;
+  final Widget? pinnedFooter;
   // Null means bulk mode: a single-bookmark badge would be ambiguous.
   final Set<String>? membershipGroupIds;
   final VoidCallback? onRootBack;
@@ -90,75 +95,167 @@ class _BookmarkFolderPickerContentsState
   Widget build(BuildContext context) {
     final currentId = _folderId;
     final current = widget.folders.where((f) => f.id == currentId).firstOrNull;
+    final onBack = current == null
+        ? widget.onRootBack
+        : () => _openFolder(current.parentId);
+    final hasNavigation = onBack != null || widget.onCreateGroup != null;
+    final navigation = <Widget>[
+      if (hasNavigation) ...[
+        LayoutBuilder(
+          builder: (context, constraints) => IntrinsicHeight(
+            child: Row(
+              key: const ValueKey('bookmark-picker-navigation'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: onBack == null
+                      ? const SizedBox.shrink()
+                      : Tooltip(
+                          message: context.t.generic.action.back,
+                          child: KurumiPopupMenuItem(
+                            key: const ValueKey('bookmark-picker-back'),
+                            icon: const Icon(Icons.arrow_back, size: 20),
+                            title: current == null
+                                ? const SizedBox.shrink()
+                                : Tooltip(
+                                    message: _tree.path(currentId),
+                                    child: Text(
+                                      _tree.path(currentId),
+                                      key: const ValueKey(
+                                        'bookmark-picker-path',
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ),
+                            hideOnTap: false,
+                            onTap: onBack,
+                          ),
+                        ),
+                ),
+                if (widget.onCreateGroup case final create?)
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth:
+                          (constraints.maxWidth - (onBack == null ? 0 : 44))
+                              .clamp(0, double.infinity),
+                    ),
+                    child: IntrinsicWidth(
+                      child: BookmarkPickerMenuItem(
+                        key: const ValueKey('bookmark-picker-create-group'),
+                        icon: const Icon(Icons.add),
+                        title: context.t.bookmark.groups.create_new,
+                        hideOnTap: false,
+                        onTap: widget.createGroupEnabled
+                            ? () => create(currentId)
+                            : null,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const KurumiContextMenuDivider(),
+      ],
+    ];
+    final entries = <Widget>[
+      for (final folder in bookmarkFoldersByName(_tree.children(currentId)))
+        MergeSemantics(
+          child: widget.compact
+              ? BookmarkPickerMenuItem(
+                  icon: BookmarkFolderMembershipIcon(
+                    count: _membershipCounts[folder.id] ?? 0,
+                  ),
+                  title: folder.name,
+                  trailing: const ExcludeSemantics(
+                    child: Icon(Icons.chevron_right),
+                  ),
+                  hideOnTap: false,
+                  onTap: () => _openFolder(folder.id),
+                )
+              : ListTile(
+                  leading: BookmarkFolderMembershipIcon(
+                    count: _membershipCounts[folder.id] ?? 0,
+                  ),
+                  title: Text(
+                    folder.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: const ExcludeSemantics(
+                    child: Icon(Icons.chevron_right),
+                  ),
+                  onTap: () => _openFolder(folder.id),
+                ),
+        ),
+      if (currentId == null) ...widget.homeChildren,
+      for (final group in _groups.where((g) => g.folderId == currentId))
+        widget.groupBuilder(context, group),
+      if (widget.footerBuilder case final footer?) ...[
+        if (widget.compact) const KurumiContextMenuDivider(),
+        footer(context, currentId),
+      ],
+    ];
+    if (widget.onCreateGroup == null && widget.pinnedFooter == null) {
+      return Material(
+        type: MaterialType.transparency,
+        child: ListView(
+          controller: _scrollController,
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          children: [...navigation, ...entries],
+        ),
+      );
+    }
     return Material(
       type: MaterialType.transparency,
-      child: ListView(
-        controller: _scrollController,
-        shrinkWrap: true,
-        padding: EdgeInsets.zero,
-        children: [
-          FolderBreadcrumbs(
-            tree: _tree,
-            currentId: currentId,
-            onOpen: _openFolder,
-          ),
-          if (current != null || widget.onRootBack != null) ...[
-            if (widget.compact)
-              BookmarkPickerMenuItem(
-                icon: const Icon(Icons.arrow_back),
-                title: context.t.generic.action.back,
-                hideOnTap: false,
-                onTap: current == null
-                    ? widget.onRootBack!
-                    : () => _openFolder(current.parentId),
-              )
-            else
-              ListTile(
-                leading: const Icon(Icons.arrow_back),
-                title: Text(context.t.generic.action.back),
-                onTap: current == null
-                    ? widget.onRootBack
-                    : () => _openFolder(current.parentId),
+      child: LayoutBuilder(
+        builder: (context, constraints) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Each region stays reachable even with enlarged text in a short window.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: constraints.maxHeight * .4,
               ),
-            if (widget.compact) const KurumiContextMenuDivider(),
-          ],
-          for (final folder in bookmarkFoldersByName(_tree.children(currentId)))
-            MergeSemantics(
-              child: widget.compact
-                  ? BookmarkPickerMenuItem(
-                      icon: BookmarkFolderMembershipIcon(
-                        count: _membershipCounts[folder.id] ?? 0,
-                      ),
-                      title: folder.name,
-                      trailing: const ExcludeSemantics(
-                        child: Icon(Icons.chevron_right),
-                      ),
-                      hideOnTap: false,
-                      onTap: () => _openFolder(folder.id),
-                    )
-                  : ListTile(
-                      leading: BookmarkFolderMembershipIcon(
-                        count: _membershipCounts[folder.id] ?? 0,
-                      ),
-                      title: Text(
-                        folder.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: const ExcludeSemantics(
-                        child: Icon(Icons.chevron_right),
-                      ),
-                      onTap: () => _openFolder(folder.id),
-                    ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: navigation,
+                ),
+              ),
             ),
-          if (currentId == null) ...widget.homeChildren,
-          for (final group in _groups.where((g) => g.folderId == currentId))
-            widget.groupBuilder(context, group),
-          if (widget.footerBuilder case final footer?) ...[
-            if (widget.compact) const KurumiContextMenuDivider(),
-            footer(context, currentId),
+            Flexible(
+              flex: 3,
+              child: ListView(
+                key: const ValueKey('bookmark-picker-hierarchy'),
+                controller: _scrollController,
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                children: entries,
+              ),
+            ),
+            if (widget.pinnedFooter case final footer?)
+              Flexible(
+                flex: 2,
+                child: SingleChildScrollView(
+                  key: const ValueKey('bookmark-picker-recent'),
+                  child: footer,
+                ),
+              ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -233,6 +330,7 @@ class BookmarkPickerMenuItem extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.trailing,
+    this.detail,
     this.hideOnTap = true,
     super.key,
   });
@@ -240,7 +338,8 @@ class BookmarkPickerMenuItem extends StatelessWidget {
   final String title;
   final Widget icon;
   final Widget? trailing;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final String? detail;
   final bool hideOnTap;
 
   @override
@@ -249,11 +348,10 @@ class BookmarkPickerMenuItem extends StatelessWidget {
       data: const IconThemeData(size: 20),
       child: icon,
     ),
-    title: Text(
-      title,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+    title: BookmarkPickerLabel(
+      label: title,
+      detail: detail,
+      enabled: onTap != null,
     ),
     trailing: trailing == null
         ? null
@@ -264,4 +362,61 @@ class BookmarkPickerMenuItem extends StatelessWidget {
     hideOnTap: hideOnTap,
     onTap: onTap,
   );
+}
+
+/// Inline metadata shares the group's baseline and the remaining row width.
+class BookmarkPickerLabel extends StatelessWidget {
+  const BookmarkPickerLabel({
+    required this.label,
+    this.detail,
+    this.enabled = true,
+    super.key,
+  });
+
+  final String label;
+  final String? detail;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final title = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: enabled ? theme.colorScheme.onSurface : theme.disabledColor,
+      ),
+    );
+    final detail = this.detail;
+    if (detail == null) return title;
+    return LayoutBuilder(
+      builder: (context, constraints) => Row(
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth / 2),
+            child: title,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Tooltip(
+              message: detail,
+              child: Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color:
+                      theme.dividerTheme.color ??
+                      theme.colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

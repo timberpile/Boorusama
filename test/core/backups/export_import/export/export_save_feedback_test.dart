@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/backups/export_import/export/export_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/export/export_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/export/export_save_service.dart';
@@ -25,6 +27,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           exportImportSourcesProvider.overrideWithValue(const []),
           exportSelectionPresentationProvider.overrideWithValue(
             const ExportSelectionPresentation(items: {}),
@@ -40,7 +43,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final editButton = find.byTooltip('Edit file name');
+    final editButton = find.byTooltip('Edit File Name');
     await tester.ensureVisible(editButton);
     await tester.tap(editButton);
     await tester.pumpAndSettle();
@@ -95,6 +98,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             exportImportSourcesProvider.overrideWithValue(const []),
             exportSelectionPresentationProvider.overrideWithValue(
               const ExportSelectionPresentation(items: {}),

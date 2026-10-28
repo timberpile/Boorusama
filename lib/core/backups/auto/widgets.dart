@@ -9,6 +9,7 @@ import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
 import '../../settings/providers.dart';
 import '../zip/providers.dart';
+import 'failure.dart';
 import 'providers.dart';
 import 'repo_android.dart';
 import 'types.dart';
@@ -119,16 +120,15 @@ class AutoBackupSection extends ConsumerWidget {
                                 settings.copyWith(userSelectedPath: () => path),
                               );
                             }
-                          } catch (_) {
+                          } catch (error) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    context
-                                        .t
-                                        .settings
-                                        .auto_backup
-                                        .folder_access_error,
+                                    _autoBackupFailureMessage(
+                                      context,
+                                      AutoBackupFailure.fromError(error),
+                                    ),
                                   ),
                                 ),
                               );
@@ -166,11 +166,11 @@ class AutoBackupSection extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 child: Text(context.t.settings.auto_backup.folder_access_hint),
               ),
-            if (ref.watch(autoBackupFailureProvider))
+            if (ref.watch(autoBackupFailureProvider) case final failure?)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  context.t.settings.auto_backup.folder_access_error,
+                  _autoBackupFailureMessage(context, failure),
                   style: TextStyle(color: colorScheme.error),
                 ),
               ),
@@ -220,6 +220,18 @@ class AutoBackupSection extends ConsumerWidget {
       (s) => s.copyWith(autoBackup: newAutoBackup),
     );
   }
+}
+
+String _autoBackupFailureMessage(
+  BuildContext context,
+  AutoBackupFailure failure,
+) {
+  if (failure.requiresFolderAccess) {
+    final message = context.t.settings.auto_backup.folder_access_error;
+    return failure.stage == null ? message : '$message\n[${failure.stage}]';
+  }
+  return context.t.settings.backup_and_restore.export_operation_failed
+      .replaceAll('{error}', failure.diagnostic);
 }
 
 class _SelectLocationRequestBanner extends StatelessWidget {
@@ -283,7 +295,7 @@ class _StatusTile extends ConsumerWidget {
 
     final needsBackup =
         settings.shouldBackup(ref.watch(appPlatformProvider)) ||
-        ref.watch(autoBackupFailureProvider);
+        ref.watch(autoBackupFailureProvider) != null;
 
     return Padding(
       padding: const EdgeInsets.all(16),

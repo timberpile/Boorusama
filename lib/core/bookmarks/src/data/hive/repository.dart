@@ -3,6 +3,7 @@ import 'package:foundation/foundation.dart';
 import 'package:hive_ce/hive.dart';
 
 // Project imports:
+import '../../../../../foundation/loggers/logger.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/bookmark.dart';
@@ -14,9 +15,11 @@ class BookmarkHiveRepository implements BookmarkRepository {
   const BookmarkHiveRepository(
     this._box, {
     this.postDataCodec,
+    this.logger,
   });
 
   final Box<BookmarkHiveObject> _box;
+  final Logger? logger;
   final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
   Future<void> close() => _box.close();
@@ -78,6 +81,7 @@ class BookmarkHiveRepository implements BookmarkRepository {
             objects,
             imageUrlResolver,
             postDataCodec,
+            logger,
           ),
         ),
       );

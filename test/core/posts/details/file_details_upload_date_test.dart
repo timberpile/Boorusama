@@ -30,7 +30,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Upload date'), findsOneWidget);
+    expect(find.text('Upload Date'), findsOneWidget);
     expect(find.text(createdAt.fuzzify()), findsOneWidget);
   });
 
@@ -41,7 +41,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Upload date'), findsNothing);
+    expect(find.text('Upload Date'), findsNothing);
   });
 }
 

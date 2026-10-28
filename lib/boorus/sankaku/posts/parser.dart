@@ -49,6 +49,10 @@ Post postDtoToPost(
       .toList();
 
   final timestamp = e.createdAt?.s;
+  final nanos = e.createdAt?.n;
+  final subsecondMicros = nanos != null && nanos >= 0 && nanos < 1000000000
+      ? nanos ~/ 1000
+      : 0;
 
   final (id, sankakuId) = switch (e.id) {
     // No id, so we generate a pseudo id for shared post plumbing.
@@ -68,7 +72,7 @@ Post postDtoToPost(
     sampleImageUrl: e.sampleUrl ?? '',
     originalImageUrl: e.fileUrl ?? '',
     tags: e.tags?.map((e) => e.tagName).nonNulls.toSet() ?? {},
-    rating: Rating.parse(e.rating),
+    rating: Rating.parseLegacy(e.rating),
     hasComment: e.hasComments ?? false,
     isTranslated: false,
     hasParentOrChildren: hasParentOrChildren,
@@ -94,10 +98,11 @@ Post postDtoToPost(
     generalDetailsTags: generalTags,
     metaDetailsTags: metaTags,
     createdAt: timestamp != null
-        ? DateTime.fromMillisecondsSinceEpoch(timestamp * 1000)
+        ? DateTime.fromMicrosecondsSinceEpoch(
+            timestamp * Duration.microsecondsPerSecond + subsecondMicros,
+          )
         : null,
-    // uploaderId: e.author?.id,
-    uploaderId: 0, // The id is now a string
+    uploaderId: null, // Source account IDs may be strings.
     uploaderName: e.author?.name,
     metadata: metadata,
     status: StringPostStatus.tryParse(e.status),
@@ -105,6 +110,16 @@ Post postDtoToPost(
   return sankakuPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.sankaku),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.fileSize,
+      originalWidth: e.width?.toDouble(),
+      originalHeight: e.height?.toDouble(),
+      originalFormat: extractFileExtension(e.fileType, fileUrl: e.fileUrl),
+      score: e.totalScore,
+      favoriteCount: e.favCount,
+      commentCount: e.commentCount,
+    ),
   );
 }
 

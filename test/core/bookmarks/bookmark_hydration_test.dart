@@ -93,8 +93,7 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  Future<List<Bookmark>> load() async =>
-      (await library.load(const BookmarkTarget.defaultGroup())).items;
+  Future<List<Bookmark>> load() async => (await library.load()).items;
   BookmarkRecoveryService recovery({
     Future<Post?> Function(BooruConfig, int)? fetch,
     bool codecAvailable = true,

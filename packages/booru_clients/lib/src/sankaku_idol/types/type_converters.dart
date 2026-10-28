@@ -4,6 +4,7 @@ import 'post_dto.dart';
 extension PostIdolDtoConverter on PostIdolDto {
   PostDto toSankakuPost() => PostDto(
     id: SankakuId.maybeFrom(id),
+    createdAt: _sourceCreatedAt(createdAt),
     rating: rating,
     status: status,
     sampleUrl: sampleUrl,
@@ -48,5 +49,16 @@ extension TagIdolDtoConverter on TagIdolDto {
     type: type,
     count: count,
     rating: rating,
+  );
+}
+
+CreatedAtDto? _sourceCreatedAt(String? value) {
+  final date = value == null ? null : DateTime.tryParse(value);
+  if (date == null) return null;
+  final micros = date.microsecondsSinceEpoch;
+  final seconds = (micros / Duration.microsecondsPerSecond).floor();
+  return CreatedAtDto(
+    s: seconds,
+    n: (micros - seconds * Duration.microsecondsPerSecond) * 1000,
   );
 }

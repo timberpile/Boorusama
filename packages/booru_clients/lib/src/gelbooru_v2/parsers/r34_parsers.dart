@@ -20,6 +20,7 @@ GelbooruV2Posts parseR34PostsApi(
   }
 
   final baseUrl = context['baseUrl'] as String? ?? '';
+  final requireIdentity = requiresPostIdentityValidation(response);
   final posts = data
       .map((item) {
         if (item is! Map<String, dynamic>) {
@@ -27,7 +28,9 @@ GelbooruV2Posts parseR34PostsApi(
         }
         return PostV2Dto.fromJson(item, baseUrl);
       })
-      .where((post) => post.hash != null)
+      .where(
+        (post) => requireIdentity || post.hash != null,
+      )
       .toList();
 
   return GelbooruV2Posts(posts: posts, count: null);

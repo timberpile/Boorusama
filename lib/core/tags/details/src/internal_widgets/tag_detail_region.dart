@@ -14,8 +14,10 @@ class TagDetailsRegion extends ConsumerWidget {
     required this.builder,
     required this.detailsBuilder,
     super.key,
+    this.showBackButton = true,
   });
 
+  final bool showBackButton;
   final Widget Function(BuildContext context) builder;
   final Widget Function(BuildContext context) detailsBuilder;
 
@@ -34,21 +36,23 @@ class TagDetailsRegion extends ConsumerWidget {
                   child: SingleChildScrollView(
                     child: SafeArea(
                       left: false,
+                      top: showBackButton,
                       child: Column(
                         children: [
-                          Row(
-                            children: [
-                              IconButton(
-                                iconSize: 28,
-                                splashRadius: 24,
-                                icon: const Icon(
-                                  Symbols.close,
+                          if (showBackButton)
+                            Row(
+                              children: [
+                                IconButton(
+                                  iconSize: 28,
+                                  splashRadius: 24,
+                                  icon: const Icon(
+                                    Symbols.close,
+                                  ),
+                                  onPressed: () => Navigator.of(context).pop(),
                                 ),
-                                onPressed: () => Navigator.of(context).pop(),
-                              ),
-                              const Spacer(),
-                            ],
-                          ),
+                                const Spacer(),
+                              ],
+                            ),
                           detailsBuilder(context),
                         ],
                       ),

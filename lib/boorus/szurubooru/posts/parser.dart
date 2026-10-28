@@ -45,7 +45,7 @@ Post postDtoToPost(
       'questionable' => Rating.questionable,
       'sketchy' => Rating.questionable,
       'unsafe' => Rating.explicit,
-      _ => Rating.general,
+      _ => Rating.unknown,
     },
     hasComment: (e.commentCount ?? 0) > 0,
     isTranslated: (e.noteCount ?? 0) > 0,
@@ -75,5 +75,17 @@ Post postDtoToPost(
   return szurubooruPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.szurubooru),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.fileSize,
+      originalWidth: e.canvasWidth?.toDouble(),
+      originalHeight: e.canvasHeight?.toDouble(),
+      originalFormat:
+          originalFormatFromMime(e.mimeType) ??
+          originalFormatFromUrl(e.contentUrl),
+      score: e.score,
+      favoriteCount: e.favoriteCount,
+      commentCount: e.commentCount,
+    ),
   );
 }

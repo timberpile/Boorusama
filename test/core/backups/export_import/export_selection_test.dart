@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,7 @@ void main() {
     final catalogRevision = StateProvider<int>((ref) => 0);
     final container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         exportImportSourcesProvider.overrideWith((ref) {
           ref.watch(catalogRevision);
           return [const _NestedSource()];
@@ -155,6 +158,7 @@ void main() {
   test('selecting a folder stores only its dynamic subtree identity', () {
     final container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         exportImportSourcesProvider.overrideWithValue(const [_NestedSource()]),
       ],
     );
@@ -176,6 +180,7 @@ void main() {
   test('deselecting a nested leaf expands its selected ancestor safely', () {
     final container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         exportImportSourcesProvider.overrideWithValue(const [_NestedSource()]),
       ],
     );

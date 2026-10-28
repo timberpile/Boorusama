@@ -386,7 +386,7 @@ void main() {
       const Duration(seconds: 5),
     );
     expect(calls, 2);
-    await tester.tap(find.text('Choose another profile'));
+    await tester.tap(find.text('Choose Another Profile'));
     await tester.pumpAndSettle(
       const Duration(milliseconds: 100),
       EnginePhase.sendSemanticsUpdate,

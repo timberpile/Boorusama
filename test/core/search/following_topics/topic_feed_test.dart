@@ -4,14 +4,19 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/defaults/widgets.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/downloads/filename/providers.dart';
+import 'package:boorusama/core/downloads/filename/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:boorusama/core/posts/details/routes.dart';
 import 'package:boorusama/core/posts/details_parts/types.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/post/providers.dart';
+import 'package:foundation/foundation.dart';
 import 'package:boorusama/core/posts/post/widgets.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
@@ -31,12 +36,159 @@ import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import 'following_topic_test_utils.dart';
+import '../../../application/support/fake_image_dio.dart';
 import 'topic_test_utils.dart';
 
 void main() {
   late FollowingTopicHarness harness;
   setUp(() => harness = FollowingTopicHarness());
   tearDown(() => harness.dispose());
+
+  testWidgets('cached filtering suppresses history and clearing restores it', (
+    tester,
+  ) async {
+    var historyRequests = 0;
+    harness.dispose();
+    harness = FollowingTopicHarness(
+      profiles: [testProfile, _feedConfig],
+      postCapability: _feedCapability,
+      overrides: [
+        deterministicFaviconDioOverride(),
+        originAwarePostRepoProvider.overrideWith(
+          (ref, config) => TestSearchPostRepository((query, page, limit) async {
+            historyRequests++;
+            return Either.of(
+              const PostResult<Post>(
+                posts: [],
+                total: null,
+                hasMore: false,
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+    final feed = await harness.repository.saveFeed(
+      profileId: _feedConfig.id,
+      name: 'Cached',
+      queries: ['cat'],
+    );
+    final source = (await harness.repository.getById(feed.sourceIds.single))!;
+    final cat = feedPostSnapshotFromPost(
+      _feedPost(42),
+      dataCodec: const GelbooruV2PostCodec(),
+    );
+    final dog = feedPostSnapshotFromPost(
+      _feedPost(41),
+      dataCodec: const GelbooruV2PostCodec(),
+    );
+    await harness.repository.commitRefresh(
+      SearchRefreshCommit(
+        topicId: source.id,
+        expectedCreatedAt: source.createdAt,
+        expectedCheckpoint: null,
+        startedAt: checkedAt,
+        identityRetentionBoundary: checkedAt,
+        baseline: true,
+        discoveredPosts: const [],
+        feedPosts: [
+          cat,
+          StoredPostSnapshot(
+            origin: dog.origin,
+            common: {
+              ...dog.common,
+              'tags': const ['dog'],
+            },
+            custom: dog.custom,
+            codecVersion: dog.codecVersion,
+          ),
+        ],
+      ),
+    );
+    await harness.container.read(followingTopicsProvider.future);
+    await harness.pump(
+      tester,
+      TopicFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+    );
+    final before = await harness.repository.getById(source.id);
+    PostGridController<Post> controller() =>
+        tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>)).controller;
+    expect(controller().items.map((post) => post.id), [42, 41]);
+    expect(
+      find.byKey(const ValueKey('cached-feed-filter-input')),
+      findsNothing,
+    );
+    final toggle = find.byKey(const ValueKey('toggle-cached-feed-search'));
+    final toggleBounds = tester.getRect(toggle);
+    expect(
+      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
+      findsNothing,
+    );
+    await tester.tap(toggle);
+    await settle(tester);
+    expect(
+      find.descendant(of: toggle, matching: find.byIcon(Icons.search)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
+      findsOneWidget,
+    );
+    expect(tester.widget<IconButton>(toggle).tooltip, 'Close Search');
+    expect(tester.getRect(toggle), toggleBounds);
+    final field = find.descendant(
+      of: find.byKey(const ValueKey('cached-feed-filter-input')),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(field, 'cat');
+    await tester.pump();
+    expect(controller().items.map((post) => post.id), [42, 41]);
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await settle(tester);
+    expect(controller().items.map((post) => post.id), [42]);
+    final nextPage = await controller().fetcher(2).run();
+    nextPage.fold(
+      (error) => fail('$error'),
+      (result) {
+        expect(result.posts, isEmpty);
+        expect(result.hasMore, isFalse);
+      },
+    );
+    final pagination = controller().fetchMore();
+    await tester.pump(controller().debounceDuration);
+    await pagination;
+    await settle(tester);
+    expect(controller().items.map((post) => post.id), [42]);
+    expect(controller().hasMore, isFalse);
+    expect(historyRequests, 0);
+    expect(harness.requests, isEmpty);
+    expect(await harness.repository.getById(source.id), before);
+
+    await tester.enterText(field, 'missing');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await settle(tester);
+    expect(find.text('No cached posts match these filters.'), findsOneWidget);
+    expect(historyRequests, 0);
+    await tester.tap(toggle);
+    await settle(tester);
+    expect(
+      find.byKey(const ValueKey('cached-feed-filter-input')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
+      findsNothing,
+    );
+    expect(tester.getRect(toggle), toggleBounds);
+    expect(controller().items.map((post) => post.id), [42, 41]);
+    expect(controller().hasMore, isTrue);
+    await controller().fetcher(2).run();
+    expect(historyRequests, 1);
+    await tester.tap(toggle);
+    await settle(tester);
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+    expect(await harness.repository.getById(source.id), before);
+  });
 
   testWidgets(
     'mixed-site numeric collisions remain visible and selectable together',
@@ -48,6 +200,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig, otherSite],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -720,7 +879,7 @@ void main() {
       await harness.pump(tester, const FollowingTopicsPage());
       expect(find.text('Cats'), findsOneWidget);
       expect(find.text('dog'), findsNothing);
-      expect(find.byTooltip('Topic feeds'), findsNothing);
+      expect(find.byTooltip('Topic Feeds'), findsNothing);
       await harness.pump(tester, const TopicFeedsPage());
       expect(find.text('Animals'), findsOneWidget);
       expect(find.text('Birds'), findsOneWidget);
@@ -1119,6 +1278,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig, _otherFeedConfig],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -1181,6 +1347,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig, _otherFeedConfig],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),
@@ -1246,6 +1419,13 @@ void main() {
       harness = FollowingTopicHarness(
         profiles: [testProfile, _feedConfig],
         postCapability: _feedCapability,
+        // A presentation-only registry has no production download services.
+        // Supply the filename capability advertised by these action fixtures.
+        overrides: [
+          downloadFilenameBuilderProvider.overrideWith(
+            (_, _) => fallbackFileNameBuilder,
+          ),
+        ],
         listingSettings: Settings.defaultSettings.listing.copyWith(
           showPostListConfigHeader: false,
         ),

@@ -1,8 +1,12 @@
 // Project imports:
+import '../../../../../foundation/loggers/handled_error.dart';
+import '../../../../../foundation/loggers/logger.dart';
 import '../../../rating/types.dart';
+import '../../../../boorus/booru/types.dart';
 import '../../../sources/types.dart';
 import '../types/booru_post_data.dart';
 import '../types/post.dart';
+import '../types/post_detail_facts.dart';
 import '../types/post_core_data.dart';
 import '../types/post_origin.dart';
 import '../types/stored_post_snapshot.dart';
@@ -24,16 +28,19 @@ final class StoredPostDecodeSuccess extends StoredPostDecodeResult {
 }
 
 final class StoredPostDecodeFailure extends StoredPostDecodeResult {
-  const StoredPostDecodeFailure(this.reason, {this.error});
+  const StoredPostDecodeFailure(this.reason, {this.error, this.stackTrace});
 
   final StoredPostDecodeFailureReason reason;
   final Object? error;
+  final StackTrace? stackTrace;
 }
 
 final class StoredPostCodec {
-  const StoredPostCodec();
+  const StoredPostCodec({this.logger});
 
-  static const commonSchemaVersion = 1;
+  final Logger? logger;
+
+  static const commonSchemaVersion = 2;
 
   StoredPostSnapshot encode<D extends BooruPostData>(
     Post post, {
@@ -75,25 +82,31 @@ final class StoredPostCodec {
     late final PostOrigin origin;
     try {
       origin = PostOrigin.fromSnapshot(snapshot.origin);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _logDecodeFailure('decode_origin', error, stackTrace);
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.malformedOrigin,
         error: error,
+        stackTrace: stackTrace,
       );
     }
 
     final PostCoreData core;
     try {
-      core = _decodeCommon(snapshot.common);
-    } on _UnsupportedCommonVersion catch (error) {
+      core = _decodeCommon(snapshot.common, origin);
+    } on _UnsupportedCommonVersion catch (error, stackTrace) {
+      _logDecodeFailure('decode_common_version', error, stackTrace);
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.unsupportedCommonVersion,
         error: error,
+        stackTrace: stackTrace,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      _logDecodeFailure('decode_common', error, stackTrace);
       return StoredPostDecodeFailure(
         StoredPostDecodeFailureReason.malformedCommonData,
         error: error,
+        stackTrace: stackTrace,
       );
     }
 
@@ -101,6 +114,20 @@ final class StoredPostCodec {
 
     return StoredPostDecodeSuccess(
       Post(origin: origin, core: core, booruData: data),
+    );
+  }
+
+  void _logDecodeFailure(
+    String operation,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    logger?.handledError(
+      'Post Snapshot',
+      operation,
+      error: error,
+      stackTrace: stackTrace,
+      outcome: 'snapshot_rejected',
     );
   }
 
@@ -119,6 +146,11 @@ final class StoredPostCodec {
       );
     }
     if (snapshot.codecVersion > codec.currentVersion) {
+      logger?.warn(
+        'Post Snapshot',
+        'decode_custom:${origin.booruType.name}; unsupported_version=${snapshot.codecVersion}; '
+            'supported_version=${codec.currentVersion}; outcome=generic_post_retained',
+      );
       return UnknownPostData(
         typeKey: typeKey,
         schemaVersion: snapshot.codecVersion,
@@ -133,6 +165,11 @@ final class StoredPostCodec {
         version: snapshot.codecVersion,
       );
       if (!codec.supports(decoded) || decoded.typeKey != codec.typeKey) {
+        logger?.warn(
+          'Post Snapshot',
+          'decode_custom:${origin.booruType.name}; incompatible_payload; '
+              'outcome=generic_post_retained',
+        );
         return UnknownPostData(
           typeKey: typeKey,
           schemaVersion: snapshot.codecVersion,
@@ -141,7 +178,15 @@ final class StoredPostCodec {
         );
       }
       return decoded;
-    } catch (_) {
+    } catch (error, stackTrace) {
+      logger?.handledError(
+        'Post Snapshot',
+        'decode_custom:${origin.booruType.name}:v${snapshot.codecVersion}',
+        error: error,
+        stackTrace: stackTrace,
+        outcome: 'generic_post_retained',
+        level: LogLevel.warning,
+      );
       return UnknownPostData(
         typeKey: typeKey,
         schemaVersion: snapshot.codecVersion,
@@ -154,6 +199,7 @@ final class StoredPostCodec {
 
 Map<String, Object?> _encodeCommon(PostCoreData data) => {
   'schemaVersion': StoredPostCodec.commonSchemaVersion,
+  'detailFacts': data.detailFacts.toJson(),
   'id': data.id,
   'createdAt': ?data.createdAt?.toUtc().toIso8601String(),
   'thumbnailImageUrl': data.thumbnailImageUrl,
@@ -202,13 +248,16 @@ Map<String, Object?>? _encodeMetadata(PostMetadata? metadata) =>
       null => null,
     };
 
-PostCoreData _decodeCommon(Map<String, Object?> json) {
+PostCoreData _decodeCommon(Map<String, Object?> json, PostOrigin origin) {
   final version = json['schemaVersion'];
-  if (version != StoredPostCodec.commonSchemaVersion) {
+  if (version != 1 && version != StoredPostCodec.commonSchemaVersion) {
     throw _UnsupportedCommonVersion(version);
   }
 
   return PostCoreData(
+    detailFacts: version == 1
+        ? const PostDetailFacts()
+        : PostDetailFacts.fromJson(json['detailFacts']),
     id: _required<int>(json['id'], 'id'),
     createdAt: switch (json['createdAt']) {
       final String value => DateTime.parse(value),
@@ -248,7 +297,16 @@ PostCoreData _decodeCommon(Map<String, Object?> json) {
     artistTags: _optionalStringSet(json['artistTags']),
     characterTags: _optionalStringSet(json['characterTags']),
     copyrightTags: _optionalStringSet(json['copyrightTags']),
-    rating: Rating.parse(json['rating']),
+    rating:
+        version == 1 &&
+            const [
+              BooruType.philomena,
+              BooruType.hydrus,
+              BooruType.eshuushuu,
+              BooruType.zerochan,
+            ].contains(origin.booruType)
+        ? Rating.unknown
+        : Rating.parse(json['rating']),
     hasComment: _required<bool>(json['hasComment'], 'hasComment'),
     isTranslated: _required<bool>(json['isTranslated'], 'isTranslated'),
     hasParentOrChildren: _required<bool>(

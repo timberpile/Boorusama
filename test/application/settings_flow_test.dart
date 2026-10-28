@@ -37,7 +37,7 @@ void main() {
       await tester.pump();
       await harness.settle(tester);
 
-      final reduceAnimations = find.text('Reduce animations');
+      final reduceAnimations = find.text('Reduce Animations');
       await tester.ensureVisible(reduceAnimations);
       await tester.tap(reduceAnimations);
       await tester.pump();

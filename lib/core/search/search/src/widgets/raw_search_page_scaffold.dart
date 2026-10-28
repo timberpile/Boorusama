@@ -179,6 +179,7 @@ class _SearchPageScaffoldState<T extends Post>
 
     _controller.textController
         .textAsStream()
+        .startWith(_controller.textController.text)
         .pairwise()
         .listen((pair) {
           _onQueryChanged(pair.first, pair.last);

@@ -300,10 +300,10 @@ void main() {
         harness.container.read(followingTopicsProvider).valueOrNull,
         isNotNull,
       );
-      expect(find.byTooltip('Manage folders'), findsNothing);
+      expect(find.byTooltip('Manage Folders'), findsNothing);
       await tester.tap(pageOverflow());
       await settle(tester);
-      await tester.tap(find.text('Create folder'));
+      await tester.tap(find.text('Create Folder'));
       await settle(tester);
       await tester.enterText(find.byType(TextField), 'Animals');
       await tester.pump();
@@ -383,12 +383,12 @@ void main() {
       await settle(tester);
       await drain(tester);
       expect(find.text('Pets'), findsOneWidget);
-      await chooseFolderAction(tester, folderId, 'Move down');
+      await chooseFolderAction(tester, folderId, 'Move Down');
       expect(
         tester.getTopLeft(find.text('Other folder')).dy,
         lessThan(tester.getTopLeft(find.text('Pets')).dy),
       );
-      await chooseFolderAction(tester, folderId, 'Move up');
+      await chooseFolderAction(tester, folderId, 'Move Up');
       expect(
         tester.getTopLeft(find.text('Pets')).dy,
         lessThan(tester.getTopLeft(find.text('Other folder')).dy),
@@ -457,8 +457,8 @@ void main() {
         (id: otherId, moveUp: true, moveDown: false),
       ]) {
         await openFolderMenu(tester, c.id);
-        expect(actionItem(tester, 'Move up').enabled, c.moveUp);
-        expect(actionItem(tester, 'Move down').enabled, c.moveDown);
+        expect(actionItem(tester, 'Move Up').enabled, c.moveUp);
+        expect(actionItem(tester, 'Move Down').enabled, c.moveDown);
         await dismissMenu(tester);
       }
 
@@ -479,8 +479,8 @@ void main() {
           ),
         );
         await settle(tester);
-        expect(actionItem(tester, 'Move up').enabled, c.moveUp);
-        expect(actionItem(tester, 'Move down').enabled, c.moveDown);
+        expect(actionItem(tester, 'Move Up').enabled, c.moveUp);
+        expect(actionItem(tester, 'Move Down').enabled, c.moveDown);
         await dismissMenu(tester);
       }
     },
@@ -501,14 +501,14 @@ void main() {
         await notifier.moveTopicToSharedFolder('cats', folder.id);
       });
       await harness.pump(tester, const FollowingTopicsPage());
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      await tester.tap(find.text('Updates first'));
+      await tester.tap(find.text('Updates First'));
       await settle(tester);
       await drain(tester);
 
       await openFolderMenu(tester, folderId);
-      for (final label in ['Move up', 'Move down']) {
+      for (final label in ['Move Up', 'Move Down']) {
         expect(find.text(label), findsNothing);
       }
       await dismissMenu(tester);
@@ -522,7 +522,7 @@ void main() {
         ),
       );
       await settle(tester);
-      for (final label in ['Move up', 'Move down']) {
+      for (final label in ['Move Up', 'Move Down']) {
         expect(find.text(label), findsNothing);
       }
     },
@@ -691,7 +691,7 @@ void main() {
 
         await harness.pump(tester, const FollowingTopicsPage());
 
-        expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+        expect(find.text('Last Post: 2 hours ago'), findsOneWidget);
         expect(harness.requests, isEmpty);
       });
     },
@@ -701,12 +701,12 @@ void main() {
     (
       name: 'an empty folder',
       hasMember: false,
-      label: 'Last post: Not checked',
+      label: 'Last Post: Not checked',
     ),
     (
       name: 'a cached post without an upload time',
       hasMember: true,
-      label: 'Last post: No posts',
+      label: 'Last Post: No posts',
     ),
   ]) {
     testWidgets('${c.name} uses the matching search card Last post state', (

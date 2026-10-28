@@ -151,7 +151,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
     final bookmark = ref
         .watch(bookmarkProvider)
         .valueOrNull
-        ?.bookmarkForPost(post);
+        ?.storedBookmarkForPost(post);
     final config = switch (const PostOriginResolver().resolve(
       post.origin,
       ref.watch(booruConfigProvider),
@@ -186,11 +186,13 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
                 required: true,
                 widget: IconButton(
                   splashRadius: 16,
-                  onPressed: () => ref.bookmarks.downloadBookmarks(
-                    config.auth,
-                    config.download,
-                    [bookmark],
-                  ),
+                  onPressed: () async {
+                    await ref.bookmarks.downloadBookmarks(
+                      config.auth,
+                      config.download,
+                      [bookmark.copyWith(post: post)],
+                    );
+                  },
                   icon: const Icon(Symbols.download),
                 ),
                 title: context.t.download.download,

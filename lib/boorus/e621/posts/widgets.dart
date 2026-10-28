@@ -10,7 +10,6 @@ import '../../../core/posts/details_parts/widgets.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/search/search/routes.dart';
 import 'providers.dart';
-import 'post_data.dart';
 
 class E621ArtistSection extends ConsumerWidget {
   const E621ArtistSection({
@@ -20,9 +19,8 @@ class E621ArtistSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final post = InheritedPost.of<Post>(context);
-    final data = InheritedPost.presentationOf(context).data<E621PostData>();
 
-    final commentary = data?.description ?? '';
+    final commentary = post.detailFacts.description ?? '';
 
     return SliverToBoxAdapter(
       child: ArtistSection(

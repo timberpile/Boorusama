@@ -15,14 +15,21 @@ import '../providers/following_topics_notifier.dart';
 import '../types/following_topic.dart';
 import '../types/search_refresh.dart';
 import 'follow_topic_folder_picker.dart';
+import 'topic_modification_badge.dart';
+import 'update_original_topic_dialog.dart';
+import '../../../search/src/types/topic_search_origin.dart';
 import 'search_folder_dialog.dart';
+import 'follow_button_shape.dart';
 
 class FollowTopicButton extends ConsumerStatefulWidget {
   const FollowTopicButton({
     required this.query,
     this.queryStructure,
     this.originatingTopicId,
+    this.original,
+    this.onOpen,
     this.compact = false,
+    this.showCount = true,
     this.onFeedback,
     super.key,
   });
@@ -30,7 +37,10 @@ class FollowTopicButton extends ConsumerStatefulWidget {
   final String query;
   final SearchQueryStructure? queryStructure;
   final String? originatingTopicId;
+  final TopicSearchOrigin? original;
+  final Future<void> Function()? onOpen;
   final bool compact;
+  final bool showCount;
   final ValueChanged<String?>? onFeedback;
 
   @override
@@ -44,8 +54,9 @@ class _FollowTopicButtonState extends ConsumerState<FollowTopicButton> {
   @override
   void didUpdateWidget(covariant FollowTopicButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.query != widget.query ||
-        oldWidget.originatingTopicId != widget.originatingTopicId) {
+    if (!_busy &&
+        (oldWidget.query != widget.query ||
+            oldWidget.originatingTopicId != widget.originatingTopicId)) {
       _operationRevision++;
       _busy = false;
       widget.onFeedback?.call(null);
@@ -53,12 +64,17 @@ class _FollowTopicButtonState extends ConsumerState<FollowTopicButton> {
   }
 
   Future<void> _open() async {
+    if (_busy) return;
     final revision = ++_operationRevision;
     final profileId = ref.readConfig.id;
     final query = widget.query;
     setState(() => _busy = true);
     widget.onFeedback?.call(null);
     try {
+      if (widget.onOpen case final open?) {
+        await open();
+        return;
+      }
       await showTopicFollowFlow(
         context,
         ref,
@@ -95,7 +111,15 @@ class _FollowTopicButtonState extends ConsumerState<FollowTopicButton> {
     );
     return TopicFollowPill(
       count: matches.valueOrNull?.length ?? 0,
+      modified:
+          widget.original?.isModified(
+            profileId,
+            widget.query,
+            widget.queryStructure,
+          ) ??
+          false,
       compact: widget.compact,
+      showCount: widget.showCount,
       busy: _busy || topics.isLoading,
       onPressed: _busy || !topics.hasValue ? null : _open,
     );
@@ -107,13 +131,17 @@ class TopicFollowPill extends StatelessWidget {
     required this.count,
     required this.onPressed,
     this.compact = false,
+    this.showCount = true,
     this.busy = false,
+    this.modified = false,
     super.key,
   });
 
   final int count;
   final bool compact;
+  final bool showCount;
   final bool busy;
+  final bool modified;
   final VoidCallback? onPressed;
 
   @override
@@ -135,36 +163,46 @@ class TopicFollowPill extends StatelessWidget {
         Flexible(
           child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
-        if (following) ...[
+        if (following && showCount) ...[
           SizedBox(width: compact ? 4 : 8),
           Badge(label: Text('$count')),
         ],
       ],
     );
+    final semanticLabel = following && showCount ? '$label, $count' : label;
     return Semantics(
       button: true,
-      label: following ? '$label, $count' : label,
+      label: modified
+          ? '$semanticLabel, ${strings.original_modified}'
+          : semanticLabel,
       child: Tooltip(
-        message: label,
-        child: following
-            ? FilledButton.tonal(
-                onPressed: onPressed,
-                style: FilledButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  minimumSize: const Size(64, 48),
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
+        message: modified ? '$label, ${strings.original_modified}' : label,
+        child: TopicModificationBadge(
+          modified: modified,
+          child: following
+              ? FilledButton.tonal(
+                  onPressed: onPressed,
+                  style: FilledButton.styleFrom(
+                    shape: followButtonShape,
+                    minimumSize: const Size(64, 48),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 12 : 16,
+                    ),
+                  ),
+                  child: child,
+                )
+              : FilledButton(
+                  onPressed: onPressed,
+                  style: FilledButton.styleFrom(
+                    shape: followButtonShape,
+                    minimumSize: const Size(64, 48),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 12 : 16,
+                    ),
+                  ),
+                  child: child,
                 ),
-                child: child,
-              )
-            : FilledButton(
-                onPressed: onPressed,
-                style: FilledButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  minimumSize: const Size(64, 48),
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 16),
-                ),
-                child: child,
-              ),
+        ),
       ),
     );
   }
@@ -178,6 +216,8 @@ Future<void> showTopicFollowFlow(
   SearchQueryStructure? queryStructure,
   String? originatingTopicId,
   String? initialFolderId,
+  TopicSearchOrigin? original,
+  ValueChanged<TopicSearchOrigin?>? onOriginChanged,
   ValueChanged<String?>? onFeedback,
 }) async {
   final state = ref.read(followingTopicsProvider).valueOrNull;
@@ -193,10 +233,27 @@ Future<void> showTopicFollowFlow(
             ? <String?>{}
             : <String?>{initialFolderId}
       : previousDestinations;
+  final updateProfile = ref.readConfig;
+  TopicSearchOrigin? updatedOriginal;
   final selectedDestinations = await showFollowTopicFolderPickerDialog(
     context,
     query: query,
     selectedFolderIds: initialDestinations,
+    onUpdateOriginal:
+        original != null &&
+            original.isModified(profileId, query, queryStructure)
+        ? () async {
+            updatedOriginal = await showUpdateOriginalTopicDialog(
+              context,
+              original: original,
+              profile: updateProfile,
+              query: query,
+              structure: queryStructure,
+              onFeedback: (message) => onFeedback?.call(message),
+            );
+            return updatedOriginal != null;
+          }
+        : null,
     onCreateFolder: (parentId) async {
       final name = await showSearchFolderNameDialog(context);
       if (name == null || !context.mounted) return null;
@@ -206,14 +263,29 @@ Future<void> showTopicFollowFlow(
     },
   );
   if (selectedDestinations == null || !context.mounted) return;
+  if (selectedDestinations is UpdatedOriginalTopic) {
+    onOriginChanged?.call(updatedOriginal);
+    Kurumi.showSuccessToast(context, context.t.following_topics.edit_updated);
+    return;
+  }
+  if (selectedDestinations is! FollowTopicDestinations) return;
   try {
     final notifier = ref.read(followingTopicsProvider.notifier);
     final result = await notifier.setFollowDestinations(
       profileId: profileId,
       query: query,
       queryStructure: queryStructure,
-      folderIds: selectedDestinations,
+      folderIds: selectedDestinations.folders,
     );
+    // Only a newly created, unambiguous Topic becomes this timeline's owner.
+    // Existing matches and destination removals do not choose an origin.
+    if (result.added.length == 1) {
+      onOriginChanged?.call(
+        TopicSearchOrigin(topic: result.added.single, profile: updateProfile),
+      );
+    } else if (result.added.length > 1) {
+      onOriginChanged?.call(null);
+    }
     onFeedback?.call(null);
     if (_trackingSupported(ref, profileId)) {
       for (final topic in result.added) {
@@ -295,12 +367,14 @@ Future<void> showTopicFolderFollowDialog(
           .createSharedFolder(name, parentId: parentId);
     },
   );
-  if (selectedDestinations == null || !context.mounted) return;
+  if (selectedDestinations is! FollowTopicDestinations || !context.mounted) {
+    return;
+  }
   final notifier = container.read(followingTopicsProvider.notifier);
   final result = await notifier.setFollowDestinations(
     profileId: profileId,
     query: query,
-    folderIds: selectedDestinations,
+    folderIds: selectedDestinations.folders,
   );
   if (result.added.isNotEmpty) {
     final profile = container

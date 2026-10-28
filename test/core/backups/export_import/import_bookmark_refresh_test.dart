@@ -1,4 +1,8 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import '../../search/following_topics/topic_test_utils.dart';
+
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +75,7 @@ void main() {
   ProviderContainer createContainer() {
     final container = ProviderContainer(
       overrides: [
+        loggerProvider.overrideWithValue(AppLogger()),
         bookmarkRepoProvider.overrideWith((ref) => bookmarkRepository),
         bookmarkGroupRepoProvider.overrideWith((ref) => groupRepository),
         bookmarkUrlResolverProvider.overrideWith(

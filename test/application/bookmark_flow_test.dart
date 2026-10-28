@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import 'package:boorusama/core/posts/details_parts/widgets.dart';
 
 import '../support/boorusama_test_runtime.dart';
@@ -36,12 +37,32 @@ void main() {
           description: 'bookmark action to become available',
         );
         await tester.tap(bookmarkButton);
-        await harness.pumpUntil(tester, () => repository.bookmarks.length == 1);
+        await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+        expect(repository.bookmarks, isEmpty);
+        final defaultGroup = find.descendant(
+          of: find.byType(BookmarkGroupPicker),
+          matching: find.text(appStrings(tester).bookmark.groups.default_group),
+        );
+        await tester.tap(defaultGroup.first);
+        await harness.pumpUntil(
+          tester,
+          () =>
+              repository.bookmarks.length == 1 &&
+              find.byType(BookmarkGroupPicker).evaluate().isEmpty,
+        );
 
         expect(repository.bookmarks, hasLength(1));
 
         await tester.tap(bookmarkButton);
-        await harness.pumpUntil(tester, () => repository.bookmarks.isEmpty);
+        await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+        expect(repository.bookmarks, hasLength(1));
+        await tester.tap(defaultGroup.first);
+        await harness.pumpUntil(
+          tester,
+          () =>
+              repository.bookmarks.isEmpty &&
+              find.byType(BookmarkGroupPicker).evaluate().isEmpty,
+        );
         await tester.pump(const Duration(seconds: 5));
 
         expect(repository.bookmarks, isEmpty);

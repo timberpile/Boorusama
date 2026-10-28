@@ -22,7 +22,6 @@ void main() {
       upserts: [changed],
       groups: base.groups,
       folders: base.folders,
-      activeTarget: base.activeTarget,
     );
     for (var i = 0; i < 10; i++) {
       expect(publish().bookmarksById[changed.id], same(changed));

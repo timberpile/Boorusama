@@ -25,6 +25,7 @@ class ArtistSection extends ConsumerStatefulWidget {
     required this.artistTags,
     required this.source,
     this.inlineAction,
+    this.onArtistTap,
     super.key,
   });
 
@@ -32,6 +33,7 @@ class ArtistSection extends ConsumerStatefulWidget {
   final Set<String> artistTags;
   final PostSource source;
   final Widget? inlineAction;
+  final ValueChanged<String>? onArtistTap;
 
   @override
   ConsumerState<ArtistSection> createState() => _ArtistSectionState();
@@ -49,10 +51,19 @@ class _ArtistSectionState extends ConsumerState<ArtistSection> {
   }
 
   ArtistCommentary get commentary => widget.commentary;
-  Set<String> get artistTags => widget.artistTags;
+  Set<String> get artistTags =>
+      widget.artistTags.where((tag) => tag.trim().isNotEmpty).toSet();
 
   @override
   Widget build(BuildContext context) {
+    final url = widget.source.url;
+    final uri = Uri.tryParse(url ?? '');
+    final usableUrl =
+        uri != null &&
+            (uri.scheme == 'https' || uri.scheme == 'http') &&
+            uri.host.isNotEmpty
+        ? url
+        : null;
     return Container(
       padding: const EdgeInsets.only(
         bottom: 8,
@@ -60,26 +71,15 @@ class _ArtistSectionState extends ConsumerState<ArtistSection> {
       child: Wrap(
         children: [
           if (artistTags.isNotEmpty)
-            switch (widget.source) {
-              final WebSource source => _Link(
-                commentary: commentary,
-                display: display,
-                artistTags: artistTags,
-                url: source.url,
-                inlineAction: widget.inlineAction,
-                onChanged: onChanged,
-              ),
-              NonWebSource _ => _Link(
-                commentary: commentary,
-                display: display,
-                artistTags: artistTags,
-                inlineAction: widget.inlineAction,
-                onChanged: onChanged,
-              ),
-              _ => widget.inlineAction ?? const SizedBox.shrink(),
-            }
-          else
-            const SizedBox.shrink(),
+            _Link(
+              commentary: commentary,
+              display: display,
+              artistTags: artistTags,
+              url: usableUrl,
+              inlineAction: widget.inlineAction,
+              onArtistTap: widget.onArtistTap,
+              onChanged: onChanged,
+            ),
           KurumiAnimatedCrossFade(
             firstChild: const SizedBox.shrink(),
             secondChild: commentary.isEmpty
@@ -144,6 +144,7 @@ class _Link extends StatelessWidget {
     required this.artistTags,
     required this.onChanged,
     this.inlineAction,
+    this.onArtistTap,
     this.url,
   });
 
@@ -153,6 +154,7 @@ class _Link extends StatelessWidget {
   final String? url;
   final void Function(TranlationState state) onChanged;
   final Widget? inlineAction;
+  final ValueChanged<String>? onArtistTap;
 
   @override
   Widget build(BuildContext context) {
@@ -160,6 +162,52 @@ class _Link extends StatelessWidget {
       name: artistTags.first,
       title: Text(artistTags.join(' ')),
       url: url,
+      avatarBuilder: onArtistTap == null
+          ? null
+          : (avatar) {
+              final label = context.t.post.action.view_artist;
+              if (artistTags.length == 1) {
+                final artist = artistTags.single;
+                return IconButton(
+                  tooltip: '$label: $artist',
+                  padding: const EdgeInsets.all(4),
+                  iconSize: 40,
+                  icon: avatar,
+                  onPressed: () => onArtistTap!(artist),
+                );
+              }
+              final artists = artistTags.toList()..sort();
+              return Tooltip(
+                message: label,
+                child: KurumiPopupMenuButton(
+                  semanticLabel: label,
+                  maxWidth: 320,
+                  items: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(context).height * .5,
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final artist in artists)
+                              KurumiPopupMenuItem(
+                                title: Text(artist),
+                                onTap: () => onArtistTap!(artist),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  child: SizedBox.square(
+                    dimension: 48,
+                    child: Center(child: avatar),
+                  ),
+                ),
+              );
+            },
       actionBuilder: () {
         final actions = <Widget>[
           if (commentary.isTranslated)

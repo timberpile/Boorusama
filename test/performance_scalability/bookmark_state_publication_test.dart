@@ -13,7 +13,6 @@ BookmarkLibraryState apply(
   removedIds: removed,
   groups: state.groups,
   folders: state.folders,
-  activeTarget: state.activeTarget,
 );
 
 void main() {
@@ -31,7 +30,6 @@ void main() {
                 group: base.groupsById[scalabilityGroupId]!.copyWith(
                   bookmarkIds: {1, 2},
                 ),
-                requestedTarget: base.activeTarget,
               )
             : apply(base, upserts: input);
         input.clear();
@@ -102,7 +100,6 @@ void main() {
     final next = base.applyCommittedChanges(
       groups: groups,
       folders: base.folders,
-      activeTarget: base.activeTarget,
     );
     expect(next.bookmarksById, same(base.bookmarksById));
     expect(next.bookmarksByUniqueId, same(base.bookmarksByUniqueId));

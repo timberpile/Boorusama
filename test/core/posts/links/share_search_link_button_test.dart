@@ -79,8 +79,8 @@ void main() {
     await tester.tap(find.byTooltip('Boorusama Link File'));
     await tester.pumpAndSettle();
     expect(calls, 1);
-    expect(find.text('Copy Boorusama search link'), findsNothing);
-    expect(find.text('Share Boorusama search link'), findsNothing);
+    expect(find.text('Copy Boorusama Search Link'), findsNothing);
+    expect(find.text('Share Boorusama Search Link'), findsNothing);
     expect(find.byType(PopupMenuButton), findsNothing);
   });
 

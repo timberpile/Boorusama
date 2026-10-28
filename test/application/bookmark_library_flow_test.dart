@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:oktoast/oktoast.dart';
 
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_page.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
@@ -35,7 +37,7 @@ void main() {
       await _waitForSourcePost(harness, tester, 101);
       final driver = AppFlowDriver(tester: tester, harness: harness);
       await driver.openPost(101);
-      await _tapBookmark(tester);
+      await _tapBookmark(tester, harness);
       await harness.pumpUntil(
         tester,
         () => store.bookmarkRepository.bookmarks.length == 1,
@@ -105,7 +107,7 @@ void main() {
 
     await _waitForSourcePost(harness, tester, 101);
     await AppFlowDriver(tester: tester, harness: harness).openPost(101);
-    await _tapBookmark(tester);
+    await _tapBookmark(tester, harness);
     await harness.pumpUntil(
       tester,
       () => store.bookmarkRepository.bookmarks.length == 1,
@@ -147,7 +149,7 @@ void main() {
       await _waitForSourcePost(harness, tester, 101);
       final driver = AppFlowDriver(tester: tester, harness: harness);
       await driver.openPost(101);
-      await _tapBookmark(tester);
+      await _tapBookmark(tester, harness);
       await harness.pumpUntil(
         tester,
         () => store.bookmarkRepository.bookmarks.length == 1,
@@ -158,7 +160,7 @@ void main() {
       await harness.pumpUntilFound(tester, find.byType(PostGrid<Post>));
       await driver.openPost(101);
       expect(_bookmarkFilled(tester), isTrue);
-      await _tapBookmark(tester);
+      await _tapBookmark(tester, harness);
       await harness.pumpUntil(
         tester,
         () => store.bookmarkRepository.bookmarks.isEmpty,
@@ -166,7 +168,7 @@ void main() {
       );
       expect(_bookmarkFilled(tester), isFalse);
 
-      await _tapBookmark(tester);
+      await _tapBookmark(tester, harness);
       await harness.pumpUntil(
         tester,
         () => store.bookmarkRepository.bookmarks.length == 1,
@@ -207,7 +209,7 @@ void main() {
       await _waitForSourcePost(harness, tester, 101);
       final driver = AppFlowDriver(tester: tester, harness: harness);
       await driver.openPost(101);
-      await _tapBookmark(tester);
+      await _tapBookmark(tester, harness);
       await harness.pumpUntil(
         tester,
         () => store.bookmarkRepository.bookmarks.length == 1,
@@ -219,7 +221,7 @@ void main() {
       await driver.selectProfile(profileB);
       await harness.pumpUntilFound(tester, listingPostWithTag('site_b_marker'));
       await driver.openPost(101);
-      await _tapBookmark(tester);
+      await _tapBookmark(tester, harness);
       await harness.pumpUntil(
         tester,
         () => store.bookmarkRepository.bookmarks.length == 2,
@@ -313,41 +315,44 @@ Future<void> _waitForSourcePost(
   description: 'source post $id to render',
 );
 
-Future<void> _tapBookmark(WidgetTester tester) async {
+Future<void> _tapBookmark(
+  WidgetTester tester,
+  HeadlessAppHarness harness,
+) async {
   final bookmarkButton = find.descendant(
     of: find.byType(BookmarkPostButton),
     matching: find.byType(IconButton),
   );
   await tester.tap(bookmarkButton);
+  await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+  final defaultGroup = find.descendant(
+    of: find.byType(BookmarkGroupPicker),
+    matching: find.text(appStrings(tester).bookmark.groups.default_group),
+  );
+  await tester.tap(defaultGroup.first);
+  await harness.pumpUntil(
+    tester,
+    () => find.byType(BookmarkGroupPicker).evaluate().isEmpty,
+    description: 'explicit group selection to finish',
+  );
+  dismissAllToast();
   await tester.pump();
-  await tester.pump(const Duration(milliseconds: 100));
+  // Drain the success/Undo toast animation callbacks on the controlled clock.
   await tester.pump(const Duration(seconds: 5));
 }
 
 Future<void> _removeBookmarkFromAllView(
   WidgetTester tester,
   HeadlessAppHarness harness,
-) async {
-  await _tapBookmark(tester);
-  await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
-  final defaultGroup = find.text(
-    appStrings(tester).bookmark.groups.default_group,
-  );
-  await tester.tap(defaultGroup.last);
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 100));
-  await tester.pump(const Duration(seconds: 5));
-}
+) => _tapBookmark(tester, harness);
 
 bool _bookmarkFilled(WidgetTester tester) =>
-    (tester
-                .widget<CustomPaint>(
-                  find.byWidgetPredicate(
-                    (widget) =>
-                        widget is CustomPaint &&
-                        widget.painter is BookmarkWithDropdownIconPainter,
-                  ),
-                )
-                .painter
-            as BookmarkWithDropdownIconPainter)
-        .fill;
+    tester
+        .widget<Icon>(
+          find.descendant(
+            of: find.byType(BookmarkPostButton),
+            matching: find.byIcon(Symbols.bookmark),
+          ),
+        )
+        .fill ==
+    1;

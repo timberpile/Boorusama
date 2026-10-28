@@ -24,7 +24,7 @@ and a route-lifecycle regression fails before the ownership change.
 One unfiltered All builder now lives in the provider container alongside the
 library. It is created on demand and invalidated by profile configuration changes.
 An immutable `library.items` revision skips all comparison/aggregation/publication
-on unchanged navigation and group/active-target-only changes. Added, removed or
+on unchanged navigation and group-label-only changes. Added, removed or
 replaced snapshots reconcile their contributions on the next necessary update.
 Group and source-filtered builders remain disposable; they cannot overwrite the
 retained unfiltered All builder.

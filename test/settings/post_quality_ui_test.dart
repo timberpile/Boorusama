@@ -18,6 +18,52 @@ import 'package:kurumi/material.dart';
 
 void main() {
   setUpAll(() => ensureI18nInitialized('en-US'));
+  testWidgets('Original can be selected at 320px with enlarged text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(320, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    var latest = Settings.defaultSettings.viewer.copyWith(
+      loadOriginalOnZoom: false,
+    );
+    await tester.pumpWidget(
+      BooruLocalization(
+        child: MaterialApp(
+          builder: (context, child) => KurumiTheme(
+            data: KurumiThemeData.fromMaterial(Theme.of(context)),
+            child: child!,
+          ),
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 700),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) => SingleChildScrollView(
+                  child: PostQualitySetting(
+                    value: latest.postQuality,
+                    onUpdate: (update) =>
+                        setState(() => latest = update(latest)),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(KurumiOptionDropDownButton<PostQuality>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Original'));
+    await tester.pumpAndSettle();
+    expect(latest.postQuality, PostQuality.original);
+    expect(latest.toJson()['postQuality'], 5);
+    expect(latest.loadOriginalOnZoom, isFalse);
+    expect(find.text('Original'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'post quality updates latest viewer state independently of thumbnail quality',
     (tester) async {
@@ -45,12 +91,12 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Post quality'), findsOneWidget);
+      expect(find.text('Post Quality'), findsOneWidget);
       final selector = tester.widget<KurumiOptionDropDownButton<PostQuality>>(
         find.byType(KurumiOptionDropDownButton<PostQuality>),
       );
       expect(selector.value, PostQuality.high);
-      expect(selector.items.length, 2);
+      expect(selector.items.length, 3);
       expect(find.text('Highest'), findsNothing);
       expect(find.text('High'), findsOneWidget);
       selector.onChanged(PostQuality.medium);
@@ -131,9 +177,10 @@ void main() {
     expect(selector.items.map((item) => (item.child as Text).data), [
       'Mittel',
       'Hoch',
+      'Original',
     ]);
     expect(selector.items.map((item) => item.value), PostQuality.values);
-    expect(selector.items.map((item) => item.value?.toData()), [2, 4]);
+    expect(selector.items.map((item) => item.value?.toData()), [2, 4, 5]);
   });
   for (final locale in [
     (language: 'en-US', labels: ['Auto', 'Low', 'Medium', 'High']),

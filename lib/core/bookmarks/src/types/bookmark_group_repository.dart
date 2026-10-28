@@ -64,3 +64,23 @@ extension BookmarkFolderStorage on BookmarkGroupRepository {
     }
   }
 }
+
+/// Optional local preference storage; membership and backup schemas are unchanged.
+abstract interface class BookmarkRecentGroupRepository {
+  Future<List<String>> readRecentGroupIds();
+  Future<void> recordManualGroupInteraction(String groupId);
+}
+
+extension BookmarkRecentGroupStorage on BookmarkGroupRepository {
+  Future<List<String>> getRecentGroupIds() async =>
+      this is BookmarkRecentGroupRepository
+      ? (this as BookmarkRecentGroupRepository).readRecentGroupIds()
+      : const [];
+
+  Future<void> rememberManualGroup(String groupId) async {
+    if (this is BookmarkRecentGroupRepository) {
+      await (this as BookmarkRecentGroupRepository)
+          .recordManualGroupInteraction(groupId);
+    }
+  }
+}

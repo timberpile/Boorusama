@@ -1,0 +1,24 @@
+{
+  "family": "hybooru",
+  "host": "booru.funmaker.moe",
+  "endpoint": "https://booru.funmaker.moe/api/post?pageSize=1&page=0",
+  "capturedAt": "2026-10-25T02:26:13.815648+00:00",
+  "authenticated": false,
+  "status": 200,
+  "contentType": "application/json",
+  "shape": "json",
+  "sourceFields": [
+    "extension",
+    "hash",
+    "id",
+    "mime",
+    "posted",
+    "sha256",
+    "size"
+  ],
+  "post": {
+    "id": 19099,
+    "size": 2470667,
+    "posted": "2026-09-21T18:35:08.000Z"
+  }
+}

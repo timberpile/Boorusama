@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../configs/config/providers.dart';
@@ -74,10 +75,14 @@ class FavoriteContextMenuTile extends ConsumerWidget {
     return popup
         ? KurumiPopupMenuItem(
             title: Text(title),
+            icon: Icon(isFavorited ? Icons.favorite : Icons.favorite_border),
             onTap: toggle,
           )
         : KurumiContextMenuTile(
             title: title,
+            trailing: Icon(
+              isFavorited ? Icons.favorite : Icons.favorite_border,
+            ),
             enabled: isFaved != null,
             onTap: toggle,
           );

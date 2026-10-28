@@ -148,6 +148,8 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
                     if (source.name case final name?)
                       Text(strings.name_line(name: name)),
                     Text(strings.query_line(query: source.query)),
+                    if (source.historyEnd != null)
+                      Text(strings.history_end_known),
                     const SizedBox(height: 12),
                     Text(
                       source.lastSuccessfulCheckAt == null

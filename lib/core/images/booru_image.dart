@@ -1,4 +1,6 @@
 // Package imports:
+import 'dart:typed_data';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
@@ -42,8 +44,10 @@ class BooruImage extends ConsumerWidget {
     this.forceLoadPlaceholder = false,
     this.hideMismatchedPlaceholder = false,
     this.placeholderWidget,
+    this.errorWidget,
     this.controller,
     this.imageCacheManager,
+    this.cachedImageBytes,
   });
 
   final BooruConfigAuth config;
@@ -65,8 +69,10 @@ class BooruImage extends ConsumerWidget {
   final bool forceLoadPlaceholder;
   final bool hideMismatchedPlaceholder;
   final Widget? placeholderWidget;
+  final Widget? errorWidget;
   final ExtendedImageController? controller;
   final ImageCacheManager? imageCacheManager;
+  final Uint8List? cachedImageBytes;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -145,6 +151,7 @@ class BooruImage extends ConsumerWidget {
               forceLoadPlaceholder: forceLoadPlaceholder,
               hideMismatchedPlaceholder: hideMismatchedPlaceholder,
               placeholderWidget: placeholderWidget,
+              errorWidget: errorWidget,
               imageCacheManager: imageCacheManager,
             ),
       placeholderAspectRatio: placeholderAspectRatio,
@@ -161,9 +168,11 @@ class BooruImage extends ConsumerWidget {
       hideMismatchedPlaceholder: hideMismatchedPlaceholder,
       headers: imageRequest.headers,
       placeholderWidget: placeholderWidget,
+      errorWidget: errorWidget,
       controller: controller,
       androidVersion: deviceInfo.androidDeviceInfo?.version.sdkInt,
       imageCacheManager: imageCacheManager ?? fallbackCacheManager,
+      cachedImageBytes: cachedImageBytes,
     );
   }
 }
@@ -195,9 +204,11 @@ class BooruRawImage extends StatelessWidget {
     this.hideMismatchedPlaceholder = false,
     this.gaplessPlayback = false,
     this.placeholderWidget,
+    this.errorWidget,
     this.controller,
     this.androidVersion,
     this.imageCacheManager,
+    this.cachedImageBytes,
   });
 
   final Dio dio;
@@ -226,9 +237,11 @@ class BooruRawImage extends StatelessWidget {
   final bool hideMismatchedPlaceholder;
   final bool gaplessPlayback;
   final Widget? placeholderWidget;
+  final Widget? errorWidget;
   final ExtendedImageController? controller;
   final int? androidVersion;
   final ImageCacheManager? imageCacheManager;
+  final Uint8List? cachedImageBytes;
 
   @override
   Widget build(BuildContext context) {
@@ -264,6 +277,19 @@ class BooruRawImage extends StatelessWidget {
                     ? BoxFit.cover
                     : BoxFit.contain);
             final borderRadius = this.borderRadius ?? _defaultRadius;
+
+            if (cachedImageBytes case final bytes?) {
+              return ExtendedImage(
+                image: MemoryImage(bytes),
+                borderRadius: borderRadius,
+                width: width,
+                height: height,
+                fit: fit,
+                controller: effectiveController,
+                placeholderWidget: placeholderWidget ?? imagePlaceHolder,
+                errorWidget: placeholderWidget ?? imagePlaceHolder,
+              );
+            }
 
             return imageUrl.isNotEmpty
                 ? ExtendedImage.network(
@@ -329,6 +355,7 @@ class BooruRawImage extends StatelessWidget {
                           ),
                         ),
                     errorWidget:
+                        errorWidget ??
                         fallbackWidget ??
                         switch (fallbackUrl) {
                           final String url

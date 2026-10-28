@@ -1,3 +1,10 @@
+import 'package:cache_manager/cache_manager.dart';
+import 'package:dio/dio.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
+
+import '../../core/posts/details/progressive_image_test_utils.dart';
+
 // Dart imports:
 import 'dart:async';
 
@@ -29,7 +36,6 @@ import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
-import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/favorites/providers.dart';
 import 'package:boorusama/core/posts/favorites/src/data/providers.dart';
@@ -83,6 +89,88 @@ void main() {
       expect(fetches, 1);
     },
   );
+
+  for (final sameUrl in [false, true]) {
+    testWidgets(
+      'Realbooru manual Original action uses resolved media (same=$sameUrl)',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 700);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 2;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+          tester.platformDispatcher.clearTextScaleFactorTestValue();
+        });
+        final adapter = ControlledImageAdapter();
+        final cache = TestImageCache({
+          _thumbnailUrl: lowerPng,
+          _sampleUrl: targetPng,
+        });
+        final resolved = _post(
+          originalUrl: _originalUrl,
+          sampleUrl: sameUrl ? _originalUrl : _sampleUrl,
+        );
+        var fetches = 0;
+        await tester.pumpWidget(
+          _Harness(
+            post: _post(
+              originalUrl: _thumbnailUrl,
+              metadata: const PostMetadata(
+                page: 1,
+                search: 'portrait',
+                limit: 42,
+              ),
+            ),
+            onFetch: () async {
+              fetches++;
+              return resolved;
+            },
+            imageAdapter: adapter,
+            imageCache: cache,
+          ),
+        );
+        await tester.runAsync(() async {
+          if (sameUrl) {
+            await pumpUntil(
+              tester,
+              () => adapter.pending.containsKey(_originalUrl),
+              reason: 'displayed Original',
+            );
+            adapter.complete(_originalUrl, originalPng);
+            await waitForPixel(tester, [0, 255, 0, 255]);
+          } else {
+            await waitForPixel(tester, [0, 0, 255, 255]);
+            expect(
+              adapter.requests.where((r) => r.uri.toString() == _originalUrl),
+              isEmpty,
+            );
+          }
+        });
+        await tester.tap(find.byIcon(Icons.more_horiz).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Load Original').hitTestable());
+        await tester.runAsync(() async {
+          if (!sameUrl) {
+            await pumpUntil(
+              tester,
+              () => adapter.pending.containsKey(_originalUrl),
+              reason: 'manual Original request',
+            );
+            adapter.complete(_originalUrl, originalPng);
+          }
+          await waitForPixel(tester, [0, 255, 0, 255]);
+        });
+        expect(fetches, 1);
+        expect(
+          adapter.requests.where((r) => r.uri.toString() == _originalUrl),
+          hasLength(1),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
 
   testWidgets('an already resolved Realbooru post is not fetched again', (
     tester,
@@ -139,6 +227,7 @@ Post _visiblePost(WidgetTester tester) =>
 const _thumbnailUrl =
     'https://realbooru.test/thumbnails/ab/cd/'
     'thumbnail_0123456789abcdef0123456789abcdef.jpg';
+const _sampleUrl = 'https://realbooru.test/samples/sample.png';
 const _originalUrl =
     'https://realbooru.test/images/ab/cd/'
     '0123456789abcdef0123456789abcdef.jpeg';
@@ -152,6 +241,7 @@ final _config = BooruConfig.defaultConfig(
 Post _post({
   required String originalUrl,
   String thumbnailUrl = _thumbnailUrl,
+  String? sampleUrl,
   PostMetadata? metadata,
 }) => Post(
   origin: PostOrigin.fromSource(
@@ -162,7 +252,7 @@ Post _post({
   core: PostCoreData(
     id: 42,
     thumbnailImageUrl: thumbnailUrl,
-    sampleImageUrl: originalUrl,
+    sampleImageUrl: sampleUrl ?? originalUrl,
     originalImageUrl: originalUrl,
     videoUrl: '',
     videoThumbnailUrl: '',
@@ -185,7 +275,14 @@ Post _post({
 );
 
 class _Harness extends StatelessWidget {
-  const _Harness({required this.post, required this.onFetch});
+  const _Harness({
+    required this.post,
+    required this.onFetch,
+    this.imageAdapter,
+    this.imageCache,
+  });
+  final HttpClientAdapter? imageAdapter;
+  final ImageCacheManager? imageCache;
 
   final Post post;
   final Future<Post?> Function() onFetch;
@@ -194,7 +291,13 @@ class _Harness extends StatelessWidget {
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
       settingsProvider.overrideWithValue(
-        Settings.defaultSettings.copyWith(reduceAnimations: true),
+        Settings.defaultSettings.copyWith(
+          reduceAnimations: true,
+          viewer: Settings.defaultSettings.viewer.copyWith(
+            loadOriginalOnZoom: false,
+            postQuality: PostQuality.high,
+          ),
+        ),
       ),
       appFileSystemProvider.overrideWithValue(MemoryAppFileSystem()),
       colorSchemeProvider.overrideWithValue(
@@ -224,11 +327,20 @@ class _Harness extends StatelessWidget {
       ),
       gelbooruV2PostProvider.overrideWith((ref, params) => onFetch()),
       mediaUrlResolverProvider.overrideWith(
-        (ref, config) => const _MediaResolver(),
+        (ref, config) => ref.watch(defaultMediaUrlResolverProvider(config)),
       ),
       booruRepoProvider.overrideWith((ref, config) => null),
       booruBuilderProvider.overrideWith((ref, config) => null),
-      automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+      automaticMediaLoadingEnabledProvider.overrideWithValue(
+        imageAdapter != null,
+      ),
+      deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+      if (imageAdapter case final adapter?)
+        dioForWidgetProvider.overrideWith(
+          (_, _) => Dio()..httpClientAdapter = adapter,
+        ),
+      if (imageCache case final cache?)
+        defaultImageCacheManagerProvider.overrideWithValue(cache),
       hasPremiumLayoutProvider.overrideWithValue(false),
       showPremiumFeatsProvider.overrideWithValue(false),
       downloadServiceProvider.overrideWithValue(_DownloadService()),
@@ -255,23 +367,6 @@ class _Harness extends StatelessWidget {
       ),
     ),
   );
-}
-
-final class _MediaResolver implements MediaUrlResolver {
-  const _MediaResolver();
-
-  @override
-  String resolveMediaUrl(Post post, BooruConfigViewer config) =>
-      post.originalImageUrl;
-
-  @override
-  double? resolveMediaAspectRatio(Post post, BooruConfigViewer config) => 1;
-
-  @override
-  String resolveVideoUrl(Post post, BooruConfigViewer config) => post.videoUrl;
-
-  @override
-  double? resolveVideoAspectRatio(Post post, BooruConfigViewer config) => 1;
 }
 
 final class _DownloadService implements DownloadService {

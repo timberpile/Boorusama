@@ -110,7 +110,7 @@ void main() {
           .read(navigationControllerProvider.notifier)
           .selectDestination(const DestinationId.app(AppDestination.settings));
       await harness.settle(tester);
-      expect(find.text('Edit current profile'), findsNothing);
+      expect(find.text('Edit Current Profile'), findsNothing);
       expect(find.text('BOORU SETTINGS'), findsNothing);
       final entry = find.byKey(const ValueKey('settings-navigation-profiles'));
       expect(entry, findsOneWidget);

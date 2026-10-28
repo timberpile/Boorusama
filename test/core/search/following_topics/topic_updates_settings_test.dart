@@ -53,7 +53,7 @@ void main() {
           ),
         );
     switchFor('Topics').onChanged!(false);
-    switchFor('Enable automatic checks').onChanged!(false);
+    switchFor('Enable Automatic Checks').onChanged!(false);
     await _waitForAttempts(tester, repository, 1);
     expect(repository.attempts, hasLength(1));
     repository.releases.first.complete(true);
@@ -81,7 +81,7 @@ void main() {
       ),
     );
     expect(switchFor('Topics').value, isFalse);
-    expect(switchFor('Enable automatic checks').value, isFalse);
+    expect(switchFor('Enable Automatic Checks').value, isFalse);
   });
 
   testWidgets(
@@ -239,9 +239,9 @@ void main() {
               matching: find.byType(KurumiSwitchListTile),
             ),
           );
-      switchFor('Show scores').onChanged!(true);
+      switchFor('Show Scores').onChanged!(true);
       await _waitForAttempts(tester, repository, 1);
-      switchFor('Show posts configuration header').onChanged!(false);
+      switchFor('Show Posts Configuration Header').onChanged!(false);
       repository.releases.first.complete(true);
       await _waitForAttempts(tester, repository, 2);
       repository.releases.last.complete(true);
@@ -312,9 +312,9 @@ void main() {
               matching: find.byType(KurumiSwitchListTile),
             ),
           );
-      switchFor('Load original when zooming').onChanged!(false);
+      switchFor('Load Original When Zooming').onChanged!(false);
       await _waitForAttempts(tester, repository, 1);
-      switchFor('Snap zoom to fit').onChanged!(false);
+      switchFor('Snap Zoom to Fit').onChanged!(false);
       repository.releases.first.complete(true);
       await _waitForAttempts(tester, repository, 2);
       repository.releases.last.complete(true);

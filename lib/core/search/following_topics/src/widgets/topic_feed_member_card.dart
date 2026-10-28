@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../widgets/popup_menu_action_label.dart';
 import '../providers/feed_member_preview_provider.dart';
 import '../types/topic_feed.dart';
 import '../types/following_topic.dart';
@@ -51,21 +52,33 @@ class TopicFeedMemberCard extends ConsumerWidget {
       actionItemBuilder: (context) => [
         PopupMenuItem(
           value: FollowingTopicAction.info,
-          child: Text(strings.info),
+          child: PopupMenuActionLabel(
+            icon: Icons.info_outline,
+            label: strings.info,
+          ),
         ),
         PopupMenuItem(
           value: FollowingTopicAction.refresh,
           enabled: owner != null && !refreshing,
-          child: Text(strings.refresh),
+          child: PopupMenuActionLabel(
+            icon: Icons.refresh,
+            label: strings.refresh,
+          ),
         ),
         PopupMenuItem(
           value: FollowingTopicAction.edit,
           enabled: owner != null,
-          child: Text(context.t.generic.action.edit),
+          child: PopupMenuActionLabel(
+            icon: Icons.edit_outlined,
+            label: context.t.generic.action.edit,
+          ),
         ),
         PopupMenuItem(
           value: FollowingTopicAction.delete,
-          child: Text(strings.remove_feed_member),
+          child: PopupMenuActionLabel(
+            icon: Icons.person_remove_outlined,
+            label: strings.remove_feed_member,
+          ),
         ),
       ],
       metadata: Column(

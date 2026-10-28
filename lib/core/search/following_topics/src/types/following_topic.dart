@@ -6,6 +6,7 @@ import '../../../selected_tags/types.dart';
 import 'search_post_preview.dart';
 import '../services/conservative_refresh_policy.dart';
 import 'search_refresh.dart';
+import 'feed_history_end.dart';
 
 class FollowingTopic extends Equatable {
   FollowingTopic({
@@ -29,6 +30,7 @@ class FollowingTopic extends Equatable {
     this.autoUpdateEnabled = true,
     this.newPostCountEstimate,
     this.newPostCountIsLowerBound = false,
+    this.historyEnd,
   }) : queryStructure = switch (queryStructure) {
          final SearchQueryStructure structure
              when structure.matchesCanonicalQuery(query) =>
@@ -84,6 +86,7 @@ class FollowingTopic extends Equatable {
   // null indicates that earlier unread activity has no reliable estimate.
   final int? newPostCountEstimate;
   final bool newPostCountIsLowerBound;
+  final FeedHistoryEnd? historyEnd;
 
   String get displayName => name ?? query;
   bool get hasNewPosts => unreadCount > 0;
@@ -112,6 +115,7 @@ class FollowingTopic extends Equatable {
     autoUpdateEnabled,
     newPostCountEstimate,
     newPostCountIsLowerBound,
+    historyEnd,
   ];
 }
 

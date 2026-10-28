@@ -55,14 +55,14 @@ void main() {
         TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
       );
       await drain(tester);
-      expect(find.textContaining('Last checked:'), findsOneWidget);
+      expect(find.textContaining('Last Checked:'), findsOneWidget);
       final before = await tester.runAsync(h.repository.getAll);
       await tester.tap(find.byType(PopupMenuButton<String>).first);
       await tester.pumpAndSettle();
       expect(find.text('Refresh'), findsOneWidget);
-      expect(find.text('Feed details'), findsNothing);
+      expect(find.text('Feed Details'), findsNothing);
       expect(find.text('Topics'), findsNothing);
-      expect(find.text('Clear feed cache'), findsNothing);
+      expect(find.text('Clear Feed Cache'), findsNothing);
       expect(h.requests, isEmpty);
       expect(await tester.runAsync(h.repository.getAll), before);
     },
@@ -114,7 +114,7 @@ void main() {
           );
     });
     await h.pump(tester, const TopicFeedsPage());
-    expect(find.text('Last post: 2 hours ago'), findsOneWidget);
+    expect(find.text('Last Post: 2 hours ago'), findsOneWidget);
     expect(h.requests, isEmpty);
   });
 
@@ -171,7 +171,7 @@ void main() {
             );
       });
       await h.pump(tester, const TopicFeedsPage());
-      expect(find.textContaining('Last post:'), findsNWidgets(3));
+      expect(find.textContaining('Last Post:'), findsNWidgets(3));
       await tester.tap(
         find.byWidgetPredicate((w) => w is PopupMenuButton).first,
       );
@@ -179,14 +179,14 @@ void main() {
       expect(
         tester
             .widget<PopupMenuItem<String>>(
-              find.widgetWithText(PopupMenuItem<String>, 'Move up'),
+              find.widgetWithText(PopupMenuItem<String>, 'Move Up'),
             )
             .enabled,
         isFalse,
       );
       expect(find.text('Edit'), findsOneWidget);
-      expect(find.text('Edit feed'), findsNothing);
-      await tester.tap(find.text('Move down'));
+      expect(find.text('Edit Feed'), findsNothing);
+      await tester.tap(find.text('Move Down'));
       await drain(tester);
       final stored = (await tester.runAsync(h.repository.getFeeds))!;
       expect(
@@ -209,12 +209,12 @@ void main() {
       expect(
         tester
             .widget<PopupMenuItem<String>>(
-              find.widgetWithText(PopupMenuItem<String>, 'Move up'),
+              find.widgetWithText(PopupMenuItem<String>, 'Move Up'),
             )
             .enabled,
         isFalse,
       );
-      await tester.tap(find.text('Move down'));
+      await tester.tap(find.text('Move Down'));
       await drain(tester);
       expect(
         (await tester.runAsync(

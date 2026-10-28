@@ -14,6 +14,7 @@ import '../../../../router.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../../../suggestions/providers.dart';
 import '../routes/params.dart';
+import '../types/topic_search_origin.dart';
 import '../widgets/search_controller.dart';
 import '../widgets/search_profile_session.dart';
 
@@ -27,20 +28,63 @@ class SearchPage extends ConsumerStatefulWidget {
 }
 
 class _SearchPageState extends ConsumerState<SearchPage> {
+  final _origin = ValueNotifier<TopicSearchOrigin?>(null);
+  var _originCaptured = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _origin.addListener(_originChanged);
+  }
+
+  void _originChanged() {
+    setState(() {
+      // A chosen Topic owns its source locally even if a later multi-follow
+      // clears the identity. Keep the displayed source and query in place.
+      if (_origin.value case final origin?) {
+        _localProfile = origin.profile;
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_originCaptured) {
+      _originCaptured = true;
+      _origin.value = InheritedInitialSearchQuery.maybeOf(context)
+          ?.params
+          .topicOrigin;
+    }
+  }
+
+  @override
+  void dispose() {
+    _origin.dispose();
+    super.dispose();
+  }
+
   var _followGlobalProfile = false;
   SearchProfileSnapshot? _snapshot;
   BooruConfig? _localProfile;
 
   void _switchProfile(BooruConfig profile, SearchPageController controller) {
-    final local = DestinationScope.maybeOf(context) != null;
+    final local =
+        DestinationScope.maybeOf(context) != null ||
+        _localProfile != null ||
+        InheritedInitialSearchQuery.maybeOf(context)
+                ?.params
+                .originatingTopicId !=
+            null;
     final current = local
         ? (_localProfile ?? widget.initialConfig ?? ref.readConfig)
         : (_followGlobalProfile
               ? ref.read(currentBooruConfigProvider)
               : ref.readConfig);
     if (profile.id == current.id &&
-        (local || profile.id == ref.read(currentBooruConfigProvider).id))
+        (local || profile.id == ref.read(currentBooruConfigProvider).id)) {
       return;
+    }
     if (local) {
       setState(() {
         _snapshot = SearchProfileSnapshot.capture(controller);
@@ -58,7 +102,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    final local = DestinationScope.maybeOf(context) != null;
+    final local =
+        DestinationScope.maybeOf(context) != null ||
+        _localProfile != null ||
+        InheritedInitialSearchQuery.maybeOf(context)
+                ?.params
+                .originatingTopicId !=
+            null;
     final config = local
         ? (_localProfile ??= widget.initialConfig ?? ref.readConfig)
         : _followGlobalProfile
@@ -68,8 +118,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         .watch(booruBuilderProvider(config.auth))
         ?.searchPageBuilder;
     final params =
-        InheritedInitialSearchQuery.maybeOf(context)?.params ??
-        const SearchParams();
+        (InheritedInitialSearchQuery.maybeOf(context)?.params ??
+                const SearchParams())
+            .withOriginatingTopic(
+              _origin.value?.topic.id,
+              topicOrigin: _origin.value,
+            );
 
     final page = KeyedSubtree(
       key: ValueKey((config.id, config.auth)),
@@ -77,7 +131,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         builder: (context) => builder != null
             ? builder(
                 context,
-                _snapshot == null ? params : const SearchParams(),
+                _snapshot == null
+                    ? params
+                    : SearchParams(
+                        originatingTopicId: params.originatingTopicId,
+                        topicOrigin: params.topicOrigin,
+                      ),
               )
             : const UnimplementedPage(),
       ),
@@ -88,7 +147,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         local: local,
         snapshot: _snapshot,
         onSwitch: _switchProfile,
-        child: page,
+        child: TopicSearchOriginScope(origin: _origin, child: page),
       ),
     );
   }

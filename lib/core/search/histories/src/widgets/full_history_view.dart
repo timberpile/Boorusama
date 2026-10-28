@@ -3,6 +3,7 @@ import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -77,6 +78,7 @@ class FullHistoryView extends ConsumerWidget {
                                 ),
                           minTileHeight: kPreferredLayout.isDesktop ? 0 : null,
                           trailing: IconButton(
+                            tooltip: context.t.generic.action.remove,
                             onPressed: () => notifier.removeHistory(history),
                             icon: Icon(
                               Symbols.close,

@@ -8,6 +8,8 @@ import 'package:boorusama/core/backups/export_import/clipboard/export_clipboard_
 import 'package:boorusama/core/backups/export_import/export/export_flow_page.dart';
 import 'package:boorusama/core/backups/export_import/export_import_page.dart';
 import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/picker.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_page.dart';
@@ -26,6 +28,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               appFilePickerProvider.overrideWithValue(picker),
               appPlatformProvider.overrideWithValue(AppPlatform.android),
               exportClipboardServiceProvider.overrideWithValue(
@@ -43,7 +46,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Import file'));
+        await tester.tap(find.text('Import File'));
         await tester.pumpAndSettle();
         expect(picker.custom, isFalse);
         expect(picker.extensions, isNull);
@@ -117,8 +120,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Import from clipboard'), findsOneWidget);
-      expect(find.text('Paste Base64 export'), findsNothing);
+      expect(find.text('Import from Clipboard'), findsOneWidget);
+      expect(find.text('Paste Base64 Export'), findsNothing);
     },
   );
 
@@ -146,7 +149,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Include private data?'), findsOneWidget);
-    expect(find.text('Start sending'), findsOneWidget);
+    expect(find.text('Start Sending'), findsOneWidget);
   });
 
   testWidgets('clipboard failures use a friendly recovery message', (
@@ -171,7 +174,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Import from clipboard'));
+    await tester.tap(find.text('Import from Clipboard'));
     await tester.pump();
 
     expect(
@@ -204,7 +207,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Create export'), findsOneWidget);
+    expect(find.text('Create Export'), findsOneWidget);
   });
 }
 

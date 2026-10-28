@@ -54,9 +54,10 @@ class E621Client {
     );
 
     final data = switch (response.data) {
+      {'success': false} => throw const FormatException('Post request failed'),
       {'posts': final List posts} => posts,
       List posts => posts,
-      _ => <dynamic>[],
+      _ => throw const FormatException('Invalid post response'),
     };
 
     return data.map((item) => PostDto.fromJson(item)).toList();

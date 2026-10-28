@@ -80,6 +80,10 @@ void main() {
         ),
       ),
     );
+    final strings = tester
+        .element(find.byType(PerformanceDiagnosticsPage))
+        .t
+        .performance_diagnostics;
     Future<void> tap(String text) async {
       await tester.scrollUntilVisible(find.text(text), 150);
       await tester.pump();
@@ -90,22 +94,22 @@ void main() {
     expect(recorder.recording, isFalse);
     await tester.pump(const Duration(seconds: 1));
     expect(recorder.recording, isFalse);
-    await tap('Start new recording');
+    await tap(strings.start);
     expect(recorder.recording, isTrue);
-    await tap('Add marker');
+    await tap(strings.mark);
     expect(
       (recorder.snapshot()['events']! as List).where(
         (e) => e['type'] == 'marker',
       ),
       hasLength(1),
     );
-    await tap('Stop recording');
+    await tap(strings.stop);
     expect(diagnostics.draining, isTrue);
     await tester.pump(const Duration(milliseconds: 1400));
     expect(diagnostics.draining, isFalse);
-    await tap('Start new recording');
+    await tap(strings.start);
     expect(recorder.recording, isTrue);
-    await tap('Copy report');
+    await tap(strings.copy);
     expect(recorder.recording, isFalse);
     await tester.pump(const Duration(milliseconds: 1400));
     // compute uses a real isolate; fake widget time cannot complete its work.
@@ -118,7 +122,7 @@ void main() {
     expect(copied, isNotNull);
     expect((jsonDecode(copied!) as Map)['events'], isNotEmpty);
     expect(recorder.recording, isFalse);
-    await tap('Clear report');
+    await tap(strings.clear);
     expect(recorder.hasSession, isFalse);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());

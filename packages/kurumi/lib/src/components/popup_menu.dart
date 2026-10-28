@@ -123,7 +123,7 @@ class KurumiPopupMenuItem extends StatelessWidget {
   final Widget? icon;
   final Widget? trailing;
   final bool hideOnTap;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -132,17 +132,17 @@ class KurumiPopupMenuItem extends StatelessWidget {
 
     void handleTap() {
       if (hideOnTap) controller?.hide();
-      onTap();
+      onTap?.call();
     }
 
     return Semantics(
       button: true,
-      enabled: true,
-      onTap: handleTap,
+      enabled: onTap != null,
+      onTap: onTap == null ? null : handleTap,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: handleTap,
+          onTap: onTap == null ? null : handleTap,
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -155,7 +155,9 @@ class KurumiPopupMenuItem extends StatelessWidget {
                   Theme(
                     data: Theme.of(context).copyWith(
                       iconTheme: IconThemeData(
-                        color: colorScheme.onSurfaceVariant,
+                        color: onTap == null
+                            ? Theme.of(context).disabledColor
+                            : colorScheme.onSurfaceVariant,
                       ),
                     ),
                     child: Padding(

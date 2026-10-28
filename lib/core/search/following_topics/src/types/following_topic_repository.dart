@@ -3,10 +3,13 @@ import 'search_refresh.dart';
 import 'topic_feed.dart';
 import 'topic_organization.dart';
 import 'following_topic.dart';
+import 'feed_history_end.dart';
 
 final class DuplicateFollowingTopicException implements Exception {}
 
 final class MissingFollowingTopicProfileException implements Exception {}
+
+final class StaleFollowingTopicEditException implements Exception {}
 
 abstract interface class FollowingTopicRepository {
   Future<List<FollowingTopic>> getAll();
@@ -49,6 +52,10 @@ abstract interface class FollowingTopicRepository {
   Future<void> replaceOrganization(TopicOrganization organization);
   Future<void> deleteSharedFolderAndTopics(String folderId);
   Future<FollowingTopic?> getById(String id);
+  Future<FollowingTopic?> recordHistoryEnd(
+    FollowingTopic expected,
+    FeedHistoryEnd end,
+  );
   Future<FollowingTopic?> findByQuery(String profileId, String query);
   Future<FollowingTopic> create({
     required String profileId,
@@ -63,6 +70,10 @@ abstract interface class FollowingTopicRepository {
     required String profileId,
     required String query,
     required String? name,
+    // Omission preserves compatible metadata; a callback may explicitly clear it.
+    SearchQueryStructure? Function()? queryStructure,
+    bool? autoUpdateEnabled,
+    FollowingTopic? expectedTopic,
   });
   Future<FollowingTopic> rename(String id, String? name);
   Future<FollowingTopic> saveTopicInNewFolder({

@@ -44,6 +44,38 @@ void main() {
       expect(json, isNot(contains('cursor')));
     });
 
+    test(
+      'sync highlighting defaults to ignored and preserves explicit choices',
+      () {
+        final legacy = ServerFavoriteSettings.fromJson({
+          'version': 1,
+          'globalGroupId': 'global',
+          'profiles': <String, Object?>{},
+        });
+        expect(ServerFavoriteSettings().ignoreBookmarkStatus, isTrue);
+        expect(legacy.ignoreBookmarkStatus, isTrue);
+        for (final ignored in [false, true]) {
+          final updated = legacy
+              .withIgnoreBookmarkStatus(ignored)
+              .withGlobal('other')
+              .withProfile(
+                'profile',
+                const ServerFavoriteTarget.group('custom'),
+              );
+          expect(updated.ignoreBookmarkStatus, ignored);
+          expect(updated.assignedGroupIds, {'other', 'custom'});
+          expect(ServerFavoriteSettings.fromJson(updated.toJson()), updated);
+        }
+        expect(
+          () => ServerFavoriteSettings.fromJson({
+            ...legacy.toJson(),
+            'ignoreBookmarkStatus': 'true',
+          }),
+          throwsFormatException,
+        );
+      },
+    );
+
     test('invalid persisted opt-out never silently becomes inheritance', () {
       expect(
         () => ServerFavoriteSettings.fromJson({
@@ -117,6 +149,7 @@ void main() {
           'version',
           'globalGroupId',
           'profiles',
+          'ignoreBookmarkStatus',
         ]),
       );
     });

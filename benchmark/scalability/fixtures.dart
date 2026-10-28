@@ -4,7 +4,6 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
 import '../../test/core/search/following_topics/topic_test_utils.dart';
@@ -108,7 +107,6 @@ BookmarkLibraryState scalabilityLibrary(
       bookmarkIds: members ?? bookmarks.map((b) => b.id).toSet(),
     ),
   ],
-  activeTarget: const BookmarkTarget.defaultGroup(),
 );
 
 /// Counts visits to stored snapshot rows without replacing production decoders.

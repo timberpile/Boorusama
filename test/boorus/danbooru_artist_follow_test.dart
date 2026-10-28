@@ -204,13 +204,18 @@ void main() {
             .ancestor(
               of: label,
               matching: find.byWidgetPredicate(
-                (widget) => widget is Material && widget.shape is StadiumBorder,
+                (widget) =>
+                    widget is Material &&
+                    widget.shape is RoundedRectangleBorder,
               ),
             )
             .first;
         final pillMaterial = tester.widget<Material>(pill);
         expect(pillMaterial.color, testCase.background);
-        expect(pillMaterial.shape, isA<StadiumBorder>());
+        expect(
+          (pillMaterial.shape! as RoundedRectangleBorder).borderRadius,
+          BorderRadius.circular(12),
+        );
         expect(
           DefaultTextStyle.of(tester.element(label)).style.color,
           testCase.foreground,

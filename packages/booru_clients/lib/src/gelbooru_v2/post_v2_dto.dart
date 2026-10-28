@@ -12,6 +12,7 @@ class PostV2Dto {
     this.hash,
     this.width,
     this.height,
+    this.fileSize,
     this.id,
     this.image,
     this.change,
@@ -82,6 +83,11 @@ class PostV2Dto {
       fileUrl: fileUrl,
       directory: json['directory']?.toString(),
       hash: json['hash'] ?? json['md5'],
+      fileSize: switch (json['file_size']) {
+        final int value => value,
+        final String value => int.tryParse(value),
+        _ => null,
+      },
       width: json['width'],
       height: json['height'],
       id: json['id'],
@@ -120,6 +126,7 @@ class PostV2Dto {
       'sample_width',
       'score',
       'comment_count',
+      'file_size',
     ]) {
       values[key] = int.tryParse(element.getAttribute(key) ?? '');
     }
@@ -133,6 +140,9 @@ class PostV2Dto {
   final String? hash;
   final int? width;
   final int? height;
+
+  /// Original file bytes when explicitly supplied; null means unknown.
+  final int? fileSize;
   final int? id;
   final String? image;
   final int? change;

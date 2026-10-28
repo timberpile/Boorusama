@@ -160,6 +160,17 @@ Post _toPost({
   return pixivPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.pixiv),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalWidth: pageCount == 1 && !isRestricted
+          ? dto.width?.toDouble()
+          : null,
+      originalHeight: pageCount == 1 && !isRestricted
+          ? dto.height?.toDouble()
+          : null,
+      originalFormat: isRestricted ? null : originalFormatFromUrl(original),
+      description: dto.caption,
+    ),
   );
 }
 

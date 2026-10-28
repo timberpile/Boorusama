@@ -18,6 +18,7 @@ import '../../types/topic_feed.dart';
 import '../../types/topic_organization.dart';
 import '../../types/following_topic.dart';
 import '../../types/following_topic_repository.dart';
+import '../../types/feed_history_end.dart';
 import 'recent_search_post_hive_object.dart';
 import 'search_post_preview_hive_object.dart';
 import 'following_topic_hive_object.dart';
@@ -796,6 +797,64 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   Future<FollowingTopic?> findByQuery(String profileId, String query) =>
       _read(() => _findIndependentByQuery(profileId, query));
 
+  @override
+  Future<FollowingTopic?> recordHistoryEnd(
+    FollowingTopic expected,
+    FeedHistoryEnd end,
+  ) => _serialize(() async {
+    final current = _box.get(expected.id);
+    final storage = _organizationBox;
+    if (current == null ||
+        storage == null ||
+        current.profileId != expected.profileId ||
+        current.runtimeRevision != expected.runtimeRevision ||
+        current.createdAt != expected.createdAt ||
+        normalizeSearchIdentity(current.query) !=
+            normalizeSearchIdentity(expected.query) ||
+        !const DeepCollectionEquality().equals(
+          current.queryStructure,
+          expected.queryStructure?.toJson(),
+        ) ||
+        (end.oldestPostIdentity == null &&
+            current.highestSeenPostId != expected.highestSeenPostId)) {
+      return null;
+    }
+    await storage.put('history:${current.id}', {
+      'confirmed': true,
+      'profileId': current.profileId,
+      'query': normalizeSearchIdentity(current.query),
+      'queryStructure': current.queryStructure,
+      'revision': current.runtimeRevision,
+      'createdAt': current.createdAt,
+      'emptyAtHighestSeen': current.highestSeenPostId,
+      'oldest': end.oldestPostIdentity,
+    });
+    return _toTopic(current);
+  });
+
+  FeedHistoryEnd? _historyEnd(FollowingTopicHiveObject current) {
+    final value = _organizationBox?.get('history:${current.id}');
+    if (value is! Map ||
+        value['confirmed'] != true ||
+        !value.containsKey('oldest') ||
+        value['profileId'] != current.profileId ||
+        value['revision'] != current.runtimeRevision ||
+        value['createdAt'] != current.createdAt ||
+        value['query'] != normalizeSearchIdentity(current.query) ||
+        !const DeepCollectionEquality().equals(
+          value['queryStructure'],
+          current.queryStructure,
+        ))
+      return null;
+    final oldest = value['oldest'];
+    if (oldest != null && (oldest is! String || oldest.isEmpty)) return null;
+    // New posts after an empty query invalidate its empty-history shortcut.
+    if (oldest == null &&
+        value['emptyAtHighestSeen'] != current.highestSeenPostId)
+      return null;
+    return FeedHistoryEnd(oldestPostIdentity: oldest as String?);
+  }
+
   FollowingTopic? _findIndependentByQuery(
     String profileId,
     String query, {
@@ -898,8 +957,24 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     required String profileId,
     required String query,
     required String? name,
+    SearchQueryStructure? Function()? queryStructure,
+    bool? autoUpdateEnabled,
+    FollowingTopic? expectedTopic,
   }) => _serialize(() async {
+    final existing = _box.get(id);
+    if (expectedTopic != null && existing == null) {
+      throw StaleFollowingTopicEditException();
+    }
     final current = _toTopic(_requireObject(id));
+    if (expectedTopic != null &&
+        (current.createdAt != expectedTopic.createdAt ||
+            current.profileId != expectedTopic.profileId ||
+            current.query != expectedTopic.query ||
+            current.queryStructure != expectedTopic.queryStructure ||
+            current.name != expectedTopic.name ||
+            current.autoUpdateEnabled != expectedTopic.autoUpdateEnabled)) {
+      throw StaleFollowingTopicEditException();
+    }
     if (_feedSourceIds().contains(current.id)) {
       throw StateError('Feed sources cannot be edited as followed topics.');
     }
@@ -935,7 +1010,9 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
             id: current.id,
             profileId: profileId,
             query: trimmedQuery,
-            queryStructure: current.query == trimmedQuery
+            queryStructure: queryStructure != null
+                ? queryStructure()
+                : current.query == trimmedQuery
                 ? current.queryStructure
                 : null,
             name: name,
@@ -947,17 +1024,34 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
             recentPostIdentities: const [],
             unreadCount: 0,
           )
-        : current.copyWithName(name);
+        : current.copyWithName(name, queryStructure: queryStructure);
     final object = _toObject(updated);
     final feeds = material
         ? _feeds().where((feed) => feed.sourceIds.contains(id)).toList()
         : const <TopicFeed>[];
     final saved = {
+      if (autoUpdateEnabled != null)
+        'search:auto_update_overrides': _organizationBox?.get(
+          'search:auto_update_overrides',
+        ),
       for (final feed in feeds)
         'feed:${feed.id}': _organizationBox?.get('feed:${feed.id}'),
     };
     try {
       await _box.put(object.id, object);
+      if (autoUpdateEnabled != null) {
+        final storage = _organizationBox;
+        if (storage == null) throw StateError('Topic settings unavailable');
+        final overrides = <dynamic, dynamic>{
+          ...?(saved['search:auto_update_overrides'] as Map?),
+        };
+        if (autoUpdateEnabled) {
+          overrides.remove(id);
+        } else {
+          overrides[id] = false;
+        }
+        await storage.put('search:auto_update_overrides', overrides);
+      }
       for (final feed in feeds) {
         final filtered = feed
             .reconcileSources(
@@ -971,10 +1065,13 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       }
     } catch (_) {
       await _box.put(current.id, _toObject(current));
-      await _organizationBox?.putAll({
-        for (final entry in saved.entries)
-          if (entry.value != null) entry.key: entry.value,
-      });
+      for (final entry in saved.entries) {
+        if (entry.value == null) {
+          await _organizationBox?.delete(entry.key);
+        } else {
+          await _organizationBox?.put(entry.key, entry.value);
+        }
+      }
       rethrow;
     }
     return _toTopic(object);
@@ -1565,6 +1662,8 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         for (final id in [...existingKeys, ...topics.map((s) => s.id)]) {
           overrides.remove(id);
           estimates.remove(id);
+          // History is runtime cache state, deliberately absent from backups.
+          await storage.delete('history:$id');
         }
         for (final source in topics) {
           if (!source.autoUpdateEnabled) overrides[source.id] = false;
@@ -1748,6 +1847,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     final estimates = _organizationBox?.get('search:new_post_estimates');
     final estimate = estimates is Map ? estimates[object.id] : null;
     return FollowingTopic(
+      historyEnd: _historyEnd(object),
       autoUpdateEnabled: overrides is! Map || overrides[object.id] != false,
       newPostCountEstimate: switch (estimate) {
         final Map value => switch (value['count']) {
@@ -1858,12 +1958,17 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
 }
 
 extension on FollowingTopic {
-  FollowingTopic copyWithName(String? name) {
+  FollowingTopic copyWithName(
+    String? name, {
+    SearchQueryStructure? Function()? queryStructure,
+  }) {
     return FollowingTopic(
       id: id,
       profileId: profileId,
       query: query,
-      queryStructure: queryStructure,
+      queryStructure: queryStructure != null
+          ? queryStructure()
+          : this.queryStructure,
       name: name,
       position: position,
       createdAt: createdAt,

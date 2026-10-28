@@ -1,4 +1,6 @@
 // Package imports:
+import 'dart:typed_data';
+
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
@@ -8,10 +10,17 @@ import 'package:kurumi/material.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../images/providers.dart';
+import '../../../../configs/network/providers.dart';
+import '../../../../http/client/providers.dart';
+import '../../../../developer_options/providers.dart';
 import '../../../../settings/providers.dart';
 import '../../../post/types.dart';
 import '../../../post/widgets.dart';
 import '../providers/providers.dart';
+import '../providers/cached_grid_gif.dart';
+import '../types/grid_thumbnail_url_generator_default.dart';
+import '../types/animated_posts_default_state.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/image_list_type.dart';
 import 'default_image_quick_actions.dart';
@@ -116,7 +125,7 @@ class PostGridItem extends ConsumerWidget {
     final thumbnailSettings = ref.watch(
       gridThumbnailSettingsProvider(config),
     );
-    final resolvedMedia = imageUrl != null
+    var resolvedMedia = imageUrl != null
         ? GridThumbnailMedia(
             url: imageUrl!,
             aspectRatio: post.aspectRatio,
@@ -127,6 +136,63 @@ class PostGridItem extends ConsumerWidget {
             post,
             settings: thumbnailSettings,
           );
+    Uint8List? cachedGif;
+    if (imageUrl == null &&
+        imageBuilder == null &&
+        isOriginalGridGif(post) &&
+        post.fileSize > maxAutoplayGridGifBytes &&
+        thumbnailSettings.animatedPostsDefaultState ==
+            AnimatedPostsDefaultState.autoplay &&
+        ref.watch(automaticMediaLoadingEnabledProvider) &&
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.of(context)?.isCurrent ?? true)) {
+      final candidate = gridThumbnailUrlBuilder.resolve(
+        post,
+        settings: GridThumbnailSettings(
+          imageQuality: thumbnailSettings.imageQuality,
+          animatedPostsDefaultState:
+              thumbnailSettings.animatedPostsDefaultState,
+          gridSize: thumbnailSettings.gridSize,
+          allowLargeCachedGif: true,
+        ),
+      );
+      if (candidate.url.isNotEmpty &&
+          (candidate.url != resolvedMedia.url ||
+              candidate.url == post.originalImageUrl)) {
+        final sourceConfig = imageConfig ?? config;
+        final request = ref
+            .watch(networkSettingsProvider(sourceConfig))
+            .resolveMedia(
+              candidate.url,
+              headers: ref.watch(httpHeadersProvider(sourceConfig)),
+            );
+        cachedGif = ref
+            .watch(
+              cachedGridGifProvider((
+                manager:
+                    imageCacheManager ??
+                    ref.watch(defaultImageCacheManagerProvider),
+                url: request.url,
+                originalSize: candidate.url == post.originalImageUrl
+                    ? post.fileSize
+                    : null,
+              )),
+            )
+            .valueOrNull;
+        if (cachedGif != null) {
+          resolvedMedia = candidate;
+        }
+      }
+    }
+    if (cachedGif == null &&
+        isOriginalGridGif(post) &&
+        post.fileSize > maxAutoplayGridGifBytes &&
+        resolvedMedia.url == post.originalImageUrl) {
+      resolvedMedia = GridThumbnailMedia(
+        url: '',
+        aspectRatio: resolvedMedia.aspectRatio,
+      );
+    }
     final resolvedAdditions = additions ?? _resolveAdditions(context, ref);
     final media = switch (resolvedAdditions.imageAspectRatio) {
       final aspectRatio? => GridThumbnailMedia(
@@ -161,6 +227,7 @@ class PostGridItem extends ConsumerWidget {
           media: media,
           imageCacheManager: imageCacheManager,
           config: imageConfig ?? config,
+          cachedImageBytes: cachedGif,
         );
 
     final item = SliverPostGridImageGridItem(
@@ -243,10 +310,12 @@ class _PostGridImage extends ConsumerWidget {
     required this.media,
     required this.config,
     this.imageCacheManager,
+    this.cachedImageBytes,
   });
 
   final GridThumbnailMedia media;
   final ImageCacheManager? imageCacheManager;
+  final Uint8List? cachedImageBytes;
   final BooruConfigAuth config;
 
   @override
@@ -271,6 +340,7 @@ class _PostGridImage extends ConsumerWidget {
       placeholderAspectRatio: media.placeholderAspectRatio,
       placeholderFit: media.placeholderFit,
       imageCacheManager: imageCacheManager,
+      cachedImageBytes: cachedImageBytes,
     );
   }
 }

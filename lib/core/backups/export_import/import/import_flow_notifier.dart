@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/filesystem.dart';
+import '../../../../foundation/loggers.dart';
 import '../../../../foundation/utils/file_utils.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
@@ -474,7 +475,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         exporterVersion: package.manifest.appVersion,
         containsCredentials: containsCredentials,
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Import',
+            'preflight',
+            error: error,
+            stackTrace: stackTrace,
+            outcome: 'import_not_started',
+          );
       state = ImportFlowState(status: ImportFlowStatus.error, error: error);
     }
   }
@@ -573,7 +583,28 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     } on StaleImportPlanException {
       // The original clipboard/received file may be gone; keep using verified staged parts.
       await _load(null);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      final logger = ref.read(loggerProvider);
+      logger.handledError(
+        'Import',
+        'apply_transaction',
+        error: error is ImportRollbackException ? error.importError : error,
+        stackTrace: stackTrace,
+        outcome: error is ImportRollbackException
+            ? 'rollback_failed'
+            : 'import_not_completed',
+      );
+      if (error is ImportRollbackException) {
+        // Keep recovery failures distinct without exposing source IDs or paths.
+        for (final failure in error.rollbackErrors.take(3)) {
+          logger.handledError(
+            'Import',
+            'rollback',
+            error: failure,
+            outcome: 'recovery_required',
+          );
+        }
+      }
       state = state.copyWith(status: ImportFlowStatus.error, error: error);
     }
   }
@@ -1465,7 +1496,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     if (id != 'bookmarks') return;
     bookmarkRefreshFailed = false;
     try {
-      await ref.read(bookmarkProvider.notifier).syncActiveTargetFromSettings();
+      await ref.read(bookmarkProvider.notifier).refresh();
     } catch (_) {
       bookmarkRefreshFailed = true;
     }

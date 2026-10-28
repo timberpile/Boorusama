@@ -71,6 +71,7 @@ void main() {
       ]);
       expect(find.byType(ErrorPlaceholder), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
       tester.binding.imageCache.clear();
     },
   );
@@ -172,6 +173,33 @@ void main() {
         'https://example.test/thumbnail.jpg',
       ]),
     );
+    tester.binding.imageCache.clear();
+  });
+
+  testWidgets('a decorative image can use a themed failure surface', (
+    tester,
+  ) async {
+    final controller = ExtendedImageController();
+    addTearDown(controller.dispose);
+    final dio = Dio()..httpClientAdapter = _PendingAdapter();
+    addTearDown(() => dio.close(force: true));
+    const fallbackKey = ValueKey('themed-failure');
+    await tester.pumpWidget(
+      _testApp(
+        BooruRawImage(
+          dio: dio,
+          imageUrl: 'https://example.test/decorative.jpg',
+          controller: controller,
+          errorWidget: const ColoredBox(key: fallbackKey, color: Colors.grey),
+        ),
+      ),
+    );
+    controller.changeLoadState(LoadState.failed);
+    await tester.pump();
+    expect(find.byKey(fallbackKey), findsOneWidget);
+    expect(find.byType(ErrorPlaceholder), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
     tester.binding.imageCache.clear();
   });
 

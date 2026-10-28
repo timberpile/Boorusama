@@ -84,7 +84,7 @@ void main() {
       expect(find.widgetWithText(legacy.ListTile, 'Cookie'), findsOneWidget);
       expect(find.widgetWithText(legacy.ListTile, 'Other'), findsNothing);
       expect(find.text('Deep'), findsNothing);
-      expect(find.text('Create folder'), findsOneWidget);
+      expect(find.text('Create Folder'), findsOneWidget);
       await enter(tester, 'Cookie');
       await enter(tester, 'Deep');
       expect(choices, isEmpty);
@@ -132,7 +132,7 @@ void main() {
       expect(find.widgetWithText(legacy.ListTile, 'Artists'), findsOneWidget);
       await select(tester);
       expect(choices.single, (id: null, newFolder: null));
-      expect(find.text('No folder'), findsOneWidget);
+      expect(find.text('No Folder'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -161,14 +161,14 @@ void main() {
       expect(choices.single, (id: null, newFolder: null));
       await open(tester);
       await tester.tap(
-        find.widgetWithText(legacy.TextButton, 'Create folder'),
+        find.widgetWithText(legacy.TextButton, 'Create Folder'),
       );
       await tester.pumpAndSettle();
       expect(choices.last.id, isNull);
       expect(choices.last.newFolder?.name, isEmpty);
       expect(choices.last.newFolder?.parentId, isNull);
       expect(choices.last.newFolder?.feedEnabled, isFalse);
-      expect(find.text('New folder'), findsOneWidget);
+      expect(find.text('New Folder'), findsOneWidget);
       expect(harness.requests, isEmpty);
       expect(tester.takeException(), isNull);
     },

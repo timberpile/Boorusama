@@ -185,7 +185,7 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
 
           if (urlData == null || urlData.url.isEmpty) continue;
 
-          final fileName = await fileNameBuilder.generateForBulkDownload(
+          final rawFileName = await fileNameBuilder.generateForBulkDownload(
             settings,
             config.download,
             item,
@@ -195,6 +195,11 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
             downloadUrl: urlData.url,
             cancelToken: cancelToken,
             asyncTokenDelay: asyncTokenDelay,
+          );
+          final fileName = qualifyRenditionFileName(
+            rawFileName,
+            quality: urlData.resolvedQuality,
+            downloadUrl: urlData.url,
           );
 
           l._log('Resolved filename for post ${item.id}: $fileName');
@@ -225,7 +230,10 @@ class DryRunNotifier extends FamilyAsyncNotifier<DryRunState, String> {
             DownloadRecord(
               url: urlData.url,
               fileName: fileName,
-              fileSize: item.fileSize,
+              fileSize:
+                  urlData.resolvedQuality == 'original' && item.fileSize > 0
+                  ? item.fileSize
+                  : null,
               sessionId: sessionId,
               status: DownloadRecordStatus.pending,
               extension: extension(fileName),

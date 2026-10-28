@@ -187,13 +187,21 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
               topics,
               organization,
               feeds,
-              error,
             );
           }
           Error.throwWithStackTrace(error, stackTrace);
         }
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Profiles',
+            'remove_profile',
+            error: e,
+            stackTrace: stackTrace,
+            outcome: 'removal_not_completed',
+          );
       onFailure?.call(e.toString());
     }
   }
@@ -207,7 +215,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     try {
       // Validate inputs
       if (!isCanonicalProfileId(oldConfigId)) {
-        _logError('Invalid config id: $oldConfigId');
+        _logError('update_profile; invalid_id');
         onFailure?.call('Unable to find this account');
         return;
       }
@@ -215,7 +223,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       // Check if config exists
       final existingConfig = state.firstWhereOrNull((c) => c.id == oldConfigId);
       if (existingConfig == null) {
-        _logError('Config not found: $oldConfigId');
+        _logError('update_profile; profile_not_found');
         onFailure?.call('This profile no longer exists');
         return;
       }
@@ -251,7 +259,16 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         BooruConfig? updated;
         try {
           updated = await configRepository.update(oldConfigId, booruConfigData);
-        } catch (_) {
+        } catch (error, stackTrace) {
+          ref
+              .read(loggerProvider)
+              .handledError(
+                'Profiles',
+                'write_profile',
+                error: error,
+                stackTrace: stackTrace,
+                outcome: 'write_not_confirmed',
+              );
           updated = null;
         }
         if (updated == null && siteChanged) {
@@ -278,7 +295,6 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
           : await save();
 
       if (updatedConfig == null) {
-        _logError('Failed to update config: $oldConfigId');
         onFailure?.call('Unable to update profile. Failed to save changes');
         return;
       }
@@ -309,8 +325,16 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
               ),
             );
       }
-    } catch (e) {
-      _logError('Failed to update config: $oldConfigId');
+    } catch (e, stackTrace) {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Profiles',
+            'update_profile',
+            error: e,
+            stackTrace: stackTrace,
+            outcome: 'update_not_completed',
+          );
       onFailure?.call(
         'Something went wrong while updating your profile. Please try again',
       );
@@ -323,18 +347,22 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     List<FollowingTopic> topics,
     TopicOrganization organization,
     List<TopicFeed> feeds,
-    Object originalError,
   ) async {
     try {
       await searchRepository.restoreForProfile(config.id, topics);
       await searchRepository.restoreFeeds(config.id, feeds);
       await searchRepository.replaceOrganization(organization);
-    } catch (restoreError) {
-      _logError('Failed to remove config ${config.id}: $originalError');
-      _logError(
-        'Failed to restore followed topics for config ${config.id}: '
-        '$restoreError',
-      );
+      _logInfo('restore_following_after_failed_remove; outcome=restored');
+    } catch (restoreError, stackTrace) {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Profiles',
+            'restore_following_after_failed_remove',
+            error: restoreError,
+            stackTrace: stackTrace,
+            outcome: 'recovery_failed',
+          );
     }
   }
 
@@ -413,7 +441,16 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       if (setAsCurrent || state.length == 1) {
         await ref.read(currentBooruConfigProvider.notifier).update(config);
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Profiles',
+            'add_profile',
+            error: e,
+            stackTrace: stackTrace,
+            outcome: 'addition_not_completed',
+          );
       onFailure?.call(
         'Something went wrong while adding your profile. Please try again',
       );

@@ -60,7 +60,7 @@ Post postDtoToPost(
       favCount: dto.favCount ?? 0,
       uploaderId: dto.uploaderId ?? 0,
       approverId: dto.approverId,
-      rating: Rating.parse(dto.rating ?? 's'),
+      rating: Rating.parse(dto.rating),
       fileSize: dto.fileSize ?? 0,
       hasChildren: dto.hasChildren ?? false,
       parentId: dto.parentId,
@@ -79,6 +79,15 @@ Post postDtoToPost(
     return danbooruPostFromRecord(
       record,
       PostOrigin.forBooruType(BooruType.danbooru),
+    ).withDetailFacts(
+      PostDetailFacts(
+        originalByteSize: dto.fileSize,
+        originalWidth: dto.imageWidth?.toDouble(),
+        originalHeight: dto.imageHeight?.toDouble(),
+        originalFormat: dto.fileExt,
+        score: dto.score,
+        favoriteCount: dto.favCount,
+      ),
     );
   } catch (e) {
     return emptyDanbooruPost();

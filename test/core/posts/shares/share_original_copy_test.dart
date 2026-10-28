@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:io';
 import 'dart:async';
 
@@ -115,6 +118,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             appFileSystemProvider.overrideWithValue(fs),
             downloadFileUrlExtractorProvider.overrideWith(
               (ref, config) => extractor,
@@ -155,14 +159,14 @@ void main() {
         ),
       );
 
-      expect(find.byTooltip('Copy original'), findsOneWidget);
+      expect(find.byTooltip('Copy Original'), findsOneWidget);
       await real(() async {
-        await tester.tap(find.byTooltip('Copy original'));
+        await tester.tap(find.byTooltip('Copy Original'));
         await pumpUntilShareCondition(
           tester,
           () =>
               find.text('Copied').evaluate().isNotEmpty &&
-              shareActionEnabled(tester, 'Copy original'),
+              shareActionEnabled(tester, 'Copy Original'),
           reason: 'Copy must acknowledge the clipboard and release its lease',
         );
       });
@@ -238,6 +242,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              loggerProvider.overrideWithValue(AppLogger()),
               appFileSystemProvider.overrideWithValue(fs),
               downloadFileUrlExtractorProvider.overrideWith(
                 (ref, config) => _ExactExtractor(),
@@ -284,7 +289,7 @@ void main() {
         );
 
         await real(() async {
-          await tester.tap(find.byTooltip('Copy original'));
+          await tester.tap(find.byTooltip('Copy Original'));
           await readStarted.future.timeout(const Duration(seconds: 10));
           await pumpUntilShareCondition(
             tester,
@@ -329,7 +334,7 @@ void main() {
           tester,
           () =>
               find.text('Copied').evaluate().isNotEmpty &&
-              shareActionEnabled(tester, 'Copy original'),
+              shareActionEnabled(tester, 'Copy Original'),
           reason: 'Copy must finish after the pending clipboard write',
         );
         await tester.pumpAndSettle();

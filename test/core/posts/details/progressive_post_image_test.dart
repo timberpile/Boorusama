@@ -19,6 +19,104 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final failOriginal in [false, true]) {
+    testWidgets(
+      'Original upgrade retains a decoded High intermediate (failure=$failOriginal)',
+      (tester) async {
+        final fixture = _Fixture();
+        await tester.pumpWidget(fixture.build(intermediates: [_second]));
+        await tester.runAsync(() => waitForPixel(tester, [255, 0, 0, 255]));
+        final state = tester.state(find.byType(ExtendedImage));
+        final bounds = tester.getSize(find.byType(ExtendedRawImage));
+        await tester.runAsync(() async {
+          await pumpUntil(
+            tester,
+            () =>
+                fixture.adapter.pending.containsKey(_second) &&
+                fixture.adapter.pending.containsKey(_target),
+            reason: 'High and Original requests',
+          );
+          fixture.adapter.complete(_second, targetPng);
+          await waitForPixel(tester, [0, 0, 255, 255]);
+          fixture.adapter.complete(
+            _target,
+            failOriginal ? Uint8List.fromList([1, 2, 3]) : originalPng,
+          );
+          if (failOriginal) {
+            await pumpUntil(
+              tester,
+              () => find.text('Retry').evaluate().isNotEmpty,
+              reason: 'Original failure retains High',
+            );
+            await waitForPixel(tester, [0, 0, 255, 255]);
+          } else {
+            await waitForPixel(tester, [0, 255, 0, 255]);
+          }
+        });
+        if (failOriginal) {
+          fixture.adapter.pending.remove(_target);
+          await tester.tap(find.text('Retry'));
+          await tester.runAsync(() async {
+            await pumpUntil(
+              tester,
+              () => fixture.adapter.pending.containsKey(_target),
+              reason: 'explicit Original retry',
+            );
+            await waitForPixel(tester, [0, 0, 255, 255]);
+            fixture.adapter.complete(_target, originalPng);
+            await waitForPixel(tester, [0, 255, 0, 255]);
+          });
+        }
+        expect(tester.state(find.byType(ExtendedImage)), same(state));
+        expect(tester.getSize(find.byType(ExtendedRawImage)), bounds);
+        expect(fixture.adapter.requests.map((r) => r.uri.toString()).toSet(), {
+          _second,
+          _target,
+        });
+        expect(fixture.adapter.requests, hasLength(failOriginal ? 3 : 2));
+        expect(
+          fixture.adapter.requests.where((r) => r.uri.toString() == _second),
+          hasLength(1),
+        );
+        expect(tester.takeException(), isNull);
+        await fixture.finish(tester);
+      },
+    );
+  }
+  testWidgets(
+    'missing and identical intermediates never duplicate rendition requests',
+    (tester) async {
+      final fixture = _Fixture();
+      await tester.pumpWidget(
+        fixture.build(
+          intermediates: ['', _lower, _second, _second, _target],
+          fallbackUrls: [_second],
+        ),
+      );
+      await tester.runAsync(() async {
+        await waitForPixel(tester, [255, 0, 0, 255]);
+        await pumpUntil(
+          tester,
+          () =>
+              fixture.adapter.pending.containsKey(_second) &&
+              fixture.adapter.pending.containsKey(_target),
+          reason: 'distinct candidates',
+        );
+        fixture.adapter.complete(_target, originalPng);
+        await waitForPixel(tester, [0, 255, 0, 255]);
+        fixture.adapter.complete(_second, targetPng);
+        await pumpUntil(
+          tester,
+          () => fixture.cache.bytes.containsKey(_second),
+          reason: 'late intermediate completed',
+        );
+        await tester.pump();
+        await waitForPixel(tester, [0, 255, 0, 255]);
+      });
+      expect(fixture.adapter.requests, hasLength(2));
+      await fixture.finish(tester);
+    },
+  );
   testWidgets(
     'an unresolved thumbnail target cannot replace the cached larger grid image',
     (tester) async {
@@ -498,6 +596,7 @@ void main() {
             key: const ValueKey('same-identity-and-auth'),
             dio: fixture.dio,
             imageUrl: _target,
+            intermediateImageUrls: const [_second],
             lowerMedia: const GridThumbnailMedia(url: '', aspectRatio: null),
             aspectRatio: 1,
             geometryAspectRatio: ratio,
@@ -508,9 +607,22 @@ void main() {
         ),
       );
       await tester.pumpWidget(build(1));
-      await decodePump(tester);
-      fixture.adapter.complete(_target, targetPng);
-      await decodePump(tester);
+      final initialMatrix = matrix.value.storage.toList();
+      await tester.runAsync(() async {
+        await pumpUntil(
+          tester,
+          () =>
+              fixture.adapter.pending.containsKey(_second) &&
+              fixture.adapter.pending.containsKey(_target),
+          reason: 'zoomed progressive candidates',
+        );
+        fixture.adapter.complete(_second, targetPng);
+        await waitForPixel(tester, [0, 0, 255, 255]);
+        expect(matrix.value.storage, initialMatrix);
+        fixture.adapter.complete(_target, originalPng);
+        await waitForPixel(tester, [0, 255, 0, 255]);
+        expect(matrix.value.storage, initialMatrix);
+      });
       final image = fixture.controller.imageInfo.value!.image;
       final before = matrix.value.storage.toList();
       final held = await tester.startGesture(
@@ -529,8 +641,8 @@ void main() {
       );
       expect(matrix.value.storage, before);
       expect(fixture.controller.imageInfo.value!.image, same(image));
-      expect(await paintedPixel(tester), [0, 0, 255, 255]);
-      expect(fixture.adapter.requests, hasLength(1));
+      expect(await paintedPixel(tester), [0, 255, 0, 255]);
+      expect(fixture.adapter.requests, hasLength(2));
       await tester.pumpWidget(build(1));
       await tester.pump();
       final fresh = await tester.startGesture(
@@ -607,6 +719,7 @@ class _Fixture {
     String lower = _lower,
     String? fallback,
     List<String> fallbackUrls = const [],
+    List<String> intermediates = const [],
     String? placeholder,
     double? Function()? geometry,
     String key = 'same-post',
@@ -619,6 +732,7 @@ class _Fixture {
           key: ValueKey(key),
           dio: dio,
           imageUrl: target,
+          intermediateImageUrls: intermediates,
           lowerMedia: GridThumbnailMedia(
             url: lower,
             aspectRatio: 1,

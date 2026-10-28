@@ -1,0 +1,42 @@
+{
+  "family": "nozomi",
+  "mediaKind": "video",
+  "host": "j.gold-usergeneratedcontent.net",
+  "endpoint": "https://j.gold-usergeneratedcontent.net/post/2/26/39252262.json",
+  "capturedAt": "2026-10-25T04:15:22.891102+00:00",
+  "authenticated": false,
+  "status": 200,
+  "shape": "json",
+  "sourceFields": [
+    "artist",
+    "character",
+    "copyright",
+    "dataid",
+    "date",
+    "general",
+    "height",
+    "imageurls",
+    "is_video",
+    "postid",
+    "type",
+    "width"
+  ],
+  "post": {
+    "postid": 39252262,
+    "height": 1920,
+    "date": "2026-10-24 21:16:05-05",
+    "width": 1080,
+    "is_video": "1",
+    "type": "webm",
+    "dataid": "3dda56862eeb9602cde75ac798301148f8a8f5102a3502b9362236f05d125c87",
+    "imageurls": [
+      {
+        "type": "webm",
+        "width": 1080,
+        "is_video": "1",
+        "height": 1920,
+        "dataid": "3dda56862eeb9602cde75ac798301148f8a8f5102a3502b9362236f05d125c87"
+      }
+    ]
+  }
+}

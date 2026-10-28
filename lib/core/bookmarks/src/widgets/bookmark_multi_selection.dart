@@ -117,6 +117,7 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
       title: Text(context.t.bookmark.groups.selector),
       content: SizedBox(
         width: 360,
+        height: 320,
         child: BookmarkFolderPickerContents(
           folders: library?.folders ?? const [],
           groups: library?.groups ?? const [],
@@ -133,37 +134,32 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
             ),
             onTap: () => Navigator.pop(context, group.id),
           ),
-          footerBuilder: allowCreate
-              ? (context, folderId) => ListTile(
-                  leading: const Icon(Icons.add),
-                  title: Text(context.t.bookmark.groups.create_new),
-                  onTap: () async {
-                    final name = await showBookmarkGroupNameDialog(
-                      context,
-                      title: context.t.bookmark.groups.create,
-                    );
-                    if (name == null || !context.mounted) return;
-                    try {
-                      final group = await ref
-                          .read(bookmarkProvider.notifier)
-                          .createGroup(
-                            name,
-                            activate: true,
-                            folderId: folderId,
-                          );
-                      if (context.mounted) {
-                        Navigator.pop(context, group.id);
-                      }
-                    } catch (_) {
-                      if (context.mounted) {
-                        Kurumi.showErrorToast(
-                          context,
-                          context.t.bookmark.groups.operation_failed,
+          onCreateGroup: allowCreate
+              ? (folderId) async {
+                  final name = await showBookmarkGroupNameDialog(
+                    context,
+                    title: context.t.bookmark.groups.create,
+                  );
+                  if (name == null || !context.mounted) return;
+                  try {
+                    final group = await ref
+                        .read(bookmarkProvider.notifier)
+                        .createGroup(
+                          name,
+                          folderId: folderId,
                         );
-                      }
+                    if (context.mounted) {
+                      Navigator.pop(context, group.id);
                     }
-                  },
-                )
+                  } catch (_) {
+                    if (context.mounted) {
+                      Kurumi.showErrorToast(
+                        context,
+                        context.t.bookmark.groups.operation_failed,
+                      );
+                    }
+                  }
+                }
               : null,
         ),
       ),
@@ -228,11 +224,12 @@ class BookmarkGroupSelectionTarget {
   final int? appliedCount;
 }
 
-class BookmarkMultiSelectionMenu extends ConsumerWidget {
+class BookmarkMultiSelectionMenu extends ConsumerStatefulWidget {
   const BookmarkMultiSelectionMenu({
     required this.posts,
     required this.config,
     required this.onCompleted,
+    this.currentGroupId,
     super.key,
   });
 
@@ -240,11 +237,35 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
   final BooruConfigAuth config;
   final Future<void> Function() onCompleted;
 
+  /// The listing's actual group, not the globally active bookmark target.
+  /// Null keeps All Bookmarks and ordinary post selections unchanged.
+  final String? currentGroupId;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookmarkMultiSelectionMenu> createState() =>
+      _BookmarkMultiSelectionMenuState();
+}
+
+class _BookmarkMultiSelectionMenuState
+    extends ConsumerState<BookmarkMultiSelectionMenu> {
+  var _isProcessing = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.currentGroupId != null)
+          KurumiPopupMenuItem(
+            key: const Key('bookmark-remove-current-group'),
+            title: Text(context.t.generic.action.remove),
+            onTap: () => _select(
+              context,
+              ref,
+              BookmarkMultiSelectionOperation.remove,
+              directGroupId: widget.currentGroupId,
+            ),
+          ),
         KurumiPopupMenuItem(
           title: Text(context.t.bookmark.bulk.add),
           trailing: const Icon(Icons.chevron_right),
@@ -264,22 +285,53 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
   Future<void> _select(
     BuildContext context,
     WidgetRef ref,
-    BookmarkMultiSelectionOperation operation,
-  ) async {
+    BookmarkMultiSelectionOperation operation, {
+    String? directGroupId,
+  }) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+    try {
+      await _performSelection(
+        context,
+        ref,
+        operation,
+        directGroupId: directGroupId,
+      );
+    } finally {
+      _isProcessing = false;
+    }
+  }
+
+  Future<void> _performSelection(
+    BuildContext context,
+    WidgetRef ref,
+    BookmarkMultiSelectionOperation operation, {
+    String? directGroupId,
+  }) async {
     final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    final target = await showBookmarkGroupSelectionDialog(
-      navigator.context,
-      operation: operation,
-      posts: posts,
-      config: config,
-    );
+    final selectedPosts = List<Post>.unmodifiable(widget.posts);
+    final config = widget.config;
+    final onCompleted = widget.onCompleted;
+    final target = directGroupId == null
+        ? await showBookmarkGroupSelectionDialog(
+            navigator.context,
+            operation: operation,
+            posts: selectedPosts,
+            config: config,
+          )
+        : BookmarkGroupSelectionTarget(directGroupId, '');
     if (target == null || !navigator.mounted) return;
     try {
       if (operation == BookmarkMultiSelectionOperation.add) {
         final changed =
             target.appliedCount ??
-            await notifier.addPostsToGroup(config, posts, target.id);
+            await notifier.addPostsToGroup(
+              config,
+              selectedPosts,
+              target.id,
+              manual: true,
+            );
         if (!navigator.mounted) return;
         Kurumi.showSuccessToast(
           navigator.context,
@@ -290,7 +342,7 @@ class BookmarkMultiSelectionMenu extends ConsumerWidget {
       } else {
         final result = await notifier.removePostsFromGroup(
           config,
-          posts,
+          selectedPosts,
           target.id!,
         );
         if (!navigator.mounted) return;
@@ -355,6 +407,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
       ),
       content: SizedBox(
         width: 360,
+        height: 320,
         child: BookmarkFolderPickerContents(
           folders: state?.folders ?? const [],
           groups: visibleGroups,
@@ -368,22 +421,15 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
             BookmarkGroupSelectionTarget(group.id, group.displayName(context)),
             summary.countFor(group.id),
           ),
-          footerBuilder: (context, folderId) => Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!add && visibleGroups.isEmpty)
-                Padding(
+          onCreateGroup: add
+              ? (folderId) => _create(context, ref, folderId)
+              : null,
+          footerBuilder: !add && visibleGroups.isEmpty
+              ? (context, folderId) => Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(context.t.bookmark.bulk.no_applicable),
-                ),
-              if (add)
-                ListTile(
-                  leading: const Icon(Icons.add),
-                  title: Text(context.t.bookmark.bulk.create_group),
-                  onTap: () => _create(context, ref, folderId),
-                ),
-            ],
-          ),
+                )
+              : null,
         ),
       ),
       actions: [

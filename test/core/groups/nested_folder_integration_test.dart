@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
@@ -16,6 +17,7 @@ import 'package:boorusama/core/backups/sources/bookmark_import_service.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
+
 import '../search/following_topics/topic_test_utils.dart';
 
 String id(int n) => '00000000-0000-4000-8000-${n.toString().padLeft(12, '0')}';
@@ -225,7 +227,7 @@ void main() {
       expect(preview.groupIds, hasLength(2));
       expect(preview.orphanBookmarkIds, {only.id});
       await service.deleteFolder(preview);
-      final state = await service.load(const BookmarkTarget.defaultGroup());
+      final state = await service.load();
       expect(state.groups.where((g) => !g.isDefault).map((g) => g.id), [id(3)]);
       expect(state.bookmarksById.keys, {shared.id, ungrouped.id});
       expect(state.folders, isEmpty);
@@ -252,13 +254,13 @@ void main() {
       await groups.createGroup('Group', id: id(1));
       await groups.replaceMemberships(id(1), {b.id});
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
-      final before = await service.load(const BookmarkTarget.defaultGroup());
+      final before = await service.load();
       bookmarks.failRemoval = true;
       await expectLater(
         service.deleteFolder(await service.previewDeleteFolder(folder.id)),
         throwsStateError,
       );
-      expect(await service.load(const BookmarkTarget.defaultGroup()), before);
+      expect(await service.load(), before);
     },
   );
   test(
@@ -481,7 +483,7 @@ void main() {
         ).replace(data),
         throwsStateError,
       );
-      final state = await service.load(const BookmarkTarget.defaultGroup());
+      final state = await service.load();
       expect(state.folders, [folder]);
       expect(
         state.groups.where((g) => !g.isDefault).single.folderId,

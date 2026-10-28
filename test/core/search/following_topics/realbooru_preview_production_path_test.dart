@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -75,6 +78,7 @@ void main() {
           supported: false,
           loadImages: true,
           overrides: [
+            loggerProvider.overrideWithValue(AppLogger()),
             gelbooruV2Provider.overrideWithValue(booru),
             gelbooruV2DioProvider.overrideWith((ref, _) => dio),
           ],

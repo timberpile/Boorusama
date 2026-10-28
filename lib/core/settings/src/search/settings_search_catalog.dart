@@ -81,6 +81,7 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
     description: settings.performance.posts_per_page_explain,
   );
   add('appearance', 'show_scores', appearance.show_scores);
+  add('appearance', 'show_bookmark_count', appearance.show_bookmark_count);
   add(
     'appearance',
     'show_post_list_config_header',

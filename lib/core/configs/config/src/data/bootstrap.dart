@@ -19,7 +19,10 @@ Future<BooruConfigRepository> createBooruConfigsRepo({
   final isNewBox = !await Hive.boxExists('booru_configs');
   final booruConfigBox = await Hive.openBox<String>('booru_configs');
 
-  final booruUserRepo = HiveBooruConfigRepository(box: booruConfigBox);
+  final booruUserRepo = HiveBooruConfigRepository(
+    box: booruConfigBox,
+    logger: logger,
+  );
   final hasOnlyUnsupportedRows =
       booruConfigBox.isNotEmpty && (await booruUserRepo.getAll()).isEmpty;
   if (onCreateNew != null && (isNewBox || hasOnlyUnsupportedRows)) {

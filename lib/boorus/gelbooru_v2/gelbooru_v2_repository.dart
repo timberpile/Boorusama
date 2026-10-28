@@ -22,6 +22,7 @@ import '../../core/notes/note/types.dart';
 import '../../core/posts/favorites/types.dart';
 import '../../core/posts/favorites/widgets.dart';
 import '../../core/posts/listing/types.dart';
+import '../../core/posts/media_preload/src/viewer_preload_metadata.dart';
 import '../../core/posts/post/providers.dart';
 import '../../core/posts/post/types.dart';
 import '../../core/search/queries/types.dart';
@@ -44,12 +45,35 @@ import 'posts/types.dart';
 import 'syntax/providers.dart';
 import 'tags/providers.dart';
 
-class GelbooruV2Repository extends BooruRepositoryDefault {
+class GelbooruV2Repository extends BooruRepositoryDefault
+    implements ViewerPreloadMetadataResolver {
   const GelbooruV2Repository({required this.ref});
 
   @override
   BooruPostDataCodec<GelbooruV2PostData> get postDataCodec =>
       const GelbooruV2PostCodec();
+
+  @override
+  Future<Post?> Function()? viewerPreloadMetadataLoader(
+    Post post,
+    BooruConfig config,
+  ) {
+    final thumbnailOnly =
+        ref
+            .read(gelbooruV2Provider)
+            .getCapabilitiesForSite(config.auth.url)
+            ?.posts
+            ?.thumbnailOnly ??
+        false;
+    if (!thumbnailOnly || post.id <= 0 || post.isVideo) return null;
+    if (post.booruData case VideoPreviewPostData(isVideoPreview: true)) {
+      return null;
+    }
+    if (post.metadata == null) return () async => post;
+    return () => ref.read(
+      gelbooruV2PostProvider((NumericPostId(post.id), config)).future,
+    );
+  }
 
   @override
   SearchRefreshQueryAdapter searchRefreshQueryAdapter(BooruConfigAuth config) {

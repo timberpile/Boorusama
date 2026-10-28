@@ -6,22 +6,30 @@ import '../../blacklists/providers.dart';
 import '../../boorus/booru/types.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
-import '../filter/types.dart';
 import '../post/providers.dart';
 import '../post/types.dart';
-import '../rating/types.dart';
 import '../sources/types.dart';
 import 'src/data/source_post_lookup.dart';
 import 'data.dart';
 import 'types.dart';
+import 'pixiv_original_hashes_provider.dart';
+import 'src/data/pixiv_lookup_capabilities.dart';
+import 'src/data/shared_pixiv_lookup_session.dart';
+
+import 'src/data/post_lookup_visibility.dart';
+
+export 'src/data/shared_pixiv_lookup_session.dart';
+export 'src/data/post_lookup_visibility.dart';
 
 // These engines' registered post repositories use their JSON APIs. Other
 // engines (including separate HTML implementations) are deliberately excluded.
 bool supportsExactPostLookup(BooruConfig config) =>
     switch (config.auth.booruType) {
       BooruType.danbooru || BooruType.gelbooru => true,
-      BooruType.gelbooruV2 =>
-        postOriginFromConfig(config).sourceHost == 'rule34.xxx',
+      BooruType.gelbooruV2 => const {
+        'rule34.xxx',
+        'safebooru.org',
+      }.contains(postOriginFromConfig(config).sourceHost),
       _ => false,
     };
 
@@ -51,32 +59,6 @@ final sourcePostLookupProvider = FutureProvider.autoDispose
         isVisible: (post) => isExactLookupPostVisible(post, target, blacklist),
       );
     });
-
-bool isExactLookupPostVisible(
-  Post post,
-  BooruConfig target,
-  Set<String> blacklist,
-) {
-  final filter = target.search.filter;
-  if (post.isFlash ||
-      (filter.deletedItemBehavior.isHidden &&
-          (post.status?.matches('deleted') ?? false)) ||
-      (filter.bannedPostVisibility.isHidden &&
-          (post.status?.matches('banned') ?? false))) {
-    return false;
-  }
-  final visibleRating = switch (filter.ratingFilter) {
-    BooruConfigRatingFilter.none => true,
-    BooruConfigRatingFilter.hideNSFW => post.rating == Rating.general,
-    BooruConfigRatingFilter.hideExplicit =>
-      target.auth.booruType == BooruType.danbooru
-          ? post.rating == Rating.general || post.rating == Rating.sensitive
-          : post.rating != Rating.explicit && post.rating != Rating.unknown,
-    BooruConfigRatingFilter.custom =>
-      !(filter.granularRatingFilters?.ratings.contains(post.rating) ?? false),
-  };
-  return visibleRating && filterTags([post], blacklist).isNotEmpty;
-}
 
 /// One results page owns this session and shares its bounded metadata refresh
 /// across all target profiles.
@@ -258,3 +240,31 @@ class CrossProfileLookupQueue {
     }
   }
 }
+
+bool supportsSharedPixivLookup(BooruConfig profile) =>
+    supportsSharedPixivOrigin(postOriginFromConfig(profile));
+
+final sharedPixivLookupSessionProvider = Provider.autoDispose
+    .family<SharedPixivLookupSession, PixivArtworkReference>((ref, artwork) {
+      final resolver = ref.watch(pixivOriginalHashResolverProvider(artwork));
+      var disposed = false;
+      ref.onDispose(() => disposed = true);
+      void validate(BooruConfig target) {
+        if (disposed || !ref.read(booruConfigProvider).contains(target)) {
+          throw StateError('Target profile changed');
+        }
+      }
+
+      return SharedPixivLookupSession(
+        artwork: artwork,
+        resolveHashes: resolver.resolve,
+        lookup: (target) {
+          validate(target);
+          return ref.read(sourcePostLookupProvider(target).future);
+        },
+        exactLookup: (target) {
+          validate(target);
+          return ref.read(exactPostLookupProvider(target).future);
+        },
+      );
+    });

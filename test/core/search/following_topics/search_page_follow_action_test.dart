@@ -310,7 +310,7 @@ void main() {
     final topic = find.byTooltip('Following');
     expect(count, findsOneWidget);
     expect(topic, findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
     expect(tester.getCenter(count).dy, closeTo(tester.getCenter(topic).dy, 1));
     await tester.tap(topic);
     await pumpTransitions(tester);

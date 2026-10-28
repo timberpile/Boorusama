@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -72,6 +75,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           appFileSystemProvider.overrideWithValue(fs),
           mediaUrlResolverProvider.overrideWith(
             (ref, config) => const SampleMediaUrlResolver(),
@@ -117,7 +121,7 @@ void main() {
     );
 
     await tester.runAsync(() async {
-      await tester.tap(find.byTooltip('Share image'));
+      await tester.tap(find.byTooltip('Share Image'));
       await pumpUntilShareCondition(
         tester,
         () => find
@@ -141,12 +145,12 @@ void main() {
       findsWidgets,
     );
     expect(find.text('Retry'), findsNothing);
-    expect(find.byTooltip('Share image'), findsOneWidget);
+    expect(find.byTooltip('Share Image'), findsOneWidget);
     expect(
       tester
           .widget<IconButton>(
             find.ancestor(
-              of: find.byTooltip('Share image'),
+              of: find.byTooltip('Share Image'),
               matching: find.byType(IconButton),
             ),
           )

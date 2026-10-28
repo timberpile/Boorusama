@@ -33,8 +33,6 @@ import '../../../search/following_topics/src/compatibility/topic_storage_contrac
 export 'search_refresh_settings.dart';
 export 'post_quality.dart';
 
-const _settingNotProvided = Object();
-
 class Settings extends Equatable {
   const Settings({
     required this.listing,
@@ -57,7 +55,6 @@ class Settings extends Equatable {
     required this.appLockTimeoutSeconds,
     required this.hideAppPreviewWhenBackgrounded,
     required this.bookmarkFilterType,
-    required this.activeBookmarkGroupId,
     required this.booruConfigSelectorPosition,
     required this.booruConfigSelectorScrollDirection,
     required this.swipeAreaToOpenSidebarPercentage,
@@ -72,6 +69,7 @@ class Settings extends Equatable {
     required this.searchBarScrollBehavior,
     this.autoHideMainNavigation = true,
     this.postLongPressContextMenu = false,
+    this.showBookmarkCount = false,
     required this.searchBarPosition,
     required this.hapticFeedbackLevel,
     required this.autoBackup,
@@ -117,10 +115,6 @@ class Settings extends Equatable {
       hideAppPreviewWhenBackgrounded =
           json['hideAppPreviewWhenBackgrounded'] ?? false,
       bookmarkFilterType = BookmarkFilterType.parse(json['bookmarkFilterType']),
-      activeBookmarkGroupId = switch (json['activeBookmarkGroupId']) {
-        final String value => value,
-        _ => null,
-      },
       booruConfigSelectorPosition = BooruConfigSelectorPosition.parse(
         json['booruConfigSelectorPosition'],
       ),
@@ -147,6 +141,7 @@ class Settings extends Equatable {
           : null,
       autoHideMainNavigation = json['autoHideMainNavigation'] as bool? ?? true,
       postLongPressContextMenu = json['postLongPressContextMenu'] == true,
+      showBookmarkCount = json['showBookmarkCount'] == true,
       searchBarScrollBehavior = SearchBarScrollBehavior.parse(
         json['searchBarScrollBehavior'],
       ),
@@ -242,7 +237,6 @@ class Settings extends Equatable {
     appLockTimeoutSeconds: 30,
     hideAppPreviewWhenBackgrounded: false,
     bookmarkFilterType: BookmarkFilterType.defaultValue,
-    activeBookmarkGroupId: null,
     booruConfigSelectorPosition: BooruConfigSelectorPosition.defaultValue,
     booruConfigSelectorScrollDirection: BooruConfigScrollDirection.defaultValue,
     swipeAreaToOpenSidebarPercentage: 5,
@@ -295,8 +289,6 @@ class Settings extends Equatable {
 
   final BookmarkFilterType bookmarkFilterType;
 
-  final String? activeBookmarkGroupId;
-
   final BooruConfigSelectorPosition booruConfigSelectorPosition;
 
   final BooruConfigScrollDirection booruConfigSelectorScrollDirection;
@@ -322,6 +314,7 @@ class Settings extends Equatable {
   final SearchBarScrollBehavior searchBarScrollBehavior;
   final bool autoHideMainNavigation;
   final bool postLongPressContextMenu;
+  final bool showBookmarkCount;
 
   final SearchBarPosition searchBarPosition;
 
@@ -354,7 +347,6 @@ class Settings extends Equatable {
     int? appLockTimeoutSeconds,
     bool? hideAppPreviewWhenBackgrounded,
     BookmarkFilterType? bookmarkFilterType,
-    Object? activeBookmarkGroupId = _settingNotProvided,
     PostGestureConfig? postGestures,
     BooruConfigSelectorPosition? booruConfigSelectorPosition,
     BooruConfigScrollDirection? booruConfigSelectorScrollDirection,
@@ -373,6 +365,7 @@ class Settings extends Equatable {
     SearchBarScrollBehavior? searchBarScrollBehavior,
     bool? autoHideMainNavigation,
     bool? postLongPressContextMenu,
+    bool? showBookmarkCount,
     SearchBarPosition? searchBarPosition,
     HapticFeedbackLevel? hapticFeedbackLevel,
     AutoBackupSettings? autoBackup,
@@ -406,13 +399,6 @@ class Settings extends Equatable {
     hideAppPreviewWhenBackgrounded:
         hideAppPreviewWhenBackgrounded ?? this.hideAppPreviewWhenBackgrounded,
     bookmarkFilterType: bookmarkFilterType ?? this.bookmarkFilterType,
-    activeBookmarkGroupId:
-        identical(
-          activeBookmarkGroupId,
-          _settingNotProvided,
-        )
-        ? this.activeBookmarkGroupId
-        : activeBookmarkGroupId as String?,
     booruConfigSelectorPosition:
         booruConfigSelectorPosition ?? this.booruConfigSelectorPosition,
     booruConfigSelectorScrollDirection:
@@ -438,6 +424,7 @@ class Settings extends Equatable {
         autoHideMainNavigation ?? this.autoHideMainNavigation,
     postLongPressContextMenu:
         postLongPressContextMenu ?? this.postLongPressContextMenu,
+    showBookmarkCount: showBookmarkCount ?? this.showBookmarkCount,
     searchBarScrollBehavior:
         searchBarScrollBehavior ?? this.searchBarScrollBehavior,
     searchBarPosition: searchBarPosition ?? this.searchBarPosition,
@@ -475,7 +462,6 @@ class Settings extends Equatable {
       'appLockTimeoutSeconds': appLockTimeoutSeconds,
       'hideAppPreviewWhenBackgrounded': hideAppPreviewWhenBackgrounded,
       'bookmarkFilterType': bookmarkFilterType.toData(),
-      'activeBookmarkGroupId': activeBookmarkGroupId,
       'booruConfigSelectorPosition': booruConfigSelectorPosition.toData(),
       'booruConfigSelectorScrollDirection': booruConfigSelectorScrollDirection
           .toData(),
@@ -491,6 +477,7 @@ class Settings extends Equatable {
       'volumeKeyViewerNavigation': volumeKeyViewerNavigation,
       'autoHideMainNavigation': autoHideMainNavigation,
       'postLongPressContextMenu': postLongPressContextMenu,
+      'showBookmarkCount': showBookmarkCount,
       'searchBarScrollBehavior': searchBarScrollBehavior.toData(),
       'searchBarPosition': searchBarPosition.toData(),
       'hapticFeedbackLevel': hapticFeedbackLevel.toData(),
@@ -525,7 +512,6 @@ class Settings extends Equatable {
     appLockTimeoutSeconds,
     hideAppPreviewWhenBackgrounded,
     bookmarkFilterType,
-    activeBookmarkGroupId,
     booruConfigSelectorPosition,
     booruConfigSelectorScrollDirection,
     swipeAreaToOpenSidebarPercentage,
@@ -541,6 +527,7 @@ class Settings extends Equatable {
     searchBarScrollBehavior,
     autoHideMainNavigation,
     postLongPressContextMenu,
+    showBookmarkCount,
     searchBarPosition,
     hapticFeedbackLevel,
     autoBackup,

@@ -53,7 +53,8 @@ class ViewerDiagnosticsTests(unittest.TestCase):
             self.assertTrue((target / 'lib/foundation/performance/performance_diagnostics.dart').exists())
             import json
             strings = json.loads((target / 'packages/i18n/translations/en-US.json').read_text())
-            self.assertEqual(strings['performance_diagnostics']['title'], 'Performance diagnostics')
+            source_strings = json.loads((SCRIPTS.parent / 'packages/i18n/translations/en-US.json').read_text())
+            self.assertEqual(strings['performance_diagnostics'], source_strings['performance_diagnostics'])
             self.assertEqual(strings['fixture_sentinel']['title'], 'Existing setting')
             self.assertIn('index < widget.posts.length', (target / 'lib/core/posts/details/src/widgets/post_details_image_preloader.dart').read_text())
 

@@ -28,23 +28,25 @@ final animePicturesDioProvider = Provider.family<Dio, BooruConfigAuth>((
   ref,
   config,
 ) {
-  return newDio(
-    apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
-    options: DioOptions(
-      ddosProtectionHandler: ref.watch(httpDdosProtectionBypassProvider),
-      userAgent: ref.watch(defaultUserAgentProvider),
-      loggerService: ref.watch(loggerProvider),
-      networkProtocolInfo: ref.watch(
-        defaultNetworkProtocolInfoProvider(config),
-      ),
-      baseUrl: config.url,
-      proxySettings: config.proxySettings,
-      skipCertificateVerification:
-          ref
-              .watch(networkSettingsProvider(config))
-              .httpSettings
-              ?.skipCertificateVerification ??
-          false,
-    ),
-  );
+  return createAnimePicturesDio(ref, config);
 });
+
+Dio createAnimePicturesDio(Ref ref, BooruConfigAuth config) => newDio(
+  apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
+  options: DioOptions(
+    ddosProtectionHandler: ref.watch(httpDdosProtectionBypassProvider),
+    userAgent: ref.watch(defaultUserAgentProvider),
+    loggerService: ref.watch(loggerProvider),
+    networkProtocolInfo: ref.watch(
+      defaultNetworkProtocolInfoProvider(config),
+    ),
+    baseUrl: config.url,
+    proxySettings: config.proxySettings,
+    skipCertificateVerification:
+        ref
+            .watch(networkSettingsProvider(config))
+            .httpSettings
+            ?.skipCertificateVerification ??
+        false,
+  ),
+);

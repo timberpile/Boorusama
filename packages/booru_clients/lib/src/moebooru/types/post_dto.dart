@@ -57,7 +57,9 @@ class PostDto {
       author: json['author'],
       change: json['change'],
       source: json['source'],
-      score: json['score'] is int ? json['score'] : int.tryParse(json['score']),
+      score: json['score'] is int
+          ? json['score']
+          : int.tryParse(json['score']?.toString() ?? ''),
       md5: json['md5'],
       fileSize: json['file_size'],
       fileExt: json['file_ext'],

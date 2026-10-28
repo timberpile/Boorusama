@@ -93,8 +93,9 @@ class _SelectedTagEditDialogState extends ConsumerState<SelectedTagEditDialog> {
                       .getSuggestions(query);
                 },
                 decoration: InputDecoration(
-                  suffixIcon: TextButton(
-                    child: Text(context.t.generic.action.ok),
+                  suffixIcon: IconButton(
+                    tooltip: context.t.generic.action.ok,
+                    icon: const Icon(Icons.check),
                     onPressed: () => _submit(context),
                   ),
                 ),

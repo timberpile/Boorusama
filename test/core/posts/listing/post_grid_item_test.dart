@@ -1,3 +1,22 @@
+import 'dart:async';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:cache_manager/cache_manager.dart';
+import 'package:dio/dio.dart';
+import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
+
+import '../../../support/fakes/test_post.dart';
+import '../details/progressive_image_test_utils.dart'
+    show DrainingImageCacheManager, lowerPng, pumpUntil;
+import 'large_grid_gif_fixture.dart';
+
+import 'package:boorusama/core/posts/listing/src/providers/cached_grid_gif.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:boorusama/core/configs/gesture/types.dart';
@@ -34,6 +53,165 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  for (final cacheState in ['valid', 'missing', 'partial', 'invalid']) {
+    for (final autoplay in [false, true]) {
+      testWidgets(
+        'large GIF grid uses owned cache bytes: $cacheState / autoplay=$autoplay',
+        (tester) async {
+          await tester.runAsync(() async {
+            final directory = await Directory.systemTemp.createTemp(
+              'grid-cached-gif-',
+            );
+            final cache = DrainingImageCacheManager(
+              cacheRootPathProvider: () => directory.path,
+            );
+            final adapter = _RecordingGridImageAdapter();
+            final dio = Dio()..httpClientAdapter = adapter;
+            final bytes = largeGridGif();
+            const original = 'https://grid-cache.test/original.gif';
+            const thumbnail = 'https://grid-cache.test/thumb.png';
+            await cache.saveFile(cache.generateCacheKey(thumbnail), lowerPng);
+            ImageCacheWriteSession? partial;
+            switch (cacheState) {
+              case 'valid':
+                await cache.saveFile(cache.generateCacheKey(original), bytes);
+              case 'invalid':
+                await cache.saveFile(
+                  cache.generateCacheKey(original),
+                  Uint8List(bytes.length),
+                );
+              case 'partial':
+                partial = await cache.beginFileWrite(
+                  cache.generateCacheKey(original),
+                );
+                await File(partial.stagedPath)
+                    .writeAsBytes(bytes.sublist(0, 100));
+            }
+            final post = TestPost(
+              id: 42,
+              thumbnailImageUrl: thumbnail,
+              sampleImageUrl: original,
+              originalImageUrl: original,
+              format: 'gif',
+              fileSize: bytes.length,
+            );
+            try {
+              await tester.pumpWidget(
+                _TestApp(
+                  automaticMediaLoading: true,
+                  thumbnailGenerator: const DefaultGridThumbnailUrlGenerator(),
+                  thumbnailSettings: GridThumbnailSettings(
+                    imageQuality: ImageQuality.high,
+                    animatedPostsDefaultState: autoplay
+                        ? AnimatedPostsDefaultState.autoplay
+                        : AnimatedPostsDefaultState.static,
+                    gridSize: GridSize.normal,
+                  ),
+                  mediaOverrides: [
+                    defaultImageCacheManagerProvider.overrideWithValue(cache),
+                    dioForWidgetProvider.overrideWith((ref, config) => dio),
+                    httpHeadersProvider.overrideWith((ref, config) => const {}),
+                    deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+                  ],
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: 160,
+                      child: PostGridItem(
+                        post: post,
+                        index: 0,
+                        useHero: false,
+                        multiSelectEnabled: true,
+                        config: _config.auth,
+                        onTap: (_) {},
+                        additions: PostGridItemAdditions.empty,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+              final shouldAnimate = autoplay && cacheState == 'valid';
+              final container = ProviderScope.containerOf(
+                tester.element(find.byType(PostGridItem)),
+              );
+              final request = (
+                manager: cache as ImageCacheManager,
+                url: original,
+                originalSize: bytes.length,
+              );
+              expect(
+                container.exists(cachedGridGifProvider(request)),
+                autoplay,
+              );
+              if (autoplay) {
+                await container.read(cachedGridGifProvider(request).future);
+                await tester.pump();
+              }
+
+              await pumpUntil(tester, () {
+                final raw = tester.widgetList<BooruRawImage>(
+                  find.byType(BooruRawImage),
+                );
+                if (raw.isEmpty) return false;
+                return shouldAnimate
+                    ? raw.single.cachedImageBytes != null
+                    : raw.single.cachedImageBytes == null;
+              }, reason: 'real grid cached GIF selection');
+              // Observe the real future to completion, including negative probes.
+              await tester.pumpAndSettle();
+              final image = tester.widget<BooruRawImage>(
+                find.byType(BooruRawImage),
+              );
+              expect(image.cachedImageBytes != null, shouldAnimate);
+              expect(image.imageUrl, shouldAnimate ? original : thumbnail);
+              expect(adapter.requests, isEmpty);
+              if (shouldAnimate) {
+                await cache.clearCache(cache.generateCacheKey(original));
+                await tester.pump();
+                expect(
+                  tester
+                      .widget<BooruRawImage>(find.byType(BooruRawImage))
+                      .cachedImageBytes,
+                  isNotNull,
+                );
+                final navigator = Navigator.of(
+                  tester.element(find.byType(PostGridItem)),
+                );
+                unawaited(
+                  navigator.push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const Scaffold(body: Text('Viewer')),
+                    ),
+                  ),
+                );
+                await tester.pumpAndSettle();
+                navigator.pop();
+                await tester.pumpAndSettle();
+                await pumpUntil(
+                  tester,
+                  () =>
+                      tester
+                          .widget<BooruRawImage>(find.byType(BooruRawImage))
+                          .cachedImageBytes ==
+                      null,
+                  reason: 'cache recheck after viewer return',
+                );
+                expect(adapter.requests, isEmpty);
+              }
+              expect(tester.takeException(), isNull);
+            } finally {
+              await tester.pumpWidget(const SizedBox());
+              await partial?.abort();
+              dio.close(force: true);
+              await cache.drain();
+              await cache.dispose();
+              await directory.delete(recursive: true);
+            }
+          });
+        },
+      );
+    }
+  }
+
   testWidgets(
     'active post cards retain hold-drag reversal and normal scrolling',
     (tester) async {
@@ -451,7 +629,16 @@ class _TestApp extends StatelessWidget {
     this.longPress,
     this.contextMenuOnLongPress = false,
     this.repository,
+    this.automaticMediaLoading = false,
+    this.thumbnailGenerator = const _ProbeGenerator(),
+    this.thumbnailSettings,
+    this.mediaOverrides = const [],
   });
+
+  final bool automaticMediaLoading;
+  final GridThumbnailUrlGenerator thumbnailGenerator;
+  final GridThumbnailSettings? thumbnailSettings;
+  final List<Override> mediaOverrides;
 
   final String? longPress;
   final bool contextMenuOnLongPress;
@@ -477,7 +664,7 @@ class _TestApp extends StatelessWidget {
           Settings.defaultSettings.listing.copyWith(showScoresInGrid: true),
         ),
         gridThumbnailUrlGeneratorProvider.overrideWith(
-          (ref, config) => const _ProbeGenerator(),
+          (ref, config) => thumbnailGenerator,
         ),
         currentReadOnlyBooruConfigGestureProvider.overrideWithValue(
           PostGestureConfig.undefined().withPreviewLongPress(longPress),
@@ -485,7 +672,12 @@ class _TestApp extends StatelessWidget {
         booruRepoProvider.overrideWith((ref, config) => repository),
         booruBuilderProvider.overrideWith((ref, config) => null),
         canFavoriteProvider.overrideWith((ref, config) => false),
-        automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+        automaticMediaLoadingEnabledProvider.overrideWithValue(
+          automaticMediaLoading,
+        ),
+        if (thumbnailSettings case final settings?)
+          gridThumbnailSettingsProvider.overrideWith((ref, config) => settings),
+        ...mediaOverrides,
       ],
       child: SelectionMode(
         controller: selection,
@@ -539,4 +731,26 @@ class _GestureRepository implements BooruRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _RecordingGridImageAdapter implements HttpClientAdapter {
+  final requests = <String>[];
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options.uri.toString());
+    return ResponseBody.fromBytes(
+      lowerPng,
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['image/png'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

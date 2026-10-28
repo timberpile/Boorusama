@@ -11,6 +11,7 @@ import '../../../../../../core/posts/details/types.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../../core/posts/sources/types.dart';
 import '../../../../../../core/search/following_topics/src/widgets/topic_follow_control.dart';
+import '../../../../../../core/routers/utils.dart';
 import '../../../../../../core/widgets/booru_visibility_detector.dart';
 import '../../../../artists/commentaries/providers.dart';
 import '../../../../comments/comment/providers.dart';
@@ -114,7 +115,7 @@ class DanbooruArtistInfoSection extends ConsumerWidget {
   }
 }
 
-class DanbooruArtistInfo extends StatelessWidget {
+class DanbooruArtistInfo extends ConsumerWidget {
   const DanbooruArtistInfo({
     required this.commentary,
     required this.artistTags,
@@ -127,14 +128,18 @@ class DanbooruArtistInfo extends StatelessWidget {
   final PostSource source;
 
   @override
-  Widget build(BuildContext context) => ArtistSection(
-    commentary: commentary,
-    artistTags: artistTags,
-    source: source,
-    inlineAction: artistTags.length == 1
-        ? FollowTopicButton(query: artistTags.single, compact: true)
-        : null,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tags = artistTags.where((tag) => tag.trim().isNotEmpty).toSet();
+    return ArtistSection(
+      commentary: commentary,
+      artistTags: tags,
+      source: source,
+      onArtistTap: (tag) => goToArtistPage(ref, tag),
+      inlineAction: tags.length == 1
+          ? FollowTopicButton(query: tags.single, compact: true)
+          : null,
+    );
+  }
 }
 
 class DanbooruTagsSection extends ConsumerWidget {

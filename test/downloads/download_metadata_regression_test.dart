@@ -65,7 +65,7 @@ void main() {
 
   for (final format in SidecarFormat.values) {
     test(
-      'bookmark downloads freeze $format snapshot using actual Original',
+      'legacy bookmark downloads freeze $format snapshot using requested Preview',
       () async {
         final backend = FakeBooruBackend();
         final service = MemoryDownloadService();
@@ -100,15 +100,15 @@ void main() {
 
         expect(service.requests, hasLength(1));
         final request = service.requests.single;
-        expect(request.url, 'https://images.test/101-original.mp4');
+        expect(request.url, 'https://images.test/101-preview.jpg');
         expect(request.metadata!.isVideo, isTrue);
         if (format == SidecarFormat.off) {
           expect(request.sidecar, isNull);
         } else {
           expect(request.sidecar!.format, format);
-          expect(request.sidecar!.quality, 'original');
+          expect(request.sidecar!.quality, 'preview');
           expect(request.sidecar!.postId, '101');
-          expect(request.sidecar!.site, 'https://headless.booru.test');
+          expect(request.sidecar!.site, backend.config.url);
           expect(request.sidecar!.urls, contains('https://source.test/101'));
           expect(request.sidecar!.postUrl, '${backend.config.url}posts/101');
           expect(request.sidecar!.tags, ['blue_hair', 'cat']);
@@ -267,7 +267,7 @@ void main() {
       expect(service.requests.single.metadata!.mediaHostOverridden, isTrue);
       expect(
         service.requests.single.metadata!.siteUrl,
-        '${config.url}posts/101',
+        config.url,
       );
     },
   );

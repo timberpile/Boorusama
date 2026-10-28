@@ -40,6 +40,13 @@
     "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
   },
   "following_topics": {
+    "feed_filter_hint": "Gespeicherte Beiträge durchsuchen...",
+    "feed_filter_close": "Suche schließen",
+    "edit_update": "Thema aktualisieren",
+    "edit_updated": "Thema aktualisiert",
+    "edit_invalid_query": "Vervollständige eine gültige Suchanfrage vor dem Aktualisieren.",
+    "edit_conflict": "Dieses Thema wurde geändert oder gelöscht. Öffne es erneut, um die aktuelle Version zu bearbeiten.",
+
     "backup_contents": "Enthält Ordner und Feed-Einstellungen; zwischengespeicherte Beiträge und Bilder sind nicht enthalten.",
     "error_other": "Dieses Thema konnte nicht aktualisiert werden. Versuche es erneut.",
     "edit_baseline_failed": "Thema aktualisiert, aber die Vorschau konnte nicht geladen werden. Aktualisiere es später.",
@@ -146,6 +153,9 @@
     "unfollowing_cannot_be_undone": "Das Entfernen kann nicht rückgängig gemacht werden.",
     "feed_posts_empty": "Noch keine Beiträge. Themen werden nach und nach aktualisiert.",
     "some_topics_unavailable": "Einige Themen sind nicht verfügbar",
+    "history_end_known": "Ältester Beitrag erreicht",
+    "history_complete": "Ende des Feedverlaufs",
+    "history_sources_complete": "{complete} von {total} Themen haben ihren ältesten Beitrag erreicht",
     "feed_freshness": "{checked}/{total} Themen geprüft · {failed} Fehler",
     "bulk_add": "Mehreren folgen",
     "bulk_added": "Du folgst {count} Themen",
@@ -178,6 +188,7 @@
     },
     "action": {
       "add": "Hinzufügen",
+      "remove": "Entfernen",
       "delete": "Löschen",
       "edit": "Bearbeiten",
       "ok": "OK",
@@ -192,6 +203,7 @@
       "reset": "Zurücksetzen",
       "more": "Mehr",
       "apply": "Anwenden",
+      "back": "Zurück",
       "show_all": "Alle anzeigen",
       "show_less": "Weniger anzeigen",
       "view_all": "Alle anzeigen",
@@ -268,6 +280,8 @@
   },
   "post": {
     "cross_profile": {
+      "shared_pixiv_title": "Pixiv-Bild finden",
+      "pixiv_artwork": "Pixiv-Bild #$id",
       "action": "In anderen Profilen finden",
       "exact_file": "Identische Datei",
       "source_match": "Gleiche Quell-URL",
@@ -282,7 +296,12 @@
       "no_profiles": "Keine weiteren Profile eingerichtet",
       "result_count": "$count Treffer",
       "results_so_far": "$count Treffer geladen – weitere sind möglicherweise verfügbar",
-      "load_more": "Mehr laden"
+      "load_more": "Mehr finden",
+      "pixiv_auth_required": "Melde dich in einem Pixiv-Profil an, um identische Dateien zu suchen.",
+      "ugoira_hash_unavailable": "Für dieses animierte Pixiv-Werk ist kein Abgleich identischer Dateien verfügbar.",
+      "originals_incomplete": "Einige Pixiv-Originale konnten nicht geprüft werden. Die Ergebnisse sind möglicherweise unvollständig.",
+      "originals_restricted": "Pixiv oder die Einstellungen deines Pixiv-Profils blockieren den Zugriff auf die Originale dieses Werks.",
+      "incomplete_count": "Geladene Ergebnisse: $count"
     },
     "app_link": {
       "share_post_caption": "Post {id} auf {profile}",
@@ -347,6 +366,9 @@
     },
     "action": {
       "operation_failed": "Die Beitragsaktion konnte nicht abgeschlossen werden. Versuche es erneut.",
+      "modify_search": "Suche anpassen",
+      "posts_from_here": "Dieser und neuere Beiträge",
+      "posts_until_here": "Dieser und ältere Beiträge",
       "boorusama_link": "Boorusama Link File",
       "gif": "GIF",
       "create_gif": "GIF erstellen",
@@ -594,6 +616,7 @@
     },
     "appearance": {
       "appearance": "Aussehen",
+      "show_bookmark_count": "Lesezeichenanzahl anzeigen",
       "show_scores": "Scores anzeigen",
       "show_post_list_config_header": "Konfigurationsheader für Beiträge anzeigen",
       "booru_config": "Booru Profil",

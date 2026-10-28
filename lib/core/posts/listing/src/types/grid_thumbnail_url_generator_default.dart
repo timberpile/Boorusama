@@ -128,7 +128,7 @@ bool shouldAutoplayGridGif(Post post, GridThumbnailSettings settings) =>
     isOriginalGridGif(post) &&
     settings.animatedPostsDefaultState == AnimatedPostsDefaultState.autoplay &&
     post.fileSize > 0 &&
-    post.fileSize <= maxAutoplayGridGifBytes;
+    (post.fileSize <= maxAutoplayGridGifBytes || settings.allowLargeCachedGif);
 
 GridThumbnailMedia _thumbnailOnlyGridThumbnailMedia(
   Post post,

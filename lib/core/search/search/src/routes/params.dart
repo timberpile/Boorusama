@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import '../../../../router.dart';
 import '../../../selected_tags/types.dart';
 import 'tag_category_param.dart';
+import '../types/topic_search_origin.dart';
 
 class SearchParams extends Equatable {
   const SearchParams({
@@ -17,6 +18,7 @@ class SearchParams extends Equatable {
     this.tagCategories,
     this.order,
     this.originatingTopicId,
+    this.topicOrigin,
   });
 
   factory SearchParams.fromUri(Uri uri) {
@@ -51,8 +53,12 @@ class SearchParams extends Equatable {
   final TagCategoryParam? tagCategories;
   final String? order;
   final String? originatingTopicId;
+  final TopicSearchOrigin? topicOrigin;
 
-  SearchParams withOriginatingTopic(String? topicId) => SearchParams(
+  SearchParams withOriginatingTopic(
+    String? topicId, {
+    TopicSearchOrigin? topicOrigin,
+  }) => SearchParams(
     query: query,
     tags: tags,
     page: page,
@@ -62,6 +68,7 @@ class SearchParams extends Equatable {
     tagCategories: tagCategories,
     order: order,
     originatingTopicId: topicId,
+    topicOrigin: topicOrigin,
   );
 
   Map<String, String> toQueryParams() {
@@ -90,6 +97,7 @@ class SearchParams extends Equatable {
     tagCategories,
     order,
     originatingTopicId,
+    topicOrigin,
   ];
 
   static SearchTagSet? _buildTagSetWithCategories(

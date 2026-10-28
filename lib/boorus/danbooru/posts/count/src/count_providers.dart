@@ -13,7 +13,11 @@ final danbooruPostCountRepoProvider =
         countTags: (tags) => ref
             .read(danbooruClientProvider(config.auth))
             .countPosts(tags: tags),
-        //TODO: this is a hack to get around the fact that count endpoint includes all ratings
-        extraTags: config.auth.url == kDanbooruSafeUrl ? ['rating:g'] : [],
+        // Safebooru's count endpoint includes other ratings unless restricted.
+        extraTags:
+            Uri.tryParse(config.auth.url)?.host.toLowerCase() ==
+                Uri.parse(kDanbooruSafeUrl).host
+            ? ['rating:g']
+            : [],
       );
     });

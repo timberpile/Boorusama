@@ -6,7 +6,6 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/suggestion_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +24,6 @@ void main() {
           ),
       ],
       groups: const [],
-      activeTarget: const BookmarkTarget.defaultGroup(),
     );
     for (var run = 0; run < 3; run++) {
       final container = ProviderContainer(

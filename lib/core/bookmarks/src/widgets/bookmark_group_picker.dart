@@ -1,20 +1,25 @@
+import 'dart:math' as math;
+
 // Flutter imports:
 import 'package:flutter/material.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:anchor_ui/anchor_ui.dart' show AnchorData;
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import 'bookmark_group_label.dart';
+import '../../../groups/folder_tree.dart';
+import '../types/bookmark_group.dart';
+import '../providers/recent_bookmark_groups_provider.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_target.dart';
-import 'bookmark_active_target_badge.dart';
 import 'bookmark_folder_picker_contents.dart';
 import 'bookmark_group_name_dialog.dart';
 
@@ -61,8 +66,8 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
       padding: const EdgeInsets.all(8),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 200,
-          maxHeight: MediaQuery.heightOf(context) * .6,
+          maxWidth: 280,
+          maxHeight: _maxHeight(context),
         ),
         child: BookmarkGroupPicker(
           config: widget.config,
@@ -74,6 +79,25 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
     ),
     child: widget.builder(context, _controller.show),
   );
+
+  double _maxHeight(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final bounds = AnchorData.of(context).geometry.childBounds;
+    final top = media.padding.top + 12;
+    final bottom =
+        media.size.height -
+        math.max(media.padding.bottom, media.viewInsets.bottom) -
+        12;
+    final above = bounds == null ? 0.0 : bounds.top - top;
+    final below = bounds == null ? bottom - top : bottom - bounds.bottom;
+    // Fit on one side of the toolbar, including the anchor gap and padding.
+    // A whole-screen cap alone lets centered anchors extend past the top edge.
+    final available = math.max(above, below) - 4 - 16;
+    final cap =
+        (media.size.height - media.viewInsets.bottom - media.padding.vertical) *
+        .75;
+    return math.min(available, cap).clamp(0.0, double.infinity);
+  }
 }
 
 void _showPickerSuccess(NavigatorState navigator, {required bool added}) {
@@ -152,67 +176,73 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
     final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
 
-    Widget activeIndicator() => KurumiTooltip(
-      message: context.t.bookmark.groups.active,
-      child: Icon(
-        Icons.check,
-        size: 20,
-        semanticLabel: context.t.bookmark.groups.active,
-      ),
-    );
+    final recentGroups =
+        ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
+        const <BookmarkGroup>[];
+    final folders = FolderTree(library?.folders ?? const []);
+    Widget groupRow(
+      BuildContext context,
+      BookmarkGroup group, {
+      bool recent = false,
+    }) => widget.anchored
+        ? BookmarkPickerMenuItem(
+            icon: Icon(
+              Symbols.bookmarks,
+              fill: memberships.contains(group.id) ? 1 : 0,
+            ),
+            title: group.displayName(context),
+            detail: recent && group.folderId != null
+                ? folders.path(group.folderId)
+                : null,
+            hideOnTap: false,
+            onTap: () => _toggleGroup(context, ref, group.id),
+          )
+        : ListTile(
+            leading: Icon(
+              Symbols.bookmarks,
+              fill: memberships.contains(group.id) ? 1 : 0,
+            ),
+            title: BookmarkPickerLabel(
+              label: group.displayName(context),
+              detail: recent && group.folderId != null
+                  ? folders.path(group.folderId)
+                  : null,
+            ),
+            onTap: () => _toggleGroup(context, ref, group.id),
+          );
 
     final contents = BookmarkFolderPickerContents(
       compact: widget.anchored,
       folders: library?.folders ?? const [],
       groups: library?.groups ?? const [],
       membershipGroupIds: memberships,
-      groupBuilder: (context, group) => widget.anchored
-          ? BookmarkPickerMenuItem(
-              icon: Icon(
-                Symbols.bookmarks,
-                fill: memberships.contains(group.id) ? 1 : 0,
-              ),
-              title: group.displayName(context),
-              trailing: library?.activeTarget.groupId == group.id
-                  ? activeIndicator()
-                  : null,
-              hideOnTap: false,
-              onTap: () => _toggleGroup(context, ref, group.id),
-            )
-          : ListTile(
-              leading: Icon(
-                Symbols.bookmarks,
-                fill: memberships.contains(group.id) ? 1 : 0,
-              ),
-              title: Text(
-                group.displayName(context),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: library?.activeTarget.groupId == group.id
-                  ? BookmarkActiveTargetBadge(
-                      label: context.t.bookmark.groups.active,
-                    )
-                  : null,
-              onTap: () => _toggleGroup(context, ref, group.id),
+      groupBuilder: (context, group) => groupRow(context, group),
+      pinnedFooter: recentGroups.isEmpty
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                KurumiContextMenuDivider(
+                  title: context.t.bookmark.groups.recent,
+                ),
+                for (final group in recentGroups)
+                  groupRow(context, group, recent: true),
+              ],
             ),
-      footerBuilder: (context, folderId) => widget.anchored
-          ? BookmarkPickerMenuItem(
-              icon: const Icon(Icons.add),
-              title: context.t.bookmark.groups.create_new,
-              hideOnTap: false,
-              onTap: () => _createAndAdd(context, ref, folderId),
-            )
-          : ListTile(
-              leading: const Icon(Icons.add),
-              title: Text(context.t.bookmark.groups.create_new),
-              onTap: () => _createAndAdd(context, ref, folderId),
-            ),
+      onCreateGroup: (folderId) => _createAndAdd(context, ref, folderId),
     );
     if (widget.anchored) return contents;
     return AlertDialog(
       title: Text(context.t.bookmark.groups.selector),
-      content: SizedBox(width: 360, child: contents),
+      content: SizedBox(
+        width: 360,
+        height:
+            (MediaQuery.heightOf(context) -
+                MediaQuery.viewInsetsOf(context).bottom) *
+            .6,
+        child: contents,
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
@@ -233,7 +263,6 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       config,
       post,
       target: BookmarkTarget.group(groupId),
-      activateTarget: true,
       onRemoved: (r) {
         if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
       },
@@ -266,9 +295,14 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
 
     void failed() => _showPickerError(navigator);
     try {
-      await notifier.createGroupWithPosts(name, config, [
-        post,
-      ], folderId: folderId);
+      await notifier.createGroupWithPosts(
+        name,
+        config,
+        [
+          post,
+        ],
+        folderId: folderId,
+      );
       added();
     } catch (_) {
       failed();

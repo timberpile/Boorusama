@@ -99,7 +99,7 @@ class _ShowTagListPageScaffoldState
                         items: [
                           KurumiPopupMenuItem(
                             title: Text(context.t.generic.action.select),
-                            icon: const Icon(Icons.select_all),
+                            icon: const Icon(Icons.checklist),
                             onTap: () {
                               _selectionModeController.enable();
                             },

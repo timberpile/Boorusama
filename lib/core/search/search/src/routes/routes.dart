@@ -26,9 +26,13 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
       final BooruConfig config => SearchRouteContext(config: config),
       _ => null,
     };
-    final params = SearchParams.fromUri(
-      state.uri,
-    ).withOriginatingTopic(routeContext?.originatingTopicId);
+    final params =
+        SearchParams.fromUri(
+          state.uri,
+        ).withOriginatingTopic(
+          routeContext?.originatingTopicId,
+          topicOrigin: routeContext?.topicOrigin,
+        );
 
     final local = DestinationScope.maybeOf(context) != null;
     final owner =
@@ -44,7 +48,9 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
               owner == null &&
               state.uri.queryParameters.containsKey('_profile')
           ? Center(child: Text(context.t.navigation.unavailable_profile))
-          : SearchPage(initialConfig: local ? owner : null),
+          : SearchPage(
+              initialConfig: local ? owner : null,
+            ),
     );
     final page = local
         ? searchPage

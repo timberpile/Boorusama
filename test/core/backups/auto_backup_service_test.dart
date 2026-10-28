@@ -1,3 +1,6 @@
+import 'package:boorusama/core/backups/sources/providers.dart';
+import 'package:boorusama/core/backups/export_import/export/export_flow_notifier.dart';
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -31,6 +34,51 @@ void main() {
   });
 
   tearDown(() => directory.delete(recursive: true));
+
+  for (final hasLegacyFeeds in [false, true]) {
+    test(
+      'automatic backup uses the actual full-export catalog (legacy feeds=$hasLegacyFeeds)',
+      () async {
+        final sources = [
+          _FakeSource('settings'),
+          if (hasLegacyFeeds) _FakeSource('topic_feeds'),
+        ];
+        final legacyRegistry = _registryFor([
+          _FakeSource('settings'),
+          _FakeSource('topic_feeds'),
+        ]);
+        final container = ProviderContainer(
+          overrides: [
+            exportImportSourcesProvider.overrideWithValue(sources),
+            exportServiceProvider.overrideWithValue(_exportService(sources)),
+            backupRegistryProvider.overrideWithValue(legacyRegistry),
+            autoBackupRepositoryProvider.overrideWithValue(repository),
+            loggerProvider.overrideWithValue(const _Logger()),
+          ],
+        );
+        addTearDown(container.dispose);
+        final service = container.read(autoBackupServiceProvider);
+        final result = await service.performBackup(
+          AutoBackupSettings(userSelectedPath: directory.path),
+        );
+        final staged = await const ExportPackageReader(fs: IoFileSystem())
+            .stage(result.filePath);
+        addTearDown(staged.dispose);
+        expect(result.success, isTrue);
+        expect(
+          staged.manifest.sources.map((source) => source.id).toSet(),
+          sources.map((source) => source.id).toSet(),
+        );
+        final manifest = await repository.loadManifest(
+          p.dirname(result.filePath),
+        );
+        expect(
+          manifest.backups.single.fileSize,
+          await File(result.filePath).length(),
+        );
+      },
+    );
+  }
 
   test('defaults to 30 retained backups while honoring saved values', () {
     expect(const AutoBackupSettings().maxBackups, 30);
@@ -303,7 +351,7 @@ void main() {
       await container.pump();
       await operation;
       await container.pump();
-      expect(container.read(autoBackupFailureProvider), isTrue);
+      expect(container.read(autoBackupFailureProvider)?.code, 'backup_failed');
       expect(
         container.read(settingsProvider).autoBackup.lastBackupTime,
         DateTime.utc(2024),

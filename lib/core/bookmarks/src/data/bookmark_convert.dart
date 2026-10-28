@@ -4,6 +4,7 @@ import 'package:foundation/performance.dart';
 import 'package:foundation/foundation.dart';
 
 // Project imports:
+import '../../../../foundation/loggers/logger.dart';
 import '../../../boorus/booru/types.dart';
 import '../../../posts/position/types.dart';
 import '../../../posts/post/types.dart';
@@ -20,12 +21,13 @@ Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
   Iterable<BookmarkHiveObject> hiveObjects,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+  Logger? logger,
 ]) => Either.tryCatch(
   () => performanceRecorder.measureSync(
     PerfOperation.bookmarkDecodeAll,
     () => hiveObjects
         .where((row) => row.snapshotSchemaVersion == 2)
-        .map((row) => _mapBookmark(row, postDataCodec))
+        .map((row) => _mapBookmark(row, postDataCodec, logger))
         .toList(),
   ),
   (_, _) => BookmarkGetError.nullField,
@@ -35,14 +37,16 @@ Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
   BookmarkHiveObject hiveObject,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+  Logger? logger,
 ]) => Either.tryCatch(
-  () => _mapBookmark(hiveObject, postDataCodec),
+  () => _mapBookmark(hiveObject, postDataCodec, logger),
   (_, _) => BookmarkGetError.nullField,
 );
 
 Bookmark _mapBookmark(
   BookmarkHiveObject row,
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+  Logger? logger,
 ) {
   if (row.snapshotSchemaVersion != 2 || row.postSnapshot == null) {
     throw const FormatException('Unsupported bookmark row');
@@ -51,7 +55,7 @@ Bookmark _mapBookmark(
     Map<String, dynamic>.from(row.postSnapshot!),
   );
   final type = BooruType.fromLegacyId(snapshot.origin.booruTypeId);
-  final decoded = const StoredPostCodec().decode(
+  final decoded = StoredPostCodec(logger: logger).decode(
     snapshot,
     dataCodec: postDataCodec?.call(type),
   );

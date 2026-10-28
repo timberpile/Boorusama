@@ -53,7 +53,10 @@ class PostActionDefinition {
 
 /// Defers capability/status subscriptions until the context menu is opened.
 class PostContextMenuActions extends StatelessWidget {
-  const PostContextMenuActions({super.key, required this.snapshot});
+  const PostContextMenuActions({
+    super.key,
+    required this.snapshot,
+  });
 
   final PostActionSnapshot snapshot;
 
@@ -66,6 +69,7 @@ class PostContextMenuActions extends StatelessWidget {
           for (final action in postActionDefinitions(context, ref, snapshot))
             KurumiContextMenuTile(
               title: action.label,
+              trailing: Icon(action.icon),
               enabled: action.enabled,
               onTap: () => action.execute(),
             ),
@@ -105,7 +109,7 @@ List<PostActionDefinition> postActionDefinitions(
 
   final library = ref.watch(bookmarkProvider).valueOrNull;
   final stored = [
-    for (final post in snapshot.posts) library?.bookmarkForPost(post),
+    for (final post in snapshot.posts) library?.storedBookmarkForPost(post),
   ];
   final canUseStoredDownload =
       snapshot.hasTargets && stored.every((p) => p != null);
@@ -117,20 +121,18 @@ List<PostActionDefinition> postActionDefinitions(
       groups.putIfAbsent(source, () => []).add(target.post);
     }
   }
+  final normalDownloadParams = <BooruConfig, DownloadNotifierParams>{};
+  for (final entry in groups.entries) {
+    final params = ref.watch(
+      downloadNotifierParamsProvider((entry.key.auth, entry.key.download)),
+    );
+    if (params.filenameBuilder != null &&
+        (entry.value.length == 1 || params.canDownloadMultipleFiles())) {
+      normalDownloadParams[entry.key] = params;
+    }
+  }
   final canDownloadResolved =
-      snapshot.allResolved &&
-      groups.entries.every(
-        (entry) =>
-            entry.value.length == 1 ||
-            ref
-                .watch(
-                  downloadNotifierParamsProvider((
-                    entry.key.auth,
-                    entry.key.download,
-                  )),
-                )
-                .canDownloadMultipleFiles(),
-      );
+      snapshot.allResolved && normalDownloadParams.length == groups.length;
   final canFavorite =
       snapshot.allResolved &&
       snapshot.targets.every((target) {
@@ -181,30 +183,26 @@ List<PostActionDefinition> postActionDefinitions(
         execute: () => run(() async {
           if (downloadOverride != null) {
             await downloadOverride();
-          } else if (!canDownloadResolved && canUseStoredDownload) {
-            await ref
-                .read(bookmarkProvider.notifier)
-                .downloadBookmarks(
-                  fallbackAuth,
-                  fallbackDownload,
-                  stored.nonNulls.toList(),
-                );
+          } else if (canUseStoredDownload) {
+            // Stored payload support, source policy and safe snapshot fallback
+            // are decided together by the shared bookmark download path.
+            // Keep the selected live Post when an older saved row also exists.
+            await ref.read(bookmarkProvider.notifier).downloadBookmarks(
+              fallbackAuth,
+              fallbackDownload,
+              [
+                for (final (index, post) in snapshot.posts.indexed)
+                  stored[index]!.copyWith(post: post),
+              ],
+            );
           } else {
-            // Resolve every service before the first await. All targets are
-            // validated; an unsupported subset is never silently discarded.
+            // Live selections retain the source's ordinary download policy.
             final operations = [
-              for (final entry in groups.entries)
+              for (final entry in normalDownloadParams.entries)
                 (
-                  posts: List<Post>.unmodifiable(entry.value),
+                  posts: List<Post>.unmodifiable(groups[entry.key]!),
                   notifier: ref.read(
-                    downloadNotifierProvider(
-                      ref.read(
-                        downloadNotifierParamsProvider((
-                          entry.key.auth,
-                          entry.key.download,
-                        )),
-                      ),
-                    ).notifier,
+                    downloadNotifierProvider(entry.value).notifier,
                   ),
                 ),
             ];

@@ -590,3 +590,17 @@ String _extractUniversalTags(Document document) {
 
   return tags;
 }
+
+/// Lookup services must see incomplete records so they can reject an unproven
+/// identity instead of interpreting a filtered response as a definite no-match.
+bool requiresPostIdentityValidation(Response response) {
+  final tags = response.requestOptions.uri.queryParameters['tags'] ?? '';
+  return tags
+      .split(RegExp(r'\s+'))
+      .any(
+        (tag) =>
+            tag.startsWith('md5:') ||
+            tag.startsWith('source:') ||
+            tag.startsWith('pixiv_id:'),
+      );
+}

@@ -43,7 +43,9 @@ class GeneralPostContextMenu extends ConsumerWidget {
         ], ref.watch(booruConfigProvider));
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
-            PostContextMenuActions(snapshot: snapshot),
+            PostContextMenuActions(
+              snapshot: snapshot,
+            ),
             BookmarkContextMenuSection(
               post: post,
               config: booruConfig,
@@ -52,6 +54,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
             if (selectionModeController case final controller?)
               KurumiContextMenuTile(
                 title: context.t.generic.action.select,
+                trailing: const Icon(Icons.checklist),
                 onTap: () {
                   controller.enable(
                     initialSelected: [index],

@@ -102,7 +102,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Pixiv work ID'), findsOneWidget);
+    expect(find.text('Pixiv Work ID'), findsOneWidget);
     expect(find.byKey(const ValueKey('search-option.pixiv')), findsNothing);
     expect(
       find.byKey(const ValueKey('search-option.pixiv_id')),
@@ -142,9 +142,9 @@ void main() {
   });
 
   for (final (query, title, key) in [
-    ('pixiv', 'Pixiv work ID', 'pixiv_id'),
-    ('comments', 'Comment count', 'comment_count'),
-    ('artcomm', 'Commentary edited by', 'commentaryupdater'),
+    ('pixiv', 'Pixiv Work ID', 'pixiv_id'),
+    ('comments', 'Comment Count', 'comment_count'),
+    ('artcomm', 'Commentary Edited By', 'commentaryupdater'),
   ]) {
     testWidgets('$query discovers and selects only the preferred field', (
       tester,

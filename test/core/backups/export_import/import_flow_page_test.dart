@@ -1,3 +1,5 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
@@ -65,7 +67,7 @@ void main() {
         );
         await tester.pumpWidget(_mappingApp(notifier));
         await tester.pumpAndSettle();
-        expect(find.text('Create profile'), findsNothing);
+        expect(find.text('Create Profile'), findsNothing);
         expect(
           find.byType(DropdownButton<String>),
           count == 2 ? findsOneWidget : findsNothing,
@@ -122,6 +124,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           importFlowProvider.overrideWith(() => notifier),
           backupRegistryProvider.overrideWithValue(BackupRegistry()),
           exportSelectionLabelsProvider.overrideWithValue(
@@ -150,7 +153,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('same.example'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
-    expect(find.text('Create profile'), findsNothing);
+    expect(find.text('Create Profile'), findsNothing);
     await tester.tap(find.byType(DropdownButton<String>));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Second').last);
@@ -189,7 +192,7 @@ void main() {
             sources: [proposed],
           ).resolveDefaults().sources.single,
           onChanged: (_) {},
-          sourceLabel: (_) => 'Bookmark groups',
+          sourceLabel: (_) => 'Bookmark Groups',
           itemLabel: (_) => 'New group',
           targetLabel: (id) => id,
         ),
@@ -256,7 +259,7 @@ void main() {
             sources: [proposed],
           ).resolveDefaults().sources.single,
           onChanged: (_) {},
-          sourceLabel: (_) => 'Bookmark groups',
+          sourceLabel: (_) => 'Bookmark Groups',
           itemLabel: (_) => 'Incoming',
           targetLabel: (_) => 'Reference',
         ),
@@ -299,7 +302,7 @@ void main() {
             sources: [proposed],
           ).resolveDefaults().sources.single,
           onChanged: (_) {},
-          sourceLabel: (_) => 'Booru profiles',
+          sourceLabel: (_) => 'Booru Profiles',
           itemLabel: (_) => 'Remote',
           targetLabel: (id) => id,
         ),
@@ -438,7 +441,7 @@ void main() {
 
     expect(find.text('This export could not be opened'), findsOneWidget);
     expect(find.textContaining('StateError'), findsNothing);
-    await tester.tap(find.text('Choose another export'));
+    await tester.tap(find.text('Choose Another Export'));
     expect(recovered, true);
   });
 
@@ -510,7 +513,7 @@ void main() {
             ],
             validated: true,
           ),
-          sourceNames: const {'profiles': 'Booru profiles'},
+          sourceNames: const {'profiles': 'Booru Profiles'},
           itemLabels: const {},
           onWarningsAcknowledged: (_) {},
           onApply: () {},
@@ -664,6 +667,7 @@ class _MappingReviewNotifier extends ImportFlowNotifier {
 
 Widget _mappingApp(_MappingReviewNotifier notifier) => ProviderScope(
   overrides: [
+    loggerProvider.overrideWithValue(AppLogger()),
     importFlowProvider.overrideWith(() => notifier),
     backupRegistryProvider.overrideWithValue(BackupRegistry()),
     exportSelectionLabelsProvider.overrideWithValue(

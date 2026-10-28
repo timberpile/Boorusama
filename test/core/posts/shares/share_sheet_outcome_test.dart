@@ -1,3 +1,6 @@
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -62,6 +65,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          loggerProvider.overrideWithValue(AppLogger()),
           deterministicFaviconDioOverride(),
           defaultImageCacheManagerProvider.overrideWithValue(
             imageCacheManager,
@@ -102,9 +106,9 @@ void main() {
         ),
       ),
     );
-    expect(find.byTooltip('Copy image'), findsOneWidget);
-    expect(find.byTooltip('Share image'), findsOneWidget);
-    expect(find.byTooltip('Copy original'), findsOneWidget);
+    expect(find.byTooltip('Copy Image'), findsOneWidget);
+    expect(find.byTooltip('Share Image'), findsOneWidget);
+    expect(find.byTooltip('Copy Original'), findsOneWidget);
     expect(find.text('https://site.test/sample.jpg'), findsNothing);
     expect(find.text('https://site.test/full.jpg'), findsNothing);
     expect(find.text('full.jpg'), findsNothing);
@@ -114,14 +118,14 @@ void main() {
           .every((tile) => tile.leading != null),
       isTrue,
     );
-    expect(find.byTooltip('Share original'), findsOneWidget);
-    expect(find.byTooltip('Copy file name'), findsNothing);
-    expect(find.byTooltip('Share file name'), findsNothing);
+    expect(find.byTooltip('Share Original'), findsOneWidget);
+    expect(find.byTooltip('Copy File Name'), findsNothing);
+    expect(find.byTooltip('Share File Name'), findsNothing);
     expect(find.text('Prepared when selected'), findsNothing);
 
     await tester.tap(find.text('Links'));
     await tester.pump();
-    await tester.tap(find.byTooltip('Share booru link'));
+    await tester.tap(find.byTooltip('Share Booru Link'));
     await tester.pump();
 
     expect(
@@ -131,10 +135,10 @@ void main() {
       findsOneWidget,
     );
 
-    expect(find.byTooltip('Copy post ID'), findsOneWidget);
-    expect(find.byTooltip('Share post ID'), findsOneWidget);
-    expect(find.byTooltip('Copy source link'), findsOneWidget);
-    expect(find.byTooltip('Share source link'), findsOneWidget);
+    expect(find.byTooltip('Copy Post ID'), findsOneWidget);
+    expect(find.byTooltip('Share Post ID'), findsOneWidget);
+    expect(find.byTooltip('Copy Source Link'), findsOneWidget);
+    expect(find.byTooltip('Share Source Link'), findsOneWidget);
     expect(find.text('https://site.test/posts/42'), findsOneWidget);
     expect(
       tester
@@ -159,7 +163,7 @@ void main() {
     );
     expect(calls.single.uri, Uri.parse('https://site.test/posts/42'));
 
-    await tester.tap(find.byTooltip('Share post ID'));
+    await tester.tap(find.byTooltip('Share Post ID'));
     await tester.pump();
     expect(calls.last.text, '42');
     expect(calls.last.uri, isNull);

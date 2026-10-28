@@ -57,8 +57,8 @@ void main() {
       expect(find.byType(FollowingTopicCard), findsNWidgets(2));
       expect(find.text('Cats'), findsOneWidget);
       expect(find.text('cat'), findsOneWidget);
-      expect(find.textContaining('Last post:'), findsNWidgets(2));
-      expect(find.textContaining('Last checked:'), findsNothing);
+      expect(find.textContaining('Last Post:'), findsNWidgets(2));
+      expect(find.textContaining('Last Checked:'), findsNothing);
       expect(find.text('NEW'), findsOneWidget);
       expect(
         find.text('Could not connect. Try refreshing again.'),
@@ -87,7 +87,7 @@ void main() {
       expect(find.text('Unfollow'), findsOneWidget);
       expect(find.text('Details'), findsOneWidget);
       expect(find.text('Move to folder'), findsNothing);
-      expect(find.text('Move up'), findsNothing);
+      expect(find.text('Move Up'), findsNothing);
     },
   );
   testWidgets(
@@ -110,7 +110,7 @@ void main() {
         find.byType(FollowingTopicInfoDialog),
       );
       expect(info.topicId, feed.sourceIds.first);
-      expect(find.textContaining('Refresh interval: Adaptive'), findsOneWidget);
+      expect(find.textContaining('Refresh Interval: Adaptive'), findsOneWidget);
       expect(await tester.runAsync(h.repository.getAll), before);
       expect((await tester.runAsync(h.repository.getFeeds))!.single, feed);
       expect(h.requests, isEmpty);
@@ -125,11 +125,11 @@ void main() {
     (tester) async {
       final feed = await seed(tester);
       final before = await tester.runAsync(h.repository.getAll);
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await tester.pumpAndSettle();
       expect(find.text('Added Date'), findsOneWidget);
-      expect(find.text('Newest first'), findsOneWidget);
-      await tester.tap(find.text('Oldest first'));
+      expect(find.text('Newest First'), findsOneWidget);
+      await tester.tap(find.text('Oldest First'));
       await drain(tester);
       expect(
         h.container.read(settingsProvider).topicFeedMemberSort,
@@ -142,7 +142,7 @@ void main() {
       expect(await tester.runAsync(h.repository.getAll), before);
       expect(h.requests, isEmpty);
       await h.pump(tester, TopicFeedManagementPage(feedId: feed.id));
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await tester.pumpAndSettle();
       final selected = tester.widget<PopupMenuButton<TopicFeedMemberSort>>(
         find.byType(PopupMenuButton<TopicFeedMemberSort>),
@@ -161,7 +161,7 @@ void main() {
       expect(find.text('Last refresh: Never checked'), findsOneWidget);
       final lastPost = find.descendant(
         of: find.byType(FollowingTopicCard).first,
-        matching: find.textContaining('Last post:'),
+        matching: find.textContaining('Last Post:'),
       );
       final lastRefresh = find.text('Last refresh: 2 hours ago');
       expect(
@@ -173,9 +173,9 @@ void main() {
         closeTo(tester.getBottomRight(lastPost).dx, 1),
       );
       final before = await tester.runAsync(h.repository.getAll);
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Last refresh (oldest first)'));
+      await tester.tap(find.text('Last Refresh (Oldest First)'));
       await drain(tester);
       expect(
         h.container.read(settingsProvider).topicFeedMemberSort,
@@ -191,7 +191,7 @@ void main() {
       expect(await tester.runAsync(h.repository.getAll), before);
       expect((await tester.runAsync(h.repository.getFeeds))!.single, feed);
       await h.pump(tester, TopicFeedManagementPage(feedId: feed.id));
-      await tester.tap(find.byTooltip('Sort by'));
+      await tester.tap(find.byTooltip('Sort By'));
       await tester.pumpAndSettle();
       expect(
         tester
@@ -380,7 +380,7 @@ void main() {
               .text(
                 locale == 'de-DE'
                     ? 'Letzte Aktualisierung (älteste zuerst)'
-                    : 'Last refresh (oldest first)',
+                    : 'Last Refresh (Oldest First)',
               )
               .hitTestable(),
           findsOneWidget,

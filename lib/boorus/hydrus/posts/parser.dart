@@ -16,7 +16,7 @@ Post postDtoToPost(FileDto file, PostMetadata? metadata) {
     sampleImageUrl: file.imageUrl,
     originalImageUrl: file.imageUrl,
     tags: file.allTags,
-    rating: Rating.general,
+    rating: Rating.unknown,
     hasComment: false,
     isTranslated: false,
     hasParentOrChildren: false,
@@ -41,5 +41,12 @@ Post postDtoToPost(FileDto file, PostMetadata? metadata) {
   return hydrusPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.hydrus),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: file.size,
+      originalWidth: file.width?.toDouble(),
+      originalHeight: file.height?.toDouble(),
+      originalFormat: file.ext,
+    ),
   );
 }

@@ -87,6 +87,28 @@ void main() {
     return observed;
   }
 
+  testWidgets(
+    'Info shows a persisted history end at narrow width and large text',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final harness = FollowingTopicHarness();
+      addTearDown(harness.dispose);
+      await tester.runAsync(() async {
+        await harness.seed([source()]);
+        final topic = (await harness.repository.getById('cats'))!;
+        await harness.repository.recordHistoryEnd(
+          topic,
+          const FeedHistoryEnd(oldestPostIdentity: '20:example.com:8'),
+        );
+        await harness.container.read(followingTopicsProvider.future);
+      });
+      await mount(tester, harness, narrow: true);
+      expect(find.text('Oldest post reached'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final name in <String?>[null, 'Cats', 'cat']) {
     testWidgets('Info labels stored query and explicit name $name', (
       tester,
@@ -105,7 +127,7 @@ void main() {
       );
       if (name != null) expect(find.text('Name: $name'), findsOneWidget);
       expect(find.text('cat'), findsNothing);
-      expect(find.textContaining('Last attempt:'), findsNothing);
+      expect(find.textContaining('Last Attempt:'), findsNothing);
       expect(find.textContaining('Succeeded'), findsNothing);
       expect(find.textContaining('Failed'), findsNothing);
       expect(find.text('Never checked'), findsOneWidget);
@@ -148,10 +170,10 @@ void main() {
           locale: context.locale.toLanguageTag(),
           clock: clock.now().toLocal(),
         );
-        expect(find.text('Last checked: ${date(created)}'), findsOneWidget);
+        expect(find.text('Last Checked: ${date(created)}'), findsOneWidget);
         expect(
           find.text(
-            'Last attempt: ${date(attempted)} · ${message == null ? 'Succeeded' : 'Failed · $message'}',
+            'Last Attempt: ${date(attempted)} · ${message == null ? 'Succeeded' : 'Failed · $message'}',
           ),
           findsOneWidget,
         );
@@ -216,16 +238,16 @@ void main() {
     });
     await withClock(testClock, () async {
       await mount(tester, harness);
-      expect(find.text('Last checked: 30 minutes ago'), findsOneWidget);
+      expect(find.text('Last Checked: 30 minutes ago'), findsOneWidget);
       expect(
-        find.text('Last attempt: 20 minutes ago · Succeeded'),
+        find.text('Last Attempt: 20 minutes ago · Succeeded'),
         findsOneWidget,
       );
       now = now.add(const Duration(minutes: 1));
       await tester.pump(const Duration(minutes: 1));
-      expect(find.text('Last checked: 31 minutes ago'), findsOneWidget);
+      expect(find.text('Last Checked: 31 minutes ago'), findsOneWidget);
       expect(
-        find.text('Last attempt: 21 minutes ago · Succeeded'),
+        find.text('Last Attempt: 21 minutes ago · Succeeded'),
         findsOneWidget,
       );
       expect(harness.requests, isEmpty);
@@ -283,7 +305,7 @@ void main() {
           expect(harness.box.mutationCount, writes);
           await mount(tester, harness);
           expect(
-            find.text('Next refresh: in 30 minutes'),
+            find.text('Next Refresh: in 30 minutes'),
             findsOneWidget,
           );
           expect(find.text('Waiting for the site rate limit.'), findsOneWidget);
@@ -299,7 +321,7 @@ void main() {
               {'cats': retryAt},
             );
             expect(
-              find.text('Next refresh: in $remainingMinutes minutes'),
+              find.text('Next Refresh: in $remainingMinutes minutes'),
               findsOneWidget,
             );
             expect(
@@ -341,9 +363,9 @@ void main() {
   for (final example in [
     (
       locale: 'en-US',
-      initial: 'Next refresh: in 30 minutes',
-      afterMinute: 'Next refresh: in 29 minutes',
-      due: 'Next refresh: Due now',
+      initial: 'Next Refresh: in 30 minutes',
+      afterMinute: 'Next Refresh: in 29 minutes',
+      due: 'Next Refresh: Due now',
       note:
           'Automatic checks run while the app is open; checks may start later.',
     ),
@@ -427,7 +449,7 @@ void main() {
           );
           await tester.pump();
           expect(
-            find.text('Refresh interval: Adaptive · $hours hours'),
+            find.text('Refresh Interval: Adaptive · $hours hours'),
             findsOneWidget,
           );
           now = now.add(const Duration(days: 1));
@@ -444,7 +466,7 @@ void main() {
               ),
         );
         await tester.pump();
-        expect(find.text('Refresh interval: Adaptive · 1 day'), findsOneWidget);
+        expect(find.text('Refresh Interval: Adaptive · 1 day'), findsOneWidget);
         expect(find.text('Query: new-cat'), findsOneWidget);
         additions = false;
         for (final label in ['1 day', '2 days']) {
@@ -456,7 +478,7 @@ void main() {
           );
           await tester.pump();
           expect(
-            find.text('Refresh interval: Adaptive · $label'),
+            find.text('Refresh Interval: Adaptive · $label'),
             findsOneWidget,
           );
           now = now.add(const Duration(days: 2));
@@ -475,7 +497,7 @@ void main() {
               ),
         );
         await tester.pump();
-        expect(find.text('Refresh interval: Fixed · 2 days'), findsOneWidget);
+        expect(find.text('Refresh Interval: Fixed · 2 days'), findsOneWidget);
         await settleOperation(
           tester,
           harness.container
@@ -491,7 +513,7 @@ void main() {
         await tester.pump();
         expect(
           find.text(
-            'Next refresh: Not scheduled — automatic checks disabled',
+            'Next Refresh: Not scheduled — automatic checks disabled',
           ),
           findsOneWidget,
         );
@@ -531,7 +553,7 @@ void main() {
         });
         await mount(tester, harness);
         expect(
-          find.text('Refresh interval: Adaptive · ${example.label}'),
+          find.text('Refresh Interval: Adaptive · ${example.label}'),
           findsOneWidget,
         );
       },
@@ -562,7 +584,7 @@ void main() {
       });
       await mount(tester, harness);
       expect(
-        find.textContaining('Next refresh: Not scheduled'),
+        find.textContaining('Next Refresh: Not scheduled'),
         findsOneWidget,
       );
       expect(find.textContaining('Due now'), findsNothing);
@@ -592,7 +614,7 @@ void main() {
       deferred.clear();
       await withClock(Clock.fixed(now), () async {
         await mount(tester, harness);
-        expect(find.text('Next refresh: in 2 hours'), findsOneWidget);
+        expect(find.text('Next Refresh: in 2 hours'), findsOneWidget);
         expect(find.textContaining('Due now'), findsNothing);
         expect(find.text('Paused: battery saver is active'), findsOneWidget);
         expect(find.text('Waiting for the site rate limit.'), findsOneWidget);
@@ -624,13 +646,13 @@ void main() {
           find.textContaining(
             locale == 'de-DE'
                 ? 'Aktualisierungsintervall:'
-                : 'Refresh interval:',
+                : 'Refresh Interval:',
           ),
           findsOneWidget,
         );
         expect(
           find.textContaining(
-            locale == 'de-DE' ? 'Nächste Aktualisierung:' : 'Next refresh:',
+            locale == 'de-DE' ? 'Nächste Aktualisierung:' : 'Next Refresh:',
           ),
           findsOneWidget,
         );

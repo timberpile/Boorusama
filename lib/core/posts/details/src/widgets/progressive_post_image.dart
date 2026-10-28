@@ -4,6 +4,7 @@ import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
@@ -32,6 +33,7 @@ class ProgressivePostImage extends ConsumerWidget {
     this.imageCacheManager,
     this.controller,
     this.onRepresentationChanged,
+    this.intermediateImageUrls = const [],
   });
 
   final Object mediaIdentity;
@@ -44,6 +46,7 @@ class ProgressivePostImage extends ConsumerWidget {
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? controller;
   final ValueChanged<bool>? onRepresentationChanged;
+  final List<String> intermediateImageUrls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -83,6 +86,7 @@ class ProgressivePostImage extends ConsumerWidget {
           ?.version
           .sdkInt,
       onRepresentationChanged: onRepresentationChanged,
+      intermediateImageUrls: intermediateImageUrls,
     );
   }
 }
@@ -103,6 +107,7 @@ class RawProgressivePostImage extends StatefulWidget {
     this.platform,
     this.androidVersion,
     this.onRepresentationChanged,
+    this.intermediateImageUrls = const [],
   });
 
   final ({String url, Dio dio, Map<String, String> headers}) Function(String)?
@@ -119,6 +124,7 @@ class RawProgressivePostImage extends StatefulWidget {
   final TargetPlatform? platform;
   final int? androidVersion;
   final ValueChanged<bool>? onRepresentationChanged;
+  final List<String> intermediateImageUrls;
 
   @override
   State<RawProgressivePostImage> createState() =>
@@ -128,7 +134,10 @@ class RawProgressivePostImage extends StatefulWidget {
 class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   late final _controller = widget.controller ?? ExtendedImageController();
   final _requests = <_DecodedCandidate>[];
+  final _intermediateRequests = <_DecodedCandidate>[];
   ImageProvider? _displayed;
+  String? _displayedUrl;
+  var _displayedLevel = -1;
   double? _displayedRatio;
   var _targetGeneration = 0;
   var _targetSucceeded = false;
@@ -138,6 +147,18 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   var _retrying = false;
   final _failedUrls = <String>{};
   _DecodedCandidate? _target;
+
+  List<String> get _intermediateUrls => _targetIsFallback
+      ? const []
+      : widget.intermediateImageUrls
+            .where(
+              (url) =>
+                  url.isNotEmpty &&
+                  url != widget.imageUrl &&
+                  url != widget.lowerMedia.url,
+            )
+            .toSet()
+            .toList();
 
   // An unresolved listing can still call its small thumbnail the original.
   // Keep it as a final fallback instead of letting it replace the grid image.
@@ -158,6 +179,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
             (url) =>
                 url.isNotEmpty && (url != widget.imageUrl || _targetIsFallback),
           )
+          .where((url) => !_intermediateUrls.contains(url))
           .toSet()
           .toList();
 
@@ -185,7 +207,13 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   @override
   void didUpdateWidget(covariant RawProgressivePostImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl) _loadTarget();
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        !listEquals(
+          oldWidget.intermediateImageUrls,
+          widget.intermediateImageUrls,
+        )) {
+      _loadTarget();
+    }
     if (_displayed != null &&
         _compatible(_displayedRatio, oldWidget.geometryAspectRatio) !=
             _compatible(_displayedRatio, widget.geometryAspectRatio)) {
@@ -210,7 +238,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
       candidates[index],
       onDecoded: (provider, decodedRatio) {
         if (_targetSucceeded || _displayed != null) return false;
-        _show(provider, decodedRatio);
+        _show(provider, decodedRatio, candidates[index], 0);
         return true;
       },
       onError: () {
@@ -226,6 +254,10 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
 
   void _loadTarget() {
     _target?.dispose();
+    for (final request in _intermediateRequests) {
+      request.dispose();
+    }
+    _intermediateRequests.clear();
     final generation = ++_targetGeneration;
     _targetSucceeded = false;
     _targetFailed = false;
@@ -234,12 +266,39 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
       _targetFailed = true;
       return;
     }
+    final intermediates = _intermediateUrls;
+    final displayedIndex = intermediates.indexOf(_displayedUrl ?? '');
+    _displayedLevel = _displayed == null
+        ? -1
+        : _displayedUrl == widget.lowerMedia.url
+        ? 0
+        : displayedIndex >= 0
+        ? displayedIndex + 1
+        : intermediates.length + 1;
+    for (final (index, url) in intermediates.indexed) {
+      if (url == _displayedUrl) continue;
+      final level = index + 1;
+      _intermediateRequests.add(
+        _stage(
+          url,
+          onDecoded: (provider, ratio) {
+            if (generation != _targetGeneration ||
+                _targetSucceeded ||
+                level <= _displayedLevel)
+              return false;
+            _show(provider, ratio, url, level);
+            return true;
+          },
+          onError: () {},
+        ),
+      );
+    }
     _target = _stage(
       widget.imageUrl,
       onDecoded: (provider, ratio) {
         if (generation != _targetGeneration) return false;
         _targetSucceeded = true;
-        _show(provider, ratio);
+        _show(provider, ratio, widget.imageUrl, intermediates.length + 1);
         return true;
       },
       onError: () {
@@ -320,10 +379,12 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     return candidate;
   }
 
-  void _show(ImageProvider provider, double ratio) {
+  void _show(ImageProvider provider, double ratio, String url, int level) {
     setState(() {
       _displayed = provider;
       _displayedRatio = ratio;
+      _displayedUrl = url;
+      _displayedLevel = level;
     });
     // A completed-to-completed replacement must invalidate a held edge drag,
     // while subsequent animated frames do not constitute a representation change.
@@ -377,8 +438,18 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
         ),
         if (_targetFailed)
           Align(
-            alignment: Alignment.bottomCenter,
-            child: ImageRetryButton(onRetry: _retrying ? null : _retryFailed),
+            alignment: Alignment.topCenter,
+            // Unknown geometry fills the viewer: its bottom edge lies behind
+            // the action footer. Keep retry below the standard top controls.
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(top: kToolbarHeight + 8),
+                child: ImageRetryButton(
+                  onRetry: _retrying ? null : _retryFailed,
+                ),
+              ),
+            ),
           ),
       ],
     );

@@ -65,6 +65,16 @@ Post postDtoToPost(
   return nozomiPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.nozomi),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalWidth: media?.width?.toDouble(),
+      originalHeight: media?.height?.toDouble(),
+      // Static Nozomi JPEG/PNG resources are served as derived WebP.
+      originalFormat:
+          originalFormatFromUrl(mediaUrl) == media?.type.toLowerCase()
+          ? media?.type
+          : null,
+    ),
   );
 }
 

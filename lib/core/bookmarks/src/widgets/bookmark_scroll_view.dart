@@ -193,7 +193,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             });
 
           final auth = ref.watchConfigAuth;
-          final download = ref.watchConfigDownload;
 
           return PostGrid(
             selectionModeController: _selectionModeController,
@@ -204,23 +203,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             multiSelectActions: DefaultMultiSelectionActions(
               postController: controller,
               bookmark: false,
-              onBulkDownload: (selectedPosts) {
-                final library = ref.read(bookmarkProvider).valueOrNull;
-                final bookmarks = selectedPosts
-                    .map((post) => library?.bookmarkForPost(post))
-                    .nonNulls
-                    .toList();
-                if (bookmarks.length != selectedPosts.length) {
-                  throw StateError('Selected bookmark disappeared');
-                }
-                return ref
-                    .read(bookmarkProvider.notifier)
-                    .downloadBookmarks(
-                      auth,
-                      download,
-                      bookmarks,
-                    );
-              },
+              // Shared actions resolve each post's source profile and use the
+              // ordinary quality, filename, duplicate and sidecar policy.
               extraActions: (selectedPosts) => [
                 MultiSelectPopupButton(
                   enabled: selectedPosts.isNotEmpty,
@@ -230,6 +214,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     BookmarkMultiSelectionMenu(
                       posts: selectedPosts,
                       config: auth,
+                      currentGroupId: widget.view.groupId,
                       onCompleted: () async {},
                     ),
                   ],

@@ -8,6 +8,7 @@ import 'post.dart';
 import 'post_media_aspect_ratios.dart';
 import 'post_media_variants.dart';
 import 'post_record.dart';
+import 'post_detail_facts.dart';
 
 final class PostCoreData extends Equatable {
   const PostCoreData({
@@ -30,6 +31,7 @@ final class PostCoreData extends Equatable {
     required this.hasParentOrChildren,
     required this.source,
     required this.score,
+    this.detailFacts = const PostDetailFacts(),
     this.createdAt,
     this.mediaVariants,
     this.thumbnailAspectRatio,
@@ -53,7 +55,11 @@ final class PostCoreData extends Equatable {
     PostRecord post, {
     String? status,
     String? thumbnailImageUrl,
+    PostDetailFacts? detailFacts,
   }) => PostCoreData(
+    detailFacts:
+        detailFacts ??
+        (post is Post ? post.detailFacts : const PostDetailFacts()),
     id: post.id,
     createdAt: post.createdAt,
     thumbnailImageUrl: thumbnailImageUrl ?? post.thumbnailImageUrl,
@@ -117,6 +123,7 @@ final class PostCoreData extends Equatable {
     metadata: post.metadata,
   );
 
+  final PostDetailFacts detailFacts;
   final int id;
   final DateTime? createdAt;
   final String thumbnailImageUrl;
@@ -156,6 +163,7 @@ final class PostCoreData extends Equatable {
 
   @override
   List<Object?> get props => [
+    detailFacts,
     id,
     createdAt,
     thumbnailImageUrl,

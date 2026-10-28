@@ -1,6 +1,9 @@
 // Dart imports:
 import 'dart:convert';
 
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/foundation/loggers.dart';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -162,6 +165,68 @@ void main() {
       );
     });
   }
+
+  test(
+    'custom fallback logs one safe cause without changing retained data',
+    () {
+      final logger = AppLogger();
+      final snapshot = StoredPostSnapshot(
+        origin: _originSnapshot(),
+        common: _minimalCommonJson(),
+        custom: const {'label': 100, 'count': 'private-payload'},
+        codecVersion: 1,
+      );
+      final result = StoredPostCodec(logger: logger).decode(
+        snapshot,
+        dataCodec: dataCodec,
+      ) as StoredPostDecodeSuccess;
+      expect(result.post.id, 1);
+      expect(
+        (result.post.booruData as UnknownPostData).custom,
+        snapshot.custom,
+      );
+      expect(logger.logs, hasLength(1));
+      expect(logger.logs.single.level, LogLevel.warning);
+      expect(logger.dump(), contains('decode_custom:danbooru:v1'));
+      expect(logger.dump(), contains('FormatException'));
+      expect(logger.dump(), contains('generic_post_retained'));
+      expect(logger.dump(), isNot(contains('private-payload')));
+      expect(logger.dump(), isNot(contains('cdn.example')));
+      expect(logger.logs.single.sensitiveMessage, isNull);
+    },
+  );
+
+  test('missing optional codec is not logged as an error', () {
+    final logger = AppLogger();
+    final result = StoredPostCodec(logger: logger).decode(
+      StoredPostSnapshot(
+        origin: _originSnapshot(),
+        common: _minimalCommonJson(),
+        custom: const {'label': 'native', 'count': 1},
+        codecVersion: 1,
+      ),
+    );
+    expect(result, isA<StoredPostDecodeSuccess>());
+    expect(logger.logs, isEmpty);
+  });
+
+  test('malformed common data retains the original cause and stack', () {
+    final logger = AppLogger();
+    final result = StoredPostCodec(logger: logger).decode(
+      StoredPostSnapshot(
+        origin: _originSnapshot(),
+        common: {..._minimalCommonJson(), 'id': 'private-id'},
+        custom: const {},
+        codecVersion: 1,
+      ),
+    ) as StoredPostDecodeFailure;
+    expect(result.error, isA<FormatException>());
+    expect(result.stackTrace, isNotNull);
+    expect(logger.logs, hasLength(1));
+    expect(logger.dump(), contains('decode_common'));
+    expect(logger.dump(), contains('snapshot_rejected'));
+    expect(logger.dump(), isNot(contains('private-id')));
+  });
 
   test('malformed common data returns a typed failure', () {
     final result = codec.decode(

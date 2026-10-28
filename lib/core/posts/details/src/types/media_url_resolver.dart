@@ -25,13 +25,36 @@ abstract class MediaUrlResolver {
   );
 }
 
+String originalViewerImageUrl(Post post) =>
+    [
+      post.originalImageUrl,
+      post.sampleImageUrl,
+      post.thumbnailImageUrl,
+    ].where((url) => url.isNotEmpty).firstOrNull ??
+    '';
+
+double? originalViewerImageAspectRatio(Post post) =>
+    post.originalImageUrl.isNotEmpty
+    ? post.effectiveOriginalAspectRatio
+    : post.sampleImageUrl.isNotEmpty
+    ? post.effectiveSampleAspectRatio
+    : post.effectiveThumbnailAspectRatio;
+
 class DefaultMediaUrlResolver implements MediaUrlResolver {
   const DefaultMediaUrlResolver({required this.postQuality});
 
   final PostQuality postQuality;
 
+  bool _usesOriginal(Post post, BooruConfigViewer config) =>
+      !post.isVideo &&
+      config.imageDetaisQuality == null &&
+      postQuality == PostQuality.original;
+
   @override
-  String resolveMediaUrl(Post post, BooruConfigViewer config) => post.isGif
+  String resolveMediaUrl(Post post, BooruConfigViewer config) =>
+      _usesOriginal(post, config)
+      ? originalViewerImageUrl(post)
+      : post.isGif
       ? post.sampleImageUrl
       : switch (stringToGeneralPostQualityType(config.imageDetaisQuality)) {
           GeneralPostQualityType.preview => post.thumbnailImageUrl,
@@ -43,7 +66,9 @@ class DefaultMediaUrlResolver implements MediaUrlResolver {
 
   @override
   double? resolveMediaAspectRatio(Post post, BooruConfigViewer config) =>
-      post.isGif
+      _usesOriginal(post, config)
+      ? originalViewerImageAspectRatio(post)
+      : post.isGif
       ? post.effectiveSampleAspectRatio
       : (switch (stringToGeneralPostQualityType(config.imageDetaisQuality)) {
               GeneralPostQualityType.preview =>
@@ -70,19 +95,25 @@ class DefaultMediaUrlResolver implements MediaUrlResolver {
 }
 
 class SampleMediaUrlResolver implements MediaUrlResolver {
-  const SampleMediaUrlResolver();
+  const SampleMediaUrlResolver({this.postQuality = PostQuality.high});
+
+  final PostQuality postQuality;
 
   @override
   String resolveMediaUrl(
     Post post,
     BooruConfigViewer config,
-  ) => post.sampleImageUrl;
+  ) => !post.isVideo && postQuality == PostQuality.original
+      ? originalViewerImageUrl(post)
+      : post.sampleImageUrl;
 
   @override
   double? resolveMediaAspectRatio(
     Post post,
     BooruConfigViewer config,
-  ) => post.effectiveSampleAspectRatio;
+  ) => !post.isVideo && postQuality == PostQuality.original
+      ? originalViewerImageAspectRatio(post)
+      : post.effectiveSampleAspectRatio;
 
   @override
   String resolveVideoUrl(

@@ -48,14 +48,15 @@ Post gelbooruV2PostDtoToGelbooruPost(
     height: dto.height?.toDouble() ?? 0,
     format: format,
     source: PostSource.from(dto.source),
-    rating: Rating.parse(dto.rating ?? 'safe'),
+    rating: Rating.parseLegacy(dto.rating),
     md5: dto.hash ?? '',
     hasComment: dto.commentCount != null && dto.commentCount! > 0,
     hasParentOrChildren: dto.parentId != null && dto.parentId != 0,
-    fileSize: 0,
+    fileSize: dto.fileSize ?? 0,
     score: dto.score ?? 0,
     createdAt: switch (dto.createdAt) {
-      final String value => parseRFC822String(value),
+      final String value =>
+        DateTime.tryParse(value) ?? parseRFC822String(value),
       null => null,
     },
     parentId: dto.parentId != 0 ? dto.parentId : null,
@@ -69,6 +70,15 @@ Post gelbooruV2PostDtoToGelbooruPost(
   return gelbooruV2PostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.gelbooruV2),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: dto.fileSize,
+      originalWidth: dto.width?.toDouble(),
+      originalHeight: dto.height?.toDouble(),
+      originalFormat: originalFormatFromUrl(dto.fileUrl),
+      score: dto.score,
+      commentCount: dto.commentCount,
+    ),
   );
 }
 

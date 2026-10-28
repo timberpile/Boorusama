@@ -26,7 +26,7 @@ void main() {
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
           postLinkGenerator: (_) => const NoLinkPostLinkGenerator(),
         );
-        await library.syncActiveTargetFromSettings();
+        await library.refresh();
         final group = await library.createGroup('Favorites');
         await h.container
             .read(serverFavoriteSettingsProvider.notifier)

@@ -1,5 +1,6 @@
 import '../../../../posts/post/types.dart';
 import '../types/following_topic.dart';
+import '../types/feed_history_end.dart';
 
 typedef FeedSourcePageFetcher = Future<PostResult<Post>> Function(
   FollowingTopic source,
@@ -11,7 +12,11 @@ class FeedHistorySession {
     required List<FollowingTopic> sources,
     required List<Post> recent,
     required FeedSourcePageFetcher fetchPage,
-  }) : _cursors = [for (final source in sources) _FeedCursor(source)],
+    this.confirmExhaustion,
+    this.onExhausted,
+  }) : _cursors = [
+         for (final source in sources) _FeedCursor(source, recent),
+       ],
        _recent = List.unmodifiable(recent),
        _fetchPage = fetchPage,
        _knownIds = recent.map(_postIdentity).toSet(),
@@ -20,6 +25,8 @@ class FeedHistorySession {
   final List<_FeedCursor> _cursors;
   final List<Post> _recent;
   final FeedSourcePageFetcher _fetchPage;
+  final bool Function(FollowingTopic, int, PostResult<Post>)? confirmExhaustion;
+  final Future<void> Function(FollowingTopic, FeedHistoryEnd)? onExhausted;
   final Set<String> _knownIds;
   final DateTime? _oldestRecent;
   final Map<int, PostResult<Post>> _loadedPages = {};
@@ -34,9 +41,24 @@ class FeedHistorySession {
 
   bool get coverageIncomplete => unavailableSourceIds.isNotEmpty;
 
+  Set<String> get exhaustedSourceIds => {
+    for (final cursor in _cursors)
+      if (cursor.confirmedEnd &&
+          cursor.failure == null &&
+          cursor.current == null)
+        cursor.source.id,
+  };
+
+  bool get exhausted =>
+      _cursors.isNotEmpty && exhaustedSourceIds.length == _cursors.length;
+
   void allowRecovery() {
     if (_disposed) return;
     for (final cursor in _cursors) {
+      if (cursor.failure != null) {
+        cursor.hasMore = true;
+        cursor.confirmedEnd = false;
+      }
       cursor.failure = null;
     }
     for (final entry in _loadedPages.entries.toList()) {
@@ -62,7 +84,9 @@ class FeedHistorySession {
       return _loadedPages[page] = PostResult(
         posts: _recent,
         total: null,
-        hasMore: _cursors.any((cursor) => cursor.failure == null),
+        hasMore: _cursors.any(
+          (cursor) => cursor.failure == null && cursor.hasMore,
+        ),
       );
     }
     if (!_initialized) {
@@ -120,7 +144,18 @@ class FeedHistorySession {
         try {
           final result = await _fetchPage(cursor.source, cursor.page);
           if (_disposed) return;
-          cursor.page++;
+          final confirmed =
+              confirmExhaustion?.call(cursor.source, cursor.page, result) ??
+              false;
+          if (result.posts.any((post) => post.createdAt == null)) {
+            throw StateError('History dates unavailable');
+          }
+          if (result.posts.isNotEmpty &&
+              result.posts.every(
+                (post) => cursor.seenSourceIds.contains(_postIdentity(post)),
+              )) {
+            throw StateError('History pagination did not advance');
+          }
           cursor.posts =
               [
                 for (final post in result.posts)
@@ -130,8 +165,35 @@ class FeedHistorySession {
                 return date == 0 ? right.id.compareTo(left.id) : date;
               });
           cursor.offset = 0;
+          if (cursor.posts.isNotEmpty) {
+            cursor.oldestIdentity = _postIdentity(cursor.posts.last);
+          }
           cursor.hasMore = result.hasMore ?? result.posts.isNotEmpty;
+          final boundary = cursor.source.historyEnd?.oldestPostIdentity;
+          final reachedBoundary =
+              boundary != null &&
+              cursor.posts.any((post) => _postIdentity(post) == boundary);
+          if (confirmed || reachedBoundary) {
+            cursor.hasMore = false;
+            cursor.confirmedEnd = true;
+            if (confirmed) {
+              await onExhausted?.call(
+                cursor.source,
+                FeedHistoryEnd(oldestPostIdentity: cursor.oldestIdentity),
+              );
+              if (_disposed) return;
+            }
+          } else if (confirmExhaustion != null &&
+              (cursor.posts.isEmpty ||
+                  !cursor.hasMore ||
+                  (result.maxPage != null && cursor.page >= result.maxPage!))) {
+            // A limit, filtered response or unknown stop is recoverable and
+            // never masquerades as a persisted history end.
+            throw StateError('History continuation unavailable');
+          }
           if (cursor.posts.isEmpty) cursor.hasMore = false;
+          cursor.seenSourceIds.addAll(result.posts.map(_postIdentity));
+          cursor.page++;
         } catch (error, stackTrace) {
           if (_disposed) return;
           cursor.failure = (error, stackTrace);
@@ -156,12 +218,25 @@ String _postIdentity(Post post) {
 }
 
 class _FeedCursor {
-  _FeedCursor(this.source);
+  _FeedCursor(this.source, List<Post> recent) {
+    final end = source.historyEnd;
+    if (end != null &&
+        (end.oldestPostIdentity == null ||
+            recent.any(
+              (post) => _postIdentity(post) == end.oldestPostIdentity,
+            ))) {
+      hasMore = false;
+      confirmedEnd = true;
+    }
+  }
 
   final FollowingTopic source;
   var page = 1;
   var offset = 0;
   var hasMore = true;
+  var confirmedEnd = false;
+  String? oldestIdentity;
+  final seenSourceIds = <String>{};
   List<Post> posts = const [];
   (Object, StackTrace)? failure;
 

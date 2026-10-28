@@ -62,7 +62,7 @@ void main() {
       expect(find.text('Other search'), findsOneWidget);
       expect(find.byType(ExpansionTile), findsNothing);
       expect(find.text('Unfiled'), findsNothing);
-      expect(find.byTooltip('Manage folders'), findsNothing);
+      expect(find.byTooltip('Manage Folders'), findsNothing);
       expect(
         find.descendant(
           of: find.byType(AppBar),

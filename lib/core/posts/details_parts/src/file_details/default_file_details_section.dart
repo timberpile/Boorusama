@@ -29,6 +29,7 @@ class DefaultInheritedFileDetailsSection<T extends Post>
             uploader ??
             switch (post.uploaderName) {
               null => null,
+              final name when name.trim().isEmpty => null,
               final name => UploaderFileDetailTile(
                 uploaderName: name,
               ),

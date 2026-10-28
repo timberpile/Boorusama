@@ -72,5 +72,7 @@ final defaultMediaUrlResolverProvider =
 
 final sampleMediaUrlResolverProvider =
     Provider.family<MediaUrlResolver, BooruConfigAuth>(
-      (ref, config) => const SampleMediaUrlResolver(),
+      (ref, config) => SampleMediaUrlResolver(
+        postQuality: ref.watch(postQualityProvider(config)),
+      ),
     );

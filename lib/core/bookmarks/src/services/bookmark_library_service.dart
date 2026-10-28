@@ -12,7 +12,6 @@ import '../types/bookmark_group.dart';
 import '../types/bookmark_group_repository.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
-import '../types/bookmark_target.dart';
 
 class BookmarkGroupRemovalResult extends Equatable {
   const BookmarkGroupRemovalResult({
@@ -64,9 +63,9 @@ class BookmarkLibraryService {
   final Future<BookmarkLibraryState> Function()? readMutationSnapshot;
 
   Future<BookmarkLibraryState> _snapshotForMutation() =>
-      readMutationSnapshot?.call() ?? load(const BookmarkTarget.defaultGroup());
+      readMutationSnapshot?.call() ?? load();
 
-  Future<BookmarkLibraryState> load(BookmarkTarget activeTarget) async {
+  Future<BookmarkLibraryState> load() async {
     final performanceSpan = performanceRecorder.begin(
       PerfOperation.bookmarkLibraryLoad,
       PerfSpanKind.asyncWall,
@@ -94,7 +93,6 @@ class BookmarkLibraryService {
         bookmarks: bookmarks,
         groups: groups,
         folders: folders,
-        activeTarget: activeTarget,
       );
     } catch (_) {
       performanceFailed = true;

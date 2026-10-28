@@ -1,5 +1,7 @@
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+
 import '../search/following_topics/topic_test_utils.dart';
+
 // Dart imports:
 import 'dart:io';
 
@@ -17,6 +19,7 @@ void main() {
   late Directory tempDirectory;
   late Box<BookmarkGroupHiveObject> box;
   late BookmarkGroupRepositoryHive repository;
+  late MemoryBox<dynamic> organizationBox;
 
   test('bookmark targets canonicalize group identity and reject bad IDs', () {
     expect(const BookmarkTarget.defaultGroup().groupId, defaultBookmarkGroupId);
@@ -41,9 +44,10 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     box = await Hive.openBox<BookmarkGroupHiveObject>('bookmark_groups_test');
+    organizationBox = MemoryBox<dynamic>();
     repository = BookmarkGroupRepositoryHive(
       box,
-      organizationBox: MemoryBox<dynamic>(),
+      organizationBox: organizationBox,
     );
   });
 
@@ -51,6 +55,51 @@ void main() {
     await box.close();
     await tempDirectory.delete(recursive: true);
   });
+
+  test(
+    'recent groups survive repository recreation and keep three distinct IDs',
+    () async {
+      final groups = [
+        for (var i = 0; i < 4; i++) await repository.createGroup('Group $i'),
+      ];
+      for (final group in groups) {
+        await repository.recordManualGroupInteraction(group.id);
+      }
+      await repository.recordManualGroupInteraction(groups[1].id);
+      final reopened = BookmarkGroupRepositoryHive(
+        box,
+        organizationBox: organizationBox,
+      );
+      expect(await reopened.readRecentGroupIds(), [
+        groups[1].id,
+        groups[3].id,
+        groups[2].id,
+      ]);
+    },
+  );
+
+  test(
+    'recent identities survive renames and exclude deleted or malformed groups',
+    () async {
+      final first = await repository.createGroup('First');
+      final second = await repository.createGroup('Second');
+      await repository.recordManualGroupInteraction(first.id);
+      await repository.recordManualGroupInteraction(second.id);
+      await repository.renameGroup(first.id, 'Renamed');
+      await repository.deleteGroup(second.id);
+      expect(await repository.readRecentGroupIds(), [first.id]);
+      await organizationBox.put('recentManualGroupIds', [
+        null,
+        7,
+        'missing',
+        first.id,
+        first.id,
+      ]);
+      expect(await repository.readRecentGroupIds(), [first.id]);
+      await organizationBox.put('recentManualGroupIds', 'invalid');
+      expect(await repository.readRecentGroupIds(), isEmpty);
+    },
+  );
 
   test(
     'creates groups with canonical unique IDs and duplicate names',

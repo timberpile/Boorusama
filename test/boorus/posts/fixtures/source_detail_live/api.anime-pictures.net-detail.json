@@ -1,0 +1,41 @@
+{
+  "family": "anime_pictures",
+  "host": "api.anime-pictures.net",
+  "endpoint": "https://api.anime-pictures.net/api/v3/posts/933209?extra=similar_pictures",
+  "capturedAt": "2026-10-25T02:31:07.275692+00:00",
+  "authenticated": false,
+  "status": 200,
+  "shape": "json",
+  "sourceFields": [
+    "favorites_users",
+    "file_url",
+    "moderator",
+    "original_download_blocked",
+    "original_download_pending",
+    "post",
+    "source",
+    "star_it",
+    "tags",
+    "tied",
+    "user"
+  ],
+  "detail": {
+    "post": {
+      "id": 933209,
+      "juser_id": 11650,
+      "width": 3840,
+      "height": 2160,
+      "pubtime": "2026-10-25T01:05:36.683658",
+      "score": 0.0,
+      "score_number": 1,
+      "size": 1471977,
+      "erotics": 1,
+      "ext": ".jpg"
+    },
+    "user": {
+      "id": 11650,
+      "name": "source_account"
+    },
+    "file_url": "933209-3840x2160-virtual youtuber-hololive-hoshimachi suisei-shirogane noel-sakura miko-shiranui flare.jpg"
+  }
+}

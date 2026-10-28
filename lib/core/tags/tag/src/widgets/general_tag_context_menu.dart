@@ -57,12 +57,14 @@ class GeneralTagContextMenu extends ConsumerWidget
         ),
         KurumiContextMenuTile(
           title: context.t.post.detail.add_to_favorites,
+          trailing: const Icon(Icons.favorite_border),
           onTap: () {
             ref.read(favoriteTagsProvider.notifier).add(tag);
           },
         ),
         KurumiContextMenuTile(
           title: context.t.tags.actions.add_to_blacklist_global,
+          trailing: const Icon(Icons.block),
           onTap: () {
             globalNotifier.addTagWithToast(context, tag);
           },
@@ -81,6 +83,7 @@ class GeneralTagContextMenu extends ConsumerWidget
 mixin TagContextMenuItemsMixin {
   Widget copyButton(BuildContext context, String tag) => KurumiContextMenuTile(
     title: context.t.tags.actions.copy_single,
+    trailing: const Icon(Icons.content_copy),
     onTap: () {
       AppClipboard.copyAndToast(
         context,
@@ -92,6 +95,7 @@ mixin TagContextMenuItemsMixin {
 
   Widget searchButton(WidgetRef ref, String tag) => KurumiContextMenuTile(
     title: ref.context.t.tags.actions.search_single,
+    trailing: const Icon(Icons.search),
     onTap: () {
       goToSearchPage(ref, tag: tag);
     },

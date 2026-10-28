@@ -21,7 +21,7 @@ Post postDtoToPost(ImageDto e, PostMetadata? metadata) {
     sampleImageUrl: e.representations?.medium ?? '',
     originalImageUrl: e.representations?.full ?? '',
     tags: e.tags?.map((e) => e.replaceAll('+', '_')).toSet() ?? {},
-    rating: Rating.general,
+    rating: Rating.unknown,
     commentCount: e.commentCount ?? 0,
     isTranslated: false,
     hasParentOrChildren: false,
@@ -59,6 +59,17 @@ Post postDtoToPost(ImageDto e, PostMetadata? metadata) {
   return philomenaPostFromRecord(
     record,
     PostOrigin.forBooruType(BooruType.philomena),
+  ).withDetailFacts(
+    PostDetailFacts(
+      originalByteSize: e.size,
+      originalWidth: e.width?.toDouble(),
+      originalHeight: e.height?.toDouble(),
+      originalFormat: e.format,
+      score: e.score,
+      favoriteCount: e.faves,
+      commentCount: e.commentCount,
+      description: e.description,
+    ),
   );
 }
 

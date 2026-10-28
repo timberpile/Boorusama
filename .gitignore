@@ -11,6 +11,8 @@
 .svn/
 .codex/
 .test_credentials
+.test_profiles.base64
+.test_profiles.bsexport
 
 # IntelliJ related
 *.iml

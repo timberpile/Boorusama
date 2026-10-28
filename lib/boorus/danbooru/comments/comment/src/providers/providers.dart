@@ -7,7 +7,7 @@ import '../../../../../../foundation/riverpod/riverpod.dart';
 import '../../../../client_provider.dart';
 
 final danbooruCommentCountProvider = FutureProvider.autoDispose
-    .family<int, (BooruConfigAuth, int)>((ref, params) {
+    .family<int?, (BooruConfigAuth, int)>((ref, params) {
       ref.cacheFor(const Duration(seconds: 60));
 
       final (config, postId) = params;

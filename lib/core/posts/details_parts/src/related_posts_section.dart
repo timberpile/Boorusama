@@ -117,7 +117,8 @@ class SliverRelatedPostsSection<T extends Post> extends ConsumerWidget {
                             ),
                             () => const SizedBox.shrink(),
                           ),
-                          if (post.fileSize > 0)
+                          if (post.detailFacts.originalByteSize
+                              case final size?)
                             Container(
                               padding: const EdgeInsets.all(4),
                               margin: const EdgeInsets.all(1),
@@ -130,7 +131,7 @@ class SliverRelatedPostsSection<T extends Post> extends ConsumerWidget {
                                 ),
                               ),
                               child: Text(
-                                Filesize.parse(post.fileSize, round: 1),
+                                Filesize.parse(size, round: 1),
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: context
@@ -139,27 +140,32 @@ class SliverRelatedPostsSection<T extends Post> extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                          Container(
-                            padding: const EdgeInsets.all(4),
-                            margin: const EdgeInsets.all(1),
-                            decoration: BoxDecoration(
-                              color: context
-                                  .extendedColorScheme
-                                  .surfaceContainerOverlay,
-                              borderRadius: const BorderRadius.all(
-                                Radius.circular(4),
-                              ),
-                            ),
-                            child: Text(
-                              '${post.width.toInt()}x${post.height.toInt()}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                          if ((
+                                post.detailFacts.originalWidth,
+                                post.detailFacts.originalHeight,
+                              )
+                              case (final width?, final height?))
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              margin: const EdgeInsets.all(1),
+                              decoration: BoxDecoration(
                                 color: context
                                     .extendedColorScheme
-                                    .onSurfaceContainerOverlay,
+                                    .surfaceContainerOverlay,
+                                borderRadius: const BorderRadius.all(
+                                  Radius.circular(4),
+                                ),
+                              ),
+                              child: Text(
+                                '${width.toInt()}x${height.toInt()}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: context
+                                      .extendedColorScheme
+                                      .onSurfaceContainerOverlay,
+                                ),
                               ),
                             ),
-                          ),
                         ],
                       ),
                     ),

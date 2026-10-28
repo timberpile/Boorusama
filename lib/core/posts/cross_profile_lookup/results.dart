@@ -1,10 +1,10 @@
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../images/booru_image.dart';
 import '../post/types.dart';
-import '../post/providers.dart';
 import 'types.dart';
 
 enum CrossProfileResultStatus {
@@ -14,6 +14,7 @@ enum CrossProfileResultStatus {
   noMatch,
   unsupported,
   missingHash,
+  incomplete,
   error,
 }
 
@@ -26,6 +27,8 @@ class CrossProfileResult {
     this.posts = const [],
     this.complete = false,
     this.matchKind,
+    this.coverageIssue,
+    this.hasMore,
   });
 
   final BooruConfig profile;
@@ -33,6 +36,9 @@ class CrossProfileResult {
   final List<Post> posts;
   final bool complete;
   final PostLookupMatchKind? matchKind;
+  final PixivLookupCoverageIssue? coverageIssue;
+  final bool? hasMore;
+  bool get canLoadMore => hasMore ?? !complete;
 }
 
 class CrossProfileResults extends StatelessWidget {
@@ -77,16 +83,19 @@ class CrossProfileResults extends StatelessWidget {
           style: Theme.of(context).textTheme.labelLarge,
         ),
         const SizedBox(height: 4),
-        Text(
-          results
-              .where((r) => r.status == CrossProfileResultStatus.unsupported)
-              .map(
-                (r) =>
-                    '${r.profile.name} (${postOriginFromConfig(r.profile).sourceHost})',
-              )
-              .join('\n'),
+        Column(
           key: const ValueKey('unsupported-profiles'),
-          style: Theme.of(context).textTheme.bodySmall,
+          children: [
+            for (final result in results.where(
+              (r) => r.status == CrossProfileResultStatus.unsupported,
+            ))
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: _ProfileIcon(profile: result.profile),
+                title: Text(result.profile.name),
+                dense: true,
+              ),
+          ],
         ),
       ],
     ],
@@ -109,6 +118,13 @@ class CrossProfileResultSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.t.post.cross_profile;
+    final coverageMessage = switch (result.coverageIssue) {
+      PixivLookupCoverageIssue.authentication => t.pixiv_auth_required,
+      PixivLookupCoverageIssue.restricted => t.originals_restricted,
+      PixivLookupCoverageIssue.ugoira => t.ugoira_hash_unavailable,
+      PixivLookupCoverageIssue.originalsUnavailable => t.originals_incomplete,
+      null => null,
+    };
     final message = switch (result.status) {
       CrossProfileResultStatus.idle => t.select_profile,
       CrossProfileResultStatus.loading => t.loading,
@@ -116,10 +132,9 @@ class CrossProfileResultSection extends StatelessWidget {
       CrossProfileResultStatus.unsupported => t.unsupported,
       CrossProfileResultStatus.missingHash => t.missing_hash,
       CrossProfileResultStatus.error => t.failed,
-      CrossProfileResultStatus.success =>
-        result.complete
-            ? t.result_count(count: result.posts.length)
-            : t.results_so_far(count: result.posts.length),
+      CrossProfileResultStatus.incomplete =>
+        coverageMessage ?? t.originals_incomplete,
+      CrossProfileResultStatus.success => null,
     };
     final kindLabel = switch (result.matchKind) {
       PostLookupMatchKind.exactFile => t.exact_file,
@@ -137,11 +152,9 @@ class CrossProfileResultSection extends StatelessWidget {
         children: [
           ListTile(
             key: ValueKey('profile-${result.profile.id}'),
+            leading: _ProfileIcon(profile: result.profile),
             title: Text(result.profile.name),
-            subtitle: Text(
-              '${postOriginFromConfig(result.profile).sourceHost}\n$message',
-            ),
-            isThreeLine: true,
+            subtitle: message == null ? null : Text(message),
             trailing: result.status == CrossProfileResultStatus.loading
                 ? const SizedBox.square(
                     dimension: 24,
@@ -152,6 +165,12 @@ class CrossProfileResultSection extends StatelessWidget {
                 : null,
             onTap: canSelect ? onSelect : null,
           ),
+          if (coverageMessage != null &&
+              result.status != CrossProfileResultStatus.incomplete)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(coverageMessage),
+            ),
           if (kindLabel != null && result.posts.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -160,22 +179,42 @@ class CrossProfileResultSection extends StatelessWidget {
                 style: Theme.of(context).textTheme.labelLarge,
               ),
             ),
-          for (final post in result.posts)
-            ListTile(
-              key: ValueKey('match-${result.profile.id}-${post.id}'),
-              leading: SizedBox.square(
-                dimension: 56,
-                child: BooruImage(
-                  config: result.profile.auth,
-                  imageUrl: post.thumbnailImageUrl,
-                  fit: BoxFit.cover,
-                ),
+          if (result.posts.isNotEmpty)
+            GridView.builder(
+              shrinkWrap: true,
+              primary: false,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
               ),
-              title: Text('#${post.sitePostId ?? post.id}'),
-              trailing: const Icon(Icons.open_in_new),
-              onTap: () => onOpen(post),
+              itemCount: result.posts.length,
+              itemBuilder: (context, index) {
+                final post = result.posts[index];
+                final label = '#${post.sitePostId ?? post.id}';
+                return Semantics(
+                  button: true,
+                  label: label,
+                  child: Tooltip(
+                    message: label,
+                    excludeFromSemantics: true,
+                    child: InkWell(
+                      key: ValueKey('match-${result.profile.id}-${post.id}'),
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => onOpen(post),
+                      child: BooruImage(
+                        config: result.profile.auth,
+                        imageUrl: post.thumbnailImageUrl,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          if (!result.complete &&
+          if (result.canLoadMore &&
               result.status == CrossProfileResultStatus.success)
             Padding(
               padding: const EdgeInsets.all(8),
@@ -185,4 +224,21 @@ class CrossProfileResultSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ProfileIcon extends StatelessWidget {
+  const _ProfileIcon({required this.profile});
+
+  final BooruConfig profile;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 24,
+    child: ConfigAwareWebsiteLogo.fromConfig(
+      profile.auth,
+      width: 24,
+      height: 24,
+      customIconUrl: profile.profileIcon?.url,
+    ),
+  );
 }

@@ -11,6 +11,29 @@ import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/settings/types.dart';
 
 void main() {
+  test(
+    'rendition names preserve Original and separate deterministic variants',
+    () {
+      String name(
+        String? quality, [
+        String url = 'https://media.test/one.jpg',
+      ]) => qualifyRenditionFileName(
+        '42.jpg',
+        quality: quality,
+        downloadUrl: url,
+      );
+      expect(name('original'), '42.jpg');
+      expect(name(null), '42.jpg');
+      expect(name('sample'), '42_sample.jpg');
+      expect(name('preview'), '42_preview.jpg');
+      expect(name('custom'), name('custom'));
+      expect(
+        name('custom'),
+        isNot(name('custom', 'https://media.test/two.jpg')),
+      );
+      expect(name('custom'), matches(RegExp(r'^42_custom_[a-f0-9]{12}\.jpg$')));
+    },
+  );
   group('DownloadFileNameBuilder', () {
     final builder = DownloadFileNameBuilder<Post>(
       defaultFileNameFormat: kDefaultCustomDownloadFileNameFormat,
