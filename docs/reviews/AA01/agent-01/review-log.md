@@ -136,3 +136,7 @@
 ## 2026-10-29 — cycle 7 T001 (#113)
 
 - Cross-checked application pagination_flow_test.dart against #113's _canLoadMore precedence. The network-flow fixture returns a page-local total/maxPage while expecting page 2 and 3; the new trusted bounds stop at page 1 (existing F0004). Verified that explicitly hasMore=true must still win over short/empty pages and that pool ID slices declare hasMore by ID index. No distinct new code defect; F0004/F0005/F0006 remain. No runtime execution.
+
+## 2026-10-29 — cycle 7 T002 (#114)
+
+- Revisited BlacklistControls source: the shared _currentPageProvider persists independently of the current header's tag list; if >30 matching tags shrink after navigating to a later page, the page is not clamped during build and the popup can render no chips even while matching rules remain. This is a pre-existing component behavior now directly reused in the new anchored timeline popup. Record as a new, source-confirmed inherited interaction finding for #114.
