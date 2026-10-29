@@ -72,3 +72,10 @@
 
 - Revisited controller metadata/error precedence, refresh/jump/page modes and all three new pool tests. Confirmed concrete Danbooru and Szurubooru pool caller implementations match their develop baseline; notes about stale perPage widget scope are pre-existing, not new #113 findings. F0005 stands; no new canonical finding. SDK/device checks and active time remain unverified.
 - All five targets now have two substantive static passes at their pinned heads; next: source freshness/manifest/finding references validation and self-contained final handoff.
+
+## Final source and evidence checkpoint — 2026-10-29T18:03:02.444Z
+
+- Read GitHub refs for `develop` and all five exact in-scope branches after the second passes; all match the pinned initial SHAs; no observed drift. Read back the 11 report files and found a malformed inventory row for T003 and an outdated first-draft handoff, both corrected in the final atomic report commit.
+- Two static passes of each of 5 targets; 46/46 substantive changed files accounted for. Confirmed 5 canonical findings (F0001–F0005), counted once, 4 defects and 1 policy-sensitive risk, all open. Report published only under the assigned review branch.
+- Observed wall boundaries 2026-10-29T17:31:02.166Z to 2026-10-29T18:03:02.444Z are not an active work meter. Verified active review = unverified; minimum 1 hour active unmet. No local tests, CI actions or code changes.
+- Next: local review/fixes/tests on authorized task branches, independent duration verification if required and final combined regression before any `develop` integration. No PR created.

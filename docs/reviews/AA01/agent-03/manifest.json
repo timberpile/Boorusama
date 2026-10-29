@@ -25,5 +25,16 @@
       "docs/issue_workflow.md",
       ".agents/skills/verify-change/SKILL.md"
     ]
+  },
+  "last_source_reverified_at_utc": "2026-10-29T18:01:00Z",
+  "latest_report_at_utc": "2026-10-29T18:03:02.444Z",
+  "coverage_status": "two_static_passes_complete_all_5_targets_46_changed_files",
+  "verified_active_hours": null,
+  "duration_requirement_met": false,
+  "findings": {
+    "total": 5,
+    "defects": 4,
+    "risks": 1,
+    "open": 5
   }
 }
