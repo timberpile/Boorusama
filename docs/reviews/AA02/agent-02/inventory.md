@@ -9,7 +9,7 @@ Discovery: 2026-10-29T22:38:47Z; baseline `develop` `84df0c2de6cf8fe0177c49babb3
 | T003 | `feature/91-branded-search-link-share` | [#91](https://github.com/timberpile/Boorusama/issues/91) | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 4 | Complete C1 |
 | T004 | `bug/92-selection-share-image` | [#92](https://github.com/timberpile/Boorusama/issues/92) | `e8816c22048b324f00d682b7637c0ab1040147ca` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 7 | Complete C1 |
 | T005 | `feature/95-artist-links` | [#95](https://github.com/timberpile/Boorusama/issues/95) | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 10 | Complete C1 |
-| T006 | `feature/99-selected-tag-suggestions` | [#99](https://github.com/timberpile/Boorusama/issues/99) | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 6 | Pending |
+| T006 | `feature/99-selected-tag-suggestions` | [#99](https://github.com/timberpile/Boorusama/issues/99) | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 6 | Complete C1 |
 | T007 | `feature/104-expanded-details-swipe` | [#104](https://github.com/timberpile/Boorusama/issues/104) | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 4 | Pending |
 | T008 | `bug/106-live-undo-toast-insets` | [#106](https://github.com/timberpile/Boorusama/issues/106) | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 20 | Pending |
 | T009 | `feature/107-local-post-sorting` | [#107](https://github.com/timberpile/Boorusama/issues/107) | `7a73544cb79c9f5e3c2337a08140833024a31591` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 10 | Pending |

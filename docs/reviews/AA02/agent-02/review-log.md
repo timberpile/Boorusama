@@ -32,3 +32,8 @@
 
 - Pinned `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a`; all 10 changed paths accounted, source and tests plus neighboring link routing/import and sharing. #91 icon interaction consistent; no independent defect. No execution of tests, CI or device.
 - Minimum verified active duration **not established**; next T006.
+
+## Cycle 1 — T006 (#99), 2026-10-29T22:48:13.262Z
+
+- Pinned `98d4b0ae68dded641475a0662318c56f65b625f7`, 6/6 changed paths accounted, complete filter and two UI consumers plus tests and provider/value contexts inspected. No independently established bug; response-local aliases noted. No dynamic checks.
+- Minimum active duration **unverified**. Next T007.
