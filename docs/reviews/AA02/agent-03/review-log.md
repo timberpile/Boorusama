@@ -60,3 +60,11 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Reviewed issue-free pilot branch `feat/android-maestro-mvp` at `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4`, merge-base `482ae4b1e5fd1e34b344a5c61959a210b8527281` against current develop snapshot `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
 - Inspected the complete 18-file change inventory: new Android testing skill, AGENTS branch instructions, emulator/UI testing docs, all saved YAML flows and anonymous seed, Python wrapper and export package tool and both 287-line combined unit-test files. Traced lease renewals, fixed dev package/debuggable check, ADB/CLI timeouts and hostile export validation/credential checks.
 - No independently established source defect. The unqualified pilot selectors, source/APK comparison and live import/persistence are mandatory local validations, not static test passes. See [T008](branches/T008.md). Next: T009 / #68. Active time unverified.
+
+## Cycle 1 — T009 partial checkpoint 2026-10-29T22:57:12.792Z
+
+- `feature/group-neighboring-series` pinned `771082d9c58363348d74b97a2da23732cdd921f0`; merge-base `482ae4b1e5fd1e34b344a5c61959a210b8527281`, develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read #68 approved scope and design, complete changed-file inventory (75 files), storage/group service, pool summary, Danbooru/Szurubooru capability, source-origin routing, projections, group/pool selection UI, backup v6 codec, package planner, import preflight/source integrity and merge/mapping; inspected test names/assertions in persistence, unit, source-policy, refresh failure and app widget suite.
+- Source review **partial**: outstanding full path-by-path read of all ~75 changed files (particularly full application test, import projector and conflict/rollback combinations) and additional source-drift confirmation. No actionable independent finding established; note limits of 40-post metadata/admission budget and deferred local tests. See [T009](branches/T009.md).
+- The #68 issue comment contained an unsolicited reference to a past separate review. This disclosure is not used as evidence and its conclusions are not copied into the independent report.
+- Next: T010 targeted pass; return to T009 for full coverage. No tests or local device use. Time unverified.
