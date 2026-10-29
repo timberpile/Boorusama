@@ -236,3 +236,7 @@
 ## 2026-10-29 — cycle 11 T001 (#113)
 
 - Traced refresh-vs-fetchMore interleaving through #113 and #117; #113 retains current-page decrement on a stale request and has no generation guard (cross F0008). Rechecked all five heads' check-runs and combined statuses: zero recorded each. No runtime test, no new canonical finding.
+
+## 2026-10-29 — cycle 11 T005 (#118)
+
+- Confirmed existing Pixiv parser test xRestrict=0,sanityLevel=6 => explicit, whereas following preview helper admits it as safe at account limit 0 (F0003). Card still lacks blur (F0002); artist-level mute is discarded (F0011). No extra finding or runtime execution.
