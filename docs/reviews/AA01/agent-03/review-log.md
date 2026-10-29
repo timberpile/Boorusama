@@ -62,3 +62,8 @@
 
 - Revalidated Pixiv Favorites scope via `DestinationProfileScope` and `CurrentBooruConfigScope`, provider-family/cached fetcher identities, token scopes, cursor monotonicity and error/retry rules. F0001 and F0002 remain source-supported and open; no additional defect. Active time unverified; no SDK or device execution.
 - Next: T005 second-pass artist preview/content policy and notifier lifecycle.
+
+## T005 cycle 2 — 2026-10-29T17:58:50.230Z
+
+- Rechecked notifier build/loadMore generations and cancel/retry guard, credentials/visibility family keys, Pixiv client URL and media previews against app explicit cover and local blacklist policy. F0003 still static-confirmed; F0004 remains policy-sensitive risk. No new defect. Tests/device/auth API checks not run, active time unverified.
+- Next: cross-branch reconciliation, source freshness verification and a self-contained final handoff.
