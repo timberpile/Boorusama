@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 
 class KurumiRemoveLeftPaddingOnLargeScreen extends StatelessWidget {
@@ -27,11 +28,16 @@ class KurumiOverlayInsetsScope extends InheritedWidget {
     required this.bottomPadding,
     required this.bottomViewPadding,
     required super.child,
+    this.bottomPaddingListenable,
     super.key,
   });
 
   final double bottomPadding;
   final double bottomViewPadding;
+
+  /// Lets an overlay hosted outside this inherited scope follow its obstruction.
+  /// Keyboard displacement remains the responsibility of the overlay host.
+  final ValueListenable<double>? bottomPaddingListenable;
 
   static KurumiOverlayInsetsScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<KurumiOverlayInsetsScope>();
@@ -39,7 +45,8 @@ class KurumiOverlayInsetsScope extends InheritedWidget {
   @override
   bool updateShouldNotify(KurumiOverlayInsetsScope oldWidget) =>
       bottomPadding != oldWidget.bottomPadding ||
-      bottomViewPadding != oldWidget.bottomViewPadding;
+      bottomViewPadding != oldWidget.bottomViewPadding ||
+      bottomPaddingListenable != oldWidget.bottomPaddingListenable;
 }
 
 /// Apply at a route's overlay boundary, before constructing its content.

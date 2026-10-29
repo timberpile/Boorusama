@@ -28,7 +28,7 @@ import 'navigation_chrome_controller.dart';
 
 /// Supplies live popup insets without changing the destination's stable layout.
 /// Place above the destination Navigator and its synthetic page MediaQuery.
-class NavigationOverlayInsetsScope extends ConsumerWidget {
+class NavigationOverlayInsetsScope extends ConsumerStatefulWidget {
   const NavigationOverlayInsetsScope({
     required this.systemMediaQuery,
     required this.extent,
@@ -41,30 +41,61 @@ class NavigationOverlayInsetsScope extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NavigationOverlayInsetsScope> createState() =>
+      _NavigationOverlayInsetsScopeState();
+}
+
+class _NavigationOverlayInsetsScopeState
+    extends ConsumerState<NavigationOverlayInsetsScope> {
+  final _bottomPadding = ValueNotifier<double>(0);
+  var _pendingBottomPadding = 0.0;
+  var _notificationScheduled = false;
+
+  void _publishBottomPadding(double value) {
+    _pendingBottomPadding = value;
+    if (_notificationScheduled || _bottomPadding.value == value) return;
+    _notificationScheduled = true;
+    // A toast may live in OKToast's root overlay, outside this build subtree.
+    // Notify after layout rather than marking that unrelated overlay dirty
+    // during a navigation animation build. Coalesce to the latest frame value.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notificationScheduled = false;
+      if (mounted) _bottomPadding.value = _pendingBottomPadding;
+    });
+  }
+
+  @override
+  void dispose() {
+    _bottomPadding.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final chrome = ref.watch(navigationChromeProvider);
-    final keyboard = systemMediaQuery.viewInsets.bottom > 0;
+    final media = widget.systemMediaQuery;
+    final keyboard = media.viewInsets.bottom > 0;
     final transition = navigationBarTransition(
       chrome: chrome,
       keyboard: keyboard,
-      disableAnimations: systemMediaQuery.disableAnimations,
+      disableAnimations: media.disableAnimations,
     );
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(end: transition.hiddenFraction),
       duration: transition.duration,
-      child: child,
+      child: widget.child,
       builder: (context, hiddenFraction, child) {
         final covered =
             keyboard || (chrome.viewerOpen && !chrome.viewerClosing);
         final overlap = covered
             ? 0.0
-            : extent * (1 - hiddenFraction).clamp(0.0, 1.0);
+            : widget.extent * (1 - hiddenFraction).clamp(0.0, 1.0);
+        final bottom = math.max(media.padding.bottom, overlap);
+        _publishBottomPadding(bottom);
         return KurumiOverlayInsetsScope(
-          bottomPadding: math.max(systemMediaQuery.padding.bottom, overlap),
-          bottomViewPadding: math.max(
-            systemMediaQuery.viewPadding.bottom,
-            overlap,
-          ),
+          bottomPadding: bottom,
+          bottomViewPadding: math.max(media.viewPadding.bottom, overlap),
+          bottomPaddingListenable: _bottomPadding,
           child: child!,
         );
       },

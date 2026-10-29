@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:oktoast/oktoast.dart';
 
+import 'media_query.dart';
+
 void kurumiShowSuccessToast(
   BuildContext context,
   String message, {
@@ -34,61 +36,80 @@ void kurumiShowSuccessToast(
         fontWeight: FontWeight.normal,
         color: Colors.white,
       );
+  final insets = KurumiOverlayInsetsScope.maybeOf(context);
+  final liveBottom = insets?.bottomPaddingListenable;
   late final ToastFuture toast;
   var actionTaken = false;
-  toast = showToastWidget(
-    Container(
-      // Keep the success toast's toolbar clearance, with room for its action
-      // on narrow screens and with enlarged text.
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 100),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? theme.backgroundColor,
-        borderRadius: BorderRadius.circular(theme.radius),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  message,
-                  style: style,
-                  textAlign: theme.textAlign ?? TextAlign.center,
-                ),
+  final content = Container(
+    key: const ValueKey('kurumi-action-toast'),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: backgroundColor ?? theme.backgroundColor,
+      borderRadius: BorderRadius.circular(theme.radius),
+    ),
+    child: Material(
+      type: MaterialType.transparency,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                message,
+                style: style,
+                textAlign: theme.textAlign ?? TextAlign.center,
               ),
             ),
-            const SizedBox(width: 12),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: style.color,
-                backgroundColor: Colors.white.withValues(alpha: 0.12),
-                textStyle: style,
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          const SizedBox(width: 12),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: style.color,
+              backgroundColor: Colors.white.withValues(alpha: 0.12),
+              textStyle: style,
+              side: BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
               ),
-              onPressed: () {
-                if (actionTaken) return;
-                actionTaken = true;
-                toast.dismiss();
-                onAction();
-              },
-              child: Text(actionLabel),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: const Size(48, 48),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-          ],
-        ),
+            onPressed: () {
+              if (actionTaken) return;
+              actionTaken = true;
+              toast.dismiss();
+              onAction();
+            },
+            child: Text(actionLabel),
+          ),
+        ],
       ),
     ),
+  );
+  Widget padded(double bottom, Widget child) => Padding(
+    padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+    child: child,
+  );
+  toast = showToastWidget(
+    liveBottom != null
+        ? ValueListenableBuilder<double>(
+            valueListenable: liveBottom,
+            child: content,
+            builder: (_, bottom, child) => padded(bottom, child!),
+          )
+        : Builder(
+            builder: (overlayContext) => padded(
+              insets?.bottomPadding ??
+                  MediaQuery.maybeOf(overlayContext)?.padding.bottom ?? 0,
+              content,
+            ),
+          ),
     context: context,
-    position: ToastPosition.bottom,
+    // OKToast already moves its overlay above the keyboard. Only add the live
+    // navigation/system obstruction here, without a second fixed bar offset.
+    position: const ToastPosition(align: Alignment.bottomCenter),
     duration: duration,
     handleTouch: true,
     dismissOtherToast: true,
