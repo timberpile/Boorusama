@@ -34,7 +34,7 @@ Every substantive changed source, test, config and handoff file was accounted fo
 | [AA01-A01-F0008](cross-branch-findings.md#aa01-a01-F0008--) | risk | medium | high-confidence | open | inherited concurrency interaction | T004; #113 T001 Grid boundary | [cross-branch-findings.md](cross-branch-findings.md) | In-flight fetchMore can handle Pixiv refresh cancellation after page reset, roll page1 back to 0 and show stale error. |
 | [AA01-A01-F0009](branches/T002.md#aa01-a01-f0009--) | defect | medium | static-confirmed | open | inherited UI state | T002 | [branches/T002.md](branches/T002.md) | Popup's shared tag-page index can become out-of-range after rule reduction/profile changes. |
 
-**Counts:** 9 canonical findings; by kind: 7 defects, 2 risks, 0 coverage-gaps, 0 improvements; by severity: 1 high, 7 medium, 0 critical/low; by confidence: 7 static-confirmed, 2 high-confidence, 0 suspected; by lifecycle: 9 open, 0 resolved/withdrawn/superseded. Static-confirmed means demonstrable from inspected reachable source, *not* executed/tested/reproduced on a device.
+**Counts:** 9 canonical findings; by kind: 7 defects, 2 risks, 0 coverage-gaps, 0 improvements; by severity: 1 high, 8 medium, 0 critical/low; by confidence: 7 static-confirmed, 2 high-confidence, 0 suspected; by lifecycle: 9 open, 0 resolved/withdrawn/superseded. Static-confirmed means demonstrable from inspected reachable source, *not* executed/tested/reproduced on a device.
 
 ## Important conclusions / integration constraints
 
