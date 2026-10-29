@@ -1,11 +1,29 @@
-# Audit AA01-02 — checkpoint handoff
+# Audit AA01-02 — complete initial-cycle checkpoint
 
-Repository `timberpile/Boorusama`, report branch `review/AA01/agent-02`, five targets in [inventory](inventory.md). Base `422aeae087c1108e655d85d1a3dac25120456cd6`; checkpoint 2026-10-29T17:38:27.906Z.
+Repository timberpile/Boorusama; report branch review/AA01/agent-02. Five exact scope branches and pinned SHAs in [inventory](inventory.md). Develop base 422aeae087c1108e655d85d1a3dac25120456cd6. Checkpoint 2026-10-29T17:46:39.061Z.
 
-**Cycle 1:** T001 #113, T002 #114, T003 #116 and T004 #117 complete at pinned heads; T005 #118 pending.
+**Cycle 1 static coverage:** complete at pinned heads for T001 #113 (standalone 0 findings), T002 #114 (F0001), T003 #116 (standalone 0 findings), T004 #117 (F0002, F0003 and cross F0005/F0007), T005 #118 (F0004, F0006 and cross F0005/F0007). All substantive changed files and relevant source paths reviewed. No runtime claim.
 
-**Canonical findings:** [AA01-A02-F0001](branches/T002.md#aa01-a02-f0001--no-controller-linked-blacklist-popup-test) (coverage gap, #114); [AA01-A02-F0002](cross-branch-findings.md#aa01-a02-f0002--pixiv-bookmark-continuation-lost-without-113-grid-fix) (defect, #117/#113); [AA01-A02-F0003](branches/T004.md#aa01-a02-f0003--no-shared-favorites-navigation-or-view-integration-test) (coverage gap, #117). All medium/open; F0002 static-confirmed, coverage gaps high-confidence.
+## Canonical findings (7, all open)
 
-#117 cannot be treated as functionally complete in isolation until #113's GridController continuation logic is integrated. Pixiv live cursors, profile/filter race, authenticated restricted art and token refresh require device tests. #114 needs real controller-linked popup tests; #116 needs actual button hit/visual tests.
+- [AA01-A02-F0001](branches/T002.md#aa01-a02-f0001--no-controller-linked-blacklist-popup-test) — medium coverage gap, high-confidence (#114).
+- [AA01-A02-F0002](cross-branch-findings.md#aa01-a02-f0002--pixiv-bookmark-continuation-lost-without-113-grid-fix) — medium static-confirmed defect (#117 and #113 integration).
+- [AA01-A02-F0003](branches/T004.md#aa01-a02-f0003--no-shared-favorites-navigation-or-view-integration-test) — medium coverage gap, high-confidence (#117).
+- [AA01-A02-F0004](branches/T005.md#aa01-a02-f0004--artist-previews-bypass-explicit-media-blur-and-conservative-rating-handling) — high static-confirmed defect (#118).
+- [AA01-A02-F0005](cross-branch-findings.md#aa01-a02-f0005--pixiv-media-client-can-attach-api-bearer-to-cdn-requests) — high high-confidence pre-existing security risk, affecting #117/#118 media paths.
+- [AA01-A02-F0006](branches/T005.md#aa01-a02-f0006--missing-widget-level-following-artists-navigation-and-account-tests) — medium coverage gap, high-confidence (#118).
+- [AA01-A02-F0007](cross-branch-findings.md#aa01-a02-f0007--independent-pixiv-client-edits-need-deliberate-combined-integration) — medium high-confidence integration risk (#117/#118).
 
-Total: one defect, two coverage gaps, zero other types. Active time requirement 1h **unverified**; initial static coverage 4/5. No application code changed and no local tests, builds, analyzer or device checks executed. Next T005.
+**Counts, canonical once:** defect 2, risk 2, coverage-gap 3, improvement 0. High 2, medium 5, critical/low 0. Static-confirmed 2, high-confidence 5, suspected 0. Open 7, resolved/withdrawn/superseded 0.
+
+## Priorities for local remediation and acceptance
+
+- First fix #118's explicit-content preview bypass (F0004); review inherited Pixiv bearer-on-media risk (F0005) and assert HTTP headers with a fake/intercepting adapter without exposing secrets.
+- Integrate #113 grid continuation before #117 can use filtered cursor pages correctly (F0002). Validate initial/intermediate empty filtered pages, last page, retries.
+- Resolve independent #117/#118 PixivClient changes with both part declarations, shared request cancellation/redirect arguments and both navigation capabilities (F0007).
+- Add controller-linked #114 popup widget tests; #117 Favorites shared route/profile/visibility and viewer tests; #118 source-profile Search navigation, account/private filter race and content preview tests. Run FVM scoped + package client suites and full pre-integration regression.
+- Verify #116 compact tap target/accessibility, #114 floating/scroll/pin and Pixiv authenticated API public/private/continuation/token recovery on 320dp/large text Android via Maestro and manual device review.
+
+## Completion gates and restrictions
+
+All 5/5 initial static branch passes complete. Source is pinned; late branch movement must be checked. **Assigned minimum 1 hour of genuinely measured active work remains unverified, hence not claimed complete.** No live Pixiv calls, FVM/Dart analyzer/test/build, worktrees, emulator or device execution was available. No application source or task metadata changed; this audit only published documentation on its assigned branch. Follow-up agent must run local verification and final full regression before review-ready status. Review files are evidence, not an issue tracker.

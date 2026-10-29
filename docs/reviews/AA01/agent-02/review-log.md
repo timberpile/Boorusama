@@ -35,3 +35,9 @@
 - **F0002**: confirmed baseline GridController loses explicit `hasMore` when all Pixiv favorites on a page are filtered; #113 fixes this, but #117 branch does not contain it. Canonical cross-branch record references T001/T004.
 - **F0003**: medium integration coverage gap: no Pixiv Favorites widget navigation/profile/filter race or viewer test among new tests.
 - Verified source cursor security and retry/cancel semantics statically; live Pixiv, token refresh, Flutter analyzer/build and device remain unverified. Next T005.
+
+## Cycle 1 — T005, 2026-10-29T17:46:39.061Z
+
+- Pinned #118 source: 1d02bef637966999fbd0b72ecb9c6f0e1eedce8a; comparison/merge base 422aeae087c1108e655d85d1a3dac25120456cd6. All fourteen changed files fully read, including client entry/part, UI page/card/presentation, loader/notifier, navigation, translations, four tests, and handoff. No files omitted.
+- Traced Pixiv client/auth/session, filters, offsets, provider refresh/dispose, search source profile, avatar/preview media, rating policy, image Dio and existing navigation. F0004: high-severity rating/blur bypass. F0005: pre-existing high-security-risk Pixiv media bearer attachment, affecting both new image surfaces. F0006: missing widget integration tests. F0007: overlapping #117/#118 client integration risk.
+- Standalone source path checks: pagination/deduplication/retry/cancellation and search config appear guarded. No FVM/build/test, device or authenticated API verification. All five initial static branch passes now complete. Assigned 1h active time remains unverified.
