@@ -180,3 +180,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - bug/106-live-undo-toast-insets at unchanged pinned head `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` (#106). Rechecked cross-overlay ValueListenable ownership, post-frame coalesced bottom-padding publication and mounted/disposal guard, action-toast callback dismiss-once behavior, navigation/selection/viewer obstruction owner disposal and asynchronous bookmark failure feedback. A disposed notifier's lack of further updates can only matter after root route/overlay teardown; no independently demonstrated dangling interaction. Native IME relocation is still a device-only check.
 - Static adversarial revisit only. No executed local tests, runs, emulators or devices. Next: T007.
+
+## Cycle 2 — T007 completed 2026-10-29T23:24:52.532Z
+
+- bug/113-collection-pagination at unchanged pinned head `a1bc1d42903861a46e7230349515946bae678357` (#113). Adversarially traced filtered/duplicate-only first pages and explicit hasMore through _canLoadMore, SliverPostGrid's empty NoDataBox, RawPostGrid's non-scrollable Load More button, InfiniteScrollListener, fetchMore page rollback and last nonempty page admission. A filtered-empty continuing page still exposes a manual Load More control after #113, rather than an unreachable scroll-only path. Revalidated T020/F0003 remains on the separate pre-#113 Pixiv head. Potentially untrustworthy total without hasMore/maxPage remains a contract risk, no actual engine producer confirmed.
+- Static adversarial revisit only. No executed local tests, runs, emulators or devices. Next: T008.
