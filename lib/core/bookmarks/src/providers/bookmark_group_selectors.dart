@@ -11,7 +11,8 @@ import '../types/bookmark_search_token.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_shuffle_provider.dart';
 
-enum BookmarkSortType { newestUpload, oldestUpload, newest, oldest, random }
+// Append choices so any existing ordinal consumers retain their meaning.
+enum BookmarkSortType { newestUpload, oldestUpload, newest, oldest, random, scoreDescending, scoreAscending }
 
 List<Bookmark> selectBookmarks({
   required BookmarkLibraryState state,
@@ -193,7 +194,17 @@ Comparator<Bookmark> _bookmarkComparator(BookmarkSortType sortType) =>
       BookmarkSortType.newest => _compareBookmarkDate(b, a),
       BookmarkSortType.oldest => _compareBookmarkDate(a, b),
       BookmarkSortType.random => 0,
+      BookmarkSortType.scoreDescending => _compareScore(a, b, descending: true),
+      BookmarkSortType.scoreAscending => _compareScore(a, b, descending: false),
     };
+
+int _compareScore(Bookmark a, Bookmark b, {required bool descending}) {
+  // Legacy bookmarks without score metadata already decode to zero. Do not
+  // fetch posts to improve local sorting or rewrite their stored snapshots.
+  final score = a.post.score.compareTo(b.post.score);
+  if (score != 0) return descending ? -score : score;
+  return a.id.compareTo(b.id);
+}
 
 int _compareBookmarkDate(Bookmark a, Bookmark b) {
   final byDate = a.createdAt.compareTo(b.createdAt);

@@ -15,6 +15,8 @@ import '../../../../bookmarks/src/widgets/bookmark_option_selector.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../config_widgets/website_logo.dart';
 import '../../../../tags/autocompletes/types.dart';
+import '../../../options/labels.dart';
+import '../../../options/search_option.dart';
 import '../../../search/widgets.dart';
 import '../../../suggestions/tag_suggestion_item.dart';
 import '../providers/cached_feed_tag_index_provider.dart';
@@ -40,6 +42,7 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
   final _focus = FocusNode();
   late final BookmarkSearchController _search;
   String? _sourceHost;
+  var _sort = CachedTopicFeedSort.stored;
   var _published = const CachedTopicFeedFilter();
 
   @override
@@ -60,6 +63,7 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
     final filter = CachedTopicFeedFilter(
       query: _query.text,
       sourceHost: _sourceHost,
+      sort: _sort,
     );
     if (filter == _published) return;
     _published = filter;
@@ -75,6 +79,7 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
   void _clear() {
     setState(() {
       _sourceHost = null;
+      _sort = CachedTopicFeedSort.stored;
       _search.clear();
       _publish();
     });
@@ -97,6 +102,14 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
   ) => entry == null
       ? null
       : ref.watch(localTagEntryColorProvider((entry, brightness))).valueOrNull;
+
+  String _sortLabel(CachedTopicFeedSort value) => switch (value) {
+    CachedTopicFeedSort.stored => context.t.generic.action.clear,
+    CachedTopicFeedSort.newest => context.t.explore.newest,
+    CachedTopicFeedSort.oldest => context.t.explore.oldest,
+    CachedTopicFeedSort.scoreDescending => searchOptionChoiceLabel(context, const SearchOptionChoice('score:desc', 'score:desc')),
+    CachedTopicFeedSort.scoreAscending => searchOptionChoiceLabel(context, const SearchOptionChoice('score:asc', 'score:asc')),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -298,35 +311,47 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
                     ),
                   ),
                 ),
-              Row(
-                children: [
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: BookmarkOptionSelector<String?>(
-                        label: _sourceHost ?? context.t.bookmark.groups.all,
-                        prefixLabel: context.t.post.detail.source_label,
-                        options: [null, ...hosts],
-                        value: _sourceHost,
-                        optionLabel: (host) =>
-                            host ?? context.t.bookmark.groups.all,
-                        optionLeading: (host) => host == null
-                            ? const Icon(Icons.public, size: 20)
-                            : ConfigAwareWebsiteLogo(
-                                url: 'https://$host',
-                                width: 20,
-                                height: 20,
-                              ),
-                        onSelected: (host) => setState(() {
-                          _focus.unfocus();
-                          _sourceHost = host;
-                          _publish();
-                        }),
-                      ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    BookmarkOptionSelector<String?>(
+                      label: _sourceHost ?? context.t.bookmark.groups.all,
+                      prefixLabel: context.t.post.detail.source_label,
+                      options: [null, ...hosts],
+                      value: _sourceHost,
+                      optionLabel: (host) => host ?? context.t.bookmark.groups.all,
+                      optionLeading: (host) => host == null
+                          ? const Icon(Icons.public, size: 20)
+                          : ConfigAwareWebsiteLogo(url: 'https://$host', width: 20, height: 20),
+                      onSelected: (host) => setState(() {
+                        _focus.unfocus();
+                        _sourceHost = host;
+                        _publish();
+                      }),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    BookmarkOptionSelector<CachedTopicFeedSort>(
+                      key: const ValueKey('cached-feed-sort'),
+                      label: _sort == CachedTopicFeedSort.stored ? context.t.sort.short : _sortLabel(_sort),
+                      options: CachedTopicFeedSort.values,
+                      value: _sort,
+                      optionLabel: _sortLabel,
+                      optionSemanticLabel: (value) => '${strings.feed_filter_hint}: ${_sortLabel(value)}',
+                      onSelected: (value) => setState(() {
+                        _focus.unfocus();
+                        _sort = value;
+                        _publish();
+                      }),
+                    ),
+                  ],
+                ),
               ),
+              if (_sort != CachedTopicFeedSort.stored)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(strings.feed_filter_hint, style: Kurumi.themeOf(context).textTheme.bodySmall),
+                ),
             ],
           ),
         ),
