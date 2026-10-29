@@ -14,3 +14,9 @@
 - Reviewed 6/6 substantive changed files at `a1bc1d42903861a46e7230349515946bae678357` and grid/pool support code; no confirmed actionable finding.
 - Overall pass remains partial for concrete engine-specific pool caller trace. No active review duration measurement; wall-clock commit timestamp is not working time.
 - Next: T002 timeline toolbar at its pinned head.
+
+## T002 cycle 1 — 2026-10-29T17:36:30.278Z
+
+- Reviewed 13/13 changed files at `5bb52794468b172b7d6878fb825b42b00d654675`, major grid/controller and profile settings callers; no proven actionable defect. Widget/Android behavior is unverified.
+- Activity duration still unverified; timestamps are invocation wall time only.
+- Next: T003 compact Follow button at its pinned head.

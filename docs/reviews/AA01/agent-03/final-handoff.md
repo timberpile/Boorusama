@@ -5,6 +5,6 @@
 - Assignment: `AA01`, agent `03`, 1 hour minimum active review, targets T001–T005 in [inventory](inventory.md).
 - Repository / report branch: `timberpile/Boorusama` / `review/AA01/agent-03`; initial develop `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - Findings: none confirmed in T001 source inspection (not equivalent to no defects).
-- Cycles: cycle 1 T001 partial, T002–T005 pending; verified active hours: **unverified**; minimum not established.
-- Next: T002–T005 static reviews, then T001 engine caller follow-up and cross-branch revalidation.
+- Cycles: cycle 1 T001 partial, T002 static complete; T003–T005 pending; verified active hours: **unverified**; minimum not established.
+- Next: T003–T005 static reviews, then T001 engine caller follow-up and cross-branch revalidation.
 - No application code was changed; no local Flutter/Dart builds, tests, analyzer or emulator/device checks were executed. Source inspection only.
