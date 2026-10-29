@@ -28,3 +28,7 @@
 ## 2026-10-29 — cycle 1 T005 (#118)
 
 - Pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` vs common base; inspected 14 changed files including four tests, Pixiv DTO/identity/rating and normal content protection. F0002 high-severity direct unblurred explicit previews (source-confirmed), F0003 medium-risk permissive unknown explicitness. No runtime tests; active duration unverified.
+
+## 2026-10-29 — cycle 2 T001 (#113)
+
+- Challenged post-grid pagination against the unchanged controller selection and refresh tests. F0004 identifies legacy tests with `total:1` that now short-circuit the expected page-2 request. Separate fetchMore/refresh race appears inherited, not a #113-specific regression. Active duration unverified; no runtime command.
