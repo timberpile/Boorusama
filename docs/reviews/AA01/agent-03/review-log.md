@@ -35,3 +35,9 @@
 
 - Traced auth-stable `BooruConfig` updates across full-record family keys, Riverpod autoDispose, and `PostScope`'s immutable fetcher. Recorded static-confirmed high-severity defect AA01-A03-F0002 in the same target. No runtime tests; active time unverified.
 - Next: finish T005 source inspection before final handoff.
+
+## T005 cycle 1 — 2026-10-29T17:49:14.867Z
+
+- Reviewed 14/14 changed files and relevant Pixiv image/rating/media-cover, search-route and auth-provider consumers at pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a`.
+- Recorded F0003 high static-confirmed explicit-media-cover bypass and F0004 medium high-confidence local blacklist parity risk. No Flutter/API/device runtime verification; active time remains unverified.
+- Next: resolve T001 specific pool caller review gap, verify current remote heads and canonical finding integrity, then publish final handoff checkpoint. One-hour minimum must not be claimed from elapsed chat age.
