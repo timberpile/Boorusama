@@ -71,3 +71,5 @@ Open issues lacking a matching task branch (such as #43, #96, #100, #102, #103, 
 - Cycle 2 T014: complete 2026-10-29T23:23:03.176Z; score projection and mixed Pool integration surface; no new finding.
 
 - Cycle 2 T015: complete 2026-10-29T23:23:14.356Z; selection snapshot account guards and share-service contract; no new finding.
+
+- Cycle 2 T020: complete 2026-10-29T23:26:09.064Z; newly established canonical F0004, medium/static-confirmed Pixiv cursor + pre-#113 grid exhaustion interaction. Check #113 in integrated candidate.

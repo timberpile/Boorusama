@@ -190,3 +190,8 @@ Rechecked bookmark_group_selectors.dart score comparator and cached_topic_feed_f
 
 Revisited PostActionSnapshot: each selected Post's origin is resolved under captured profiles and accountsMatch re-resolves when an action executes, preventing silent account redirection after a profile change. The single-selected group picker and commonConfig are guarded by a resolved profile; the shared stored-bookmark download path partitions origins rather than blindly using Browse auth. ShareService.sharePost returns void to open the modal, so the direct single-selection Share action is not dropping an awaitable Future; #92 Image fallback lives inside that common modal. Batch and mixed-origin device scenarios still require FVM/Android test. No new source-confirmed defect.
 - Next T017; active duration unverified.
+
+## Cycle 2 — T020 completed out of inventory order (2026-10-29T23:26:09.064Z)
+
+- Read #117 session, Pixiv grid route, generic PostGridController and RawPostGrid pagination UI. Test fixture explicitly has empty visible first page with cursor; old controller ignores hasMore and terminates, while #113's unmerged _canLoadMore fixes it. Created F0004: medium static-confirmed defect introduced via interaction with a pre-existing grid assumption. No new tests run.
+- Cycle 2 coverage 14/20. Return to T017, then T018–T019, T021–T023; duration unverified.
