@@ -100,3 +100,9 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Read all 4 changed production paths, all 4 changed/new test files, sorting documentation, and relevant Feed history/Search state. Score tie-breakers, legacy metadata fallback, sort-only history suppression and restoring ordinary loading were inspected; tests not run.
 - Found [AA02-A03-F0002](cross-branch-findings.md#aa02-a03-f0002--mixed-pool-bookmark-list-ignores-new-score-ordering) by cross-comparing T014's enum additions with T009's new mixed grid comparator. #68 and #107 together mis-sort mixed Pool/Post grids under score ordering. No assumption that either branch has been merged.
 - Next: T015 / #108, then return to incomplete T009 and verify actual integration strategy. Duration unverified.
+
+## Cycle 1 — T015 review completed 2026-10-29T23:04:05.450Z
+
+- Issue #108, `feature/108-selection-action-parity` at `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd`, compare merge-base `422aeae087c1108e655d85d1a3dac25120456cd6` / develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Reviewed all 4 changed source files and both test files, action snapshot common-profile/account-match safeguards, captured selection stable identities, bookmArk-picker route, dialog constraints and compact folder semantics. No independent static defect established; runtime gestures/multi-profile actual viewer parity unexecuted.
+- Adjacent #92 image share and #106 toast integration needed. Next T016 / #111. Active duration still unverified.
