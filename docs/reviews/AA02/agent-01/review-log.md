@@ -33,3 +33,8 @@
 
 - Read #97, changed keyed checkbox rows, narrow/text-scale test, and shared range selection's off-page state merge. No actionable finding substantiated; widget/device validation pending.
 - Next T005 `bug/98-search-overlay-surface`; duration unverified.
+
+## Cycle 1 — T005 complete (2026-10-29T22:43:45.539Z)
+
+- Issue #98, full modified search scaffold and complete editor-surface widget test inspected, including state transitions, displacement and keyboard. No actionable defect substantiated; visual/device acceptance pending.
+- Next T006 `bug/106-live-undo-toast-insets`; duration unverified.
