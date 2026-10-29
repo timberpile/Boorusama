@@ -108,3 +108,7 @@
 ## Cycle 1 — T021 complete (2026-10-29T23:12:20.777Z)
 
 - Inspected Pixiv Following artist listing, auth-gated navigation, fixed endpoint pagination and cursor checks, cards/preview safety, notifier cancellation, four changed test files and nullable DTO semantics. Documented `AA02-A01-F0003` as **low-severity suspected content-restriction risk**, not proven actual API leak. Next T022 CI workflow. Active duration unverified.
+
+## Cycle 1 — T022 complete (2026-10-29T23:13:17.522Z)
+
+- Reviewed sole added GitHub Actions source-bundle workflow, read-only permissions, pinned actions, command behavior, artifact visibility and short retention; no substantiated defect or actual CI execution. Next T023 `maintenance/issue-branch-publication`. Duration unverified.
