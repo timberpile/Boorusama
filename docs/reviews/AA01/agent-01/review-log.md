@@ -104,3 +104,7 @@
 ## 2026-10-29 — cycle 5 T004 (#117)
 
 - Rechecked two-account private/public source identity, session/provider keying, cancelled cursor response and Pixiv DTO origin binding. Security parser fixed endpoint and duplicate URL param guards verified. Cross F0001 and F0008 remain; no new defect, no live/private-account tests.
+
+## 2026-10-29 — cycle 5 T005 (#118)
+
+- Audited notifier pending-request cancellation, coalescing, retry and artist ID validation into source-profile user search, plus malformed optional previews. F0002/F0003 unresolved; no additional actionable defect. Still no live API/device/Flutter tests.
