@@ -172,3 +172,7 @@
 ## 2026-10-29 — cycle 8 T003 (#116)
 
 - Cross-examined compact button geometry and actual Search row/busy/follow variants, explicitly separated baseline Follow lifecycle behavior from this size-only diff. No new defect or runtime verification; duration unverified.
+
+## 2026-10-29 — cycle 8 T004 (#117)
+
+- Followed shared navigation source and Pixiv image URL transport from DTO through authenticated Dio (F0010); no new navigation bug. Revalidated F0001/F0008. No authenticated traffic/tests or active-duration proof.
