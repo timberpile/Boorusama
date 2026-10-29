@@ -52,3 +52,8 @@
 
 - Rechecked popup container/overlay lifecycle, async controller/listener updates, fixed trailing layout and accessibility actions against changed file and widget test source; checked JSON/profile backup semantics. No additional finding; actual Flutter/widget tests still not run. Activity duration unverified.
 - Next: T003 second-pass touch/accessibility audit.
+
+## T003 cycle 2 — 2026-10-29T17:56:52.541Z
+
+- Reviewed modified/disabled/working Follow states, tap target/semantics geometry and Search action integration against pinned source/tests; no newly introduced functional defect supported. Tests unrun, active duration unverified.
+- Next: T004 adversarial session lifecycle and pagination cross-branch check.
