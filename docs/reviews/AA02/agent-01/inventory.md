@@ -26,7 +26,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 | T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #117 open | complete |
 | T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #118 open | complete |
 | T022 | `maintenance/independent-issues-handoff-2026-10-25` | `89346f7a2a0e1af187e82fed3c7a10b42813fdec` | `2e5ca00d7bca6881cfddd19125c72d5f80d9593d` | issue association unknown; CI workflow | complete |
-| T023 | `maintenance/issue-branch-publication` | `fdb89b5c03e438e4d909db1821332e78b6f39ae9` | `422aeae087c1108e655d85d1a3dac25120456cd6` | issue association unknown; workflow docs | pending |
+| T023 | `maintenance/issue-branch-publication` | `fdb89b5c03e438e4d909db1821332e78b6f39ae9` | `422aeae087c1108e655d85d1a3dac25120456cd6` | issue association unknown; workflow docs | complete |
 
 ## Exclusions
 
