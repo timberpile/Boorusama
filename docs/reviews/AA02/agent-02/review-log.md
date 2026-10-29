@@ -27,3 +27,8 @@
 
 - Pin `e8816c22048b324f00d682b7637c0ab1040147ca`. Inspected all changed application logic and tests, plus media URL resolution and share payload/cancellation paths. 7/7 files accounted. No finding; note fallback quality trade-off without claiming defect.
 - No dynamic testing; active-duration threshold unverified. Next T005.
+
+## Cycle 1 — T005 (#95), 2026-10-29T22:47:12.290Z
+
+- Pinned `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a`; all 10 changed paths accounted, source and tests plus neighboring link routing/import and sharing. #91 icon interaction consistent; no independent defect. No execution of tests, CI or device.
+- Minimum verified active duration **not established**; next T006.
