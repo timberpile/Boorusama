@@ -318,7 +318,7 @@ void main() {
     expect(controller.sheetState.value, SheetState.expanded);
   });
 
-  testWidgets('horizontal paging resumes after expanded details minimize', (
+  testWidgets('horizontal paging collapses expanded details on the new post', (
     tester,
   ) async {
     final controller = _controller();
@@ -328,17 +328,47 @@ void main() {
 
     await tester.dragFrom(const Offset(300, 120), const Offset(-250, 0));
     await tester.pumpAndSettle();
-    expect(controller.currentPage.value, 0);
 
-    await _dragMedia(tester, const Offset(0, 80));
-    expect(controller.sheetState.value, SheetState.hidden);
-
-    await tester.drag(
-      find.byKey(const Key('viewer-page-0')),
-      const Offset(-350, 0),
-    );
-    await tester.pumpAndSettle();
     expect(controller.currentPage.value, 1);
+    expect(controller.sheetState.value, SheetState.collapsed);
+    expect(controller.sheetController.size, 0);
+    expect(controller.displacement.value, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final block in ['zoom', 'swiping disabled', 'vertical mode']) {
+    testWidgets('expanded details preserve the $block paging restriction', (tester) async {
+      final mode = block == 'vertical mode' ? ViewMode.vertical : ViewMode.horizontal;
+      final controller = _controller(viewMode: mode);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_TestApp(controller: controller, viewMode: mode));
+      await _expandDetails(tester, controller);
+      if (block == 'zoom') controller.zoom.value = true;
+      if (block == 'swiping disabled') controller.disableAllSwiping();
+      await tester.pump();
+      await tester.dragFrom(
+        const Offset(300, 120),
+        mode == ViewMode.vertical ? const Offset(0, -100) : const Offset(-250, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.page, 0);
+      expect(controller.sheetState.value, SheetState.expanded);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('details scrolling does not navigate to another post', (tester) async {
+    final controller = _controller();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(_TestApp(controller: controller, scrollableDetails: true));
+    await _expandDetails(tester, controller);
+    final list = find.byKey(const Key('details-scroll'));
+    await tester.drag(list, const Offset(0, -250));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ListView>(list).controller!.offset, greaterThan(0));
+    expect(controller.page, 0);
+    expect(controller.sheetState.value, SheetState.expanded);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a sheet state change cancels an in-progress media swipe', (
@@ -570,6 +600,7 @@ class _TestApp extends StatelessWidget {
     this.viewMode = ViewMode.horizontal,
     this.disableAnimation = true,
     this.isLargeScreen = false,
+    this.scrollableDetails = false,
     this.onPreviewTap,
     this.onMediaTap,
     this.onMediaDoubleTap,
@@ -581,6 +612,7 @@ class _TestApp extends StatelessWidget {
   final ViewMode viewMode;
   final bool disableAnimation;
   final bool isLargeScreen;
+  final bool scrollableDetails;
   final VoidCallback? onPreviewTap;
   final VoidCallback? onMediaTap;
   final VoidCallback? onMediaDoubleTap;
@@ -629,10 +661,20 @@ class _TestApp extends StatelessWidget {
               ],
             ),
           ),
-          sheetBuilder: (context, scrollController) => const ColoredBox(
-            color: Colors.white,
-            child: SizedBox.expand(),
-          ),
+          sheetBuilder: (context, scrollController) => scrollableDetails
+              ? ListView.builder(
+                  key: const Key('details-scroll'),
+                  controller: scrollController,
+                  itemCount: 40,
+                  itemBuilder: (_, index) => SizedBox(
+                    height: 60,
+                    child: Text('Metadata $index'),
+                  ),
+                )
+              : const ColoredBox(
+                  color: Colors.white,
+                  child: SizedBox.expand(),
+                ),
           bottomSheet: SizedBox(
             key: _bottomPreviewKey,
             width: double.infinity,

@@ -346,11 +346,25 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     if (pageNum != _controller.page) {
       _controller.currentPage.value = pageNum;
 
-      _controller.sheetState.value = switch (_controller.sheetState.value) {
-        SheetState.expanded => SheetState.expanded,
-        SheetState.collapsed => SheetState.collapsed,
-        SheetState.hidden => SheetState.collapsed,
-      };
+      if (_controller.isExpanded && !isLargeScreen && !useVerticalLayout) {
+        // Do not let the new post inherit the previous post's open details.
+        // Collapse synchronously so an outstanding sheet animation cannot
+        // briefly expose the next post with the old expanded layout.
+        _controller.sheetState.value = SheetState.collapsed;
+        _controller.sheetMaxSize.value = _controller.maxSize;
+        if (_controller.sheetController.isAttached) {
+          _controller.sheetController.jumpTo(0);
+        }
+        _controller.verticalPosition.value = 0.0;
+        _controller.setDisplacement(0.0);
+        _controller.showBottomSheet();
+      } else {
+        _controller.sheetState.value = switch (_controller.sheetState.value) {
+          SheetState.expanded => SheetState.expanded,
+          SheetState.collapsed => SheetState.collapsed,
+          SheetState.hidden => SheetState.collapsed,
+        };
+      }
 
       widget.onPageChanged?.call(pageNum);
 
@@ -668,10 +682,20 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   ) {
     final isPortrait = !context.isLargeScreen;
 
-    return ValueListenableBuilder(
-      valueListenable: _controller.sheetState,
-      builder: (_, state, _) {
-        final blockSwipe = !swipe || state.isExpanded || interacting;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        _controller.sheetState,
+        _controller.animating,
+        _controller.zoom,
+      ]),
+      builder: (_, _) {
+        final state = _controller.sheetState.value;
+        final blockSwipe =
+            !swipe ||
+            interacting ||
+            _controller.animating.value ||
+            _controller.zoom.value ||
+            (state.isExpanded && (isLargeScreen || useVerticalLayout));
 
         return AnimatedBuilder(
           animation: _edgeSlideController,
