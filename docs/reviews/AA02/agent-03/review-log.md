@@ -106,3 +106,10 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Issue #108, `feature/108-selection-action-parity` at `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd`, compare merge-base `422aeae087c1108e655d85d1a3dac25120456cd6` / develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
 - Reviewed all 4 changed source files and both test files, action snapshot common-profile/account-match safeguards, captured selection stable identities, bookmArk-picker route, dialog constraints and compact folder semantics. No independent static defect established; runtime gestures/multi-profile actual viewer parity unexecuted.
 - Adjacent #92 image share and #106 toast integration needed. Next T016 / #111. Active duration still unverified.
+
+## Scope refresh — 2026-10-29T23:05:07.268Z
+
+- Independently observed develop moved from initial `84df0c2de6cf8fe0177c49babb3fb0eee880f866` to `894ab270693cdb054a5d527c96182e21e2b14ffc`. Its commit message is `feat: streamline Android download and install updates (#111)` and #111 is closed; the exact feature branch was deleted.
+- Removed T016 from current eligible active scope and preserved historical pinned row/reason. Active targets now 18 (T001/T002/T016 excluded), with 12 complete static passes, T009 partial, and 5 yet unreviewed T017–T021.
+- Earlier branch review snapshots remain valid **only for their recorded SHAs**; they are not rescoped silently to new develop. Need branch-head and discovery refresh after remaining passes.
+- Next: T017 / #112.

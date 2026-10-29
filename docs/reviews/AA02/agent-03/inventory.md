@@ -19,7 +19,7 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | #104 | Complete static pass 1; 0 actionable findings |
 | T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | #107 | Complete static pass 1; cross-branch F0002 |
 | T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | #108 | Complete static pass 1; 0 findings |
-| T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | #111 | Not reviewed |
+| T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | #111 | Excluded cycle 1: merged/deleted during audit |
 | T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | #112 | Not reviewed |
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | Not reviewed |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | Not reviewed |
@@ -27,6 +27,8 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | Not reviewed |
 
 ## Exclusions
+
+- T016 / #111: at refresh 2026-10-29T23:05:07.268Z, issue closed on 2026-10-29T22:41:47Z. Remote `feature/111-android-update-flow` no longer exists and current develop `894ab270693cdb054a5d527c96182e21e2b14ffc` is a `feat: streamline Android download and install updates (#111)` commit. Original pinned head retained in inventory for reproducibility; no complete static T016 review claimed. Removed from active target count after publication.
 
 - T001 / #53 and T002 / #76: both issues closed on 2026-10-27; issue comments explicitly identify dependency-code publication in develop via commits `c3f83f0bb` and `8920dd2ff`. The old task branch snapshots may not be byte-identical to current develop; this is an activity/scope exclusion, **not** a claim of branch equivalence or independent acceptance of the final integrated code. Retained rows preserve the discovery trail.
 
@@ -38,5 +40,5 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 ## Caveats
 
 - Branch status is assessed from pinned Git ancestry, not labels alone. No open PRs were returned at discovery.
-- 19 active candidate branches after T001/T002 exclusions; T003–T008, T010–T015 complete 12/19; T009 partial 1/19. Other rows remain unreviewed.
+- 19 active candidate branches after T001/T002 exclusions; T003–T008, T010–T015 complete 12/18; T009 partial 1/18. Other rows remain unreviewed.
 - Relevant issue comments, cross-branch dependencies, and completeness of compare/diff endpoints remain to be checked.
