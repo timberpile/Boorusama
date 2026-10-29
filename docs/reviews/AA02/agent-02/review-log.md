@@ -42,3 +42,8 @@
 
 - Inspected page view physics, sheet/page reset, gesture arena and related existing page controller at `0b7bbb2c9630292eda16bcb769b8ac057199452e`; all 4 changed paths accounted; no new proven defect. Device UX remains explicit acceptance gate.
 - No runtime verification; 5 h active duration unverified; next T008.
+
+## Cycle 1 — T008 (#106), 2026-10-29T22:50:30.451Z
+
+- Pin `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8`. 20/20 paths accounted; inspected Kurumi action toast, navigation bottom insets, selection/footer, viewer preview, root callback, tests. No confirmed defect, native keyboard interaction remains local acceptance need.
+- No runtime checks; active duration unverified. Next T009.
