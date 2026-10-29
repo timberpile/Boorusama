@@ -32,3 +32,7 @@
 ## 2026-10-29 — cycle 2 T001 (#113)
 
 - Challenged post-grid pagination against the unchanged controller selection and refresh tests. F0004 identifies legacy tests with `total:1` that now short-circuit the expected page-2 request. Separate fetchMore/refresh race appears inherited, not a #113-specific regression. Active duration unverified; no runtime command.
+
+## 2026-10-29 — cycle 2 T002 (#114)
+
+- Inspected KurumiAnchor focus/backdrop/scroll behavior and wired blacklist controller, tag paging, settings and sliver paths. Uncovered a pre-existing shared chip-page-state boundary; no newly introduced source defect confirmed. No runtime tests; active duration unverified.
