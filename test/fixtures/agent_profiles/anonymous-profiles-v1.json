@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "exportVersion": "4.6.1-timberpile.3",
+  "date": "2026-10-29T00:00:00.000Z",
+  "data": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "booruId": 20,
+      "booruIdHint": 20,
+      "name": "Safebooru (Danbooru)",
+      "url": "https://safebooru.donmai.us/"
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000002",
+      "booruId": 23,
+      "booruIdHint": 23,
+      "name": "Safebooru",
+      "url": "https://safebooru.org/"
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000003",
+      "booruId": 24,
+      "booruIdHint": 24,
+      "name": "Konachan (Safe)",
+      "url": "https://konachan.net/"
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000004",
+      "booruId": 25,
+      "booruIdHint": 25,
+      "name": "e926",
+      "url": "https://e926.net/"
+    }
+  ]
+}
