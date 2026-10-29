@@ -228,3 +228,7 @@
 ## 2026-10-29 — cycle 10 checkpoint
 
 - All five pinned branches have ten substantive static passes. Eleven canonical findings remain unchanged. The active-review minimum remains unverified, independent of cycles and elapsed wall time. No application writes/tests, merges, PRs or issue changes.
+
+## 2026-10-29 — cycle 11 T002 (#114)
+
+- Inspected concurrent setBlacklistedTags calls through unawaited provider listener and asynchronous isolate count. Out-of-order completions can overwrite newest rule counts and filtering. New high-confidence medium risk F0012. No runtime test or active time proof.

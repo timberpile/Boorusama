@@ -13,7 +13,7 @@
 | Target | Exact branch | Issue | Reviewed pinned SHA | Static coverage | Findings |
 | --- | --- | --- | --- | --- | --- |
 | [T001](branches/T001.md) | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | 10 passes (cycles 1–10) | F0004,F0005,F0006 |
-| [T002](branches/T002.md) | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | 10 passes (cycles 1–10) | F0007,F0009 |
+| [T002](branches/T002.md) | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | 10 passes (cycles 1–10) | F0007,F0009,F0012 |
 | [T003](branches/T003.md) | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | 10 passes (cycles 1–10) | None |
 | [T004](branches/T004.md) | `feature/117-pixiv-favorites` | #117 | `e2929259b7725c484d11483d6ea48270079eb2f4` | 10 passes (cycles 1–10) | F0001,F0008 (cross),F0010 |
 | [T005](branches/T005.md) | `feature/118-pixiv-following-artists` | #118 | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | 10 passes (cycles 1–10) | F0002,F0003,F0011 |
@@ -38,13 +38,15 @@ Every substantive changed source, test, config and handoff file was accounted fo
 
 | [AA01-A01-F0011](branches/T005.md#aa01-a01-f0011--) | risk | medium | high-confidence | open | introduced mute-metadata omission | T005 | [branches/T005.md](branches/T005.md) | Muted followed artists can still show supplied previews when wrapper-level is_muted is ignored. |
 
-**Counts:** 11 canonical findings; by kind: 7 defects, 4 risks, 0 coverage-gaps, 0 improvements; by severity: 2 high, 9 medium, 0 critical/low; by confidence: 8 static-confirmed, 3 high-confidence, 0 suspected; by lifecycle: 11 open, 0 resolved/withdrawn/superseded. Static-confirmed means demonstrable from inspected reachable source, *not* executed/tested/reproduced on a device.
+| [AA01-A01-F0012](branches/T002.md#aa01-a01-f0012--) | risk | medium | high-confidence | open | inherited async controller race | T002 | [branches/T002.md](branches/T002.md) | Out-of-order blacklist match-count updates can overwrite newer rules and misreport hidden posts. |
+
+**Counts:** 12 canonical findings; by kind: 7 defects, 5 risks, 0 coverage-gaps, 0 improvements; by severity: 2 high, 10 medium, 0 critical/low; by confidence: 8 static-confirmed, 4 high-confidence, 0 suspected; by lifecycle: 12 open, 0 resolved/withdrawn/superseded. Static-confirmed means demonstrable from inspected reachable source, *not* executed/tested/reproduced on a device.
 
 ## Important conclusions / integration constraints
 
 1. **#118 F0002 is the most serious new UI bug:** user-selected explicit-media blur does not protect artist previews. Preserve the read-only list and no-extra-preview-fetch requirement while reusing the existing safety overlay. F0003 needs conservative nullable-rating handling and an authenticated API contract check. F0011 conditionally loses artist-level mute metadata; confirm API response and intended preview suppression.
 2. **#113 is not integration-ready from static evidence:** F0004 requires repairing contradictory existing tests before their assertions can pass; F0005 total-only paginated last-page handling is incomplete; F0006 makes Gelbooru hard depth limit erroneously look like source continuation, even when server returns zero posts.
-3. **#114 F0007/F0009:** original/live blacklist rule spelling is not canonicalized consistently across `TagExpression`, `activeFilters`, `tagCounts`, popup and badge. The toolbar count can disagree with actual post filtering. Separately, an out-of-range shared rule-page index can hide all popup chips even when matching rules remain. Existing normal lower-case tests miss this.
+3. **#114 F0007/F0009:** original/live blacklist rule spelling is not canonicalized consistently across `TagExpression`, `activeFilters`, `tagCounts`, popup and badge. The toolbar count can disagree with actual post filtering. Separately, an out-of-range shared rule-page index can hide all popup chips even when matching rules remain (F0009), and concurrent async rule updates can publish stale counts/filtering (F0012). Existing normal lower-case tests miss this.
 4. **#117 F0001/F0010:** source emits correct cursor continuation, but the branch inherits the old generic Grid controller; resolve #113's correct core behavior on an approved combined candidate before judging Pixiv Favorites pagination. **F0010** is a conditional inherited credential-boundary risk: media URL host must be validated or fetched without the Pixiv API bearer. **F0008** is a separate generic Grid/refresh concurrency interaction that must ignore obsolete cancellation errors and rollback.
 5. **#117 + #118 share Pixiv client and navigation files:** retain both client `part` declarations; merge optional `_get(cancelToken,followRedirects)` parameters once, preserving both Favorites availability and Following Artists tool. Similar-file edits alone do not establish a merge failure.
 6. **#116:** no actionable introduced source defect found at reviewed SHAs, but compact real touch targets and visual density need widget/Android acceptance. #114 toolbar plus #115 Search and #116 Follow should be reviewed together visually after approved integration.
