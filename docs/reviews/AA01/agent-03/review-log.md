@@ -67,3 +67,8 @@
 
 - Rechecked notifier build/loadMore generations and cancel/retry guard, credentials/visibility family keys, Pixiv client URL and media previews against app explicit cover and local blacklist policy. F0003 still static-confirmed; F0004 remains policy-sensitive risk. No new defect. Tests/device/auth API checks not run, active time unverified.
 - Next: cross-branch reconciliation, source freshness verification and a self-contained final handoff.
+
+## T001 cycle 2 — 2026-10-29T18:00:16.583Z
+
+- Revisited controller metadata/error precedence, refresh/jump/page modes and all three new pool tests. Confirmed concrete Danbooru and Szurubooru pool caller implementations match their develop baseline; notes about stale perPage widget scope are pre-existing, not new #113 findings. F0005 stands; no new canonical finding. SDK/device checks and active time remain unverified.
+- All five targets now have two substantive static passes at their pinned heads; next: source freshness/manifest/finding references validation and self-contained final handoff.
