@@ -21,7 +21,8 @@ class ArtistLinkShareButton extends ConsumerStatefulWidget {
   const ArtistLinkShareButton({required this.link, super.key});
   final BoorusamaArtistLink? link;
   @override
-  ConsumerState<ArtistLinkShareButton> createState() => _ArtistLinkShareButtonState();
+  ConsumerState<ArtistLinkShareButton> createState() =>
+      _ArtistLinkShareButtonState();
 }
 
 class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
@@ -33,22 +34,29 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
     setState(() => _sharing = true);
     try {
       final box = context.findRenderObject();
-      final origin = box is RenderBox && box.hasSize ? box.localToGlobal(Offset.zero) & box.size : null;
-      final result = await BoorusamaLinkFileShare(
-        fs: ref.read(appFileSystemProvider),
-        adapter: ref.read(artistLinkShareAdapterProvider),
-      ).share(
-        BoorusamaLinkFile.fromUri(link.uri.toString()),
-        sharePositionOrigin: origin,
-        beforeHandoff: () {
-          if (!mounted || widget.link != link) throw const FormatException('Artist share changed');
-        },
-      );
-      if (mounted && result != ShareActionOutcome.success && result != ShareActionOutcome.dismissed) {
+      final origin = box is RenderBox && box.hasSize
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+      final result =
+          await BoorusamaLinkFileShare(
+            fs: ref.read(appFileSystemProvider),
+            adapter: ref.read(artistLinkShareAdapterProvider),
+          ).share(
+            BoorusamaLinkFile.fromUri(link.uri.toString()),
+            sharePositionOrigin: origin,
+            beforeHandoff: () {
+              if (!mounted || widget.link != link)
+                throw const FormatException('Artist share changed');
+            },
+          );
+      if (mounted &&
+          result != ShareActionOutcome.success &&
+          result != ShareActionOutcome.dismissed) {
         Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
       }
     } on Exception {
-      if (mounted) Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
+      if (mounted)
+        Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
@@ -56,13 +64,21 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.link != null && !_sharing &&
-        SharePlatformCapabilities.forPlatform(currentAppPlatform()).canShareMedia;
+    final enabled =
+        widget.link != null &&
+        !_sharing &&
+        SharePlatformCapabilities.forPlatform(currentAppPlatform())
+            .canShareMedia;
     return IconButton(
       tooltip: context.linkFileLabel,
       icon: Opacity(
         opacity: enabled ? 1 : .38,
-        child: Image.asset('assets/icon/icon-512x512.png', width: 24, height: 24, excludeFromSemantics: true),
+        child: Image.asset(
+          'assets/icon/icon-512x512.png',
+          width: 24,
+          height: 24,
+          excludeFromSemantics: true,
+        ),
       ),
       onPressed: enabled ? _share : null,
     );
