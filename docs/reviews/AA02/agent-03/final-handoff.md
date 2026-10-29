@@ -27,7 +27,6 @@
 | T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | #104 | Pass 1 complete; pass 2 pending |
 | T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | #107 | Pass 1 complete; pass 2 pending |
 | T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | #108 | Pass 1 complete; pass 2 pending |
-| T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | #111 | Pass 1 complete; pass 2 pending |
 | T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | #112 | Pass 1 complete; pass 2 pending |
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | Pass 1 complete; pass 2 pending |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | Pass 1 complete; pass 2 pending |
