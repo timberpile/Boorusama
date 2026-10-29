@@ -113,3 +113,10 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Removed T016 from current eligible active scope and preserved historical pinned row/reason. Active targets now 18 (T001/T002/T016 excluded), with 12 complete static passes, T009 partial, and 5 yet unreviewed T017–T021.
 - Earlier branch review snapshots remain valid **only for their recorded SHAs**; they are not rescoped silently to new develop. Need branch-head and discovery refresh after remaining passes.
 - Next: T017 / #112.
+
+## Cycle 1 — T017 review completed 2026-10-29T23:08:28.328Z
+
+- Issue #112, `feature/112-viewer-toolbar-layout` pinned `8213b6fbb87cb09d30d5056ad6667821371f22f6`; merge-base `422aeae087c1108e655d85d1a3dac25120456cd6` against initial develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866` (develop advanced during audit).
+- Inspected 25 changed paths: toolbar adapters, menu-variants of Bookmark/Download/Share/Favorite/Vote, editor/page, setting JSON and backup, shared and Danbooru-specific buttons, visual design, 7 tests and widget/application flows. Followed provider scope in overflow, post/profile key, menu teardown, resize central projection, drag/keyboard transfer, setting reset/compare-and-swap.
+- No independent actionable static finding; parent callback reconstruction intentionally closes stale menu per source test. Real Android/a11y/landscape acceptance, coexistence with #104 and #106 and full FVM regression not available. See [T017](branches/T017.md).
+- Next T018 (#114). Active hours still unverified and requirement unmet.
