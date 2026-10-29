@@ -112,3 +112,9 @@
 - Reviewed #112's major customizable viewer toolbar with 24 substantive changed files, settings/backup, all menu action variants, visual editor, responsive projection and test cases against pinned `8213b6fbb87cb09d30d5056ad6667821371f22f6` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - No separately actionable static defect; approved UX is a device trial and has not passed runtime/manual checks. No source changes, Flutter tests or emulator; timing still unverified.
 - Next: T018 #114 timeline toolbar.
+
+## 2026-10-29T23:19:31.439Z — Cycle 1 T018 completed
+
+- Inspected #114's eight substantive sources, four tests, and PostGrid/active-rule/scroll/overlay/settings interactions at pinned `5bb52794468b172b7d6878fb825b42b00d654675` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
+- No additional actionable source finding. Device scroll, input and popup behavior unverified; no tests or app changes. Active duration unverified.
+- Next T019 #116 compact Follow button.
