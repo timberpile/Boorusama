@@ -102,3 +102,8 @@
 
 - Pinned `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4`; reviewed all 18 changed paths: lease/ADB wrapper, export/archive validation, reset scope, Maestro YAML and host tests. No confirmed defect. YAML device qualification deliberately outstanding.
 - Active-duration threshold unverified; no host/device tests executed. Next T020.
+
+## Cycle 1 — T020 (unlinked workflow-policy proposal), 2026-10-29T23:11:20.141Z
+
+- Pinned `fdb89b5c03e438e4d909db1821332e78b6f39ae9`; all 3 docs-only changed paths inspected. No independent finding. Unmerged proposal is not authority for the audit and may be excluded from future app-code candidate count when classification is resolved.
+- 20/20 initial source candidates have now received one complete scoped static pass at the recorded head. **Active 5 h remains unverified/unmet**. Required next: refreshed discovery plus cycle 2 reinspection, do not declare overall assignment complete.
