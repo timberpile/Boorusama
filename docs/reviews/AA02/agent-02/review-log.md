@@ -107,3 +107,9 @@
 
 - Pinned `fdb89b5c03e438e4d909db1821332e78b6f39ae9`; all 3 docs-only changed paths inspected. No independent finding. Unmerged proposal is not authority for the audit and may be excluded from future app-code candidate count when classification is resolved.
 - 20/20 initial source candidates have now received one complete scoped static pass at the recorded head. **Active 5 h remains unverified/unmet**. Required next: refreshed discovery plus cycle 2 reinspection, do not declare overall assignment complete.
+
+## Cycle 2 — fresh scope and T012 (#112), 2026-10-29T23:15:20.496Z
+
+- Refreshed all repository branch names and 20 original target heads against pinned SHAs. New develop `894ab270693cdb054a5d527c96182e21e2b14ffc`, #111 closed/branch deleted, T020 policy-only excluded from subsequent implementation passes. Frozen 18 active targets, no new active branch discovered.
+- Revisited complete configured More/menu layout and real Danbooru/simple parent, vote and favorite menu widgets at pinned `8213b6fbb87cb09d30d5056ad6667821371f22f6`. F0001 remains a **medium risk**, as the broad list-identity close guard is deliberate, and nested vote/favorite widgets do retain disabled guards. No new finding.
+- Active duration threshold unverified; no local execution. Cycle 2 target T012 complete; next T018, then remaining target passes.

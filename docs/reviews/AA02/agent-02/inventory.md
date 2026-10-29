@@ -14,8 +14,8 @@ Discovery: 2026-10-29T22:38:47Z; baseline `develop` `84df0c2de6cf8fe0177c49babb3
 | T008 | `bug/106-live-undo-toast-insets` | [#106](https://github.com/timberpile/Boorusama/issues/106) | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 20 | Complete C1 |
 | T009 | `feature/107-local-post-sorting` | [#107](https://github.com/timberpile/Boorusama/issues/107) | `7a73544cb79c9f5e3c2337a08140833024a31591` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 10 | Complete C1 |
 | T010 | `feature/108-selection-action-parity` | [#108](https://github.com/timberpile/Boorusama/issues/108) | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 7 | Complete C1 |
-| T011 | `feature/111-android-update-flow` | [#111](https://github.com/timberpile/Boorusama/issues/111) | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 6 | Complete C1 |
-| T012 | `feature/112-viewer-toolbar-layout` | [#112](https://github.com/timberpile/Boorusama/issues/112) | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 25 | Complete C1 |
+| T011 | `feature/111-android-update-flow` | [#111](https://github.com/timberpile/Boorusama/issues/111) | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 6 | Historical C1; merged/branch deleted |
+| T012 | `feature/112-viewer-toolbar-layout` | [#112](https://github.com/timberpile/Boorusama/issues/112) | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 25 | Complete C1+C2 |
 | T013 | `bug/113-collection-pagination` | [#113](https://github.com/timberpile/Boorusama/issues/113) | `a1bc1d42903861a46e7230349515946bae678357` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 6 | Complete C1 |
 | T014 | `feature/114-timeline-toolbar` | [#114](https://github.com/timberpile/Boorusama/issues/114) | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 13 | Complete C1 |
 | T015 | `feature/116-compact-follow-button` | [#116](https://github.com/timberpile/Boorusama/issues/116) | `5ac3ad9bc5f852f000012499c19468151c73734b` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 3 | Complete C1 |
@@ -23,7 +23,7 @@ Discovery: 2026-10-29T22:38:47Z; baseline `develop` `84df0c2de6cf8fe0177c49babb3
 | T017 | `feature/118-pixiv-following-artists` | [#118](https://github.com/timberpile/Boorusama/issues/118) | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 14 | Complete C1 |
 | T018 | `feature/group-neighboring-series` | [#68](https://github.com/timberpile/Boorusama/issues/68) | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | 69 | Complete C1 |
 | T019 | `feat/android-maestro-mvp` | Unlinked | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | 18 | Complete C1 |
-| T020 | `maintenance/issue-branch-publication` | Unlinked | `fdb89b5c03e438e4d909db1821332e78b6f39ae9` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 3 | Complete C1 |
+| T020 | `maintenance/issue-branch-publication` | Unlinked | `fdb89b5c03e438e4d909db1821332e78b6f39ae9` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 3 | C1 reviewed; excluded C2 (policy-only) |
 
 ## Exclusions / status questions
 
@@ -36,3 +36,11 @@ Discovery: 2026-10-29T22:38:47Z; baseline `develop` `84df0c2de6cf8fe0177c49babb3
 - Open issues without a discovered implementation branch (including #100, #102, #103, #105, #115, #119, #120) are not equivalent to reviewed code. Their dependency impact is considered where relevant.
 
 The two issue-free unmerged tool/workflow branches T019 and T020 are included conservatively; issue associations and activity state are not inferred from naming alone. No in-scope PR was found in the open PR query. Branch set will be refreshed at later cycles; discovered heads can drift.
+
+## Cycle 2 — refreshed discovery 2026-10-29T23:15:20.496Z UTC
+
+- Develop head advanced from `84df0c2de6cf8fe0177c49babb3fb0eee880f866` to `894ab270693cdb054a5d527c96182e21e2b14ffc`. Do **not** mix its fresh changes into historical pinned branch snapshots; use these observed SHAs only for integration checks.
+- All 19 still-existing originally reviewed candidate branch heads matched their cycle-1 SHA when explicitly compared; no new implementation branch was found in the 34-name paginated/all-branches discovery.
+- **T011** `feature/111-android-update-flow` no longer exists. Issue #111 closed 2026-10-29T22:41:47Z, and the latest develop diff since initial checkpoint includes the corresponding app-update files. Original source review remains valid at its pinned commit; it is now **historical/integrated**, not an unreviewed missing branch. Exact cherry-pick patch equivalence and device validation remain separate checks.
+- **T020** is a documentation-only unmerged workflow authorization proposal. Its cycle-1 report remains in the archive, but it is **not** an active application/tool implementation target for cycle 2.
+- **Cycle-2 frozen active list (18):** T001–T010, T012–T019. Every target retains the pinned head SHA in the original table. Scope completion for cycle 2 does not mean source heads cannot change later. Next discovery refresh after these passes.
