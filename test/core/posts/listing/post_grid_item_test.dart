@@ -56,80 +56,113 @@ import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
   for (final layout in ImageListType.values) {
-    testWidgets('decoded thumbnail probes preserve $layout sizing and request ownership', (
-      tester,
-    ) async {
-      await tester.runAsync(() async {
-        final directory = await Directory.systemTemp.createTemp('grid-probes-');
-        final cache = DrainingImageCacheManager(
-          cacheRootPathProvider: () => directory.path,
-        );
-        final adapter = _RecordingGridImageAdapter();
-        final dio = Dio()..httpClientAdapter = adapter;
-        try {
-          await tester.pumpWidget(
-            _TestApp(
-              automaticMediaLoading: true,
-              thumbnailGenerator: const _CandidateGenerator(),
-              mediaOverrides: [
-                defaultImageCacheManagerProvider.overrideWithValue(cache),
-                dioForWidgetProvider.overrideWith((ref, config) => dio),
-                mediaOverrideDioProvider.overrideWith((ref, config) => dio),
-                httpHeadersProvider.overrideWith((ref, config) => const {}),
-                deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
-                imageListingSettingsProvider.overrideWithValue(
-                  Settings.defaultSettings.listing.copyWith(imageListType: layout),
-                ),
-              ],
-              child: Center(
-                child: SizedBox.square(
-                  dimension: 160,
-                  child: PostGridItem(
-                    post: TestPost(id: 42),
-                    index: 0,
-                    useHero: false,
-                    multiSelectEnabled: true,
-                    config: _config.auth,
-                    onTap: (_) {},
-                    additions: PostGridItemAdditions.empty,
+    testWidgets(
+      'decoded thumbnail probes preserve $layout sizing and request ownership',
+      (
+        tester,
+      ) async {
+        await tester.runAsync(() async {
+          final directory = await Directory.systemTemp.createTemp(
+            'grid-probes-',
+          );
+          final cache = DrainingImageCacheManager(
+            cacheRootPathProvider: () => directory.path,
+          );
+          final adapter = _RecordingGridImageAdapter();
+          final dio = Dio()..httpClientAdapter = adapter;
+          try {
+            await tester.pumpWidget(
+              _TestApp(
+                automaticMediaLoading: true,
+                thumbnailGenerator: const _CandidateGenerator(),
+                mediaOverrides: [
+                  defaultImageCacheManagerProvider.overrideWithValue(cache),
+                  dioForWidgetProvider.overrideWith((ref, config) => dio),
+                  mediaOverrideDioProvider.overrideWith((ref, config) => dio),
+                  httpHeadersProvider.overrideWith((ref, config) => const {}),
+                  deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+                  imageListingSettingsProvider.overrideWithValue(
+                    Settings.defaultSettings.listing.copyWith(
+                      imageListType: layout,
+                    ),
+                  ),
+                ],
+                child: Center(
+                  child: SizedBox.square(
+                    dimension: 160,
+                    child: PostGridItem(
+                      post: TestPost(id: 42),
+                      index: 0,
+                      useHero: false,
+                      multiSelectEnabled: true,
+                      config: _config.auth,
+                      onTap: (_) {},
+                      additions: PostGridItemAdditions.empty,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-          final winner = find.descendant(
-            of: find.byType(ImageCandidatePicker),
-            matching: find.byType(ExtendedImage),
-          );
-          await pumpUntil(
-            tester,
-            () => winner.evaluate().isNotEmpty && find.descendant(
+            );
+            final winner = find.descendant(
               of: find.byType(ImageCandidatePicker),
-              matching: find.byType(BooruRawImage),
-            ).evaluate().isEmpty,
-            reason: 'decoded production thumbnail winner',
-          );
-          await tester.pump();
-          expect(adapter.requests.where((url) => url.endsWith('.jpg')), hasLength(1));
-          expect(adapter.requests.where((url) => url.endsWith('.jpeg')), hasLength(1));
-          expect(adapter.requests.where((url) => url.endsWith('/image.png')), isEmpty);
-          expect(adapter.requests.where((url) => url.endsWith('/thumbnail.png')), hasLength(1));
-          expect(adapter.requests.where((url) => url.endsWith('.webp')), isEmpty);
-          expect(adapter.requests.where((url) => url.endsWith('.avif')), isEmpty);
-          final size = tester.getSize(winner);
-          expect(size.width, 160);
-          expect(size.height, closeTo(layout == ImageListType.masonry ? 160 / 1.5 : 160, 0.01));
-          expect(tester.takeException(), isNull);
-        } finally {
-          await tester.pumpWidget(const SizedBox.shrink());
-          PaintingBinding.instance.imageCache.clear();
-          PaintingBinding.instance.imageCache.clearLiveImages();
-          await cache.drain();
-          dio.close(force: true);
-          await directory.delete(recursive: true);
-        }
-      });
-    });
+              matching: find.byType(ExtendedImage),
+            );
+            await pumpUntil(
+              tester,
+              () =>
+                  winner.evaluate().isNotEmpty &&
+                  find
+                      .descendant(
+                        of: find.byType(ImageCandidatePicker),
+                        matching: find.byType(BooruRawImage),
+                      )
+                      .evaluate()
+                      .isEmpty,
+              reason: 'decoded production thumbnail winner',
+            );
+            await tester.pump();
+            expect(
+              adapter.requests.where((url) => url.endsWith('.jpg')),
+              hasLength(1),
+            );
+            expect(
+              adapter.requests.where((url) => url.endsWith('.jpeg')),
+              hasLength(1),
+            );
+            expect(
+              adapter.requests.where((url) => url.endsWith('/image.png')),
+              isEmpty,
+            );
+            expect(
+              adapter.requests.where((url) => url.endsWith('/thumbnail.png')),
+              hasLength(1),
+            );
+            expect(
+              adapter.requests.where((url) => url.endsWith('.webp')),
+              isEmpty,
+            );
+            expect(
+              adapter.requests.where((url) => url.endsWith('.avif')),
+              isEmpty,
+            );
+            final size = tester.getSize(winner);
+            expect(size.width, 160);
+            expect(
+              size.height,
+              closeTo(layout == ImageListType.masonry ? 160 / 1.5 : 160, 0.01),
+            );
+            expect(tester.takeException(), isNull);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            PaintingBinding.instance.imageCache.clear();
+            PaintingBinding.instance.imageCache.clearLiveImages();
+            await cache.drain();
+            dio.close(force: true);
+            await directory.delete(recursive: true);
+          }
+        });
+      },
+    );
   }
 
   for (final cacheState in ['valid', 'missing', 'partial', 'invalid']) {
@@ -804,20 +837,22 @@ final class _CandidateGenerator implements GridThumbnailUrlGenerator {
   const _CandidateGenerator();
 
   @override
-  GridThumbnailMedia resolve(Post post, {required GridThumbnailSettings settings}) =>
-      const GridThumbnailMedia(
-        url: 'https://grid-probe.test/image.jpg',
-        fallbackUrls: [
-          'https://grid-probe.test/image.jpeg',
-          'https://grid-probe.test/image.png',
-          'https://grid-probe.test/image.webp',
-          'https://grid-probe.test/image.avif',
-        ],
-        fallbackUrl: 'https://grid-probe.test/thumbnail.png',
-        placeholderUrl: 'https://grid-probe.test/thumbnail.png',
-        aspectRatio: 1.5,
-        probeImageFormats: true,
-      );
+  GridThumbnailMedia resolve(
+    Post post, {
+    required GridThumbnailSettings settings,
+  }) => const GridThumbnailMedia(
+    url: 'https://grid-probe.test/image.jpg',
+    fallbackUrls: [
+      'https://grid-probe.test/image.jpeg',
+      'https://grid-probe.test/image.png',
+      'https://grid-probe.test/image.webp',
+      'https://grid-probe.test/image.avif',
+    ],
+    fallbackUrl: 'https://grid-probe.test/thumbnail.png',
+    placeholderUrl: 'https://grid-probe.test/thumbnail.png',
+    aspectRatio: 1.5,
+    probeImageFormats: true,
+  );
 }
 
 class _GestureRepository implements BooruRepository {

@@ -379,7 +379,9 @@ void main() {
     );
     expect(store.configs, isEmpty);
     expect(find.byType(NavigationRecoveryPage), findsOneWidget);
-    expect(find.text(appStrings(tester).generic.action.add), findsOneWidget);
+    expect(find.byKey(const ValueKey('empty-profile-add')), findsOneWidget);
+    expect(find.text(appStrings(tester).booru.add_profile), findsOneWidget);
+    expect(find.byKey(const ValueKey('empty-profile-import')), findsOneWidget);
   });
 
   testWidgets(
