@@ -196,3 +196,11 @@
 ## 2026-10-29 — cycle 9 T002 (#114)
 
 - Challenged Grid controller/header post-page contract against #113 and Follow scope #116; touched files are disjoint and source interfaces appear compatible, combined tests absent. F0007/F0009 remain. No additional finding or runtime checks.
+
+## 2026-10-29 — cycle 9 T003 (#116)
+
+- Verified #116 source diff has no overlapping paths with #113/#114, but UX after #115 remains deferred. Traced both compact states and available integrated narrow widget tests; no new defect; no local runtime checks.
+
+## 2026-10-29 — cycle 9 checkpoint
+
+- Nine complete static passes for all five pinned branches; 11 canonical findings, 7 defects and 4 risks. Refresh of all branch tips confirms no source drift since base snapshot. All documentation committed to this report branch. The one-hour active review requirement has not been reliably established, and the archive remains a checkpoint rather than final completion.
