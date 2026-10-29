@@ -11,4 +11,4 @@ Assignment: all active implementation branches, 5 h minimum *verified active* re
 - [Progress](review-log.md), [cross-branch findings](cross-branch-findings.md), [handoff](final-handoff.md).
 - No implementation code, issues, PRs, CI, or protected branches are modified. No Flutter/Dart builds, tests, analyzer, emulator, or device verification is available in this remote review.
 
-Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; T016 and T017 completed in cycle 2, T009 complete; next T013 for collection pagination and T008 for lifecycle/UI overlays, then remaining active targets.
+Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; T016 and T017 completed in cycle 2, T009 and T013 complete; next T008 for lifecycle/UI overlays, then T014 blacklist toolbar, then remaining active targets.

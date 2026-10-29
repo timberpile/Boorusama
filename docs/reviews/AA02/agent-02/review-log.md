@@ -130,3 +130,7 @@
 ## Cycle 2 — T009 (#107), 2026-10-29T23:19:45.554Z
 
 - Reexamined bookmarked Post score comparator and stable cover ranking, Feed local snapshot comparator/tag filter, `_CachedFeedGrid` filter-change logic and keyed `PostScope`, history suppression and sort-only test. An initial concern that changing the filter fails to refresh the controller was disproved: `PostScope(key: ValueKey(widget.filter))` disposes/recreates the controller on changes. Local result explicitly sets `hasMore:false`, compatible with #113's controller update. No independently confirmed defect. Head remains `7a73544cb79c9f5e3c2337a08140833024a31591`; no tests run. Cycle-2 scoped static pass complete.
+
+## Cycle 2 — T013 (#113), 2026-10-29T23:20:26.277Z
+
+- Rechecked unchanged pinned `PostGridController` refresh, infinite/page-jump/fetch-more state, `_canLoadMore` error/hasMore/maxPage/total precedence and `PoolPostIdsX` metadata, missing/deleted ID behavior, and integration with #107's local-only feed. Unknown totals continue until empty raw page; explicit final nonempty pages are first ingested then terminate correctly. No independently confirmed regression; tests remain unexecuted. Static cycle-2 branch pass complete.
