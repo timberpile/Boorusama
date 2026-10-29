@@ -175,3 +175,8 @@ Re-read BoorusamaArtistLink.parse and BoorusamaLinkFile.fromUri. Artist links on
 
 Re-examined withoutSelectedTagSuggestions. It first classifies ordinary selected tags separately from raw terms and option keys, normalizes case and unary prefixes via TagSearchItem.rawTag, then constructs a response-local undirected graph only from explicit AutocompleteData.alias antecedent edges. Graph closure occurs before output filtering, preventing order sensitivity while not hiding corrections, account or Pool entries. The search overlay from #98 is a separate outer Stack and does not consume selected controller state. Missing server alias edges remain unknown external data; no new finding.
 - Next T013; active duration unverified.
+
+## Cycle 2 — T013 (2026-10-29T23:22:37.284Z)
+
+Adversarially compared #104's PostDetailsPageView _onPageChanged / PageView swipe physics against #106's measured bottom preview obstruction and #112's Viewer toolbar. #104 resets expanded sheet state only after a page change in phone horizontal layout and restricts drag when zoomed/animating or in vertical layout; #106 computes root toast clearance from the same viewer controller's measured preview without owning PageView physics, while #112 changes toolbar children, not drag arbitration. Nested horizontal controls and 2× text/zoom/pointer still need physical UX test. No statically proven interaction defect.
+- Next T014; active duration unverified.
