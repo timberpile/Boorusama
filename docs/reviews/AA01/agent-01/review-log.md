@@ -160,3 +160,7 @@
 ## 2026-10-29 — cycle 8 T001 (#113)
 
 - Inspected application FakeBooruBackend and testPostResult defaults. Confirmed contradictory maxPage=1/page-local total and discovered _withOrigin drops hasMore, both amplifying existing F0004 test/fixture mismatch. No production fix/test execution or active duration proof.
+
+## 2026-10-29 — cycle 8 T004 security boundary
+
+- Followed Pixiv image DTO URL through Pixiv Posts, Grid, BooruImage, dioForWidgetProvider, PixivRepository.dio and PixivAuthInterceptor. New F0010: the common Pixiv authenticated Dio can attach a short-lived API Bearer to unchecked absolute image URLs. Existing/conditional trust-boundary risk, not a new Pixiv client endpoint defect. No live exfiltration claim or runtime test.

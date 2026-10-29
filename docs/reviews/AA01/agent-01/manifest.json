@@ -19,6 +19,6 @@
   "scope_observed_date": "2026-10-29",
   "status": "static-review-complete-time-unverified",
   "cycles_complete": 7,
-  "canonical_findings": 9,
+  "canonical_findings": 10,
   "clock_note": "Active duration remains unverified; wall elapsed is not active time."
 }
