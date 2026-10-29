@@ -29,3 +29,9 @@ Next: verify any stale/merged targets; conduct source-pinned code review of targ
 - Reviewed #113 and both comments, all six changed files and full comparison patch; inspected PostResult metadata contract, PostScope, post-grid UI, Danbooru pool ID consumer, and pagination regression paths.
 - Confirmed source path prioritizes explicit hasMore/maxPage, then known totals, and ingests a nonempty final page. Pool ID slice boundaries survive absent/restricted IDs and lookup failures become errors rather than empty results. No actionable static defect independently established. Total-only backends with inconsistent counts remain a verification concern, not a demonstrated bug.
 - Static pass complete; tests/builds not executed. Next review T003 #92. Active hours unverified.
+
+## Cycle 1 / T003 — 2026-10-29T22:49:17.316Z
+
+- Reviewed #92 and comment, complete comparison diff with 7 changed files, full media URL resolver, payload tile and unified sheet, relevant regression tests, payload construction and caching/preparation path, Pixiv client/provider/auth interceptor, and nearby HTTP safety code.
+- Found `AA02-A05-F0001`: Pixiv bearer token is attached to image share download requests on other origins, through existing per-profile Pixiv Dio and global request interceptor. The branch's fallback exposes that existing path before viewer hydration; root cause predates this branch. Recorded as a static-confirmed high-severity credential exposure, not proof of hostile network observation.
+- Scope static pass complete, no execution here. Next: T020 #117 and T021 #118 for Pixiv account isolation and media flow cross-check. Active review hours unverified.
