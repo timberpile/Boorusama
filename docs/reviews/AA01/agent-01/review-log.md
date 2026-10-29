@@ -184,3 +184,7 @@
 ## 2026-10-29 — cycle 9 T004 (#117)
 
 - Compared actual #117/#118 commit patches in both shared files. Preserve both Pixiv client part declarations, one identical _get cancellation/redirect extension, Favorites capability and Following Artists tool; no merge executed. F0001/F0010 unresolved. No runtime tests or active-duration proof.
+
+## 2026-10-29 — cycle 9 T005 (#118)
+
+- Reconciled overlapping #117/#118 client and navigation edits using actual per-file patches. Shared _get parameters appear identical and must be applied once; both part imports and destination capabilities are required. No integration performed or additional defect established. F0002/F0003/F0011 remain; duration unverified.
