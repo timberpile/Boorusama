@@ -83,3 +83,8 @@
 
 - Reviewed issue #108, selection action definitions, source-aware snapshot/download, single vs batch bookmark dialogs and two new test suites. No actionable defect independently established; device parity and multi-account operations remain untested.
 - Next: T016 `feature/111-android-update-flow`; re-resolve remote branch because one compare request returned 404. Active time unverified.
+
+## Cycle 1 — T016 static pass (2026-10-29T23:05:18.811Z)
+
+- Exact branch lookup returned no branch; previously captured pinned SHA remains readable (5 ahead/11 behind initial develop). Issue #111 is closed. Inspected full changed app update UI, native/downloader wrappers, three changed tests and English resource. No confirmed actionable finding. **Source snapshot inspected; remote branch availability unresolved**.
+- Next T017 `feature/112-viewer-toolbar-layout`; active duration unverified.
