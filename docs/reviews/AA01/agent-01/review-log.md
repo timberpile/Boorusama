@@ -76,3 +76,7 @@
 ## 2026-10-29 — cycle 4 T002 (#114)
 
 - Inspected TagExpression lowercasing, global blacklist storage/provider raw tag keys, setBlacklistedTags, active tag/count normalization and popup controls. Source-confirmed F0007: dynamic uppercase rule keys can leave posts visible while new hidden count claims otherwise and popup toggle absent. Origin inherited; test not executed.
+
+## 2026-10-29 — cycle 4 T003 (#116)
+
+- Examined full 55%-limited search action region, nested Flexible, compact text truncation and async Follow ownership. No new introduced source issue found; real widget/device checks not executed. Active duration unverified.
