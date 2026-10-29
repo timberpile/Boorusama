@@ -64,3 +64,7 @@
 ## 2026-10-29 — cycle 3 T004 (#117)
 
 - Independently checked PixivPy client method and historical bookmark continuation shape against #117's strict fixed-endpoint/cursor validation. Contract plausibility increased, authenticated current API unverified. F0001 unchanged. No CI/local tests; duration unverified.
+
+## 2026-10-29 — cycle 3 T005 (#118)
+
+- Verified Pixiv user-following endpoint against independent API clients and traced artist tap through SearchParams, PixivQuery and scoped post repository to getUserIllusts. Artist-level muted flag is ignored; policy/contract unclear, no new defect claimed. F0002/F0003 remain. No runtime tests.
