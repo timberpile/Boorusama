@@ -142,9 +142,15 @@ pushes. Existing release, upstream, and Dependabot exceptions remain unchanged.
 
 An explicit request to create or work on an issue permits its necessary scoped
 metadata changes: description, labels, ownership, short coordination comments,
-and its completion state when justified. It does not authorize unrelated issues,
-code publication, merges, releases, or deletion. Those retain the separate
-permissions in the [development workflow](development_workflow.md).
+and its completion state when justified. Authorized implementation or issue
+queue work additionally permits creating and pushing the corresponding isolated
+task branches, without a separate branch-name or push approval, under the
+[development workflow](development_workflow.md). An issue-creation-only request
+does not authorize implementation or code publication. Explicit "local only" or
+"do not push" limits take precedence. Neither task-branch publication nor issue
+metadata authorization permits unrelated changes, integration into `develop`,
+pushing `develop`, PR creation, releases, or branch deletion; those retain their
+separate permissions. Publishing a task branch does not complete its issue.
 
 ## Verification and completion
 
@@ -156,9 +162,9 @@ step briefly. Required failing or unrun task checks are not a ready handoff.
 
 For implementation tasks, close as completed only when agreed acceptance criteria
 are satisfied and the solution is available in shared `origin/develop`. A release
-is not required. Work that is only prepared or integrated locally remains open;
-note that publication is pending when it is not authorized. Approval to merge a
-task branch includes publication, issue closure, and completed remote-branch
+is not required. Work that is only prepared on a task branch or integrated locally
+remains open; note outstanding verification or integration approval. Approval to
+merge a task branch includes publication, issue closure, and completed remote-branch
 cleanup under the [development workflow](development_workflow.md#integration).
 Carry those steps through without asking again, unless the user explicitly limits
 the scope. Verify the result is in `origin/develop` before closing the issue and
