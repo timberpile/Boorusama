@@ -35,3 +35,9 @@ Next: verify any stale/merged targets; conduct source-pinned code review of targ
 - Reviewed #92 and comment, complete comparison diff with 7 changed files, full media URL resolver, payload tile and unified sheet, relevant regression tests, payload construction and caching/preparation path, Pixiv client/provider/auth interceptor, and nearby HTTP safety code.
 - Found `AA02-A05-F0001`: Pixiv bearer token is attached to image share download requests on other origins, through existing per-profile Pixiv Dio and global request interceptor. The branch's fallback exposes that existing path before viewer hydration; root cause predates this branch. Recorded as a static-confirmed high-severity credential exposure, not proof of hostile network observation.
 - Scope static pass complete, no execution here. Next: T020 #117 and T021 #118 for Pixiv account isolation and media flow cross-check. Active review hours unverified.
+
+## Cycle 1 / T020 — 2026-10-29T22:51:33.004Z
+
+- Read #117 requirements, the full nine-file implementation diff and source: Pixiv bookmark client extension/parser, package tests, favorites session/provider/page, engine navigation capability and builder, grid and Pixiv post parser, session tests and handoff.
+- Found `AA02-A05-F0002`: a fully filtered/restricted Pixiv bookmark page can return zero PostResult.posts with hasMore:true; on this branch's base PostGridController ignores continuation metadata and stops. The independent #113 branch corrects the shared controller but is not integrated, so #117 should be gated on that fix and combined regression.
+- No additional source-confirmed defect found in fixed API endpoint/cursor validation, profile-keyed provider, cancellation/refresh and native UI account switch paths; those still need live tests. Static pass complete, runtime unverified. Next: T021 #118.
