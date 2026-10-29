@@ -158,3 +158,9 @@
 - Examined existing full search-page follow-action widget tests around 240/320dp, text scale 2, count/follow/share action spacing, available/unavailable/failed result count, manual-only flow, typed/mixed query profile snapshots, asynchronous preview failure and navigation context retention. These provide meaningful adjacent integration protection in addition to #116's small standalone compact-pill tests.
 - Rechecked the #116 diff only changes the pill's style/size/icon slot while the existing dialog/onPressed/profile guards and follow persistence remain unchanged. No standalone source regression or overlap with #114's PostGrid toolbar can be proven from the pinned branch code; future #115 integration needs combined layout tests.
 - No new finding. Focused tests and Android input/accessibility checks remain unexecuted. Fifth T003 pass complete, next T004.
+
+## Cycle 5 — T004 shared Favorites capability/profile picker and viewer review, 2026-10-29T18:22:15.653Z
+
+- Re-examined #117 PixivBuilder Favorites destination, capability gating and NavigationProfilePicker. The new shared Favorites builder is installed on PixivBuilder; navigation eligibility requires a positive account ID and nonempty refresh credential; profile picker entries use eligibleFavoritesProfileIds and recheck current navigation destination/eligibility before selection, preserving original source association. The login/reauth page redirects to Pixiv's specialized auth tab, not the generic anonymous profile editor.
+- Checked Pixiv mixed PostDetails adapter and bindPostResultOrigin: posts from Favorites retain source origin and normal viewer integration structure; no separate #117 post type is introduced. No widget test of this flow (F0003) or authenticated Pixiv evidence. Cross F0002, F0005, F0007 and linked F0008 remain unresolved; no additional source-proven defect.
+- Fifth static pass complete, no changes to code/issues/CI. Next T005.
