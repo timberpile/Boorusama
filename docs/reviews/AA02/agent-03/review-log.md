@@ -185,3 +185,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - bug/113-collection-pagination at unchanged pinned head `a1bc1d42903861a46e7230349515946bae678357` (#113). Adversarially traced filtered/duplicate-only first pages and explicit hasMore through _canLoadMore, SliverPostGrid's empty NoDataBox, RawPostGrid's non-scrollable Load More button, InfiniteScrollListener, fetchMore page rollback and last nonempty page admission. A filtered-empty continuing page still exposes a manual Load More control after #113, rather than an unreachable scroll-only path. Revalidated T020/F0003 remains on the separate pre-#113 Pixiv head. Potentially untrustworthy total without hasMore/maxPage remains a contract risk, no actual engine producer confirmed.
 - Static adversarial revisit only. No executed local tests, runs, emulators or devices. Next: T008.
+
+## Cycle 2 — T008 completed 2026-10-29T23:24:59.064Z
+
+- feat/android-maestro-mvp at unchanged pinned head `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` (issue-free pilot). Second pass focused on adverse subprocess termination and lease boundaries, ADB serial/emulator guards, debug package reset, untrusted ZIP manifest path/duplicate/symlink/bomb checks, deterministic ZIP packing, secret-key heuristics and no-device-touch before validation. Unit-test mocks are authored but not executed; real DocumentsUI selectors and live source data remain pilot blockers. No independently proven new source defect.
+- Static adversarial revisit only. No executed local tests, runs, emulators or devices. Next: T009.
