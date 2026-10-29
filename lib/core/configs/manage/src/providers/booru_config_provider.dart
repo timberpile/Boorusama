@@ -55,16 +55,18 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
   }
 
   Future<void> _add(BooruConfig booruConfig) async {
+    // The profile is already persisted. A delayed or failed preference write
+    // must not leave the visible collection behind the repository.
+    state = [...state, booruConfig];
     final orders = ref.read(settingsProvider).booruConfigIdOrderList;
     final newOrders = [...orders, booruConfig.id];
 
     await updateOrder(newOrders);
-
-    state = [...state, booruConfig];
   }
 
   Future<void> duplicate({
     required BooruConfig config,
+    void Function(String message)? onFailure,
   }) {
     final copyData = config.copyWith(
       name: '${config.name} copy',
@@ -74,6 +76,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       data: copyData.toBooruConfigData(),
       initialConfig: config,
       isCopy: true,
+      onFailure: onFailure,
     );
   }
 
@@ -405,9 +408,8 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
 
-      onSuccess?.call(config);
-
       await _add(config);
+      onSuccess?.call(config);
 
       ref
           .read(analyticsProvider)

@@ -60,7 +60,14 @@ class ProfileManagementPage extends ConsumerWidget {
               ),
               KurumiContextMenuTile(
                 title: context.t.generic.action.duplicate,
-                onTap: () => notifier.duplicate(config: profile),
+                onTap: () => notifier.duplicate(
+                  config: profile,
+                  onFailure: (message) {
+                    if (context.mounted) {
+                      Kurumi.showErrorToast(context, message);
+                    }
+                  },
+                ),
               ),
               KurumiContextMenuTile(
                 title: context.t.generic.action.delete,
