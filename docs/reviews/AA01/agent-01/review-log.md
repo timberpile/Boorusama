@@ -168,3 +168,7 @@
 ## 2026-10-29 — cycle 8 T002 (#114)
 
 - Confirmed overlay's UncontrolledProviderScope reuses the parent Riverpod container, making the existing shared BlacklistControls page index persist across popups and source/profile changes (F0009). F0007 remains distinct. No widget test executed.
+
+## 2026-10-29 — cycle 8 T003 (#116)
+
+- Cross-examined compact button geometry and actual Search row/busy/follow variants, explicitly separated baseline Follow lifecycle behavior from this size-only diff. No new defect or runtime verification; duration unverified.
