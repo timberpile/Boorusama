@@ -1,0 +1,17 @@
+{
+  "protocol_version": 2,
+  "role": "audit",
+  "repository": "timberpile/Boorusama",
+  "batch_id": "AA02",
+  "agent_id": "02",
+  "config": {
+    "MIN_REVIEW_HOURS": 5,
+    "REVIEW_BRANCHES": "all"
+  },
+  "report_branch": "review/AA02/agent-02",
+  "report_root": "docs/reviews/AA02/agent-02",
+  "initial_develop_sha": "84df0c2de6cf8fe0177c49babb3fb0eee880f866",
+  "discovery_at": "2026-10-29T22:38:47Z",
+  "coverage": "initial-checkpoint",
+  "target_count": 20
+}
