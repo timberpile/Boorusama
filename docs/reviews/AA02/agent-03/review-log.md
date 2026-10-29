@@ -200,3 +200,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - feature/91-branded-search-link-share at unchanged pinned head `e8c880c2783fefe5a58b0b73d98bf3914157809f` (#91). Rechecked .bslink file-only delivery and share adapter, platform capability and _sharing in-flight guard, mounted context on share handoff, explicit UnimplementedError catch, disabled visual opacity, tooltip and declared launcher asset. The parallel #95 F0001 omission is not present here; no newly established defect. Real device share activity/assets still untested.
 - Source-level adversarial revisit, zero new findings; no tests/builds/devices. Next: T011.
+
+## Cycle 2 — T011 completed 2026-10-29T23:26:15.001Z
+
+- feature/95-artist-links at unchanged pinned head `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` (#95). Adversarially retraced URI parser rejection of percent-escape corruption, surplus fields, credentials, profile mismatches and invalid site URI; document link receiver binds exact normalized source and does not mutate configuration. Reconfirmed F0001 against the search file-share handler's explicit UnimplementedError catch. Native unsupported-adapter simulation absent; no additional finding.
+- Source-level adversarial revisit, zero new findings; no tests/builds/devices. Next: T012.
