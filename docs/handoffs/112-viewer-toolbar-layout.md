@@ -1,5 +1,123 @@
 # Issue #112 — local completion and manual-review handoff
 
+## Local continuation — 2026-10-29
+
+Prepared for Timber's manual review; acceptance and integration remain pending.
+
+Runtime candidate: **`53c8473902cd583c634a78ca4ba8e7af7f8cf6e2`**.
+Continued the existing branch from `c6a0993ea9070cdc97323039f02dea4a0f3938bc`
+in its isolated worktree. The pinned base and current fetched `origin/develop`
+remain `422aeae087c1108e655d85d1a3dac25120456cd6`. No rebase or develop
+integration was needed. All continuation commits are local; no push, PR,
+issue closure, release, or branch deletion is authorized or performed.
+
+### Review corrections
+
+- Formatted the implementation and tests with the pinned FVM SDK. Restored
+  missing generated localization/booru output using the documented bootstrap;
+  no localization inputs, dependencies, or generated runtime contracts changed.
+- Fixed the editor's long-press conflict: an IconButton tooltip consumed the
+  gesture before its enclosing draggable could start. Editor slots retain
+  visible labels and accessibility names without the competing tooltip.
+  Selection no longer inserts controls during drag startup.
+- Dismiss overflow when action callbacks/presentations change, including loading,
+  authorization, and post state changes with unchanged action IDs. Existing
+  post/auth keys and the captured source provider scope remain in place.
+- Open the editor on the Settings host's application navigator. Android Back
+  now returns to Image Viewer settings instead of skipping that destination.
+- Retain active vote colors, accessible toggle state, and the existing
+  add/remove/disabled behavior in More. Keep editor movement arrows physical
+  left/right in RTL, matching the slot row.
+- Keep asynchronous favorite feedback attached to the route's Scaffold.
+
+Reviewed the full pinned-base diff and the standard, Danbooru, Moebooru, and
+Sankaku callers. All current standard-toolbar favorite callers supply the typed
+FavoritePostButton menu presentation; the generic fallback is not needed by a
+current engine. Generic adaptive rows and Kurumi remain unchanged.
+
+### Verification
+
+All commands use FVM Flutter 3.47.2 and six detected physical-core workers.
+
+- Focused and nearby consumers: **59 passed**, exit 0, on the final runtime
+  candidate. Command: `fvm flutter test --no-pub --concurrency=6` with
+  `test/core/settings/viewer_toolbar_{layout,settings,editor,page,backup}_test.dart`,
+  `test/core/posts/details/configured_post_toolbar_test.dart`,
+  `test/core/posts/details/vote_toolbar_menu_test.dart`,
+  `test/application/viewer_toolbar_actions_flow_test.dart`,
+  `test/core/posts/post_viewer_original_actions_test.dart`, and
+  `test/application/unified_post_actions_flow_test.dart` (expand the brace list).
+- `./scripts/run_regression_tests.sh`: **passed, exit 0** on the final runtime
+  candidate. Application: **5,528 passed**. All 13 package/CLI suites:
+  **1,608 passed**. The vendored go_router suite retains two declared skips:
+  `routing config works with shell route` and
+  `Obsolete branches in StatefulShellRoute are cleaned up after route
+  configuration change`. Both repository shell suites passed, and all **72**
+  Python tooling tests passed. No complete suite was skipped.
+  The runner emitted Flutter VM finalizer diagnostics and occasional hit-test
+  warnings while completing successfully; no blanket warning-free claim is made.
+  Runtime, tests, dependencies, and generated runtime inputs remained unchanged
+  during this final pass; only this handoff was updated afterward.
+- Scoped `fvm flutter analyze --no-pub`: no errors/warnings or findings in changed
+  files. Two informational `curly_braces_in_flow_control_structures` findings
+  remain in unchanged `simple_post_stats_tile.dart:38` and
+  `settings_page.dart:309`. This is not a blanket lint-clean result.
+- Changed Dart formatting and `git diff --check`: pass.
+- Android device-free QA build: `fvm flutter build apk --debug --flavor dev
+  --target-platform android-x64 --no-pub`, exit 0. Installed with `adb install -r`
+  on exclusively leased `emulator-5554`, without clearing data. The installed
+  APK SHA-256 matches the locally built final candidate:
+  `b2f7e6915803859e0348ae77780dc0c5d748a1e87d028f902ce968b8e8a9f9bb`.
+  The extra universal review build was stopped at the user's request; no review
+  APK delivery is required.
+- Maestro exercised Apply, discard/Back, explicit replacement, tap movement,
+  all-More, restart persistence, Reset/native fallback, 320/390/440-dp display
+  configurations, 200% Android text, and short landscape overflow reachability.
+  The final installed candidate repeated Reset and system Back successfully.
+  The full Android matrix is not claimed; see the limits below.
+- Final process log checks found no matched disposed-state/deactivated-context,
+  invalid-ref, or Android fatal signatures. This is a targeted log check.
+- Restored the original active profile, native toolbar override, 720x1600/320-dpi
+  display, font scale 1.0, automatic rotation 1, and user rotation 0. The emulator
+  lease was released. Existing accounts/data were preserved; test searches and
+  one thumbnail download were not erased.
+
+### Manual acceptance limits
+
+- The five-action cap, center retention, full-row replacement affordance, and
+  edit-strip discoverability remain prototype choices for Timber's review.
+  At 320 dp with Android text at 200%, some slot labels truncate; controls
+  and the full selected-action label remain available.
+- Widget tests exercise long-press dragging; a Maestro slow swipe did not
+  establish a successful physical drag. Real finger/assistive-technology and
+  hardware-keyboard acceptance remain manual.
+- Live Danbooru signed-out overflow opened Share, Bookmark Groups, chosen-quality
+  Download, and Comments. A thumbnail download closed both menus. Signed-in
+  Danbooru exposed Favorite, Upvote, and Downvote in More, but the attempted
+  Favorite action did not establish a confirmed state change. Successful
+  favorite/unfavorite and server vote removal are not claimed.
+- The generic Safebooru profile returned no posts during its live attempt.
+  Moebooru was not configured on the device. The application action harness
+  verifies real Download/Bookmark/Share widgets under a different source scope,
+  but this is not live mixed-account or Moebooru acceptance.
+- RTL, keyboard insets, short menus, and light-theme layout have widget coverage;
+  a complete Android locale/theme/account matrix and physical-device acceptance
+  remain manual. No CI or remote branch verification is claimed for local fixes.
+
+### Review path
+
+No review APK is requested. Review the branch at the runtime candidate and
+use the installed development build for UI inspection if useful. Open Settings
+→ Image Viewer → Toolbar / Customize UI. Opening alone keeps native defaults. Try
+movement, transfer, replacement, Apply, Back, all-More, and Reset, then open
+post details. Reset clears the override and restores the engine's own order.
+
+The original remote handoff below is retained as provenance. Its statements
+about unrun tools predate this local continuation; the verification recorded
+above and in the final report supersedes them.
+
+---
+
 ## Starting point and authorization
 
 - Issue: [Customize Post Viewer Toolbar Layout](https://github.com/timberpile/Boorusama/issues/112).
