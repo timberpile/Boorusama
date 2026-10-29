@@ -24,3 +24,7 @@
 ## 2026-10-29 — cycle 1 T004 (#117)
 
 - Pinned `e2929259b7725c484d11483d6ea48270079eb2f4`; inspected 10 changed files and shared Favorites, Pixiv DTO/auth/origin and Grid. Confirmed inherited cross-branch finding AA01-A01-F0001. No additional proven new Pixiv defect. Live Pixiv/Flutter tests not executed; active duration unverified.
+
+## 2026-10-29 — cycle 1 T005 (#118)
+
+- Pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` vs common base; inspected 14 changed files including four tests, Pixiv DTO/identity/rating and normal content protection. F0002 high-severity direct unblurred explicit previews (source-confirmed), F0003 medium-risk permissive unknown explicitness. No runtime tests; active duration unverified.
