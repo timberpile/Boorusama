@@ -12,7 +12,15 @@ import '../types/bookmark_view.dart';
 import 'bookmark_shuffle_provider.dart';
 
 // Append choices so any existing ordinal consumers retain their meaning.
-enum BookmarkSortType { newestUpload, oldestUpload, newest, oldest, random, scoreDescending, scoreAscending }
+enum BookmarkSortType {
+  newestUpload,
+  oldestUpload,
+  newest,
+  oldest,
+  random,
+  scoreDescending,
+  scoreAscending,
+}
 
 List<Bookmark> selectBookmarks({
   required BookmarkLibraryState state,

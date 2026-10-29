@@ -107,8 +107,14 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
     CachedTopicFeedSort.stored => context.t.generic.action.clear,
     CachedTopicFeedSort.newest => context.t.explore.newest,
     CachedTopicFeedSort.oldest => context.t.explore.oldest,
-    CachedTopicFeedSort.scoreDescending => searchOptionChoiceLabel(context, const SearchOptionChoice('score:desc', 'score:desc')),
-    CachedTopicFeedSort.scoreAscending => searchOptionChoiceLabel(context, const SearchOptionChoice('score:asc', 'score:asc')),
+    CachedTopicFeedSort.scoreDescending => searchOptionChoiceLabel(
+      context,
+      const SearchOptionChoice('score:desc', 'score:desc'),
+    ),
+    CachedTopicFeedSort.scoreAscending => searchOptionChoiceLabel(
+      context,
+      const SearchOptionChoice('score:asc', 'score:asc'),
+    ),
   };
 
   @override
@@ -320,10 +326,15 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
                       prefixLabel: context.t.post.detail.source_label,
                       options: [null, ...hosts],
                       value: _sourceHost,
-                      optionLabel: (host) => host ?? context.t.bookmark.groups.all,
+                      optionLabel: (host) =>
+                          host ?? context.t.bookmark.groups.all,
                       optionLeading: (host) => host == null
                           ? const Icon(Icons.public, size: 20)
-                          : ConfigAwareWebsiteLogo(url: 'https://$host', width: 20, height: 20),
+                          : ConfigAwareWebsiteLogo(
+                              url: 'https://$host',
+                              width: 20,
+                              height: 20,
+                            ),
                       onSelected: (host) => setState(() {
                         _focus.unfocus();
                         _sourceHost = host;
@@ -333,11 +344,14 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
                     const SizedBox(width: 8),
                     BookmarkOptionSelector<CachedTopicFeedSort>(
                       key: const ValueKey('cached-feed-sort'),
-                      label: _sort == CachedTopicFeedSort.stored ? context.t.sort.short : _sortLabel(_sort),
+                      label: _sort == CachedTopicFeedSort.stored
+                          ? context.t.sort.short
+                          : _sortLabel(_sort),
                       options: CachedTopicFeedSort.values,
                       value: _sort,
                       optionLabel: _sortLabel,
-                      optionSemanticLabel: (value) => '${strings.feed_filter_hint}: ${_sortLabel(value)}',
+                      optionSemanticLabel: (value) =>
+                          '${strings.feed_filter_hint}: ${_sortLabel(value)}',
                       onSelected: (value) => setState(() {
                         _focus.unfocus();
                         _sort = value;
@@ -350,7 +364,10 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
               if (_sort != CachedTopicFeedSort.stored)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(strings.feed_filter_hint, style: Kurumi.themeOf(context).textTheme.bodySmall),
+                  child: Text(
+                    strings.feed_filter_hint,
+                    style: Kurumi.themeOf(context).textTheme.bodySmall,
+                  ),
                 ),
             ],
           ),

@@ -1,3 +1,4 @@
+import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_option_selector.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
@@ -27,7 +28,11 @@ void main() {
         final harness = FollowingTopicHarness(
           overrides: [
             originAwarePostRepoProvider.overrideWith(
-              (ref, config) => TestSearchPostRepository((query, page, limit) async {
+              (ref, config) => TestSearchPostRepository((
+                query,
+                page,
+                limit,
+              ) async {
                 historyRequests.add(page);
                 return Either.of(
                   const PostResult<Post>(posts: [], total: 0, hasMore: false),
@@ -64,11 +69,16 @@ void main() {
         expect(historyRequests, isEmpty);
         expect(find.byKey(const ValueKey('cached-feed-sort')), findsNothing);
 
-        await tester.tap(find.byKey(const ValueKey('toggle-cached-feed-search')));
+        await tester.tap(
+          find.byKey(const ValueKey('toggle-cached-feed-search')),
+        );
         await tester.pumpAndSettle();
         final sort = find.byKey(const ValueKey('cached-feed-sort'));
-        final selector = tester.widget<BookmarkOptionSelector<CachedTopicFeedSort>>(sort);
-        final descending = selector.optionLabel(CachedTopicFeedSort.scoreDescending);
+        final selector = tester
+            .widget<BookmarkOptionSelector<CachedTopicFeedSort>>(sort);
+        final descending = selector.optionLabel(
+          CachedTopicFeedSort.scoreDescending,
+        );
         await tester.ensureVisible(sort);
         await tester.tap(sort);
         await tester.pumpAndSettle();
@@ -79,8 +89,7 @@ void main() {
         final sorted = tester.widget<PostGrid<Post>>(grid).controller;
         expect(sorted.items.map((post) => post.id), [2, 1, 3]);
         expect(find.text('Load older posts'), findsNothing);
-        await sorted.fetchMore();
-        await drain(tester);
+        await _fetchMore(tester, sorted);
         expect(historyRequests, isEmpty);
         expect(sorted.items.map((post) => post.id), [2, 1, 3]);
         expect(
@@ -89,7 +98,9 @@ void main() {
           reason: 'Local sorting must not rewrite the stored snapshot order.',
         );
 
-        await tester.tap(find.byKey(const ValueKey('toggle-cached-feed-search')));
+        await tester.tap(
+          find.byKey(const ValueKey('toggle-cached-feed-search')),
+        );
         await tester.pumpAndSettle();
         await drain(tester);
         expect(sort, findsNothing);
@@ -97,8 +108,7 @@ void main() {
         expect(restored.items.map((post) => post.id), [1, 2, 3]);
         expect(restored.hasMore, isTrue);
         expect(historyRequests, isEmpty);
-        await restored.fetchMore();
-        await drain(tester);
+        await _fetchMore(tester, restored);
         expect(historyRequests, [1]);
         expect(tester.takeException(), isNull);
       },
@@ -106,35 +116,56 @@ void main() {
   }
 }
 
-StoredPostSnapshot _snapshot(int id, int score) => const StoredPostCodec().encode(
-  Post(
-    origin: PostOrigin.fromSource(
-      booruType: BooruType.danbooru,
-      booruId: BooruType.danbooru.id,
-      source: testProfile.url,
-    ),
-    core: PostCoreData(
-      id: id,
-      createdAt: checkedAt.subtract(Duration(days: id)),
-      thumbnailImageUrl: '',
-      sampleImageUrl: '',
-      originalImageUrl: '',
-      tags: const {'cat'},
-      rating: Rating.general,
-      hasComment: false,
-      isTranslated: false,
-      hasParentOrChildren: false,
-      source: PostSource.none(),
-      score: score,
-      duration: 0,
-      fileSize: 0,
-      format: 'jpg',
-      height: 100,
-      md5: '',
-      videoThumbnailUrl: '',
-      videoUrl: '',
-      width: 100,
-    ),
-    booruData: const LegacyPostData(typeKey: 'test', custom: {}),
-  ),
-);
+StoredPostSnapshot _snapshot(int id, int score) =>
+    const StoredPostCodec().encode(
+      Post(
+        origin: PostOrigin.fromSource(
+          booruType: BooruType.danbooru,
+          booruId: BooruType.danbooru.id,
+          source: testProfile.url,
+        ),
+        core: PostCoreData(
+          id: id,
+          createdAt: checkedAt.subtract(Duration(days: id)),
+          thumbnailImageUrl: '',
+          sampleImageUrl: '',
+          originalImageUrl: '',
+          tags: const {'cat'},
+          rating: Rating.general,
+          hasComment: false,
+          isTranslated: false,
+          hasParentOrChildren: false,
+          source: PostSource.none(),
+          score: score,
+          duration: 0,
+          fileSize: 0,
+          format: 'jpg',
+          height: 100,
+          md5: '',
+          videoThumbnailUrl: '',
+          videoUrl: '',
+          width: 100,
+        ),
+        booruData: const LegacyPostData(typeKey: 'test', custom: {}),
+      ),
+    );
+
+Future<void> _fetchMore(
+  WidgetTester tester,
+  PostGridController<Post> controller,
+) async {
+  var completed = false;
+  final pending = controller.fetchMore().then<void>((_) {
+    completed = true;
+  });
+  // fetchMore owns a debounce timer; advance its controlled clock before
+  // waiting for the completion signal rather than blocking the widget zone.
+  await tester.pump(controller.debounceDuration);
+  await drain(tester);
+  expect(
+    completed,
+    isTrue,
+    reason: 'The in-memory pagination request must complete.',
+  );
+  await pending;
+}

@@ -20,19 +20,25 @@ class BookmarkSortButton extends ConsumerWidget {
     final shuffleProvider = ref.watch(bookmarkShuffleProvider.notifier);
 
     String label(BookmarkSortType value) => switch (value) {
-      BookmarkSortType.newestUpload || BookmarkSortType.newest =>
-        context.t.explore.newest,
-      BookmarkSortType.oldestUpload || BookmarkSortType.oldest =>
-        context.t.explore.oldest,
+      BookmarkSortType.newestUpload ||
+      BookmarkSortType.newest => context.t.explore.newest,
+      BookmarkSortType.oldestUpload ||
+      BookmarkSortType.oldest => context.t.explore.oldest,
       BookmarkSortType.random => context.t.explore.random,
-      BookmarkSortType.scoreDescending => searchOptionChoiceLabel(context, const SearchOptionChoice('score:desc', 'score:desc')),
-      BookmarkSortType.scoreAscending => searchOptionChoiceLabel(context, const SearchOptionChoice('score:asc', 'score:asc')),
+      BookmarkSortType.scoreDescending => searchOptionChoiceLabel(
+        context,
+        const SearchOptionChoice('score:desc', 'score:desc'),
+      ),
+      BookmarkSortType.scoreAscending => searchOptionChoiceLabel(
+        context,
+        const SearchOptionChoice('score:asc', 'score:asc'),
+      ),
     };
     IconData icon(BookmarkSortType value) => switch (value) {
-      BookmarkSortType.newestUpload || BookmarkSortType.oldestUpload =>
-        Icons.file_upload_outlined,
-      BookmarkSortType.newest || BookmarkSortType.oldest =>
-        Icons.bookmark_border,
+      BookmarkSortType.newestUpload ||
+      BookmarkSortType.oldestUpload => Icons.file_upload_outlined,
+      BookmarkSortType.newest ||
+      BookmarkSortType.oldest => Icons.bookmark_border,
       BookmarkSortType.random => Icons.shuffle,
       BookmarkSortType.scoreDescending => Icons.arrow_downward,
       BookmarkSortType.scoreAscending => Icons.arrow_upward,
@@ -40,10 +46,11 @@ class BookmarkSortButton extends ConsumerWidget {
     String semanticLabel(BookmarkSortType value) => switch (value) {
       BookmarkSortType.newestUpload || BookmarkSortType.oldestUpload =>
         '${context.t.post.detail.upload_date}: ${label(value)}',
-      BookmarkSortType.newest || BookmarkSortType.oldest =>
-        '${context.t.bookmark.title}: ${label(value)}',
+      BookmarkSortType.newest ||
+      BookmarkSortType.oldest => '${context.t.bookmark.title}: ${label(value)}',
       BookmarkSortType.random => context.t.explore.random,
-      BookmarkSortType.scoreAscending || BookmarkSortType.scoreDescending => label(value),
+      BookmarkSortType.scoreAscending ||
+      BookmarkSortType.scoreDescending => label(value),
     };
     final selected = ref.watch(selectedBookmarkSortTypeProvider);
 
