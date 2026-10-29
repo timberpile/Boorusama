@@ -96,3 +96,7 @@
 ## 2026-10-29 — cycle 5 T002 (#114)
 
 - Challenged mixed-profile numeric-ID blacklist counting; found mixed Bookmarks uses RawPostScope with no blacklist tags, so did not assign speculative bug. Revalidated F0007 via raw persisted global tags and normalization on dynamic updates. Search duplicate toolbar/header is deferred #115 integration UX check, not confirmed bug. No runtime tests.
+
+## 2026-10-29 — cycle 5 T003 (#116)
+
+- Reviewed all compact/noncompact/busy/following/modified state semantics and active-operation guards, border badge clip behavior and test assumptions. No new introduced defect; Android hit-region/visual acceptance not performed.
