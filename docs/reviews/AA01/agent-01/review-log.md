@@ -220,3 +220,11 @@
 ## 2026-10-29 — cycle 10 T005 (#118)
 
 - Traced artist-card media via common Pixiv authenticated Dio and distinguished #118's HTTPS pximg host allowlist from the generic arbitrary-media URL risk F0010. F0002/F0003/F0011 remain independent. New tests lack header+blur/mute integration. No new issue or executed check.
+
+## 2026-10-29 — cycle 10 T003 (#116)
+
+- Rechecked new padded-edge and state-height tests against existing real SearchPageScaffold 240/320dp 2x tests and unchanged async Follow write path. No newly introduced defect, no executable device/test evidence.
+
+## 2026-10-29 — cycle 10 checkpoint
+
+- All five pinned branches have ten substantive static passes. Eleven canonical findings remain unchanged. The active-review minimum remains unverified, independent of cycles and elapsed wall time. No application writes/tests, merges, PRs or issue changes.
