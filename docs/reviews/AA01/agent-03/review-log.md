@@ -30,3 +30,8 @@
 
 - Reviewed 10/10 changed files, auth/client/parser/consumer paths at `e2929259b7725c484d11483d6ea48270079eb2f4`, and develop grid controller. Documented canonical interaction finding AA01-A03-F0001 with #113; no tests executed. Active-time measurement remains unverified.
 - Next: T005 Pixiv Following Artists and then cycle-1 gap followups.
+
+## T004 supplemental source pass — 2026-10-29T17:46:59.292Z
+
+- Traced auth-stable `BooruConfig` updates across full-record family keys, Riverpod autoDispose, and `PostScope`'s immutable fetcher. Recorded static-confirmed high-severity defect AA01-A03-F0002 in the same target. No runtime tests; active time unverified.
+- Next: finish T005 source inspection before final handoff.
