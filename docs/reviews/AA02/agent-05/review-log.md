@@ -17,3 +17,9 @@ Next: verify any stale/merged targets; conduct source-pinned code review of targ
 - Observed: stable value keys on the outer `CheckboxRangeItem` preserve destination identity when visible entries change; normal toggle preserves element identity and pending set is retained by dialog state. No actionable defect established in inspected source.
 - Static scope complete for this narrow change; runtime verification not performed here. Next: review T005 #98 and update checkpoints after its pass.
 - Active review duration still unverified; no hours inferred from timestamps.
+
+## Cycle 1 / T005 — 2026-10-29T22:42:57.943Z
+
+- Read #98 and comment; retrieved complete merge-base diff (2 source/test files plus handoff), then inspected full search scaffold, search controller states, overlay layers and displacement/animation, with 320px, 1x/2x and keyboard-inset widget regression.
+- Observed a full-size opaque `Positioned.fill` editor backdrop when state is options/suggestions; current results are excluded from semantics/focus and editor overlay is stacked above results. Options no longer keep a scrolled search bar hidden. No actionable defect independently established.
+- Static pass complete for narrow delta, runtime/device visualization not performed. Next T007 #113. Active review hours remain unverified.
