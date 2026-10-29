@@ -70,3 +70,7 @@
 ## Cycle 1 — T012 complete (2026-10-29T22:59:43.715Z)
 
 - Inspected #99, helper, both panel/desktop integration paths and unit/widget tests. No substantiated finding; live engine alias response and IME behavior unverified. Next T013 `feature/104-expanded-details-swipe`; duration unverified.
+
+## Cycle 1 — T013 complete (2026-10-29T23:00:39.643Z)
+
+- Reviewed #104 prototype, expanded-sheet swipe physics/collapse and changed gesture/mixed-viewer tests. No independently proven defect. Physical UX and nested gesture arbitration pending. Next T014 `feature/107-local-post-sorting`; duration unverified.
