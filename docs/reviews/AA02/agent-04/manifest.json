@@ -1,0 +1,21 @@
+{
+  "protocol_version": 2,
+  "role": "audit",
+  "repository": "timberpile/Boorusama",
+  "batch_id": "AA02",
+  "agent_id": "04",
+  "configuration": {
+    "min_review_hours": 5,
+    "review_branches": "all"
+  },
+  "report_branch": "review/AA02/agent-04",
+  "report_root": "docs/reviews/AA02/agent-04",
+  "initial_develop_sha": "84df0c2de6cf8fe0177c49babb3fb0eee880f866",
+  "discovered_at": "2026-10-29T22:39:57.065Z",
+  "instruction_files": {
+    "AGENTS.md": "5978c24fe6028cea4989bd6ef9cdf75cfe166fe9",
+    "docs/development_workflow.md": "2be28d98aa17a479371b84985e537a64786e201e",
+    ".agents/skills/verify-change/SKILL.md": "444cde16819b8b53e2bcb18c5b34bcda5202fa19"
+  },
+  "finding_next_number": 1
+}
