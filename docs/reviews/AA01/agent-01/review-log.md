@@ -80,3 +80,7 @@
 ## 2026-10-29 — cycle 4 T003 (#116)
 
 - Examined full 55%-limited search action region, nested Flexible, compact text truncation and async Follow ownership. No new introduced source issue found; real widget/device checks not executed. Active duration unverified.
+
+## 2026-10-29 — cycle 4 T004 (#117)
+
+- Traced in-flight page2 vs pull-to-refresh page1 through PixivFavoritesSession cancellation and PostGridController shared _page/error rollback. Cross-branch risk F0008: stale RequestCancelledError can decrement refreshed page1 to page0 and show stale error. Inherited generic race, now more likely with explicit cancellation; runtime interleaving untested.
