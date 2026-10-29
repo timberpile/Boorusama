@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 T001–T009 static reviews completed at pinned heads (T003–T008 no actionable finding); **14** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
+- Cycle 1 T001–T010 static reviews completed at pinned heads (T003–T008 and T010 no actionable finding); **13** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
 - Findings: 3 defects (all medium and open; F0001/F0002 static-confirmed, F0003 high-confidence with product-policy uncertainty), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002), [AA02-A04-F0003](branches/T009.md#finding-aa02-a04-f0003).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: T010 feature/91-branded-search-link-share (#91); recheck source head and all changed files, then make one report commit. F0003 requires a same-host dual-account scenario and source-identity policy clarification.
+- Next checkpoint: T011 feature/95-artist-links (#95), inspect each supported engine and profile URL/source handling, changed UI/tests, then commit. F0003 still requires same-host dual-account verification and product-policy clarification.
