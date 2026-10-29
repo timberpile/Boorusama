@@ -20,3 +20,7 @@
 ## 2026-10-29 — cycle 1 T003 (#116)
 
 - Pinned `5ac3ad9bc5f852f000012499c19468151c73734b` vs common base; inspected all 3 changed files, real Search header, Follow flow, modification badge and target semantics. No confirmed new code defect. Integrated Search-row and Android tests unexecuted; active time unverified.
+
+## 2026-10-29 — cycle 1 T004 (#117)
+
+- Pinned `e2929259b7725c484d11483d6ea48270079eb2f4`; inspected 10 changed files and shared Favorites, Pixiv DTO/auth/origin and Grid. Confirmed inherited cross-branch finding AA01-A01-F0001. No additional proven new Pixiv defect. Live Pixiv/Flutter tests not executed; active duration unverified.
