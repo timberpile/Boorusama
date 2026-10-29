@@ -12,3 +12,7 @@ Executed:
 No Android/live update manifest check was performed on this branch. Remaining: a GitHub-distributed device build with an actual newer release, profile-menu/search interaction and platform visual acceptance. #110 and #111 remain independent related changes; no branches were combined. The final combined candidate requires complete regression before integration. No merge, PR, issue closure or branch deletion occurred.
 
 Logs: /tmp/boorusama-review-2026-10-29/109-{format,analysis,tests}.log.
+
+## Accepted integration — 2026-10-29
+
+The user accepted the branch at `2d2d6b31012681ddc3fad02e49d6815092ec010b` and authorized merging. This supersedes the earlier pending-acceptance/no-authorization statements. Its complete patch is integrated by `06cb49da5`. The final combined runtime/test candidate `8b995548de04f1609b88045534ba87c13a9f483a` passed all **5,546 application tests, 1,608 package/CLI tests, both shell suites and 72 Python tests**, with two existing upstream router skips. Focused updater/header checks passed 53 tests; four-file formatting passed; affected analysis had no errors/warnings and three test-only infos. See [combined update integration evidence](approved-update-fixes-integration-2026-10-29.md) for exact commands, source state, diagnostics and device limits. The containing documentation commit records this accepted final state. Publication verification, issue closure and expected-tip cleanup follow under the user's approval. #111 remains separate and unapproved.
