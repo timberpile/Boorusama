@@ -4,7 +4,7 @@ Repository timberpile/Boorusama; report branch review/AA01/agent-02. Five exact 
 
 **Cycle 1 static coverage:** complete at pinned heads for T001 #113 (standalone 0 findings), T002 #114 (F0001), T003 #116 (standalone 0 findings), T004 #117 (F0002, F0003 and cross F0005/F0007), T005 #118 (F0004, F0006 and cross F0005/F0007). All substantive changed files and relevant source paths reviewed. No runtime claim.
 
-## Canonical findings (7, all open)
+## Canonical findings (8, all open)
 
 - [AA01-A02-F0001](branches/T002.md#aa01-a02-f0001--no-controller-linked-blacklist-popup-test) — medium coverage gap, high-confidence (#114).
 - [AA01-A02-F0002](cross-branch-findings.md#aa01-a02-f0002--pixiv-bookmark-continuation-lost-without-113-grid-fix) — medium static-confirmed defect (#117 and #113 integration).
@@ -12,18 +12,19 @@ Repository timberpile/Boorusama; report branch review/AA01/agent-02. Five exact 
 - [AA01-A02-F0004](branches/T005.md#aa01-a02-f0004--artist-previews-bypass-explicit-media-blur-and-conservative-rating-handling) — high static-confirmed defect (#118).
 - [AA01-A02-F0005](cross-branch-findings.md#aa01-a02-f0005--pixiv-media-client-can-attach-api-bearer-to-cdn-requests) — high high-confidence pre-existing security risk, affecting #117/#118 media paths.
 - [AA01-A02-F0006](branches/T005.md#aa01-a02-f0006--missing-widget-level-following-artists-navigation-and-account-tests) — medium coverage gap, high-confidence (#118).
+- [AA01-A02-F0008](branches/T001.md#aa01-a02-f0008--refresh-races-with-scheduled-or-in-flight-load-more) — medium static-confirmed inherited shared-grid refresh/load-more race (#113, potentially relevant to #117).
 - [AA01-A02-F0007](cross-branch-findings.md#aa01-a02-f0007--independent-pixiv-client-edits-need-deliberate-combined-integration) — medium high-confidence integration risk (#117/#118).
 
-**Counts, canonical once:** defect 2, risk 2, coverage-gap 3, improvement 0. High 2, medium 5, critical/low 0. Static-confirmed 2, high-confidence 5, suspected 0. Open 7, resolved/withdrawn/superseded 0.
+**Counts, canonical once:** defect 3, risk 2, coverage-gap 3, improvement 0. High 2, medium 6, critical/low 0. Static-confirmed 3, high-confidence 5, suspected 0. Open 8, resolved/withdrawn/superseded 0.
 
 ## Priorities for local remediation and acceptance
 
 - First fix #118's explicit-content preview bypass (F0004); review inherited Pixiv bearer-on-media risk (F0005) and assert HTTP headers with a fake/intercepting adapter without exposing secrets.
-- Integrate #113 grid continuation before #117 can use filtered cursor pages correctly (F0002). Validate initial/intermediate empty filtered pages, last page, retries.
+- Fix/verify the pre-existing refresh versus Load More race (F0008) while completing #113, so paging indexes cannot skip or mix query results. Integrate #113 grid continuation before #117 can use filtered cursor pages correctly (F0002). Validate initial/intermediate empty filtered pages, last page, retries.
 - Resolve independent #117/#118 PixivClient changes with both part declarations, shared request cancellation/redirect arguments and both navigation capabilities (F0007).
 - Add controller-linked #114 popup widget tests; #117 Favorites shared route/profile/visibility and viewer tests; #118 source-profile Search navigation, account/private filter race and content preview tests. Run FVM scoped + package client suites and full pre-integration regression.
 - Verify #116 compact tap target/accessibility, #114 floating/scroll/pin and Pixiv authenticated API public/private/continuation/token recovery on 320dp/large text Android via Maestro and manual device review.
 
 ## Completion gates and restrictions
 
-All 5/5 initial static branch passes complete. Source is pinned; late branch movement must be checked. **Assigned minimum 1 hour of genuinely measured active work remains unverified, hence not claimed complete.** No live Pixiv calls, FVM/Dart analyzer/test/build, worktrees, emulator or device execution was available. No application source or task metadata changed; this audit only published documentation on its assigned branch. Follow-up agent must run local verification and final full regression before review-ready status. Review files are evidence, not an issue tracker.
+All 5/5 initial static branch passes complete; cycle 2 T001 complete at its pinned revision. Source is pinned; late branch movement must be checked. **Assigned minimum 1 hour of genuinely measured active work remains unverified, hence not claimed complete.** No live Pixiv calls, FVM/Dart analyzer/test/build, worktrees, emulator or device execution was available. No application source or task metadata changed; this audit only published documentation on its assigned branch. Follow-up agent must run local verification and final full regression before review-ready status. Review files are evidence, not an issue tracker.
