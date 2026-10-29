@@ -216,3 +216,7 @@
 ## 2026-10-29 — cycle 10 T002 (#114)
 
 - Verified new toolbar tests mount static popup Text rather than real BlacklistControls. Neither F0007 dynamic uppercase/filter mismatch nor F0009 page3-after-shrink can be disproved by these tests; designed exact source-backed widget scenarios. No test execution or new finding.
+
+## 2026-10-29 — cycle 10 T005 (#118)
+
+- Traced artist-card media via common Pixiv authenticated Dio and distinguished #118's HTTPS pximg host allowlist from the generic arbitrary-media URL risk F0010. F0002/F0003/F0011 remain independent. New tests lack header+blur/mute integration. No new issue or executed check.
