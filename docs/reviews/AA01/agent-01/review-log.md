@@ -176,3 +176,7 @@
 ## 2026-10-29 — cycle 8 T004 (#117)
 
 - Followed shared navigation source and Pixiv image URL transport from DTO through authenticated Dio (F0010); no new navigation bug. Revalidated F0001/F0008. No authenticated traffic/tests or active-duration proof.
+
+## 2026-10-29 — cycle 8 T005 (#118)
+
+- Distinguished response wrapper artist-level is_muted from artwork-level isMuted using Pixiv API model docs and Pixiv's own mute guidance. Documented conditional muted-preview F0011, retaining uncertainty about current authenticated payload and directory policy. Revalidated F0002/F0003. All five targets now have eight static passes; no executable tests or duration proof.
