@@ -23,7 +23,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 | T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #112 open | complete |
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #114 open | complete |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #116 open | complete |
-| T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #117 open | pending |
+| T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #117 open | complete |
 | T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #118 open | pending |
 | T022 | `maintenance/independent-issues-handoff-2026-10-25` | `89346f7a2a0e1af187e82fed3c7a10b42813fdec` | `2e5ca00d7bca6881cfddd19125c72d5f80d9593d` | issue association unknown; CI workflow | pending |
 | T023 | `maintenance/issue-branch-publication` | `fdb89b5c03e438e4d909db1821332e78b6f39ae9` | `422aeae087c1108e655d85d1a3dac25120456cd6` | issue association unknown; workflow docs | pending |

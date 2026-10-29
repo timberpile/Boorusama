@@ -100,3 +100,7 @@
 ## Cycle 1 — T019 complete (2026-10-29T23:09:19.251Z)
 
 - Reviewed #116 compact pill size, padded input area and all updated tests. No substantiated defect; device layout pending. Next T020 `feature/117-pixiv-favorites`. Active duration unverified.
+
+## Cycle 1 — T020 complete (2026-10-29T23:10:26.559Z)
+
+- Inspected Pixiv Favorites capability/nav, credentials/session family, sequential cursor, strict same-host next_url parsing, and two changed tests. No new substantiated defect; live Pixiv auth and private content acceptance pending. Next T021 `feature/118-pixiv-following-artists`. Duration unverified.
