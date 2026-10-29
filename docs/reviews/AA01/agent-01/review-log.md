@@ -164,3 +164,7 @@
 ## 2026-10-29 — cycle 8 T004 security boundary
 
 - Followed Pixiv image DTO URL through Pixiv Posts, Grid, BooruImage, dioForWidgetProvider, PixivRepository.dio and PixivAuthInterceptor. New F0010: the common Pixiv authenticated Dio can attach a short-lived API Bearer to unchecked absolute image URLs. Existing/conditional trust-boundary risk, not a new Pixiv client endpoint defect. No live exfiltration claim or runtime test.
+
+## 2026-10-29 — cycle 8 T002 (#114)
+
+- Confirmed overlay's UncontrolledProviderScope reuses the parent Riverpod container, making the existing shared BlacklistControls page index persist across popups and source/profile changes (F0009). F0007 remains distinct. No widget test executed.
