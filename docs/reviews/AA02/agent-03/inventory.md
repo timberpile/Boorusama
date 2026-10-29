@@ -16,7 +16,7 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | #91 | Complete static passes 1+2; 0 findings |
 | T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | #95 | Complete static passes 1+2; F0001 low error-path defect |
 | T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | #99 | Complete static passes 1+2; 0 independent findings |
-| T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | #104 | Complete static pass 1; 0 actionable findings |
+| T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | #104 | Complete static passes 1+2; 0 actionable findings |
 | T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | #107 | Complete static pass 1; cross-branch F0002 |
 | T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | #108 | Complete static pass 1; 0 findings |
 | T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | #111 | Excluded cycle 1: merged/deleted during audit |

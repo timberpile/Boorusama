@@ -210,3 +210,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - Pinned head `98d4b0ae68dded641475a0662318c56f65b625f7` (issue #99), unchanged on last branch refresh. Rechecked selected-term canonicalization and alias relationship closure including cycles, candidate response order, negated/fuzzy tags, option/metatag/raw exceptions and current-batch-only alias graph. No stale global cache is introduced by this helper. UI draft/IME and desktop profile switch remain unexecuted. No new actionable finding.
 - Static second pass; no device/build/tests executed. Next T013.
+
+## Cycle 2 — T013 completed 2026-10-29T23:27:08.150Z
+
+- Pinned head `0b7bbb2c9630292eda16bcb769b8ac057199452e` (issue #104), unchanged on last branch refresh. Adversarially followed PageView horizontal gesture eligibility under expanded sheet, sheet animation, zoom, multiple pointer tracking and page-change reset. Reset collapses sheet and clears displaced scrolling only on a successful page switch. Existing hover/vertical/large-screen restrictions remain. No static regression demonstrated; tactile sheet-versus-media gesture arbitration is still a mandated human/device check.
+- Static second pass; no device/build/tests executed. Next T014.
