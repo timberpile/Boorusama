@@ -1,7 +1,7 @@
 # Independent audit AA01 / agent 01
 
-Scope: five exact task branches, GitHub-only source review with no code writes, local tests or device access. This report branch is the sole authorized publication target. Do not read other audit agents' reports.
+**Current status:** five complete static cycles of five target branches, with 8 canonical findings. **The 1-hour active review requirement is not verified**, so this is a resumable checkpoint, not final completion. All GitHub reports are source-pinned and no application code/tests were modified or executed.
 
-Navigation: [inventory](inventory.md), [branch findings](branches/), [cross-branch findings](cross-branch-findings.md), [review log](review-log.md), and [resumable handoff](final-handoff.md).
+Read the [self-contained handoff](final-handoff.md), [inventory](inventory.md), [review-log](review-log.md), [cross-branch findings](cross-branch-findings.md), and [branch reports](branches/). Never treat this archive as an issue tracker: GitHub Issues are the task source of truth.
 
-**Current status:** active checkpoint, not completion. One-hour minimum active-review requirement and exhaustive cycle coverage are not yet verified. Original chat's prior source inspection is treated as preliminary until checked against pinned source. The current assignment uses the five exact listed branch names, normalized from the multiline user-supplied list; IDs AA01/01 are taken from that provided configuration after confirming that the target report branch was absent.
+Configuration: `MIN_REVIEW_HOURS=1`, `REVIEW_BRANCHES` exactly as listed in the [manifest](manifest.json), `develop` base `422aeae087c1108e655d85d1a3dac25120456cd6`. Independent audit agents' reports were not consulted.
