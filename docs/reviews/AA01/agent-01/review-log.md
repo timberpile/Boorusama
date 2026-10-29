@@ -240,3 +240,7 @@
 ## 2026-10-29 — cycle 11 T005 (#118)
 
 - Confirmed existing Pixiv parser test xRestrict=0,sanityLevel=6 => explicit, whereas following preview helper admits it as safe at account limit 0 (F0003). Card still lacks blur (F0002); artist-level mute is discarded (F0011). No extra finding or runtime execution.
+
+## 2026-10-29 — cycle 11 T004 (#117)
+
+- Tabulated Pixiv session state transitions, latest-page cache, terminal suppression, failed page-2 retry and cancellation/profile key. No new session-origin leak; F0008 remains generic Grid stale-completion hazard, F0001 requires #113. Missing view/auth runtime tests; duration unverified.
