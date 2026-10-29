@@ -47,3 +47,8 @@
 - Traced both concrete consumers `DanbooruInfinitePostIdList` and `_SzurubooruPoolPostList`, their TaskEither error adapters, and the independent Szurubooru pool-list widget. Reviewed error sliver, Load More button and next-page increment.
 - Recorded AA01-A03-F0005 (medium static-confirmed): initial request failure sets `_hasMore=true` and permits page 2 before page 1 is retried, a regression relative to develop. Changed-file and relevant caller static coverage now complete (6/6); local execution still not performed. Active time unverified.
 - Next: adversarial cross-branch checks and final remote/source observations.
+
+## T002 cycle 2 — 2026-10-29T17:55:00.000Z
+
+- Rechecked popup container/overlay lifecycle, async controller/listener updates, fixed trailing layout and accessibility actions against changed file and widget test source; checked JSON/profile backup semantics. No additional finding; actual Flutter/widget tests still not run. Activity duration unverified.
+- Next: T003 second-pass touch/accessibility audit.
