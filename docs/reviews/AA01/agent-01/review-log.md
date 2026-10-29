@@ -48,3 +48,7 @@
 ## 2026-10-29 — cycle 2 T005 (#118)
 
 - Rechecked notifier cancellation/deduplication, fixed authenticated endpoint, source-profile search and exact #117/#118 overlapping files. F0002 direct explicit-image blur bypass and F0003 nullable explicitness risk remain open. No runtime tests; active time unverified.
+
+## 2026-10-29 — cycle 3 T001 (#113)
+
+- Audited application pagination_flow_test and its shared FakeBooruBackend/testPostResult fixture. Identified that default maxPage=1 and page-local total also invalidate full application multi-page tests under #113. Expanded existing F0004 (same root cause), not duplicated as a new finding. Target check runs/status contexts absent. No test execution.
