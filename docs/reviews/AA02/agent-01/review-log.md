@@ -140,3 +140,8 @@ Re-read the changed keyed CheckboxRangeItem home/folder rows in follow_topic_fol
 
 Re-read raw_search_page_scaffold.dart Stack order, keyboard-dismiss behavior and SearchState transitions at the pinned head, including the ValueListenableBuilder Positioned.fill ColoredBox between result layer and options/suggestions/bar. It is invisible in initial state, blocks the result surface when editor is active, and leaves the editor panels and search field above it. Compared #99's selected-tag filtering path: it modifies suggestion content without replacing this overlay; no substantive overlapping source file. The state listener also ExcludeSemantics/ExcludeFocus on covered result content, though actual IME and focus timing remain unverified. No newly confirmed defect.
 - Next: T006; verified active duration unavailable.
+
+## Cycle 2 — T006 (2026-10-29T23:18:46.706Z)
+
+Rechecked navigation_overlay_insets.dart with NavigationSelectionBridge and the root bookmark feedback anchor. The bottom margin animation publishes after layout with a mounted check; the notifier is disposed with its root scope. The selection bridge attaches/removes both selection-controller and measured-obstruction listeners across didUpdateWidget and dispose, and posts a last false selection to the chrome notifier only when it had owned selection. Cross-checked #114 timeline toolbar (header, not bottom obstruction) and #112 configurable Viewer toolbar (not the measured bottom preview): neither changes the obstruction ownership introduced by #106. A toast surviving root navigation disposal is a possible lifecycle scenario for device tests, not a statically demonstrated crash. No new finding.
+- Next T007; active review duration unverified.
