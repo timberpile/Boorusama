@@ -7,7 +7,7 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T001 | `bug/53-realbooru-prefetch-refresh` | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | #53 | Excluded: issue closed, published/superseded |
 | T002 | `bug/76-realbooru-original-metadata` | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | #76 | Excluded: issue closed, published/superseded |
 | T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | #92 | Complete static passes 1+2; no actionable finding |
-| T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | Complete static pass 1; no actionable finding |
+| T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | Complete static passes 1+2; no actionable finding |
 | T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | #98 | Complete static pass 1; no actionable finding |
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | Complete static pass 1; no actionable finding |
 | T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | Complete static pass 1; source-total risk noted |
