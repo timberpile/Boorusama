@@ -138,3 +138,7 @@
 ## Cycle 2 — T008 (#106), 2026-10-29T23:21:22.599Z
 
 - Adversarial reread of `NavigationOverlayInsetsScope` frame-coalesced live notifier, keyboard/selection/viewer obstruction precedence, owner-aware chrome selection teardown, ScrollBoundary notification activity, Kurumi action-toast disposal/action latching and OKToast host separation. No source-confirmed new failure. Native keyboard+selection actual layout is still an explicit unexecuted Android scenario, not a static guarantee. Unchanged pinned head `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8`. Static cycle-2 pass completed.
+
+## Cycle 2 — T014 (#114), 2026-10-29T23:23:15.139Z
+
+- Traced new floating/pinned header/count and controller's `Map<String, Set<int>>` blacklist through full mixed-source Following Topics Feed (originAndId duplicate mode); compared common controller to pinned merge-base. New canonical cross-branch **AA02-A02-F0004**, medium static-confirmed, *pre-existing*, contributes incorrect filtering and newly visible hidden-count misreport; cross-link T009, no duplicate finding. No dynamic tests. T014 cycle-2 scoped pass complete at unchanged pinned head `5bb52794468b172b7d6878fb825b42b00d654675`.

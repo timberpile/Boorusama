@@ -8,7 +8,8 @@ Assignment: all active implementation branches, 5 h minimum *verified active* re
 - First identified risk: [AA02-A02-F0001](branches/T012.md#aa02-a02-f0001--more-menu-closes-on-benign-action-list-rebuilds), viewer More menu closes on benign provider rebuilds.
 - New defect: [AA02-A02-F0002](branches/T018.md#aa02-a02-f0002--series-metadata-is-never-fetched-beyond-the-first-40-bookmarked-posts), #68 Series grouping stops at the first 40 bookmarked Posts.
 - Additional risk: [AA02-A02-F0003](branches/T018.md#aa02-a02-f0003--same-site-second-profile-silently-reuses-the-first-profiles-pool-bookmark), same-host multi-account Pool binding ambiguity.
+- New confirmed pre-existing cross-branch defect: [AA02-A02-F0004](cross-branch-findings.md#aa02-a02-f0004--mixed-origin-postgrid-blacklist-conflates-equal-numeric-post-ids), mixed-source blacklist ID collisions.
 - [Progress](review-log.md), [cross-branch findings](cross-branch-findings.md), [handoff](final-handoff.md).
 - No implementation code, issues, PRs, CI, or protected branches are modified. No Flutter/Dart builds, tests, analyzer, emulator, or device verification is available in this remote review.
 
-Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; T016 and T017 completed in cycle 2, T009 and T013 complete; T008 complete; next T014 timeline toolbar and T007 viewer gestures, then remaining active branches, then remaining active targets.
+Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; T016 and T017 completed in cycle 2, T009 and T013 complete; T008 complete; T014 complete; next T007 viewer gestures and T010 selection actions, then remaining active branches, then remaining active targets.
