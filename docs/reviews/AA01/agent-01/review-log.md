@@ -140,3 +140,7 @@
 ## 2026-10-29 — cycle 7 T002 (#114)
 
 - Revisited BlacklistControls source: the shared _currentPageProvider persists independently of the current header's tag list; if >30 matching tags shrink after navigating to a later page, the page is not clamped during build and the popup can render no chips even while matching rules remain. This is a pre-existing component behavior now directly reused in the new anchored timeline popup. Record as a new, source-confirmed inherited interaction finding for #114.
+
+## 2026-10-29 — cycle 7 T003 (#116)
+
+- Checked real Search result-header layout and 55%-width action against compact Follow styling and state semantics; no new proven defect; no tests/device; duration unverified.
