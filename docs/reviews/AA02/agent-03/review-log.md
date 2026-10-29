@@ -175,3 +175,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - bug/98-search-overlay-surface at unchanged pinned head `89e064d4f86b0acad62c11c96e6a085fe522ccc7` (#98). Reexamined editor background placement between result list and controls, Positioned.fill paint/hit testing, initial-versus-editing states, SafeArea/keyboard and top-versus-bottom bar z-order. No concrete uncovered path was proven statically; transient native IME/editor animation frames need device acceptance.
 - Static adversarial revisit only. No FVM Flutter tests, runtime, OS device or emulator. Next: T006.
+
+## Cycle 2 — T006 completed 2026-10-29T23:24:44.410Z
+
+- bug/106-live-undo-toast-insets at unchanged pinned head `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` (#106). Rechecked cross-overlay ValueListenable ownership, post-frame coalesced bottom-padding publication and mounted/disposal guard, action-toast callback dismiss-once behavior, navigation/selection/viewer obstruction owner disposal and asynchronous bookmark failure feedback. A disposed notifier's lack of further updates can only matter after root route/overlay teardown; no independently demonstrated dangling interaction. Native IME relocation is still a device-only check.
+- Static adversarial revisit only. No executed local tests, runs, emulators or devices. Next: T007.
