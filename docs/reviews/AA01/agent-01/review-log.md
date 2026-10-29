@@ -208,3 +208,7 @@
 ## 2026-10-29 — cycle 10 T004 (#117)
 
 - Examined PixivAuthInterceptor's host-blind authorization and retry plus existing auth tests, which cover only same-host API GETs; no foreign absolute URL denial test. F0010 strengthened, no separate log disclosure proven. No runtime execution or measured duration.
+
+## 2026-10-29 — cycle 10 T001 (#113)
+
+- Read 16 engine providers and classified metadata semantics: explicit hasMore (Hybooru/Pixiv), actual maxPage (Anime Pictures), hard depth cap (Gelbooru), global total-only (Hydrus/Nozomi/Philomena/Szurubooru) and raw-list fallbacks. Reinforces separate F0005/F0006, no new canonical finding; tests unexecuted.
