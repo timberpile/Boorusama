@@ -87,3 +87,8 @@
 
 - Head `e2929259b7725c484d11483d6ea48270079eb2f4`; 10 changed paths inventoried, Pixiv auth, cursor requests, private/public scope, post origin and tests analyzed. No independently confirmed source issue; real API contract/device remain verification gates.
 - Measured active hours unverified, no tests executed; next T017.
+
+## Cycle 1 — T017 (#118), 2026-10-29T23:02:24.860Z
+
+- Pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a`; 14 paths accounted, reviewed Pixiv continuation, per-account provider lifecycle, artist previews/navigation and tests. No defect confirmed; #117 overlap is unverified integration note, not a conflict finding.
+- Active-duration condition unverified; no runtime tests. Next T018.
