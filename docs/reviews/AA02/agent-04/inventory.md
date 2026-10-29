@@ -19,7 +19,7 @@ Discovery: 2026-10-29T22:39:57.065Z UTC; `develop` 84df0c2de6cf8fe0177c49babb3fb
 | T013 | `feature/104-expanded-details-swipe` | #104 | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding; device UX gate |
 | T014 | `feature/107-local-post-sorting` | #107 | `7a73544cb79c9f5e3c2337a08140833024a31591` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
 | T015 | `feature/108-selection-action-parity` | #108 | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
-| T016 | `feature/111-android-update-flow` | #111 | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
+| T016 | `feature/111-android-update-flow` | #111 | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; F0004 |
 | T017 | `feature/112-viewer-toolbar-layout` | #112 | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
 | T018 | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
 | T019 | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |

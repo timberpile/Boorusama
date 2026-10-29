@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 T001–T015 static reviews completed at pinned heads (T003–T008 and T010–T015 no actionable finding); **8** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
-- Findings: 3 defects (all medium and open; F0001/F0002 static-confirmed, F0003 high-confidence with product-policy uncertainty), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002), [AA02-A04-F0003](branches/T009.md#finding-aa02-a04-f0003).
+- Cycle 1 T001–T016 static reviews completed at pinned heads (T003–T008 and T010–T015 no actionable finding); **7** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
+- Findings: 4 open defects (three medium: F0001/F0002 static-confirmed and F0003 high-confidence/policy-sensitive; one low: F0004 static-confirmed), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002), [AA02-A04-F0003](branches/T009.md#finding-aa02-a04-f0003), [AA02-A04-F0004](branches/T016.md#finding-aa02-a04-f0004).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: T016 feature/111-android-update-flow (#111), examine lifecycle and download/install safety, Android platform bridge/manifest, UI and tests. F0003 still requires same-host account policy.
+- Next checkpoint: T017 feature/112-viewer-toolbar-layout (#112), inspect responsive width, overflow, input handling and tests. F0003 still requires same-host account policy.

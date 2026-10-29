@@ -100,3 +100,9 @@
 - Reviewed #108's shared single/batch action presentation, adaptive folder dialog, all changed tests and connected profile/bookmark/group selection paths at pinned `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - No additional actionable source defect established. Real layout, keyboard and share device behavior still unverified; no local tests, builds or code changes. Active time unverified.
 - Next T016 #111 Android update flow.
+
+## 2026-10-29T23:17:13.221Z — Cycle 1 T016 completed
+
+- Reviewed #111 update UI, changed tests/translation, verified APK downloader and native installation security path at `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` versus `422aeae087c1108e655d85d1a3dac25120456cd6`.
+- Recorded `AA02-A04-F0004` (low static-confirmed defect): verified APK is dropped while a separate Flutter route covers the still-mounted dialog, causing redownload and abandoned cache file. Normal Android Settings foreground return is unaffected.
+- No code changes, local tests, builds, CI or device; duration still unverified. Next T017 #112 viewer toolbar.
