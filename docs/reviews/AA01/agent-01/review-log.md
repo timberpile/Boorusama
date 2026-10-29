@@ -12,3 +12,7 @@
 ## 2026-10-29 — cycle 1 T001 (#113)
 
 - Pinned `a1bc1d42903861a46e7230349515946bae678357` vs `422aeae087c1108e655d85d1a3dac25120456cd6`; reviewed all 6 changed files and related pool/grid/result/source paths. No newly introduced defect confirmed. Complete static cycle 1 branch pass; cycle 2 pending. No runtime tests. Duration unverified.
+
+## 2026-10-29 — cycle 1 T002 (#114)
+
+- Pinned `5bb52794468b172b7d6878fb825b42b00d654675` vs common base; inspected 13 changed files including four tests, controller/listeners, blacklist controls, settings and menu consumers. No proven newly introduced defect. Real-controller popup and device tests remain unexecuted. Cycle 2 pending; active time unverified.
