@@ -39,8 +39,8 @@ GridThumbnailMedia gelbooruV2ThumbnailOnlyGridThumbnailMedia(
   }
 
   // Realbooru lists only the small JPEG thumbnail, without the original
-  // extension. Try static image formats lazily; never fetch detail HTML or video
-  // files just to improve the grid. A resolved URL avoids guessing altogether.
+  // extension. Race JPEG formats first, then bounded secondary probes; never
+  // fetch detail HTML or video files just to improve the grid.
   const extensions = ['jpg', 'jpeg', 'png', 'webp', 'avif'];
   final sample = Uri.tryParse(post.sampleImageUrl);
   final knownImage =
@@ -62,6 +62,7 @@ GridThumbnailMedia gelbooruV2ThumbnailOnlyGridThumbnailMedia(
   return GridThumbnailMedia(
     url: candidates.first,
     fallbackUrls: candidates.skip(1).toList(),
+    probeImageFormats: !knownImage,
     fallbackUrl: thumbnail,
     aspectRatio: post.effectiveSampleAspectRatio,
     placeholderUrl: thumbnail,

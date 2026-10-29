@@ -2,6 +2,7 @@
 import 'dart:typed_data';
 
 import 'package:cache_manager/cache_manager.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -10,6 +11,7 @@ import 'package:kurumi/material.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../images/booru_image_candidates.dart';
 import '../../../../images/providers.dart';
 import '../../../../configs/network/providers.dart';
 import '../../../../http/client/providers.dart';
@@ -200,6 +202,7 @@ class PostGridItem extends ConsumerWidget {
         aspectRatio: aspectRatio,
         fallbackUrl: resolvedMedia.fallbackUrl,
         fallbackUrls: resolvedMedia.fallbackUrls,
+        probeImageFormats: resolvedMedia.probeImageFormats,
         placeholderUrl: resolvedMedia.placeholderUrl,
         placeholderAspectRatio: resolvedMedia.placeholderAspectRatio,
         placeholderFit: resolvedMedia.placeholderFit,
@@ -326,21 +329,60 @@ class _PostGridImage extends ConsumerWidget {
     final imageListType = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageListType),
     );
-
-    return BooruImage(
+    final borderRadius = BorderRadius.circular(imageBorderRadius);
+    final cover = imageListType == ImageListType.standard;
+    final fit = imageListType == ImageListType.classic ? BoxFit.contain : null;
+    Widget normal(String url, {bool fallback = false}) => BooruImage(
       config: config,
       aspectRatio: media.aspectRatio,
-      imageUrl: media.url,
-      fallbackUrl: media.fallbackUrl,
-      fallbackUrls: media.fallbackUrls,
-      borderRadius: BorderRadius.circular(imageBorderRadius),
-      forceCover: imageListType == ImageListType.standard,
-      fit: imageListType == ImageListType.classic ? BoxFit.contain : null,
+      imageUrl: url,
+      fallbackUrl: fallback ? null : media.fallbackUrl,
+      fallbackUrls: fallback ? const [] : media.fallbackUrls,
+      borderRadius: borderRadius,
+      forceCover: cover,
+      fit: fit,
       placeholderUrl: media.placeholderUrl,
       placeholderAspectRatio: media.placeholderAspectRatio,
       placeholderFit: media.placeholderFit,
       imageCacheManager: imageCacheManager,
       cachedImageBytes: cachedImageBytes,
+    );
+    if (!media.probeImageFormats || cachedImageBytes != null) {
+      return normal(media.url);
+    }
+
+    final placeholder = normal(
+      media.fallbackUrl ?? media.placeholderUrl ?? '',
+      fallback: true,
+    );
+    final ratio =
+        media.aspectRatio ??
+        ref.watch(
+          imageListingSettingsProvider.select((v) => v.imageGridAspectRatio),
+        );
+    return BooruImageCandidates(
+      config: config,
+      urls: [media.url, ...media.fallbackUrls],
+      imageCacheManager: imageCacheManager,
+      placeholder: placeholder,
+      builder: (provider) {
+        // Preserve grid sizing while reusing the already decoded provider.
+        // Going through a second network provider would repeat decoding.
+        final image = LayoutBuilder(
+          builder: (context, constraints) => ExtendedImage(
+            image: provider,
+            width: constraints.maxWidth.roundToDouble(),
+            height: constraints.maxHeight.roundToDouble(),
+            fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
+            borderRadius: borderRadius,
+            placeholderWidget: placeholder,
+            errorWidget: placeholder,
+          ),
+        );
+        return cover || fit == BoxFit.contain || ratio == null
+            ? image
+            : AspectRatio(aspectRatio: ratio, child: image);
+      },
     );
   }
 }
