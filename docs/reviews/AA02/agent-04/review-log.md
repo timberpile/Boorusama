@@ -106,3 +106,9 @@
 - Reviewed #111 update UI, changed tests/translation, verified APK downloader and native installation security path at `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` versus `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - Recorded `AA02-A04-F0004` (low static-confirmed defect): verified APK is dropped while a separate Flutter route covers the still-mounted dialog, causing redownload and abandoned cache file. Normal Android Settings foreground return is unaffected.
 - No code changes, local tests, builds, CI or device; duration still unverified. Next T017 #112 viewer toolbar.
+
+## 2026-10-29T23:18:35.366Z — Cycle 1 T017 completed
+
+- Reviewed #112's major customizable viewer toolbar with 24 substantive changed files, settings/backup, all menu action variants, visual editor, responsive projection and test cases against pinned `8213b6fbb87cb09d30d5056ad6667821371f22f6` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
+- No separately actionable static defect; approved UX is a device trial and has not passed runtime/manual checks. No source changes, Flutter tests or emulator; timing still unverified.
+- Next: T018 #114 timeline toolbar.
