@@ -134,3 +134,7 @@
 ## Cycle 2 — T013 (#113), 2026-10-29T23:20:26.277Z
 
 - Rechecked unchanged pinned `PostGridController` refresh, infinite/page-jump/fetch-more state, `_canLoadMore` error/hasMore/maxPage/total precedence and `PoolPostIdsX` metadata, missing/deleted ID behavior, and integration with #107's local-only feed. Unknown totals continue until empty raw page; explicit final nonempty pages are first ingested then terminate correctly. No independently confirmed regression; tests remain unexecuted. Static cycle-2 branch pass complete.
+
+## Cycle 2 — T008 (#106), 2026-10-29T23:21:22.599Z
+
+- Adversarial reread of `NavigationOverlayInsetsScope` frame-coalesced live notifier, keyboard/selection/viewer obstruction precedence, owner-aware chrome selection teardown, ScrollBoundary notification activity, Kurumi action-toast disposal/action latching and OKToast host separation. No source-confirmed new failure. Native keyboard+selection actual layout is still an explicit unexecuted Android scenario, not a static guarantee. Unchanged pinned head `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8`. Static cycle-2 pass completed.
