@@ -53,3 +53,9 @@ Next: verify any stale/merged targets; conduct source-pinned code review of targ
 - Reviewed #111 requirements, complete six-file patch and all changed sources/tests: AppUpdateDialog, translation source, label/foreground/widgets tests, implementation handoff; traced downloader integrity check, native Kotlin channel and APK policy, foreground and permission settings paths, cancellation and retries.
 - No independent new source defect found. Report distinguishes implementation-agent FVM/Kotlin test claims from this audit's non-executed tests. The handoff's mismatched debug vs release signer accounts for observed user-reported install rejection without weakening native checks; live release-signed Android installer acceptance remains open.
 - Static pass complete at pinned head, next T006 #106. Active review duration unverified.
+
+## Cycle 1 / T006 — 2026-10-29T22:59:34.291Z
+
+- Reviewed #106 and comments, complete 20-file comparison inventory/patch, source: bookmark undo/toast owner, root navigator key, live overlay inset bridge, selection and viewer chrome, measured selection/preview panels, Kurumi media scope and toast; tests: selection timeline journey, root detached-toast path, live bar/keyboard transitions, viewer measurement and Kurumi toast target/expiry. Traced changes through producers, disposal and native OKToast host.
+- No new independently demonstrated defect. Source protects action-toast placement against visible/hidden bottom nav, selection controls and viewer preview by measured obstruction. Implementation-agent FVM/regression/Maestro evidence is second-hand, not rerun by this audit; user acceptance, native keyboard frames and multiple-issue interaction remain open.
+- Complete static branch pass; actual test/device execution absent. Next T010 (#91) and remaining feature branches. Active review duration unverified, 5h minimum not met.
