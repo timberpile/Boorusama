@@ -170,3 +170,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - bug/97-follow-destination-identity at unchanged pinned head `6056bd06cfd7510aec41c00562d7dfd37c8725a7` (#97). Revalidated row-key reconciliation across Home (nullable singleton record) and folder IDs, subtree keyed state, controlled checkbox selection, folder navigation and controller's preservation of out-of-view choices. Checked semantic key collision and initial navigation frame case; no new supported defect. Actual animation/IME behavior remains untested.
 - Static adversarial revisit only. No FVM Flutter tests, runtime, OS device or emulator. Next: T005.
+
+## Cycle 2 — T005 completed 2026-10-29T23:23:11.682Z
+
+- bug/98-search-overlay-surface at unchanged pinned head `89e064d4f86b0acad62c11c96e6a085fe522ccc7` (#98). Reexamined editor background placement between result list and controls, Positioned.fill paint/hit testing, initial-versus-editing states, SafeArea/keyboard and top-versus-bottom bar z-order. No concrete uncovered path was proven statically; transient native IME/editor animation frames need device acceptance.
+- Static adversarial revisit only. No FVM Flutter tests, runtime, OS device or emulator. Next: T006.
