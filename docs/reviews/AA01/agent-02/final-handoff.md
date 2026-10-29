@@ -1,13 +1,11 @@
 # Audit AA01-02 — checkpoint handoff
 
-Repository `timberpile/Boorusama`, report branch `review/AA01/agent-02`; five exact targets in [inventory](inventory.md). Source baseline `422aeae087c1108e655d85d1a3dac25120456cd6`; checkpoint 2026-10-29T17:34:27.642Z.
+Repository `timberpile/Boorusama`, report branch `review/AA01/agent-02`, five targets in [inventory](inventory.md). Base `422aeae087c1108e655d85d1a3dac25120456cd6`; checkpoint 2026-10-29T17:38:27.906Z.
 
-**Cycle 1 static status:** T001 #113 complete at `a1bc1d42903861a46e7230349515946bae678357` (0 findings); T002 #114 complete at `5bb52794468b172b7d6878fb825b42b00d654675` ([AA01-A02-F0001](branches/T002.md#aa01-a02-f0001--no-controller-linked-blacklist-popup-test), coverage gap); T003 #116 complete at `5ac3ad9bc5f852f000012499c19468151c73734b` (0 findings); T004 #117 and T005 #118 pending. No runtime verification.
+**Cycle 1:** T001 #113, T002 #114, T003 #116 and T004 #117 complete at pinned heads; T005 #118 pending.
 
-Known local priorities: #113 test metadata/pool boundaries; #114 real blacklist popup/grid test, Android narrow/text, floating/pinned behavior; #116 FVM widget tests including 48-dp tap target, Android visual acceptance. #117/#118 source coverage still incomplete.
+**Canonical findings:** [AA01-A02-F0001](branches/T002.md#aa01-a02-f0001--no-controller-linked-blacklist-popup-test) (coverage gap, #114); [AA01-A02-F0002](cross-branch-findings.md#aa01-a02-f0002--pixiv-bookmark-continuation-lost-without-113-grid-fix) (defect, #117/#113); [AA01-A02-F0003](branches/T004.md#aa01-a02-f0003--no-shared-favorites-navigation-or-view-integration-test) (coverage gap, #117). All medium/open; F0002 static-confirmed, coverage gaps high-confidence.
 
-Canonical findings: coverage-gap 1 (medium, high-confidence, open); defect 0; risk 0; improvement 0. Cross-branch assessment remains pending.
+#117 cannot be treated as functionally complete in isolation until #113's GridController continuation logic is integrated. Pixiv live cursors, profile/filter race, authenticated restricted art and token refresh require device tests. #114 needs real controller-linked popup tests; #116 needs actual button hit/visual tests.
 
-Minimum assigned active review time: 1 hour; **unverified**, separate from 3/5 complete initial static coverage. No application code modified and no local Flutter/Dart tests, analyzer, builds or device checks executed.
-
-Next: complete T004 and T005 at pinned heads, commit each review, then reconcile cross-branch findings and final handoff.
+Total: one defect, two coverage gaps, zero other types. Active time requirement 1h **unverified**; initial static coverage 4/5. No application code changed and no local tests, builds, analyzer or device checks executed. Next T005.

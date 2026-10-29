@@ -28,3 +28,10 @@
 - Traced button painted geometry, padded 48-dp hit target, states (Follow/Following/busy/modified), localization and semantics, noncompact style branch, feedback/follow async operation context; inspected `TopicModificationBadge`, `followButtonShape`, and existing search-page follow-action tests for consumers.
 - No actionable functional defect independently established by static reading. Actual widget hit testing, font enlargement, narrow layout and Android aesthetics remain unverified without running tests/device.
 - No code changes, tests or build. Next: T004.
+
+## Cycle 1 — T004, 2026-10-29T17:38:27.906Z
+
+- Source `feature/117-pixiv-favorites@e2929259b7725c484d11483d6ea48270079eb2f4`; base/merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`. All ten changed files inspected: client part, client entry, session/provider/page/builder/capabilities, client/session tests and handoff. Traced Pixiv auth/interceptor, parser, account metadata, shared Favorites route/picker, PostScope and baseline GridController.
+- **F0002**: confirmed baseline GridController loses explicit `hasMore` when all Pixiv favorites on a page are filtered; #113 fixes this, but #117 branch does not contain it. Canonical cross-branch record references T001/T004.
+- **F0003**: medium integration coverage gap: no Pixiv Favorites widget navigation/profile/filter race or viewer test among new tests.
+- Verified source cursor security and retry/cancel semantics statically; live Pixiv, token refresh, Flutter analyzer/build and device remain unverified. Next T005.
