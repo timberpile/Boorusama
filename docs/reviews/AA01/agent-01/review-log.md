@@ -60,3 +60,7 @@
 ## 2026-10-29 — cycle 3 T003 (#116)
 
 - Reviewed exact compact/noncompact button patch, Tooltip/Semantics/badge geometry and integrated Search 240dp/2x widget coverage. No newly introduced static defect; real device/touch tests and CI missing. Active time unverified.
+
+## 2026-10-29 — cycle 3 T004 (#117)
+
+- Independently checked PixivPy client method and historical bookmark continuation shape against #117's strict fixed-endpoint/cursor validation. Contract plausibility increased, authenticated current API unverified. F0001 unchanged. No CI/local tests; duration unverified.
