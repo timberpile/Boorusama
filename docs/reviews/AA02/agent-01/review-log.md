@@ -135,3 +135,8 @@
 
 Re-read the changed keyed CheckboxRangeItem home/folder rows in follow_topic_folder_picker.dart and their control path through CheckboxRangeSelection._sync/_changed. The widget entries are record values unique by folder ID; ValueKey uses the same semantic value rather than list index. _changed unions selected keys outside the current entries before publishing, avoiding deselection on folder traversal, and _sync guards an in-progress drag. Compared the picker with #108's separately introduced batch BookmarkGroupPicker; they are distinct widgets sharing the general selection concern, not the same source route. Rapid nested navigation, Back ownership and drag animation remain on-device cases. No new actionable defect established.
 - Next: T005; verified active duration unavailable.
+
+## Cycle 2 — T005 (2026-10-29T23:18:09.996Z)
+
+Re-read raw_search_page_scaffold.dart Stack order, keyboard-dismiss behavior and SearchState transitions at the pinned head, including the ValueListenableBuilder Positioned.fill ColoredBox between result layer and options/suggestions/bar. It is invisible in initial state, blocks the result surface when editor is active, and leaves the editor panels and search field above it. Compared #99's selected-tag filtering path: it modifies suggestion content without replacing this overlay; no substantive overlapping source file. The state listener also ExcludeSemantics/ExcludeFocus on covered result content, though actual IME and focus timing remain unverified. No newly confirmed defect.
+- Next: T006; verified active duration unavailable.
