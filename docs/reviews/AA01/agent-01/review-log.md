@@ -232,3 +232,7 @@
 ## 2026-10-29 — cycle 11 T002 (#114)
 
 - Inspected concurrent setBlacklistedTags calls through unawaited provider listener and asynchronous isolate count. Out-of-order completions can overwrite newest rule counts and filtering. New high-confidence medium risk F0012. No runtime test or active time proof.
+
+## 2026-10-29 — cycle 11 T001 (#113)
+
+- Traced refresh-vs-fetchMore interleaving through #113 and #117; #113 retains current-page decrement on a stale request and has no generation guard (cross F0008). Rechecked all five heads' check-runs and combined statuses: zero recorded each. No runtime test, no new canonical finding.
