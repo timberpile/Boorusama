@@ -102,7 +102,8 @@ void kurumiShowSuccessToast(
         : Builder(
             builder: (overlayContext) => padded(
               insets?.bottomPadding ??
-                  MediaQuery.maybeOf(overlayContext)?.padding.bottom ?? 0,
+                  MediaQuery.maybeOf(overlayContext)?.padding.bottom ??
+                  0,
               content,
             ),
           ),

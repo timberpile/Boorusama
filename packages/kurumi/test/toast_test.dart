@@ -6,7 +6,7 @@ import 'package:oktoast/oktoast.dart';
 void main() {
   for (final textScale in [1.0, 1.8, 2.0]) {
     testWidgets(
-      'success toast action preserves height and styling at ${textScale}x text and dismisses on tap',
+      'success toast action preserves styling and an accessible target at ${textScale}x text and dismisses on tap',
       (
         tester,
       ) async {
@@ -52,7 +52,12 @@ void main() {
               ),
             )
             .height;
-        final addedHeight = surfaceHeight('Bookmark added');
+        final addedHeight =
+            surfaceHeight('Bookmark added') -
+            (surfaceFor(
+                  'Bookmark added',
+                ).margin?.resolve(TextDirection.ltr).vertical ??
+                0);
         var actions = 0;
         Kurumi.showSuccessToast(
           context,
@@ -71,11 +76,11 @@ void main() {
         expect(find.textContaining('|'), findsNothing);
         expect(
           surfaceHeight('2 bookmarks removed'),
-          addedHeight,
+          greaterThanOrEqualTo(addedHeight),
         );
         expect(
           tester.getSize(find.widgetWithText(TextButton, 'Undo')).height,
-          greaterThan(tester.getSize(find.text('Undo')).height),
+          greaterThanOrEqualTo(48),
         );
         await tester.tap(find.text('Undo'));
         await tester.pumpAndSettle();

@@ -10,6 +10,45 @@ const _bottomPreviewKey = Key('bottom-preview');
 const _mediaControlKey = Key('media-control');
 
 void main() {
+  for (final animated in [false, true]) {
+    testWidgets(
+      'viewer reports measured visible preview obstruction, animated=$animated',
+      (tester) async {
+        final controller = _controller(disableAnimation: !animated);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          _TestApp(controller: controller, disableAnimation: !animated),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 96);
+        controller.hideBottomSheet();
+        await tester.pump();
+        if (animated) {
+          await tester.pump(const Duration(milliseconds: 75));
+          expect(controller.bottomObstruction.value, greaterThan(0));
+          expect(controller.bottomObstruction.value, lessThan(96));
+        }
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 0);
+        controller.showBottomSheet();
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 96);
+        await tester.pumpWidget(
+          _TestApp(
+            controller: controller,
+            disableAnimation: !animated,
+            previewHeight: 144,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 144);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(controller.bottomObstruction.value, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('an upward swipe on the bottom preview opens post information', (
     tester,
   ) async {
@@ -567,6 +606,7 @@ class _TestApp extends StatelessWidget {
   const _TestApp({
     required this.controller,
     this.itemCount = 2,
+    this.previewHeight = 96,
     this.viewMode = ViewMode.horizontal,
     this.disableAnimation = true,
     this.isLargeScreen = false,
@@ -578,6 +618,7 @@ class _TestApp extends StatelessWidget {
 
   final PostDetailsPageViewController controller;
   final int itemCount;
+  final double previewHeight;
   final ViewMode viewMode;
   final bool disableAnimation;
   final bool isLargeScreen;
@@ -636,7 +677,7 @@ class _TestApp extends StatelessWidget {
           bottomSheet: SizedBox(
             key: _bottomPreviewKey,
             width: double.infinity,
-            height: 96,
+            height: previewHeight,
             child: TextButton(
               key: const Key('preview-control'),
               onPressed: onPreviewTap,

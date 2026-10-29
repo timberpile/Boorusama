@@ -1,5 +1,6 @@
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:kurumi/kurumi.dart' show KurumiOverlayInsetsScope;
 import 'package:i18n/i18n.dart';
 import 'package:oktoast/oktoast.dart';
 
@@ -374,7 +375,13 @@ void main() {
                 data: MediaQuery.of(context).copyWith(
                   textScaler: const TextScaler.linear(1.8),
                 ),
-                child: OKToast(child: child!),
+                child: OKToast(
+                  child: KurumiOverlayInsetsScope(
+                    bottomPadding: 80,
+                    bottomViewPadding: 80,
+                    child: child!,
+                  ),
+                ),
               ),
               home: Scaffold(
                 body: Stack(

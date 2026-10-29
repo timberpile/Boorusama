@@ -104,8 +104,10 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
         active: DestinationScope.maybeOf(context)?.active ?? false,
         immersive: !_pageViewController.overlay.value,
         closing: _routeAnimation?.status == AnimationStatus.reverse,
+        bottomObstruction: _pageViewController.bottomObstruction.value,
       );
     });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _onRouteAnimationStatus(AnimationStatus _) => _syncNavigationChrome();
@@ -123,6 +125,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
         _navigationChrome == null) {
       _navigationChrome = ref.read(navigationChromeProvider.notifier);
       _pageViewController.overlay.addListener(_syncNavigationChrome);
+      _pageViewController.bottomObstruction.addListener(_syncNavigationChrome);
     }
     _syncNavigationChrome();
     final active = NavigationActivity.of(context);
@@ -139,6 +142,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
         (_) => chrome.setViewerFor(this, active: false, immersive: false),
       );
     _pageViewController.overlay.removeListener(_syncNavigationChrome);
+    _pageViewController.bottomObstruction.removeListener(_syncNavigationChrome);
     _controller.dispose();
     _pageViewController.dispose();
 

@@ -87,10 +87,10 @@ class _NavigationOverlayInsetsScopeState
       duration: transition.duration,
       child: widget.child,
       builder: (context, hiddenFraction, child) {
-        final covered =
-            keyboard || (chrome.viewerOpen && !chrome.viewerClosing);
-        final overlap = covered
+        final overlap = keyboard
             ? 0.0
+            : chrome.viewerOpen && !chrome.viewerClosing
+            ? chrome.viewerBottomObstruction
             : widget.extent * (1 - hiddenFraction).clamp(0.0, 1.0);
         final bottom = math.max(media.padding.bottom, overlap);
         _publishBottomPadding(bottom);

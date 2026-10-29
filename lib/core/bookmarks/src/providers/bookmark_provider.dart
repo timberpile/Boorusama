@@ -133,12 +133,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (result.removedCount == 0) return;
     // Root-navigator callbacks outlive their menu but sit above the shell's
     // live inset scope. Resolve the stable shell anchor when showing feedback.
-    context =
+    final feedbackContext =
         ref.read(appNavigationProvider).feedbackKey.currentContext ?? context;
-    if (!context.mounted) return;
-    final strings = context.t.bookmark;
+    if (!feedbackContext.mounted) return;
+    final strings = feedbackContext.t.bookmark;
     Kurumi.showSuccessToast(
-      context,
+      feedbackContext,
       result.removedCount == 1
           ? strings.removed
           : strings.removal_result.replaceAll(
@@ -151,8 +151,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         try {
           await undoRemoval(result);
         } catch (_) {
-          if (context.mounted) {
-            Kurumi.showErrorToast(context, strings.undo_failed);
+          if (feedbackContext.mounted) {
+            Kurumi.showErrorToast(feedbackContext, strings.undo_failed);
           }
         }
       },

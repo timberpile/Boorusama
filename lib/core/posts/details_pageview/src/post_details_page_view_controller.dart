@@ -97,6 +97,8 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final isItemPushed = ValueNotifier(false);
   final forceHideOverlay = ValueNotifier(false);
   final forceHideBottomSheet = ValueNotifier(false);
+  // Measured visible preview, including any system padding in its content.
+  final bottomObstruction = ValueNotifier(0.0);
   final cooldown = ValueNotifier(false);
   final keyboardShortcutsEnabled = ValueNotifier(true);
 
@@ -620,6 +622,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
     isItemPushed.dispose();
     forceHideOverlay.dispose();
     forceHideBottomSheet.dispose();
+    bottomObstruction.dispose();
     keyboardShortcutsEnabled.dispose();
 
     super.dispose();

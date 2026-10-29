@@ -16,6 +16,7 @@ class NavigationChromeState {
     this.viewerImmersive = false,
     this.viewerOpen = false,
     this.viewerClosing = false,
+    this.viewerBottomObstruction = 0,
   });
   final bool menuOpen;
   final double barHiddenFraction;
@@ -26,6 +27,7 @@ class NavigationChromeState {
   final bool viewerOpen;
   // Closing reveals chrome while the viewer still owns layout and input.
   final bool viewerClosing;
+  final double viewerBottomObstruction;
 
   NavigationChromeState copyWith({
     bool? menuOpen,
@@ -35,6 +37,7 @@ class NavigationChromeState {
     bool? viewerImmersive,
     bool? viewerOpen,
     bool? viewerClosing,
+    double? viewerBottomObstruction,
   }) => NavigationChromeState(
     menuOpen: menuOpen ?? this.menuOpen,
     barHiddenFraction: barHiddenFraction ?? this.barHiddenFraction,
@@ -43,6 +46,8 @@ class NavigationChromeState {
     viewerImmersive: viewerImmersive ?? this.viewerImmersive,
     viewerOpen: viewerOpen ?? this.viewerOpen,
     viewerClosing: viewerClosing ?? this.viewerClosing,
+    viewerBottomObstruction:
+        viewerBottomObstruction ?? this.viewerBottomObstruction,
   );
 }
 
@@ -84,10 +89,16 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
     required bool active,
     required bool immersive,
     bool closing = false,
+    double bottomObstruction = 0,
   }) {
     if (active) {
       _viewerOwner = owner;
-      _setViewer(open: true, immersive: immersive, closing: closing);
+      _setViewer(
+        open: true,
+        immersive: immersive,
+        closing: closing,
+        bottomObstruction: bottomObstruction,
+      );
     } else if (identical(_viewerOwner, owner)) {
       _viewerOwner = null;
       _setViewer(open: false, immersive: false);
@@ -104,6 +115,7 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
     required bool open,
     required bool immersive,
     bool closing = false,
+    double? bottomObstruction,
   }) => state = state.copyWith(
     barHiddenFraction: open && state.barScrollActive
         ? (state.barHiddenFraction > 0.5 ? 1 : 0)
@@ -112,6 +124,9 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
     viewerImmersive: immersive,
     viewerOpen: open,
     viewerClosing: closing,
+    viewerBottomObstruction: open
+        ? bottomObstruction ?? state.viewerBottomObstruction
+        : 0,
   );
   void userScroll({
     required double delta,

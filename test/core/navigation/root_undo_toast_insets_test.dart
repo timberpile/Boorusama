@@ -1,3 +1,5 @@
+import '../../support/keyboard_toast_host.dart';
+
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
@@ -41,10 +43,7 @@ void main() {
                     data: MediaQuery.of(context).copyWith(
                       textScaler: TextScaler.linear(scale),
                     ),
-                    child: OKToast(
-                      animationDuration: Duration.zero,
-                      child: child!,
-                    ),
+                    child: KeyboardToastHost(child: child!),
                   ),
                   home: Builder(
                     builder: (context) {
@@ -57,11 +56,18 @@ void main() {
                                 context,
                                 rootNavigator: true,
                               ).context;
-                              expect(KurumiOverlayInsetsScope.maybeOf(root), isNull);
-                              container.read(bookmarkProvider.notifier).showRemovalUndo(
-                                root,
-                                const BookmarkGroupRemovalResult(removedCount: 1),
+                              expect(
+                                KurumiOverlayInsetsScope.maybeOf(root),
+                                isNull,
                               );
+                              container
+                                  .read(bookmarkProvider.notifier)
+                                  .showRemovalUndo(
+                                    root,
+                                    const BookmarkGroupRemovalResult(
+                                      removedCount: 1,
+                                    ),
+                                  );
                             },
                             child: const Text('Remove'),
                           ),
@@ -99,7 +105,12 @@ void main() {
           );
 
           final chrome = container.read(navigationChromeProvider.notifier);
-          chrome.userScroll(delta: 88, pixels: 100, outOfRange: false, extent: 88);
+          chrome.userScroll(
+            delta: 88,
+            pixels: 100,
+            outOfRange: false,
+            extent: 88,
+          );
           await tester.pumpAndSettle();
           expect(tester.getRect(toast).bottom, closeTo(640 - 24 - 16, 0.5));
           chrome.show();
@@ -108,6 +119,28 @@ void main() {
             tester.getRect(toast).bottom,
             closeTo(640 - (withShell ? 88 : 24) - 16, 0.5),
           );
+
+          if (withShell) {
+            final viewer = Object();
+            chrome.setViewerFor(
+              viewer,
+              active: true,
+              immersive: false,
+              bottomObstruction: 80,
+            );
+            await tester.pumpAndSettle();
+            expect(tester.getRect(toast).bottom, closeTo(640 - 80 - 16, 0.5));
+            chrome.setViewerFor(
+              viewer,
+              active: true,
+              immersive: true,
+              bottomObstruction: 0,
+            );
+            await tester.pumpAndSettle();
+            expect(tester.getRect(toast).bottom, closeTo(640 - 24 - 16, 0.5));
+            chrome.setViewerFor(viewer, active: false, immersive: false);
+            await tester.pumpAndSettle();
+          }
 
           tester.view.viewInsets = const FakeViewPadding(bottom: 240);
           tester.view.padding = const FakeViewPadding();
@@ -119,6 +152,7 @@ void main() {
           dismissAllToast();
           await tester.pumpAndSettle();
           await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(seconds: 5));
           expect(navigation.feedbackKey.currentContext, isNull);
           expect(tester.takeException(), isNull);
         },
@@ -131,5 +165,6 @@ void main() {
 // without starting disk-backed repositories. Undo mutation tests live elsewhere.
 class _EmptyBookmarks extends BookmarkLibraryNotifier {
   @override
-  BookmarkLibraryState build() => BookmarkLibraryState(bookmarks: [], groups: []);
+  BookmarkLibraryState build() =>
+      BookmarkLibraryState(bookmarks: [], groups: []);
 }
