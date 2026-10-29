@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 T001 static review completed at f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf against 6875e0ce778aecfb2b83780c2185ce9273a9b2cc; 22 target reviews not started.
-- Findings: 1 defect (medium, static-confirmed, open, pre-existing), 0 risk, 0 coverage-gap, 0 improvement. Canonical report: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001).
+- Cycle 1 T001 and T002 static reviews completed at pinned heads; **21** target reviews remain not started. Source SHAs are in the inventory.
+- Findings: 2 defects (both medium, static-confirmed, open; F0001 pre-existing refresh omission, F0002 introduced empty-original display regression), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: review T002 #76 at its pinned head, commit report + updated index/log/handoff, and repeat per target.
+- Next checkpoint: review T003 #92 at its pinned head, commit report + updated index/log/handoff, and repeat per target.
