@@ -113,3 +113,7 @@
 - Refreshed all repository branch names and 20 original target heads against pinned SHAs. New develop `894ab270693cdb054a5d527c96182e21e2b14ffc`, #111 closed/branch deleted, T020 policy-only excluded from subsequent implementation passes. Frozen 18 active targets, no new active branch discovered.
 - Revisited complete configured More/menu layout and real Danbooru/simple parent, vote and favorite menu widgets at pinned `8213b6fbb87cb09d30d5056ad6667821371f22f6`. F0001 remains a **medium risk**, as the broad list-identity close guard is deliberate, and nested vote/favorite widgets do retain disabled guards. No new finding.
 - Active duration threshold unverified; no local execution. Cycle 2 target T012 complete; next T018, then remaining target passes.
+
+## Cycle 2 — T018 (#68), 2026-10-29T23:17:45.861Z
+
+- Adversarial reinspection at unchanged pinned `771082d9c58363348d74b97a2da23732cdd921f0`: revalidated F0002 via entire fetch→one-shot `_warmSeries`→scroll render path, no second discovery window beyond first 40. Extended Pool identity/auth and group mutation analysis: new **AA02-A02-F0003 medium risk** for A/B distinct profiles on same host sharing site-only persisted Pool identity even though cards strictly resolve only A. Did not weaken security guard; product intent undecided. Distinct full cycle-2 static pass completed, no tests run. Next T016.

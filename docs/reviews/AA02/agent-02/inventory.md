@@ -21,7 +21,7 @@ Discovery: 2026-10-29T22:38:47Z; baseline `develop` `84df0c2de6cf8fe0177c49babb3
 | T015 | `feature/116-compact-follow-button` | [#116](https://github.com/timberpile/Boorusama/issues/116) | `5ac3ad9bc5f852f000012499c19468151c73734b` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 3 | Complete C1 |
 | T016 | `feature/117-pixiv-favorites` | [#117](https://github.com/timberpile/Boorusama/issues/117) | `e2929259b7725c484d11483d6ea48270079eb2f4` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 10 | Complete C1 |
 | T017 | `feature/118-pixiv-following-artists` | [#118](https://github.com/timberpile/Boorusama/issues/118) | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 14 | Complete C1 |
-| T018 | `feature/group-neighboring-series` | [#68](https://github.com/timberpile/Boorusama/issues/68) | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | 69 | Complete C1 |
+| T018 | `feature/group-neighboring-series` | [#68](https://github.com/timberpile/Boorusama/issues/68) | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | 69 | Complete C1+C2 |
 | T019 | `feat/android-maestro-mvp` | Unlinked | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | 18 | Complete C1 |
 | T020 | `maintenance/issue-branch-publication` | Unlinked | `fdb89b5c03e438e4d909db1821332e78b6f39ae9` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 3 | C1 reviewed; excluded C2 (policy-only) |
 
