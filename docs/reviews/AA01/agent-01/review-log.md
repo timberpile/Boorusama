@@ -72,3 +72,7 @@
 ## 2026-10-29 — cycle 4 T001 (#113)
 
 - Inspected total-only Szurubooru/Nozomi paginated sources and Gelbooru known total plus search-depth maxPage ceiling. Confirmed F0005: paginated single-page _items length cannot exhaust global totals; F0006: Gelbooru ceiling short-circuits actual total. Both pre-existing symptoms incompletely addressed. Source pinned, no runtime tests. Cycle4 targets revalidated unchanged at 18:13:43Z.
+
+## 2026-10-29 — cycle 4 T002 (#114)
+
+- Inspected TagExpression lowercasing, global blacklist storage/provider raw tag keys, setBlacklistedTags, active tag/count normalization and popup controls. Source-confirmed F0007: dynamic uppercase rule keys can leave posts visible while new hidden count claims otherwise and popup toggle absent. Origin inherited; test not executed.
