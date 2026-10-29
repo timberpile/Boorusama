@@ -1,0 +1,28 @@
+{
+  "protocol_version": 2,
+  "role": "audit",
+  "repository": "timberpile/Boorusama",
+  "batch_id": "AA01",
+  "agent_id": "02",
+  "configuration": {
+    "MIN_REVIEW_HOURS": 1,
+    "REVIEW_BRANCHES": [
+      "bug/113-collection-pagination",
+      "feature/114-timeline-toolbar",
+      "feature/116-compact-follow-button",
+      "feature/117-pixiv-favorites",
+      "feature/118-pixiv-following-artists"
+    ],
+    "scope_mode": "explicit"
+  },
+  "report_branch": "review/AA01/agent-02",
+  "initial_develop_sha": "422aeae087c1108e655d85d1a3dac25120456cd6",
+  "created_at": "2026-10-29T17:25:37.350Z",
+  "instruction_revision": {
+    "branch": "develop",
+    "head_sha": "422aeae087c1108e655d85d1a3dac25120456cd6",
+    "AGENTS.md": "5978c24fe6028cea4989bd6ef9cdf75cfe166fe9",
+    "docs/issue_workflow.md": "2819416618b040f631bd2ce3a3d8a90de40c4380",
+    ".agents/skills/verify-change/SKILL.md": "444cde16819b8b53e2bcb18c5b34bcda5202fa19"
+  }
+}
