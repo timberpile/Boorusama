@@ -84,3 +84,7 @@
 ## 2026-10-29 — cycle 4 T004 (#117)
 
 - Traced in-flight page2 vs pull-to-refresh page1 through PixivFavoritesSession cancellation and PostGridController shared _page/error rollback. Cross-branch risk F0008: stale RequestCancelledError can decrement refreshed page1 to page0 and show stale error. Inherited generic race, now more likely with explicit cancellation; runtime interleaving untested.
+
+## 2026-10-29 — cycle 4 T005 (#118)
+
+- Compared new artist preview allowlist and actual BooruImage/PixivAuthInterceptor HTTP path, noted inherited media auth considerations without alleging a new leak. Artist-level is_muted field is discarded; behavior policy unclear. Revalidated F0002/F0003 with content settings. No new confirmed defect or runtime test.
