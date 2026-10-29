@@ -47,3 +47,8 @@
 
 - Pin `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8`. 20/20 paths accounted; inspected Kurumi action toast, navigation bottom insets, selection/footer, viewer preview, root callback, tests. No confirmed defect, native keyboard interaction remains local acceptance need.
 - No runtime checks; active duration unverified. Next T009.
+
+## Cycle 1 — T009 (#107), 2026-10-29T22:51:23.956Z
+
+- Head `7a73544cb79c9f5e3c2337a08140833024a31591`. 10 changed paths accounted; Bookmarks and cached Feed sort/pagination filters and tests examined, no confirmed finding. Local history boundary preserved in source.
+- No execution; 5 h measured active duration unverified; next T010.
