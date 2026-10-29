@@ -195,3 +195,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - feature/group-neighboring-series at unchanged pinned head `771082d9c58363348d74b97a2da23732cdd921f0` (#68). Adversarially revisited account-source isolation when a Pool is saved from multiple same-host profiles, Pool origin identity reuse, strict source/profile opener, cover visibility policy and metadata refresh error preservation; compared actual package import's post-apply profile remap with the planned-change projector, ruling out a suspected preview mismatch. Revalidated F0005's exact-host violation and the separate #107/F0002 sorting conflict; no additional supported defect. The same-host two-profile UX and data-migration policy still need device/integration acceptance.
 - Source-level adversarial revisit, zero new findings; no tests/builds/devices. Next: T010.
+
+## Cycle 2 — T010 completed 2026-10-29T23:26:06.052Z
+
+- feature/91-branded-search-link-share at unchanged pinned head `e8c880c2783fefe5a58b0b73d98bf3914157809f` (#91). Rechecked .bslink file-only delivery and share adapter, platform capability and _sharing in-flight guard, mounted context on share handoff, explicit UnimplementedError catch, disabled visual opacity, tooltip and declared launcher asset. The parallel #95 F0001 omission is not present here; no newly established defect. Real device share activity/assets still untested.
+- Source-level adversarial revisit, zero new findings; no tests/builds/devices. Next: T011.
