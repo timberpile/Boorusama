@@ -135,6 +135,14 @@ abstract class JsonBackupSource<T>
     await _noContextPrepare(encoded);
   }
 
+  /// Prepares a snapshot written by the local import transaction for rollback.
+  ///
+  /// Sources may accept valid local states that are not useful incoming imports,
+  /// such as an empty profile collection. External imports use their normal
+  /// validation path and must never be routed through this method.
+  Future<ImportPreparation> prepareRollback(String encoded) =>
+      _noContextPrepare(encoded);
+
   Future<ImportPreparation> _prepareServerImport(
     String serverUrl,
     BuildContext? uiContext,

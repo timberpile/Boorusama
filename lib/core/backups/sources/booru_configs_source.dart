@@ -15,6 +15,7 @@ import '../../search/following_topics/providers.dart';
 import '../../settings/providers.dart';
 import '../../widgets/reboot.dart';
 import '../preparation/preparation_pipeline.dart';
+import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
 import '../types/types.dart';
 import '../utils/json_handler.dart';
@@ -112,6 +113,17 @@ class BooruConfigsBackupSource extends JsonBackupSource<List<BooruConfig>> {
         ],
         ref: ref,
       );
+
+  @override
+  Future<ImportPreparation> prepareRollback(String encoded) =>
+      ImportPreparationBuilder<List<BooruConfig>>(
+        converter: converter,
+        currentVersion: appVersion,
+        dataTypeName: displayName,
+        extraSteps: const [
+          _BooruConfigValidationStep(allowEmpty: true),
+        ],
+      ).prepare(encoded, handler.parse, executor, null);
 
   @override
   String get displayName => 'Booru profiles';
@@ -218,6 +230,10 @@ Future<void> _replaceProfiles(Ref ref, List<BooruConfig> configs) => ref
 
 // Custom validation step for booru configs
 class _BooruConfigValidationStep extends PreparationStep<List<BooruConfig>> {
+  const _BooruConfigValidationStep({this.allowEmpty = false});
+
+  final bool allowEmpty;
+
   @override
   Future<PreparationContext<List<BooruConfig>>> execute(
     PreparationContext<List<BooruConfig>> context,
@@ -225,8 +241,8 @@ class _BooruConfigValidationStep extends PreparationStep<List<BooruConfig>> {
   ) async {
     final configs = context.parsedData;
 
-    // Validate that we have at least one config
-    if (configs.isEmpty) {
+    // Incoming imports need a profile; local rollback snapshots may be empty.
+    if (!allowEmpty && configs.isEmpty) {
       throw Exception('No booru profiles found in backup data');
     }
 

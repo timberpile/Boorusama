@@ -1074,7 +1074,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     preflightRollbackBytes = switch (source) {
       final JsonBackupSource jsonSource => await () async {
         final encoded = await jsonSource.encodeForExport();
-        await jsonSource.validateEncodedImport(encoded);
+        await jsonSource.prepareRollback(encoded);
         return utf8.encode(encoded).length;
       }(),
       final SqliteBackupSource sqliteSource => await () async {
@@ -1103,7 +1103,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
     switch (source) {
       case final JsonBackupSource jsonSource:
         final encoded = await jsonSource.encodeForExport();
-        await jsonSource.validateEncodedImport(encoded);
+        await jsonSource.prepareRollback(encoded);
         await fs.writeString(outputPath, encoded);
       case final SqliteBackupSource sqliteSource:
         final dbPath = await sqliteSource.dbPathGetter();
@@ -1448,9 +1448,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
     }
     switch (source) {
       case final JsonBackupSource jsonSource:
-        final preparation = await jsonSource.capabilities.file!.prepareImport(
-          rollbackPath,
-          null,
+        final preparation = await jsonSource.prepareRollback(
+          await fs.readString(rollbackPath),
         );
         final replace = ResolvedImportSource(
           id: id,
@@ -1474,6 +1473,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
             );
           default:
             await preparation.executeImport(deferRestart: true);
+            if (id == 'profiles') {
+              await ref.read(booruConfigProvider.notifier).fetch();
+            }
         }
       case final SqliteBackupSource sqliteSource:
         final dbPath = await sqliteSource.dbPathGetter();
