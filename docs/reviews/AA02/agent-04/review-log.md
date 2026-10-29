@@ -147,3 +147,8 @@
 
 - Rechecked deleted source branch #111 against merged `develop` `894ab270693cdb054a5d527c96182e21e2b14ffc`; four source/test/localization file blobs are identical to audited head. Confirmed F0004's route-current verified-APK drop remains open and untested by existing OS foreground widget tests.
 - Added a source-pinned cycle-2 history to T016's report. No implementation change, tests, CI, build or device access. Timing requirement remains unverified. Next: cycle 2 T001 / #53 adversarial snapshot and regression with shared preloader consumers.
+
+## 2026-10-29T23:30:00.056Z — Cycle 2 T001 append/neighbor source-path revalidation
+
+- Traced final mutable `MixedPostDetailsPage._posts` object through `PostDetailsScope` to preloader widget identity and page/dependency listeners; no refresh trigger for in-place appends at unchanged page. `F0001` remains open, static-confirmed. Compared queue cancellation and new-admission tests; they do not cover this missing trigger.
+- Source head pinned and unchanged, no new finding or app code changes. No runtime verification or active duration proof. Next: T002 #76 original-only and configured quality fallback path.

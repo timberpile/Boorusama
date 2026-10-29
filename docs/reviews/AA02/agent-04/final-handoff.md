@@ -13,7 +13,7 @@
 ## Source and cycle coverage
 
 - **Cycle 1 source-level first pass: 21 of 21 eligible targets complete at fixed observed SHAs**. T022/T023 were provisional, then explicitly excluded as unrelated audit/export or policy proposals. Historical T016/#111 was reviewed and is now integrated/closed/remote branch deleted. All 20 remaining eligible remote branch heads match the original fixed SHAs at cycle-2 discovery; no newly eligible implementation branch was discovered.
-- **Cycle 2: underway, not complete**. T016/#111 has been revalidated against merged `develop` with four exact matching file blob hashes and F0004 still open; other branches need adversarial passes. Subsequent branch and `develop` changes must be recorded as new observations.
+- **Cycle 2: underway, not complete**. T016/#111 has been revalidated against merged `develop` with four matching file blob hashes (F0004 open); T001/#53 has a second adversarial live-list mutation/source-trigger pass (F0001 open); other branches need adversarial passes. Subsequent branch and `develop` changes must be recorded as new observations.
 - **Time:** `MIN_REVIEW_HOURS=5` remains **unverified/unmet**. Active work was not reliably instrumented; neither elapsed conversation age nor commit timestamps justify claiming five active hours. No fabricated timing and no background promise.
 - **Overall assignment completion: not claimed** due to the timing requirement and pending cycle-2 source/live acceptance.
 
@@ -23,7 +23,7 @@ All table head/base SHAs below were pinned at the first pass. The latest discove
 
 | Local target | Exact branch | Issue | Reviewed HEAD | Comparison merge-base | Coverage / current disposition |
 |---|---|---|---|---|---|
-| T001 | `bug/53-realbooru-prefetch-refresh` | #53 | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | Complete static C1; F0001 |
+| T001 | `bug/53-realbooru-prefetch-refresh` | #53 | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | Complete static C1+C2; F0001 open |
 | T002 | `bug/76-realbooru-original-metadata` | #76 | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | Complete static C1; F0002 |
 | T003 | `bug/92-selection-share-image` | #92 | `e8816c22048b324f00d682b7637c0ab1040147ca` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
 | T004 | `bug/97-follow-destination-identity` | #97 | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
