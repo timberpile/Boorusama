@@ -1,0 +1,22 @@
+{
+  "protocol_version": 2,
+  "role": "audit",
+  "repository": "timberpile/Boorusama",
+  "batch_id": "AA01",
+  "agent_id": "01",
+  "configuration": {
+    "MIN_REVIEW_HOURS": 1,
+    "REVIEW_BRANCHES": [
+      "bug/113-collection-pagination",
+      "feature/114-timeline-toolbar",
+      "feature/116-compact-follow-button",
+      "feature/117-pixiv-favorites",
+      "feature/118-pixiv-following-artists"
+    ]
+  },
+  "report_branch": "review/AA01/agent-01",
+  "initial_develop_sha": "422aeae087c1108e655d85d1a3dac25120456cd6",
+  "scope_observed_date": "2026-10-29",
+  "status": "in-progress",
+  "clock_note": "No reliable active-time clock; do not claim a fulfilled duration."
+}
