@@ -148,3 +148,7 @@
 ## 2026-10-29 — cycle 7 T004 (#117)
 
 - Traced config/account/filter family identity, PostScope keys and session cancellation; existing F0001/F0008 unchanged. No new proven defect, runtime tests or measured duration.
+
+## 2026-10-29 — cycle 7 T005 (#118)
+
+- Counterchecked notifier test coverage and preview rating metadata paths, reaffirming F0002/F0003; no new distinct finding or executed tests; active duration unverified.
