@@ -4,7 +4,7 @@ Explicitly configured scope; TIDs are local to this audit. Snapshot observed on 
 
 | ID | Branch | Issue | Pinned head | Coverage |
 | --- | --- | --- | --- | --- |
-| T001 | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | Preliminary cycle 1 observations; additional adversarial review pending |
+| T001 | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | Cycle 1 static complete; cycle 2 pending |
 | T002 | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | Preliminary cycle 1 observations; additional adversarial review pending |
 | T003 | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | Preliminary cycle 1 observations; additional adversarial review pending |
 | T004 | `feature/117-pixiv-favorites` | #117 | `e2929259b7725c484d11483d6ea48270079eb2f4` | Preliminary cycle 1 observations; additional adversarial review pending |
