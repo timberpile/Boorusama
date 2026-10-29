@@ -81,3 +81,9 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Read entire changed production/test source (artist page header, strict artist URI/parser and envelope, receiver page, /open dispatcher, share action; 3 tests), adjacent shared document handoff and search-file share error handling.
 - Found [AA02-A03-F0001](branches/T011.md#aa02-a03-f0001--unimplemented-share-backend-escapes-error-feedback) (low static-confirmed error path): artist sharing catches `Exception` but not `UnimplementedError`; generic search-link share explicitly handles the latter. Pinpointed conditional failure when platform adapter raises that Error. No runtime reproduction.
 - Next: T012 / #99. No tests run. Time still unverified.
+
+## Cycle 1 — T012 review completed 2026-10-29T23:00:33.893Z
+
+- Issue #99, `feature/99-selected-tag-suggestions` pinned `98d4b0ae68dded641475a0662318c56f65b625f7`; merge-base `422aeae087c1108e655d85d1a3dac25120456cd6` vs develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Complete code/test review: mobile suggestion panel, desktop search, new shared canonical tag/alias filter, two test files. Traced alias closure across chains/cycles and excluded nonordinary raw/option/metatag/user/pool suggestions; selection changes rebuild output without changing IME draft.
+- No independent actionable finding. Historic issue discussion included a prior separate review; not used as source evidence. Native desktop focus/IME and profile switch test execution remain. See [T012](branches/T012.md). Next: T013 / #104.
