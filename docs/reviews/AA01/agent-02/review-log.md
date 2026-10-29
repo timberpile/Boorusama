@@ -47,3 +47,9 @@
 - Revisited #113 pinned source a1bc1d42903861a46e7230349515946bae678357, compared the refresh and fetchMore concurrency logic against develop 422aeae087c1108e655d85d1a3dac25120456cd6. Traced mobile pull-to-refresh, F5 refresh, debounce timer, state reset, in-flight page fetch, _clear, pagination index and delayed responses.
 - Opened AA01-A02-F0008 (medium/static-confirmed/pre-existing): refresh does not cancel or supersede an already scheduled or running fetchMore. When page 2 resolves while page 1 refresh is pending, its data can be cleared while the global page index remains 2, causing the next load to skip page 2. Verified this guard was absent on develop before #113 and remains absent after its pagination metadata fix.
 - Examined existing controller refresh and exhaustion tests: separate refresh coalescing and pagination tests exist, but no overlap test. No test run or device reproduction. T002 adversarial pass next.
+
+## Cycle 2 — T002 adversarial pass, 2026-10-29T17:52:01.985Z
+
+- Revisited #114 at 5bb52794468b172b7d6878fb825b42b00d654675, especially overlay lifecycle/rebuild, hidden-count updates, ScrollView overflow, BlacklistControls pagination, pinned/floating header tests and state across multiple profile grids. Verified existing BlacklistControls code is byte-for-byte identical on develop base 422aeae087c1108e655d85d1a3dac25120456cd6.
+- Opened AA01-A02-F0009, medium/static-confirmed inherited defect: BlacklistControls shares a singleton StateProvider for page number across all grid/profile instances. Page 3+ of one rule list remains selected for a later shorter list with >30 visible rules and produces an empty chip slice. The #114 anchored popup exposes this existing behavior. Only page-change callbacks clamp, not widget build or input-list change.
+- Retained F0001 as a coverage gap; no new #114-only defect established. Reviewed guards and isolated toolbar tests; no actual Flutter/widget execution. Next T003.
