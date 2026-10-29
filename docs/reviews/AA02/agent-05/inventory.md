@@ -24,7 +24,7 @@ Discovery: 2026-10-29T22:40:03.184Z; `develop` head `84df0c2de6cf8fe0177c49babb3
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
 | T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | #117 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | 1 medium interaction defect; [report](branches/T020.md) |
-| T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
+| T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | 1 medium defect, shared F0001; [report](branches/T021.md) |
 
 ## Excluded at initial discovery
 
