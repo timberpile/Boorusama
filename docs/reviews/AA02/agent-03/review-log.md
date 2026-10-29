@@ -205,3 +205,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - feature/95-artist-links at unchanged pinned head `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` (#95). Adversarially retraced URI parser rejection of percent-escape corruption, surplus fields, credentials, profile mismatches and invalid site URI; document link receiver binds exact normalized source and does not mutate configuration. Reconfirmed F0001 against the search file-share handler's explicit UnimplementedError catch. Native unsupported-adapter simulation absent; no additional finding.
 - Source-level adversarial revisit, zero new findings; no tests/builds/devices. Next: T012.
+
+## Cycle 2 — T012 completed 2026-10-29T23:27:00.652Z
+
+- Pinned head `98d4b0ae68dded641475a0662318c56f65b625f7` (issue #99), unchanged on last branch refresh. Rechecked selected-term canonicalization and alias relationship closure including cycles, candidate response order, negated/fuzzy tags, option/metatag/raw exceptions and current-batch-only alias graph. No stale global cache is introduced by this helper. UI draft/IME and desktop profile switch remain unexecuted. No new actionable finding.
+- Static second pass; no device/build/tests executed. Next T013.
