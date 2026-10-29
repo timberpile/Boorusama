@@ -23,6 +23,7 @@
     "head_sha": "422aeae087c1108e655d85d1a3dac25120456cd6",
     "AGENTS.md": "5978c24fe6028cea4989bd6ef9cdf75cfe166fe9",
     "docs/issue_workflow.md": "2819416618b040f631bd2ce3a3d8a90de40c4380",
-    ".agents/skills/verify-change/SKILL.md": "444cde16819b8b53e2bcb18c5b34bcda5202fa19"
+    ".agents/skills/verify-change/SKILL.md": "444cde16819b8b53e2bcb18c5b34bcda5202fa19",
+    "docs/development_workflow.md": "2be28d98aa17a479371b84985e537a64786e201e"
   }
 }
