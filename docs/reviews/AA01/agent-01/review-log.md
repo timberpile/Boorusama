@@ -152,3 +152,7 @@
 ## 2026-10-29 — cycle 7 T005 (#118)
 
 - Counterchecked notifier test coverage and preview rating metadata paths, reaffirming F0002/F0003; no new distinct finding or executed tests; active duration unverified.
+
+## 2026-10-29 — cycle 7 new canonical F0009
+
+- Confirmed pre-existing `BlacklistControls` shared _currentPageProvider is not clamped when >30 tag list shrinks while page index is high. The toolbar popup reuses it. Source-specific trigger and boundary (page 3 to 31–60 matches) documented in T002; no runtime execution.
