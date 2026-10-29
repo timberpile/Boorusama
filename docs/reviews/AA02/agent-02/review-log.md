@@ -72,3 +72,8 @@
 
 - Pinned `a1bc1d42903861a46e7230349515946bae678357`; 6 changed paths accounted, traced pagination/exhaustion across refresh, fetchMore, jump, pool repository errors, snapshot and tests. No confirmed new defect.
 - No executed tests; minimum active time unverified. Next T014.
+
+## Cycle 1 — T014 (#114), 2026-10-29T22:59:17.902Z
+
+- Pinned `5bb52794468b172b7d6878fb825b42b00d654675`; 13 paths accounted, floating/pinned sliver, blacklist count/popup, settings migration and tests inspected. No introduced confirmed finding; pre-existing numeric post-ID collision remains a context note with unproven mixed-source reachability.
+- Active time minimum unverified; no test execution. Next T015.
