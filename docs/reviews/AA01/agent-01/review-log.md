@@ -112,3 +112,7 @@
 ## 2026-10-29 — five-cycle consolidation checkpoint
 
 - Five complete static source passes per target documented under individual branch reports; eight canonical findings counted once. Reviewed heads unchanged; no CI check-run or commit status contexts. No application changes, builds, tests, live authenticated responses or devices. Active review hour not verified and not claimed. Self-contained resumable handoff updated.
+
+## 2026-10-29 — cycle 6 T001 (#113)
+
+- Replayed F0004/F0005/F0006 against exact source and counterexamples: true empty-but-continuing hasMore must win, while Gelbooru depth cap cannot do so. Prior findings held, no new ones. No SDK/tests; target head unchanged at cycle6 refresh.
