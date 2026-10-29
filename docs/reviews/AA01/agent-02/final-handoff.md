@@ -19,9 +19,9 @@
 | [T004](branches/T004.md) | #117 feature/117-pixiv-favorites | e2929259b7725c484d11483d6ea48270079eb2f4 | 422aeae087c1108e655d85d1a3dac25120456cd6 | Complete / Complete | Depends on #113 continuation; overlaps #118 Pixiv client/navigation files |
 | [T005](branches/T005.md) | #118 feature/118-pixiv-following-artists | 1d02bef637966999fbd0b72ecb9c6f0e1eedce8a | 422aeae087c1108e655d85d1a3dac25120456cd6 | Complete / Complete | Must preserve #117 integration; explicit-media safety correction F0004 |
 
-The third static cycle T001 metadata/producer, T002 blacklist concurrency, T003 following-button behavior, T004 account/cursor identity and T005 following-page state/routing passes are complete. F0010 was discovered in T002. All five target heads were one commit ahead and zero behind the original develop base when compared. Six, thirteen, three, ten and fourteen changed files were respectively accounted for, including all source, configuration, tests and handoff documents. Relevant callers, consumers, provider ownership, profile/session boundaries, exception and pagination behavior were also inspected. Mechanical/generated additions: none observed. **Static coverage complete at pinned heads; this is not a runtime or merged-branch acceptance claim.** No late SHA drift was observed. No app implementation revisions were pushed by this audit.
+The third static cycle is complete for T001–T005. Fourth cycle T001 found the Gelbooru count/upper-bound mismatch F0011. F0010 was discovered in T002. All five target heads were one commit ahead and zero behind the original develop base when compared. Six, thirteen, three, ten and fourteen changed files were respectively accounted for, including all source, configuration, tests and handoff documents. Relevant callers, consumers, provider ownership, profile/session boundaries, exception and pagination behavior were also inspected. Mechanical/generated additions: none observed. **Static coverage complete at pinned heads; this is not a runtime or merged-branch acceptance claim.** No late SHA drift was observed. No app implementation revisions were pushed by this audit.
 
-## Canonical findings — ten unique IDs, all open
+## Canonical findings — eleven unique IDs, all open
 
 | Finding (canonical report) | Kind | Severity | Confidence | Origin / affected scope |
 |---|---|---|---|---|
@@ -35,8 +35,9 @@ The third static cycle T001 metadata/producer, T002 blacklist concurrency, T003 
 | [AA01-A02-F0008](branches/T001.md#aa01-a02-f0008--refresh-races-with-scheduled-or-in-flight-load-more) | defect | medium | static-confirmed | Pre-existing shared GridController refresh/load-more race, affects #113/final #117 |
 | [AA01-A02-F0009](branches/T002.md#aa01-a02-f0009--shared-blacklist-pagination-state-can-hide-all-rule-chips) | defect | medium | static-confirmed | Pre-existing global blacklist page index reused across grids, surfaced by #114 |
 | [AA01-A02-F0010](branches/T002.md#aa01-a02-f0010--out-of-order-blacklist-counts-can-restore-obsolete-rules) | defect | medium | static-confirmed | Pre-existing async blacklist count races can publish old rule state, surfaced by #114 |
+| [AA01-A02-F0011](branches/T001.md#aa01-a02-f0011--gelbooru-capacity-maxpage-outranks-completed-result-count) | defect | medium | static-confirmed | #113 fails to stop for complete Gelbooru count because maxPage is an engine search cap, not actual page count |
 
-Counts: kind defect **5**, risk **2**, coverage-gap **3**, improvement **0**; severity critical **0**, high **2**, medium **8**, low **0**; confidence static-confirmed **5**, high-confidence **5**, suspected **0**; lifecycle open **10**, resolved-in-source **0**, withdrawn **0**, superseded **0**. Each canonical finding counted once even when several branches refer to it. Static-confirmed describes a reachable inspected source path; no issue was reproduced on a device.
+Counts: kind defect **6**, risk **2**, coverage-gap **3**, improvement **0**; severity critical **0**, high **2**, medium **9**, low **0**; confidence static-confirmed **6**, high-confidence **5**, suspected **0**; lifecycle open **11**, resolved-in-source **0**, withdrawn **0**, superseded **0**. Each canonical finding counted once even when several branches refer to it. Static-confirmed describes a reachable inspected source path; no issue was reproduced on a device.
 
 ## Remediation / verification sequence
 
