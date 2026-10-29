@@ -25,3 +25,8 @@
 
 - Reviewed 3/3 changed files, badge and Search consumer test at `5ac3ad9bc5f852f000012499c19468151c73734b`, including compact/noncompact diff. No proven new defect. SDK/device checks outstanding; active time still unverified.
 - Next: T004 Pixiv Favorites.
+
+## T004 cycle 1 — 2026-10-29T17:42:56.048Z
+
+- Reviewed 10/10 changed files, auth/client/parser/consumer paths at `e2929259b7725c484d11483d6ea48270079eb2f4`, and develop grid controller. Documented canonical interaction finding AA01-A03-F0001 with #113; no tests executed. Active-time measurement remains unverified.
+- Next: T005 Pixiv Following Artists and then cycle-1 gap followups.
