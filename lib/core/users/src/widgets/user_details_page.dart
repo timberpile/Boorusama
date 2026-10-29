@@ -20,7 +20,6 @@ class UserDetailsPage extends StatelessWidget {
         actions: actions,
       ),
       body: SafeArea(
-        bottom: false,
         child: body,
       ),
     );

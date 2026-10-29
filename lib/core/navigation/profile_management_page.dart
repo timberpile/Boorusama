@@ -33,6 +33,9 @@ class ProfileManagementPage extends ConsumerWidget {
             )
           : null,
       body: ReorderableListView.builder(
+        // The shell already combines system and navigation insets. Unlike an
+        // implicit ListView padding, this must also be explicit for reordering.
+        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
         buildDefaultDragHandles: false,
         header: showAppBar
             ? null

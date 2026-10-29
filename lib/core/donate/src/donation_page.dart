@@ -22,24 +22,31 @@ class DonationPage extends ConsumerWidget {
     return Scaffold(
       appBar: const KurumiAppBar(),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const _HeaderSection(),
-              const SizedBox(height: 32),
-              switch (ref.watch(networkStateProvider)) {
-                final NetworkConnectedState _ => _buildIconButtons(
-                  appInfo,
-                  ref,
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const _HeaderSection(),
+                    const SizedBox(height: 32),
+                    switch (ref.watch(networkStateProvider)) {
+                      final NetworkConnectedState _ => _buildIconButtons(
+                        appInfo,
+                        ref,
+                      ),
+                      _ => _buildTextButtons(appInfo, ref),
+                    },
+                    const SizedBox(height: 16),
+                  ],
                 ),
-                _ => _buildTextButtons(appInfo, ref),
-              },
-              const SizedBox(height: 16),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -39,7 +39,7 @@ class ExplorePage extends ConsumerWidget {
                 : 0,
           ),
           ...sliverOverviews,
-          const SliverSizedBox(height: kBottomNavigationBarHeight + 20),
+          SliverSizedBox(height: MediaQuery.paddingOf(context).bottom + 20),
         ],
       ),
     );

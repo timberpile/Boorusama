@@ -76,7 +76,12 @@ class _PoolPagedSliverGridViewState<T>
         0.2;
 
     return SliverPadding(
-      padding: EdgeInsets.symmetric(horizontal: imageGridPadding),
+      padding: EdgeInsets.fromLTRB(
+        imageGridPadding,
+        0,
+        imageGridPadding,
+        MediaQuery.paddingOf(context).bottom,
+      ),
       sliver: PagingListener(
         controller: controller,
         builder: (context, state, fetchNextPage) => PagedSliverGrid(
