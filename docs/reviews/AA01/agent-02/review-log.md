@@ -194,3 +194,9 @@
 
 - Compared #117 pinned head with new develop navigation recovery (empty-profile add/import paths); no direct changed-file overlap and profile chooser remains for nonempty lists. Revisited shared Favorites profile selection, typed session key, origin binding, security validation and expected #113 continuation integration.
 - Existing F0002/F0003 and cross F0005/F0007 plus linked F0008 remain; no new independent finding. Add post-empty-profile setup to combined UI verification. Next T005. No tests/code changes.
+
+
+## Cycle 6 — T005 image transport and navigation drift (2026-10-29T22:37:30.023Z)
+
+- Compared #118 fixed source with develop's eight new commits, specifically grid-only image format probing, PostGridItem and profile recovery changes. #118 artist cards are not routed through the new picker; F0004 explicit blur bypass and inherited F0005 Pixiv bearer/media coupling remain. No direct source-file overlap.
+- Reconfirmed fixed URL pagination validation, profile-scoped notifier and Search query; F0006 widget coverage and F0007 client integration remain. No new distinct finding; no test/device/HTTP execution. Sixth complete static cycle across five original pinned branch heads. One-hour active duration still unverified/unmet.
