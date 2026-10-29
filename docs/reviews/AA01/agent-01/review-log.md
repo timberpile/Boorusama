@@ -156,3 +156,7 @@
 ## 2026-10-29 — cycle 7 new canonical F0009
 
 - Confirmed pre-existing `BlacklistControls` shared _currentPageProvider is not clamped when >30 tag list shrinks while page index is high. The toolbar popup reuses it. Source-specific trigger and boundary (page 3 to 31–60 matches) documented in T002; no runtime execution.
+
+## 2026-10-29 — cycle 8 T001 (#113)
+
+- Inspected application FakeBooruBackend and testPostResult defaults. Confirmed contradictory maxPage=1/page-local total and discovered _withOrigin drops hasMore, both amplifying existing F0004 test/fixture mismatch. No production fix/test execution or active duration proof.
