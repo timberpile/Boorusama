@@ -104,3 +104,7 @@
 ## Cycle 1 — T020 complete (2026-10-29T23:10:26.559Z)
 
 - Inspected Pixiv Favorites capability/nav, credentials/session family, sequential cursor, strict same-host next_url parsing, and two changed tests. No new substantiated defect; live Pixiv auth and private content acceptance pending. Next T021 `feature/118-pixiv-following-artists`. Duration unverified.
+
+## Cycle 1 — T021 complete (2026-10-29T23:12:20.777Z)
+
+- Inspected Pixiv Following artist listing, auth-gated navigation, fixed endpoint pagination and cursor checks, cards/preview safety, notifier cancellation, four changed test files and nullable DTO semantics. Documented `AA02-A01-F0003` as **low-severity suspected content-restriction risk**, not proven actual API leak. Next T022 CI workflow. Active duration unverified.
