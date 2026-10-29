@@ -124,3 +124,7 @@
 ## 2026-10-29 — cycle 6 T003 (#116)
 
 - Revalidated compact-only style diff, FilledButton tonal variant, padded target/visual density, spinner geometry and narrow real Search Row constraints. No introduced static defect, no executed Flutter or Android checks.
+
+## 2026-10-29 — cycle 6 T004 (#117)
+
+- Re-read pinned favorites session, per-filter source scope and cursor parser. Revalidated inherited Grid continuation F0001 and cancelled stale-page/error rollback F0008 against a refresh interleaving; no new independent defect. No Flutter/auth runtime execution; active duration unverified.
