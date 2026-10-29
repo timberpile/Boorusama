@@ -48,7 +48,7 @@ void main() {
       BooruType.eshuushuu: ['eshuushuu.profile'],
       BooruType.shimmie2: ['shimmie2.extensions'],
       BooruType.szurubooru: ['szurubooru.pools'],
-      BooruType.pixiv: ['pixiv.explore'],
+      BooruType.pixiv: ['pixiv.explore', 'pixiv.following-artists'],
     };
     for (final entry in expected.entries) {
       expect(
@@ -120,6 +120,15 @@ void main() {
       );
     },
   );
+  test('Pixiv guest keeps Explore but does not expose account following', () {
+    final result = buildNavigationCatalog(
+      profilesInStoredOrder: [capabilities(BooruType.pixiv)],
+      globalDefinitions: [],
+    );
+    expect(result.profileSections.single.rows.map((row) => row.toolId),
+        ['pixiv.explore']);
+    expect(result.eligibleFavoritesProfileIds, isEmpty);
+  });
   test('Favorites-only Gelbooru never emits a profile heading', () {
     final result = buildNavigationCatalog(
       profilesInStoredOrder: [capabilities(BooruType.gelbooru, login: true)],
