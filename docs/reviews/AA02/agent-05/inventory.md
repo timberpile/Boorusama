@@ -20,7 +20,7 @@ Discovery: 2026-10-29T22:40:03.184Z; `develop` head `84df0c2de6cf8fe0177c49babb3
 | T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | #107 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T014.md) |
 | T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | #108 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T015.md) |
 | T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | #111 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No new source defect; signer mismatch explains manual rejection; [report](branches/T016.md) |
-| T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | #112 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | Large settings/UI change |
+| T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | #112 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No new defect; user acceptance open; [report](branches/T017.md) |
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
 | T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | #117 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | 1 medium interaction defect; [report](branches/T020.md) |
