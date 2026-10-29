@@ -6,7 +6,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 |---|---|---|---|---|---|
 | T001 | `bug/53-realbooru-prefetch-refresh` | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | #53 closed; integration state unresolved | complete |
 | T002 | `bug/76-realbooru-original-metadata` | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | #76 closed; integration state unresolved | complete |
-| T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #92 open | pending |
+| T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #92 open | complete |
 | T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #97 open | pending |
 | T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #98 open | pending |
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #106 open | pending |
