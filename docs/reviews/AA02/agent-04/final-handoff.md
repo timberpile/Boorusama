@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 T001–T011 static reviews completed at pinned heads (T003–T008 and T010–T011 no actionable finding); **12** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
+- Cycle 1 T001–T012 static reviews completed at pinned heads (T003–T008 and T010–T012 no actionable finding); **11** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
 - Findings: 3 defects (all medium and open; F0001/F0002 static-confirmed, F0003 high-confidence with product-policy uncertainty), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002), [AA02-A04-F0003](branches/T009.md#finding-aa02-a04-f0003).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: T012 feature/99-selected-tag-suggestions (#99), inspect network suppression/cache, selected tag lifecycle, profile boundaries and tests; F0003 requires same-host dual-account verification and product-policy clarification.
+- Next checkpoint: T013 feature/104-expanded-details-swipe (#104); inspect gesture arbitration, layout, platform inputs and tests. F0003 still requires same-host dual-account verification/product policy.
