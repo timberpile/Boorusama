@@ -8,3 +8,9 @@
 - Captured full compare *filename/stats* inventory for all five target branches, each with develop as merge base.
 - Time source: invocation wall-clock from JavaScript `Date.toISOString()`; **not an active-time clock**. Active review hours unverified.
 - Next: inspect each changed file at its pinned SHA and trace relevant execution paths; commit report for each completed pass separately.
+
+## T001 cycle 1 — 2026-10-29T17:33:40.081Z
+
+- Reviewed 6/6 substantive changed files at `a1bc1d42903861a46e7230349515946bae678357` and grid/pool support code; no confirmed actionable finding.
+- Overall pass remains partial for concrete engine-specific pool caller trace. No active review duration measurement; wall-clock commit timestamp is not working time.
+- Next: T002 timeline toolbar at its pinned head.
