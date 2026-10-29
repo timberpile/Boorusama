@@ -4,9 +4,9 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 
 | ID | Branch | Observed head SHA | Issue association | Coverage |
 | --- | --- | --- | --- | --- |
-| T001 | `bug/53-realbooru-prefetch-refresh` | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | #53 | Not reviewed |
-| T002 | `bug/76-realbooru-original-metadata` | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | #76 | Not reviewed |
-| T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | #92 | Not reviewed |
+| T001 | `bug/53-realbooru-prefetch-refresh` | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | #53 | Excluded: issue closed, published/superseded |
+| T002 | `bug/76-realbooru-original-metadata` | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | #76 | Excluded: issue closed, published/superseded |
+| T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | #92 | Complete static pass 1; no actionable finding |
 | T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | Not reviewed |
 | T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | #98 | Not reviewed |
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | Not reviewed |
@@ -28,6 +28,8 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 
 ## Exclusions
 
+- T001 / #53 and T002 / #76: both issues closed on 2026-10-27; issue comments explicitly identify dependency-code publication in develop via commits `c3f83f0bb` and `8920dd2ff`. The old task branch snapshots may not be byte-identical to current develop; this is an activity/scope exclusion, **not** a claim of branch equivalence or independent acceptance of the final integrated code. Retained rows preserve the discovery trail.
+
 - `feature/55-undo-reversible-actions` at `482ae4b1e5fd1e34b344a5c61959a210b8527281`: ancestor of develop (compare ahead=0), no outstanding branch delta.
 - `develop`, `master`: integration/release branches.
 - `review/AA01/agent-01`, `review/AA01/agent-02`, `review/AA01/agent-03`: other audit reports, never used as evidence.
@@ -36,5 +38,5 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 ## Caveats
 
 - Branch status is assessed from pinned Git ancestry, not labels alone. No open PRs were returned at discovery.
-- No current target branch has yet undergone a complete static review; the 21 rows above are inventory only.
+- 19 active candidate branches after T001/T002 exclusions; T003 reviewed 1/19. Other rows remain unreviewed.
 - Relevant issue comments, cross-branch dependencies, and completeness of compare/diff endpoints remain to be checked.
