@@ -6,7 +6,7 @@ Explicitly configured scope; TIDs are local to this audit. Snapshot observed on 
 | --- | --- | --- | --- | --- |
 | T001 | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | Cycles 1–2 static complete; test finding F0004 |
 | T002 | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | Cycles 1–2 static complete; no new finding |
-| T003 | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | Cycle 1 static complete; cycle 2 pending |
+| T003 | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | Cycles 1–2 static complete; no new finding |
 | T004 | `feature/117-pixiv-favorites` | #117 | `e2929259b7725c484d11483d6ea48270079eb2f4` | Cycle 1 static complete; cross finding F0001; cycle 2 pending |
 | T005 | `feature/118-pixiv-following-artists` | #118 | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | Cycle 1 static complete; F0002, F0003; cycle 2 pending |
 
