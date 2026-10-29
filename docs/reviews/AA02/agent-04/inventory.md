@@ -12,7 +12,7 @@ Discovery: 2026-10-29T22:39:57.065Z UTC; `develop` 84df0c2de6cf8fe0177c49babb3fb
 | T006 | `bug/106-live-undo-toast-insets` | #106 | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
 | T007 | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
 | T008 | `feat/android-maestro-mvp` | Unverified/none | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | Complete static C1; no finding; activity provisional |
-| T009 | `feature/group-neighboring-series` | #68 | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | Not started |
+| T009 | `feature/group-neighboring-series` | #68 | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | Complete static C1; F0003 (policy-sensitive) |
 | T010 | `feature/91-branded-search-link-share` | #91 | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
 | T011 | `feature/95-artist-links` | #95 | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
 | T012 | `feature/99-selected-tag-suggestions` | #99 | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
