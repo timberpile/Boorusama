@@ -122,3 +122,7 @@
 
 - Re-read unchanged pinned Pixiv Favorites `PixivFavoritesSession`, family provider, page-scoped `PostScope`, cursor validation, `PixivClient` request and relevant first-cycle test scenarios. Adversarial retry: initial page cancels old token and resets pagination; rejected cursors cannot be redirected to remote URLs, request path fixed; page jumps error before mutating cursor; `page==_lastPage` returns cached result; cancellation prevents stale results from advancing. No independently proven new defect. Real API/guest and multi-account tests remain local.
 - Static cycle-2 scoped re-review complete; no runtime tests, active hours unverified. Next T017.
+
+## Cycle 2 — T017 (#118), 2026-10-29T23:19:05.784Z
+
+- Revisited `PixivFollowingNotifier` autodespose/rebuild cancellation, offset pagination error and retry, preview origin/artist/restriction filter, profile-scoped search navigation, and exact test fixtures at unchanged pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a`. No new actionable defect. Preview implementation intentionally inspects at most first three response previews and screens restricted/mismatched works, which may produce fewer than 3 tiles but is in the bounded design. No dynamic checks; cycle-2 scoped static pass completed.
