@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import 'app_navigation.dart';
 import 'navigation_chrome_controller.dart';
 
 /// Shared transition policy keeps the bar and its overlay obstruction in sync.
@@ -73,6 +74,7 @@ class _NavigationOverlayInsetsScopeState
   @override
   Widget build(BuildContext context) {
     final chrome = ref.watch(navigationChromeProvider);
+    final feedbackKey = ref.watch(appNavigationProvider).feedbackKey;
     final media = widget.systemMediaQuery;
     final keyboard = media.viewInsets.bottom > 0;
     final transition = navigationBarTransition(
@@ -96,7 +98,7 @@ class _NavigationOverlayInsetsScopeState
           bottomPadding: bottom,
           bottomViewPadding: math.max(media.viewPadding.bottom, overlap),
           bottomPaddingListenable: _bottomPadding,
-          child: child!,
+          child: KeyedSubtree(key: feedbackKey, child: child!),
         );
       },
     );

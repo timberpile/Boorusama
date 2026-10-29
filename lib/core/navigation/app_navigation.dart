@@ -9,6 +9,10 @@ final class AppNavigation {
 
   final GlobalKey<NavigatorState> navigatorKey;
   final RouteObserver<ModalRoute<dynamic>> routeObserver;
+
+  // A stable shell context below the live inset scope, unlike the root
+  // Navigator context used by asynchronous removal callbacks.
+  final feedbackKey = GlobalKey();
 }
 
 final appNavigationProvider = Provider<AppNavigation>(

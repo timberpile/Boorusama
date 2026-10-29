@@ -131,6 +131,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BookmarkGroupRemovalResult result,
   ) {
     if (result.removedCount == 0) return;
+    // Root-navigator callbacks outlive their menu but sit above the shell's
+    // live inset scope. Resolve the stable shell anchor when showing feedback.
+    context =
+        ref.read(appNavigationProvider).feedbackKey.currentContext ?? context;
+    if (!context.mounted) return;
     final strings = context.t.bookmark;
     Kurumi.showSuccessToast(
       context,
