@@ -180,3 +180,8 @@ Re-examined withoutSelectedTagSuggestions. It first classifies ordinary selected
 
 Adversarially compared #104's PostDetailsPageView _onPageChanged / PageView swipe physics against #106's measured bottom preview obstruction and #112's Viewer toolbar. #104 resets expanded sheet state only after a page change in phone horizontal layout and restricts drag when zoomed/animating or in vertical layout; #106 computes root toast clearance from the same viewer controller's measured preview without owning PageView physics, while #112 changes toolbar children, not drag arbitration. Nested horizontal controls and 2× text/zoom/pointer still need physical UX test. No statically proven interaction defect.
 - Next T014; active duration unverified.
+
+## Cycle 2 — T014 (2026-10-29T23:23:03.176Z)
+
+Rechecked bookmark_group_selectors.dart score comparator and cached_topic_feed_filter.dart. Bookmark score comparisons read stored Post snapshots with a local-ID tie-break; cached Feed sort-only isActive remains a local projection with invalid score falling back to zero and unknown date last. Compared #68's new mixed BookmarkGridEntry/Pool date extrema: both branches touch the bookmark selector surface. A combined branch must apply score sorting to mixed Post/Pool rows without assuming Pool entries have Post.score; this is an integration hotspot, not evidence either pinned branch independently has a compilation defect. No additional actionable finding; final merge needs analyzer and mixed-row sort regression.
+- Next T017; active duration unverified.
