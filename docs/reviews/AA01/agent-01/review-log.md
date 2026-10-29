@@ -188,3 +188,7 @@
 ## 2026-10-29 — cycle 9 T005 (#118)
 
 - Reconciled overlapping #117/#118 client and navigation edits using actual per-file patches. Shared _get parameters appear identical and must be applied once; both part imports and destination capabilities are required. No integration performed or additional defect established. F0002/F0003/F0011 remain; duration unverified.
+
+## 2026-10-29 — cycle 9 T001 (#113)
+
+- Compared exact changed paths with #114/#116: disjoint files but shared post-grid rendering, no proven integration collision. Revisited FakeBooruBackend hasMore loss and page-local metadata (F0004), total-only pagination (F0005) and Gelbooru cap (F0006). No new canonical finding, no executable tests.
