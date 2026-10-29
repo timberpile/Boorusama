@@ -212,3 +212,7 @@
 ## 2026-10-29 — cycle 10 T001 (#113)
 
 - Read 16 engine providers and classified metadata semantics: explicit hasMore (Hybooru/Pixiv), actual maxPage (Anime Pictures), hard depth cap (Gelbooru), global total-only (Hydrus/Nozomi/Philomena/Szurubooru) and raw-list fallbacks. Reinforces separate F0005/F0006, no new canonical finding; tests unexecuted.
+
+## 2026-10-29 — cycle 10 T002 (#114)
+
+- Verified new toolbar tests mount static popup Text rather than real BlacklistControls. Neither F0007 dynamic uppercase/filter mismatch nor F0009 page3-after-shrink can be disproved by these tests; designed exact source-backed widget scenarios. No test execution or new finding.
