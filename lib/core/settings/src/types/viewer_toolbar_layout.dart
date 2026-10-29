@@ -103,7 +103,7 @@ final class ViewerToolbarLayout extends Equatable {
     final nextToolbar = [...toolbar];
     final nextMore = [...more];
     final target = toToolbar ? nextToolbar : nextMore;
-    var destination = index.clamp(0, target.length).toInt();
+    var destination = index.clamp(0, target.length);
     final oldIndex = target.indexOf(action);
     if (oldIndex >= 0 && oldIndex < destination) destination--;
     nextToolbar.remove(action);
@@ -131,7 +131,7 @@ final class ViewerToolbarLayout extends Equatable {
     required int capacity,
   }) {
     final eligible = toolbar.where(available.contains).toList();
-    final count = capacity.clamp(0, eligible.length).toInt();
+    final count = capacity.clamp(0, eligible.length);
     // A central contiguous run preserves user ordering. For even/odd ties,
     // the left outer action moves first, matching the approved prototype.
     final start = ((eligible.length - count) / 2).ceil();
@@ -160,9 +160,9 @@ final class ViewerToolbarProjection {
 /// Very short panes may show only More; never pass negative counts to a row.
 int viewerToolbarCapacity(double width, {double buttonWidth = 48}) {
   if (!width.isFinite) return ViewerToolbarLayout.maxToolbarActions;
-  final available = math.max(0.0, width - buttonWidth - 8);
-  return (available / (buttonWidth + 8))
-      .floor()
-      .clamp(0, ViewerToolbarLayout.maxToolbarActions)
-      .toInt();
+  final available = math.max(0, width - buttonWidth - 8);
+  return (available / (buttonWidth + 8)).floor().clamp(
+    0,
+    ViewerToolbarLayout.maxToolbarActions,
+  );
 }

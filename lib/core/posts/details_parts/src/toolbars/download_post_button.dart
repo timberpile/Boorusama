@@ -83,16 +83,21 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
       ],
       child: widget.menuItem
           ? GestureDetector(
-              onLongPress: sources?.isNotEmpty == true ? _controller.show : null,
+              onLongPress: (sources?.isNotEmpty ?? false)
+                  ? _controller.show
+                  : null,
               child: KurumiPopupMenuItem(
                 hideOnTap: false,
                 title: Text(context.t.download.download),
-                icon: _buildIcon(sources, Theme.of(context).colorScheme.onSurface),
+                icon: _buildIcon(
+                  sources,
+                  Theme.of(context).colorScheme.onSurface,
+                ),
                 onTap: () {
                   notifier.download(widget.post);
                   widget.onMenuAction?.call();
                 },
-                trailing: sources?.isNotEmpty == true
+                trailing: (sources?.isNotEmpty ?? false)
                     ? IconButton(
                         tooltip: context.t.settings.download.quality,
                         onPressed: _controller.show,
@@ -102,38 +107,38 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
               ),
             )
           : KurumiTooltip(
-        message: context.t.download.download,
-        child: !widget.small
-            ? IconButton(
-                splashRadius: 16,
-                onPressed: () {
-                  notifier.download(widget.post);
-                },
-                onLongPress: () {
-                  _controller.show();
-                },
-                icon: _buildIcon(
-                  sources,
-                  iconColor,
-                ),
-              )
-            : Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    notifier.download(widget.post);
-                  },
-                  onLongPress: () {},
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: _buildIcon(
-                      sources,
-                      iconColor,
+              message: context.t.download.download,
+              child: !widget.small
+                  ? IconButton(
+                      splashRadius: 16,
+                      onPressed: () {
+                        notifier.download(widget.post);
+                      },
+                      onLongPress: () {
+                        _controller.show();
+                      },
+                      icon: _buildIcon(
+                        sources,
+                        iconColor,
+                      ),
+                    )
+                  : Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          notifier.download(widget.post);
+                        },
+                        onLongPress: () {},
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: _buildIcon(
+                            sources,
+                            iconColor,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-      ),
+            ),
     );
   }
 

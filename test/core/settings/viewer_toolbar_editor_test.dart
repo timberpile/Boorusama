@@ -10,28 +10,41 @@ import 'package:kurumi/kurumi.dart';
 void main() {
   setUpAll(() => ensureI18nInitialized('en-US'));
 
-  Future<void> mount(WidgetTester tester, ValueNotifier<ViewerToolbarLayout> value,
-      {double textScale = 1}) => tester.pumpWidget(
-    ProviderScope(child: BooruLocalization(
-      child: MaterialApp(
-        builder: (context, child) => KurumiTheme(
-          data: KurumiThemeData.fromMaterial(Theme.of(context)),
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
-            child: child!,
+  Future<void> mount(
+    WidgetTester tester,
+    ValueNotifier<ViewerToolbarLayout> value, {
+    double textScale = 1,
+  }) => tester.pumpWidget(
+    ProviderScope(
+      child: BooruLocalization(
+        child: MaterialApp(
+          builder: (context, child) => KurumiTheme(
+            data: KurumiThemeData.fromMaterial(Theme.of(context)),
+            child: MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(textScale)),
+              child: child!,
+            ),
+          ),
+          home: Scaffold(
+            body: ValueListenableBuilder(
+              valueListenable: value,
+              builder: (_, layout, _) => SingleChildScrollView(
+                child: ViewerToolbarEditor(
+                  layout: layout,
+                  onChanged: (next) => value.value = next,
+                ),
+              ),
+            ),
           ),
         ),
-        home: Scaffold(body: ValueListenableBuilder(
-          valueListenable: value,
-          builder: (_, layout, _) => SingleChildScrollView(
-            child: ViewerToolbarEditor(layout: layout, onChanged: (next) => value.value = next),
-          ),
-        )),
       ),
-    )),
+    ),
   );
 
-  testWidgets('accessible controls reorder and transfer the selected action', (tester) async {
+  testWidgets('accessible controls reorder and transfer the selected action', (
+    tester,
+  ) async {
     final value = ValueNotifier(ViewerToolbarLayout.editorDefault());
     addTearDown(value.dispose);
     await mount(tester, value);
@@ -50,7 +63,9 @@ void main() {
     expect(value.value.toolbar.last, ViewerToolbarAction.bookmark);
   });
 
-  testWidgets('full toolbar requires an explicit replacement target', (tester) async {
+  testWidgets('full toolbar requires an explicit replacement target', (
+    tester,
+  ) async {
     final value = ValueNotifier(ViewerToolbarLayout.editorDefault());
     addTearDown(value.dispose);
     await mount(tester, value);
@@ -68,13 +83,19 @@ void main() {
     expect(value.value.toolbar.length, 5);
   });
 
-  testWidgets('long press drag moves a toolbar action into More', (tester) async {
+  testWidgets('long press drag moves a toolbar action into More', (
+    tester,
+  ) async {
     final value = ValueNotifier(ViewerToolbarLayout.editorDefault());
     addTearDown(value.dispose);
     await mount(tester, value);
-    final gesture = await tester.startGesture(tester.getCenter(find.byKey(const Key('edit-toolbar-bookmark'))));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byKey(const Key('edit-toolbar-bookmark'))),
+    );
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 1));
-    await gesture.moveTo(tester.getCenter(find.byKey(const Key('toolbar-more-drop'))));
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const Key('toolbar-more-drop'))),
+    );
     await tester.pump();
     await gesture.up();
     await tester.pumpAndSettle();
@@ -82,7 +103,9 @@ void main() {
     expect(value.value.more.first, ViewerToolbarAction.bookmark);
   });
 
-  testWidgets('320 dp and enlarged text preserve reachable controls', (tester) async {
+  testWidgets('320 dp and enlarged text preserve reachable controls', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);

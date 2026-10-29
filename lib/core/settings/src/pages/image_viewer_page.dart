@@ -35,12 +35,13 @@ class _ImageViewerPageState extends ConsumerState<ImageViewerPage> {
           title: Text(context.t.post.detail.widgets.toolbar),
           subtitle: Text(context.t.settings.appearance.customize),
           trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              settings: const RouteSettings(name: 'viewer_toolbar_layout'),
-              builder: (_) => const ViewerToolbarLayoutPage(),
-            ),
-          ),
+          onTap: () =>
+              SettingsPageNavigationScope.applicationNavigatorOf(context).push(
+                MaterialPageRoute<void>(
+                  settings: const RouteSettings(name: 'viewer_toolbar_layout'),
+                  builder: (_) => const ViewerToolbarLayoutPage(),
+                ),
+              ),
         ),
         ViewerSettingsInteractionBlocker(
           child: ImageViewerSettingsSection(

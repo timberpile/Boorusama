@@ -58,8 +58,8 @@ void main() {
 
   test('custom order survives JSON round trip and unrelated mutations', () {
     final layout = ViewerToolbarLayout(
-      toolbar: [ViewerToolbarAction.share, ViewerToolbarAction.bookmark],
-      more: [ViewerToolbarAction.tags, ViewerToolbarAction.download],
+      toolbar: const [ViewerToolbarAction.share, ViewerToolbarAction.bookmark],
+      more: const [ViewerToolbarAction.tags, ViewerToolbarAction.download],
     );
     expect(
       ViewerToolbarLayout.tryParse(jsonDecode(jsonEncode(layout.toJson()))),
@@ -69,21 +69,24 @@ void main() {
     expect(() => layout.more.clear(), throwsUnsupportedError);
   });
 
-  test('compact projection protects the middle and removes left first on ties', () {
-    final layout = ViewerToolbarLayout.editorDefault();
-    final four = layout.project(all, capacity: 4);
-    expect(four.toolbar, layout.toolbar.skip(1));
-    final three = layout.project(all, capacity: 3);
-    expect(three.toolbar, layout.toolbar.sublist(1, 4));
-    expect(three.more.take(2), [layout.toolbar.first, layout.toolbar.last]);
-    expect(layout.project(all, capacity: 1).toolbar, [layout.toolbar[2]]);
-    expect(layout.project(all, capacity: 0).toolbar, isEmpty);
-    expect(layout.project(all, capacity: 99).toolbar, layout.toolbar);
-  });
+  test(
+    'compact projection protects the middle and removes left first on ties',
+    () {
+      final layout = ViewerToolbarLayout.editorDefault();
+      final four = layout.project(all, capacity: 4);
+      expect(four.toolbar, layout.toolbar.skip(1));
+      final three = layout.project(all, capacity: 3);
+      expect(three.toolbar, layout.toolbar.sublist(1, 4));
+      expect(three.more.take(2), [layout.toolbar.first, layout.toolbar.last]);
+      expect(layout.project(all, capacity: 1).toolbar, [layout.toolbar[2]]);
+      expect(layout.project(all, capacity: 0).toolbar, isEmpty);
+      expect(layout.project(all, capacity: 99).toolbar, layout.toolbar);
+    },
+  );
 
   test('profile capabilities filter presentation, never stored positions', () {
     final layout = ViewerToolbarLayout(
-      toolbar: [
+      toolbar: const [
         ViewerToolbarAction.upvote,
         ViewerToolbarAction.bookmark,
         ViewerToolbarAction.favorite,
@@ -109,16 +112,19 @@ void main() {
     expect(inMore.move(first, toToolbar: true, index: 2).toolbar[2], first);
   });
 
-  test('full toolbar requires an explicit replacement, not silent eviction', () {
-    final layout = ViewerToolbarLayout.editorDefault();
-    final incoming = layout.more.first;
-    expect(layout.move(incoming, toToolbar: true, index: 0), layout);
-    final displaced = layout.toolbar[2];
-    final replaced = layout.replace(displaced, withAction: incoming);
-    expect(replaced.toolbar[2], incoming);
-    expect(replaced.more.first, displaced);
-    expect({...replaced.toolbar, ...replaced.more}, all);
-  });
+  test(
+    'full toolbar requires an explicit replacement, not silent eviction',
+    () {
+      final layout = ViewerToolbarLayout.editorDefault();
+      final incoming = layout.more.first;
+      expect(layout.move(incoming, toToolbar: true, index: 0), layout);
+      final displaced = layout.toolbar[2];
+      final replaced = layout.replace(displaced, withAction: incoming);
+      expect(replaced.toolbar[2], incoming);
+      expect(replaced.more.first, displaced);
+      expect({...replaced.toolbar, ...replaced.more}, all);
+    },
+  );
 
   test('projection never loses or duplicates any available action', () {
     final random = Random(112);
@@ -146,5 +152,4 @@ void main() {
     expect(viewerToolbarCapacity(366), 5);
     expect(viewerToolbarCapacity(2000), 5);
   });
-
 }

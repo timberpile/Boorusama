@@ -71,7 +71,9 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
               required: true,
               widget: BookmarkPostButton(post: post, config: auth),
               menuBuilder: (_, _) => BookmarkPostButton(
-                post: post, config: auth, menuItem: true,
+                post: post,
+                config: auth,
+                menuItem: true,
               ),
               title: context.t.post.action.bookmark,
               icon: const Icon(Icons.bookmark_border),
@@ -81,7 +83,9 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
               required: true,
               widget: DownloadPostButton(post: post),
               menuBuilder: (_, close) => DownloadPostButton(
-                post: post, menuItem: true, onMenuAction: close,
+                post: post,
+                menuItem: true,
+                onMenuAction: close,
               ),
               title: context.t.download.download,
               icon: const Icon(Icons.download),

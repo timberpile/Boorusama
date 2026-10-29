@@ -45,15 +45,17 @@ class SharePostButton extends ConsumerWidget {
           downloadFilenameBuilderProvider(auth),
         );
 
-    void share() => ref.read(shareProvider).sharePost(
-      post,
-      auth,
-      context: context,
-      configViewer: configViewer,
-      download: download,
-      filenameBuilder: effectiveDownloadFilenameBuilder,
-      imageCacheManager: imageCacheManager ?? defaultImageCacheManager,
-    );
+    void share() => ref
+        .read(shareProvider)
+        .sharePost(
+          post,
+          auth,
+          context: context,
+          configViewer: configViewer,
+          download: download,
+          filenameBuilder: effectiveDownloadFilenameBuilder,
+          imageCacheManager: imageCacheManager ?? defaultImageCacheManager,
+        );
     if (menuItem) {
       return KurumiPopupMenuItem(
         title: Text(context.t.post.action.share),

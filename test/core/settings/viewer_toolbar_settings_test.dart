@@ -3,11 +3,14 @@ import 'package:boorusama/core/settings/src/types/viewer_toolbar_layout.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('legacy settings keep native engine order and omit the optional key', () {
-    final settings = Settings.fromJson(Settings.defaultSettings.toJson());
-    expect(settings.viewerToolbarLayout, isNull);
-    expect(settings.toJson().containsKey('viewerToolbarLayout'), isFalse);
-  });
+  test(
+    'legacy settings keep native engine order and omit the optional key',
+    () {
+      final settings = Settings.fromJson(Settings.defaultSettings.toJson());
+      expect(settings.viewerToolbarLayout, isNull);
+      expect(settings.toJson().containsKey('viewerToolbarLayout'), isFalse);
+    },
+  );
 
   test('layout round trips through settings used by backup and restore', () {
     final layout = ViewerToolbarLayout.editorDefault();
@@ -15,7 +18,10 @@ void main() {
       viewerToolbarLayout: () => layout,
     );
     expect(Settings.fromJson(custom.toJson()).viewerToolbarLayout, layout);
-    expect(custom.copyWith(showBookmarkCount: true).viewerToolbarLayout, layout);
+    expect(
+      custom.copyWith(showBookmarkCount: true).viewerToolbarLayout,
+      layout,
+    );
     expect(custom, isNot(Settings.defaultSettings));
   });
 
@@ -41,7 +47,10 @@ void main() {
       settings: Settings.defaultSettings.viewer,
       enable: true,
     );
-    expect(profile.settings.toJson().containsKey('viewerToolbarLayout'), isFalse);
+    expect(
+      profile.settings.toJson().containsKey('viewerToolbarLayout'),
+      isFalse,
+    );
     expect(profile.toJson().containsKey('viewerToolbarLayout'), isFalse);
   });
 }

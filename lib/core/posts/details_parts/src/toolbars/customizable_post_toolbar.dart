@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -104,15 +103,10 @@ class _ConfiguredPostToolbarState extends State<ConfiguredPostToolbar> {
   @override
   void didUpdateWidget(ConfiguredPostToolbar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final before = [
-      for (final b in oldWidget.buttons)
-        (b is ViewerToolbarButtonData ? b.action : b.title, b.enabled),
-    ];
-    final after = [
-      for (final b in widget.buttons)
-        (b is ViewerToolbarButtonData ? b.action : b.title, b.enabled),
-    ];
-    if (oldWidget.layout != widget.layout || !listEquals(before, after)) {
+    // An open overlay must not retain callbacks or loading/authentication state
+    // from a previous engine build, even when the available action IDs match.
+    if (oldWidget.layout != widget.layout ||
+        oldWidget.buttons != widget.buttons) {
       _menu.hide();
     }
   }
@@ -176,9 +170,9 @@ class _ConfiguredPostToolbarState extends State<ConfiguredPostToolbar> {
                     ],
                   ),
                 ),
-              SizedBox(width: math.min(8.0, constraints.maxWidth)),
+              SizedBox(width: math.min(8, constraints.maxWidth)),
               SizedBox(
-                width: math.min(48.0, math.max(0.0, constraints.maxWidth - 8)),
+                width: math.min(48, math.max(0, constraints.maxWidth - 8)),
                 child: KurumiAnchor(
                   controller: _menu,
                   spacing: 8,
@@ -186,12 +180,16 @@ class _ConfiguredPostToolbarState extends State<ConfiguredPostToolbar> {
                     container: container,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
-                        maxWidth: math.min(320.0, MediaQuery.sizeOf(context).width),
+                        maxWidth: math.min(
+                          320,
+                          MediaQuery.sizeOf(context).width,
+                        ),
                         maxHeight: math.max(
-                          0.0,
+                          0,
                           MediaQuery.sizeOf(context).height -
                               MediaQuery.viewInsetsOf(context).bottom -
-                              MediaQuery.paddingOf(context).vertical - 24,
+                              MediaQuery.paddingOf(context).vertical -
+                              24,
                         ),
                       ),
                       child: SingleChildScrollView(
@@ -208,7 +206,10 @@ class _ConfiguredPostToolbarState extends State<ConfiguredPostToolbar> {
                   child: IconButton(
                     key: const Key('viewer-toolbar-more'),
                     tooltip: context.t.generic.action.more,
-                    constraints: const BoxConstraints(minHeight: 48, minWidth: 48),
+                    constraints: const BoxConstraints(
+                      minHeight: 48,
+                      minWidth: 48,
+                    ),
                     onPressed: more.isEmpty ? null : _menu.toggle,
                     icon: const Icon(Icons.more_horiz),
                   ),

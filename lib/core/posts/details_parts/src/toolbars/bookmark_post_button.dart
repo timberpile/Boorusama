@@ -44,11 +44,13 @@ class BookmarkPostButton extends ConsumerWidget {
           color: isBookmarked ? context.colors.upvoteColor : null,
           fill: isBookmarked ? 1 : 0,
         ),
-        onTap: state.isLoading ? null : () => showBookmarkGroupPicker(
-          context,
-          config: config,
-          post: post,
-        ),
+        onTap: state.isLoading
+            ? null
+            : () => showBookmarkGroupPicker(
+                context,
+                config: config,
+                post: post,
+              ),
       );
     }
     return BookmarkGroupPickerAnchor(

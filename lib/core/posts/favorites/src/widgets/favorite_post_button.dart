@@ -38,8 +38,10 @@ class FavoritePostButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Menu rows are disposed after activation; keep async feedback on the route.
-    final feedback = menuItem ? Navigator.of(context).context : context;
-    final VoidCallback? onPressed = isFaved == null
+    final feedback = menuItem
+        ? Scaffold.maybeOf(context)?.context ?? Navigator.of(context).context
+        : context;
+    final onPressed = isFaved == null
         ? null
         : () {
             if (!isAuthorized) {
@@ -50,10 +52,12 @@ class FavoritePostButton extends StatelessWidget {
               );
               return;
             }
-            unawaited(runFavoriteAction(
-              feedback,
-              isFaved! ? removeFavorite : addFavorite,
-            ));
+            unawaited(
+              runFavoriteAction(
+                feedback,
+                isFaved! ? removeFavorite : addFavorite,
+              ),
+            );
           };
     final icon = (isFaved ?? false)
         ? Icon(
@@ -65,9 +69,11 @@ class FavoritePostButton extends StatelessWidget {
         : const Icon(Symbols.favorite, size: 20);
     if (menuItem) {
       return KurumiPopupMenuItem(
-        title: Text(isFaved == true
-            ? context.t.post.action.unfavorite
-            : context.t.post.action.favorite),
+        title: Text(
+          (isFaved ?? false)
+              ? context.t.post.action.unfavorite
+              : context.t.post.action.favorite,
+        ),
         icon: icon,
         onTap: onPressed,
       );

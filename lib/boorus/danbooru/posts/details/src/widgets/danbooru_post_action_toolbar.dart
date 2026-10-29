@@ -90,8 +90,10 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   menuBuilder: (_, _) => FavoritePostButton(
                     isFaved: isFaved,
                     isAuthorized: hasLogin,
-                    addFavorite: () => notifier.add(post.id, profileId: profile.id),
-                    removeFavorite: () => notifier.remove(post.id, profileId: profile.id),
+                    addFavorite: () =>
+                        notifier.add(post.id, profileId: profile.id),
+                    removeFavorite: () =>
+                        notifier.remove(post.id, profileId: profile.id),
                     menuItem: true,
                   ),
                   title: context.t.post.action.favorite,
@@ -110,7 +112,9 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   ),
                   enabled: !voteState.isUpvoted || voteId != null,
                   onTap: voteState.isUpvoted
-                      ? (voteId == null ? null : () => ref.danbooruRemoveVote(post.id, voteId))
+                      ? (voteId == null
+                            ? null
+                            : () => ref.danbooruRemoveVote(post.id, voteId))
                       : () => ref.danbooruUpvote(post.id),
                   title: context.t.post.action.upvote,
                   icon: const Icon(Icons.thumb_up_outlined),
@@ -128,7 +132,9 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   ),
                   enabled: !voteState.isDownvoted || voteId != null,
                   onTap: voteState.isDownvoted
-                      ? (voteId == null ? null : () => ref.danbooruRemoveVote(post.id, voteId))
+                      ? (voteId == null
+                            ? null
+                            : () => ref.danbooruRemoveVote(post.id, voteId))
                       : () => ref.danbooruDownvote(post.id),
                   title: context.t.post.action.downvote,
                   icon: const Icon(Icons.thumb_down_outlined),
@@ -141,7 +147,9 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                   config: config,
                 ),
                 menuBuilder: (_, _) => BookmarkPostButton(
-                  post: post, config: config, menuItem: true,
+                  post: post,
+                  config: config,
+                  menuItem: true,
                 ),
                 title: context.t.post.action.bookmark,
                 icon: const Icon(Icons.bookmark_border),
@@ -150,7 +158,9 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                 action: ViewerToolbarAction.download,
                 widget: DownloadPostButton(post: post),
                 menuBuilder: (_, close) => DownloadPostButton(
-                  post: post, menuItem: true, onMenuAction: close,
+                  post: post,
+                  menuItem: true,
+                  onMenuAction: close,
                 ),
                 title: context.t.download.download,
                 icon: const Icon(Icons.download),
