@@ -132,3 +132,10 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Issue #116, `feature/116-compact-follow-button` pinned `5ac3ad9bc5f852f000012499c19468151c73734b`, merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`, compared against initial develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
 - Read the only changed widget and full new test. Compact-only style min filled height 36dp and 48dp padded touch target, stable 20dp icon/spinner slot, follow/loading/modified state with focus/semantics; noncompact path unchanged. Adjacent follow async/state flow checked. No independent static finding; Android visual acceptance unresolved. See [T019](branches/T019.md).
 - Next T020 / #117, Pixiv favorites; no local executions, duration unverified.
+
+## Cycle 1 — T020 review completed 2026-10-29T23:13:26.964Z
+
+- Issue #117, `feature/117-pixiv-favorites` pinned `e2929259b7725c484d11483d6ea48270079eb2f4`; merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`, develop comparison `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Reviewed all 9 substantive code/test paths plus handoff inventory. Traced validated read-only Pixiv cursor client, token-refresh/interceptor origin and endpoint, profile/session scopes and cancellation, DTO parsing/filtering, native Favorites routing, and actual pre-#113 PostScope/PostGrid continuation. Both package tests and session tests inspected, not run.
+- Found [AA02-A03-F0003](branches/T020.md#aa02-a03-f0003--filtered-empty-pixiv-page-stops-grid-before-valid-cursor) (medium/static-confirmed/open): controller ignores `hasMore=true` when transformed source page is empty, so continuation is never requested. #113 independently contains a candidate correction but remains unmerged. Local test needs integrated grid+session fixture, beyond unit session assertions.
+- Next T021 / #118, then complete T009 and refresh scope. Active review hours unverified.
