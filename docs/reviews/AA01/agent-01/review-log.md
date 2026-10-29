@@ -16,3 +16,7 @@
 ## 2026-10-29 — cycle 1 T002 (#114)
 
 - Pinned `5bb52794468b172b7d6878fb825b42b00d654675` vs common base; inspected 13 changed files including four tests, controller/listeners, blacklist controls, settings and menu consumers. No proven newly introduced defect. Real-controller popup and device tests remain unexecuted. Cycle 2 pending; active time unverified.
+
+## 2026-10-29 — cycle 1 T003 (#116)
+
+- Pinned `5ac3ad9bc5f852f000012499c19468151c73734b` vs common base; inspected all 3 changed files, real Search header, Follow flow, modification badge and target semantics. No confirmed new code defect. Integrated Search-row and Android tests unexecuted; active time unverified.
