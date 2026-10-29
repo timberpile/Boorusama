@@ -59,3 +59,5 @@ Open issues lacking a matching task branch (such as #43, #96, #100, #102, #103, 
 - Cycle 2 T008: complete 2026-10-29T23:20:07.651Z; destructive-guard and archive path audit; findings unchanged.
 
 - Cycle 2 T009: complete 2026-10-29T23:20:18.534Z; revalidate typed pool identity and series admission; findings unchanged.
+
+- Cycle 2 T010: complete 2026-10-29T23:21:45.964Z; shared link-icon asset and link transport; no new canonical finding.
