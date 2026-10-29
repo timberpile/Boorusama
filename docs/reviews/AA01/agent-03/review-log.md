@@ -57,3 +57,8 @@
 
 - Reviewed modified/disabled/working Follow states, tap target/semantics geometry and Search action integration against pinned source/tests; no newly introduced functional defect supported. Tests unrun, active duration unverified.
 - Next: T004 adversarial session lifecycle and pagination cross-branch check.
+
+## T004 cycle 2 — 2026-10-29T17:57:40.210Z
+
+- Revalidated Pixiv Favorites scope via `DestinationProfileScope` and `CurrentBooruConfigScope`, provider-family/cached fetcher identities, token scopes, cursor monotonicity and error/retry rules. F0001 and F0002 remain source-supported and open; no additional defect. Active time unverified; no SDK or device execution.
+- Next: T005 second-pass artist preview/content policy and notifier lifecycle.
