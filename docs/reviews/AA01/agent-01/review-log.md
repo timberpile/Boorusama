@@ -100,3 +100,7 @@
 ## 2026-10-29 — cycle 5 T003 (#116)
 
 - Reviewed all compact/noncompact/busy/following/modified state semantics and active-operation guards, border badge clip behavior and test assumptions. No new introduced defect; Android hit-region/visual acceptance not performed.
+
+## 2026-10-29 — cycle 5 T004 (#117)
+
+- Rechecked two-account private/public source identity, session/provider keying, cancelled cursor response and Pixiv DTO origin binding. Security parser fixed endpoint and duplicate URL param guards verified. Cross F0001 and F0008 remain; no new defect, no live/private-account tests.
