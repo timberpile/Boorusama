@@ -92,3 +92,8 @@
 
 - Pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a`; 14 paths accounted, reviewed Pixiv continuation, per-account provider lifecycle, artist previews/navigation and tests. No defect confirmed; #117 overlap is unverified integration note, not a conflict finding.
 - Active-duration condition unverified; no runtime tests. Next T018.
+
+## Cycle 1 — T018 (#68), 2026-10-29T23:09:16.668Z
+
+- Head `771082d9c58363348d74b97a2da23732cdd921f0`, 69 changed paths accounted; inspected new domain types, repository capabilities, bounded indexers, mixed Post+Pool controller/selection, persisted groups, backup/import, source profile guards and test scenarios. Source-confirmed defect AA02-A02-F0002: no Series metadata discovery for saved Post entries beyond first 40 and no scroll window advancement. No dynamic test/device execution.
+- Active hours still **unverified**; next T019.
