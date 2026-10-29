@@ -43,7 +43,9 @@ class GitHubReleaseUpdateChecker implements AppUpdateChecker {
         );
       }
 
-      final decoded = jsonDecode(response.body);
+      // Release assets may be served as octet-stream without a charset. The
+      // manifest is UTF-8 JSON, not the HTTP client's legacy text fallback.
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (decoded is! Map<String, dynamic>) {
         return const UpdateError('Invalid GitHub update manifest');
       }
