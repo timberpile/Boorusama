@@ -110,6 +110,14 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                         ? () => ref.danbooruRemoveVote(post.id, voteId)
                         : null,
                   ),
+                  menuBuilder: (_, _) => UpvotePostButton(
+                    voteState: voteState,
+                    onUpvote: () => ref.danbooruUpvote(post.id),
+                    onRemoveUpvote: voteId != null
+                        ? () => ref.danbooruRemoveVote(post.id, voteId)
+                        : null,
+                    menuItem: true,
+                  ),
                   enabled: !voteState.isUpvoted || voteId != null,
                   onTap: voteState.isUpvoted
                       ? (voteId == null
@@ -129,6 +137,14 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                     onRemoveDownvote: voteId != null
                         ? () => ref.danbooruRemoveVote(post.id, voteId)
                         : null,
+                  ),
+                  menuBuilder: (_, _) => DownvotePostButton(
+                    voteState: voteState,
+                    onDownvote: () => ref.danbooruDownvote(post.id),
+                    onRemoveDownvote: voteId != null
+                        ? () => ref.danbooruRemoveVote(post.id, voteId)
+                        : null,
+                    menuItem: true,
                   ),
                   enabled: !voteState.isDownvoted || voteId != null,
                   onTap: voteState.isDownvoted

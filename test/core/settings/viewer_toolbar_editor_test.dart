@@ -14,6 +14,7 @@ void main() {
     WidgetTester tester,
     ValueNotifier<ViewerToolbarLayout> value, {
     double textScale = 1,
+    TextDirection direction = TextDirection.ltr,
   }) => tester.pumpWidget(
     ProviderScope(
       child: BooruLocalization(
@@ -23,7 +24,7 @@ void main() {
             child: MediaQuery(
               data: MediaQuery.of(context)
                   .copyWith(textScaler: TextScaler.linear(textScale)),
-              child: child!,
+              child: Directionality(textDirection: direction, child: child!),
             ),
           ),
           home: Scaffold(
@@ -115,6 +116,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.ensureVisible(find.byKey(const Key('edit-more-tagHistory')));
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('RTL move controls follow the physical slot order', (
+    tester,
+  ) async {
+    final value = ValueNotifier(ViewerToolbarLayout.editorDefault());
+    addTearDown(value.dispose);
+    await mount(tester, value, direction: TextDirection.rtl);
+    await tester.tap(find.byKey(const Key('edit-toolbar-bookmark')));
+    await tester.pump();
+    final back = find.byKey(const Key('toolbar-move-back'));
+    final icon = tester.widget<Icon>(
+      find.descendant(of: back, matching: find.byType(Icon)),
+    );
+    expect(icon.textDirection, TextDirection.ltr);
+    await tester.tap(back);
+    await tester.pump();
+    expect(value.value.toolbar[1], ViewerToolbarAction.bookmark);
     expect(tester.takeException(), isNull);
   });
 }

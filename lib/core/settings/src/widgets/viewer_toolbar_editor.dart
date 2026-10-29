@@ -268,7 +268,10 @@ class _ViewerToolbarEditorState extends State<ViewerToolbarEditor> {
                   onPressed: index > 0
                       ? () => _move(selected, inToolbar, index - 1)
                       : null,
-                  icon: Icon(inToolbar ? Icons.arrow_back : Icons.arrow_upward),
+                  icon: Icon(
+                    inToolbar ? Icons.arrow_back : Icons.arrow_upward,
+                    textDirection: TextDirection.ltr,
+                  ),
                 ),
                 IconButton(
                   key: const Key('toolbar-move-forward'),
@@ -280,6 +283,7 @@ class _ViewerToolbarEditorState extends State<ViewerToolbarEditor> {
                       : null,
                   icon: Icon(
                     inToolbar ? Icons.arrow_forward : Icons.arrow_downward,
+                    textDirection: TextDirection.ltr,
                   ),
                 ),
                 TextButton.icon(
