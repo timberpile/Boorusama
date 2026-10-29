@@ -82,3 +82,8 @@
 
 - Head `5ac3ad9bc5f852f000012499c19468151c73734b`; 3 changed paths accounted, visual control and busy/follow state tested on paper. No confirmed finding; actual Material/Android hit bounds still need device.
 - Active 5 h unverified, no tests executed; next T016.
+
+## Cycle 1 — T016 (#117), 2026-10-29T23:01:13.112Z
+
+- Head `e2929259b7725c484d11483d6ea48270079eb2f4`; 10 changed paths inventoried, Pixiv auth, cursor requests, private/public scope, post origin and tests analyzed. No independently confirmed source issue; real API contract/device remain verification gates.
+- Measured active hours unverified, no tests executed; next T017.
