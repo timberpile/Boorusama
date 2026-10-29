@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../images/types.dart';
 import '../../../../posts/listing/types.dart';
+import '../../../../posts/listing/src/timeline_toolbar_l10n.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/settings.dart';
 import '../../types/utils.dart';
@@ -207,12 +208,13 @@ class _ImageListingSettingsSectionState
         ),
         KurumiSwitchListTile(
           title: Text(
-            context.t.settings.appearance.show_post_list_config_header,
+            context.t.timelineToolbar.keepVisible,
           ),
-          value: settings.showPostListConfigHeader,
+          subtitle: Text(context.t.timelineToolbar.scrollDescription),
+          value: settings.keepTimelineToolbarVisible,
           onChanged: (value) => _onUpdate(
             (current) => current.copyWith(
-              showPostListConfigHeader: value,
+              keepTimelineToolbarVisible: value,
             ),
           ),
         ),

@@ -26,7 +26,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
 import '../../../../../foundation/display.dart';
@@ -41,6 +40,7 @@ import '../types/grid_utils.dart';
 import '../types/page_mode.dart';
 import '../widgets/conditional_value_listenable_builder.dart';
 import '../widgets/post_grid_controller.dart';
+import '../widgets/timeline_header_sliver.dart';
 import 'highres_preview_on_mobile_data_warning_banner.dart';
 import 'swipe_to.dart';
 import 'too_much_cached_images_warning_banner.dart';
@@ -317,8 +317,18 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                             valueListenable: refreshing,
                             useFalseChildAsCache: true,
                             trueChild: const SliverSizedBox.shrink(),
-                            falseChild: SliverPinnedHeader(
-                              child: widget.gridHeader,
+                            falseChild: Consumer(
+                              builder: (_, ref, _) => TimelineHeaderSliver(
+                                keepVisible: ref.watch(
+                                  imageListingSettingsProvider.select(
+                                    (value) => value.keepTimelineToolbarVisible,
+                                  ),
+                                ),
+                                reduceMotion: ref.watch(
+                                  settingsProvider.select((value) => value.reduceAnimations),
+                                ),
+                                child: widget.gridHeader,
+                              ),
                             ),
                           ),
                           ConditionalValueListenableBuilder(

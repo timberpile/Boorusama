@@ -37,6 +37,7 @@ import '../providers/providers.dart';
 import '../types/post_action_snapshot.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/page_mode.dart';
+import '../types/active_blacklist_count.dart';
 import 'infinite_scroll_listener.dart';
 import 'post_grid_controller.dart';
 
@@ -537,72 +538,64 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final showHeader = ref.watch(
-      imageListingSettingsProvider.select((v) => v.showPostListConfigHeader),
-    );
-
-    if (!showHeader) return const SizedBox.shrink();
-
     final imageGridPadding = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageGridPadding),
     );
 
     final controller = PostScope.of<T>(context);
 
-    return ValueListenableBuilder(
-      valueListenable: controller.hasBlacklist,
-      builder: (_, hasBlacklist, _) {
+    final expand = ref.watch(_expandedProvider);
+    final expandNotifier = ref.watch(_expandedProvider.notifier);
+    final auth = ref.watchConfigAuth;
+
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final hasBlacklist = controller.hasBlacklist.value;
         if (blacklistOnly && !hasBlacklist) return const SizedBox.shrink();
-        return ValueListenableBuilder(
-          valueListenable: controller.tagCounts,
-          builder: (_, tagCounts, _) {
-            final expand = ref.watch(_expandedProvider);
-            final expandNotifier = ref.watch(_expandedProvider.notifier);
-            return Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: imageGridPadding,
-              ),
-              child: PostListConfigurationHeader(
-                blacklistControls: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ValueListenableBuilder(
-                      valueListenable: controller.visibleHiddenTags,
-                      builder: (_, hiddenTags, _) => BlacklistControls(
-                        hiddenTags: hiddenTags,
-                        onDisableAll: () {
-                          controller.disableAllTags();
-                        },
-                        onEnableAll: () {
-                          controller.enableAllTags();
-                        },
-                        onChanged: (tag, hide) {
-                          if (hide) {
-                            controller.enableTag(tag);
-                          } else {
-                            controller.disableTag(tag);
-                          }
-                        },
-                        axis: axis,
-                      ),
-                    ),
-                    const _BlacklistedTagsInterceptedNotice(),
-                  ],
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: imageGridPadding),
+          child: PostListConfigurationHeader(
+            key: ValueKey((controller, auth)),
+            blacklistChanges: controller,
+            blacklistControls: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ValueListenableBuilder(
+                  valueListenable: controller.visibleHiddenTags,
+                  builder: (_, hiddenTags, _) => BlacklistControls(
+                    hiddenTags: hiddenTags,
+                    onDisableAll: controller.disableAllTags,
+                    onEnableAll: controller.enableAllTags,
+                    onChanged: (tag, hide) {
+                      if (hide) {
+                        controller.enableTag(tag);
+                      } else {
+                        controller.disableTag(tag);
+                      }
+                    },
+                    axis: axis,
+                  ),
                 ),
-                axis: axis,
-                postCount: controller.total,
-                initiallyExpanded: axis == Axis.vertical || (expand ?? false),
-                onExpansionChanged: (value) => expandNotifier.state = value,
-                hasBlacklist: hasBlacklist,
-                trailing: !blacklistOnly && axis == Axis.horizontal
-                    ? PostGridConfigIconButton(
-                        postController: controller,
-                      )
-                    : null,
-                hiddenCount: tagCounts.totalNonDuplicatesPostCount,
-              ),
-            );
-          },
+                const _BlacklistedTagsInterceptedNotice(),
+              ],
+            ),
+            axis: axis,
+            postCount: controller.total,
+            initiallyExpanded: axis == Axis.vertical || (expand ?? false),
+            onExpansionChanged: axis == Axis.vertical
+                ? (value) => expandNotifier.state = value
+                : null,
+            hasBlacklist: hasBlacklist,
+            trailing: !blacklistOnly && axis == Axis.horizontal
+                ? PostGridConfigIconButton(postController: controller)
+                : null,
+            hiddenCount: countActiveBlacklistPosts(
+              controller.tagCounts.value,
+              controller.activeFilters.value,
+            ),
+          ),
         );
       },
     );

@@ -1,11 +1,10 @@
-// Package imports:
+import 'dart:math' as math;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
-
-// Project imports:
-import '../../../../../foundation/utils/flutter_utils.dart';
 
 class PostListConfigurationHeader extends StatefulWidget {
   const PostListConfigurationHeader({
@@ -18,6 +17,7 @@ class PostListConfigurationHeader extends StatefulWidget {
     this.initiallyExpanded = false,
     this.axis = Axis.horizontal,
     this.onExpansionChanged,
+    this.blacklistChanges,
   });
 
   final Widget? trailing;
@@ -26,8 +26,9 @@ class PostListConfigurationHeader extends StatefulWidget {
   final bool initiallyExpanded;
   final Axis axis;
   final int postCount;
-  final void Function(bool value)? onExpansionChanged;
+  final ValueChanged<bool>? onExpansionChanged;
   final Widget blacklistControls;
+  final Listenable? blacklistChanges;
 
   @override
   State<PostListConfigurationHeader> createState() =>
@@ -36,110 +37,140 @@ class PostListConfigurationHeader extends StatefulWidget {
 
 class _PostListConfigurationHeaderState
     extends State<PostListConfigurationHeader> {
-  late var expanded = widget.initiallyExpanded;
+  final _anchor = AnchorController();
+
+  @override
+  void didUpdateWidget(covariant PostListConfigurationHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hasBlacklist && !widget.hasBlacklist) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.hasBlacklist) _anchor.hide();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _anchor.dispose();
+    super.dispose();
+  }
+
+  Widget _popup(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final availableHeight = math.max(
+      0.0,
+      media.size.height - media.padding.vertical - media.viewInsets.bottom - 24,
+    );
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxWidth: math.max(0, math.min(380, media.size.width - 24)).toDouble(),
+        maxHeight: availableHeight * .6,
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              context.t.blacklisted_tags.blacklisted_header_title,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            widget.blacklistControls,
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Kurumi.themeOf(context).colorScheme;
-    final hiddenCount = widget.hiddenCount;
+    // The vertical blacklist panel remains an inline, expandable panel.
+    if (widget.axis == Axis.vertical) {
+      if (!widget.hasBlacklist) return const SizedBox.shrink();
+      return ExpansionTile(
+        initiallyExpanded: widget.initiallyExpanded,
+        onExpansionChanged: widget.onExpansionChanged,
+        title: Text(context.t.blacklisted_tags.blacklisted_header_title),
+        children: [widget.blacklistControls],
+      );
+    }
 
-    return Card(
-      color: widget.axis == Axis.horizontal && expanded
-          ? colorScheme.surface
-          : Colors.transparent,
-      elevation: widget.axis == Axis.horizontal && expanded ? null : 0,
-      shadowColor: widget.axis == Axis.horizontal && expanded
-          ? null
-          : Colors.transparent,
-      child: Theme(
-        data: Kurumi.themeOf(context).copyWith(
-          dividerColor: Colors.transparent,
-          listTileTheme: ListTileTheme.of(context).copyWith(
-            contentPadding: EdgeInsets.zero,
-            horizontalTitleGap: 0,
-            minVerticalPadding: 0,
-            visualDensity: const ShrinkVisualDensity(),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        child: widget.hasBlacklist
-            ? ExpansionTile(
-                initiallyExpanded: expanded,
-                leading: !expanded
-                    ? const Icon(Symbols.keyboard_arrow_right)
-                    : const Icon(Symbols.keyboard_arrow_down),
-                controlAffinity: ListTileControlAffinity.leading,
-                onExpansionChanged: (value) => {
-                  setState(() {
-                    expanded = value;
-                    widget.onExpansionChanged?.call(value);
-                  }),
-                },
-                title: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Row(
-                      children: [
-                        const SizedBox(width: 8),
-                        Text(
-                          context.t.blacklisted_tags.blacklisted_header_title,
-                        ),
-                        if (constraints.maxWidth > 250)
-                          const SizedBox(width: 8),
-                        if (hiddenCount != null)
-                          if (hiddenCount > 0)
-                            if (constraints.maxWidth > 250)
-                              KurumiMaterialChip(
-                                padding: EdgeInsets.zero,
-                                visualDensity: const ShrinkVisualDensity(),
-                                backgroundColor: colorScheme.primary,
-                                label: Text(
-                                  context.t.posts.hidden_count(
-                                    hidden: hiddenCount,
-                                    total: widget.postCount,
-                                  ),
-                                  style: TextStyle(
-                                    color: colorScheme.onPrimary,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                        const Spacer(),
-                        FittedBox(
-                          child: widget.trailing,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                    );
-                  },
-                ),
-                expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  widget.blacklistControls,
-                ],
-              )
-            : ListTile(
-                minVerticalPadding: 0,
-                contentPadding: EdgeInsets.zero,
-                title: Row(
+    final container = ProviderScope.containerOf(context, listen: false);
+    final hidden = widget.hiddenCount ?? 0;
+    final hiddenLabel = '${context.t.blacklisted_tags.blacklisted_header_title}: '
+        '${context.t.posts.hidden_count(hidden: hidden, total: widget.postCount)}';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                key: const ValueKey('timeline-toolbar-content'),
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: widget.axis == Axis.horizontal
-                          ? Text(
-                              context.t.posts.counter(n: widget.postCount),
-                              style: Kurumi.themeOf(context)
-                                  .textTheme
-                                  .titleLarge,
-                            )
-                          : const SizedBox.shrink(),
+                    Text(
+                      context.t.posts.counter(n: widget.postCount),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    FittedBox(
-                      child: widget.trailing,
-                    ),
+                    if (widget.hasBlacklist) ...[
+                      const SizedBox(width: 12),
+                      KurumiAnchor(
+                        controller: _anchor,
+                        onShow: () => widget.onExpansionChanged?.call(true),
+                        onHide: () => widget.onExpansionChanged?.call(false),
+                        overlayBuilder: (_) => UncontrolledProviderScope(
+                          container: container,
+                          child: InheritedTheme.captureAll(
+                            context,
+                            widget.blacklistChanges != null
+                                ? ListenableBuilder(
+                                    listenable: widget.blacklistChanges!,
+                                    builder: (context, _) => _popup(context),
+                                  )
+                                : Builder(builder: _popup),
+                          ),
+                        ),
+                        child: Tooltip(
+                          message: hiddenLabel,
+                          child: Semantics(
+                            label: hiddenLabel,
+                            excludeSemantics: true,
+                            button: true,
+                            onTap: _anchor.toggle,
+                            child: TextButton.icon(
+                              key: const ValueKey('timeline-blacklist-button'),
+                              onPressed: _anchor.toggle,
+                              style: TextButton.styleFrom(
+                                minimumSize: const Size(48, 48),
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                              icon: const Icon(Symbols.visibility_off, size: 20),
+                              label: Text('$hidden'),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
+            ),
+            if (widget.trailing case final trailing?) ...[
+              const SizedBox(width: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                child: trailing,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
