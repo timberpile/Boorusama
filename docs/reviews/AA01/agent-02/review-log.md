@@ -170,3 +170,9 @@
 - Reconfirmed F0004 against two independently used Pixiv rating signals: pixivRatingFrom(xRestrict,sanityLevel) treats R18/R18G and sanityLevel>=6 as explicit, and low sanityLevel only as general when xRestrict explicitly zero; new artist preview selector instead defaults unknown restriction to zero and never checks sanityLevel, while image card omits the standard explicit-media overlay controlled by mediaBlurCondition. Incomplete/unexpected author previews therefore are not conservatively presented under blur settings.
 - Reconfirmed F0005 full inherited media request chain: BooruImage uses dioForWidgetProvider->PixivRepository.dio->pixivDioProvider, and PixivAuthInterceptor unconditionally applies _accessToken to RequestOptions onRequest without checking app-api origin, even for Pixiv CDN images. Media Referer and redirect-off safeguards do not erase token header. This is a high-risk pre-existing transport coupling, not evidence of malicious CDN interception or new #118 origin bypass.
 - No extra independent finding; no physical device, network capture or running widget test. Fifth static pass complete for all five target branches, canonical findings still 11. Next final source head/persistence integrity and self-contained handoff update.
+
+
+## Cycle 6 — T001 develop drift comparison (2026-10-29)
+
+- Verified unchanged task head a1bc1d42903861a46e7230349515946bae678357 against develop 93dc7199057ca4ef47f4def4278180dc48d5ce86; eight new develop commits, common merge-base unchanged. Inspected changed-file inventories, controller exhaustion tests, Gelbooru metadata and new pool-grid inset patch. No direct patch overlap.
+- Existing F0008 and F0011 remain open; no new finding. No FVM, merged-source, API or device execution. Next T002. Active work minimum remains unverified.
