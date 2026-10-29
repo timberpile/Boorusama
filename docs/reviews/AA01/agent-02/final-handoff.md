@@ -65,3 +65,6 @@ Develop advanced eight commits to 93dc7199057ca4ef47f4def4278180dc48d5ce86; all 
 
 
 Cycle 6 T002 checkpoint (2026-10-29T22:35:52.821Z): current-develop grid thumbnail probing has no direct changed-file overlap with #114, but their combined PostGrid UI requires narrow-screen/scroll interaction tests. F0001/F0009/F0010 remain open. T001 and T002 completed in cycle 6; T003–T005 next. No app code changed or tests executed. Time gate unverified.
+
+
+Cycle 6 T003 checkpoint (2026-10-29T22:36:19.161Z): compact follow-button files do not overlap new develop's eight commits; unchanged source/test guards were rechecked without a new finding. T001–T003 complete in cycle 6; T004/T005 remain. Android and FVM checks not executed. Duration requirement unverified.
