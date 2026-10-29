@@ -21,3 +21,10 @@
 - Followed pinned/floating toolbar, settings serialization, legacy flag handling, fixed overflow, horizontal scrolling, unique enabled-rule count, overlay provider scope and theme, per-tag toggles, profile-scoped State key and disposal. No confirmed functional defect in reviewed changed paths.
 - Recorded `AA01-A02-F0001` (medium coverage gap): new tests check math and an isolated popup shell but do not exercise actual `BlacklistControls` / `PostGridController` / overlay toggle, active rules and post visibility end-to-end.
 - Missing Flutter build/toolchain and device verification remain explicit. Next: T003.
+
+## Cycle 1 — T003, 2026-10-29T17:34:27.642Z
+
+- Source `feature/116-compact-follow-button@5ac3ad9bc5f852f000012499c19468151c73734b`; comparison and merge base `422aeae087c1108e655d85d1a3dac25120456cd6`. All three changed files read: compact control implementation, new widget tests, and handoff.
+- Traced button painted geometry, padded 48-dp hit target, states (Follow/Following/busy/modified), localization and semantics, noncompact style branch, feedback/follow async operation context; inspected `TopicModificationBadge`, `followButtonShape`, and existing search-page follow-action tests for consumers.
+- No actionable functional defect independently established by static reading. Actual widget hit testing, font enlargement, narrow layout and Android aesthetics remain unverified without running tests/device.
+- No code changes, tests or build. Next: T004.
