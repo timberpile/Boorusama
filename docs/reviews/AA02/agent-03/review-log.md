@@ -33,3 +33,10 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Stable outer row keys prevent element/state reuse when folder rows occupy the same index. Shared controller merges visible changes with selections outside the current folder; the regression checks first-frame keys, user toggles, back/forward, keyboard insets, 2× text scale.
 - No actionable finding in static inspection. Neither FVM tests nor device acceptance executed. See [T004](branches/T004.md).
 - Next T005 at pinned head; timing still unverified.
+
+## Cycle 1 — T005 review completed 2026-10-29T22:44:51.872Z
+
+- Reviewed `bug/98-search-overlay-surface` at `89e064d4f86b0acad62c11c96e6a085fe522ccc7`, base `422aeae087c1108e655d85d1a3dac25120456cd6` against develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read issue #98; inspected the two changed files (search scaffold + targeted widget test) and relevant Stack/editor positioning, search state, search bar top/bottom, safe area and keyboard handling, result displacement and overlay hit testing.
+- Background is an opaque `Positioned.fill` painted above results and below options/suggestions/search bar whenever editor is not initial. Test exercises options/suggestions, IME on/off, both positions, 2× text. No actionable independent static finding; real device/animation acceptance remains.
+- Next: T006. No local tests or device operations performed; verified active time remains unmet.
