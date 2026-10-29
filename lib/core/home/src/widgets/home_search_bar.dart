@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
+import '../../../../foundation/app_update/widgets.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../search/histories/providers.dart';
@@ -24,7 +25,13 @@ class HomeSearchBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return BooruSearchBar(
       enabled: false,
-      trailing: const NavigationProfilePicker(favorites: false),
+      trailing: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppUpdateButton(),
+          NavigationProfilePicker(favorites: false),
+        ],
+      ),
       onTap: () => goToSearchPage(ref, fromSearchBar: true),
     );
   }
