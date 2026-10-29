@@ -96,3 +96,7 @@
 ## Cycle 1 — T018 complete (2026-10-29T23:08:42.305Z)
 
 - Inspected #114, unified header, union blacklist semantics and controller update paths, floating sliver and migration settings; four changed tests read. No substantiated source defect; Android scroll/keyboard and accessibility acceptance outstanding. Next T019 `feature/116-compact-follow-button`; time unverified.
+
+## Cycle 1 — T019 complete (2026-10-29T23:09:19.251Z)
+
+- Reviewed #116 compact pill size, padded input area and all updated tests. No substantiated defect; device layout pending. Next T020 `feature/117-pixiv-favorites`. Active duration unverified.
