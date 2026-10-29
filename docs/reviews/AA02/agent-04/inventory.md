@@ -4,7 +4,7 @@ Discovery: 2026-10-29T22:39:57.065Z UTC; `develop` 84df0c2de6cf8fe0177c49babb3fb
 
 | ID | Exact branch | Issue | Head SHA | Merge-base SHA | Coverage |
 |---|---|---|---|---|---|
-| T001 | `bug/53-realbooru-prefetch-refresh` | #53 | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | Not started |
+| T001 | `bug/53-realbooru-prefetch-refresh` | #53 | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | Complete static C1; F0001 |
 | T002 | `bug/76-realbooru-original-metadata` | #76 | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | Not started |
 | T003 | `bug/92-selection-share-image` | #92 | `e8816c22048b324f00d682b7637c0ab1040147ca` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |
 | T004 | `bug/97-follow-destination-identity` | #97 | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Not started |

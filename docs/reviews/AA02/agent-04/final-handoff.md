@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 discovery completed; code review not yet complete for any target.
-- Findings: 0 defect, 0 risk, 0 coverage-gap, 0 improvement (none investigated yet).
+- Cycle 1 T001 static review completed at f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf against 6875e0ce778aecfb2b83780c2185ce9273a9b2cc; 22 target reviews not started.
+- Findings: 1 defect (medium, static-confirmed, open, pre-existing), 0 risk, 0 coverage-gap, 0 improvement. Canonical report: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: finish T001 review at its recorded SHA, then update its report, inventory, review-log, and this handoff in one documentation commit. Repeat per target.
+- Next checkpoint: review T002 #76 at its pinned head, commit report + updated index/log/handoff, and repeat per target.
