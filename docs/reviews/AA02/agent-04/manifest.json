@@ -17,5 +17,30 @@
     "docs/development_workflow.md": "2be28d98aa17a479371b84985e537a64786e201e",
     ".agents/skills/verify-change/SKILL.md": "444cde16819b8b53e2bcb18c5b34bcda5202fa19"
   },
-  "finding_next_number": 6
+  "finding_next_number": 6,
+  "source_cycles": [
+    {
+      "cycle": 1,
+      "discovered_at": "2026-10-29T22:39:57.065Z",
+      "develop_sha": "84df0c2de6cf8fe0177c49babb3fb0eee880f866",
+      "provisional_targets": 23,
+      "eligible_targets": 21,
+      "completed_initial_passes": 21,
+      "excluded": [
+        "T022",
+        "T023"
+      ]
+    },
+    {
+      "cycle": 2,
+      "discovered_at": "2026-10-29T23:27:27.165Z",
+      "develop_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+      "active_eligible_branch_count": 20,
+      "new_eligible_branches": 0,
+      "historical_merged": [
+        "T016"
+      ],
+      "reviewed_cycle2_passes": 0
+    }
+  ]
 }

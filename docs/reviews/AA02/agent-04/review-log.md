@@ -135,3 +135,10 @@
 - Reviewed #118 all substantive Pixiv artist-list source/test changes and common search/navigation/input/error paths at `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - No additional actionable static defect. Unlike T020, this page's own manual Load More supports an empty-but-nonterminal artist page. Missing live Pixiv API and UI tests remain explicitly open. No code changes, runtime execution or verified active-hour measurement.
 - Next: classify provisional T022/T023 maintenance branches by changed-file inventory and activity evidence; do not open old audit reports.
+
+## 2026-10-29T23:27:27.165Z — Cycle 1 scope closure and cycle 2 discovery
+
+- Refreshed all remote branch refs with pagination; `develop` advanced to `894ab270693cdb054a5d527c96182e21e2b14ffc` by #111 integration and its feature branch was removed. Its underlying APK retention issue F0004 still appears in the merged source. No other eligible branch's observed head changed and no new eligible branch appeared.
+- Reclassified T022 (temporary CI source-export audit infrastructure) and T023 (unmerged policy/docs proposal) as out-of-scope. No other audit report was read. Historical entries preserved in inventory; scope coverage is 21/21 eligible pinned targets for cycle 1, 20/20 currently active eligible branches represented by a reviewed pinned source.
+- Cycle 2 frozen scope: the remaining 20 remote active eligible branches. T016 stays a historical integrated target and is still relevant for integration finding revalidation.
+- Neither the active-hour minimum nor local test/runtime verification is fulfilled; continue useful adversarial source checks without artificial time padding. Next: cycle 2 T016 merged-source revalidation, then T001/T020 high-risk defects and combinations.
