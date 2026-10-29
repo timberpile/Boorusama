@@ -204,3 +204,7 @@
 ## 2026-10-29 — cycle 9 checkpoint
 
 - Nine complete static passes for all five pinned branches; 11 canonical findings, 7 defects and 4 risks. Refresh of all branch tips confirms no source drift since base snapshot. All documentation committed to this report branch. The one-hour active review requirement has not been reliably established, and the archive remains a checkpoint rather than final completion.
+
+## 2026-10-29 — cycle 10 T004 (#117)
+
+- Examined PixivAuthInterceptor's host-blind authorization and retry plus existing auth tests, which cover only same-host API GETs; no foreign absolute URL denial test. F0010 strengthened, no separate log disclosure proven. No runtime execution or measured duration.
