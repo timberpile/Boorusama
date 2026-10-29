@@ -17,6 +17,7 @@ import '../../details_manager/routes.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
 import '../../cross_profile_lookup/page.dart';
+import 'toolbars/customizable_post_toolbar.dart';
 
 class CommonPostButtonsBuilder extends ConsumerWidget {
   const CommonPostButtonsBuilder({
@@ -66,7 +67,8 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
       ),
       if (postLinkGenerator != null && config != null)
         if (!hasStrictSFW)
-          SimpleButtonData(
+          ViewerToolbarSimpleButtonData(
+            action: ViewerToolbarAction.browser,
             icon: Icons.open_in_browser,
             title: context.t.post.action.view_in_browser,
             onPressed: () => launchExternalUrlString(
@@ -76,7 +78,8 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
           ),
       if (config != null)
         if (post.tags.isNotEmpty)
-          SimpleButtonData(
+          ViewerToolbarSimpleButtonData(
+            action: ViewerToolbarAction.tags,
             icon: Icons.tag,
             title: context.t.post.action.view_tags,
             onPressed: () => goToShowTaglistPage(
@@ -89,12 +92,14 @@ class CommonPostButtonsBuilder extends ConsumerWidget {
           !loadOriginalOnZoom &&
           post.hasFullView &&
           onLoadOriginal != null)
-        SimpleButtonData(
+        ViewerToolbarSimpleButtonData(
+          action: ViewerToolbarAction.original,
           icon: Icons.fullscreen,
           title: context.t.post.action.load_original,
           onPressed: () => onLoadOriginal!(),
         ),
-      SimpleButtonData(
+      ViewerToolbarSimpleButtonData(
+        action: ViewerToolbarAction.slideshow,
         icon: Icons.slideshow,
         title: context.t.post.action.slideshow,
         onPressed: onStartSlideshow,

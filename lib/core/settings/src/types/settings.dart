@@ -9,6 +9,7 @@ import 'package:kurumi/kurumi.dart';
 // Project imports:
 import 'search_refresh_settings.dart';
 import 'post_quality.dart';
+import 'viewer_toolbar_layout.dart';
 import '../../../../foundation/applock/types.dart';
 import '../../../../foundation/caching/types.dart';
 import '../../../analytics/types.dart';
@@ -79,12 +80,16 @@ class Settings extends Equatable {
     this.followingTopicSort = 'manual',
     this.topicFeedMemberSort = 'addedDate',
     this.automaticUpdateChecks = true,
+    this.viewerToolbarLayout,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
     : safeMode = json['safeMode'] ?? true,
       listing = ImageListingSettings.fromJson(json),
       viewer = ImageViewerSettings.fromJson(json),
+      viewerToolbarLayout = ViewerToolbarLayout.tryParse(
+        json['viewerToolbarLayout'],
+      ),
       blacklistedTags = json['hideBlacklist'] ?? '',
       themeMode = KurumiThemeMode.parse(
         json['themeMode'],
@@ -257,6 +262,9 @@ class Settings extends Equatable {
 
   final ImageViewerSettings viewer;
 
+  /// Global only: profile-specific ViewerConfigs must not override placement.
+  final ViewerToolbarLayout? viewerToolbarLayout;
+
   final String blacklistedTags;
   final String language;
   final bool safeMode;
@@ -360,6 +368,7 @@ class Settings extends Equatable {
     SidecarFormat? downloadSidecarFormat,
     ImageListingSettings? listing,
     ImageViewerSettings? viewer,
+    ViewerToolbarLayout? Function()? viewerToolbarLayout,
     ColorSettings? colors,
     bool? volumeKeyViewerNavigation,
     SearchBarScrollBehavior? searchBarScrollBehavior,
@@ -377,6 +386,9 @@ class Settings extends Equatable {
   }) => Settings(
     listing: listing ?? this.listing,
     viewer: viewer ?? this.viewer,
+    viewerToolbarLayout: viewerToolbarLayout != null
+        ? viewerToolbarLayout()
+        : this.viewerToolbarLayout,
     safeMode: safeMode ?? this.safeMode,
     blacklistedTags: blacklistedTags ?? this.blacklistedTags,
     themeMode: themeMode ?? this.themeMode,
@@ -444,6 +456,8 @@ class Settings extends Equatable {
     return {
       ...listing,
       ...viewer,
+      if (viewerToolbarLayout case final layout?)
+        'viewerToolbarLayout': layout.toJson(),
       'safeMode': safeMode,
       'hideBlacklist': blacklistedTags,
       'themeMode': themeMode.index,
@@ -494,6 +508,7 @@ class Settings extends Equatable {
   List<Object?> get props => [
     listing,
     viewer,
+    viewerToolbarLayout,
     safeMode,
     blacklistedTags,
     themeMode,

@@ -22,11 +22,13 @@ class BookmarkPostButton extends ConsumerWidget {
   const BookmarkPostButton({
     required this.post,
     required this.config,
+    this.menuItem = false,
     super.key,
   });
 
   final Post post;
   final BooruConfigAuth config;
+  final bool menuItem;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,6 +36,21 @@ class BookmarkPostButton extends ConsumerWidget {
     final state = ref.watch(bookmarkButtonStateProvider(uniqueId));
     final presentation = state.presentation;
     final isBookmarked = presentation?.isBookmarked ?? false;
+    if (menuItem) {
+      return KurumiPopupMenuItem(
+        title: Text(context.t.bookmark.groups.selector),
+        icon: Icon(
+          Symbols.bookmark,
+          color: isBookmarked ? context.colors.upvoteColor : null,
+          fill: isBookmarked ? 1 : 0,
+        ),
+        onTap: state.isLoading ? null : () => showBookmarkGroupPicker(
+          context,
+          config: config,
+          post: post,
+        ),
+      );
+    }
     return BookmarkGroupPickerAnchor(
       config: config,
       post: post,

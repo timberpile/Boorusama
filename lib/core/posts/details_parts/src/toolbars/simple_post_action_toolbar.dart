@@ -7,8 +7,6 @@ import 'package:kurumi/material.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../router.dart';
-import '../../../../widgets/adaptive_button_row.dart';
-import '../../../../widgets/booru_menu_button_row.dart';
 import '../../../details/types.dart';
 import '../../../favorites/providers.dart';
 import '../../../favorites/widgets.dart';
@@ -17,6 +15,7 @@ import '../../../shares/widgets.dart';
 import '../common_post_buttons.dart';
 import 'bookmark_post_button.dart';
 import 'comment_post_button.dart';
+import 'customizable_post_toolbar.dart';
 import 'download_post_button.dart';
 
 class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
@@ -51,30 +50,44 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
       config: auth,
       configViewer: viewer,
       builder: (context, buttons) {
-        return BooruMenuButtonRow(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return CustomizablePostToolbar(
+          key: ValueKey((post, auth)),
           maxVisibleButtons: maxVisibleButtons,
           buttons: [
             if (favoriteButton case final btn?)
-              ButtonData(
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.favorite,
                 required: true,
                 widget: btn,
+                menuBuilder: (_, _) => switch (btn) {
+                  FavoritePostButton() => btn.asMenuItem(),
+                  _ => btn,
+                },
                 title: context.t.post.action.favorite,
                 icon: const Icon(Icons.favorite_border),
               ),
-            ButtonData(
+            ViewerToolbarButtonData(
+              action: ViewerToolbarAction.bookmark,
               required: true,
               widget: BookmarkPostButton(post: post, config: auth),
+              menuBuilder: (_, _) => BookmarkPostButton(
+                post: post, config: auth, menuItem: true,
+              ),
               title: context.t.post.action.bookmark,
               icon: const Icon(Icons.bookmark_border),
             ),
-            ButtonData(
+            ViewerToolbarButtonData(
+              action: ViewerToolbarAction.download,
               required: true,
               widget: DownloadPostButton(post: post),
+              menuBuilder: (_, close) => DownloadPostButton(
+                post: post, menuItem: true, onMenuAction: close,
+              ),
               title: context.t.download.download,
               icon: const Icon(Icons.download),
             ),
-            ButtonData(
+            ViewerToolbarButtonData(
+              action: ViewerToolbarAction.share,
               required: true,
               widget: SharePostButton(
                 post: post,
@@ -82,11 +95,19 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
                 configViewer: viewer,
                 download: download,
               ),
+              menuBuilder: (_, _) => SharePostButton(
+                post: post,
+                auth: auth,
+                configViewer: viewer,
+                download: download,
+                menuItem: true,
+              ),
               title: context.t.post.action.share,
               icon: const Icon(Icons.share),
             ),
             if (commentPageBuilder != null)
-              ButtonData(
+              ViewerToolbarButtonData(
+                action: ViewerToolbarAction.comments,
                 widget: CommentPostButton(
                   onPressed: () => goToCommentPage(context, ref, post),
                 ),

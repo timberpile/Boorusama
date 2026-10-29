@@ -20,10 +20,14 @@ class DownloadPostButton extends ConsumerStatefulWidget {
     required this.post,
     super.key,
     this.small = false,
+    this.menuItem = false,
+    this.onMenuAction,
   });
 
   final Post post;
   final bool small;
+  final bool menuItem;
+  final VoidCallback? onMenuAction;
 
   @override
   ConsumerState<DownloadPostButton> createState() => _DownloadPostButtonState();
@@ -72,11 +76,32 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
                 quality: e.quality,
                 overrideUrl: e.url,
               );
+              widget.onMenuAction?.call();
             },
           ),
         ),
       ],
-      child: KurumiTooltip(
+      child: widget.menuItem
+          ? GestureDetector(
+              onLongPress: sources?.isNotEmpty == true ? _controller.show : null,
+              child: KurumiPopupMenuItem(
+                hideOnTap: false,
+                title: Text(context.t.download.download),
+                icon: _buildIcon(sources, Theme.of(context).colorScheme.onSurface),
+                onTap: () {
+                  notifier.download(widget.post);
+                  widget.onMenuAction?.call();
+                },
+                trailing: sources?.isNotEmpty == true
+                    ? IconButton(
+                        tooltip: context.t.settings.download.quality,
+                        onPressed: _controller.show,
+                        icon: const Icon(Icons.chevron_right),
+                      )
+                    : null,
+              ),
+            )
+          : KurumiTooltip(
         message: context.t.download.download,
         child: !widget.small
             ? IconButton(
