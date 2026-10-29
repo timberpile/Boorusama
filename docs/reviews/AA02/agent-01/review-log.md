@@ -53,3 +53,8 @@
 
 - Examined Android Maestro pilot docs/skill/flow YAML/fixture, both Python helper programs and host tests. No substantiated defect; pilot explicitly lacks emulator qualification. Next T009 `feature/group-neighboring-series`.
 - Active duration unverified.
+
+## Cycle 1 — T009 complete (2026-10-29T22:57:09.538Z)
+
+- Reviewed #68 and accepted design, all substantive changed source surfaces and added behavior tests across mixed cards, typed source identity, bounded summary/indexing, Danbooru/Szurubooru, backup/import/Undo, selection and shared PostGrid. Created `AA02-A01-F0001` (same-host profiles share Pool identity, accidental removal) and `AA02-A01-F0002` (Series membership warming hard-caps to first 40 saved Posts). Both static-confirmed medium defects, no runtime reproduction claimed.
+- Next T010 `feature/91-branded-search-link-share`. Active duration unverified.

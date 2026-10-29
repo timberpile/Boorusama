@@ -12,7 +12,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #106 open | complete |
 | T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #113 open | complete |
 | T008 | `feat/android-maestro-mvp` | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | issue association unknown; code/tooling | complete |
-| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | #68 open | pending |
+| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | #68 open | complete |
 | T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #91 open | pending |
 | T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #95 open | pending |
 | T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #99 open | pending |
