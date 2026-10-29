@@ -1,4 +1,5 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:io';
 
 // Package imports:
@@ -30,7 +31,8 @@ class AppUpdateDialog extends ConsumerStatefulWidget {
 
 enum _UpdateFailure { download, unsupported, install }
 
-class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
+class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog>
+    with WidgetsBindingObserver {
   final _installer = const AndroidGitHubApkInstaller();
   CancelToken? _cancelToken;
   File? _apk;
@@ -39,18 +41,72 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
   var _downloading = false;
   var _installing = false;
   var _permissionNeeded = false;
+  var _awaitingPermissionReturn = false;
+  var _resumeInstallation = false;
+  var _requestPermissionOnResume = false;
+  AppLifecycleState? _lifecycleState;
   _UpdateFailure? _failure;
 
   @override
+  void initState() {
+    super.initState();
+    _lifecycleState = WidgetsBinding.instance.lifecycleState;
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cancelToken?.cancel('Update dialog closed');
     super.dispose();
+  }
+
+  bool get _isCurrent => mounted && (ModalRoute.of(context)?.isCurrent ?? true);
+
+  bool get _isForeground =>
+      _lifecycleState == null || _lifecycleState == AppLifecycleState.resumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycleState = state;
+    if (state != AppLifecycleState.resumed) return;
+    if (_awaitingPermissionReturn) {
+      _awaitingPermissionReturn = false;
+      _resumeInstallation = true;
+      // Returning without permission must not reopen Settings in a loop.
+      _requestPermissionOnResume = false;
+    }
+    _resumeIfIdle();
+  }
+
+  void _resumeIfIdle() {
+    if (!_isCurrent ||
+        !_isForeground ||
+        _downloading ||
+        _installing ||
+        !_resumeInstallation) {
+      return;
+    }
+    final requestPermission = _requestPermissionOnResume;
+    _resumeInstallation = false;
+    unawaited(_install(requestPermission: requestPermission));
   }
 
   bool get _canDownload =>
       ref.read(githubAndroidInstallationSupportedProvider) &&
       widget.status.githubBuildNumber != null &&
       widget.status.githubApks.isNotEmpty;
+
+  Future<void> _downloadAndInstall() async {
+    if (_downloading || _installing) return;
+    if (_apk == null) await _download();
+    if (!_isCurrent || _apk == null) return;
+    // Keep the verified APK if the download finishes while backgrounded.
+    // Opening Android UI waits until this dialog is current and resumed.
+    _resumeInstallation = true;
+    _requestPermissionOnResume = true;
+    _resumeIfIdle();
+  }
 
   Future<void> _download() async {
     if (_downloading) return;
@@ -61,13 +117,14 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
       _progress = null;
       _apk = null;
       _selectedArtifact = null;
+      _permissionNeeded = false;
     });
 
     final token = CancelToken();
     _cancelToken = token;
     try {
       final abis = await _installer.supportedAbis();
-      if (token.isCancelled) return;
+      if (!_isCurrent || token.isCancelled) return;
 
       final artifact = GitHubApkArtifact.selectForAbis(
         widget.status.githubApks,
@@ -91,7 +148,7 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
               });
             },
           );
-      if (mounted && !token.isCancelled) setState(() => _apk = apk);
+      if (_isCurrent && !token.isCancelled) setState(() => _apk = apk);
     } on Object {
       if (mounted && !token.isCancelled) {
         setState(() => _failure = _UpdateFailure.download);
@@ -106,20 +163,39 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
     }
   }
 
-  Future<void> _install() async {
+  Future<void> _install({bool requestPermission = true}) async {
     final apk = _apk;
     final build = widget.status.githubBuildNumber;
     final artifact = _selectedArtifact;
-    if (apk == null || build == null || artifact == null || _installing) return;
+    if (!_isCurrent ||
+        !_isForeground ||
+        apk == null ||
+        build == null ||
+        artifact == null ||
+        _installing) {
+      return;
+    }
+    _awaitingPermissionReturn = false;
     setState(() {
       _installing = true;
       _failure = null;
     });
     try {
       final allowed = await _installer.canInstall();
-      if (!mounted) return;
+      if (!_isCurrent) return;
+      if (!_isForeground) {
+        // Permission lookup can complete after the app loses foreground.
+        // Recheck permission on resume rather than using a stale result.
+        _resumeInstallation = true;
+        _requestPermissionOnResume = requestPermission;
+        return;
+      }
+      setState(() => _permissionNeeded = !allowed);
       if (!allowed) {
-        setState(() => _permissionNeeded = true);
+        if (requestPermission) {
+          _awaitingPermissionReturn = true;
+          await _installer.openInstallSettings();
+        }
         return;
       }
       await _installer.install(
@@ -127,20 +203,18 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
         buildNumber: artifact.androidVersionCode(build),
         version: widget.status.storeVersion,
       );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && _isCurrent) Navigator.of(context).pop();
     } on Object {
+      _awaitingPermissionReturn = false;
+      _resumeInstallation = false;
       if (mounted) setState(() => _failure = _UpdateFailure.install);
     } finally {
-      if (mounted) setState(() => _installing = false);
-    }
-  }
-
-  Future<void> _openPermissionSettings() async {
-    try {
-      await _installer.openInstallSettings();
-      if (mounted) setState(() => _permissionNeeded = false);
-    } on Object {
-      if (mounted) setState(() => _failure = _UpdateFailure.install);
+      if (mounted) {
+        setState(() => _installing = false);
+        // Settings can report resumed before its channel future completes,
+        // and the app may have lost foreground again in the meantime.
+        _resumeIfIdle();
+      }
     }
   }
 
@@ -253,21 +327,13 @@ class _AppUpdateDialogState extends ConsumerState<AppUpdateDialog> {
                       },
                       child: Text(context.t.app_update.update),
                     )
-                  else if (_apk == null)
-                    FilledButton(
-                      onPressed: _download,
-                      child: Text(context.t.app_update.download_update),
-                    )
                   else
                     FilledButton(
-                      onPressed: _installing
-                          ? null
-                          : _permissionNeeded
-                          ? _openPermissionSettings
-                          : _install,
+                      key: const ValueKey('github-update-primary'),
+                      onPressed: _installing ? null : _downloadAndInstall,
                       child: Text(
-                        _permissionNeeded
-                            ? context.t.app_update.allow_installs
+                        _apk == null
+                            ? context.t.app_update.download_and_install
                             : context.t.app_update.install_update,
                       ),
                     ),

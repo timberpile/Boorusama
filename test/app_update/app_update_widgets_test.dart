@@ -22,6 +22,7 @@ import 'package:kurumi/kurumi.dart';
 const _channel = MethodChannel('com.timberpile.boorusama/github_apk_install');
 const _releaseUrl =
     'https://github.com/timberpile/Boorusama/releases/tag/v4.5.0';
+const _updateAction = ValueKey('github-update-primary');
 
 UpdateAvailable _status({
   bool play = false,
@@ -89,6 +90,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> update(WidgetTester tester) async {
+    await tester.ensureVisible(find.byKey(_updateAction));
+    await tester.tap(find.byKey(_updateAction));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('Play dialog keeps Later and Update without a GitHub link', (
     tester,
   ) async {
@@ -98,7 +105,7 @@ void main() {
     expect(find.text('Later'), findsOneWidget);
     expect(find.text('Update'), findsOneWidget);
     expect(find.text('Open GitHub'), findsNothing);
-    expect(find.text('Download update'), findsNothing);
+    expect(find.byKey(_updateAction), findsNothing);
   });
 
   testWidgets(
@@ -126,27 +133,91 @@ void main() {
     },
   );
 
+  for (final delayedSettingsReturn in [false, true]) {
+    testWidgets(
+      'resumes verified installation after permission settings with delayed return $delayedSettingsReturn',
+      (tester) async {
+        final calls = <String>[];
+        var permission = false;
+        final settingsReturn = Completer<void>();
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(_channel, (call) async {
+              calls.add(call.method);
+              switch (call.method) {
+                case 'supportedAbis':
+                  return ['arm64-v8a'];
+                case 'canInstall':
+                  return permission;
+                case 'openInstallSettings':
+                  if (delayedSettingsReturn) await settingsReturn.future;
+                  return null;
+                case 'install':
+                  expect((call.arguments as Map)['buildNumber'], 2200);
+                  expect((call.arguments as Map)['version'], '4.5.0');
+                  expect(
+                    (call.arguments as Map)['path'],
+                    '/private/cache/update.apk',
+                  );
+                  return null;
+                default:
+                  throw StateError(call.method);
+              }
+            });
+        final downloader = _Downloader();
+        await tester.pumpWidget(
+          _wrap(
+            AppUpdateDialog(status: _status()),
+            canInstall: true,
+            overrides: [
+              githubApkDownloaderProvider.overrideWithValue(downloader),
+            ],
+          ),
+        );
+        expect(calls, isEmpty);
+        expect(downloader.calls, 0);
+        await update(tester);
+        expect(downloader.calls, 1);
+        expect(find.byType(LinearProgressIndicator), findsOneWidget);
+        expect(calls, ['supportedAbis']);
+        downloader.result.complete(File('/private/cache/update.apk'));
+        await tester.pumpAndSettle();
+        expect(calls, ['supportedAbis', 'canInstall', 'openInstallSettings']);
+        permission = true;
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpAndSettle();
+        if (delayedSettingsReturn) {
+          expect(calls.where((call) => call == 'install'), isEmpty);
+          settingsReturn.complete();
+          await tester.pumpAndSettle();
+        }
+        expect(calls.sublist(calls.length - 2), ['canInstall', 'install']);
+        expect(calls.where((call) => call == 'install'), hasLength(1));
+        expect(downloader.calls, 1);
+      },
+    );
+  }
+
   testWidgets(
-    'download requires an explicit tap and guides permission before installing',
-    (tester) async {
+    'denied permission does not reopen settings or redownload on retry',
+    (
+      tester,
+    ) async {
       final calls = <String>[];
       var permission = false;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(_channel, (call) async {
             calls.add(call.method);
-            if (call.method == 'install') {
-              expect((call.arguments as Map)['buildNumber'], 2200);
-              expect((call.arguments as Map)['version'], '4.5.0');
-            }
             return switch (call.method) {
               'supportedAbis' => ['arm64-v8a'],
               'canInstall' => permission,
-              'openInstallSettings' => null,
-              'install' => null,
-              _ => throw StateError(call.method),
+              _ => null,
             };
           });
-      final downloader = _Downloader();
+      final downloader = _Downloader()
+        ..result.complete(File('/private/cache/update.apk'));
       await tester.pumpWidget(
         _wrap(
           AppUpdateDialog(status: _status()),
@@ -156,25 +227,46 @@ void main() {
           ],
         ),
       );
-      expect(calls, isEmpty);
-      expect(downloader.calls, 0);
-      await tap(tester, 'Download update');
-      expect(downloader.calls, 1);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
-      downloader.result.complete(
-        File('/private/cache/github-updates/update.apk'),
-      );
+      await update(tester);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      await tap(tester, 'Install update');
-      expect(calls, ['supportedAbis', 'canInstall']);
-      expect(find.text('Allow installs'), findsOneWidget);
-      await tap(tester, 'Allow installs');
-      expect(calls.last, 'openInstallSettings');
+      expect(
+        calls.where((call) => call == 'openInstallSettings'),
+        hasLength(1),
+      );
+      expect(calls.where((call) => call == 'install'), isEmpty);
       permission = true;
-      await tap(tester, 'Install update');
-      expect(calls.sublist(calls.length - 2), ['canInstall', 'install']);
+      await update(tester);
+      expect(calls.last, 'install');
+      expect(downloader.calls, 1);
     },
   );
+
+  testWidgets('cancelling a download cannot install a late completed APK', (
+    tester,
+  ) async {
+    final calls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(_channel, (call) async {
+          calls.add(call.method);
+          return call.method == 'supportedAbis' ? ['arm64-v8a'] : true;
+        });
+    final downloader = _Downloader();
+    await tester.pumpWidget(
+      _wrap(
+        AppUpdateDialog(status: _status()),
+        canInstall: true,
+        overrides: [githubApkDownloaderProvider.overrideWithValue(downloader)],
+      ),
+    );
+    await update(tester);
+    await tap(tester, 'Cancel');
+    downloader.result.complete(File('/private/cache/update.apk'));
+    await tester.pumpAndSettle();
+    expect(calls, ['supportedAbis']);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'closing during ABI lookup cancels without downloading or setState after dispose',
@@ -192,7 +284,7 @@ void main() {
           ],
         ),
       );
-      await tester.tap(find.text('Download update'));
+      await tester.tap(find.byKey(_updateAction));
       await tester.pump();
       await tester.pumpWidget(const SizedBox());
       abis.complete(['arm64-v8a']);
@@ -225,8 +317,7 @@ void main() {
         overrides: [githubApkDownloaderProvider.overrideWithValue(downloader)],
       ),
     );
-    await tap(tester, 'Download update');
-    await tap(tester, 'Install update');
+    await update(tester);
     expect(calls, ['supportedAbis', 'canInstall']);
     await tester.pumpWidget(const SizedBox());
     permission.complete(true);
@@ -248,7 +339,7 @@ void main() {
         overrides: [githubApkDownloaderProvider.overrideWithValue(downloader)],
       ),
     );
-    await tap(tester, 'Download update');
+    await update(tester);
     expect(downloader.calls, 0);
     expect(
       find.text('No compatible APK is available for this device.'),

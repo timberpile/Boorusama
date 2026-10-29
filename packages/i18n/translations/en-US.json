@@ -2097,6 +2097,7 @@
     "last_checked": "Last checked",
     "never_checked": "No updates checked yet",
     "download_update": "Download update",
+    "download_and_install": "Download and install",
     "downloading": "Downloading…",
     "install_update": "Install update",
     "allow_installs": "Allow installs",
