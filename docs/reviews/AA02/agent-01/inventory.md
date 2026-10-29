@@ -18,7 +18,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 | T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #99 open | complete |
 | T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #104 open | complete |
 | T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #107 open | complete |
-| T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #108 open | pending |
+| T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #108 open | complete |
 | T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #111 open | pending |
 | T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #112 open | pending |
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #114 open | pending |

@@ -78,3 +78,8 @@
 ## Cycle 1 — T014 complete (2026-10-29T23:01:35.252Z)
 
 - Inspected issue #107, bookmark score comparators and Feed sort-only filter behavior, snapshot metadata fallback, UI, docs and four changed tests. No actionable defect established; real cache/history and IME acceptance pending. Next T015 `feature/108-selection-action-parity`; duration unverified.
+
+## Cycle 1 — T015 complete (2026-10-29T23:04:04.441Z)
+
+- Reviewed issue #108, selection action definitions, source-aware snapshot/download, single vs batch bookmark dialogs and two new test suites. No actionable defect independently established; device parity and multi-account operations remain untested.
+- Next: T016 `feature/111-android-update-flow`; re-resolve remote branch because one compare request returned 404. Active time unverified.
