@@ -180,3 +180,7 @@
 ## 2026-10-29 — cycle 8 T005 (#118)
 
 - Distinguished response wrapper artist-level is_muted from artwork-level isMuted using Pixiv API model docs and Pixiv's own mute guidance. Documented conditional muted-preview F0011, retaining uncertainty about current authenticated payload and directory policy. Revalidated F0002/F0003. All five targets now have eight static passes; no executable tests or duration proof.
+
+## 2026-10-29 — cycle 9 T004 (#117)
+
+- Compared actual #117/#118 commit patches in both shared files. Preserve both Pixiv client part declarations, one identical _get cancellation/redirect extension, Favorites capability and Following Artists tool; no merge executed. F0001/F0010 unresolved. No runtime tests or active-duration proof.
