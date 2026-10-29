@@ -116,3 +116,7 @@
 ## 2026-10-29 — cycle 6 T001 (#113)
 
 - Replayed F0004/F0005/F0006 against exact source and counterexamples: true empty-but-continuing hasMore must win, while Gelbooru depth cap cannot do so. Prior findings held, no new ones. No SDK/tests; target head unchanged at cycle6 refresh.
+
+## 2026-10-29 — cycle 6 T002 (#114)
+
+- Revalidated F0007 through dynamic global tag provider, PostScope listener, normalized TagExpression, raw activeFilter and new count default. Confirmed initial-vs-live tag addition distinction and required test sequence. No new finding or runtime checks.
