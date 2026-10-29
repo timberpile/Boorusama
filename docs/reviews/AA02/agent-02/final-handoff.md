@@ -2,9 +2,9 @@
 
 **Current state:** partial cycle 1 review, not completed. Configuration: `BATCH_ID=AA02`, `AGENT_ID=02`, `MIN_REVIEW_HOURS=5`, `REVIEW_BRANCHES=all`. Repository: `timberpile/Boorusama`; report branch: `review/AA02/agent-02`. Scope discovered at 2026-10-29T22:38:47Z; `develop` was `84df0c2de6cf8fe0177c49babb3fb0eee880f866`. Consult [inventory](inventory.md) for all 20 targets, exact head SHAs, merge-bases, exclusions, and drift caveats.
 
-- Completed full static branch passes: **11/20**. Cycle 1 incomplete; T001–T011 complete at pinned revisions (no findings). Finding counts: defect 0, risk 0, coverage-gap 0, improvement 0 **recorded to date**, not a verdict on source quality.
+- Completed full static branch passes: **12/20**. Cycle 1 incomplete; T001–T011 complete at pinned revisions (no findings); T012 complete with one medium high-confidence **risk**, [AA02-A02-F0001](branches/T012.md#aa02-a02-f0001--more-menu-closes-on-benign-action-list-rebuilds). Finding counts: defect 0, **risk 1**, coverage-gap 0, improvement 0 **recorded to date**, not a verdict on source quality.
 - Active work time: **unverified**; 5 h requirement unmet. Elapsed time and session age cannot prove active review duration.
 - Read-only GitHub code/reviews; no local checkout, Flutter/Dart/analyzer/tests, Android, live network scenarios, or CI runs.
 - No implementation code was changed. Only this assigned documentation branch can be modified.
 - Blockers: full dynamic verification unavailable, no review passes completed, uncertain activity for issue-free branches; check new heads and target enumeration in later cycles.
-- Next checkpoint: review T012 at `8213b6fbb87cb09d30d5056ad6667821371f22f6`, then T013. Use `docs/reviews/AA02/agent-02/branches/T001.md` as canonical branch report.
+- Next checkpoint: review T013 at `a1bc1d42903861a46e7230349515946bae678357`, then T014. Use `docs/reviews/AA02/agent-02/branches/T001.md` as canonical branch report.

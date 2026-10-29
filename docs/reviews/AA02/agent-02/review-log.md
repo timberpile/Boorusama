@@ -62,3 +62,8 @@
 
 - Pin `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07`, six changed files accounted, Android update dialog, downloader, channel and lifecycle tests inspected. No independent bug; real APK/security UI tests pending.
 - No build or device run; active duration unverified. Next T012.
+
+## Cycle 1 — T012 (#112), 2026-10-29T22:56:50.492Z
+
+- Pinned `8213b6fbb87cb09d30d5056ad6667821371f22f6`; all 25 paths inventoried, reviewed typed layout, menu action components, persistence, editor, UI tests, design requirements. Finding **AA02-A02-F0001**, medium high-confidence risk: open More closes after benign reactive parent rebuild (deliberate but broad stale-callback safeguard).
+- No runtime verification; active duration unverified. Next T013.
