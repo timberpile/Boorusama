@@ -52,3 +52,8 @@
 
 - Head `7a73544cb79c9f5e3c2337a08140833024a31591`. 10 changed paths accounted; Bookmarks and cached Feed sort/pagination filters and tests examined, no confirmed finding. Local history boundary preserved in source.
 - No execution; 5 h measured active duration unverified; next T010.
+
+## Cycle 1 — T010 (#108), 2026-10-29T22:52:23.416Z
+
+- Head `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd`. Seven changed paths accounted; action parity, profile-bound snapshot, local bookmark identity, adaptive dialog and tests inspected. No independent confirmed bug.
+- No runtime tests; measured active duration unverified. Next T011.
