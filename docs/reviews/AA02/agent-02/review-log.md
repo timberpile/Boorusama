@@ -126,3 +126,7 @@
 ## Cycle 2 — T017 (#118), 2026-10-29T23:19:05.784Z
 
 - Revisited `PixivFollowingNotifier` autodespose/rebuild cancellation, offset pagination error and retry, preview origin/artist/restriction filter, profile-scoped search navigation, and exact test fixtures at unchanged pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a`. No new actionable defect. Preview implementation intentionally inspects at most first three response previews and screens restricted/mismatched works, which may produce fewer than 3 tiles but is in the bounded design. No dynamic checks; cycle-2 scoped static pass completed.
+
+## Cycle 2 — T009 (#107), 2026-10-29T23:19:45.554Z
+
+- Reexamined bookmarked Post score comparator and stable cover ranking, Feed local snapshot comparator/tag filter, `_CachedFeedGrid` filter-change logic and keyed `PostScope`, history suppression and sort-only test. An initial concern that changing the filter fails to refresh the controller was disproved: `PostScope(key: ValueKey(widget.filter))` disposes/recreates the controller on changes. Local result explicitly sets `hasMore:false`, compatible with #113's controller update. No independently confirmed defect. Head remains `7a73544cb79c9f5e3c2337a08140833024a31591`; no tests run. Cycle-2 scoped static pass complete.
