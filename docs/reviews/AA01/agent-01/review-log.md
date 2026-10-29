@@ -192,3 +192,7 @@
 ## 2026-10-29 — cycle 9 T001 (#113)
 
 - Compared exact changed paths with #114/#116: disjoint files but shared post-grid rendering, no proven integration collision. Revisited FakeBooruBackend hasMore loss and page-local metadata (F0004), total-only pagination (F0005) and Gelbooru cap (F0006). No new canonical finding, no executable tests.
+
+## 2026-10-29 — cycle 9 T002 (#114)
+
+- Challenged Grid controller/header post-page contract against #113 and Follow scope #116; touched files are disjoint and source interfaces appear compatible, combined tests absent. F0007/F0009 remain. No additional finding or runtime checks.
