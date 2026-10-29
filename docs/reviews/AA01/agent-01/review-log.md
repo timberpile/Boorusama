@@ -44,3 +44,7 @@
 ## 2026-10-29 — cycle 2 T004 (#117)
 
 - Revalidated cursor host/scope restrictions, profile-keyed scope cancellation, auth transport and shared Favorite mutation capability. Confirmed Pixiv-specific page uses existing action gates; F0001 inherited Grid continuation remains open. No additional new defect; live API/device checks unexecuted.
+
+## 2026-10-29 — cycle 2 T005 (#118)
+
+- Rechecked notifier cancellation/deduplication, fixed authenticated endpoint, source-profile search and exact #117/#118 overlapping files. F0002 direct explicit-image blur bypass and F0003 nullable explicitness risk remain open. No runtime tests; active time unverified.
