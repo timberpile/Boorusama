@@ -13,6 +13,7 @@ class NavigationChromeState {
     this.barHiddenFraction = 0,
     this.barScrollActive = false,
     this.selectionActive = false,
+    this.selectionBottomObstruction = 0,
     this.viewerImmersive = false,
     this.viewerOpen = false,
     this.viewerClosing = false,
@@ -23,6 +24,7 @@ class NavigationChromeState {
   final bool barScrollActive;
   bool get barVisible => barHiddenFraction < 1;
   final bool selectionActive;
+  final double selectionBottomObstruction;
   final bool viewerImmersive;
   final bool viewerOpen;
   // Closing reveals chrome while the viewer still owns layout and input.
@@ -34,6 +36,7 @@ class NavigationChromeState {
     double? barHiddenFraction,
     bool? barScrollActive,
     bool? selectionActive,
+    double? selectionBottomObstruction,
     bool? viewerImmersive,
     bool? viewerOpen,
     bool? viewerClosing,
@@ -43,6 +46,8 @@ class NavigationChromeState {
     barHiddenFraction: barHiddenFraction ?? this.barHiddenFraction,
     barScrollActive: barScrollActive ?? this.barScrollActive,
     selectionActive: selectionActive ?? this.selectionActive,
+    selectionBottomObstruction:
+        selectionBottomObstruction ?? this.selectionBottomObstruction,
     viewerImmersive: viewerImmersive ?? this.viewerImmersive,
     viewerOpen: viewerOpen ?? this.viewerOpen,
     viewerClosing: viewerClosing ?? this.viewerClosing,
@@ -67,22 +72,28 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
   }
 
   Object? _selectionOwner;
-  void setSelectionFor(Object owner, bool selected) {
+  void setSelectionFor(
+    Object owner,
+    bool selected, {
+    double bottomObstruction = 0,
+  }) {
     if (selected) {
       _selectionOwner = owner;
-      setSelection(true);
+      setSelection(true, bottomObstruction: bottomObstruction);
     } else if (identical(_selectionOwner, owner)) {
       _selectionOwner = null;
       setSelection(false);
     }
   }
 
-  void setSelection(bool selected) => state = state.copyWith(
-    menuOpen: false,
-    barHiddenFraction: 0,
-    barScrollActive: false,
-    selectionActive: selected,
-  );
+  void setSelection(bool selected, {double bottomObstruction = 0}) =>
+      state = state.copyWith(
+        menuOpen: false,
+        barHiddenFraction: 0,
+        barScrollActive: false,
+        selectionActive: selected,
+        selectionBottomObstruction: selected ? bottomObstruction : 0,
+      );
   Object? _viewerOwner;
   void setViewerFor(
     Object owner, {

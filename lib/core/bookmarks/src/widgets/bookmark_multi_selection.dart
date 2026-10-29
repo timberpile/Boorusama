@@ -400,6 +400,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
         .where((group) => add || summary.countFor(group.id) > 0)
         .toList();
     return AlertDialog(
+      scrollable: true,
       title: Text(
         add
             ? context.t.bookmark.bulk.add_title

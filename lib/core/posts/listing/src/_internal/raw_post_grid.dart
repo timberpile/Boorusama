@@ -112,6 +112,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   var hasMore = true;
   final loading = ValueNotifier(false);
   final refreshing = ValueNotifier(false);
+  final _selectionBottomObstruction = ValueNotifier(0.0);
   var items = <T>[];
   final _identities = PostSelectionIdentity();
   var _filterScope = <String, bool>{};
@@ -186,6 +187,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
 
     widget.controller.removeListener(_onControllerChange);
     controller.activeFilters.removeListener(_onFilterChanged);
+    _selectionBottomObstruction.dispose();
 
     super.dispose();
   }
@@ -261,6 +263,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
         listenable: _selectionModeController,
         builder: (_, child) => NavigationSelectionBridge(
           controller: _selectionModeController,
+          bottomObstruction: _selectionBottomObstruction,
           selected: _selectionModeController.isActive,
           child: child!,
         ),
@@ -275,6 +278,9 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
             ),
             child: _SelectionMode(
               footer: widget.footer,
+              onBottomObstructionChanged: (height) {
+                if (mounted) _selectionBottomObstruction.value = height;
+              },
               selectionModeController: _selectionModeController,
               selectionOptions: _selectionOptions,
               autoScrollController: _autoScrollController,
@@ -617,6 +623,7 @@ class _SelectionMode extends ConsumerWidget {
     required this.child,
     required this.itemCount,
     required this.bottomInset,
+    required this.onBottomObstructionChanged,
     this.footer,
     this.autoScrollController,
   });
@@ -624,6 +631,7 @@ class _SelectionMode extends ConsumerWidget {
   final Widget child;
   final int itemCount;
   final double bottomInset;
+  final ValueChanged<double> onBottomObstructionChanged;
   final SelectionModeController selectionModeController;
   final AutoScrollController? autoScrollController;
   final SelectionOptions? selectionOptions;
@@ -654,42 +662,55 @@ class _SelectionMode extends ConsumerWidget {
                         child: child,
                       ),
                     ),
-                    if (selectionModeController.isActive) ...[
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: math.max(
-                            0,
-                            math.min(
-                              available.maxHeight - bottomInset,
-                              MediaQuery.sizeOf(context).height * .45,
-                            ),
-                          ),
-                        ),
-                        child: SingleChildScrollView(
-                          child: Material(
-                            color: Kurumi.themeOf(context).colorScheme.surface,
-                            child: SafeArea(
-                              top: false,
-                              bottom: bottomInset == 0,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  PostSelectionControls(
-                                    controller: selectionModeController,
-                                    itemCount: itemCount,
+                    if (selectionModeController.isActive)
+                      KurumiMeasureSize(
+                        onChange: (size) =>
+                            onBottomObstructionChanged(size.height),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: math.max(
+                                  0,
+                                  math.min(
+                                    available.maxHeight - bottomInset,
+                                    MediaQuery.sizeOf(context).height * .45,
                                   ),
-                                  if (footer case final footer?) footer,
-                                ],
+                                ),
+                              ),
+                              child: SingleChildScrollView(
+                                child: Material(
+                                  color: Kurumi.themeOf(context)
+                                      .colorScheme
+                                      .surface,
+                                  child: SafeArea(
+                                    top: false,
+                                    bottom: bottomInset == 0,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        PostSelectionControls(
+                                          controller: selectionModeController,
+                                          itemCount: itemCount,
+                                        ),
+                                        if (footer case final footer?) footer,
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            if (bottomInset > 0)
+                              SizedBox(
+                                height: math.min(
+                                  bottomInset,
+                                  available.maxHeight,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      if (bottomInset > 0)
-                        SizedBox(
-                          height: math.min(bottomInset, available.maxHeight),
-                        ),
-                    ],
                   ],
                 ),
               ),

@@ -121,6 +121,25 @@ void main() {
           );
 
           if (withShell) {
+            final selection = Object();
+            chrome.setSelectionFor(
+              selection,
+              true,
+              bottomObstruction: 150,
+            );
+            await tester.pumpAndSettle();
+            expect(tester.getRect(toast).bottom, closeTo(640 - 150 - 16, 0.5));
+            chrome.setSelectionFor(
+              selection,
+              true,
+              bottomObstruction: 220,
+            );
+            await tester.pumpAndSettle();
+            expect(tester.getRect(toast).bottom, closeTo(640 - 220 - 16, 0.5));
+            chrome.setSelectionFor(selection, false);
+            await tester.pumpAndSettle();
+            expect(tester.getRect(toast).bottom, closeTo(640 - 88 - 16, 0.5));
+
             final viewer = Object();
             chrome.setViewerFor(
               viewer,
@@ -146,6 +165,22 @@ void main() {
           tester.view.padding = const FakeViewPadding();
           await tester.pumpAndSettle();
           expect(tester.getRect(toast).bottom, closeTo(640 - 240 - 16, 0.5));
+          if (withShell) {
+            final selection = Object();
+            chrome.setSelectionFor(
+              selection,
+              true,
+              bottomObstruction: 120,
+            );
+            await tester.pumpAndSettle();
+            expect(
+              tester.getRect(toast).bottom,
+              closeTo(640 - 240 - 120 - 16, 0.5),
+            );
+            chrome.setSelectionFor(selection, false);
+            await tester.pumpAndSettle();
+            expect(tester.getRect(toast).bottom, closeTo(640 - 240 - 16, 0.5));
+          }
           expect(find.text('Undo').hitTestable(), findsOneWidget);
           expect(tester.takeException(), isNull);
 
