@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../../foundation/filesystem.dart';
+import 'boorusama_artist_link.dart';
 import 'boorusama_post_link.dart';
 import 'boorusama_search_link.dart';
 
@@ -19,6 +20,9 @@ final class BoorusamaLinkFile {
     }
     if (BoorusamaSearchLink.tryParse(value) case final search?) {
       return BoorusamaLinkFile._(search.uri, 'boorusama-search.bslink');
+    }
+    if (BoorusamaArtistLink.tryParse(value) case final artist?) {
+      return BoorusamaLinkFile._(artist.uri, 'boorusama-artist.bslink');
     }
     throw const FormatException('Unsupported Boorusama link');
   }

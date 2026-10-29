@@ -8,6 +8,8 @@ import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/search/search/routes.dart';
 import '../../../../../../core/posts/listing/widgets.dart';
 import '../../../../../../core/posts/listing/providers.dart';
+import '../../../../../../core/posts/links/boorusama_artist_link.dart';
+import '../../../../../../core/posts/links/share_artist_link_button.dart';
 import '../../../../../../core/tags/tag/types.dart';
 
 class DanbooruArtistPostsHeader extends ConsumerStatefulWidget {
@@ -82,6 +84,12 @@ class _ArtistPostsHeaderState extends ConsumerState<DanbooruArtistPostsHeader> {
                     ),
                     icon: const Icon(Symbols.search),
                     label: Text(context.t.generic.action.search),
+                  ),
+                ),
+                ArtistLinkShareButton(
+                  link: BoorusamaArtistLink.fromArtist(
+                    auth: ref.watchConfigAuth,
+                    artistName: widget.artistName,
                   ),
                 ),
                 if (widget.controller case final controller?)
