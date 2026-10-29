@@ -120,3 +120,7 @@
 ## 2026-10-29 — cycle 6 T002 (#114)
 
 - Revalidated F0007 through dynamic global tag provider, PostScope listener, normalized TagExpression, raw activeFilter and new count default. Confirmed initial-vs-live tag addition distinction and required test sequence. No new finding or runtime checks.
+
+## 2026-10-29 — cycle 6 T003 (#116)
+
+- Revalidated compact-only style diff, FilledButton tonal variant, padded target/visual density, spinner geometry and narrow real Search Row constraints. No introduced static defect, no executed Flutter or Android checks.
