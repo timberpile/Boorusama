@@ -40,3 +40,7 @@
 ## 2026-10-29 — cycle 2 T003 (#116)
 
 - Rechecked exact source diff, Follow semantics, and existing full SearchPageScaffold widget suite. Existing tests cover 240/320dp at 2x text, share+Follow row and dialog navigation, correcting the cycle-1 coverage impression. No source defect confirmed; tests unexecuted.
+
+## 2026-10-29 — cycle 2 T004 (#117)
+
+- Revalidated cursor host/scope restrictions, profile-keyed scope cancellation, auth transport and shared Favorite mutation capability. Confirmed Pixiv-specific page uses existing action gates; F0001 inherited Grid continuation remains open. No additional new defect; live API/device checks unexecuted.
