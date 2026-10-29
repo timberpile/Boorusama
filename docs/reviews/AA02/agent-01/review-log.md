@@ -9,3 +9,10 @@
 - Source file-by-file implementation review: not started. Findings: none yet, not evidence of correctness.
 - Next action: inspect T001 issue, pinned changed files and reachable consumers; checkpoint each branch pass independently.
 - Active review time: unverified (do not infer from timestamps).
+
+## Cycle 1 — T001 complete (2026-10-29T22:40:02.067Z)
+
+- Read #53 requirements, four changed runtime files, three added tests, the foreground detail loader and preload media type. Checked bounded queue replacement, cancellation generations, thumbnail/original exclusion and route activity.
+- Finding IDs: none. No runtime verification; issue closed and historical integration requires follow-up.
+- Next action: T002 `bug/76-realbooru-original-metadata` pinned review.
+- Active duration: unverified; no five-hour assertion.
