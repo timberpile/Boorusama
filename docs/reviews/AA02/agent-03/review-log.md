@@ -40,3 +40,10 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Read issue #98; inspected the two changed files (search scaffold + targeted widget test) and relevant Stack/editor positioning, search state, search bar top/bottom, safe area and keyboard handling, result displacement and overlay hit testing.
 - Background is an opaque `Positioned.fill` painted above results and below options/suggestions/search bar whenever editor is not initial. Test exercises options/suggestions, IME on/off, both positions, 2× text. No actionable independent static finding; real device/animation acceptance remains.
 - Next: T006. No local tests or device operations performed; verified active time remains unmet.
+
+## Cycle 1 — T006 review completed 2026-10-29T22:47:36.564Z
+
+- Pinned head `bug/106-live-undo-toast-insets` `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8`; base `422aeae087c1108e655d85d1a3dac25120456cd6`, compared to develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read #106 requirements. Inspected complete changed-path inventory: production navigation/chrome, selection, bookmark removal, viewer/preview, Kurumi scope/toast; all changed/new widget/application tests and keyboard toast test host. Reconciled shared sources and following callback owner lifetimes; avoided treating branch implementation handoffs as independent evidence.
+- No independent actionable static defect established. Native IME displacement, real-viewer transitions, small-device clipping and interaction with #55/#112 require local runs/combined verification. See [T006](branches/T006.md).
+- No local tests or device work performed by this auditor. Time requirement still unverified. Next: T007 / #113.
