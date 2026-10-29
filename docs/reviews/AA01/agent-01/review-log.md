@@ -68,3 +68,7 @@
 ## 2026-10-29 — cycle 3 T005 (#118)
 
 - Verified Pixiv user-following endpoint against independent API clients and traced artist tap through SearchParams, PixivQuery and scoped post repository to getUserIllusts. Artist-level muted flag is ignored; policy/contract unclear, no new defect claimed. F0002/F0003 remain. No runtime tests.
+
+## 2026-10-29 — cycle 4 T001 (#113)
+
+- Inspected total-only Szurubooru/Nozomi paginated sources and Gelbooru known total plus search-depth maxPage ceiling. Confirmed F0005: paginated single-page _items length cannot exhaust global totals; F0006: Gelbooru ceiling short-circuits actual total. Both pre-existing symptoms incompletely addressed. Source pinned, no runtime tests. Cycle4 targets revalidated unchanged at 18:13:43Z.
