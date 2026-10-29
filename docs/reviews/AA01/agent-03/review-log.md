@@ -41,3 +41,9 @@
 - Reviewed 14/14 changed files and relevant Pixiv image/rating/media-cover, search-route and auth-provider consumers at pinned `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a`.
 - Recorded F0003 high static-confirmed explicit-media-cover bypass and F0004 medium high-confidence local blacklist parity risk. No Flutter/API/device runtime verification; active time remains unverified.
 - Next: resolve T001 specific pool caller review gap, verify current remote heads and canonical finding integrity, then publish final handoff checkpoint. One-hour minimum must not be claimed from elapsed chat age.
+
+## T001 source and error-adversarial follow-up — 2026-10-29T17:52:51.118Z
+
+- Traced both concrete consumers `DanbooruInfinitePostIdList` and `_SzurubooruPoolPostList`, their TaskEither error adapters, and the independent Szurubooru pool-list widget. Reviewed error sliver, Load More button and next-page increment.
+- Recorded AA01-A03-F0005 (medium static-confirmed): initial request failure sets `_hasMore=true` and permits page 2 before page 1 is retried, a regression relative to develop. Changed-file and relevant caller static coverage now complete (6/6); local execution still not performed. Active time unverified.
+- Next: adversarial cross-branch checks and final remote/source observations.
