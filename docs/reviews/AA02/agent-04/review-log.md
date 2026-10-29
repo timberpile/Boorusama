@@ -123,3 +123,9 @@
 
 - Reviewed #116 compact Follow pill style and related provider/state/semantics and four new tests at pinned `5ac3ad9bc5f852f000012499c19468151c73734b` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - No actionable static defect. Device appearance/hit-area and #114/#115 combined UX need local acceptance; no source changes or execution, and active duration unverified. Next T020 Pixiv favorites.
+
+## 2026-10-29T23:23:18.405Z — Cycle 1 T020 completed
+
+- Reviewed #117 full nine source/test files plus Pixiv conversion, shared grid controller, empty-page fallback and separately pinned #113 source correction, using `e2929259b7725c484d11483d6ea48270079eb2f4` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
+- Recorded `AA02-A04-F0005` (medium, static-confirmed, open, introduced interaction): existing shared controller ignores `PostResult.hasMore` and stops on empty but cursor-nonterminal Pixiv pages; #113 independently changes this but is not integrated in target snapshot. A session-only test cannot detect this UI integration failure.
+- No code changed, no Flutter/Dart/CI/Android verification. Active duration remains unverified. Next T021 #118 Pixiv following artists.

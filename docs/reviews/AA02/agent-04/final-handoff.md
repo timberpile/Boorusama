@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 T001–T019 static reviews completed at pinned heads (T003–T008, T010–T015 and T017–T019 no actionable finding); **4** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
-- Findings: 4 open defects (three medium: F0001/F0002 static-confirmed and F0003 high-confidence/policy-sensitive; one low: F0004 static-confirmed), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002), [AA02-A04-F0003](branches/T009.md#finding-aa02-a04-f0003), [AA02-A04-F0004](branches/T016.md#finding-aa02-a04-f0004).
+- Cycle 1 T001–T020 static reviews completed at pinned heads; **3** targets remain not started. T008's active status is provisional. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
+- Findings: 5 open defects (four medium: F0001/F0002/F0005 static-confirmed, F0003 high-confidence/policy-sensitive; one low: F0004 static-confirmed), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002), [AA02-A04-F0003](branches/T009.md#finding-aa02-a04-f0003), [AA02-A04-F0004](branches/T016.md#finding-aa02-a04-f0004), [AA02-A04-F0005](branches/T020.md#finding-aa02-a04-f0005).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: T020 feature/117-pixiv-favorites (#117), inspect Pixiv account/favorite state, request suppression, persistence and tests. F0003 still requires same-host account policy.
+- Next checkpoint: T021 feature/118-pixiv-following-artists (#118), inspect cursor and source-specific link/request handling and profile isolation; F0003 requires same-host account policy.
