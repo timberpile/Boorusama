@@ -117,3 +117,8 @@
 ## Cycle 2 — T018 (#68), 2026-10-29T23:17:45.861Z
 
 - Adversarial reinspection at unchanged pinned `771082d9c58363348d74b97a2da23732cdd921f0`: revalidated F0002 via entire fetch→one-shot `_warmSeries`→scroll render path, no second discovery window beyond first 40. Extended Pool identity/auth and group mutation analysis: new **AA02-A02-F0003 medium risk** for A/B distinct profiles on same host sharing site-only persisted Pool identity even though cards strictly resolve only A. Did not weaken security guard; product intent undecided. Distinct full cycle-2 static pass completed, no tests run. Next T016.
+
+## Cycle 2 — T016 (#117), 2026-10-29T23:18:31.689Z
+
+- Re-read unchanged pinned Pixiv Favorites `PixivFavoritesSession`, family provider, page-scoped `PostScope`, cursor validation, `PixivClient` request and relevant first-cycle test scenarios. Adversarial retry: initial page cancels old token and resets pagination; rejected cursors cannot be redirected to remote URLs, request path fixed; page jumps error before mutating cursor; `page==_lastPage` returns cached result; cancellation prevents stale results from advancing. No independently proven new defect. Real API/guest and multi-account tests remain local.
+- Static cycle-2 scoped re-review complete; no runtime tests, active hours unverified. Next T017.

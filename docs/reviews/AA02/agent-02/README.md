@@ -11,4 +11,4 @@ Assignment: all active implementation branches, 5 h minimum *verified active* re
 - [Progress](review-log.md), [cross-branch findings](cross-branch-findings.md), [handoff](final-handoff.md).
 - No implementation code, issues, PRs, CI, or protected branches are modified. No Flutter/Dart builds, tests, analyzer, emulator, or device verification is available in this remote review.
 
-Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; next T016/T017 for Pixiv account/concurrency flows, then remaining active targets.
+Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; T016 completed, next T017 for Pixiv following and then T009/T013 for pagination, then remaining active targets.
