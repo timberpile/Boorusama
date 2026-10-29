@@ -120,3 +120,9 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Inspected 25 changed paths: toolbar adapters, menu-variants of Bookmark/Download/Share/Favorite/Vote, editor/page, setting JSON and backup, shared and Danbooru-specific buttons, visual design, 7 tests and widget/application flows. Followed provider scope in overflow, post/profile key, menu teardown, resize central projection, drag/keyboard transfer, setting reset/compare-and-swap.
 - No independent actionable static finding; parent callback reconstruction intentionally closes stale menu per source test. Real Android/a11y/landscape acceptance, coexistence with #104 and #106 and full FVM regression not available. See [T017](branches/T017.md).
 - Next T018 (#114). Active hours still unverified and requirement unmet.
+
+## Cycle 1 — T018 review completed 2026-10-29T23:10:01.570Z
+
+- Issue #114, `feature/114-timeline-toolbar` pinned `5bb52794468b172b7d6878fb825b42b00d654675`, merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`, initial develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read complete 13 changed-file inventory, source implementations, controller filter/data origin, blacklisted tag counts/active-rule toggles, floating/pinned sliver, bounded blacklist popup, fixed overflow and legacy/new JSON settings plus four authored tests. No independently actionable static bug established. Tests and FVM not executed by this auditor.
+- Device acceptance still needed for actual scroll direction, 320px/large type and popup reuse across route/profiles, plus #115 Search-specific future integration. See [T018](branches/T018.md). Next T019 (#116). Active time still unverified.
