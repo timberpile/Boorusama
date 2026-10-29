@@ -8,9 +8,9 @@
 
 ## Current state
 
-- Cycle 1 T001–T004 static reviews completed at pinned heads (T003–T004 no actionable finding); **19** targets remain not started. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
+- Cycle 1 T001–T005 static reviews completed at pinned heads (T003–T005 no actionable finding); **18** targets remain not started. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory. Source SHAs are in the inventory.
 - Findings: 2 defects (both medium, static-confirmed, open; F0001 pre-existing refresh omission, F0002 introduced empty-original display regression), 0 risk, 0 coverage-gap, 0 improvement. Canonical reports: [AA02-A04-F0001](branches/T001.md#finding-aa02-a04-f0001), [AA02-A04-F0002](branches/T002.md#finding-aa02-a04-f0002).
 - Static review coverage requirement: **unmet**. Minimum 5 hours active review: **unmet/unverified**.
 - Build, analyzer, tests, emulator, and device: **not run**; no application code changed.
 - Known limits: branch activity/issue associations need confirmation, local runtime behavior unavailable, source may drift after snapshot.
-- Next checkpoint: review T005 #98 at its pinned head, commit report + updated index/log/handoff, and repeat per target.
+- Next checkpoint: review T006 #106 at its pinned head; this larger branch requires all source/test changes and connected toast/inset/keyboard lifecycle paths to be covered before report completion.

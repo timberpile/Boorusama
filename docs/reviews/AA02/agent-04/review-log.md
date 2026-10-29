@@ -34,3 +34,9 @@
 - Reviewed #97, two-line stable-key change, widget regression, shared range-selection controller and folder navigation at `6056bd06cfd7510aec41c00562d7dfd37c8725a7` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
 - No actionable finding identified. Source-based reasoning does not replace animation or gesture device tests. No code touched, tests run or active duration verified.
 - Next: T005 #98 search overlay surface.
+
+## 2026-10-29T22:53:31.431Z — Cycle 1 T005 completed
+
+- Reviewed #98, opaque overlay change and widget tests, SearchState and related keyboard/scroll/layout consumers, source `89e064d4f86b0acad62c11c96e6a085fe522ccc7` / `422aeae087c1108e655d85d1a3dac25120456cd6`.
+- No actionable static defect identified. Animated and safe-area UI still needs device tests. No app code changed, no tests run, and active time unverified.
+- Next T006 #106 live undo toast insets.
