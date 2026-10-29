@@ -92,3 +92,7 @@
 ## 2026-10-29 — cycle 5 T001 (#113)
 
 - Compared all 16 engine post adapters and source metadata semantics. F0006 proven to regress even empty Gelbooru pages with maxPage depth cap despite total:0. F0004 expanded to application network_recovery_flow_test page2 and retry fixtures; Hydrus count-null intermediate pages validated as counterexample. No new canonical ID or test execution. Cycle5 heads refreshed unchanged 18:27Z.
+
+## 2026-10-29 — cycle 5 T002 (#114)
+
+- Challenged mixed-profile numeric-ID blacklist counting; found mixed Bookmarks uses RawPostScope with no blacklist tags, so did not assign speculative bug. Revalidated F0007 via raw persisted global tags and normalization on dynamic updates. Search duplicate toolbar/header is deferred #115 integration UX check, not confirmed bug. No runtime tests.
