@@ -24,7 +24,7 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | Complete static pass 1; 0 findings |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | Complete static pass 1; 0 findings, visual unverified |
 | T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | #117 | Complete static pass 1; F0003 medium pagination defect |
-| T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | Not reviewed |
+| T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | Complete static pass 1; F0004 content-rating risk |
 
 ## Exclusions
 
@@ -40,5 +40,5 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 ## Caveats
 
 - Branch status is assessed from pinned Git ancestry, not labels alone. No open PRs were returned at discovery.
-- 19 active candidate branches after T001/T002 exclusions; T003–T008, T010–T015, T017–T020 complete 16/18; T009 partial 1/18. Other rows remain unreviewed.
+- 19 active candidate branches after T001/T002 exclusions; T003–T008, T010–T015, T017–T021 complete 17/18; T009 partial 1/18. Other rows remain unreviewed.
 - Relevant issue comments, cross-branch dependencies, and completeness of compare/diff endpoints remain to be checked.
