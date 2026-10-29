@@ -25,3 +25,11 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Classified #53 and #76 as inactive historical task branches using closed issue states and source-publication comments. Neither had a complete static review and no finding conclusion is implied.
 - Timing remains unverified; no part of this report establishes the five-hour minimum.
 - Next: T004, `bug/97-follow-destination-identity`, at its pinned head; follow the same issue/diff/caller review process.
+
+## Cycle 1 — T004 review completed 2026-10-29T22:44:03.724Z
+
+- Pinned branch: `bug/97-follow-destination-identity` at `6056bd06cfd7510aec41c00562d7dfd37c8725a7`; merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`; develop comparison SHA `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read issue #97 and comments; reviewed both changed paths (1 widget source, 1 widget test), surrounding controlled range-selection widget/controller, folder-tree model, state preservation and test harness.
+- Stable outer row keys prevent element/state reuse when folder rows occupy the same index. Shared controller merges visible changes with selections outside the current folder; the regression checks first-frame keys, user toggles, back/forward, keyboard insets, 2× text scale.
+- No actionable finding in static inspection. Neither FVM tests nor device acceptance executed. See [T004](branches/T004.md).
+- Next T005 at pinned head; timing still unverified.
