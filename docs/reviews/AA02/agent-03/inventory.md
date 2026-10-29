@@ -12,7 +12,7 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | Complete static passes 1+2; no actionable finding |
 | T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | Complete static passes 1+2; source-total risk noted |
 | T008 | `feat/android-maestro-mvp` | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | No confirmed issue | Complete static passes 1+2; pilot unqualified |
-| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68 | Complete static pass 1; F0005 and cross-branch F0002 |
+| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68 | Complete static passes 1+2; F0005 and cross-branch F0002 |
 | T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | #91 | Complete static pass 1; 0 findings |
 | T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | #95 | Complete static pass 1; F0001 low error-path defect |
 | T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | #99 | Complete static pass 1; 0 independent findings |

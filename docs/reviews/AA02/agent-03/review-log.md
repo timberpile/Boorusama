@@ -190,3 +190,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - feat/android-maestro-mvp at unchanged pinned head `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` (issue-free pilot). Second pass focused on adverse subprocess termination and lease boundaries, ADB serial/emulator guards, debug package reset, untrusted ZIP manifest path/duplicate/symlink/bomb checks, deterministic ZIP packing, secret-key heuristics and no-device-touch before validation. Unit-test mocks are authored but not executed; real DocumentsUI selectors and live source data remain pilot blockers. No independently proven new source defect.
 - Static adversarial revisit only. No executed local tests, runs, emulators or devices. Next: T009.
+
+## Cycle 2 — T009 completed 2026-10-29T23:25:56.862Z
+
+- feature/group-neighboring-series at unchanged pinned head `771082d9c58363348d74b97a2da23732cdd921f0` (#68). Adversarially revisited account-source isolation when a Pool is saved from multiple same-host profiles, Pool origin identity reuse, strict source/profile opener, cover visibility policy and metadata refresh error preservation; compared actual package import's post-apply profile remap with the planned-change projector, ruling out a suspected preview mismatch. Revalidated F0005's exact-host violation and the separate #107/F0002 sorting conflict; no additional supported defect. The same-host two-profile UX and data-migration policy still need device/integration acceptance.
+- Source-level adversarial revisit, zero new findings; no tests/builds/devices. Next: T010.
