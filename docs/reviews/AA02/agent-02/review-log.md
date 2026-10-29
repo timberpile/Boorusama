@@ -77,3 +77,8 @@
 
 - Pinned `5bb52794468b172b7d6878fb825b42b00d654675`; 13 paths accounted, floating/pinned sliver, blacklist count/popup, settings migration and tests inspected. No introduced confirmed finding; pre-existing numeric post-ID collision remains a context note with unproven mixed-source reachability.
 - Active time minimum unverified; no test execution. Next T015.
+
+## Cycle 1 — T015 (#116), 2026-10-29T23:00:00.747Z
+
+- Head `5ac3ad9bc5f852f000012499c19468151c73734b`; 3 changed paths accounted, visual control and busy/follow state tested on paper. No confirmed finding; actual Material/Android hit bounds still need device.
+- Active 5 h unverified, no tests executed; next T016.
