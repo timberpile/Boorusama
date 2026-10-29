@@ -93,3 +93,10 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - `feature/104-expanded-details-swipe` pinned `0b7bbb2c9630292eda16bcb769b8ac057199452e` (#104) against merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`, develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
 - Read 3 changed code/test paths and issue prototype criteria. Traced PageView physics, swipe/zoom/pointers/animating/sheet state, page changed collapse, displacement, viewport and controller animation behavior. Added test scenarios exercise expanded media, narrow/mobile, vertical/desktop, sheet controls, drag cancellation, nested metadata scroll and mixed posts.
 - No confirmed static defect. Explicit prototype requires actual Android UX acceptance; combined #112 viewer toolbar, #106 toast and #114 timeline patches need integration review. See [T013](branches/T013.md). Next: T014. Time unverified.
+
+## Cycle 1 — T014 review completed 2026-10-29T23:03:08.837Z
+
+- Issue #107, `feature/107-local-post-sorting` pinned `7a73544cb79c9f5e3c2337a08140833024a31591`; comparison base `422aeae087c1108e655d85d1a3dac25120456cd6` vs develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read all 4 changed production paths, all 4 changed/new test files, sorting documentation, and relevant Feed history/Search state. Score tie-breakers, legacy metadata fallback, sort-only history suppression and restoring ordinary loading were inspected; tests not run.
+- Found [AA02-A03-F0002](cross-branch-findings.md#aa02-a03-f0002--mixed-pool-bookmark-list-ignores-new-score-ordering) by cross-comparing T014's enum additions with T009's new mixed grid comparator. #68 and #107 together mis-sort mixed Pool/Post grids under score ordering. No assumption that either branch has been merged.
+- Next: T015 / #108, then return to incomplete T009 and verify actual integration strategy. Duration unverified.
