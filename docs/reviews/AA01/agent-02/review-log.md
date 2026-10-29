@@ -200,3 +200,9 @@
 
 - Compared #118 fixed source with develop's eight new commits, specifically grid-only image format probing, PostGridItem and profile recovery changes. #118 artist cards are not routed through the new picker; F0004 explicit blur bypass and inherited F0005 Pixiv bearer/media coupling remain. No direct source-file overlap.
 - Reconfirmed fixed URL pagination validation, profile-scoped notifier and Search query; F0006 widget coverage and F0007 client integration remain. No new distinct finding; no test/device/HTTP execution. Sixth complete static cycle across five original pinned branch heads. One-hour active duration still unverified/unmet.
+
+
+## Final evidence reconciliation (2026-10-29)
+
+- Queried GitHub combined commit status and PR-triggered workflow runs for each target's pinned SHA; returned statuses and runs were empty, without adequate evidence to conclude no CI ever ran. No tests/CI were initiated.
+- Corrected inventory wording to reflect six completed static cycles, unchanged implementation heads, newer develop drift and still-unverified one-hour active work threshold. No new findings or application code changes.
