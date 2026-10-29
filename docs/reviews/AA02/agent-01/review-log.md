@@ -130,3 +130,8 @@
 ## Cycle 2 — T003 (2026-10-29T23:17:20.313Z)
 
 - Share image URL fallback and native share sheet reviewed adversarially with #108 single-selection action and ShareService return contract. No new finding; no executed tests. Next T004.
+
+## Cycle 2 — T004 (2026-10-29T23:17:59.144Z)
+
+Re-read the changed keyed CheckboxRangeItem home/folder rows in follow_topic_folder_picker.dart and their control path through CheckboxRangeSelection._sync/_changed. The widget entries are record values unique by folder ID; ValueKey uses the same semantic value rather than list index. _changed unions selected keys outside the current entries before publishing, avoiding deselection on folder traversal, and _sync guards an in-progress drag. Compared the picker with #108's separately introduced batch BookmarkGroupPicker; they are distinct widgets sharing the general selection concern, not the same source route. Rapid nested navigation, Back ownership and drag animation remain on-device cases. No new actionable defect established.
+- Next: T005; verified active duration unavailable.

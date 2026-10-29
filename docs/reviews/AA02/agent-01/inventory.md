@@ -47,3 +47,5 @@ Open issues lacking a matching task branch (such as #43, #96, #100, #102, #103, 
 - Cycle-2 review status: not begun at this checkpoint. Five-hour active-work proof still unavailable.
 
 - Cycle 2, T003: complete 2026-10-29T23:17:20.313Z, share fallback × #108 selection parity source contract checked; no finding.
+
+- Cycle 2 T004: complete 2026-10-29T23:17:59.144Z; follow-folder picker identity and controlled selection; no additional finding.
