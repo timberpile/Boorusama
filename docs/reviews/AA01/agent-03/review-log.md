@@ -20,3 +20,8 @@
 - Reviewed 13/13 changed files at `5bb52794468b172b7d6878fb825b42b00d654675`, major grid/controller and profile settings callers; no proven actionable defect. Widget/Android behavior is unverified.
 - Activity duration still unverified; timestamps are invocation wall time only.
 - Next: T003 compact Follow button at its pinned head.
+
+## T003 cycle 1 — 2026-10-29T17:37:27.245Z
+
+- Reviewed 3/3 changed files, badge and Search consumer test at `5ac3ad9bc5f852f000012499c19468151c73734b`, including compact/noncompact diff. No proven new defect. SDK/device checks outstanding; active time still unverified.
+- Next: T004 Pixiv Favorites.
