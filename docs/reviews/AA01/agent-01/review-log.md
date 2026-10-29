@@ -56,3 +56,7 @@
 ## 2026-10-29 — cycle 3 T002 (#114)
 
 - Revisited exact source diff versus base and new settings/popup tests plus existing anchor-scroll isolation test. No introduced source-level issue found. No commit CI/check runs observed; no local tests or visual validation. Duration unverified.
+
+## 2026-10-29 — cycle 3 T003 (#116)
+
+- Reviewed exact compact/noncompact button patch, Tooltip/Semantics/badge geometry and integrated Search 240dp/2x widget coverage. No newly introduced static defect; real device/touch tests and CI missing. Active time unverified.
