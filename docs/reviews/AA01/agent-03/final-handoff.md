@@ -7,8 +7,8 @@
 - **Repository:** `timberpile/Boorusama`; **batch:** `AA01`; **agent:** `03`; **report branch:** `review/AA01/agent-03`; **report root:** `docs/reviews/AA01/agent-03`.
 - **Assignment:** `MIN_REVIEW_HOURS=1`, `REVIEW_BRANCHES=bug/113-collection-pagination,feature/114-timeline-toolbar,feature/116-compact-follow-button,feature/117-pixiv-favorites,feature/118-pixiv-following-artists`. Only these five targets, all inspected independently.
 - **Instructions reviewed first:** `AGENTS.md`, `docs/development_workflow.md`, `docs/issue_workflow.md`, `.agents/skills/verify-change/SKILL.md` on `develop` at `422aeae087c1108e655d85d1a3dac25120456cd6`. Relevant engineering/support code and issue #113/#114/#116/#117/#118 clarifications were read.
-- **Baseline:** `develop` SHA `422aeae087c1108e655d85d1a3dac25120456cd6`. Each target is exactly one commit ahead and zero behind at the observed initial compare; all use the same merge base `422aeae087c1108e655d85d1a3dac25120456cd6`. None is a stacked feature branch. **Develop and all five target heads were re-read from GitHub after cycle 2 and remained unchanged**, at 2026-10-29T18:01:00Z; no observed drift. Scope frozen to exact supplied names (no replacement or additional targets). These facts apply only to the observation window.
-- **Discovery:** 2026-10-29T17:31:02.166Z. **Report update/checkpoint:** 2026-10-29T18:03:02.444Z.
+- **Baseline:** `develop` SHA `422aeae087c1108e655d85d1a3dac25120456cd6`. Each target is exactly one commit ahead and zero behind at the observed initial compare; all use the same merge base `422aeae087c1108e655d85d1a3dac25120456cd6`. None is a stacked feature branch. **Develop and all five target heads were re-read from GitHub after cycle 2 and remained unchanged**, at 2026-10-29T18:04:00.121Z; no observed drift. Scope frozen to exact supplied names (no replacement or additional targets). These facts apply only to the observation window.
+- **Discovery:** 2026-10-29T17:31:02.166Z. **Report update/checkpoint:** 2026-10-29T18:04:02.198Z.
 
 ## Target inventory and coverage
 

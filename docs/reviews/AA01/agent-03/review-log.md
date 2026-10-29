@@ -79,3 +79,8 @@
 - Two static passes of each of 5 targets; 46/46 substantive changed files accounted for. Confirmed 5 canonical findings (F0001–F0005), counted once, 4 defects and 1 policy-sensitive risk, all open. Report published only under the assigned review branch.
 - Observed wall boundaries 2026-10-29T17:31:02.166Z to 2026-10-29T18:03:02.444Z are not an active work meter. Verified active review = unverified; minimum 1 hour active unmet. No local tests, CI actions or code changes.
 - Next: local review/fixes/tests on authorized task branches, independent duration verification if required and final combined regression before any `develop` integration. No PR created.
+
+## Remote verification with recorded source timestamp — 2026-10-29T18:04:00.121Z
+
+- Directly fetched `develop` and all five exact assigned implementation Git refs between 2026-10-29T18:03:59.014Z and 2026-10-29T18:04:00.121Z; all six matched the pinned manifest/inventory SHAs. This is an actual invocation-timestamp observation, not an inferred historical clock time.
+- Corrected earlier imprecise source-verification timestamp in manifest, inventory and final handoff; retained report history. Findings, coverage, runtime limitations and duration status unchanged.
