@@ -59,7 +59,7 @@ void main() {
     address.value = uri('missing.test');
     await tester.pumpAndSettle();
     expect(find.text('artist:${second.id}'), findsNothing);
-    expect(find.text('https://missing.test/'), findsOneWidget);
+    expect(find.text('https://missing.test'), findsOneWidget);
     expect(container.read(currentBooruConfigProvider), unrelated);
     expect(tester.takeException(), isNull);
   });
@@ -77,7 +77,7 @@ void main() {
       )),
     ));
     expect(opened, isFalse);
-    expect(find.text('https://missing.test/'), findsOneWidget);
+    expect(find.text('https://missing.test'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -67,7 +67,12 @@ void main() {
       'v': '1', 'engine': 'danbooru', 'site': 'https://danbooru.test/', 'mode': 'raw', 'q': 'cat',
     });
     final file = BoorusamaLinkFile.fromUri(search.toString());
+    final canonical = search.replace(queryParameters: {
+      ...search.queryParameters,
+      'site': 'https://danbooru.test',
+    });
     expect(file.fileName, 'boorusama-search.bslink');
-    expect(BoorusamaLinkFile.decode(file.encode()).uri, search);
+    expect(file.uri, canonical);
+    expect(BoorusamaLinkFile.decode(file.encode()).uri, canonical);
   });
 }
