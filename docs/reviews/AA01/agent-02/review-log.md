@@ -93,3 +93,9 @@
 - Revisited #114 new anchored blacklist popup and shared post controller at 5bb52794468b172b7d6878fb825b42b00d654675 against unchanged develop 422aeae087c1108e655d85d1a3dac25120456cd6. Traced PostScope's unawaited post-frame blacklistTagsProvider listener, multiple rapid setBlacklistedTags calls, native Isolate.run count computations, and subsequent activeFilters/tagCounts and _filter publications.
 - Opened AA01-A02-F0010, medium/static-confirmed/pre-existing: native concurrent blacklist-set recomputations have no generation check; the first, slower rule-count result can overwrite a newer configuration and restore matches/rules for an outdated tag set. This compromises the #114 popup's rule counts/visibility, albeit inherited rather than newly introduced.
 - F0001 and F0009 remain. No additional claim about runtime incidence; no analyzer/test/device execution. Next cycle 3 T003.
+
+## Cycle 3 — T003 follow-button behavior/coverage pass, 2026-10-29T18:07:36.494Z
+
+- Reviewed #116 pinned 5ac3ad9bc5f852f000012499c19468151c73734b against the preexisting search-page follow integration suite (531 lines) and compact pill widget suite (102 lines). Rechecked FollowTopicButton's busy/onPressed semantics, operation revision and source query/profile capture, modified dot/semantics, compact button fit and padded hit target when onPressed is disabled.
+- Existing broad search follow-action tests exercise typed and mixed queries with profile capture and dialog transitions; new compact tests assert edge hit target, stable dimensions in busy/modified states, 320dp and 2x font, unchanged noncompact styles. No source-confirmed new functional defect emerged in #116's compact change.
+- Device accessibility and actual visual fit remain outstanding because this remote audit cannot run Flutter. No finding opened. Next cycle 3 T004.
