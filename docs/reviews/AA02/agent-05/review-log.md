@@ -47,3 +47,9 @@ Next: verify any stale/merged targets; conduct source-pinned code review of targ
 - Reviewed #118, comments, all 14 changed files and complete patch: page/route, capability registration, notifier, client fixed endpoint and offset parser, presentation/card/avatar, l10n, package and widget/provider tests, handoff. Checked originating-profile `goToSearchPage`, Pixiv query parser, shared `BooruImage`, `PostGridItem` and `ExplicitContentBlockOverlay` behavior, and Pixiv authenticated Dio.
 - Found `AA02-A05-F0003`: the new Following Artists preview surface bypasses the user's explicit-content cover/blur preference; it displays server-allowed R18 artwork directly even when `MediaBlurCondition.explicitOnly` is enabled. T021 also newly exposes shared Pixiv media bearer leak `AA02-A05-F0001` via automatic avatar/previews; canonical F0001 moved into cross-branch-findings.md, retaining original history and ID, and counted once.
 - Checked read-only cursor/offset and profile-scoped provider state; no other independently established static defect. Static pass complete; no tests run. Next T016 #111 lifecycle/security, then other targets. Active hours unverified.
+
+## Cycle 1 / T016 — 2026-10-29T22:56:35.749Z
+
+- Reviewed #111 requirements, complete six-file patch and all changed sources/tests: AppUpdateDialog, translation source, label/foreground/widgets tests, implementation handoff; traced downloader integrity check, native Kotlin channel and APK policy, foreground and permission settings paths, cancellation and retries.
+- No independent new source defect found. Report distinguishes implementation-agent FVM/Kotlin test claims from this audit's non-executed tests. The handoff's mismatched debug vs release signer accounts for observed user-reported install rejection without weakening native checks; live release-signed Android installer acceptance remains open.
+- Static pass complete at pinned head, next T006 #106. Active review duration unverified.
