@@ -15,7 +15,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 | T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | #68 open | complete |
 | T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #91 open | complete |
 | T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #95 open | complete |
-| T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #99 open | pending |
+| T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #99 open | complete |
 | T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #104 open | pending |
 | T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #107 open | pending |
 | T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #108 open | pending |

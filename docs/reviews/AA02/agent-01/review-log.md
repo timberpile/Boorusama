@@ -66,3 +66,7 @@
 ## Cycle 1 — T011 complete (2026-10-29T22:59:02.392Z)
 
 - Inspected #95 full artist link parser, page, share action, file/router changes and three new test suites. No substantiated finding; device .bslink path and real profile scoped request pending. Next T012 `feature/99-selected-tag-suggestions`; active time unverified.
+
+## Cycle 1 — T012 complete (2026-10-29T22:59:43.715Z)
+
+- Inspected #99, helper, both panel/desktop integration paths and unit/widget tests. No substantiated finding; live engine alias response and IME behavior unverified. Next T013 `feature/104-expanded-details-swipe`; duration unverified.
