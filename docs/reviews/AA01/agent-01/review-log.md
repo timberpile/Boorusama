@@ -144,3 +144,7 @@
 ## 2026-10-29 — cycle 7 T003 (#116)
 
 - Checked real Search result-header layout and 55%-width action against compact Follow styling and state semantics; no new proven defect; no tests/device; duration unverified.
+
+## 2026-10-29 — cycle 7 T004 (#117)
+
+- Traced config/account/filter family identity, PostScope keys and session cancellation; existing F0001/F0008 unchanged. No new proven defect, runtime tests or measured duration.
