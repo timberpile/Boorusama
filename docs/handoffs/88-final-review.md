@@ -14,3 +14,7 @@ Final verification on this commit's source/tests:
 - `git diff --check`: passed.
 
 Remaining acceptance: real Android animated WebP/AVIF decoding and pause/resume, actual service request counts and cache-lease behavior under grid churn. Host tests exercise the production renderer/transport/cache handoff but do not prove Android decoding or current Realbooru availability. No new Android APK/UI pass is claimed for this branch. #92 media-sharing identity remains independent. The final combined candidate requires complete local regression before integration. No integration, PR, closure or deletion is authorized.
+
+## Accepted integration — 2026-10-29
+
+The user accepted `feature/88-concurrent-thumbnail-probes` at `6ae84e6e27751503154faba707d5f9805081be5f` and authorized merging. This supersedes the earlier pending-acceptance/no-authorization statements. Its complete patch is integrated by `be17e377d`, with the final combined runtime/test candidate checked at `f1357395e8d7c25b5de91e990531752a73c58ca9`. All 5,535 application tests, 1,608 package/CLI tests, both shell suites and 72 Python tests passed; two existing go_router skips remain. See [combined integration evidence](approved-issues-integration-2026-10-29.md) for the resumed package run, analyzer details, corrections, logs and device limits. The containing documentation commit records this accepted final state. Publication verification, issue closure and exact-tip branch cleanup follow under the user's approval.

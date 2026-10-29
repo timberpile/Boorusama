@@ -20,3 +20,7 @@ Final verification on this commit's source/tests:
 - `git diff --check`: passed.
 
 Remaining acceptance: exhaustive production engine/destination matrix with populated services, FAB geometry, real shell hide/show/viewer transitions and Android reordering. Host geometry tests cover concrete newly reproduced gaps but do not claim the full live/device matrix. #101 and #106 remain independent dependencies to reconcile only during approved integration. The final combined candidate still needs complete local regression. No integration, PR, issue closure or deletion is authorized.
+
+## Accepted integration — 2026-10-29
+
+The user accepted `bug/89-profile-navigation-insets` at `25b2d90b09362f6a3f1f2c8e84deb246c13394a4` and authorized merging. This supersedes the earlier pending-acceptance/no-authorization statements. Its complete patch is integrated by `6b2571a4c`, with the final combined runtime/test candidate checked at `f1357395e8d7c25b5de91e990531752a73c58ca9`. All 5,535 application tests, 1,608 package/CLI tests, both shell suites and 72 Python tests passed; two existing go_router skips remain. See [combined integration evidence](approved-issues-integration-2026-10-29.md) for the resumed package run, analyzer details, corrections, logs and device limits. The containing documentation commit records this accepted final state. Publication verification, issue closure and exact-tip branch cleanup follow under the user's approval.
