@@ -244,3 +244,11 @@
 ## 2026-10-29 — cycle 11 T004 (#117)
 
 - Tabulated Pixiv session state transitions, latest-page cache, terminal suppression, failed page-2 retry and cancellation/profile key. No new session-origin leak; F0008 remains generic Grid stale-completion hazard, F0001 requires #113. Missing view/auth runtime tests; duration unverified.
+
+## 2026-10-29 — cycle 11 T003 (#116)
+
+- Checked Follow/Following semantics, busy state, modified badge IgnorePointer and MaterialTapTargetSize.padded against narrow layout constraints. Source preserves named accessible label and input target intent; device/widget acceptance unexecuted; no code defect established.
+
+## 2026-10-29 — cycle 11 checkpoint
+
+- All five exact targets now have eleven pinned static review passes; 12 canonical findings (7 defects, 5 risks) including new inherited async-blacklist race F0012. Confirmed zero CI status/check-run contexts at all five target SHAs; this is absent evidence, not a passing suite. No code/testing/merge/PR/device activity by this audit. One active review hour still unverified; retain resumable checkpoint.
