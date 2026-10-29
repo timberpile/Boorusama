@@ -170,3 +170,8 @@ Rechecked the Image.asset('assets/icon/icon-512x512.png') path, pubspec.yaml ass
 
 Re-read BoorusamaArtistLink.parse and BoorusamaLinkFile.fromUri. Artist links only accept boorusama://artist/open with version 1, engine=danbooru, a single normalized HTTP(S) source site and one nonempty artist tag; duplicate/unknown query keys, URI credentials and fragments are rejected. matchingProfiles requires both normalized site and engine, with explicit profile selection instead of cross-site fallback. BoorusamaLinkFile distinguishes existing post/search and new artist variants without embedding an account credential; #91 changes the search share icon but not this dispatcher. Unknown host needs a user-created matching profile. No new confirmed defect; Android document opening unexecuted.
 - Next T012; measured active review duration unverified.
+
+## Cycle 2 — T012 (2026-10-29T23:22:25.550Z)
+
+Re-examined withoutSelectedTagSuggestions. It first classifies ordinary selected tags separately from raw terms and option keys, normalizes case and unary prefixes via TagSearchItem.rawTag, then constructs a response-local undirected graph only from explicit AutocompleteData.alias antecedent edges. Graph closure occurs before output filtering, preventing order sensitivity while not hiding corrections, account or Pool entries. The search overlay from #98 is a separate outer Stack and does not consume selected controller state. Missing server alias edges remain unknown external data; no new finding.
+- Next T013; active duration unverified.

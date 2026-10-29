@@ -63,3 +63,5 @@ Open issues lacking a matching task branch (such as #43, #96, #100, #102, #103, 
 - Cycle 2 T010: complete 2026-10-29T23:21:45.964Z; shared link-icon asset and link transport; no new canonical finding.
 
 - Cycle 2 T011: complete 2026-10-29T23:21:59.670Z; artist document parsing and profile isolation; no new canonical finding.
+
+- Cycle 2 T012: complete 2026-10-29T23:22:25.550Z; canonical/alias suppression against opaque query values; no new finding.
