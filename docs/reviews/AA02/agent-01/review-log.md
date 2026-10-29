@@ -165,3 +165,8 @@ Revalidated F0001 against the accepted design and source: docs/designs/2026-10-2
 
 Rechecked the Image.asset('assets/icon/icon-512x512.png') path, pubspec.yaml assets/icon/ inclusion and the source asset's presence (binary GitHub fetch confirmed existence despite text decoding being unsupported). The IconButton preserves tooltip/disabled semantics and invokes the pre-existing shareSearchLinkFile; #95's separately added artist .bslink type dispatches through BoorusamaLinkFileShare without modifying this search-only share button. No missing asset or link-type ambiguity shown by source; visual assets/native handoff still require runtime acceptance.
 - Next T011; measured active review duration unverified.
+
+## Cycle 2 — T011 (2026-10-29T23:21:59.670Z)
+
+Re-read BoorusamaArtistLink.parse and BoorusamaLinkFile.fromUri. Artist links only accept boorusama://artist/open with version 1, engine=danbooru, a single normalized HTTP(S) source site and one nonempty artist tag; duplicate/unknown query keys, URI credentials and fragments are rejected. matchingProfiles requires both normalized site and engine, with explicit profile selection instead of cross-site fallback. BoorusamaLinkFile distinguishes existing post/search and new artist variants without embedding an account credential; #91 changes the search share icon but not this dispatcher. Unknown host needs a user-created matching profile. No new confirmed defect; Android document opening unexecuted.
+- Next T012; measured active review duration unverified.
