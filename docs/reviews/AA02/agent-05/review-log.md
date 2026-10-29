@@ -10,3 +10,10 @@
 - Wall time since observed session start is not a proxy for active time; verified active review duration: **unverified**. Minimum time requirement **not met**.
 
 Next: verify any stale/merged targets; conduct source-pinned code review of targets, starting with limited bug branches, update each target report and commit before the next target. Refresh discovery before subsequent cycles.
+
+## Cycle 1 / T004 — 2026-10-29T22:41:56.086Z
+
+- Reviewed #97, issue comments, full branch diff and all three changed files; inspected `CheckboxRangeSelection`, its selection regression test and both callers in `topic_follow_control.dart` at pinned head `6056bd06cfd7510aec41c00562d7dfd37c8725a7`.
+- Observed: stable value keys on the outer `CheckboxRangeItem` preserve destination identity when visible entries change; normal toggle preserves element identity and pending set is retained by dialog state. No actionable defect established in inspected source.
+- Static scope complete for this narrow change; runtime verification not performed here. Next: review T005 #98 and update checkpoints after its pass.
+- Active review duration still unverified; no hours inferred from timestamps.

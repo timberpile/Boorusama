@@ -7,7 +7,7 @@ Discovery: 2026-10-29T22:40:03.184Z; `develop` head `84df0c2de6cf8fe0177c49babb3
 | T001 | `bug/53-realbooru-prefetch-refresh` | `f7eba53fec0bc0369a9c3e84a8931353c0a8a3cf` | #53 (closed) | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | unreviewed | Status/integration equivalence unresolved |
 | T002 | `bug/76-realbooru-original-metadata` | `b8895d1e142c6b0e86b4a1f7359e7288ecc6fee5` | #76 (closed) | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | unreviewed | Status/integration equivalence unresolved |
 | T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | #92 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
-| T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
+| T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T004.md) |
 | T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | #98 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
 | T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | `422aeae087c1108e655d85d1a3dac25120456cd6` | unreviewed | — |
