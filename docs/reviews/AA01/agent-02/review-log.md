@@ -59,3 +59,10 @@
 - Revisited #116 compact Follow button pinned at 5ac3ad9bc5f852f000012499c19468151c73734b versus develop 422aeae087c1108e655d85d1a3dac25120456cd6. Compared pre-existing state/async follow flow byte for byte against changed pill-only style/spacing. Traced follow/Following variants, modified/busy icon 20px slot, badge, 48dp padded gesture target, disabled state, semantics, FVM widget test expectations and downstream search toolbar consumers.
 - Examined query/profile changes during an in-flight follow action: didUpdateWidget and operationRevision flow pre-exist unchanged. No new source-confirmed #116 behavior defect can be attributed to compact pill changes; additional generic follow lifecycle concerns remain outside this branch scope and are not fabricated as failures.
 - Verified tests explicitly assert tap-at-edge, 320dp with 2x font, stable target height, noncompact style; actual layout and Android screen-reader checks remain outstanding. No new findings. Next T004.
+
+## Cycle 2 — T004 adversarial pass, 2026-10-29T17:54:33.640Z
+
+- Revisited #117 pinned at e2929259b7725c484d11483d6ea48270079eb2f4: followed exact client continuation validation, URL and query parsing, media/auth transport, family key/profile scope, widget lifetime, sequential cursor session, retries and cancellation, GridController refresh concurrency, visibility switch, and PostScope state recreation.
+- F0002 remains valid: source parser can yield empty posts with hasMore true while the inherited GridController uses posts.isNotEmpty; the #113 patch must be combined. F0003 still a coverage gap. F0005/F0007 were rechecked as linked cross-Pixiv risks. New #113 cycle-2 F0008 refresh versus Load More is an inherited Grid concern also worth testing with #117; avoid double-counting it here.
+- User-supplied URL is never followed: validated cursor is extracted and a fresh same-host request path is constructed; redirects are disabled. Profile/filter session provider keys and CancelToken prevent stale session data publishing across widget replacement. No additional actionable #117-specific defect was established.
+- No authenticated API execution or Flutter/Dart tests. Next T005.
