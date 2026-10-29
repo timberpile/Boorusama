@@ -11,6 +11,7 @@ import '../../core/posts/details_parts/widgets.dart';
 import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'home/custom_home.dart';
+import 'favorites/page.dart';
 import 'posts/types.dart';
 
 class PixivBuilder extends BaseBooruBuilder {
@@ -58,6 +59,10 @@ class PixivBuilder extends BaseBooruBuilder {
           initialTab: initialTab,
         ),
       );
+
+  @override
+  FavoritesPageBuilder get favoritesPageBuilder =>
+      (context) => const PixivFavoritesPage();
 
   @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>

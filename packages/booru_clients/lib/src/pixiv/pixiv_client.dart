@@ -7,6 +7,8 @@ import 'pixiv_constants.dart';
 import 'pixiv_headers.dart';
 import 'types/types.dart';
 
+part 'pixiv_client_bookmarks.dart';
+
 const _kFilter = 'for_ios';
 
 /// Read-only client for the Pixiv `app-api` (`https://app-api.pixiv.net`).
@@ -17,9 +19,8 @@ const _kFilter = 'for_ios';
 /// [dio]'s `BaseOptions.headers` is never mutated — it may be shared by
 /// app-side code.
 ///
-/// Pagination is offset-only: callers compute `offset = (page - 1) * 30`.
-/// `next_url` is never fetched or resolved, only read as a has-more signal —
-/// see [PixivIllustListResult.hasMore].
+/// Illustration feeds use offset pagination. Bookmarks use a validated
+/// `max_bookmark_id` cursor. Server-supplied `next_url` is never requested.
 class PixivClient {
   PixivClient({
     required this.accessToken,
@@ -204,12 +205,16 @@ class PixivClient {
   Future<Map<String, dynamic>> _get(
     String path, {
     Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
+    bool? followRedirects,
   }) async {
     try {
       final response = await _dio.get<dynamic>(
         path,
         queryParameters: queryParameters,
+        cancelToken: cancelToken,
         options: Options(
+          followRedirects: followRedirects,
           headers: buildPixivApiHeaders(
             accessToken: accessToken,
             acceptLanguage: acceptLanguage,
