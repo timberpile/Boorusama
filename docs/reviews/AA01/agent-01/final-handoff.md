@@ -1,22 +1,22 @@
 # AA01-A01 independent audit — resumable handoff
 
-**Audit status: static review cycles 1–5 completed for all five pinned branches. The task is NOT complete against the minimum-active-duration rule.** No reliable active review hour has been established; start additional genuine review cycles. This is an audit evidence archive, not a task tracker or merge authorization.
+**Audit status: static review cycles 1–6 completed for all five pinned branches. The task is NOT complete against the minimum-active-duration rule.** No reliable active review hour has been established; start additional genuine review cycles. This is an audit evidence archive, not a task tracker or merge authorization.
 
 ## Identity, instructions, source snapshot
 
 - Repository: `timberpile/Boorusama`; batch `AA01`, audit agent `01`, report branch `review/AA01/agent-01`.
 - Configuration: `MIN_REVIEW_HOURS=1`, five exact `REVIEW_BRANCHES` below, normalized from the uploaded explicit list.
-- Source snapshot: 2026-10-29; all branch SHAs observed unchanged at the beginning of cycles 1–5. Common `develop` and merge base: `422aeae087c1108e655d85d1a3dac25120456cd6`; all target branches one commit ahead.
+- Source snapshot: 2026-10-29; all branch SHAs observed unchanged at the beginning of cycles 1–6. Common `develop` and merge base: `422aeae087c1108e655d85d1a3dac25120456cd6`; all target branches one commit ahead.
 - Required instructions read on `develop` `422aeae087c1108e655d85d1a3dac25120456cd6`: `AGENTS.md`, `docs/development_workflow.md`, `docs/issue_workflow.md`, `.agents/skills/verify-change/SKILL.md`.
 - No branch-specific AGENTS instructions discovered in the repository tree. Do not read other independent audit agents' findings.
 
 | Target | Exact branch | Issue | Reviewed pinned SHA | Static coverage | Findings |
 | --- | --- | --- | --- | --- | --- |
-| [T001](branches/T001.md) | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | 5 passes (cycles 1–5) | F0004,F0005,F0006 |
-| [T002](branches/T002.md) | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | 5 passes (cycles 1–5) | F0007 |
-| [T003](branches/T003.md) | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | 5 passes (cycles 1–5) | None |
-| [T004](branches/T004.md) | `feature/117-pixiv-favorites` | #117 | `e2929259b7725c484d11483d6ea48270079eb2f4` | 5 passes (cycles 1–5) | F0001,F0008 (cross) |
-| [T005](branches/T005.md) | `feature/118-pixiv-following-artists` | #118 | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | 5 passes (cycles 1–5) | F0002,F0003 |
+| [T001](branches/T001.md) | `bug/113-collection-pagination` | #113 | `a1bc1d42903861a46e7230349515946bae678357` | 5 passes (cycles 1–6) | F0004,F0005,F0006 |
+| [T002](branches/T002.md) | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | 5 passes (cycles 1–6) | F0007 |
+| [T003](branches/T003.md) | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | 5 passes (cycles 1–6) | None |
+| [T004](branches/T004.md) | `feature/117-pixiv-favorites` | #117 | `e2929259b7725c484d11483d6ea48270079eb2f4` | 5 passes (cycles 1–6) | F0001,F0008 (cross) |
+| [T005](branches/T005.md) | `feature/118-pixiv-following-artists` | #118 | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | 5 passes (cycles 1–6) | F0002,F0003 |
 
 Every substantive changed source, test, config and handoff file was accounted for in cycle 1. Later cycles challenged core consumers, errors, cache, cancellation, model/backup settings, UI boundaries, API response parsing and cross-branch behavior. Source conclusions apply to the above SHAs, not to unseen future changes. See [inventory](inventory.md) and [review log](review-log.md).
 
@@ -62,9 +62,9 @@ Prioritized local scenarios (source files and details are linked in each target 
 
 ## Work, duration and resumption
 
-- **Cycles:** five complete static passes per target so far, each per-target pass published in a separate documentation commit. No new source heads observed at the refreshes.
+- **Cycles:** six complete static passes per target so far, each per-target pass published in a separate documentation commit. No new source heads observed at the refreshes.
 - **Active time:** **unverified**, so the required `MIN_REVIEW_HOURS=1` remains **unmet/not established**. Tool-observed timestamps in this resumed run include 2026-10-29 17:54:51Z and the latest reviewed source snapshot 2026-10-29 18:27:03Z; their difference is *wall elapsed*, not proof of continuously active review. No idle loop, sleeping, user-wait interval or chat age is counted as active review. On resumption, establish an observed active-work interval and document any uncertainty honestly.
-- **Current checkpoint:** all files persist on `review/AA01/agent-01`. Read `manifest.json`, `inventory.md`, `review-log.md`, `cross-branch-findings.md`, and all five branch files; refresh `develop` and each target head. Verify the remote report branch head before any new commit.
+- **Current checkpoint:** six passes per target are now persisted; all files persist on `review/AA01/agent-01`. Read `manifest.json`, `inventory.md`, `review-log.md`, `cross-branch-findings.md`, and all five branch files; refresh `develop` and each target head. Verify the remote report branch head before any new commit.
 - **Next action:** continue independent adversarial reviews or revision-delta rechecks, committing each completed branch pass separately. Persist progress after each branch. Finish only when both scope coverage and reliably established active-hour requirement are satisfied; otherwise leave this as an explicit incomplete checkpoint.
 
 **No application code was changed, no tests/builds/device checks were run, and no changes were published to the five implementation branches.**

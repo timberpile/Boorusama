@@ -128,3 +128,7 @@
 ## 2026-10-29 — cycle 6 T004 (#117)
 
 - Re-read pinned favorites session, per-filter source scope and cursor parser. Revalidated inherited Grid continuation F0001 and cancelled stale-page/error rollback F0008 against a refresh interleaving; no new independent defect. No Flutter/auth runtime execution; active duration unverified.
+
+## 2026-10-29 — cycle 6 T005 (#118)
+
+- Rechecked following notifier refresh/cancellation and account+filter scope, fixed endpoint/offset validation, artwork preview rating/blur paths. F0002 and F0003 remain open. Six source review passes now recorded for each of five targets. No Flutter/authenticated API/device test executed; active duration unverified.
