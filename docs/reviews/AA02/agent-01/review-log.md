@@ -92,3 +92,7 @@
 ## Cycle 1 — T017 complete (2026-10-29T23:07:26.873Z)
 
 - Reviewed #112 model, editor, settings persistence/backups, standard/Danbooru toolbar, action controls, Kurumi popup/anchor internals and nine focused new/changed test groups. No confirmed new defect, but real responsive UX/gesture acceptance pending. Next T018 `feature/114-timeline-toolbar`; duration unverified.
+
+## Cycle 1 — T018 complete (2026-10-29T23:08:42.305Z)
+
+- Inspected #114, unified header, union blacklist semantics and controller update paths, floating sliver and migration settings; four changed tests read. No substantiated source defect; Android scroll/keyboard and accessibility acceptance outstanding. Next T019 `feature/116-compact-follow-button`; time unverified.

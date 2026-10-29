@@ -21,7 +21,7 @@ Observed: 2026-10-29T22:38:24.023Z; `develop` = `84df0c2de6cf8fe0177c49babb3fb0e
 | T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #108 open | complete |
 | T016 | `feature/111-android-update-flow` | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #111 open | complete (pinned SHA; remote missing) |
 | T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #112 open | complete |
-| T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #114 open | pending |
+| T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #114 open | complete |
 | T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #116 open | pending |
 | T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #117 open | pending |
 | T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | `422aeae087c1108e655d85d1a3dac25120456cd6` | #118 open | pending |
