@@ -10,7 +10,7 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 | T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | Complete static pass 1; no actionable finding |
 | T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | #98 | Complete static pass 1; no actionable finding |
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | Complete static pass 1; no actionable finding |
-| T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | Not reviewed |
+| T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | Complete static pass 1; source-total risk noted |
 | T008 | `feat/android-maestro-mvp` | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | issue-free/unknown | Not reviewed |
 | T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68? | Not reviewed |
 | T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | #91 | Not reviewed |
@@ -38,5 +38,5 @@ Observed at 2026-10-29T22:38:58.156Z; develop `84df0c2de6cf8fe0177c49babb3fb0eee
 ## Caveats
 
 - Branch status is assessed from pinned Git ancestry, not labels alone. No open PRs were returned at discovery.
-- 19 active candidate branches after T001/T002 exclusions; T003–T006 reviewed 4/19. Other rows remain unreviewed.
+- 19 active candidate branches after T001/T002 exclusions; T003–T007 reviewed 5/19. Other rows remain unreviewed.
 - Relevant issue comments, cross-branch dependencies, and completeness of compare/diff endpoints remain to be checked.
