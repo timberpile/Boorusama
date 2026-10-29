@@ -188,3 +188,9 @@
 
 - Source head #116 unchanged; 1 ahead/8 behind current develop, merge-base unchanged. Compared new-develop changed paths with the two changed application/test files, and rechecked compact input target/icon stability, adjacent Search UI tests, and #115 future dependency boundary.
 - No demonstrated overlap or newly actionable bug; Android visual/screen-reader and actual Flutter tests remain pending. Next T004. No code/tests executed.
+
+
+## Cycle 6 — T004 new navigation recovery versus Pixiv Favorites (2026-10-29T22:36:48.739Z)
+
+- Compared #117 pinned head with new develop navigation recovery (empty-profile add/import paths); no direct changed-file overlap and profile chooser remains for nonempty lists. Revisited shared Favorites profile selection, typed session key, origin binding, security validation and expected #113 continuation integration.
+- Existing F0002/F0003 and cross F0005/F0007 plus linked F0008 remain; no new independent finding. Add post-empty-profile setup to combined UI verification. Next T005. No tests/code changes.
