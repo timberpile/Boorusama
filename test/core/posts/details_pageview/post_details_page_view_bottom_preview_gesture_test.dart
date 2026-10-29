@@ -318,27 +318,38 @@ void main() {
     expect(controller.sheetState.value, SheetState.expanded);
   });
 
-  testWidgets('horizontal paging collapses expanded details on the new post', (
-    tester,
-  ) async {
-    final controller = _controller();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(_TestApp(controller: controller));
-    await _expandDetails(tester, controller);
+  for (final disabled in [true, false]) {
+    testWidgets(
+      'horizontal paging collapses expanded details (animations disabled: $disabled)',
+      (
+        tester,
+      ) async {
+        final controller = _controller(disableAnimation: disabled);
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          _TestApp(controller: controller, disableAnimation: disabled),
+        );
+        await _expandDetails(tester, controller);
 
-    await tester.dragFrom(const Offset(300, 120), const Offset(-250, 0));
-    await tester.pumpAndSettle();
+        await tester.dragFrom(const Offset(300, 120), const Offset(-250, 0));
+        await tester.pumpAndSettle();
 
-    expect(controller.currentPage.value, 1);
-    expect(controller.sheetState.value, SheetState.collapsed);
-    expect(controller.sheetController.size, 0);
-    expect(controller.displacement.value, 0);
-    expect(tester.takeException(), isNull);
-  });
+        expect(controller.currentPage.value, 1);
+        expect(controller.sheetState.value, SheetState.collapsed);
+        expect(controller.sheetController.size, 0);
+        expect(controller.displacement.value, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   for (final block in ['zoom', 'swiping disabled', 'vertical mode']) {
-    testWidgets('expanded details preserve the $block paging restriction', (tester) async {
-      final mode = block == 'vertical mode' ? ViewMode.vertical : ViewMode.horizontal;
+    testWidgets('expanded details preserve the $block paging restriction', (
+      tester,
+    ) async {
+      final mode = block == 'vertical mode'
+          ? ViewMode.vertical
+          : ViewMode.horizontal;
       final controller = _controller(viewMode: mode);
       addTearDown(controller.dispose);
       await tester.pumpWidget(_TestApp(controller: controller, viewMode: mode));
@@ -348,7 +359,9 @@ void main() {
       await tester.pump();
       await tester.dragFrom(
         const Offset(300, 120),
-        mode == ViewMode.vertical ? const Offset(0, -100) : const Offset(-250, 0),
+        mode == ViewMode.vertical
+            ? const Offset(0, -100)
+            : const Offset(-250, 0),
       );
       await tester.pumpAndSettle();
       expect(controller.page, 0);
@@ -357,10 +370,14 @@ void main() {
     });
   }
 
-  testWidgets('details scrolling does not navigate to another post', (tester) async {
+  testWidgets('details scrolling does not navigate to another post', (
+    tester,
+  ) async {
     final controller = _controller();
     addTearDown(controller.dispose);
-    await tester.pumpWidget(_TestApp(controller: controller, scrollableDetails: true));
+    await tester.pumpWidget(
+      _TestApp(controller: controller, scrollableDetails: true),
+    );
     await _expandDetails(tester, controller);
     final list = find.byKey(const Key('details-scroll'));
     await tester.drag(list, const Offset(0, -250));
@@ -589,8 +606,9 @@ Future<void> _expandDetails(
   await tester.binding.setSurfaceSize(const Size(400, 800));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pump();
-  await controller.expandToSnapPoint();
+  final expansion = controller.expandToSnapPoint();
   await tester.pumpAndSettle();
+  await expansion;
 }
 
 class _TestApp extends StatelessWidget {
