@@ -55,6 +55,17 @@ on the agent's own isolated task branch/worktree are explicitly authorized as
 part of the requested task; no separate approval is needed unless the user says
 otherwise.
 
+An authorized request to implement or work through GitHub Issues also authorizes
+creating their local and remote task branches and pushing scoped commits to those
+task branches in `timberpile/Boorusama`. Choose the conventional issue branch name
+above without a separate naming or push approval, and continue an existing task
+branch rather than creating a competing one. Preserve unrelated work; use normal
+fast-forward pushes, never overwrite another agent's commits. Report incomplete
+verification in the handoff; publishing a work-in-progress task branch does not
+claim review or integration readiness. Explicit limits such as "local only" or
+"do not push" take precedence. Creating an issue alone does not authorize its
+implementation or code publication.
+
 Merging or integrating a task branch always requires explicit user authorization.
 Approval such as “this branch can be merged” authorizes the complete task workflow:
 verified integration, publication of the approved change to `origin/develop`,
@@ -63,13 +74,18 @@ completed remote task branch and local branch/worktree. Complete these steps
 without requesting permission again. Explicit narrower limits (for example,
 “local only”, “do not push”, or “keep the branch”) take precedence. This approval
 does not cover unrelated outgoing changes, releases, or creation of a PR.
+Task-branch publication does not authorize merging, cherry-picking, replaying, or
+otherwise integrating its changes into `develop`, pushing `develop`, creating a
+PR, closing an implementation issue, publishing a release, or deleting branches.
 Modifying `develop` or any other branch/worktree outside the permissions above
 requires explicit user authorization.
-Outside that approved task workflow, code publication, merges, releases, and
-unrelated remote changes still require explicit authorization. An explicit
-issue-creation or issue-work request also authorizes the scoped issue metadata updates in the [issue workflow](issue_workflow.md),
-not a code push or merge. Use `gh` or the connected GitHub tools and explicitly
-target `timberpile/Boorusama`; provide manual instructions for other repositories.
+Outside authorized issue task-branch publication or an approved integration
+workflow, code publication, merges, releases, and unrelated remote changes still
+require explicit authorization. An explicit issue-creation or issue-work request
+also authorizes the scoped issue metadata updates in the
+[issue workflow](issue_workflow.md). Use `gh` or the connected GitHub tools and
+explicitly target `timberpile/Boorusama`; provide manual instructions for other
+repositories.
 
 ## Integration
 
@@ -97,13 +113,18 @@ commit title. Do not rebase or squash shared upstream/release history.
 ## Pull requests and publication
 
 - Use a PR only when the user explicitly requests one, regardless of change
-  size. Otherwise prepare the result for approved integration and publication,
-  unless the small-change exception above permits a direct local `develop` commit.
-- Before authorized publication, fetch current references and reconcile the
-  task branch with latest `origin/develop`. After a rebase, reread current
-  `AGENTS.md` and this workflow.
-- Agree the publication branch name before pushing. The current PR policy
-  accepts `bug/`, `feature/`, and `maintenance/` with optional issue numbers.
+  size. Otherwise publish authorized issue work to its task branch and prepare
+  the result for separately approved integration. The small-change exception
+  above still permits only a direct local `develop` commit.
+- Before publication, fetch current references and inspect the task branch
+  against latest `origin/develop`. Reconcile relevant changes without overwriting
+  shared task-branch history. After a rebase, reread current `AGENTS.md` and this
+  workflow. Unresolved integration or verification work must be reported; it does
+  not prevent publishing isolated work in progress for a local-agent handoff.
+- Authorized issue work uses its conventional task branch name without a
+  separate naming approval. For publication outside that authorization, agree
+  the branch name before pushing. The current PR policy accepts `bug/`,
+  `feature/`, and `maintenance/` with optional issue numbers.
   Legacy `fix/` PR branches remain accepted during the transition; do not create
   new ones. Upstream synchronization, Dependabot, and release-promotion exceptions
   remain unchanged. Keep the same task worktree.
@@ -159,7 +180,7 @@ recovery integration, normal pushes, and removal of an unchanged draft created
 by that run. Preserve later/unrelated work and shared history. Any reversal on
 `master` goes through `develop` and a checked release PR with a real merge.
 Reverting the whole promotion may also remove pre-existing `develop` features;
-prepare the exact reversal diff and resolve that additional scope first.
+prepare the exact reversal diff and resolve that additional scope before merge.
 Inspect the full recovery PR diff so later unrelated `develop` work is not
 silently promoted alongside the reversal; resolve that extra scope before merge.
 Public releases, pushed-tag deletion, and changes outside recorded ownership
