@@ -142,3 +142,8 @@
 - Reclassified T022 (temporary CI source-export audit infrastructure) and T023 (unmerged policy/docs proposal) as out-of-scope. No other audit report was read. Historical entries preserved in inventory; scope coverage is 21/21 eligible pinned targets for cycle 1, 20/20 currently active eligible branches represented by a reviewed pinned source.
 - Cycle 2 frozen scope: the remaining 20 remote active eligible branches. T016 stays a historical integrated target and is still relevant for integration finding revalidation.
 - Neither the active-hour minimum nor local test/runtime verification is fulfilled; continue useful adversarial source checks without artificial time padding. Next: cycle 2 T016 merged-source revalidation, then T001/T020 high-risk defects and combinations.
+
+## 2026-10-29T23:28:36.731Z — Cycle 2 T016 merged-source revalidation
+
+- Rechecked deleted source branch #111 against merged `develop` `894ab270693cdb054a5d527c96182e21e2b14ffc`; four source/test/localization file blobs are identical to audited head. Confirmed F0004's route-current verified-APK drop remains open and untested by existing OS foreground widget tests.
+- Added a source-pinned cycle-2 history to T016's report. No implementation change, tests, CI, build or device access. Timing requirement remains unverified. Next: cycle 2 T001 / #53 adversarial snapshot and regression with shared preloader consumers.

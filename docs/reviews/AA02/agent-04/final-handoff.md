@@ -13,7 +13,7 @@
 ## Source and cycle coverage
 
 - **Cycle 1 source-level first pass: 21 of 21 eligible targets complete at fixed observed SHAs**. T022/T023 were provisional, then explicitly excluded as unrelated audit/export or policy proposals. Historical T016/#111 was reviewed and is now integrated/closed/remote branch deleted. All 20 remaining eligible remote branch heads match the original fixed SHAs at cycle-2 discovery; no newly eligible implementation branch was discovered.
-- **Cycle 2: underway, not complete**. It must include adversarial checks and revalidation of known defects and merged #111; subsequent branch and `develop` changes must be recorded as new observations.
+- **Cycle 2: underway, not complete**. T016/#111 has been revalidated against merged `develop` with four exact matching file blob hashes and F0004 still open; other branches need adversarial passes. Subsequent branch and `develop` changes must be recorded as new observations.
 - **Time:** `MIN_REVIEW_HOURS=5` remains **unverified/unmet**. Active work was not reliably instrumented; neither elapsed conversation age nor commit timestamps justify claiming five active hours. No fabricated timing and no background promise.
 - **Overall assignment completion: not claimed** due to the timing requirement and pending cycle-2 source/live acceptance.
 
@@ -38,7 +38,7 @@ All table head/base SHAs below were pinned at the first pass. The latest discove
 | T013 | `feature/104-expanded-details-swipe` | #104 | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding; device UX gate |
 | T014 | `feature/107-local-post-sorting` | #107 | `7a73544cb79c9f5e3c2337a08140833024a31591` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
 | T015 | `feature/108-selection-action-parity` | #108 | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
-| T016 | `feature/111-android-update-flow` | #111 | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; F0004; branch deleted after integration |
+| T016 | `feature/111-android-update-flow` | #111 | `9ac4dd73b4c505c9c300a0e5fe43bf1ba0d06d07` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete C1+C2 merge revalidation; F0004 open |
 | T017 | `feature/112-viewer-toolbar-layout` | #112 | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding; device UX gate |
 | T018 | `feature/114-timeline-toolbar` | #114 | `5bb52794468b172b7d6878fb825b42b00d654675` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding |
 | T019 | `feature/116-compact-follow-button` | #116 | `5ac3ad9bc5f852f000012499c19468151c73734b` | `422aeae087c1108e655d85d1a3dac25120456cd6` | Complete static C1; no finding; device UX gate |
@@ -59,7 +59,7 @@ All table head/base SHAs below were pinned at the first pass. The latest discove
 
 - Totals: **5 distinct canonical defects**; severity 0 critical, 0 high, 4 medium, 1 low; confidence 4 static-confirmed and 1 high-confidence; lifecycle 5 open, 0 resolved/withdrawn/superseded. 0 separate risks, 0 coverage-gap findings, 0 improvements. Missing device execution is a verification limitation, not a finding count.
 - F0003 needs a product-contract decision: site-level Pool identity intentionally excludes account, but original profile hints and strict same-origin resolver enforce account isolation. Do not change persisted identity/backup format without deciding the intended account policy.
-- F0004's source remains in `develop` at `894ab270693cdb054a5d527c96182e21e2b14ffc` even though #111 is closed; remediation should check actual release/runtime behavior before modifying it.
+- F0004 was revalidated as open against `develop` at `894ab270693cdb054a5d527c96182e21e2b14ffc`; the app, tests and translation blobs exactly match the audited branch even though #111 is closed. Remediation should confirm device impact before modifying it.
 - F0005 exposes an existing PostGrid continuation heuristic via the new #117 Pixiv cursor. Independently developed #113 supplies a compatible `PostResult.hasMore`-aware change but must be reconciled with current code and tested in the actual composed Pixiv Favorites grid, not blindly cherry-picked.
 
 ## Interaction checkpoints and local regression
