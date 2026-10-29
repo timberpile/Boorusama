@@ -215,3 +215,8 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 
 - Pinned head `0b7bbb2c9630292eda16bcb769b8ac057199452e` (issue #104), unchanged on last branch refresh. Adversarially followed PageView horizontal gesture eligibility under expanded sheet, sheet animation, zoom, multiple pointer tracking and page-change reset. Reset collapses sheet and clears displaced scrolling only on a successful page switch. Existing hover/vertical/large-screen restrictions remain. No static regression demonstrated; tactile sheet-versus-media gesture arbitration is still a mandated human/device check.
 - Static second pass; no device/build/tests executed. Next T014.
+
+## Cycle 2 — T014 completed 2026-10-29T23:27:16.877Z
+
+- Pinned head `7a73544cb79c9f5e3c2337a08140833024a31591` (issue #107), unchanged on last branch refresh. Rechecked sort-only Feed Search against session history/request path, legacy Bookmark score fallback, stable Post sort tie breakers and interactions with #68 mixed-grid comparator. No new isolated defect beyond canonical F0002: the date-only mixed Pool/Post re-sort still conflicts once #68+#107 are combined. No integrated branch or request-count runtime evidence available.
+- Static second pass; no device/build/tests executed. Next T015.
