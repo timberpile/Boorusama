@@ -126,3 +126,9 @@ Review `T001` at its pinned SHA: read issue #53 and clarifications, complete sou
 - Issue #114, `feature/114-timeline-toolbar` pinned `5bb52794468b172b7d6878fb825b42b00d654675`, merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`, initial develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
 - Read complete 13 changed-file inventory, source implementations, controller filter/data origin, blacklisted tag counts/active-rule toggles, floating/pinned sliver, bounded blacklist popup, fixed overflow and legacy/new JSON settings plus four authored tests. No independently actionable static bug established. Tests and FVM not executed by this auditor.
 - Device acceptance still needed for actual scroll direction, 320px/large type and popup reuse across route/profiles, plus #115 Search-specific future integration. See [T018](branches/T018.md). Next T019 (#116). Active time still unverified.
+
+## Cycle 1 — T019 review completed 2026-10-29T23:10:49.150Z
+
+- Issue #116, `feature/116-compact-follow-button` pinned `5ac3ad9bc5f852f000012499c19468151c73734b`, merge-base `422aeae087c1108e655d85d1a3dac25120456cd6`, compared against initial develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
+- Read the only changed widget and full new test. Compact-only style min filled height 36dp and 48dp padded touch target, stable 20dp icon/spinner slot, follow/loading/modified state with focus/semantics; noncompact path unchanged. Adjacent follow async/state flow checked. No independent static finding; Android visual acceptance unresolved. See [T019](branches/T019.md).
+- Next T020 / #117, Pixiv favorites; no local executions, duration unverified.
