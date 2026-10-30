@@ -77,3 +77,12 @@ Open issues lacking a matching task branch (such as #43, #96, #100, #102, #103, 
 - Cycle 2 T017: complete 2026-10-29T23:28:24.937Z; responsive projection, menus and persistent toolbar action ownership; no additional canonical finding.
 
 - Cycle 2 T018: complete 2026-10-29T23:28:38.089Z; anchored blacklist controls and floating header semantics; no additional canonical finding.
+
+## User-directed audit closeout — 2026-10-30T06:45:29.814Z
+
+- This original frozen inventory remains intact for provenance. Target issue statuses in its Cycle 1 table are historical observations, not fresh live GitHub status.
+- Cycle 1: **23/23** pinned static changed-source passes documented.
+- Cycle 2: **16/20** active/uncertain static adversarial passes documented; remaining T019, T021, T022 and T023 were **not** revisited in cycle 2 because the user instructed closure. All four have first-pass source reports.
+- Canonical findings across all passes: F0001, F0002 (T009), F0003 (T021, suspected), and F0004 (T020, with #113 as dependency); no IDs inferred from unrun tests.
+- The source issues #53, #76 and #111 are already closed/integrated in `develop` as previously reconciled. Their source heads/branches are historical, not active review targets. Report branch remains isolated.
+- Audit ended at user's request; **five verified active review hours and all runtime tests are not fulfilled**. See [summary](summary.md) for full disposition.

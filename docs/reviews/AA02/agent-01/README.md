@@ -1,10 +1,9 @@
 # Independent audit AA02 / agent 01
 
-- Repository: `timberpile/Boorusama`
-- Report branch: `review/AA02/agent-01`; documentation only.
-- Scope: 23 originally captured implementation/historical source snapshots (20 remain eligible in current cycle after three confirmed integrations) in [inventory](inventory.md), initially frozen on 2026-10-29T22:38:24.023Z.
-- Method: remote GitHub source inspection at pinned SHAs. No code edits, builds, analyzers, devices, or local tests.
-- Completion requires full static coverage of every target **and** at least five verified active working hours. Neither is achieved by creation of this checkpoint.
-- Independent inspection: no other agents' review documents consulted.
+**Status: closed at user request on 2026-10-30T06:45:29.814Z; incomplete original audit protocol.**
 
-See [review log](review-log.md), [branch reports](branches/), [cross-branch findings](cross-branch-findings.md), and [working handoff](final-handoff.md).
+This report covers 23 pinned initial implementation/source snapshots (23 first-pass static reviews) and 16/20 active or uncertain branches in a second adversarial pass. It contains four canonical open findings: three medium static-confirmed defects and one low suspected risk. The five-hour active-work threshold and local/runtime verification were **not** satisfied. No application code or source task branches were modified.
+
+Start with [the final audit summary](summary.md) and [final handoff](final-handoff.md). Individual source checks and reproduction paths are in [branch reports](branches/), with frozen SHAs in the [inventory](inventory.md), a [review log](review-log.md), [cross-branch dependencies](cross-branch-findings.md), and [machine-readable manifest](manifest.json).
+
+Historical/integrated targets T001 (#53), T002 (#76), T016 (#111) are preserved for evidence. Other audit agents' reviews were not read or adopted. This is an independently documented, **not integration-approved** review, closed because the user requested conclusion.

@@ -20,5 +20,37 @@
     ".agents/skills/verify-change/SKILL.md": "444cde16819b8b53e2bcb18c5b34bcda5202fa19"
   },
   "started_utc": "2026-10-29T22:38:24.023Z",
-  "scope_cycle": 1
+  "scope_cycle": 2,
+  "completion": {
+    "status": "closed_by_user_request_incomplete_protocol",
+    "closed_at_utc": "2026-10-30T06:45:29.814Z",
+    "review_type": "remote_static_source_only",
+    "scope_initial_snapshots": 23,
+    "first_pass_static_complete": 23,
+    "active_targets_after_integration": 20,
+    "second_pass_static_complete": 16,
+    "second_pass_unreviewed": [
+      "T019",
+      "T021",
+      "T022",
+      "T023"
+    ],
+    "findings": {
+      "total": 4,
+      "defects": 3,
+      "suspected_risks": 1,
+      "medium": 3,
+      "low": 1,
+      "static_confirmed": 3,
+      "suspected": 1,
+      "open": 4
+    },
+    "verified_active_review_hours": null,
+    "minimum_active_hours_met": false,
+    "local_tests_run": false,
+    "source_code_changed": false,
+    "task_branch_status": "report_only",
+    "develop_last_observed_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+    "final_summary": "docs/reviews/AA02/agent-01/summary.md"
+  }
 }
