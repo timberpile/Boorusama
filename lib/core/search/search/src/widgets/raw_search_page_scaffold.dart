@@ -284,6 +284,19 @@ class _SearchPageScaffoldState<T extends Post>
                   },
                 ),
               ),
+              // Paint beneath the entire editor, including its reserved tag
+              // and safe-area displacement, rather than only its child panels.
+              ValueListenableBuilder(
+                valueListenable: _controller.state,
+                builder: (context, state, _) => state == SearchState.initial
+                    ? const SizedBox.shrink()
+                    : Positioned.fill(
+                        child: ColoredBox(
+                          key: const ValueKey('search-editor-background'),
+                          color: Kurumi.themeOf(context).colorScheme.surface,
+                        ),
+                      ),
+              ),
               _SearchOptionsView(
                 landingView: widget.landingView,
                 selectionModeController: _selectionModeController,
@@ -610,7 +623,7 @@ class __SearchBarPositionedState extends ConsumerState<_SearchBarPositioned> {
                   final padding = widget.selectionModeController.isActive
                       ? 0.0
                       : searchOnce
-                      ? state == SearchState.suggestions
+                      ? state != SearchState.initial
                             ? 0.0
                             : -(_searchBarCurve.value * searchRegionHeight)
                       : 0.0;
