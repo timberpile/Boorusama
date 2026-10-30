@@ -1,5 +1,7 @@
 # Issue #114 — timeline toolbar local completion
 
+[Current all-branch review](114-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 ## Branch and boundaries
 
 Continue `feature/114-timeline-toolbar`, based on

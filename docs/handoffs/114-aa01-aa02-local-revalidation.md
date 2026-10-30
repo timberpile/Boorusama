@@ -1,5 +1,7 @@
 # #114 — AA01/AA02 local revalidation
 
+[Current all-branch review](114-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 Session `local-AA01-AA02-20261030`; branch `feature/114-timeline-toolbar`.
 Final runtime/test candidate: `b4bc9a9201284f5a585cecb050d796b6e7e719c7`.
 Instructions: develop `894ab270693cdb054a5d527c96182e21e2b14ffc`.
