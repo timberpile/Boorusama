@@ -1,9 +1,14 @@
 # AA02 remediation evidence
 
-Initial checkpoint only; consolidation and independent validation are in progress. No application fix or runtime test result is claimed.
+**Complete input intake; independent validation in progress. No application fixes or runtime test results yet.**
 
-The user selected AA01 and AA02 together. Each keeps its exact report branch/root and original finding IDs. One session coordinates overlapping task branches; reports are not implementation checkouts or an additional task tracker.
+The user selected AA01 and AA02 together. Each retains its exact report branch/root and original finding IDs. One session coordinates shared implementation branches; these reports are evidence/handoff records, not an additional task tracker.
 
-Inputs are frozen in [manifest.json](manifest.json). See [audit-inventory.md](audit-inventory.md) and [remediation-log.md](remediation-log.md). Source audits remain immutable. Report branches must never be merged into application branches.
+- [Frozen source and target inventory](audit-inventory.md)
+- [Complete original-claim provenance map](source-map.md)
+- [Remediation checkpoints and exact next action](remediation-log.md)
+- [Initial manifest](manifest.json)
 
-Current instructions were read from develop at `894ab270693cdb054a5d527c96182e21e2b14ffc`. Only focused existing-task-branch corrections and their necessary issue coordination are authorized. No PR, merge, issue closure, branch deletion, history rewriting or release is authorized. AA02 audit scopes differ; exact eligible branches and coverage cohorts must be reconciled before populating the write allowlist.
+All five AA02 audit directories (134 files) and the separate three AA01 directories (34 files) have been read. Across both batches, 50 numbered original findings are retained alongside unnumbered observations, withdrawals and policy questions. Source assertions are not independent verdicts; the application-edit gate remains closed until every claim has an initial assessment.
+
+Current instructions were read from develop at `894ab270693cdb054a5d527c96182e21e2b14ffc`. Only focused corrections on authorized existing task branches and necessary issue coordination are allowed. No PR, merge, issue closure, branch deletion, history rewrite, release or workflow launch is authorized. Original audit branches remain immutable. **Never merge this documentation branch into application branches or use its old develop tree as an application candidate.**

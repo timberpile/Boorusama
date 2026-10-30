@@ -6,12 +6,19 @@
 - Discovered and pinned all five AA02 and three AA01 audit refs. Read all manifests; AA02/03 final handoff establishes closure absent from its manifest.
 - Created this exact report branch from the observed develop SHA. One remediation session coordinates both batches and their shared implementation branches.
 - No source or issue metadata changed. No local SDK execution, build, analyzer, tests, devices or workflow launch.
-- Next action: reconcile target cohorts from every detailed audit inventory, ingest every canonical/unnumbered/withdrawn/uncertain record and its history, then independently inspect requirements and pinned original/current source before any application edits.
 
 ## 2026-10-30 — AA02 agents 01/02 detailed ingestion checkpoint
 
-- Read all five pinned AA02 inventories. Reconciled divergent historical/doc-only target counts; 18 active app/tooling branches are common to the current inventory, while #53/#76/#111 and coordination branches need separate cohorts/authority checks. A05 #68 coverage is explicitly partial.
-- Read every report file for A01 (30 files, 23 branch reports) and A02 (27 files, 20 branch reports), with complete directory/tree inventories and overlapping reads recovering long-log truncation. Preserved eight numbered originals, nine atomic links and seven provisional causes in source-map.md, including cross-batch AA01 IDs where causes overlap.
-- Preserved unnumbered hypotheses, withdrawals, policy questions and integration notes for final indexing. Important differing evidence: A02 mixed Cached Feed blacklist path versus AA01's rejected Bookmarks path; Pool site-only identity labeled defect by A01 and policy-sensitive risk by A02. Neither consensus nor the source label is an independent verdict.
-- AA01 source provenance is already published at report commit `0d27ec47cc87a8bb0eec4b4480d6086639f9e034`; no application branches or issues have been changed by this session.
-- Next exact action: read every A03/A04/A05 detail/cross/history report; complete the full source map and independent original/current source assessments; publish baseline matrices before source edits. Implementation write allowlist remains gated pending full scope/ownership reconciliation. No runtime verification or final acceptance is claimed.
+- Read all five AA02 inventories. Reconciled divergent historical/doc-only counts and A05's explicitly partial #68 coverage.
+- Read every report file for A01 (30) and A02 (27), including complete histories. Preserved eight numbered originals, nine atomic links and seven provisional causes at report commit `7b720d3fc46592f17066f94d3c86c36f7a2d10ea`.
+- AA01 detailed provenance is published at `0d27ec47cc87a8bb0eec4b4480d6086639f9e034`. No implementation branches or issues changed.
+
+## 2026-10-30 — Complete eight-agent intake
+
+- Read all remaining A03 (24), A04 (28) and A05 (25) files at the frozen SHAs, including all branch reports, cross findings, final summaries and complete logs. Directory/tree inventories and overlapping long-file reads account for 134 AA02 files plus 34 AA01 files.
+- Completed all 22 AA02 numbered claims: 23 atomic source-to-cause links, 15 provisional causes. Together with AA01: 50 numbered originals, 54 links, 31 provisional unique numbered causes. These quantities are not validated-defect totals.
+- Added explicit ingestion references for unnumbered observations, rejected hypotheses, prior-correction claims, policy questions and integration/coverage requirements. Reserved stable AA02 cause IDs through C0039; existing AA01 causes retain their IDs.
+- Reconciled source target numbering into 23 stable full-branch identities, preserving AA01 T001–T005. Historical #53/#76/#111 and coordination branches are separate read-only cohorts, not implicit write authorization.
+- Recorded important source disagreements: Pool account policy, intentional More-menu invalidation, Pixiv nullable rating versus configured image cover, A05 inventory-versus-detail label mismatch, and mixed Feed versus rejected Bookmarks blacklist triggers.
+- Application edits remain gated. No primary-source conclusion is accepted solely from an auditor's label or agreement. Only #117 identity-lifetime investigation has begun independently so far; its final ancestor/test countercheck is still pending.
+- Next exact action: inspect requirements and original/current critical source/callers/tests for every canonical claim; publish concrete baseline assessments and coverage matrices; then acquire scoped ownership and implement safe authorized corrections branch by branch. No runtime verification or final acceptance claimed.
