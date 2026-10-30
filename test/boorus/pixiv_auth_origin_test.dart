@@ -44,7 +44,7 @@ void main() {
             'Referer': 'https://www.pixiv.net/',
           },
         );
-        expect(await File(lease.path).exists(), isTrue);
+        expect(File(lease.path).existsSync(), isTrue);
         expect(mediaRequests, 1);
         expect(refreshes, 1);
         await lease.release();

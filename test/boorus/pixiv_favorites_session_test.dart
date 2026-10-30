@@ -77,7 +77,8 @@ void main() {
         );
       },
     );
-    final a = create(seenA), b = create(seenB);
+    final a = create(seenA);
+    final b = create(seenB);
     addTearDown(a.dispose);
     addTearDown(b.dispose);
     await a.getPosts(1).run();
