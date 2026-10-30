@@ -57,7 +57,7 @@ List<PoolBookmark> selectPoolBookmarks({
         !pool.groupIds.contains(view.groupId))
       return false;
     if (selectedBooruUrl != null &&
-        !('https://${pool.origin.sourceHost}').contains(selectedBooruUrl))
+        !bookmarkSourceMatchesHost(pool.origin.sourceHost, selectedBooruUrl))
       return false;
     final tags = pool.tags.map(canonicalBookmarkTag).toSet();
     return filters.every(

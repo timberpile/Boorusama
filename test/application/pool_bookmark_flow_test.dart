@@ -46,6 +46,129 @@ import 'support/fake_image_dio.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  testWidgets(
+    'viewport admission resolves a later Series without scanning the library or moving its anchor',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        seedPosts: true,
+        seedPostCount: 90,
+        seriesMembers: [114, 113],
+      );
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      List<RequestOptions> memberships() =>
+          setup.adapter.requests.where((r) => r.path == '/pools.json').toList();
+      List<int> requested(RequestOptions call) =>
+          (call.queryParameters['search[post_ids_include_any]'] as String)
+              .split(' ')
+              .map(int.parse)
+              .toList();
+      await harness.pumpUntil(tester, () => memberships().isNotEmpty);
+      expect(requested(memberships().first), hasLength(40));
+      expect(requested(memberships().first), isNot(contains(114)));
+      final gridFinder = find.descendant(
+        of: find.byType(BookmarkScrollView),
+        matching: find.byType(PostGrid<Post>),
+      );
+      final grid = tester.widget<PostGrid<Post>>(gridFinder);
+      final scroller = grid.scrollController!;
+      expect(memberships(), hasLength(1));
+      for (
+        var step = 0;
+        step < 20 &&
+            !memberships().any((call) => requested(call).contains(114));
+        step++
+      ) {
+        scroller.jumpTo(
+          (scroller.offset + 350).clamp(0, scroller.position.maxScrollExtent),
+        );
+        await harness.settle(tester);
+      }
+      expect(
+        memberships().any((call) => requested(call).contains(114)),
+        isTrue,
+      );
+      expect(memberships().length, lessThan(10));
+      for (final request in memberships()) {
+        expect(requested(request).length, lessThanOrEqualTo(40));
+      }
+      final anchor = scroller.offset;
+      await harness.settle(tester);
+      expect(scroller.offset, anchor);
+      // Reveal the prefetched suffix; already built cards must retain anchors.
+      for (
+        var step = 0;
+        step < 20 &&
+            find
+                .byWidgetPredicate(
+                  (widget) => widget is BookmarkPoolCard && widget.projected,
+                )
+                .evaluate()
+                .isEmpty;
+        step++
+      ) {
+        scroller.jumpTo(
+          (scroller.offset + 250).clamp(0, scroller.position.maxScrollExtent),
+        );
+        await harness.settle(tester);
+      }
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is BookmarkPoolCard && widget.projected,
+        ),
+        findsOneWidget,
+      );
+      expect(grid.controller.items, hasLength(90));
+      final selection = SelectionMode.of(
+        tester.element(find.byType(BookmarkPoolCard).first),
+      );
+      selection.enable();
+      await harness.settle(tester);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is BookmarkPoolCard && widget.projected,
+        ),
+        findsNothing,
+      );
+      expect(grid.controller.items, hasLength(90));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'late Series metadata cannot project into a newly filtered grid',
+    (tester) async {
+      final setup = await _mount(tester, seedPosts: true, holdSeries: true);
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntil(
+        tester,
+        () => setup.adapter.membershipRequested.isCompleted,
+      );
+      final field = find
+          .descendant(
+            of: find.byType(BookmarkSearchBar),
+            matching: find.byType(TextField),
+          )
+          .first;
+      await tester.enterText(field, 'absent_tag');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await harness.settle(tester);
+      setup.adapter.seriesGate!.complete();
+      await harness.settle(tester);
+      expect(
+        find.byWidgetPredicate((w) => w is BookmarkPoolCard && w.projected),
+        findsNothing,
+      );
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/pools.json'),
+        hasLength(1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('re-adding a Pool supersedes an older removal Undo', (
     tester,
   ) async {
@@ -461,6 +584,8 @@ _mount(
   bool seedPosts = false,
   bool holdIndex = false,
   bool holdSeries = false,
+  int seedPostCount = 3,
+  List<int>? seriesMembers,
 }) async {
   final backend = FakeBooruBackend();
   final indexGate = holdIndex
@@ -499,7 +624,7 @@ _mount(
     ]);
   if (seedPosts) {
     final bookmarks = [
-      for (var id = 101; id <= 103; id++)
+      for (var id = 101; id < 101 + seedPostCount; id++)
         (() {
           final old = testPoolPost(id);
           final post = old.post.copyWith(
@@ -514,7 +639,10 @@ _mount(
     await posts.addBookmarkWithBookmarks(bookmarks);
     await groups.addBookmarks(poolGroupA, bookmarks.map((b) => b.id).toSet());
   }
-  final adapter = _PoolAdapter(holdSeries: holdSeries);
+  final adapter = _PoolAdapter(
+    holdSeries: holdSeries,
+    seriesMembers: seriesMembers,
+  );
   final runtime = backend.createRuntime(
     configs: [backend.config, backend.configB],
     initialConfig: initialOtherProfile ? backend.configB : backend.config,
@@ -559,9 +687,10 @@ _mount(
 }
 
 class _PoolAdapter implements HttpClientAdapter {
-  _PoolAdapter({bool holdSeries = false})
+  _PoolAdapter({bool holdSeries = false, this.seriesMembers})
     : seriesGate = holdSeries ? Completer<void>() : null;
   final Completer<void>? seriesGate;
+  final List<int>? seriesMembers;
   final requests = <RequestOptions>[];
   final membershipRequested = Completer<void>();
   @override
@@ -576,7 +705,7 @@ class _PoolAdapter implements HttpClientAdapter {
       'name': 'Series_10',
       'category': 'series',
       'post_count': 20,
-      'post_ids': [for (var id = 101; id <= 120; id++) id],
+      'post_ids': seriesMembers ?? [for (var id = 101; id <= 120; id++) id],
       'created_at': '2000-01-01T00:00:00Z',
       'updated_at': '2026-01-01T00:00:00Z',
     };

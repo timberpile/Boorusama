@@ -77,6 +77,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   List<BookmarkGridEntry> _fetchedEntries = const [];
   List<BookmarkGridEntry> _entries = const [];
   var _needsSeriesWarm = false;
+  var _seriesAdmissionEnabled = false;
+  final _admittedSeriesWindows = <int>{};
+  (int, int)? _pendingSeriesWindow;
+  var _seriesWindowScheduled = false;
   List<BookmarkDisplayEntry> _displayEntries = const [];
   Map<Object, int> _rawPostIndices = const {};
   final _seriesCache =
@@ -84,7 +88,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   var _projectionGeneration = 0;
   var _frozenUntil = 0;
   var _seriesWarmInFlight = false;
-  (List<BookmarkGridEntry>, int)? _queuedSeriesWarm;
+  (List<BookmarkGridEntry>, int, int)? _queuedSeriesWarm;
 
   late String _selectionQuery = widget.searchController.text;
   @override
@@ -186,6 +190,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               _frozenUntil = 0;
               _projectionGeneration++;
               _needsSeriesWarm = searchTags.isEmpty && selectedBooruUrl == null;
+              _seriesAdmissionEnabled = _needsSeriesWarm;
+              _admittedSeriesWindows
+                ..clear()
+                ..add(0);
             }
             return page == 1
                 ? PostResult(
@@ -419,20 +427,31 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   Future<void> _warmSeries(
     List<BookmarkGridEntry> entries,
-    int generation,
-  ) async {
-    if (!mounted) return;
+    int generation, {
+    int start = 0,
+  }) async {
+    if (!mounted ||
+        generation != _projectionGeneration ||
+        !_seriesAdmissionEnabled)
+      return;
     if (_seriesWarmInFlight) {
-      _queuedSeriesWarm = (entries, generation);
+      _queuedSeriesWarm = (entries, generation, start);
       return;
     }
     _seriesWarmInFlight = true;
+    _admittedSeriesWindows.add(
+      start ~/ (PoolBookmarkCapability.membershipBudget ~/ 2),
+    );
     try {
       final configs = ref.read(booruConfigProvider);
       final batches = <BooruConfig, List<BookmarkPostEntry>>{};
-      for (final entry in entries.whereType<BookmarkPostEntry>().take(
-        PoolBookmarkCapability.membershipBudget,
-      )) {
+      for (final entry
+          in entries
+              .skip(start)
+              .whereType<BookmarkPostEntry>()
+              .take(
+                PoolBookmarkCapability.membershipBudget,
+              )) {
         final config = resolveBookmarkOriginProfile(
           entry.bookmark.post.origin,
           configs,
@@ -540,9 +559,32 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       final queued = _queuedSeriesWarm;
       _queuedSeriesWarm = null;
       if (mounted && queued != null && queued.$2 == _projectionGeneration) {
-        unawaited(_warmSeries(queued.$1, queued.$2));
+        unawaited(_warmSeries(queued.$1, queued.$2, start: queued.$3));
       }
     }
+  }
+
+  void _admitSeriesNear(int rawEnd) {
+    if (!_seriesAdmissionEnabled) return;
+    final stride = PoolBookmarkCapability.membershipBudget ~/ 2;
+    final window = rawEnd ~/ stride;
+    if (_admittedSeriesWindows.contains(window)) return;
+    _pendingSeriesWindow = (window, _projectionGeneration);
+    if (_seriesWindowScheduled) return;
+    _seriesWindowScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _seriesWindowScheduled = false;
+      final pending = _pendingSeriesWindow;
+      _pendingSeriesWindow = null;
+      if (!mounted ||
+          pending == null ||
+          pending.$2 != _projectionGeneration ||
+          !_seriesAdmissionEnabled)
+        return;
+      // Coalesce the viewport's build/cache window. Each admission remains
+      // bounded and deferred metadata may alter only the unseen suffix.
+      unawaited(_warmSeries(_entries, pending.$2, start: pending.$1 * stride));
+    });
   }
 
   Widget _mixedGrid(PostGridController<Post> controller) => ListenableBuilder(
@@ -570,6 +612,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             final item = display[index];
             if (!selecting && item.endIndex > _frozenUntil)
               _frozenUntil = item.endIndex;
+            if (!selecting) _admitSeriesNear(item.endIndex);
             final pool =
                 item.series ??
                 switch (item.entry) {
