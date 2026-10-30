@@ -1,7 +1,9 @@
-# Independent audit AA01 / agent 01
+# Independent audit AA01 / agent 01 — closed at user request
 
-**Current status:** eleven complete static cycles of five target branches, with 12 canonical findings. **The 1-hour active review requirement is not verified**, so this is a resumable checkpoint, not final completion. All GitHub reports are source-pinned and no application code/tests were modified or executed.
+**Status:** Closed administratively on 2026-10-30 at the user's express request. Eleven static review cycles covered all five pinned branches, producing **12 open canonical findings (7 defects, 5 risks)**. The originally required minimum of one hour of *genuinely active* work was **not reliably verified**; this closure does **not** certify that the time requirement was met.
 
-Read the [self-contained handoff](final-handoff.md), [inventory](inventory.md), [review-log](review-log.md), [cross-branch findings](cross-branch-findings.md), and [branch reports](branches/). Never treat this archive as an issue tracker: GitHub Issues are the task source of truth.
+Read the [final handoff](final-handoff.md), [branch inventory](inventory.md), [review history](review-log.md), [cross-branch findings](cross-branch-findings.md), and the individual [branch records](branches/).
 
-Configuration: `MIN_REVIEW_HOURS=1`, `REVIEW_BRANCHES` exactly as listed in the [manifest](manifest.json), `develop` base `422aeae087c1108e655d85d1a3dac25120456cd6`. Independent audit agents' reports were not consulted.
+The audit is source-only. No application code changes, FVM/Flutter tests, build, emulator, physical-device validation, or authenticated Pixiv API tests were performed. No implementation branch, GitHub issue, pull request, or protected branch was changed.
+
+All five implementation heads were unchanged at closure, but develop advanced beyond their common review base. The findings describe pinned source revisions; actual integration and full regression remain the responsibility of separately authorized implementation work.

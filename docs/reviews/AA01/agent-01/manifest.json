@@ -17,8 +17,20 @@
   "report_branch": "review/AA01/agent-01",
   "initial_develop_sha": "422aeae087c1108e655d85d1a3dac25120456cd6",
   "scope_observed_date": "2026-10-29",
-  "status": "static-review-complete-time-unverified",
+  "status": "closed-at-user-request-time-unverified",
   "cycles_complete": 11,
   "canonical_findings": 12,
-  "clock_note": "Active duration remains unverified; wall elapsed is not active time."
+  "clock_note": "Active duration remains unverified; wall elapsed is not active time.",
+  "closed_on": "2026-10-30",
+  "closure_reason": "User expressly requested summary and closure. Minimum genuine active-review duration is unverified and runtime tests are pending.",
+  "last_observed_develop_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+  "last_observed_source_heads": {
+    "bug/113-collection-pagination": "a1bc1d42903861a46e7230349515946bae678357",
+    "feature/114-timeline-toolbar": "5bb52794468b172b7d6878fb825b42b00d654675",
+    "feature/116-compact-follow-button": "5ac3ad9bc5f852f000012499c19468151c73734b",
+    "feature/117-pixiv-favorites": "e2929259b7725c484d11483d6ea48270079eb2f4",
+    "feature/118-pixiv-following-artists": "1d02bef637966999fbd0b72ecb9c6f0e1eedce8a"
+  },
+  "static_coverage": "all-five-pinned-branch-heads-reviewed",
+  "minimum_active_review_hour": "unverified"
 }
