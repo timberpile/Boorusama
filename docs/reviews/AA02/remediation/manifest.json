@@ -19,17 +19,20 @@
     {"agent_id":"05","branch":"review/AA02/agent-05","sha":"c658f7c455d39208672aeeac45462c387cbb315d","status":"closed-by-user-protocol-incomplete"}
   ],
   "implementation_write_allowlist": [
-    {"repository":"timberpile/Boorusama","branch":"feature/117-pixiv-favorites","target":"T004","issue":117,"scope":"shared Pixiv auth transport, Favorites session lifetime and manual credential identity safety"},
-    {"repository":"timberpile/Boorusama","branch":"feature/118-pixiv-following-artists","target":"T005","issue":118,"scope":"preview explicit-content cover, known rating consistency and direct regression coverage"},
-    {"repository":"timberpile/Boorusama","branch":"bug/113-collection-pagination","target":"T001","issue":113,"scope":"pagination generation/exhaustion/initial failure, Pool page-size lifetime and associated test contracts"},
-    {"repository":"timberpile/Boorusama","branch":"feature/114-timeline-toolbar","target":"T002","issue":114,"scope":"blacklist normalization, page lifetime, asynchronous publication and mixed-origin matching"},
-    {"repository":"timberpile/Boorusama","branch":"feature/group-neighboring-series","target":"T008","issue":68,"scope":"exact-host filtering; only coherent bounded Series admission if independently safe"}
+    {"branch":"feature/117-pixiv-favorites","target":"T004","issue":117,"scope":"shared Pixiv auth transport, Favorites session lifetime and manual credential identity safety"},
+    {"branch":"feature/118-pixiv-following-artists","target":"T005","issue":118,"scope":"preview explicit-content cover, known rating consistency and direct regression coverage"},
+    {"branch":"bug/113-collection-pagination","target":"T001","issue":113,"scope":"pagination generation/exhaustion/initial failure, Pool page-size lifetime and associated test contracts"},
+    {"branch":"feature/114-timeline-toolbar","target":"T002","issue":114,"scope":"blacklist normalization, page lifetime, asynchronous publication and mixed-origin matching"},
+    {"branch":"feature/group-neighboring-series","target":"T008","issue":68,"scope":"exact-host filtering; only coherent bounded Series admission if independently safe"}
   ],
-  "write_allowlist_status": "baseline-qualified-candidates-only-each-requires-fresh-ownership-ref-and-path-instruction-check",
+  "write_allowlist_status": "each-branch-requires-fresh-ownership-ref-and-path-instruction-check",
   "coordinated_batch": "AA01",
   "coordinated_AA01_baseline_sha": "896baacf5bb64fba43a355580742e0d821f89d17",
+  "initial_assessment_report_sha": "8996890b9a429ffe7e666b9e5505a3489e260d21",
   "session": "remediation-AA01-AA02-20261030",
-  "status": "initial-assessment-complete-no-application-edits-yet",
-  "source_edit_gate": "initial-classification-complete-individual-ownership-gates-still-required",
-  "local_verification": "not-performed"
+  "status": "remediation-in-progress-T004-web-unit-published",
+  "implementation_heads": {"feature/117-pixiv-favorites":"cee89c991a5fdc01d7ec8f89adbc3828974a7334"},
+  "source_edit_gate": "initial-classification-complete-individual-ownership-required",
+  "local_verification": "not-performed",
+  "outcome_record": "remediation-outcomes.md"
 }
