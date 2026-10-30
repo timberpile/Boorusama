@@ -33,6 +33,18 @@ changes do not require an invented issue ID. Use `Refs #<issue-id>` while
 acceptance is pending and `Closes #<issue-id>` only when the issue workflow's
 completion criteria are met.
 
+## Durable working files
+
+Keep agent-managed files needed to continue or verify current development out of
+`/tmp` and other volatile OS temporary directories. WSL can crash and clear them
+mid-task. This includes build/test logs, review evidence, verification results,
+recovery scripts and state, and handoffs. Use durable workspace storage such as
+the ignored `.worktrees/_artifacts/<task>/` directory for local artifacts, and
+the appropriate tracked documentation for shared handoffs. Reserve `/tmp` for
+disposable scratch files whose loss cannot affect task recovery or completion
+claims. After a crash, treat running checks as interrupted unless durable
+completion evidence proves otherwise.
+
 ## Workflow selection
 
 Use the applicable `.agents/skills/<name>/SKILL.md`:
