@@ -158,7 +158,10 @@ class TopicFollowPill extends StatelessWidget {
     final child = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        icon,
+        if (compact)
+          SizedBox.square(dimension: 20, child: Center(child: icon))
+        else
+          icon,
         SizedBox(width: compact ? 4 : 8),
         Flexible(
           child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -168,6 +171,14 @@ class TopicFollowPill extends StatelessWidget {
           Badge(label: Text('$count')),
         ],
       ],
+    );
+    // The painted compact button is smaller, not its input/semantics target.
+    final buttonStyle = FilledButton.styleFrom(
+      shape: followButtonShape,
+      minimumSize: compact ? const Size(48, 36) : const Size(64, 48),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 16),
+      tapTargetSize: compact ? MaterialTapTargetSize.padded : null,
+      visualDensity: compact ? VisualDensity.standard : null,
     );
     final semanticLabel = following && showCount ? '$label, $count' : label;
     return Semantics(
@@ -182,24 +193,12 @@ class TopicFollowPill extends StatelessWidget {
           child: following
               ? FilledButton.tonal(
                   onPressed: onPressed,
-                  style: FilledButton.styleFrom(
-                    shape: followButtonShape,
-                    minimumSize: const Size(64, 48),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 12 : 16,
-                    ),
-                  ),
+                  style: buttonStyle,
                   child: child,
                 )
               : FilledButton(
                   onPressed: onPressed,
-                  style: FilledButton.styleFrom(
-                    shape: followButtonShape,
-                    minimumSize: const Size(64, 48),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 12 : 16,
-                    ),
-                  ),
+                  style: buttonStyle,
                   child: child,
                 ),
         ),

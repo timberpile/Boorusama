@@ -220,7 +220,14 @@ void main() {
           DefaultTextStyle.of(tester.element(label)).style.color,
           testCase.foreground,
         );
-        expect(tester.getRect(pill).height, greaterThanOrEqualTo(48));
+        // The compact visible fill and padded input target are independent.
+        expect(tester.getRect(pill).height, 36);
+        final button = tester.widget<FilledButton>(find.byType(FilledButton));
+        expect(button.style!.tapTargetSize, MaterialTapTargetSize.padded);
+        expect(
+          tester.getSize(find.byType(FilledButton)).height,
+          greaterThanOrEqualTo(48),
+        );
         semantics.dispose();
 
         await tester.tap(label);
