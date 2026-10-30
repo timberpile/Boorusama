@@ -1,64 +1,73 @@
-# Independent audit AA02 / agent 03 — rolling remediation handoff
+# AA02 / agent 03 — final independent audit summary
 
-**Checkpoint for an audit still in progress, not a declaration of meeting the five-hour requirement.** Last refreshed 2026-10-29T23:21:44.349Z (UTC).
+**Disposition: CLOSED AT USER REQUEST (2026-10-30T06:44:10.024Z).** This closes the *audit reporting task*, not the underlying GitHub Issues or the implementation branches. The original requirement to demonstrate five hours of active review was **not verified and must not be reported as satisfied**.
 
-## Identity and instructions
+## Scope, status, and evidence
 
-- Repository: [timberpile/Boorusama](https://github.com/timberpile/Boorusama), role `audit`, protocol version 2.
-- Batch `AA02`, agent `03`; `MIN_REVIEW_HOURS=5`, `REVIEW_BRANCHES=all`.
-- Isolated documentation-only report branch `review/AA02/agent-03`; repository source instructions from initial develop `84df0c2de6cf8fe0177c49babb3fb0eee880f866` (AGENTS, development/issue workflow, verify-change skill).
-- Source discovery: started 2026-10-29T22:38:58Z. Latest remote branch refresh: 2026-10-29T23:21:44.349Z. Current develop at that refresh: `894ab270693cdb054a5d527c96182e21e2b14ffc`; #111 merged/closed and branch deleted during audit.
-- Original candidate inventory 21; excluded T001/#53 and T002/#76 as already published/closed, and T016/#111 after integration. Also excluded integration branches, merged #55, unrelated maintenance/report branches. **18 active implementation targets** remain. No new active branch or target-head drift at latest refresh.
+- Repository: [timberpile/Boorusama](https://github.com/timberpile/Boorusama).
+- Audit role and configuration: `audit`, protocol v2, batch `AA02`, agent `03`; `REVIEW_BRANCHES=all`, requested `MIN_REVIEW_HOURS=5`.
+- Isolated documentation/report branch: `review/AA02/agent-03`.
+- Source instructions consulted: `AGENTS.md`, `docs/development_workflow.md`, `docs/issue_workflow.md`, `.agents/skills/verify-change/SKILL.md`.
+- Original develop revision: `84df0c2de6cf8fe0177c49babb3fb0eee880f866`. Develop at closing discovery: `894ab270693cdb054a5d527c96182e21e2b14ffc` (includes #111).
+- Original 21 implementation candidates; #53 and #76 excluded as already closed/published, #111 merged and its branch deleted during audit. The merged/ancestor `feature/55-undo-reversible-actions` and unrelated report/maintenance/integration branches were also outside active review.
+- **18/18 active implementation branches received a completed first static source/diff review; 12/18 received an additional targeted adversarial static review.** The other six retain only the first pass because this task was closed on instruction rather than extending the audit. During closing discovery, all 18 active branch heads still matched their pinned reviewed SHAs and no additional active implementation branch was found.
+- No independent source results were adopted from the other review agents' reports. Findings were established by inspecting each pinned issue and relevant code and tests.
 
-## Target revisions and coverage
+## Exact reviewed revisions
 
-| Target | Implementation branch | Reviewed head SHA | Issue | Static coverage |
+| Target | Implementation branch | Pinned SHA | Issue | Source review |
 | --- | --- | --- | --- | --- |
-| T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | #92 | Pass 1 complete; pass 2 pending |
-| T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | Pass 1 complete; pass 2 pending |
-| T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | #98 | Pass 1 complete; pass 2 pending |
-| T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | Pass 1 complete; pass 2 pending |
-| T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | Pass 1 complete; pass 2 pending |
-| T008 | `feat/android-maestro-mvp` | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | No confirmed issue | Pass 1 complete; pass 2 pending |
-| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68 | Pass 1 complete; pass 2 pending |
-| T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | #91 | Pass 1 complete; pass 2 pending |
-| T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | #95 | Pass 1 complete; pass 2 pending |
-| T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | #99 | Pass 1 complete; pass 2 pending |
-| T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | #104 | Pass 1 complete; pass 2 pending |
-| T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | #107 | Pass 1 complete; pass 2 pending |
-| T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | #108 | Pass 1 complete; pass 2 pending |
-| T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | #112 | Pass 1 complete; pass 2 pending |
-| T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | Pass 1 complete; pass 2 pending |
-| T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | Pass 1 complete; pass 2 pending |
-| T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | #117 | Pass 1 complete; pass 2 pending |
-| T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | Pass 1 complete; pass 2 pending |
+| T003 | `bug/92-selection-share-image` | `e8816c22048b324f00d682b7637c0ab1040147ca` | #92 | First + second static pass |
+| T004 | `bug/97-follow-destination-identity` | `6056bd06cfd7510aec41c00562d7dfd37c8725a7` | #97 | First + second static pass |
+| T005 | `bug/98-search-overlay-surface` | `89e064d4f86b0acad62c11c96e6a085fe522ccc7` | #98 | First + second static pass |
+| T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | First + second static pass |
+| T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | First + second static pass |
+| T008 | `feat/android-maestro-mvp` | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | No confirmed issue | First + second static pass |
+| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68 | First + second static pass |
+| T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | #91 | First + second static pass |
+| T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | #95 | First + second static pass |
+| T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | #99 | First + second static pass |
+| T013 | `feature/104-expanded-details-swipe` | `0b7bbb2c9630292eda16bcb769b8ac057199452e` | #104 | First + second static pass |
+| T014 | `feature/107-local-post-sorting` | `7a73544cb79c9f5e3c2337a08140833024a31591` | #107 | First + second static pass |
+| T015 | `feature/108-selection-action-parity` | `c6d3e62ed525d7f3298ddf115b46d5d6c3dd01cd` | #108 | First static pass |
+| T017 | `feature/112-viewer-toolbar-layout` | `8213b6fbb87cb09d30d5056ad6667821371f22f6` | #112 | First static pass |
+| T018 | `feature/114-timeline-toolbar` | `5bb52794468b172b7d6878fb825b42b00d654675` | #114 | First static pass |
+| T019 | `feature/116-compact-follow-button` | `5ac3ad9bc5f852f000012499c19468151c73734b` | #116 | First static pass |
+| T020 | `feature/117-pixiv-favorites` | `e2929259b7725c484d11483d6ea48270079eb2f4` | #117 | First static pass |
+| T021 | `feature/118-pixiv-following-artists` | `1d02bef637966999fbd0b72ecb9c6f0e1eedce8a` | #118 | First static pass |
 
-- First cycle: **18/18 complete static source/diff and key execution-path review at these pinned SHAs**. #68/T009 is the largest (69 introduced change paths vs its merge-base) and required a separate completion pass. Pinned comparison bases and merge-base details live in each [branch report](branches/T003.md) and [inventory](inventory.md). This status is not a passed build or guarantee of absence of defects.
-- Cycle 2: starting, no passes reported yet. Check individual log and future commit history for updates. Independently observed target-head drift: **none** at 2026-10-29T23:21:44.349Z. Dependencies: T009/#68 + T014/#107 are an explicit joint sorting risk; T020/#117 depends on shared continuation fix in T007/#113; #104/#106/#112/#114 interact around viewer/navigation UI.
+The individual [branch reports](branches/T003.md), [inventory](inventory.md), and [review log](review-log.md) document the scoped code paths, branch merge-bases, test coverage prepared by implementers, limitations, and first/second-pass observations. In particular, #68 had 69 introduced changed paths against its merge-base; it received a separate completion pass covering its backup, import and mixed-grid paths.
 
-## Canonical findings — count once
+## Canonical audit findings (5 distinct, all open)
 
-| ID and canonical evidence | Kind | Severity | Confidence | Lifecycle | Scope |
-| --- | --- | --- | --- | --- | --- |
-| [AA02-A03-F0001](branches/T011.md#aa02-a03-f0001--unimplemented-share-backend-escapes-error-feedback) | defect | low | static-confirmed | open | #95 artist file share does not catch `UnimplementedError` |
-| [AA02-A03-F0002](cross-branch-findings.md#aa02-a03-f0002--mixed-pool-bookmark-list-ignores-new-score-ordering) | risk | medium | high-confidence | open | #68 + #107 mixed grid overwrites Score ordering with date sort after integration |
-| [AA02-A03-F0003](branches/T020.md#aa02-a03-f0003--filtered-empty-pixiv-page-stops-grid-before-valid-cursor) | defect | medium | static-confirmed | open | #117 filtered empty page wrongly exhausts pre-#113 Grid despite cursor |
-| [AA02-A03-F0004](branches/T021.md#aa02-a03-f0004--pixiv-following-previews-treat-unrated-work-as-all-ages) | risk | medium | high-confidence | open | #118 Following preview ignores `sanity_level` when `x_restrict` missing |
-| [AA02-A03-F0005](branches/T009.md#aa02-a03-f0005--pool-source-filter-matches-hostname-substrings) | defect | low | static-confirmed | open | #68 Pool source filter accepts unrelated host substring |
+| ID | Priority | Kind / confidence | Affected scope | Evidence-based failure and minimal fix |
+| --- | --- | --- | --- | --- |
+| [AA02-A03-F0003](branches/T020.md#aa02-a03-f0003--filtered-empty-pixiv-page-stops-grid-before-valid-cursor) | Medium | Defect / static-confirmed | #117 Pixiv Favorites, requires #113 | An all-filtered Pixiv page can carry `hasMore=true`, but the pre-#113 Grid uses empty displayed Posts to declare exhaustion. Integrate the shared #113 `hasMore`-first handling and test the Grid+session together. |
+| [AA02-A03-F0002](cross-branch-findings.md#aa02-a03-f0002--mixed-pool-bookmark-list-ignores-new-score-ordering) | Medium | Integration risk / high-confidence | #68 + #107 | With both branches combined unchanged, the mixed Pool/Post comparator sorts by date, undoing the selected Score order. Add an explicit, deterministic Score ordering for mixed entries and test both directions. |
+| [AA02-A03-F0004](branches/T021.md#aa02-a03-f0004--pixiv-following-previews-treat-unrated-work-as-all-ages) | Medium | Content restriction risk / high-confidence | #118 Pixiv Following | Preview eligibility treats missing `x_restrict` as unrestricted and ignores `sanity_level`. Use conservative Pixiv rating eligibility; confirm actual API response shapes. Live exposure was not demonstrated. |
+| [AA02-A03-F0005](branches/T009.md#aa02-a03-f0005--pool-source-filter-matches-hostname-substrings) | Low | Defect / static-confirmed | #68 Pool bookmarks; inherited analogous Post filter | Filtering by hostname uses `contains`, so an unrelated host containing the chosen host as a substring can appear. Compare canonical source hosts exactly in both paths. |
+| [AA02-A03-F0001](branches/T011.md#aa02-a03-f0001--unimplemented-share-backend-escapes-error-feedback) | Low | Defect / static-confirmed | #95 Artist links | Artist link sharing catches `Exception` but not `UnimplementedError`, unlike the established search link sharing path. Catch this specific Error and show contained failure feedback; test an injected unsupported adapter. |
 
-Totals: **5 canonical findings** = 3 defects + 2 risks; severity **3 medium + 2 low**; confidence **3 static-confirmed + 2 high-confidence**; lifecycle **5 open** (0 resolved, withdrawn, superseded). No coverage-gap/improvement findings counted. Static-confirmed means source-path demonstration only, not executed or device reproduced. Note that F0002 is conditional on combining distinct, currently separate branches; F0004 requires real API metadata verification.
+**Finding totals:** 3 defects + 2 risks; 3 medium + 2 low severity; 3 source-confirmed failure paths + 2 conditional/high-confidence risks. No finding was fixed or independently resolved by this audit; distinct IDs are counted once even when a finding affects two branches.
 
-## Remediation priorities and local verification
+## Additional significant observations
 
-1. Before integrating #117, apply/verify shared #113 safe `hasMore` handling. Test controller + Pixiv session with an all-filtered first page and a later visible page; repeat error/retry. The existing session-only test does not prove the controller integration.
-2. Before integrating #68 and #107, define and test mixed Pool/Post score asc/desc sorting. Also fix source-host exact matching for both Post and Pool filters (#68/F0005); add overlapping-domain fixture.
-3. In #118 Following previews, reuse conservative Pixiv content rating logic including sanity-level and unknown metadata; test with an all-ages account and real API shapes.
-4. In #95, catch `UnimplementedError` explicitly in the share handler and add a share-adapter failure test, preserving mounted guard.
-5. Run branch-specific FVM Flutter/Dart tests, analyzer, backups/profile-source regressions; after integration, run the full candidate regression and Android Maestro device checks under proper emulator leases. For #112/#104 review actual touch/drag, 320dp and enlarged text; #106 check Undo toast under IME and selection viewer; #68 backup schema v4/v5/v6, two profiles on same host, source filter and large Series; Pixiv #117/#118 real auth/visibility/cursor. Review comments and tests in linked branch reports for exact scenarios.
+- #113's separate proposed shared continuation fix retains nonempty terminal pages and honors `hasMore` before interpreting an empty filtered page as exhaustion. For an empty result set, the source also has a manual Load More entry. This was inspected, not executed or integrated into #117.
+- #68 stores typed Pool references and bounded metadata rather than member snapshots; it introduces export/import schema v6 while retaining v4/v5 decoding, and uses scoped pool routing. Large collections and incomplete tag indexes are intentionally bounded. The two separately confirmed concerns are the host filter and post-integration score ordering.
+- #92, #97, #98, #106, #91, #99, #104, #108, #112, #114, #116 and the Android Maestro pilot yielded no further *independently demonstrated* static defect within the inspected paths. This is not proof of correct runtime UX, full feature acceptance, or a passing test suite.
+- #104 and #112 require actual gesture/drag/toolbar UX acceptance; #106 requires native keyboard/selection/viewer inset checks; #114/#116 require narrow display and accessibility review. The Maestro pilot still requires an actual leased emulator, debug APK, live import and validated UI selectors.
 
-## Evidence limits, timing, and next steps
+## Remediation/verification handoff
 
-- No application code changed, no PR/issue metadata changed, no other audit reports read; only this report branch was written. No local checkout, worktree, analyzer, Flutter tests, Python unit tests, emulator, real device or live API verification available to this remote web audit.
-- Active working time: **unverified; requested five-hour minimum NOT established**. GitHub timestamps/elapsed chat age are not counted as actual active working hours. There is no basis for claiming this criterion passed.
-- Initial target coverage at pinned SHAs is complete. Work remains: adversarial second cycle and potential new findings, combined branch integration, full local regression, manual device acceptance, confirmation whether any new target/HEAD emerges, and verified active-time accounting.
-- Resume by reading [review log](review-log.md) and [inventory](inventory.md), then continue cycle 2 from T003. Any future source revision must be pinned separately. Update stable finding IDs rather than rewriting original observations. GitHub Issues are the task tracker; these findings are source evidence and remediation handoff only.
+1. Before accepting #117, integrate and validate #113 on the actual combined candidate: filtered empty first/later pages, valid cursor continuation, final nonempty page and retry after errors.
+2. Integrate #68 and #107 deliberately: fix mixed Score ordering and both Post/Pool exact-host filters; test collisions between host substrings and two profiles on the same host, plus backup v4/v5/v6, import, deletion and Undo.
+3. Fix #118 conservative preview rating and #95 `UnimplementedError` handling, with focused regression tests.
+4. Run affected tests and analyzer through `fvm`. Before any merge into `develop`, execute the complete regression of the **final combined commit** according to `AGENTS.md`. Use Maestro with proper emulator leases and a real/authenticated Pixiv check where relevant; explicitly distinguish automation from manual UX acceptance.
+
+## Verification limits and closure
+
+- **Actually performed:** remote GitHub branch/issue inventory, source/diff/caller inspection, comparison against documented behavior, and audit-only report commits. First static source pass: 18/18; targeted second static pass: 12/18.
+- **Not performed:** repository code edits, builds, `fvm flutter test`, `fvm dart analyze`, package suites, local worktree execution, emulator/physical-device sessions, Maestro, authenticated live APIs, cross-branch combined-build verification, or publishing the implementation branches to `develop`.
+- **Timing:** five active hours **not established**. Source observations and commit timestamps are evidence of checkpoints, **not** active duration. The user explicitly requested closure with the current evidence; accordingly this report is final, but the requested duration criterion remains unmet.
+- **GitHub workflow:** no PR created, no implementation Issue closed or modified, no task branches merged. Remediation remains owned by the existing GitHub Issues; this report is independent evidence and is not a new task tracker.
+- This audit has ended on user instruction. Future fixes, local verification and independent consolidation require their own authorized work, not continued background activity from this task.
