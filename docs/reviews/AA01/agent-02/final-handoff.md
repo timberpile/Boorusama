@@ -1,4 +1,6 @@
-# Audit AA01-02 — consolidated checkpoint and remediation handoff
+# Audit AA01-02 — finalized evidence and remediation handoff
+
+**Reporting closed at explicit user request (2026-10-30).** See [final findings summary](summary.md) for all eleven canonical findings, affected issues, remediation order and current source drift. Six static passes per target are documented. The assigned one-hour active-review minimum remains unverified/unmet; no FVM/device/combined regression is claimed. No implementation issues were closed or code changed. At closure develop was `894ab270693cdb054a5d527c96182e21e2b14ffc`, twelve commits ahead of the original common merge-base. The five target heads were unchanged. This closeout does not establish full protocol or merge readiness.
 
 ## Identification and reproducibility
 
