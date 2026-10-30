@@ -241,14 +241,18 @@ void main() {
           );
       switchFor('Show Scores').onChanged!(true);
       await _waitForAttempts(tester, repository, 1);
-      switchFor('Show Posts Configuration Header').onChanged!(false);
+      switchFor('Keep Timeline Toolbar Visible').onChanged!(true);
       repository.releases.first.complete(true);
       await _waitForAttempts(tester, repository, 2);
       repository.releases.last.complete(true);
       await tester.pumpAndSettle();
 
       expect(repository.stored?.listing.showScoresInGrid, isTrue);
-      expect(repository.stored?.listing.showPostListConfigHeader, isFalse);
+      expect(repository.stored?.listing.keepTimelineToolbarVisible, isTrue);
+      expect(
+        repository.stored?.listing.showPostListConfigHeader,
+        Settings.defaultSettings.listing.showPostListConfigHeader,
+      );
     },
   );
 

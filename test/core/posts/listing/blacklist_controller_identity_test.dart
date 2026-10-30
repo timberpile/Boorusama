@@ -133,8 +133,9 @@ void main() {
           ),
           bothMatch ? 2 : 1,
         );
-        if (!bothMatch)
+        if (!bothMatch) {
           expect(controller.items.single.origin.sourceHost, 'b.example');
+        }
         await controller.disableAllTags();
         expect(controller.items, hasLength(2));
         expect(

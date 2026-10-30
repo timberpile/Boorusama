@@ -72,7 +72,7 @@ void main() {
       await tester.tap(find.byKey(_button));
       await tester.pumpAndSettle();
       // Use the real page selector callbacks; assertions inspect its actual chips.
-      tester.widget<PageSelector>(find.byType(PageSelector)).onPageSelect!(3);
+      tester.widget<PageSelector>(find.byType(PageSelector)).onPageSelect(3);
       await tester.pumpAndSettle();
       expect(
         tester.widget<PageSelector>(find.byType(PageSelector)).currentPage,
