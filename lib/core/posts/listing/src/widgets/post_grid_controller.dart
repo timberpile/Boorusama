@@ -21,14 +21,12 @@ const _kJumpStep = 1;
 
 typedef ItemFetcher<T extends Post> = Future<PostResult<T>> Function(int page);
 typedef ItemRefresher<T extends Post> = Future<PostResult<T>> Function();
-
 typedef HiddenData = ({String name, int count, bool active});
-
 typedef PostGridFetcher<T extends Post> = PostsOrErrorCore<T> Function(
   int page,
 );
 
-extension TagCountX on Map<String, Set<int>> {
+extension TagCountX<T> on Map<String, Set<T>> {
   int get totalNonDuplicatesPostCount => values.expand((e) => e).toSet().length;
 }
 
@@ -44,10 +42,10 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     this.blacklistedUrlsFetcher,
     this.forcedPageMode = false,
     this.initialPage,
+    this.blacklistCounter,
   }) : _pageMode = pageMode,
        _duplicateTracker = duplicateTracker,
        _eventController = StreamController<PostControllerEvent>.broadcast() {
-    // Initialize with initial page if provided
     if (initialPage != null) {
       _page = initialPage!;
       pageNotifier.value = initialPage!;
@@ -55,23 +53,20 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   final int? initialPage;
+  final PostBlacklistCounter? blacklistCounter;
+  var _blacklistGeneration = 0;
+  var _rulesRevision = 0;
 
   final PostGridFetcher<T> fetcher;
   PageMode _pageMode;
-
   final Future<Set<String>> Function()? blacklistedUrlsFetcher;
-
   Set<String>? blacklistedTags;
   List<List<TagExpression>> _cachedParsedTags = [];
   final Future<Set<String>> Function() blacklistedTagsFetcher;
   final void Function(String message) onError;
-
-  // Terrible hack to check if the widget is mounted, should have a better way to do this
   final bool Function() mountedChecker;
-
   List<T> _items = [];
   List<T> _filteredItems = [];
-
   final PostDuplicateTracker<T> _duplicateTracker;
 
   int _page = _kFirstPage;
@@ -85,12 +80,12 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _pendingPreserveSelection = false;
   var _disposed = false;
   final _queuedRefreshWaiters = <Completer<void>>[];
-
+  var _requestGeneration = 0;
+  var _hasLoadedPage = false;
   var _total = 0;
 
   Iterable<T> get items => _filteredItems;
   Iterable<T> get allItems => _items;
-
   bool get hasMore => _hasMore;
   bool get loading => _loading;
   bool get loadingMore => _loading || (_debounceTimer?.isActive ?? false);
@@ -104,142 +99,158 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   final ValueNotifier<bool> refreshingNotifier = ValueNotifier(false);
   final ValueNotifier<List<T>> itemsNotifier = ValueNotifier(const []);
   final ValueNotifier<int> pageNotifier = ValueNotifier(_kFirstPage);
-
   Timer? _debounceTimer;
   final Duration debounceDuration;
-
-  // Getter for _pageMode
   PageMode get pageMode => _pageMode;
-
   final activeFilters = ValueNotifier<Map<String, bool>>({});
-  final tagCounts = ValueNotifier<Map<String, Set<int>>>({});
+  final tagCounts = ValueNotifier<Map<String, Set<PostBlacklistIdentity>>>({});
   final hasBlacklist = ValueNotifier(false);
   final visibleHiddenTags = ValueNotifier<List<HiddenData>>([]);
-
   final errors = ValueNotifier<BooruError?>(null);
-
   final StreamController<PostControllerEvent> _eventController;
   Stream<PostControllerEvent> get events => _eventController.stream;
-
   final bool forcedPageMode;
 
-  Future<PostResult<T>> _refreshPosts() => _fetchPosts(_kFirstPage);
+  bool _isCurrentRequest(int generation) =>
+      !_disposed &&
+      mountedChecker() &&
+      generation == _requestGeneration &&
+      !_refreshPending;
 
-  Future<PostResult<T>> _fetchPosts(int page) async {
-    if (errors.value != null) {
-      errors.value = null;
-    }
+  void _invalidateFetchMore() {
+    _requestGeneration++;
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    final pending = _pendingFetchMore;
+    _pendingFetchMore = null;
+    _loading = false;
+    if (pending != null && !pending.isCompleted) pending.complete();
+  }
 
+  Future<PostResult<T>> _fetchPosts(int page, int generation) async {
+    if (_isCurrentRequest(generation)) errors.value = null;
     final result = await fetcher(page).run();
-
     return result.fold(
-      (l) {
-        if (!_disposed && mountedChecker() && !_refreshPending) {
-          errors.value = l;
-        }
-
+      (error) {
+        if (_isCurrentRequest(generation)) errors.value = error;
         return <T>[].toResult();
       },
-      (r) => r,
+      (value) => value,
     );
+  }
+
+  void _setBlacklistRules(Set<String> tags) {
+    _cachedParsedTags = tags
+        .map(
+          (tag) => tag
+              .trim()
+              .split(RegExp(r'\s+'))
+              .where((part) => part.isNotEmpty)
+              .map(TagExpression.parse)
+              .toList(),
+        )
+        .where((rule) => rule.isNotEmpty)
+        .toList();
+    blacklistedTags = _cachedParsedTags.map((rule) => rule.rawString).toSet();
+    activeFilters.value = {
+      for (final key in blacklistedTags!) key: activeFilters.value[key] ?? true,
+    };
+    _rulesRevision++;
   }
 
   Future<void> setBlacklistedTags(Set<String> tags) async {
-    // check if the tags are the same
-    if (blacklistedTags?.join(',') == tags.join(',')) return;
-
-    final newTags = tags.toSet();
-    blacklistedTags = newTags;
-
-    _cachedParsedTags = newTags
-        .map((tag) => tag.split(' ').map(TagExpression.parse).toList())
-        .toList();
-
-    tagCounts.value = await _count(_items, _cachedParsedTags);
-
-    if (!mountedChecker()) return;
-
-    hasBlacklist.value = tagCounts.value.values.any((e) => e.isNotEmpty);
-    activeFilters.value = {
-      ...activeFilters.value,
-      ...Map.fromIterable(tags, value: (_) => true),
-    };
+    if (_disposed || !mountedChecker()) return;
+    final normalized = tags
+        .map(
+          (tag) => tag
+              .trim()
+              .split(RegExp(r'\s+'))
+              .where((part) => part.isNotEmpty)
+              .map(TagExpression.parse)
+              .rawString,
+        )
+        .where((rule) => rule.isNotEmpty)
+        .toSet();
+    if (setEquals(blacklistedTags, normalized)) return;
+    _setBlacklistRules(normalized);
     await _filter();
-
-    if (!mountedChecker()) return;
-
-    notifyListeners();
   }
 
   Future<void> enableTag(String tag) async {
+    if (_disposed || !mountedChecker()) return;
     final data = {...activeFilters.value};
     data[tag] = true;
     activeFilters.value = data;
-
     await _filter();
-    notifyListeners();
   }
 
   Future<void> disableTag(String tag) async {
+    if (_disposed || !mountedChecker()) return;
     final data = {...activeFilters.value};
     data[tag] = false;
     activeFilters.value = data;
-
     await _filter();
-    notifyListeners();
   }
 
   Future<void> enableAllTags() async {
+    if (_disposed || !mountedChecker()) return;
     activeFilters.value = activeFilters.value.map(
       (key, value) => MapEntry(key, true),
     );
-
     await _filter();
-    notifyListeners();
   }
 
   Future<void> disableAllTags() async {
+    if (_disposed || !mountedChecker()) return;
     activeFilters.value = activeFilters.value.map(
       (key, value) => MapEntry(key, false),
     );
-
     await _filter();
-    notifyListeners();
   }
 
   Future<List<List<TagExpression>>> _getBlacklistedTags() async {
-    // lazy load blacklisted tags
     if (blacklistedTags == null) {
+      final revision = _rulesRevision;
       try {
         final tags = await blacklistedTagsFetcher();
-        blacklistedTags = tags;
-
-        _cachedParsedTags = tags
-            .map((tag) => tag.split(' ').map(TagExpression.parse).toList())
-            .toList();
+        if (_disposed || !mountedChecker()) return [];
+        // A late initial read cannot replace a live provider update.
+        if (revision == _rulesRevision) _setBlacklistRules(tags);
       } on Exception catch (e) {
-        onError('Failed to fetch blacklisted tags: $e');
-        return [];
+        if (!_disposed && mountedChecker()) {
+          onError('Failed to fetch blacklisted tags: $e');
+        }
       }
     }
-
     return _cachedParsedTags;
   }
 
-  Future<void> _filter() async {
+  Future<void> _filter({int? requestGeneration}) async {
+    if (_disposed || !mountedChecker()) return;
+    final generation = ++_blacklistGeneration;
+    bool isCurrent() =>
+        !_disposed &&
+        mountedChecker() &&
+        generation == _blacklistGeneration &&
+        (requestGeneration == null || _isCurrentRequest(requestGeneration));
+    final posts = _items.toList();
+    activeFilters.value = {
+      for (final rule in _cachedParsedTags)
+        rule.rawString: activeFilters.value[rule.rawString] ?? true,
+    };
+    final counts = await _count(posts, _cachedParsedTags, blacklistCounter);
+    if (!isCurrent()) return;
     final blacklistedUrls = blacklistedUrlsFetcher != null
         ? await blacklistedUrlsFetcher!()
         : const <String>{};
-    if (_disposed || !mountedChecker()) return;
-    final filteredItems = _filterPosts(
-      _items,
-      tagCounts.value,
-      activeFilters.value,
-      blacklistedUrls,
+    if (!isCurrent()) return;
+    tagCounts.value = counts;
+    hasBlacklist.value = counts.values.any((matches) => matches.isNotEmpty);
+    _setFilteringItems(
+      _filterPosts(posts, counts, activeFilters.value, blacklistedUrls),
     );
-
-    _setFilteringItems(filteredItems);
     _updateVisibleHiddenTags();
+    notifyListeners();
   }
 
   void _updateVisibleHiddenTags() {
@@ -255,33 +266,28 @@ class PostGridController<T extends Post> extends ChangeNotifier {
         .toList();
   }
 
-  // Set the page mode and reset the state
   void setPageMode(PageMode? newPageMode) {
-    if (forcedPageMode) return; // Skip if page mode is forced
+    if (forcedPageMode) return;
     if (newPageMode == null || _pageMode == newPageMode) return;
-
     _pageMode = newPageMode;
-
     _hasMore = true;
-    _setRefreshing(false);
-    _loading = false;
     if (newPageMode == PageMode.infinite) {
       _clear();
       _setPage(_kFirstPage);
-      refresh();
-    } else {
-      jumpToPage(_page);
     }
-
+    // Reuse the refresh queue instead of starting a competing page request.
+    refresh(maintainPage: newPageMode == PageMode.paginated);
     notifyListeners();
   }
 
-  // Refreshes the list
   Future<void> refresh({
     bool maintainPage = false,
     bool preserveSelection = false,
   }) async {
     if (_disposed) return;
+    // Cancel a queued load and revoke every older request's publication rights.
+    _invalidateFetchMore();
+    _hasLoadedPage = false;
     if (_refreshing) {
       final alreadyPending = _refreshPending;
       _refreshPending = true;
@@ -343,6 +349,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     required bool preserveSelection,
   }) async {
     if (_disposed || !mountedChecker()) return;
+    final generation = _requestGeneration;
     _preserveSelectionOnRefresh = preserveSelection;
     try {
       _setRefreshing(true);
@@ -355,20 +362,13 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       count.value = null;
       maxPage.value = null;
       notifyListeners();
-
-      final newItems = await (_pageMode == PageMode.infinite
-          ? _refreshPosts()
-          : _fetchPosts(_page));
-
-      if (_disposed || !mountedChecker()) return;
-      if (_refreshPending) return;
-
+      final newItems = await _fetchPosts(_page, generation);
+      if (!_isCurrentRequest(generation)) return;
       _clear();
-      await _addAll(newItems.posts);
-
-      if (_disposed || !mountedChecker()) return;
-
-      _hasMore = newItems.posts.isNotEmpty;
+      await _addAll(newItems.posts, generation);
+      if (!_isCurrentRequest(generation)) return;
+      _hasLoadedPage = errors.value == null;
+      _hasMore = _canLoadMore(newItems);
       count.value = newItems.total;
       maxPage.value = newItems.maxPage;
       _eventController.add(const PostControllerRefreshCompleted());
@@ -378,48 +378,68 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     }
   }
 
-  // Loads more items
-  Future<void> fetchMore({
-    VoidCallback? onNoMoreData,
-  }) {
-    if (_disposed) return Future.value();
+  bool _canLoadMore(PostResult<T> result) {
+    if (errors.value != null) return true;
+    if (result.hasMore case final more?) return more;
+    // A search-depth cap is an upper bound, not proof of more results.
+    if (result.total case final knownTotal? when knownTotal >= 0) {
+      if (knownTotal == 0 ||
+          ((_pageMode == PageMode.infinite || _page == _kFirstPage) &&
+              _items.length >= knownTotal)) {
+        return false;
+      }
+    }
+    if (result.maxPage case final last? when last >= 0) {
+      return _page < last;
+    }
+    // A later paginated page cannot infer its source stride from retained posts.
+    return result.posts.isNotEmpty;
+  }
+
+  Future<void> fetchMore({VoidCallback? onNoMoreData}) {
+    if (_disposed || _refreshing) return Future.value();
     if (_pendingFetchMore case final pending?) return pending.future;
     if (_loading || !_hasMore) return Future.value();
+    // A successful empty filtered page may advance; a failed initial page may not.
+    if (!_hasLoadedPage) return refresh(maintainPage: true);
 
-    _debounceTimer?.cancel();
+    final generation = _requestGeneration;
     final pending = _pendingFetchMore = Completer<void>();
+    _debounceTimer?.cancel();
     _debounceTimer = Timer(debounceDuration, () async {
-      _loading = true;
-      if (_pageMode == PageMode.infinite) {
-        _setPage(_page + 1);
-      }
-      notifyListeners();
-
+      final previousPage = _page;
       try {
-        final newItems = await _fetchPosts(_page);
-        if (_disposed || !mountedChecker()) return;
+        if (!_isCurrentRequest(generation) || _refreshing) return;
+        _loading = true;
+        if (_pageMode == PageMode.infinite) _setPage(previousPage + 1);
+        notifyListeners();
+        final newItems = await _fetchPosts(_page, generation);
+        if (!_isCurrentRequest(generation)) return;
         if (errors.value != null) {
-          if (_pageMode == PageMode.infinite) _setPage(_page - 1);
+          if (_pageMode == PageMode.infinite) _setPage(previousPage);
           return;
         }
-        _hasMore = newItems.posts.isNotEmpty;
-        if (_hasMore) {
-          await _addAll(newItems.posts);
-        } else {
-          onNoMoreData?.call();
+        if (newItems.posts.isNotEmpty) {
+          await _addAll(newItems.posts, generation);
         }
-        if (_disposed || !mountedChecker()) return;
+        if (!_isCurrentRequest(generation)) return;
+        _hasMore = _canLoadMore(newItems);
+        if (!_hasMore && newItems.posts.isEmpty) onNoMoreData?.call();
         count.value = newItems.total;
         maxPage.value = newItems.maxPage;
       } catch (error) {
-        if (_pageMode == PageMode.infinite) _setPage(_page - 1);
-        if (!_disposed) {
+        if (_isCurrentRequest(generation)) {
+          if (_pageMode == PageMode.infinite) _setPage(previousPage);
           errors.value = UnknownError(error: error, message: error.toString());
         }
       } finally {
-        _loading = false;
-        _pendingFetchMore = null;
-        if (!_disposed) notifyListeners();
+        // An obsolete completion must not clear a newer request's latch/state.
+        if (identical(_pendingFetchMore, pending)) {
+          _loading = false;
+          _pendingFetchMore = null;
+          _debounceTimer = null;
+          if (!_disposed) notifyListeners();
+        }
         if (!pending.isCompleted) pending.complete();
       }
     });
@@ -427,56 +447,30 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     return pending.future;
   }
 
-  // Jump to a specific page without knowing the total pages and allowing page skips
   Future<void> jumpToPage(int targetPage) async {
-    if (_pageMode != PageMode.paginated || _loading || _refreshing) {
+    if (_disposed ||
+        _pageMode != PageMode.paginated ||
+        _loading ||
+        _refreshing) {
       return;
     }
-
-    // make sure the target page is larger than 0
     _setPage(targetPage > 0 ? targetPage : _kFirstPage);
-    _clear();
-    _setRefreshing(true);
-    notifyListeners();
-
-    final newItems = await _fetchPosts(_page);
-    if (_disposed || !mountedChecker()) return;
-    _hasMore = newItems.posts.isNotEmpty;
-    if (_hasMore) {
-      await _addAll(newItems.posts);
-    }
-    if (_disposed || !mountedChecker()) return;
-    _setRefreshing(false);
-    count.value = newItems.total;
-    maxPage.value = newItems.maxPage;
-    notifyListeners();
+    await refresh(maintainPage: true);
   }
 
   Future<void> goToPreviousPage() async {
-    if (hasPreviousPage()) {
-      await jumpToPage(_page - _kJumpStep);
-    }
+    if (hasPreviousPage()) await jumpToPage(_page - _kJumpStep);
   }
 
   Future<void> goToNextPage() async {
-    if (hasNextPage()) {
-      await jumpToPage(_page + _kJumpStep);
-    }
+    if (hasNextPage()) await jumpToPage(_page + _kJumpStep);
   }
 
-  // Check if there is a previous page
-  bool hasPreviousPage() {
-    // Check if the current mode is paginated and there is a previous page
-    return _pageMode == PageMode.paginated && _page > _kFirstPage;
-  }
+  bool hasPreviousPage() =>
+      _pageMode == PageMode.paginated && _page > _kFirstPage;
+  bool hasNextPage() =>
+      _pageMode == PageMode.paginated && _hasLoadedPage && _hasMore;
 
-  // Check if there is a next page
-  bool hasNextPage() {
-    // Check if the current mode is paginated and there are more items to fetch
-    return _pageMode == PageMode.paginated && _hasMore;
-  }
-
-  // Moves and inserts an item
   void moveAndInsert({
     required int fromIndex,
     required int toIndex,
@@ -484,30 +478,31 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }) {
     final data = [..._items]..reorder(fromIndex, toIndex);
     onSuccess?.call();
-
     _items = data;
     _setFilteringItems(data);
+    unawaited(_filter());
     notifyListeners();
   }
 
   void remove(List<int> postIds, int Function(T item) itemIdExtractor) {
     final data = [..._items]
       ..removeWhere((e) => postIds.contains(itemIdExtractor(e)));
-
     _duplicateTracker.rebuildFrom(data);
-
     _items = data;
     _setFilteringItems(data);
+    unawaited(_filter());
     notifyListeners();
   }
 
-  Future<void> _addAll(List<T> newItems) => performanceRecorder.measureAsync(
-    PerfOperation.gridIngest,
-    () => _ingest(newItems),
-    items: newItems.length,
-  );
+  Future<void> _addAll(List<T> newItems, int generation) =>
+      performanceRecorder.measureAsync(
+        PerfOperation.gridIngest,
+        () => _ingest(newItems, generation),
+        items: newItems.length,
+      );
 
-  Future<void> _ingest(List<T> newItems) async {
+  Future<void> _ingest(List<T> newItems, int generation) async {
+    if (!_isCurrentRequest(generation)) return;
     final before = _items.length;
     performanceRecorder.measureSync(PerfOperation.gridDeduplicate, () {
       for (final item in newItems) {
@@ -525,32 +520,18 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       PerfCounter.gridIngestAccepted,
       _items.length - before,
     );
-
     _total = _items.length;
 
-    final bt = await _getBlacklistedTags();
-    if (_disposed || !mountedChecker()) return;
-
-    final counts = await _count(_items, bt);
-    if (_disposed || !mountedChecker()) return;
-    tagCounts.value = counts;
-    hasBlacklist.value = tagCounts.value.values.any((e) => e.isNotEmpty);
-
-    // add unseen tags to activeFilters
-    final unseenTags = tagCounts.value.keys.toSet().difference(
-      activeFilters.value.keys.toSet(),
-    );
-    activeFilters.value = {
-      ...activeFilters.value,
-      ...Map.fromIterable(unseenTags, value: (_) => true),
-    };
-
-    await _filter();
+    await _getBlacklistedTags();
+    if (!_isCurrentRequest(generation)) return;
+    await _filter(requestGeneration: generation);
   }
 
   void _clear() {
+    _blacklistGeneration++;
     _items.clear();
     _filteredItems.clear();
+    _total = 0;
     _setFilteringItems([]);
     _duplicateTracker.clear();
     tagCounts.value = {};
@@ -580,12 +561,10 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _blacklistGeneration++;
     _refreshing = false;
+    _invalidateFetchMore();
     _eventController.close();
-    _debounceTimer?.cancel();
-    _pendingFetchMore?.complete();
-    _pendingFetchMore = null;
-
     itemsNotifier.dispose();
     count.dispose();
     maxPage.dispose();
@@ -596,14 +575,13 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     hasBlacklist.dispose();
     visibleHiddenTags.dispose();
     errors.dispose();
-
     super.dispose();
   }
 }
 
 List<T> _filterPosts<T extends Post>(
   List<T> items,
-  Map<String, Set<int>> tagCounts,
+  Map<String, Set<PostBlacklistIdentity>> tagCounts,
   Map<String, bool> activeFilters,
   Set<String> blacklistedUrls,
 ) {
@@ -616,14 +594,12 @@ List<T> _filterPosts<T extends Post>(
   try {
     return items.where((e) {
       for (final entry in tagCounts.entries) {
-        if ((activeFilters[entry.key] ?? false) && entry.value.contains(e.id)) {
+        if ((activeFilters[entry.key] ?? false) &&
+            entry.value.contains(_blacklistIdentity(e))) {
           return false;
         }
       }
-
-      if (blacklistedUrls.contains(e.originalImageUrl)) {
-        return false;
-      }
+      if (blacklistedUrls.contains(e.originalImageUrl)) return false;
       return true;
     }).toList();
   } catch (_) {
@@ -634,52 +610,65 @@ List<T> _filterPosts<T extends Post>(
   }
 }
 
-typedef PostCountData = ({TagFilterData filterData, int id});
+// Primitive records remain transferable to the native counting isolate.
+typedef PostBlacklistIdentity = (int type, String source, int postId);
+typedef PostCountData = ({
+  TagFilterData filterData,
+  PostBlacklistIdentity identity,
+});
+typedef PostBlacklistCounter =
+    Future<Map<String, Set<PostBlacklistIdentity>>> Function(
+      List<PostCountData> posts,
+      List<List<TagExpression>> rules,
+    );
 
-Future<Map<String, Set<int>>> _count<T extends Post>(
+PostBlacklistIdentity _blacklistIdentity(Post post) => (
+  post.origin.booruType.id,
+  post.origin.sourceHost.isEmpty
+      ? 'profile:${post.origin.profileIdHint ?? post.origin.booruId}'
+      : post.origin.sourceHost,
+  post.id,
+);
+
+Future<Map<String, Set<PostBlacklistIdentity>>> _count<T extends Post>(
   Iterable<T> posts,
   List<List<TagExpression>> parsedTags,
+  PostBlacklistCounter? counter,
 ) async {
-  // If there are no tags, return an empty map to prevent isolate overhead
   if (parsedTags.isEmpty) return {};
-
   final payload = performanceRecorder.measureSync(
     PerfOperation.gridCountPayload,
     () => posts
-        .map((post) => (filterData: post.extractTagFilterData(), id: post.id))
+        .map(
+          (post) => (
+            filterData: post.extractTagFilterData(),
+            identity: _blacklistIdentity(post),
+          ),
+        )
         .toList(),
   );
-
+  if (counter != null) return counter(payload, parsedTags);
   return switch (isWeb()) {
-    true => _countInIsolate(
-      payload,
-      parsedTags,
-    ),
+    true => countPostBlacklistMatches(payload, parsedTags),
     false => await Isolate.run(
-      () => _countInIsolate(payload, parsedTags),
+      () => countPostBlacklistMatches(payload, parsedTags),
     ),
   };
 }
 
-Map<String, Set<int>> _countInIsolate(
+Map<String, Set<PostBlacklistIdentity>> countPostBlacklistMatches(
   List<PostCountData> postData,
   List<List<TagExpression>> parsedTags,
 ) {
-  final tagCounts = <String, Set<int>>{};
-  try {
-    for (final data in postData) {
-      for (final pattern in parsedTags) {
-        if (checkIfTagsContainsTagExpression(data.filterData, pattern)) {
-          final key = pattern.rawString;
-          tagCounts.putIfAbsent(key, () => <int>{});
-          tagCounts[key]!.add(data.id);
-        }
+  final tagCounts = <String, Set<PostBlacklistIdentity>>{};
+  for (final data in postData) {
+    for (final pattern in parsedTags) {
+      if (checkIfTagsContainsTagExpression(data.filterData, pattern)) {
+        tagCounts.putIfAbsent(pattern.rawString, () => {}).add(data.identity);
       }
     }
-    return tagCounts;
-  } catch (e) {
-    return {};
   }
+  return tagCounts;
 }
 
 abstract class PostControllerEvent {

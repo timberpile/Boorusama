@@ -184,7 +184,7 @@ class _SzurubooruPoolPostList extends ConsumerWidget {
     final order = ref.watch(szurubooruPoolDetailsOrderProvider(pool.id));
 
     return PostScope<Post>(
-      key: ValueKey((pool.postIds, order)),
+      key: ValueKey((pool.postIds, order, perPage)),
       fetcher: (page) => TaskEither.tryCatch(
         () => repo.fetchPostIds(
           ids: pool.postIds,

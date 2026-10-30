@@ -23,15 +23,24 @@ void main() {
     (name: 'Preserves an empty feed', posts: [], series: [], members: []),
     (
       name: 'Leaves a lone series post as a normal post',
-      posts: [post(1, {10})],
+      posts: [
+        post(1, {10}),
+      ],
       series: [null],
-      members: [[1]],
+      members: [
+        [1],
+      ],
     ),
     (
       name: 'Combines two consecutive posts in the same series',
-      posts: [post(1, {10}), post(2, {10})],
+      posts: [
+        post(1, {10}),
+        post(2, {10}),
+      ],
       series: [10],
-      members: [[1, 2]],
+      members: [
+        [1, 2],
+      ],
     ),
     (
       name: 'Keeps separated runs in their original positions',
@@ -43,19 +52,34 @@ void main() {
         post(5, {10}),
       ],
       series: [10, null, 10],
-      members: [[1, 2], [3], [4, 5]],
+      members: [
+        [1, 2],
+        [3],
+        [4, 5],
+      ],
     ),
     (
       name: 'Treats unavailable membership as a boundary',
-      posts: [post(1, {10}), post(2, null), post(3, {10})],
+      posts: [
+        post(1, {10}),
+        post(2, null),
+        post(3, {10}),
+      ],
       series: [null, null, null],
-      members: [[1], [2], [3]],
+      members: [
+        [1],
+        [2],
+        [3],
+      ],
     ),
     (
       name: 'Leaves neighbors with no confirmed series separate',
       posts: [post(1, {}), post(2, {})],
       series: [null, null],
-      members: [[1], [2]],
+      members: [
+        [1],
+        [2],
+      ],
     ),
     (
       name: 'Never crosses site or profile scope boundaries',
@@ -65,37 +89,71 @@ void main() {
         post(3, {10}, scope: ('site-b', 'profile-b')),
       ],
       series: [null, null, null],
-      members: [[1], [2], [3]],
+      members: [
+        [1],
+        [2],
+        [3],
+      ],
     ),
     (
       name: 'Does not group posts with an unresolved origin',
-      posts: [post(1, {10}, scope: null), post(2, {10}, scope: null)],
+      posts: [
+        post(1, {10}, scope: null),
+        post(2, {10}, scope: null),
+      ],
       series: [null, null],
-      members: [[1], [2]],
+      members: [
+        [1],
+        [2],
+      ],
     ),
     (
       name: 'Does not merge a chain with no series shared by every post',
-      posts: [post(1, {10}), post(2, {10, 20}), post(3, {20})],
+      posts: [
+        post(1, {10}),
+        post(2, {10, 20}),
+        post(3, {20}),
+      ],
       series: [10, null],
-      members: [[1, 2], [3]],
+      members: [
+        [1, 2],
+        [3],
+      ],
     ),
     (
       name: 'Chooses the series shared across the longest leading run',
-      posts: [post(1, {10, 20}), post(2, {10, 20}), post(3, {20})],
+      posts: [
+        post(1, {10, 20}),
+        post(2, {10, 20}),
+        post(3, {20}),
+      ],
       series: [20],
-      members: [[1, 2, 3]],
+      members: [
+        [1, 2, 3],
+      ],
     ),
     (
       name: 'Resolves equally long series deterministically',
-      posts: [post(1, {20, 10}), post(2, {10, 20})],
+      posts: [
+        post(1, {20, 10}),
+        post(2, {10, 20}),
+      ],
       series: [10],
-      members: [[1, 2]],
+      members: [
+        [1, 2],
+      ],
     ),
     (
       name: 'Ignores invalid pool identifiers',
-      posts: [post(1, {-1, 0}), post(2, {-1, 0})],
+      posts: [
+        post(1, {-1, 0}),
+        post(2, {-1, 0}),
+      ],
       series: [null, null],
-      members: [[1], [2]],
+      members: [
+        [1],
+        [2],
+      ],
     ),
   ];
 
@@ -123,7 +181,10 @@ void main() {
   }
 
   test('Disabling grouping leaves every post independently addressable', () {
-    final posts = [post(1, {10}), post(2, {10})];
+    final posts = [
+      post(1, {10}),
+      post(2, {10}),
+    ];
     final entries = groupNeighboringSeries(
       posts,
       scopeKey: (post) => post.scope,

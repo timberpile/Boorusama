@@ -95,22 +95,19 @@ Freeze already displayed entries during deferred resolution rather than making
 visible tiles jump. Extending a tail run on append must preserve its anchor;
 numbered pages remain independent. Bound underfilled-viewport auto-fetching.
 
-## Verification and next implementation
+## Implementation and review
 
-The primitive and existing tests were reviewed statically. No FVM formatting,
-analyzer, Dart/Flutter tests or Android/device checks ran in this review. No
-runtime defect was identified in the pure projection; it is not wired into the
-app. The existing tests cover order/indices, adjacency, shared membership,
-source boundaries, invalid IDs, disabled grouping and page seams.
+The primitive is wired into the Bookmark grid alongside typed Pool references,
+bounded metadata indexing, source-aware navigation, persistence and backup/import.
+Tests cover adjacency and source boundaries as well as real application saving,
+selection, removal/Undo, strict indexed-tag filtering and deferred viewport
+admission. The earlier helper-only static review is historical; current executed
+checks and limits belong in the branch handoffs rather than this design.
 
-Read current `AGENTS.md`, Issue #68 and `docs/post_architecture.md` before
-implementation. Reconcile this older branch with current develop in an isolated
-worktree, preserving unrelated work. Implement reference persistence/codecs,
-source-aware Pool navigation, bounded summaries and the shared card/selection
-integration as the issue requires. Add consumer and migration tests covering
-explicit references vs projected Posts, partial tag coverage including
-exclusions, both upload-date sorts, missing/offline metadata, source collisions,
-selection-mode expansion, removal/Undo, export/import and page/scroll stability.
-Do not present the helper alone as completing #68 or merge the historical
-maintenance archive into develop. Full final-candidate regression remains
-required before any separately authorized integration.
+Read current `AGENTS.md`, Issue #68 and `docs/post_architecture.md` before further
+changes or integration. Preserve the site-global reference identity and strict
+origin-profile reopening policy until a different account identity/migration
+policy is explicitly agreed. Combining local score sorting or selection-action
+changes requires testing the resulting mixed Post/Pool candidate. Full
+final-candidate regression remains required before separately authorized
+integration into develop.

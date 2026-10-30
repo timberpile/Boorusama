@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 
 import 'support/app_flow_driver.dart';
 import 'support/app_flow_finders.dart';
@@ -13,9 +14,9 @@ void main() {
     tester,
   ) async {
     final backend = FakeBooruBackend(strictPostScripts: true)
-      ..enqueuePosts(page: 1, posts: testPostRange(101, 124))
-      ..enqueuePosts(page: 2, posts: testPostRange(125, 148))
-      ..enqueuePosts(page: 3, posts: const []);
+      ..enqueuePosts(page: 1, posts: testPostRange(101, 124), hasMore: true)
+      ..enqueuePosts(page: 2, posts: testPostRange(125, 148), hasMore: true)
+      ..enqueuePosts(page: 3, posts: const [], hasMore: false);
     final flow = await _mount(tester, backend);
 
     await flow.waitForPage(1, count: 24);
@@ -50,9 +51,9 @@ void main() {
     'removes the overlapping boundary post and opens page two identity',
     (tester) async {
       final backend = FakeBooruBackend(strictPostScripts: true)
-        ..enqueuePosts(page: 1, posts: testPostRange(101, 124))
-        ..enqueuePosts(page: 2, posts: testPostRange(124, 147))
-        ..enqueuePosts(page: 3, posts: const []);
+        ..enqueuePosts(page: 1, posts: testPostRange(101, 124), hasMore: true)
+        ..enqueuePosts(page: 2, posts: testPostRange(124, 147), hasMore: true)
+        ..enqueuePosts(page: 3, posts: const [], hasMore: false);
       final flow = await _mount(tester, backend);
 
       await flow.waitForPage(1, count: 24);
@@ -72,12 +73,12 @@ void main() {
     tester,
   ) async {
     final backend = FakeBooruBackend(strictPostScripts: true)
-      ..enqueuePosts(page: 1, posts: testPostRange(101, 124))
-      ..enqueuePosts(page: 2, posts: testPostRange(125, 148))
-      ..enqueuePosts(page: 3, posts: const [])
-      ..enqueuePosts(page: 1, posts: testPostRange(201, 224))
-      ..enqueuePosts(page: 2, posts: testPostRange(225, 248))
-      ..enqueuePosts(page: 3, posts: const []);
+      ..enqueuePosts(page: 1, posts: testPostRange(101, 124), hasMore: true)
+      ..enqueuePosts(page: 2, posts: testPostRange(125, 148), hasMore: true)
+      ..enqueuePosts(page: 3, posts: const [], hasMore: false)
+      ..enqueuePosts(page: 1, posts: testPostRange(201, 224), hasMore: true)
+      ..enqueuePosts(page: 2, posts: testPostRange(225, 248), hasMore: true)
+      ..enqueuePosts(page: 3, posts: const [], hasMore: false);
     final flow = await _mount(tester, backend);
 
     await flow.waitForPage(1, count: 24);
@@ -110,13 +111,13 @@ void main() {
     tester,
   ) async {
     final backend = FakeBooruBackend(strictPostScripts: true)
-      ..enqueuePosts(page: 1, posts: testPostRange(101, 124));
+      ..enqueuePosts(page: 1, posts: testPostRange(101, 124), hasMore: true);
     final gate = backend.enqueuePostGate(
       siteUrl: backend.config.url,
       query: '',
       page: 2,
     );
-    backend.enqueuePosts(page: 3, posts: const []);
+    backend.enqueuePosts(page: 3, posts: const [], hasMore: false);
     final flow = await _mount(tester, backend);
 
     await flow.waitForPage(1, count: 24);
@@ -131,7 +132,13 @@ void main() {
     expect(flow.listingPages, [1, 2]);
     expect(postController(tester).allItems, hasLength(24));
 
-    gate.completeSuccess(testPostResult(testPostRange(125, 148)));
+    gate.completeSuccess(
+      PostResult(
+        posts: testPostRange(125, 148),
+        total: null,
+        hasMore: true,
+      ),
+    );
     await flow.waitForCount(48, 'gated page two to append once after release');
     expect(loadedPostIds(tester).where((id) => id == 125), hasLength(1));
 
@@ -139,6 +146,32 @@ void main() {
     await flow.waitForExhausted('the next eligible request to be page three');
     expect(flow.listingPages, [1, 2, 3]);
   });
+
+  for (final more in [true, false]) {
+    test(
+      'fake origin enrichment preserves explicit continuation: $more',
+      () async {
+        final backend = FakeBooruBackend(strictPostScripts: true)
+          ..enqueuePosts(page: 1, posts: testPostRange(1, 1), hasMore: more);
+        final result = await backend.dispatchPosts(
+          siteUrl: backend.config.url,
+          query: '',
+          tags: [],
+          page: 1,
+          limit: 1,
+        );
+        result.fold(
+          (error) => fail('Unexpected fake failure: $error'),
+          (value) {
+            expect(value.hasMore, more);
+            expect(value.posts.single.origin, isNotNull);
+            expect(value.total, isNull);
+          },
+        );
+        backend.expectNoUnexpectedPostRequests();
+      },
+    );
+  }
 }
 
 List<int> _ids(int first, int last) => [for (var i = first; i <= last; i++) i];

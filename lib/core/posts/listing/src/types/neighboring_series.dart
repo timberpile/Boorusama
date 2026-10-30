@@ -37,9 +37,8 @@ List<NeighboringSeriesEntry<T>> groupNeighboringSeries<T>(
   final entries = <NeighboringSeriesEntry<T>>[];
   var start = 0;
 
-  Set<int> knownSeries(T post) => (seriesIds(post) ?? const <int>[])
-      .where((id) => id > 0)
-      .toSet();
+  Set<int> knownSeries(T post) =>
+      (seriesIds(post) ?? const <int>[]).where((id) => id > 0).toSet();
 
   while (start < posts.length) {
     final scope = enabled ? scopeKey(posts[start]) : null;
