@@ -12,7 +12,7 @@ Discovery: 2026-10-29T22:40:03.184Z; `develop` head `84df0c2de6cf8fe0177c49babb3
 | T006 | `bug/106-live-undo-toast-insets` | `ebb9c8ecbbd3841e2546f2b59927a71eeaaf0db8` | #106 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No independent new finding; [report](branches/T006.md) |
 | T007 | `bug/113-collection-pagination` | `a1bc1d42903861a46e7230349515946bae678357` | #113 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T007.md) |
 | T008 | `feat/android-maestro-mvp` | `4ae377b842aad4dcb63a0f2685c21eb484f9b3c4` | none verified | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | complete cycle 1 | Test-infrastructure pilot, no issue; [report](branches/T008.md) |
-| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68 | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | unreviewed | Large stacked changes |
+| T009 | `feature/group-neighboring-series` | `771082d9c58363348d74b97a2da23732cdd921f0` | #68 | `482ae4b1e5fd1e34b344a5c61959a210b8527281` | partial static pass; review incomplete | F0004 medium; 69-file diff inventoried, only bounded paths reviewed; [report](branches/T009.md) |
 | T010 | `feature/91-branded-search-link-share` | `e8c880c2783fefe5a58b0b73d98bf3914157809f` | #91 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T010.md) |
 | T011 | `feature/95-artist-links` | `7fa4e4f7fadd28cdf332c6855ac18e4fd28b3e9a` | #95 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T011.md) |
 | T012 | `feature/99-selected-tag-suggestions` | `98d4b0ae68dded641475a0662318c56f65b625f7` | #99 | `422aeae087c1108e655d85d1a3dac25120456cd6` | complete cycle 1 | No actionable finding; [report](branches/T012.md) |
@@ -35,7 +35,7 @@ Discovery: 2026-10-29T22:40:03.184Z; `develop` head `84df0c2de6cf8fe0177c49babb3
 - `maintenance/independent-issues-handoff-2026-10-25`: review infrastructure workflow, not current feature implementation; activity unresolved.
 - `maintenance/issue-branch-publication`: documentation/workflow-only changes, not an active application implementation branch; activity unresolved.
 
-No open PRs observed. GitHub issue labels alone do not prove active/merged status. Existing finished/closed-issue branches T001/T002 remain provisional until code equivalence is checked. No findings from other audit branches were inspected.
+No open PRs observed. GitHub issue labels alone do not prove active/merged status. T001/T002 were subsequently excluded as superseded by newer integrated implementation commits; see discovery refresh below. No findings from other audit branches were inspected.
 
 ## Discovery refresh — 2026-10-29T23:15:00.763Z (cycle 1)
 
@@ -44,3 +44,9 @@ No open PRs observed. GitHub issue labels alone do not prove active/merged statu
 - **T002 #76 excluded**: issue closed 2026-10-27; newer Realbooru Original metadata implementation published as develop commit `8920dd2fff79d146705860008b15944d111a1e3f` with expanded live fixtures. The old `b8895d1...` branch is superseded; not reviewed as active. Keep the historical target row; do not count as unreviewed active work.
 - **T016 #111 became integrated mid-audit**: previously inspected head `9ac4dd73...` is now removed as a remote branch and its implementation was committed on develop as `894ab270693cdb054a5d527c96182e21e2b14ffc`. T016's pinned review remains recorded as a completed historical pass; the new integrated revision has not been delta-reviewed.
 - Latest active scope: **18 branches** (21 original provisional minus T001/T002/T016). T008 has now been completed, so **17 / 18** active branches have an initial static pass. T009 #68 remains. Total static passes across historically inventoried targets: **18 / 21**, while no review is asserted for excluded old Realbooru branch heads. No new active implementation branches found.
+
+## Final user-requested stop — 2026-10-30T06:45:01.777Z
+
+- Latest discovered active scope: **18** implementation/test-infrastructure branches. **17/18** received a complete pinned static first pass. **T009 #68** received a bounded, **partial** static review, with F0004 documented; the remaining 69-file branch-level review was **not** performed. One other historically reviewed branch, T016 #111, was integrated during the audit. T001 #53 and T002 #76 were superseded and already closed/integrated; their old branch heads were intentionally excluded.
+- Full-pass count across historical targets: **18** (17 active + T016 now integrated). Partial: **1** (T009). Excluded historical heads: **2** (T001/T002). Complete-all target condition **not met**.
+- Audit stopped per explicit user request without fabricating remaining active hours, static coverage, tests, or acceptance. Branch and precise findings remain available for consolidation.

@@ -1,19 +1,53 @@
-# Audit AA02-05 — live handoff / incomplete
+# AA02 / agent 05 — Final audit handoff (user-requested close)
 
-- Configuration: `BATCH_ID=AA02`, `AGENT_ID=05`, `MIN_REVIEW_HOURS=5`, `REVIEW_BRANCHES=all`.
-- Report branch: `review/AA02/agent-05`; source baseline: `develop@84df0c2de6cf8fe0177c49babb3fb0eee880f866`.
-- Discovery: 2026-10-29T22:40:03.184Z; 21 provisional target branches, 9 excluded refs. Exact heads and common bases are in [inventory](inventory.md).
-- Review coverage: **18 complete passes / 21 historical/provisional targets**; cycle 1 target reviews in progress. T003 #92 complete with one static-confirmed high-severity pre-existing credential-exposure defect (AA02-A05-F0001). T004 #97, T005 #98 and T007 #113 complete with no actionable findings. T020 #117 complete with one medium-severity static-confirmed integration dependency defect (AA02-A05-F0002). T021 #118 complete with one medium-severity explicit-media cover defect (AA02-A05-F0003). T016 #111, T006 #106, T010 #91, T011 #95, T012 #99, T013 #104, T014 #107 and T015 #108 and T017 #112 and T018 #114 and T019 #116 complete with no independently established source defect; remaining active target T009 #68 unreviewed; T008 complete.
-- Finding totals: 3 defects / 0 risk / 0 coverage-gap / 0 improvement; severity high: 1, medium: 2; confidence static-confirmed: 3; lifecycle open: 3; canonical F0001 counted only once across T003/T020/T021. This is a source-demonstrable cross-origin bearer-header flow, not a live network reproduction.
-- Active review duration: unverified; minimum requirement not met. No elapsed-time inference.
-- No application code was changed; no local builds, analyzer, tests, emulator or device checks were executed.
-- Canonical finding: [AA02-A05-F0001](cross-branch-findings.md#aa02-a05-f0001--pixiv-access-token-sent-to-media-hosts) — high, static-confirmed, open, pre-existing credential flow reached by #92/#117/#118.
-- Canonical finding: [AA02-A05-F0002](branches/T020.md#aa02-a05-f0002--pixiv-favorites-stops-after-a-restricted-only-page) — medium, static-confirmed, open, #117 cannot honor cursor after all-filtered source page until #113 is integrated.
-- Canonical finding: [AA02-A05-F0003](branches/T021.md#aa02-a05-f0003--following-artists-previews-bypass-explicit-content-cover) — medium, static-confirmed, open, following-artist artwork bypasses explicit-media setting.
-- Limitations: closed #53/#76 excluded as superseded/integrated; #111 integrated into develop after pinned review; 18 historical target branch diffs have been statically reviewed; local execution and cross-branch integrations remain unverified.
-- Next action: verify AA02-A05-F0001 with a host-sensitive HTTP regression (particularly Pixiv media share), then review remaining pinned branches target-by-target and commit each completed pass. If work stops, this document is a checkpoint, not completion.
+**Status:** Audit task **closed at the user's explicit request on 2026-10-30T06:45:01.777Z**, with **original protocol incomplete**. This report is a final snapshot of work actually done, not a declaration that all branches or five active review hours were completed.
 
-## Cycle 1 source-scope refresh (2026-10-29T23:15:00.763Z)
+## Source and scope
 
-- Original 21 targets were **provisional**, not 21 confirmed currently active. Source evidence from GitHub issue #53/#76 comments, completed closure and later integration commits `c3f83f0bb` / `8920dd2ff` excludes T001/T002. T016 #111 was reviewed in original branch form, then develop integrated its implementation at `894ab2706` and removed the remote task branch; no current merged-code delta review yet. Historical records remain.
-- Latest 34 remote branches, no other new active code branches discovered. Current active scope **18 branches**; **17/18** have pinned static source passes (T009 pending), plus 1 pass on now-integrated T016. Total passes 18; inactive T001/T002 not reviewed. See [inventory](inventory.md). This scope refresh does not modify the original pinned finding evidence.
+- Repository: `timberpile/Boorusama`; audit branch: `review/AA02/agent-05`; documentation root: `docs/reviews/AA02/agent-05/`.
+- Configuration: `BATCH_ID=AA02`, `AGENT_ID=05`, `REVIEW_BRANCHES=all`, `MIN_REVIEW_HOURS=5`.
+- Original develop: `84df0c2de6cf8fe0177c49babb3fb0eee880f866` (October 29, 2026); refreshed develop: `894ab270693cdb054a5d527c96182e21e2b14ffc`. Target branch SHAs, merge bases and exclusions are fixed in [inventory](inventory.md).
+- Originally 21 provisional targets. After excluding already superseded/closed #53 (T001), #76 (T002) and now-integrated #111 (T016) from *currently active* work, **18 active targets** remained. **17 of 18 active targets received complete pinned static cycle-1 passes**; **T009 #68 received only a bounded partial review**. T016 additionally received a full historical static pass before its integration, making **18 completed static target passes overall**. Historical exclusions were not reviewed as independent active branches.
+- In this audit: **no Flutter/Dart/Python tests, builds, analyzer, Android/ADB/Maestro/device checks** were executed. Some implementation handoffs claimed earlier local passes, but these are not independently verified audit results. No code fixes, PRs, integration, issue closure, releases or branch deletions were performed.
+- **Verified active review time:** not measured or established. **The required five active hours were not met/verified**. No wall-clock interval or time between sessions was counted as active work.
+
+## Canonical findings (4 open defects)
+
+| ID | Severity | Affected target(s) | Origin | Finding and priority |
+| --- | --- | --- | --- | --- |
+| [AA02-A05-F0001](cross-branch-findings.md#aa02-a05-f0001--pixiv-access-token-sent-to-media-hosts) | **High** | #92 T003, #117 T020, #118 T021 | Pre-existing auth/media boundary, made more reachable | Pixiv API Dio's bearer interceptor applies the account token when fetching cross-origin media/CDN URLs. Restrict authorization to the API origin and use unauthenticated media clients; verify host and redirects. |
+| [AA02-A05-F0002](branches/T020.md#aa02-a05-f0002--pixiv-favorites-stops-after-a-restricted-only-page) | **Medium** | #117 T020, dependency on #113 T007 | Integration of filtered cursor source with older grid | `hasMore:true` with zero visible posts is treated as exhaustion by the shared PostGridController on #117's pinned branch. Integrate #113, add empty-nonterminal-page grid integration test and verify cursor continuation. |
+| [AA02-A05-F0003](branches/T021.md#aa02-a05-f0003--following-artists-previews-bypass-explicit-content-cover) | **Medium** | #118 T021 | Introduced in new card surface | Allowed Pixiv R18 artworks can display in Following Artists preview cards despite the user's explicit-content cover preference; reuse shared rating/visibility guard, keep avatars intact. |
+| [AA02-A05-F0004](branches/T009.md#aa02-a05-f0004--pool-source-filter-accepts-unrelated-substring-matching-hosts) | **Medium** | #68 T009 (partial pass) | Existing substring host filter propagated to typed Pool entries | Selecting host `example.com` also accepts Pool origin `notexample.com` because the new selector uses `String.contains` rather than exact host identity; align Pool and existing Post filtering. |
+
+Each finding contains pinned source links, expected/observed behavior, trigger and minimal correction. **Static-confirmed means the relevant control flow/string condition is visible in source, not that live exploit or device behavior was reproduced.** F0001 is one canonical cross-branch issue, not three separate defects. Findings remain **open** and unpatched by this audit.
+
+## Reviewed targets with no additional independently established defect
+
+- **Bugfixes:** T004 #97 folder checkbox identity; T005 #98 search overlay background; T006 #106 Undo toast live insets; T007 #113 pagination continuation.
+- **Links/search/sorting:** T010 #91 branded search link, T011 #95 Artist links, T012 #99 selected-tag alias filtering, T014 #107 local Bookmark/Feed sorting.
+- **Viewer/action UX:** T013 #104 expanded-details swipe prototype, T015 #108 selection action parity, T017 #112 viewer toolbar layout editor, T018 #114 timeline toolbar, T019 #116 compact Follow button.
+- **Android infrastructure:** T008 `feat/android-maestro-mvp` test-runner/fixture/lease source.
+- **App updates:** T016 #111 Android update flow inspected at its feature head before its newer integration into develop. The integrated result was **not delta-reviewed** by this audit.
+
+See [inventory](inventory.md) and each branch report for exact SHAs, source paths, observations and device/test acceptance gaps. A no-finding static pass **does not certify runtime correctness**.
+
+## Scope limitation: #68 and other acceptance work
+
+T009 `feature/group-neighboring-series` at `771082d9c58363348d74b97a2da23732cdd921f0` touches **69 files**, including typed Pool/Series persistence, backup/import/export, cross-profile policy, bounded indexing, gallery projection, selection and tests. The diff was enumerated, the issue/design/handoff and some source paths read, and F0004 established; **the complete branch review was not performed**. [T009 partial report](branches/T009.md) explicitly identifies what remains. The implementation handoff describes a previous bounded-refresh failure fix and local verification at earlier revisions; neither is a passing check by this audit on the current combined candidate.
+
+Other required verifications before integration: network-level Pixiv bearer header tests; joint #113+#117 empty cursor pages; #118 content cover with R18 metadata; #68 source filters and full persistence/migration review; Android UX acceptance of #104/#112 and physical input; local FVM and emulator qualification for #114/#116 and the Maestro pilot; combined source rebase/conflict review and complete full regression on final candidates. Review the current status of #111 after integration independently.
+
+## Recommendations to the consolidation/local agent
+
+1. Fix **F0001 first** at the Pixiv API-vs-media authorization boundary. Add header-capture tests for CDN and adversarial media origins, including redirects and auth refresh, without printing credentials. Verify all affected Pixiv media surfaces.
+2. Integrate or adapt #113 before #117 and verify the complete cursor-to-grid empty-page contract; resolve F0002 with regression and live account tests.
+3. Repair F0003 explicit-content preview cover and F0004 exact source filtering; add short deterministic widget/selector tests and check mixed profiles.
+4. Complete the remaining **69-file #68 audit**, include current develop and independently verify backup/version compatibility, bounded member requests, rollback, selection/mixed grid and Android actions. Recheck reported findings against current target heads and only close finding records once corrected/tested.
+5. Perform scope-appropriate local checks on individually authorized task branches, preserve source and unrelated changes; run complete regression of each *final integration candidate* per AGENTS.md. No automatic merge, PR, issue closure or release is authorized by this audit.
+
+## Audit closeout
+
+- Completed: independent scope discovery, refreshed integration classification, 18 pinned static branch passes, bounded T009 source inspection, 4 evidence-backed open finding reports, source inventory/log and this final documentation-only handoff.
+- Not completed: complete T009 branch pass, five hours of documented active review, local test/runtime verification, fixing defects or merging branches.
+- Final disposition: **closed by user instruction; delivered for consolidation with explicit incomplete-coverage flag**. The recorded findings and reports persist on `review/AA02/agent-05`.
