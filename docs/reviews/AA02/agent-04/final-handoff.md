@@ -1,4 +1,4 @@
-# Audit AA02-A04 — checkpoint / remediation handoff
+# Audit AA02-A04 — final remediation handoff (audit closed by user request)
 
 ## Configuration, authority, and source boundaries
 
@@ -13,9 +13,9 @@
 ## Source and cycle coverage
 
 - **Cycle 1 source-level first pass: 21 of 21 eligible targets complete at fixed observed SHAs**. T022/T023 were provisional, then explicitly excluded as unrelated audit/export or policy proposals. Historical T016/#111 was reviewed and is now integrated/closed/remote branch deleted. All 20 remaining eligible remote branch heads match the original fixed SHAs at cycle-2 discovery; no newly eligible implementation branch was discovered.
-- **Cycle 2: underway, not complete**. T016/#111 has been revalidated against merged `develop` with four matching file blob hashes (F0004 open); T001/#53 has a second adversarial live-list mutation/source-trigger pass (F0001 open); other branches need adversarial passes. Subsequent branch and `develop` changes must be recorded as new observations.
-- **Time:** `MIN_REVIEW_HOURS=5` remains **unverified/unmet**. Active work was not reliably instrumented; neither elapsed conversation age nor commit timestamps justify claiming five active hours. No fabricated timing and no background promise.
-- **Overall assignment completion: not claimed** due to the timing requirement and pending cycle-2 source/live acceptance.
+- **Cycle 2 stopped at user request:** Two completed adversarial revalidations (T016/#111 merged source and T001/#53 mutable-post append) remained open. Other branches did not receive full second passes. This audit is not scheduled to continue.
+- **Time:** `MIN_REVIEW_HOURS=5` remains **unverified/not demonstrated**; no reliable active-hours measurement exists. The user explicitly requested closure despite that limitation.
+- **Closure:** Task activity **closed at user request** on 2026-10-30T06:43:57.159Z UTC. Initial eligible source coverage complete; original five-active-hour/second-cycle/runtime acceptance requirements not demonstrated. See [final summary](final-summary.md).
 
 ## Exact branch inventory and review state
 
@@ -75,7 +75,13 @@ All table head/base SHAs below were pinned at the first pass. The latest discove
 - Cannot execute local app builds, analyzer, Flutter or Kotlin tests, physical-device or Maestro E2E in this web-chat assignment. These are **unrun**, not passed.
 - Initial and current `develop` SHAs differ; all branch reports pin the reviewed HEAD. Later integration must compare the final candidate with latest `origin/develop` and run full required regression.
 - Branch T008 Maestro pilot remains provisionally active without a confirmed GitHub issue; included conservatively because it changes real tooling.
-- Critical next steps: cycle-2 static adversarial passes with separate documentation commit per completed target pass; local-agent remediation of F0001–F0005 with targeted tests; final combined regression and Android device acceptance. No PR or merge authorized by this audit.
+- Remediation priorities for future **separate** implementation work: resolve five canonical findings with targeted tests and product-policy decisions, reconcile independent implementation branches against latest `origin/develop`, then run final regression and real Android acceptance. This audit is not continuing.
 - More detail: [inventory](inventory.md), [review log](review-log.md), [cross-branch notes](cross-branch-findings.md), [per-branch evidence](branches/).
 
-**Audit completion is not claimed.** All 21 eligible cycle-1 source reviews have been documented and remotely published, but the five-active-hour evidence requirement is not met.
+**This audit is closed at the user's request, not certified against all original audit criteria.** The first static pass covers 21 eligible targets; five active hours, a complete second pass and runtime tests were not demonstrated.
+
+## Closure note — 2026-10-30T06:43:57.159Z UTC
+
+- New canonical overview: [final-summary.md](final-summary.md).
+- No additional issue or application branch was modified; no audit issue closure, PR, release, build or test execution was performed.
+- Five findings remain for subsequent remediation. The user asked to stop this audit rather than continue unmeasured work to an unverified five-hour threshold.

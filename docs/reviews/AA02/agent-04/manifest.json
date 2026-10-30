@@ -42,5 +42,24 @@
       ],
       "reviewed_cycle2_passes": 2
     }
-  ]
+  ],
+  "status": "closed_at_user_request",
+  "closed_at": "2026-10-30T06:43:57.159Z",
+  "final_summary": "docs/reviews/AA02/agent-04/final-summary.md",
+  "completion": {
+    "eligible_cycle1_targets": 21,
+    "initial_source_passes_completed": 21,
+    "excluded_provisional_targets": [
+      "T022",
+      "T023"
+    ],
+    "complete_cycle2_adversarial_passes": 2,
+    "complete_second_cycle": false,
+    "canonical_open_defects": 5,
+    "verified_minimum_5_active_hours": false,
+    "active_review_hours_proven": null,
+    "runtime_checks_run": false,
+    "application_code_modified": false,
+    "closure_reason": "User explicitly requested a summary and end of the audit before originally prescribed duration and full second cycle."
+  }
 }

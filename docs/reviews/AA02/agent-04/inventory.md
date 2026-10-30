@@ -47,3 +47,7 @@ Refresh branch discovery at the start of each new cycle; never silently delete h
 - Both T022/T023 remain in the table as historical provisional discovery entries, never silently deleted. Earlier excluded `feature/55-undo-reversible-actions` remains ancestor of current `develop`; its changes are no longer a separate incomplete feature branch.
 - Cycle 1 initial source inspection is now accounted for **21 eligible implementation/tooling branches**: T001–T021. T022–T023 were reclassified out of scope. All 21 received individually published source-level review reports at recorded revisions; one (#111) has since been merged and removed.
 - Cycle 2 coverage is **not complete**: beginning adversarial revalidation of the original target set. Active-work-hour minimum remains unverified/unmet; there is no guaranteed 5-hour measurement and no background continuation.
+
+## User-directed audit closure — 2026-10-30T06:43:57.159Z UTC
+
+The audit is closed at the user's request. 21/21 eligible cycle-1 static source passes were published at pinned heads; T022/T023 remain excluded; a full cycle-2 pass and five verified active review hours were not completed. See [final-summary.md](final-summary.md). No test, emulator or application code modification is implied by closure.
