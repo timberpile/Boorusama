@@ -167,6 +167,7 @@ class _FollowTopicFolderPickerDialogState
                   children: [
                     if (_currentFolderId == null)
                       CheckboxRangeItem(
+                        key: const ValueKey<(String?,)>((null,)),
                         value: (null,),
                         child: _FollowDestinationRow(
                           name: context.t.folders.home,
@@ -176,6 +177,7 @@ class _FollowTopicFolderPickerDialogState
                       ),
                     for (final folder in children)
                       CheckboxRangeItem(
+                        key: ValueKey<(String?,)>((folder.id,)),
                         value: (folder.id,),
                         child: _FollowDestinationRow(
                           name: folder.name,
