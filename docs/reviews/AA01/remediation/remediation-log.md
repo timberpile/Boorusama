@@ -26,3 +26,11 @@
 - Kept external API/policy uncertainties explicit: nullable restriction/visibility fields, wrapper artist mute and local tag blacklist parity. Rejected the separately alleged token-header logging path using direct OAuth/logger source, without claiming universal log secrecy.
 - No application edits, issue claims, test execution or workflow launches. The all-claims assessment gate remains CLOSED because several AA01 counterchecks and the independent AA02-only causes remain incomplete.
 - Next exact action: finish AA01 pending checks (Search integration tests, retry UI, strict Favorites parser, settings/localization, pool page-size identity), independently validate #68/#95/#112 and historical #53/#76/#111 plus every AA02 unnumbered claim, then publish the complete baseline matrices before scoped ownership claims and corrections.
+
+## 2026-10-30 — Resumed AA01 baseline decisions
+
+- Recovered both existing report refs and reread current instructions rather than repeating publication. All eight audit heads and existing task heads still matched their pinned inventories; develop remained `894ab270693cdb054a5d527c96182e21e2b14ffc`.
+- Completed the seven pending AA01 counterchecks in baseline-continuation.md. Rejected missing Search integration coverage and legacy-setting migration hypotheses using actual tests/serialization. Classified generic restart-on-retry and localization migration as proposals, retained strict-payload uncertainty, and validated the inherited perPage/fetcher lifetime mismatch in both pool consumers.
+- Updated all 33 AA01 matrix rows and added T003's evidence record. No application edits, claims, runtime commands or acceptance.
+- Publication uses a tree based on the refreshed report parent, a single-parent commit and non-force expected-head ref update. An encoded-slash branch GET was rejected; the documented Git ref GET succeeded. No write was attempted through the rejected URL.
+- Next exact action: complete AA02 numbered and unnumbered primary-source assessments (#68/#95/#112, historical #53/#76/#111 and remaining observations), then publish the full baseline/coverage matrices before any implementation claim. Cross-batch source-edit gate remains CLOSED.
