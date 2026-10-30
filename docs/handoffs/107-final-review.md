@@ -1,5 +1,7 @@
 # Issue #107 final local review — 2026-10-29
 
+[Current all-branch review](107-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 Reviewed all eight original changed files at 7a846e5fb1583ffe08e0ee20b63465a73b2037bf against develop 422aeae087c1108e655d85d1a3dac25120456cd6, exhaustive sort consumers, bookmark/group-cover comparators, retained feed projection and history/refresh gating. Score sorting stays local; no new runtime defect was confirmed. The containing commit identifies the final verified state.
 
 Corrections: FVM formatting; explicit braces in the score comparator; update stale five-row menu assertions for seven choices and independently verify score direction icons and localized semantics. The new history regression previously awaited debounced fetchMore inside Flutter's fake-async zone before advancing its timer, so it hung. It now advances the controller's declared debounce on the controlled clock and verifies a completion signal before awaiting. The resulting continuation is awaited rather than discarded. No timing contract or history-suppression assertion was relaxed.
