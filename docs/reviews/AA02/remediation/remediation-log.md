@@ -31,3 +31,12 @@
 - Confirmed the first-40 admission limitation and exact-host filter defect. Kept same-host Pool identity policy, menu-update UX and not-yet-composed score ordering separate from proven standalone functional failures.
 - No issue claim, application patch, test execution, workflow launch or acceptance. The cross-batch all-claims source-edit gate remains CLOSED.
 - Next exact action: assess historical #53/#76/#111, remaining AA02 unnumbered observations and distinct Pixiv nullable-visibility variants; then publish complete matrices and acquire scoped branch ownership before safe corrections. Do not repeat completed intake or present these partial decisions as final coverage.
+
+## 2026-10-30 — Historical/current source reconciliation checkpoint
+
+- Independently assessed AA02-C0008/C0009/C0010/C0011/C0012 in baseline-validation-02.md, reading requirements, historical and current critical consumers, queue/downloader tests and native install policy. No device or test execution.
+- Validated the stationary live-list append omission and the covered Flutter-route APK retention failure at historical sources and inspected develop. Both require separately authorized current repair branches; no writes to integrated/deleted task branches or develop are allowed.
+- Validated #76's historical empty-original consumer failure, but found an important newer partial correction: global Original now falls back via originalViewerImageUrl. The explicit profile Original switch arm still bypasses it; current settings/migration reachability must be checked locally. Do not report all current Original viewing as broken.
+- Kept intentional serial queue latency and unverified HTML metadata-label meaning separate from proven defects. Independently confirmed native signer/package/version checks and their use; reported certificate mismatch does not justify bypassing them.
+- Refreshed the AA02 report ref before atomic publication from parent `6b04dd2ee9a70e39bcc998ec88cf336ca27f0ba0`. No application/issue edits or workflow launches. Source-edit gate remains CLOSED.
+- Next exact action: assess C0003 and remaining AA02 unnumbered nonhistorical claims, including actual #92/#108 share paths, #97/#99/#106/#107 state/counterchecks, Maestro provenance/privacy limits and integration-only observations. Publish the complete baseline/coverage and write allowlist before acquiring scoped ownership for safe corrections.
