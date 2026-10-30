@@ -343,17 +343,21 @@ final class FakeBooruBackend {
 
   /// Queues a successful page for the listing identified by [siteUrl] (the
   /// primary profile by default), [query] and [page].
+  /// Explicit continuation describes a cursor page with unknown total/depth.
   void enqueuePosts({
     required int page,
     required List<Post> posts,
     String? siteUrl,
     String query = '',
     int maxPage = 1,
+    bool? hasMore,
   }) => enqueuePostSuccess(
     siteUrl: siteUrl ?? config.url,
     query: query,
     page: page,
-    result: testPostResult(posts, maxPage: maxPage),
+    result: hasMore == null
+        ? testPostResult(posts, maxPage: maxPage)
+        : PostResult(posts: posts, total: null, hasMore: hasMore),
   );
 
   /// Queues the outcome of the next connection check for [siteUrl]. Unscripted
@@ -571,6 +575,7 @@ final class FakeBooruBackend {
         ],
         total: result.total,
         maxPage: result.maxPage,
+        hasMore: result.hasMore,
       );
 
   Post _withPostOrigin(Post post, String siteUrl) => post.copyWith(

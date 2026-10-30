@@ -1502,7 +1502,7 @@ void main() {
     _mobileViewport(tester);
     final live = _LiveRouteHarness(
       loadNext: (attempt) async => attempt == 1
-          ? PostResult(posts: [_liveInitial[1]], total: 2)
+          ? PostResult(posts: [_liveInitial[1]], total: null, hasMore: true)
           : PostResult<Post>.empty(),
     );
     addTearDown(live.dispose);
@@ -2226,7 +2226,9 @@ class _LiveRouteHarness {
   }) {
     grid = PostGridController<Post>(
       fetcher: (page) => page == 1
-          ? TaskEither.right(PostResult(posts: _liveInitial, total: 2))
+          ? TaskEither.right(
+              PostResult(posts: _liveInitial, total: null, hasMore: true),
+            )
           : TaskEither.tryCatch(
               () {
                 requestedPages.add(page);

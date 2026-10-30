@@ -42,10 +42,12 @@ final szurubooruPostRepoProvider =
             return postDtoToPost(post, null, categories);
           },
           fetch: (tags, page, {limit, options}) async {
+            // Match the client's offset stride explicitly, including its default.
+            final pageLimit = limit ?? 100;
             final posts = await client.getPosts(
               tags: tags,
               page: page,
-              limit: limit,
+              limit: pageLimit,
             );
 
             final categories = await ref.read(
@@ -59,7 +61,7 @@ final szurubooruPostRepoProvider =
                     PostMetadata(
                       page: page,
                       search: tags.join(' '),
-                      limit: limit,
+                      limit: pageLimit,
                     ),
                     categories,
                   ),
@@ -75,8 +77,12 @@ final szurubooruPostRepoProvider =
               );
             }
 
+            final total = posts.total;
             return data.toResult(
-              total: posts.total,
+              total: total,
+              hasMore: total != null && total >= 0 && pageLimit > 0
+                  ? page * pageLimit < total
+                  : null,
             );
           },
           getSettings: () async =>

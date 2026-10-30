@@ -15,6 +15,7 @@ import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../core/search/following_topics/following_topic_test_utils.dart';
@@ -24,6 +25,70 @@ final _b = _profile(200, otherTestProfile.id);
 final _current = StateProvider<BooruConfig>((ref) => _a);
 
 void main() {
+  for (final private in [false, true]) {
+    testWidgets(
+      'real Favorites continues empty pages and stops a nonempty terminal page (private=$private)',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final page = _Harness();
+        await page.pump(tester);
+        if (private) {
+          final old = page.calls.single;
+          await tester.tap(
+            find.byWidgetPredicate(
+              (widget) => widget is ChoiceChip && !widget.selected,
+            ),
+          );
+          await _until(tester, () => page.calls.length == 2);
+          old.complete(99);
+        }
+        final start = page.calls.length;
+        page.calls.last.complete(1, visible: false, more: true);
+        final controller = page.controller(tester);
+        await _until(tester, () => !controller.refreshing);
+        expect(controller.items, isEmpty);
+        expect(controller.hasMore, isTrue);
+        final label = tester
+            .element(find.byType(PixivFavoritesPage))
+            .t
+            .infinite_scroll
+            .load_more;
+        final more = find.widgetWithText(FilledButton, label);
+        expect(more, findsOneWidget);
+        for (final (cursor, visible) in [('80', false), ('70', true)]) {
+          await tester.ensureVisible(more);
+          await tester.pump();
+          expect(more.hitTestable(), findsOneWidget);
+          await tester.tap(more);
+          await tester.pump(controller.debounceDuration);
+          await _until(tester, () => !page.calls.last.response.isCompleted);
+          expect(
+            page.calls.last.options.queryParameters['restrict'],
+            private ? 'private' : 'public',
+          );
+          page.calls.last.complete(
+            3,
+            visible: visible,
+            more: !visible,
+            cursor: cursor,
+          );
+          await _until(tester, () => !controller.loadingMore);
+          expect(controller.hasMore, !visible);
+          expect(
+            controller.items.map((post) => post.illustId),
+            visible ? [3] : <int>[],
+          );
+        }
+        expect(page.calls, hasLength(start + 2));
+        expect(more, findsNothing);
+        expect(tester.takeException(), isNull);
+        await page.close(tester);
+      },
+    );
+  }
+
   testWidgets(
     'an unverified replacement credential issues no old-account Favorites request',
     (tester) async {
@@ -199,7 +264,12 @@ class _Request {
   final response = Completer<ResponseBody>();
   var cancelled = false;
 
-  void complete(int id, {bool more = false}) => response.complete(
+  void complete(
+    int id, {
+    bool more = false,
+    bool visible = true,
+    String cursor = '90',
+  }) => response.complete(
     ResponseBody.fromString(
       jsonEncode({
         'illusts': [
@@ -209,7 +279,7 @@ class _Request {
             'height': 100,
             'type': 'illust',
             'page_count': 1,
-            'visible': true,
+            'visible': visible,
             'user': {'id': 99, 'name': 'Fixture'},
             'image_urls': {'medium': 'https://i.pximg.net/$id.jpg'},
             'meta_single_page': {
@@ -217,7 +287,9 @@ class _Request {
             },
           },
         ],
-        if (more) 'next_url': 'https://app-api.pixiv.net/v1/user/bookmarks/illust?user_id=100&restrict=public&max_bookmark_id=90',
+        if (more)
+          'next_url':
+              'https://app-api.pixiv.net/v1/user/bookmarks/illust?user_id=${options.queryParameters['user_id']}&restrict=${options.queryParameters['restrict']}&max_bookmark_id=$cursor',
       }),
       200,
       headers: {

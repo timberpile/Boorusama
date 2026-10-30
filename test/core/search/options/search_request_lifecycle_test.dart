@@ -117,7 +117,7 @@ void main() {
     await search.pump(tester);
     search.input.submit('cat');
     await drain(tester);
-    search.complete(0, [TestPost(id: 1)]);
+    search.complete(0, [TestPost(id: 1)], hasMore: true);
     await drain(tester);
     final oldPosts = search.posts.value!;
     final more = oldPosts.fetchMore();
@@ -198,6 +198,12 @@ class _SearchHarness {
     );
   }
 
-  void complete(int index, List<Post> result) =>
-      requests[index].result.complete(Either.of(testPostResult(result)));
+  void complete(int index, List<Post> result, {bool? hasMore}) =>
+      requests[index].result.complete(
+        Either.of(
+          hasMore == null
+              ? testPostResult(result)
+              : PostResult(posts: result, total: null, hasMore: hasMore),
+        ),
+      );
 }

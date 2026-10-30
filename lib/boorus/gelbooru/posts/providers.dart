@@ -58,6 +58,11 @@ extension GelbooruClientX on GelbooruClient {
       page: page,
       limit: limit,
     );
+    final total = value.count;
+    // Use the requested source stride, not the count after DTO filtering.
+    final hasMore = total != null && total >= 0 && limit != null && limit > 0
+        ? page * limit < total && (maxPage == null || page < maxPage)
+        : null;
 
     return value.posts
         .map(
@@ -72,8 +77,9 @@ extension GelbooruClientX on GelbooruClient {
         )
         .toList()
         .toResult(
-          total: value.count,
+          total: total,
           maxPage: maxPage,
+          hasMore: hasMore,
         );
   }
 }
