@@ -3,6 +3,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../core/configs/config/types.dart';
 import '../../../core/images/booru_image.dart';
+import '../../../core/posts/post/src/widgets/explicit_block_overlay.dart';
 import 'presentation.dart';
 
 class PixivFollowingArtistCard extends StatelessWidget {
@@ -17,7 +18,7 @@ class PixivFollowingArtistCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = artist.user;
     final avatar = pixivFollowingImageUrl(user.profileImageUrls?.medium);
-    final previews = pixivFollowingPreviewUrls(artist, maxRestriction: maxRestriction);
+    final previews = pixivFollowingPreviews(artist, maxRestriction: maxRestriction);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -45,12 +46,20 @@ class PixivFollowingArtistCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 3, bottom: 4),
                 child: Row(children: [
-                  for (final url in previews)
+                  for (final preview in previews)
                     Expanded(child: Padding(
                       padding: const EdgeInsets.all(1),
-                      child: AspectRatio(aspectRatio: 1, child: BooruImage(
-                        config: config, imageUrl: url, fit: BoxFit.cover,
-                      )),
+                      child: AspectRatio(aspectRatio: 1,
+                        child: ExplicitContentBlockOverlay(
+                          // A revealed work must not reveal a replacement
+                          // artwork or another profile's preview at this slot.
+                          key: ValueKey((config, user.id,
+                            preview.artworkId, preview.url)),
+                          rating: preview.rating,
+                          child: BooruImage(config: config,
+                            imageUrl: preview.url, fit: BoxFit.cover),
+                        ),
+                      ),
                     )),
                   for (var i = previews.length; i < 3; i++) const Spacer(),
                 ]),
