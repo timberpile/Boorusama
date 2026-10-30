@@ -10,7 +10,7 @@
   "report_root": "docs/reviews/AA02/remediation",
   "initial_develop_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
   "instruction_revision": "894ab270693cdb054a5d527c96182e21e2b14ffc",
-  "instruction_files_read": ["AGENTS.md", "docs/development_workflow.md", "docs/issue_workflow.md", ".agents/skills/verify-change/SKILL.md", ".agents/skills/implement-change/SKILL.md"],
+  "instruction_files_read": ["AGENTS.md", "docs/development_workflow.md", "docs/issue_workflow.md", "docs/engineering_guidelines.md", ".agents/skills/verify-change/SKILL.md", ".agents/skills/implement-change/SKILL.md"],
   "input_audits": [
     {"agent_id":"01","branch":"review/AA02/agent-01","sha":"b00d6d25c5e060cb98632ad93a3a7fa64507fa00","status":"closed-by-user-protocol-incomplete"},
     {"agent_id":"02","branch":"review/AA02/agent-02","sha":"5012c4e19783e319c4491ba737517542d0de692c","status":"closed-by-user-protocol-incomplete"},
@@ -18,11 +18,18 @@
     {"agent_id":"04","branch":"review/AA02/agent-04","sha":"0df3bc984af5da8dda9b0ef9f419266183f0f70c","status":"closed-by-user-protocol-incomplete"},
     {"agent_id":"05","branch":"review/AA02/agent-05","sha":"c658f7c455d39208672aeeac45462c387cbb315d","status":"closed-by-user-protocol-incomplete"}
   ],
-  "implementation_write_allowlist": [],
-  "write_allowlist_status": "pending-exact-inventory-and-findings-reconciliation-no-source-writes-yet",
+  "implementation_write_allowlist": [
+    {"repository":"timberpile/Boorusama","branch":"feature/117-pixiv-favorites","target":"T004","issue":117,"scope":"shared Pixiv auth transport, Favorites session lifetime and manual credential identity safety"},
+    {"repository":"timberpile/Boorusama","branch":"feature/118-pixiv-following-artists","target":"T005","issue":118,"scope":"preview explicit-content cover, known rating consistency and direct regression coverage"},
+    {"repository":"timberpile/Boorusama","branch":"bug/113-collection-pagination","target":"T001","issue":113,"scope":"pagination generation/exhaustion/initial failure, Pool page-size lifetime and associated test contracts"},
+    {"repository":"timberpile/Boorusama","branch":"feature/114-timeline-toolbar","target":"T002","issue":114,"scope":"blacklist normalization, page lifetime, asynchronous publication and mixed-origin matching"},
+    {"repository":"timberpile/Boorusama","branch":"feature/group-neighboring-series","target":"T008","issue":68,"scope":"exact-host filtering; only coherent bounded Series admission if independently safe"}
+  ],
+  "write_allowlist_status": "baseline-qualified-candidates-only-each-requires-fresh-ownership-ref-and-path-instruction-check",
   "coordinated_batch": "AA01",
+  "coordinated_AA01_baseline_sha": "896baacf5bb64fba43a355580742e0d821f89d17",
   "session": "remediation-AA01-AA02-20261030",
-  "status": "input-snapshot-published-assessment-in-progress",
-  "source_edit_gate": "closed-until-all-claims-classified-and-ownership-checked",
+  "status": "initial-assessment-complete-no-application-edits-yet",
+  "source_edit_gate": "initial-classification-complete-individual-ownership-gates-still-required",
   "local_verification": "not-performed"
 }
