@@ -26,7 +26,7 @@ typedef PostGridFetcher<T extends Post> = PostsOrErrorCore<T> Function(
   int page,
 );
 
-extension TagCountX<T> on Map<String, Set<T>> {
+extension TagCountX on Map<String, Set<int>> {
   int get totalNonDuplicatesPostCount => values.expand((e) => e).toSet().length;
 }
 
@@ -42,7 +42,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     this.blacklistedUrlsFetcher,
     this.forcedPageMode = false,
     this.initialPage,
-    this.blacklistCounter,
   }) : _pageMode = pageMode,
        _duplicateTracker = duplicateTracker,
        _eventController = StreamController<PostControllerEvent>.broadcast() {
@@ -53,10 +52,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   final int? initialPage;
-  final PostBlacklistCounter? blacklistCounter;
-  var _blacklistGeneration = 0;
-  var _rulesRevision = 0;
-
   final PostGridFetcher<T> fetcher;
   PageMode _pageMode;
   final Future<Set<String>> Function()? blacklistedUrlsFetcher;
@@ -103,7 +98,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   final Duration debounceDuration;
   PageMode get pageMode => _pageMode;
   final activeFilters = ValueNotifier<Map<String, bool>>({});
-  final tagCounts = ValueNotifier<Map<String, Set<PostBlacklistIdentity>>>({});
+  final tagCounts = ValueNotifier<Map<String, Set<int>>>({});
   final hasBlacklist = ValueNotifier(false);
   final visibleHiddenTags = ValueNotifier<List<HiddenData>>([]);
   final errors = ValueNotifier<BooruError?>(null);
@@ -139,118 +134,89 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     );
   }
 
-  void _setBlacklistRules(Set<String> tags) {
-    _cachedParsedTags = tags
-        .map(
-          (tag) => tag
-              .trim()
-              .split(RegExp(r'\s+'))
-              .where((part) => part.isNotEmpty)
-              .map(TagExpression.parse)
-              .toList(),
-        )
-        .where((rule) => rule.isNotEmpty)
-        .toList();
-    blacklistedTags = _cachedParsedTags.map((rule) => rule.rawString).toSet();
-    activeFilters.value = {
-      for (final key in blacklistedTags!) key: activeFilters.value[key] ?? true,
-    };
-    _rulesRevision++;
-  }
-
   Future<void> setBlacklistedTags(Set<String> tags) async {
-    if (_disposed || !mountedChecker()) return;
-    final normalized = tags
-        .map(
-          (tag) => tag
-              .trim()
-              .split(RegExp(r'\s+'))
-              .where((part) => part.isNotEmpty)
-              .map(TagExpression.parse)
-              .rawString,
-        )
-        .where((rule) => rule.isNotEmpty)
-        .toSet();
-    if (setEquals(blacklistedTags, normalized)) return;
-    _setBlacklistRules(normalized);
+    if (blacklistedTags?.join(',') == tags.join(',')) return;
+    final newTags = tags.toSet();
+    blacklistedTags = newTags;
+    _cachedParsedTags = newTags
+        .map((tag) => tag.split(' ').map(TagExpression.parse).toList())
+        .toList();
+    tagCounts.value = await _count(_items, _cachedParsedTags);
+    if (!mountedChecker()) return;
+    hasBlacklist.value = tagCounts.value.values.any((e) => e.isNotEmpty);
+    activeFilters.value = {
+      ...activeFilters.value,
+      ...Map.fromIterable(tags, value: (_) => true),
+    };
     await _filter();
+    if (!mountedChecker()) return;
+    notifyListeners();
   }
 
   Future<void> enableTag(String tag) async {
-    if (_disposed || !mountedChecker()) return;
     final data = {...activeFilters.value};
     data[tag] = true;
     activeFilters.value = data;
     await _filter();
+    notifyListeners();
   }
 
   Future<void> disableTag(String tag) async {
-    if (_disposed || !mountedChecker()) return;
     final data = {...activeFilters.value};
     data[tag] = false;
     activeFilters.value = data;
     await _filter();
+    notifyListeners();
   }
 
   Future<void> enableAllTags() async {
-    if (_disposed || !mountedChecker()) return;
     activeFilters.value = activeFilters.value.map(
       (key, value) => MapEntry(key, true),
     );
     await _filter();
+    notifyListeners();
   }
 
   Future<void> disableAllTags() async {
-    if (_disposed || !mountedChecker()) return;
     activeFilters.value = activeFilters.value.map(
       (key, value) => MapEntry(key, false),
     );
     await _filter();
+    notifyListeners();
   }
 
   Future<List<List<TagExpression>>> _getBlacklistedTags() async {
     if (blacklistedTags == null) {
-      final revision = _rulesRevision;
       try {
         final tags = await blacklistedTagsFetcher();
-        if (_disposed || !mountedChecker()) return [];
-        // A late initial read cannot replace a live provider update.
-        if (revision == _rulesRevision) _setBlacklistRules(tags);
+        blacklistedTags = tags;
+        _cachedParsedTags = tags
+            .map((tag) => tag.split(' ').map(TagExpression.parse).toList())
+            .toList();
       } on Exception catch (e) {
-        if (!_disposed && mountedChecker()) {
-          onError('Failed to fetch blacklisted tags: $e');
-        }
+        onError('Failed to fetch blacklisted tags: $e');
+        return [];
       }
     }
     return _cachedParsedTags;
   }
 
   Future<void> _filter({int? requestGeneration}) async {
-    if (_disposed || !mountedChecker()) return;
-    final generation = ++_blacklistGeneration;
-    bool isCurrent() =>
-        !_disposed &&
-        mountedChecker() &&
-        generation == _blacklistGeneration &&
-        (requestGeneration == null || _isCurrentRequest(requestGeneration));
-    final posts = _items.toList();
-    activeFilters.value = {
-      for (final rule in _cachedParsedTags)
-        rule.rawString: activeFilters.value[rule.rawString] ?? true,
-    };
-    final counts = await _count(posts, _cachedParsedTags, blacklistCounter);
-    if (!isCurrent()) return;
     final blacklistedUrls = blacklistedUrlsFetcher != null
         ? await blacklistedUrlsFetcher!()
         : const <String>{};
-    if (!isCurrent()) return;
-    tagCounts.value = counts;
-    hasBlacklist.value = counts.values.any((matches) => matches.isNotEmpty);
-    _setFilteringItems(
-      _filterPosts(posts, counts, activeFilters.value, blacklistedUrls),
+    if (_disposed || !mountedChecker()) return;
+    if (requestGeneration != null && !_isCurrentRequest(requestGeneration)) {
+      return;
+    }
+    final filteredItems = _filterPosts(
+      _items,
+      tagCounts.value,
+      activeFilters.value,
+      blacklistedUrls,
     );
+    _setFilteringItems(filteredItems);
     _updateVisibleHiddenTags();
-    notifyListeners();
   }
 
   void _updateVisibleHiddenTags() {
@@ -480,7 +446,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     onSuccess?.call();
     _items = data;
     _setFilteringItems(data);
-    unawaited(_filter());
     notifyListeners();
   }
 
@@ -490,7 +455,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     _duplicateTracker.rebuildFrom(data);
     _items = data;
     _setFilteringItems(data);
-    unawaited(_filter());
     notifyListeners();
   }
 
@@ -521,14 +485,23 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       _items.length - before,
     );
     _total = _items.length;
-
-    await _getBlacklistedTags();
+    final bt = await _getBlacklistedTags();
     if (!_isCurrentRequest(generation)) return;
+    final counts = await _count(_items, bt);
+    if (!_isCurrentRequest(generation)) return;
+    tagCounts.value = counts;
+    hasBlacklist.value = tagCounts.value.values.any((e) => e.isNotEmpty);
+    final unseenTags = tagCounts.value.keys.toSet().difference(
+      activeFilters.value.keys.toSet(),
+    );
+    activeFilters.value = {
+      ...activeFilters.value,
+      ...Map.fromIterable(unseenTags, value: (_) => true),
+    };
     await _filter(requestGeneration: generation);
   }
 
   void _clear() {
-    _blacklistGeneration++;
     _items.clear();
     _filteredItems.clear();
     _total = 0;
@@ -561,7 +534,6 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _blacklistGeneration++;
     _refreshing = false;
     _invalidateFetchMore();
     _eventController.close();
@@ -581,7 +553,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
 List<T> _filterPosts<T extends Post>(
   List<T> items,
-  Map<String, Set<PostBlacklistIdentity>> tagCounts,
+  Map<String, Set<int>> tagCounts,
   Map<String, bool> activeFilters,
   Set<String> blacklistedUrls,
 ) {
@@ -594,8 +566,7 @@ List<T> _filterPosts<T extends Post>(
   try {
     return items.where((e) {
       for (final entry in tagCounts.entries) {
-        if ((activeFilters[entry.key] ?? false) &&
-            entry.value.contains(_blacklistIdentity(e))) {
+        if ((activeFilters[entry.key] ?? false) && entry.value.contains(e.id)) {
           return false;
         }
       }
@@ -610,65 +581,44 @@ List<T> _filterPosts<T extends Post>(
   }
 }
 
-// Primitive records remain transferable to the native counting isolate.
-typedef PostBlacklistIdentity = (int type, String source, int postId);
-typedef PostCountData = ({
-  TagFilterData filterData,
-  PostBlacklistIdentity identity,
-});
-typedef PostBlacklistCounter =
-    Future<Map<String, Set<PostBlacklistIdentity>>> Function(
-      List<PostCountData> posts,
-      List<List<TagExpression>> rules,
-    );
+typedef PostCountData = ({TagFilterData filterData, int id});
 
-PostBlacklistIdentity _blacklistIdentity(Post post) => (
-  post.origin.booruType.id,
-  post.origin.sourceHost.isEmpty
-      ? 'profile:${post.origin.profileIdHint ?? post.origin.booruId}'
-      : post.origin.sourceHost,
-  post.id,
-);
-
-Future<Map<String, Set<PostBlacklistIdentity>>> _count<T extends Post>(
+Future<Map<String, Set<int>>> _count<T extends Post>(
   Iterable<T> posts,
   List<List<TagExpression>> parsedTags,
-  PostBlacklistCounter? counter,
 ) async {
   if (parsedTags.isEmpty) return {};
   final payload = performanceRecorder.measureSync(
     PerfOperation.gridCountPayload,
     () => posts
-        .map(
-          (post) => (
-            filterData: post.extractTagFilterData(),
-            identity: _blacklistIdentity(post),
-          ),
-        )
+        .map((post) => (filterData: post.extractTagFilterData(), id: post.id))
         .toList(),
   );
-  if (counter != null) return counter(payload, parsedTags);
   return switch (isWeb()) {
-    true => countPostBlacklistMatches(payload, parsedTags),
-    false => await Isolate.run(
-      () => countPostBlacklistMatches(payload, parsedTags),
-    ),
+    true => _countInIsolate(payload, parsedTags),
+    false => await Isolate.run(() => _countInIsolate(payload, parsedTags)),
   };
 }
 
-Map<String, Set<PostBlacklistIdentity>> countPostBlacklistMatches(
+Map<String, Set<int>> _countInIsolate(
   List<PostCountData> postData,
   List<List<TagExpression>> parsedTags,
 ) {
-  final tagCounts = <String, Set<PostBlacklistIdentity>>{};
-  for (final data in postData) {
-    for (final pattern in parsedTags) {
-      if (checkIfTagsContainsTagExpression(data.filterData, pattern)) {
-        tagCounts.putIfAbsent(pattern.rawString, () => {}).add(data.identity);
+  final tagCounts = <String, Set<int>>{};
+  try {
+    for (final data in postData) {
+      for (final pattern in parsedTags) {
+        if (checkIfTagsContainsTagExpression(data.filterData, pattern)) {
+          final key = pattern.rawString;
+          tagCounts.putIfAbsent(key, () => <int>{});
+          tagCounts[key]!.add(data.id);
+        }
       }
     }
+    return tagCounts;
+  } catch (e) {
+    return {};
   }
-  return tagCounts;
 }
 
 abstract class PostControllerEvent {
