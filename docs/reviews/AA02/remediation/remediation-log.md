@@ -40,3 +40,12 @@
 - Kept intentional serial queue latency and unverified HTML metadata-label meaning separate from proven defects. Independently confirmed native signer/package/version checks and their use; reported certificate mismatch does not justify bypassing them.
 - Refreshed the AA02 report ref before atomic publication from parent `6b04dd2ee9a70e39bcc998ec88cf336ca27f0ba0`. No application/issue edits or workflow launches. Source-edit gate remains CLOSED.
 - Next exact action: assess C0003 and remaining AA02 unnumbered nonhistorical claims, including actual #92/#108 share paths, #97/#99/#106/#107 state/counterchecks, Maestro provenance/privacy limits and integration-only observations. Publish the complete baseline/coverage and write allowlist before acquiring scoped ownership for safe corrections.
+
+## 2026-10-30 — Pixiv manual-identity and share/selection checkpoint
+
+- Added nine decisions in baseline-validation-03.md: C0003, C0013, C0014, C0019, C0021, C0022, C0029, C0035 and C0036.
+- Upgraded C0021 from a hypothetical stored-metadata risk to a source-validated inherited manual-token-edit defect: the engine field changes only apiKey, the generic setter preserves passHash/login, Favorites captures the stale user ID, and rotated metadata persistence intentionally does not refresh active config state. OAuth paired storage is a different safe path. No real account or network request was exercised.
+- Read actual ShareService/action source and rejected the void-return missing-await hypothesis. Kept documented Image quality fallback, local credentialless Bookmark behavior and the up-to-three preview bound as policy choices, not invented bugs.
+- Read #108's actual final handoff and widget suites. Kept its historical VM diagnostic and extreme-height layout scenario unverified; another author's test-count claims were not adopted as this session's results. Recorded the distinct #92/#108 combined-candidate coverage gap.
+- Refreshed report head `6babef391ad0735ce74333b6b1af97d3b016c712` before publication. No application/issue changes, tests or workflow runs. Global source-edit gate remains CLOSED.
+- Next exact action: complete #97/#99/#106/#107 state and prior-correction counterchecks, Maestro provenance/privacy, icon/policy/export observations and the remaining integration records. Then publish full matrices and the implementation allowlist before scoped ownership claims and focused fixes.
