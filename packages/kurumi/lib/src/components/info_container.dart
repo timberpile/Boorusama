@@ -117,7 +117,7 @@ class _KurumiTemplateContainerState extends State<KurumiTemplateContainer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            height: 40,
+            constraints: const BoxConstraints(minHeight: 40),
             color: widget.titleBackgroundColor,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -129,15 +129,17 @@ class _KurumiTemplateContainerState extends State<KurumiTemplateContainer> {
                     children: [
                       if (widget.icon != null) widget.icon!,
                       const SizedBox(width: 8),
-                      if (widget.title != null)
-                        Text(
-                          widget.title!,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: widget.titleColor,
-                          ),
-                        ),
-                      const Spacer(),
+                      Expanded(
+                        child: widget.title == null
+                            ? const SizedBox.shrink()
+                            : Text(
+                                widget.title!,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: widget.titleColor,
+                                ),
+                              ),
+                      ),
                       // Keep the existing expand/collapse interaction while
                       // exposing the same action to assistive technology.
                       Semantics(

@@ -9,7 +9,10 @@ import 'package:kurumi/material.dart';
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/create/providers.dart';
 import '../../../core/configs/create/widgets.dart';
+import '../../../core/http/client/providers.dart';
+import '../auth/auth_interceptor.dart';
 import '../auth/login_page.dart';
+import '../client_provider.dart';
 import 'experimental_notice.dart';
 import 'extra_data.dart';
 
@@ -44,8 +47,10 @@ class PixivAuthConfigView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final configId = ref.watch(editBooruConfigIdProvider);
     final configData = ref.watch(editBooruConfigProvider(configId));
-    final isLoggedIn = configData.apiKey.isNotEmpty;
     final extraData = PixivExtraData.fromPassHash(configData.passHash);
+    final isLoggedIn =
+        configData.apiKey.isNotEmpty &&
+        (int.tryParse(extraData.userId ?? '') ?? 0) > 0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -72,6 +77,10 @@ class PixivAuthConfigView extends ConsumerWidget {
             ),
           const SizedBox(height: 24),
           const _RefreshTokenField(),
+          if (configData.apiKey.isNotEmpty && !isLoggedIn) ...[
+            const SizedBox(height: 8),
+            _ManualTokenVerification(key: ValueKey(configId)),
+          ],
           const SizedBox(height: 8),
           DefaultBooruInstructionText(
             context.t.pixiv.auth.paste_token_hint,
@@ -100,22 +109,110 @@ class PixivAuthConfigView extends ConsumerWidget {
   }
 
   void _store(WidgetRef ref, PixivTokens tokens) {
-    final refreshToken = tokens.refreshToken;
-    if (refreshToken == null || refreshToken.isEmpty) return;
+    _storePixivTokens(ref, tokens);
+  }
+}
 
-    final user = tokens.user;
-    final extraData = PixivExtraData.fromTokenResponse(
-      userId: user?.id,
-      userName: user?.name,
-      isPremium: user?.isPremium,
-      xRestrict: user?.xRestrict,
-      expiresIn: tokens.expiresIn,
+void _storePixivTokens(WidgetRef ref, PixivTokens tokens) {
+  final refreshToken = tokens.refreshToken;
+  if (refreshToken == null || refreshToken.isEmpty) return;
+  final user = tokens.user;
+  final extraData = PixivExtraData.fromTokenResponse(
+    userId: user?.id,
+    userName: user?.name,
+    isPremium: user?.isPremium,
+    xRestrict: user?.xRestrict,
+    expiresIn: tokens.expiresIn,
+  );
+  ref.editNotifier
+    ..updateLogin(user?.account ?? '')
+    ..updateApiKey(refreshToken)
+    ..updatePassHash(extraData.toPassHash());
+}
+
+class _ManualTokenVerification extends ConsumerStatefulWidget {
+  const _ManualTokenVerification({super.key});
+
+  @override
+  ConsumerState<_ManualTokenVerification> createState() =>
+      _ManualTokenVerificationState();
+}
+
+class _ManualTokenVerificationState
+    extends ConsumerState<_ManualTokenVerification> {
+  var _verifying = false;
+  var _failed = false;
+  var _generation = 0;
+
+  Future<void> _verify() async {
+    final editId = ref.read(editBooruConfigIdProvider);
+    final token = ref.read(editBooruConfigProvider(editId)).apiKey;
+    final generation = ++_generation;
+    setState(() {
+      _verifying = true;
+      _failed = false;
+    });
+    bool isCurrent() =>
+        mounted &&
+        generation == _generation &&
+        ref.read(editBooruConfigIdProvider) == editId &&
+        ref.read(editBooruConfigProvider(editId)).apiKey == token;
+    try {
+      final registry = ref.read(apiAuthRefreshRegistryProvider);
+      final tokens = await registry.run(
+        ('pixiv', registry.opaqueCredentialIdentity(token)),
+        () =>
+            createPixivAuthClient(dio: ref.read(pixivOAuthDioProvider))
+                .refresh(refreshToken: token),
+      );
+      if (!isCurrent()) return;
+      if ((tokens.accessToken?.isEmpty ?? true) ||
+          (tokens.refreshToken?.isEmpty ?? true) ||
+          (int.tryParse(tokens.user?.id ?? '') ?? 0) <= 0) {
+        setState(() => _failed = true);
+        return;
+      }
+      // Use the same paired credential/identity writer as OAuth login. Only
+      // the still-current draft may consume this explicit verification.
+      _storePixivTokens(ref, tokens);
+    } catch (_) {
+      if (isCurrent()) setState(() => _failed = true);
+    } finally {
+      if (isCurrent()) setState(() => _verifying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final editId = ref.watch(editBooruConfigIdProvider);
+    ref.listen(editBooruConfigProvider(editId).select((data) => data.apiKey), (
+      _,
+      _,
+    ) {
+      _generation++;
+      setState(() {
+        _verifying = false;
+        _failed = false;
+      });
+    });
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OutlinedButton.icon(
+          key: const ValueKey('pixiv-verify-manual-token'),
+          onPressed: _verifying ? null : _verify,
+          icon: _verifying
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.check),
+          label: Text(context.t.generic.action.verify),
+        ),
+        if (_failed) Text(context.t.pixiv.auth.login_failed),
+      ],
     );
-
-    ref.editNotifier
-      ..updateLogin(user?.account ?? '')
-      ..updateApiKey(refreshToken)
-      ..updatePassHash(extraData.toPassHash());
   }
 }
 

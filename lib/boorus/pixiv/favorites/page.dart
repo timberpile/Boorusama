@@ -29,15 +29,22 @@ class PixivFavoritesPage extends ConsumerWidget {
           title: Text(context.t.profile.favorites),
           actions: const [NavigationProfilePicker(favorites: true)],
         ),
-        body: Center(child: FilledButton(
-          onPressed: () => goToUpdateBooruConfigPage(ref,
-            config: config, initialTab: 'auth'),
-          child: Text(context.t.pixiv.auth.login_title),
-        )),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => goToUpdateBooruConfigPage(
+              ref,
+              config: config,
+              initialTab: 'auth',
+            ),
+            child: Text(context.t.pixiv.auth.login_title),
+          ),
+        ),
       );
     }
     return _FavoritesView(
-      key: ValueKey((config.id, config.auth)), config: config, userId: userId,
+      key: ValueKey((config.id, config.auth)),
+      config: config,
+      userId: userId,
     );
   }
 }
@@ -56,7 +63,9 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
   @override
   Widget build(BuildContext context) {
     final sessionKey = (
-      config: widget.config, userId: widget.userId, visibility: _visibility,
+      config: widget.config,
+      userId: widget.userId,
+      visibility: _visibility,
     );
     final session = ref.watch(pixivFavoritesSessionProvider(sessionKey));
     final strings = context.t.pixiv.explore.follow_restrict;
@@ -79,20 +88,30 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
             ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Wrap(spacing: 8, runSpacing: 4, children: [
-                  for (final value in PixivBookmarkVisibility.values)
-                    ChoiceChip(
-                      label: Text(value == PixivBookmarkVisibility.public
-                          ? strings.public : strings.private),
-                      selected: _visibility == value,
-                      onSelected: (selected) {
-                        if (selected && value != _visibility) {
-                          setState(() => _visibility = value);
-                        }
-                      },
-                    ),
-                ]),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final value in PixivBookmarkVisibility.values)
+                      ChoiceChip(
+                        label: Text(
+                          value == PixivBookmarkVisibility.public
+                              ? strings.public
+                              : strings.private,
+                        ),
+                        selected: _visibility == value,
+                        onSelected: (selected) {
+                          if (selected && value != _visibility) {
+                            setState(() => _visibility = value);
+                          }
+                        },
+                      ),
+                  ],
+                ),
               ),
             ),
           ],

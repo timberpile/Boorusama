@@ -9,7 +9,8 @@ import '../../../core/posts/post/types.dart';
 import '../posts/parser.dart';
 
 typedef PixivBookmarkLoader = Future<PixivBookmarkPage> Function(
-  String? cursor, CancelToken cancellation,
+  String? cursor,
+  CancelToken cancellation,
 );
 
 /// One account and visibility filter per instance. Never walks skipped pages.
@@ -36,8 +37,10 @@ class PixivFavoritesSession {
       DioException(type: DioExceptionType.cancel) => RequestCancelledError(),
       DioException(error: ApiCooldownException(:final retryAt)) =>
         RateLimitedError(retryAt),
-      _ => AppError(type: AppErrorType.loadDataFromServerFailed,
-        message: 'Could not load Pixiv favorites.'),
+      _ => AppError(
+        type: AppErrorType.loadDataFromServerFailed,
+        message: 'Could not load Pixiv favorites.',
+      ),
     },
   );
 
@@ -62,12 +65,15 @@ class PixivFavoritesSession {
     final token = _cancel;
     final result = await load(_cursor, token);
     if (token.isCancelled) throw token.cancelError!;
-    final posts = bindPostResultOrigin(PostResult(
-      posts: illustDtosToPosts(result.illusts),
-      total: null,
-      hasMore: result.hasMore,
-      maxPage: result.hasMore ? null : page,
-    ), origin: origin);
+    final posts = bindPostResultOrigin(
+      PostResult(
+        posts: illustDtosToPosts(result.illusts),
+        total: null,
+        hasMore: result.hasMore,
+        maxPage: result.hasMore ? null : page,
+      ),
+      origin: origin,
+    );
     _cursor = result.nextBookmarkId;
     _ended = !result.hasMore;
     _expectedPage = page + 1;

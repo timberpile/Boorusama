@@ -4,6 +4,7 @@ import 'dart:async';
 // Package imports:
 import 'package:booru_clients/pixiv.dart';
 import 'package:dio/dio.dart';
+
 import '../../../core/http/client/coordination.dart';
 
 /// Marker written into `RequestOptions.extra` before a 401 is retried, so a
