@@ -1,0 +1,28 @@
+{
+  "protocol_version": 2,
+  "role": "remediation",
+  "repository": "timberpile/Boorusama",
+  "batch_id": "AA02",
+  "selected_agents": "all",
+  "discovered_agents": ["01", "02", "03", "04", "05"],
+  "missing_selected_agents": [],
+  "report_branch": "review/AA02/remediation",
+  "report_root": "docs/reviews/AA02/remediation",
+  "initial_develop_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+  "instruction_revision": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+  "instruction_files_read": ["AGENTS.md", "docs/development_workflow.md", "docs/issue_workflow.md", ".agents/skills/verify-change/SKILL.md", ".agents/skills/implement-change/SKILL.md"],
+  "input_audits": [
+    {"agent_id":"01","branch":"review/AA02/agent-01","sha":"b00d6d25c5e060cb98632ad93a3a7fa64507fa00","status":"closed-by-user-protocol-incomplete"},
+    {"agent_id":"02","branch":"review/AA02/agent-02","sha":"5012c4e19783e319c4491ba737517542d0de692c","status":"closed-by-user-protocol-incomplete"},
+    {"agent_id":"03","branch":"review/AA02/agent-03","sha":"bbc004db66596d082fc4470abbd27f83b2e00250","status":"closed-by-user-per-final-handoff"},
+    {"agent_id":"04","branch":"review/AA02/agent-04","sha":"0df3bc984af5da8dda9b0ef9f419266183f0f70c","status":"closed-by-user-protocol-incomplete"},
+    {"agent_id":"05","branch":"review/AA02/agent-05","sha":"c658f7c455d39208672aeeac45462c387cbb315d","status":"closed-by-user-protocol-incomplete"}
+  ],
+  "implementation_write_allowlist": [],
+  "write_allowlist_status": "pending-exact-inventory-and-findings-reconciliation-no-source-writes-yet",
+  "coordinated_batch": "AA01",
+  "session": "remediation-AA01-AA02-20261030",
+  "status": "input-snapshot-published-assessment-in-progress",
+  "source_edit_gate": "closed-until-all-claims-classified-and-ownership-checked",
+  "local_verification": "not-performed"
+}
