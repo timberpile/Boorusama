@@ -1,5 +1,7 @@
 # #118 — AA01/AA02 local revalidation
 
+[Current all-branch review](118-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 Session `local-AA01-AA02-20261030`; branch `feature/118-pixiv-following-artists`.
 Final runtime/test candidate: `bd45436f6fc1e5649735851831facc18d5246b79`.
 Prior writer's `8b9aafbd53be47d0cc8cb2a652ad890135379e85` introduced the

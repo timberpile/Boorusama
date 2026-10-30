@@ -1,5 +1,7 @@
 # Issue #118 — Pixiv Following Artists local completion
 
+[Current all-branch review](118-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 ## Continue the existing branch
 
 Continue `feature/118-pixiv-following-artists`, independently based on develop
