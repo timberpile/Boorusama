@@ -1,0 +1,25 @@
+{
+  "protocol_version": 2,
+  "role": "remediation",
+  "repository": "timberpile/Boorusama",
+  "batch_id": "AA01",
+  "selected_agents": "all",
+  "discovered_agents": ["01", "02", "03"],
+  "missing_selected_agents": [],
+  "report_branch": "review/AA01/remediation",
+  "report_root": "docs/reviews/AA01/remediation",
+  "initial_develop_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+  "instruction_revision": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+  "instruction_files_read": ["AGENTS.md", "docs/development_workflow.md", "docs/issue_workflow.md", ".agents/skills/verify-change/SKILL.md", ".agents/skills/implement-change/SKILL.md"],
+  "input_audits": [
+    {"agent_id":"01","branch":"review/AA01/agent-01","sha":"290c41b9cdcbdfbfbb949c2116899c8cc07374b8","status":"closed-at-user-request-time-unverified"},
+    {"agent_id":"02","branch":"review/AA01/agent-02","sha":"737b3e06a0a56ba7938db013df9826d647eff4fe","status":"closed-at-user-request-per-final-handoff"},
+    {"agent_id":"03","branch":"review/AA01/agent-03","sha":"db5834b6f3bf36e712d500e82a66e4ca05164d82","status":"final-static-handoff-protocol-incomplete"}
+  ],
+  "implementation_write_allowlist": ["bug/113-collection-pagination", "feature/114-timeline-toolbar", "feature/116-compact-follow-button", "feature/117-pixiv-favorites", "feature/118-pixiv-following-artists"],
+  "coordinated_batch": "AA02",
+  "session": "remediation-AA01-AA02-20261030",
+  "status": "input-snapshot-published-assessment-in-progress",
+  "source_edit_gate": "closed-until-all-claims-classified-and-ownership-checked",
+  "local_verification": "not-performed"
+}
