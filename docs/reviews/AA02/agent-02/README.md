@@ -1,15 +1,15 @@
-# Independent static audit — AA02 / agent 02
+# Independent static audit — AA02 / agent 02 (closed)
 
-Assignment: all active implementation branches, 5 h minimum *verified active* review work; documentation-only, no runtime tooling. Report branch: `review/AA02/agent-02`.
+**Closed at user's explicit request (2026-10-30).** Complete first static pass: **20/20 originally inventoried targets**. Second pass stopped after **8/18 active candidates**. Verified active 5-hour minimum **not established**. This is a source-review archive, not a tested integration candidate.
 
-- Instructions read from `develop` `84df0c2de6cf8fe0177c49babb3fb0eee880f866`: `AGENTS.md`, `docs/development_workflow.md`, `docs/issue_workflow.md`, and `.agents/skills/verify-change/SKILL.md`.
-- Cycle 1 source inventory: 20 candidate implementation/tooling branches at 2026-10-29T22:38:47Z; [inventory](inventory.md).
-- Status: **initial checkpoint only**; 20 initial candidates received complete cycle-1 static reviews; 18 remain active in cycle 2, and the minimum verified active duration has **not** been established.
-- First identified risk: [AA02-A02-F0001](branches/T012.md#aa02-a02-f0001--more-menu-closes-on-benign-action-list-rebuilds), viewer More menu closes on benign provider rebuilds.
-- New defect: [AA02-A02-F0002](branches/T018.md#aa02-a02-f0002--series-metadata-is-never-fetched-beyond-the-first-40-bookmarked-posts), #68 Series grouping stops at the first 40 bookmarked Posts.
-- Additional risk: [AA02-A02-F0003](branches/T018.md#aa02-a02-f0003--same-site-second-profile-silently-reuses-the-first-profiles-pool-bookmark), same-host multi-account Pool binding ambiguity.
-- New confirmed pre-existing cross-branch defect: [AA02-A02-F0004](cross-branch-findings.md#aa02-a02-f0004--mixed-origin-postgrid-blacklist-conflates-equal-numeric-post-ids), mixed-source blacklist ID collisions.
-- [Progress](review-log.md), [cross-branch findings](cross-branch-findings.md), [handoff](final-handoff.md).
-- No implementation code, issues, PRs, CI, or protected branches are modified. No Flutter/Dart builds, tests, analyzer, emulator, or device verification is available in this remote review.
+**Start here:** [Consolidated final summary](final-summary.md) and [terminal handoff](final-handoff.md). The [target inventory](inventory.md) provides exact reviewed SHAs, [review log](review-log.md) records checkpoint history, [branch reports](branches/) contain scoped evidence and findings, and [cross-branch findings](cross-branch-findings.md) documents shared PostGrid identity defects.
 
-Cycle 2 active: 18 targets after #111 integration and documentation-only T020 exclusion. T012 and T018 revalidated; T016 and T017 completed in cycle 2, T009 and T013 complete; T008 complete; T014 complete; next T007 viewer gestures and T010 selection actions, then remaining active branches, then remaining active targets.
+## Findings
+
+- [AA02-A02-F0002](branches/T018.md#aa02-a02-f0002--series-metadata-is-never-fetched-beyond-the-first-40-bookmarked-posts): static-confirmed introduced defect in #68 (Series grouping stops beyond the first 40 bookmarked Posts).
+- [AA02-A02-F0004](cross-branch-findings.md#aa02-a02-f0004--mixed-origin-postgrid-blacklist-conflates-equal-numeric-post-ids): static-confirmed **pre-existing** shared PostGrid blacklist ID collision (crosses #107/#114 views).
+- [AA02-A02-F0003](branches/T018.md#aa02-a02-f0003--same-site-second-profile-silently-reuses-the-first-profiles-pool-bookmark): multi-profile Pool identity ambiguity/risk in #68.
+- [AA02-A02-F0001](branches/T012.md#aa02-a02-f0001--more-menu-closes-on-benign-action-list-rebuilds): menu cancellation on benign reactive rebuilds/risk in #112.
+
+**Counts: 2 defects, 2 risks; no fixes, no runtime verification, no acceptance.** Source snapshot baselines and per-target test limits are documented. Report branch: `review/AA02/agent-02`. All repository documentation is authored in English.
+

@@ -12,6 +12,59 @@
   "report_root": "docs/reviews/AA02/agent-02",
   "initial_develop_sha": "84df0c2de6cf8fe0177c49babb3fb0eee880f866",
   "discovery_at": "2026-10-29T22:38:47Z",
-  "coverage": "initial-checkpoint",
-  "target_count": 20
+  "coverage": "closed-at-user-request",
+  "target_count": 20,
+  "status": "closed",
+  "closed_at": "2026-10-30T06:45:41.070Z",
+  "closure_reason": "User explicitly requested final synthesis and termination; remaining cycle 2 and verified five-hour minimum not met.",
+  "cycle_1": {
+    "reviewed": 20,
+    "total": 20,
+    "status": "complete-scoped-static"
+  },
+  "cycle_2": {
+    "reviewed": 8,
+    "total_active": 18,
+    "status": "stopped-by-user",
+    "reviewed_targets": [
+      "T008",
+      "T009",
+      "T012",
+      "T013",
+      "T014",
+      "T016",
+      "T017",
+      "T018"
+    ],
+    "not_revisited": [
+      "T001",
+      "T002",
+      "T003",
+      "T004",
+      "T005",
+      "T006",
+      "T007",
+      "T010",
+      "T015",
+      "T019"
+    ],
+    "excluded": [
+      "T011: integrated-and-closed",
+      "T020: documentation-only"
+    ]
+  },
+  "findings": {
+    "static_confirmed_defects": [
+      "AA02-A02-F0002",
+      "AA02-A02-F0004"
+    ],
+    "risks": [
+      "AA02-A02-F0001",
+      "AA02-A02-F0003"
+    ]
+  },
+  "verified_active_five_hours": false,
+  "dynamic_verification_performed": false,
+  "latest_observed_develop_sha": "894ab270693cdb054a5d527c96182e21e2b14ffc",
+  "final_summary_path": "docs/reviews/AA02/agent-02/final-summary.md"
 }

@@ -44,3 +44,10 @@ The two issue-free unmerged tool/workflow branches T019 and T020 are included co
 - **T011** `feature/111-android-update-flow` no longer exists. Issue #111 closed 2026-10-29T22:41:47Z, and the latest develop diff since initial checkpoint includes the corresponding app-update files. Original source review remains valid at its pinned commit; it is now **historical/integrated**, not an unreviewed missing branch. Exact cherry-pick patch equivalence and device validation remain separate checks.
 - **T020** is a documentation-only unmerged workflow authorization proposal. Its cycle-1 report remains in the archive, but it is **not** an active application/tool implementation target for cycle 2.
 - **Cycle-2 frozen active list (18):** T001–T010, T012–T019. Every target retains the pinned head SHA in the original table. Scope completion for cycle 2 does not mean source heads cannot change later. Next discovery refresh after these passes.
+
+## Terminal audit closure — 2026-10-30
+
+On explicit user request this audit was closed before completing the originally requested **five hours of verified active work** and the remaining second-pass reviews. Original cycle 1 **20/20** complete; cycle 2 **8/18** active targets complete as recorded above, with T001–T007, T010, T015 and T019 **not** re-reviewed in cycle 2. Neither initial source review nor branch-head inventory establishes tests, Android acceptance or integration safety. #111 integration/issue closure occurred outside this audit; no implementation Issue was closed by this report.
+
+The canonical user-directed final outcomes are in [final-summary.md](final-summary.md) and [final-handoff.md](final-handoff.md). The historical pinned SHAs remain valid as audit referents, but source drift after the last refresh was not checked. No pending review is to be silently marked complete merely because this documentation task is closed.
+
