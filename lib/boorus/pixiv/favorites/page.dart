@@ -55,13 +55,16 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(pixivFavoritesSessionProvider((
+    final sessionKey = (
       config: widget.config, userId: widget.userId, visibility: _visibility,
-    )));
+    );
+    final session = ref.watch(pixivFavoritesSessionProvider(sessionKey));
     final strings = context.t.pixiv.explore.follow_restrict;
     return CustomContextMenuOverlay(
       child: PostScope<Post>(
-        key: ValueKey((widget.config.id, widget.config.auth, _visibility)),
+        // The controller retains its fetcher, so it must share the session's
+        // full identity, including non-authentication configuration changes.
+        key: ValueKey(sessionKey),
         // A cursor cannot safely support arbitrary page jumps.
         pageMode: PageMode.infinite,
         fetcher: session.getPosts,
