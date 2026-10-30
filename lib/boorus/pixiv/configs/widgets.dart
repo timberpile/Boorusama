@@ -229,7 +229,17 @@ class _RefreshTokenFieldState extends ConsumerState<_RefreshTokenField> {
     return CreateBooruApiKeyField(
       controller: _controller,
       labelText: context.t.pixiv.auth.refresh_token_label,
-      onChanged: (value) => ref.editNotifier.updateApiKey(value),
+      onChanged: (value) {
+        if (value == ref.read(editBooruConfigProvider(configId)).apiKey) return;
+
+        // A manually entered credential has no verified account identity.
+        // Clear the old identity before publishing the new token. Changes
+        // from the OAuth callback only update the controller, not onChanged.
+        ref.editNotifier
+          ..updatePassHash(null)
+          ..updateLogin('')
+          ..updateApiKey(value);
+      },
     );
   }
 }
