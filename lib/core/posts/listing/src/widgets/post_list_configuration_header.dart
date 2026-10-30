@@ -99,7 +99,8 @@ class _PostListConfigurationHeaderState
 
     final container = ProviderScope.containerOf(context, listen: false);
     final hidden = widget.hiddenCount ?? 0;
-    final hiddenLabel = '${context.t.blacklisted_tags.blacklisted_header_title}: '
+    final hiddenLabel =
+        '${context.t.blacklisted_tags.blacklisted_header_title}: '
         '${context.t.posts.hidden_count(hidden: hidden, total: widget.postCount)}';
 
     return Padding(
@@ -149,9 +150,14 @@ class _PostListConfigurationHeaderState
                               onPressed: _anchor.toggle,
                               style: TextButton.styleFrom(
                                 minimumSize: const Size(48, 48),
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
                               ),
-                              icon: const Icon(Symbols.visibility_off, size: 20),
+                              icon: const Icon(
+                                Symbols.visibility_off,
+                                size: 20,
+                              ),
                               label: Text('$hidden'),
                             ),
                           ),

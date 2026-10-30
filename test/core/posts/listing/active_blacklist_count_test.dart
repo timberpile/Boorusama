@@ -9,11 +9,23 @@ void main() {
   };
 
   test('overlapping rules count each hidden post only once', () {
-    expect(countActiveBlacklistPosts(matches, const {}), 2);
+    expect(
+      countActiveBlacklistPosts(matches, const {
+        'official_art': true,
+        'animated': true,
+      }),
+      2,
+    );
   });
 
   test('temporarily revealed rules do not contribute hidden posts', () {
-    expect(countActiveBlacklistPosts(matches, const {'official_art': false}), 1);
+    expect(
+      countActiveBlacklistPosts(matches, const {
+        'official_art': false,
+        'animated': true,
+      }),
+      1,
+    );
     expect(
       countActiveBlacklistPosts(matches, const {
         'official_art': false,

@@ -325,7 +325,9 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                                   ),
                                 ),
                                 reduceMotion: ref.watch(
-                                  settingsProvider.select((value) => value.reduceAnimations),
+                                  settingsProvider.select(
+                                    (value) => value.reduceAnimations,
+                                  ),
                                 ),
                                 child: widget.gridHeader,
                               ),

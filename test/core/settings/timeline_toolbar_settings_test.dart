@@ -32,9 +32,13 @@ void main() {
     expect(Settings.fromJson(settings.toJson()).listing, listing);
     final profile = ListingConfigs(settings: listing, enable: true);
     expect(ListingConfigs.fromJsonString(profile.toJsonString()), profile);
-    expect(listing.copyWith(postsPerPage: 90).keepTimelineToolbarVisible, isTrue);
     expect(
-      listing.copyWith(keepTimelineToolbarVisible: false)
+      listing.copyWith(postsPerPage: 90).keepTimelineToolbarVisible,
+      isTrue,
+    );
+    expect(
+      listing
+          .copyWith(keepTimelineToolbarVisible: false)
           .keepTimelineToolbarVisible,
       isFalse,
     );
