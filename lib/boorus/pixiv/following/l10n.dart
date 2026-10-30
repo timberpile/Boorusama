@@ -1,7 +1,8 @@
 import 'package:i18n/i18n.dart';
 
 extension PixivFollowingTranslations on Translations {
-  PixivFollowingL10n get pixivFollowing => PixivFollowingL10n($meta.locale.languageCode);
+  PixivFollowingL10n get pixivFollowing =>
+      PixivFollowingL10n($meta.locale.languageCode);
 }
 
 class PixivFollowingL10n {

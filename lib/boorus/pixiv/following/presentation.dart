@@ -5,9 +5,13 @@ import '../posts/parser.dart';
 
 String? pixivFollowingImageUrl(String? value) {
   final uri = Uri.tryParse(value ?? '');
-  if (uri == null || uri.scheme != 'https' || uri.port != 443 ||
+  if (uri == null ||
+      uri.scheme != 'https' ||
+      uri.port != 443 ||
       uri.userInfo.isNotEmpty ||
-      !(uri.host == 'pximg.net' || uri.host.endsWith('.pximg.net'))) return null;
+      !(uri.host == 'pximg.net' || uri.host.endsWith('.pximg.net'))) {
+    return null;
+  }
   return value;
 }
 
@@ -23,7 +27,8 @@ List<({int? artworkId, String url, Rating rating})> pixivFollowingPreviews(
       xRestrict: artwork.xRestrict,
       sanityLevel: artwork.sanityLevel,
     );
-    if (artwork.visible == false || artwork.isMuted == true ||
+    if (artwork.visible == false ||
+        (artwork.isMuted ?? false) ||
         (artwork.xRestrict ?? 0) > maxRestriction ||
         (rating.isExplicit && maxRestriction < 1) ||
         (artwork.user?.id != null && artwork.user!.id != artist.user.id)) {
@@ -46,5 +51,6 @@ List<String> pixivFollowingPreviewUrls(
   for (final preview in pixivFollowingPreviews(
     artist,
     maxRestriction: maxRestriction,
-  )) preview.url,
+  ))
+    preview.url,
 ];
