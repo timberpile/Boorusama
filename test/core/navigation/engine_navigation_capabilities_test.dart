@@ -125,8 +125,9 @@ void main() {
       profilesInStoredOrder: [capabilities(BooruType.pixiv)],
       globalDefinitions: [],
     );
-    expect(result.profileSections.single.rows.map((row) => row.toolId),
-        ['pixiv.explore']);
+    expect(result.profileSections.single.rows.map((row) => row.toolId), [
+      'pixiv.explore',
+    ]);
     expect(result.eligibleFavoritesProfileIds, isEmpty);
   });
   test('Favorites-only Gelbooru never emits a profile heading', () {

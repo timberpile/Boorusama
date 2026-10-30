@@ -119,9 +119,14 @@ ProfileNavigationCapabilities describeEngineNavigation({
         (c) => c.t.pixivFollowing.title,
         Symbols.group,
         (config.apiKey?.isNotEmpty ?? false) &&
-            (int.tryParse(PixivExtraData.fromPassHash(config.passHash).userId ?? '') ?? 0) > 0
-          ? available
-          : requiresAccount,
+                (int.tryParse(
+                          PixivExtraData.fromPassHash(config.passHash).userId ??
+                              '',
+                        ) ??
+                        0) >
+                    0
+            ? available
+            : requiresAccount,
       ),
     ],
     _ => <SiteToolDefinition>[],
