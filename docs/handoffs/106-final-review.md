@@ -1,5 +1,7 @@
 # Issue #106 final local review — 2026-10-29
 
+[Current all-branch review](106-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 Reviewed the full implementation at e9daef989e17ed439b7ef942a65ce90b245c5710 against develop 422aeae087c1108e655d85d1a3dac25120456cd6, production root-navigator Undo producers, live shell feedback anchor, Kurumi/OKToast host and viewer ownership/disposal. The containing commit identifies the final verified source state, including this record.
 
 ## Corrections and review
