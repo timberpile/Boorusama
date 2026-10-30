@@ -1,5 +1,7 @@
 # #117 — AA01/AA02 local revalidation
 
+[Current all-branch review](117-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 Session `local-AA01-AA02-20261030`; branch `feature/117-pixiv-favorites`.
 Final runtime/test candidate: `bc6c7e47a1342d4c2004d0350c167928dad392c7`.
 Instructions remain develop `894ab270693cdb054a5d527c96182e21e2b14ffc`.

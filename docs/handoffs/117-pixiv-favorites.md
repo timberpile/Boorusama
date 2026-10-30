@@ -1,5 +1,7 @@
 # Issue #117 — Pixiv Favorites local completion
 
+[Current all-branch review](117-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 ## Continue the existing branch
 
 `feature/117-pixiv-favorites` starts independently from develop
