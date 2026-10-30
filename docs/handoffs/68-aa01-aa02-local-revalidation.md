@@ -1,5 +1,7 @@
 # #68 — AA02 local revalidation
 
+[Current all-branch review](68-all-live-review-2026-10-30.md) supersedes the technical-readiness status below; this record retains its original evidence.
+
 Session `local-AA01-AA02-20261030`; branch `feature/group-neighboring-series`.
 Final runtime/test candidate: `a487585b943c729e6a6b0b70343085e94123cd46`.
 Original published author head `771082d9c58363348d74b97a2da23732cdd921f0`
