@@ -1,3 +1,5 @@
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
+
 import 'dart:io';
 
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -194,11 +196,17 @@ void main() {
 
   test('version 6 scoped backup round trips Pool-only groups and rejects future kinds', () async {
     await groups.createGroup('B', id: poolGroupB);
+    final cover = PoolBookmarkCover(
+      thumbnail: 'https://cover.test/low.jpg',
+      sample: 'https://cover.test/sample.jpg',
+      original: 'https://cover.test/original.png',
+      variants: {'720x720': 'https://cover.test/high.jpg'},
+    );
     final data = buildBookmarkBackupData(
       bookmarks: [],
       groups: await groups.getGroups(),
       pools: [
-        testPool(groups: {poolGroupA, poolGroupB}),
+        testPool(groups: {poolGroupA, poolGroupB}).copyWith(cover: cover),
       ],
       scope: BookmarkExportScope.selected(groupIds: {poolGroupA}),
     );
@@ -214,6 +222,7 @@ void main() {
     expect(parsed.pools.single.groupIds, {poolGroupA});
     expect(parsed.bookmarks, isEmpty);
     expect(parsed.pools.single.total, 20);
+    expect(parsed.pools.single.cover, cover);
     expect(
       () => codec.parse(
         payload({
