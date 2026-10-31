@@ -50,7 +50,13 @@ class CachedTopicFeedFilter extends Equatable {
   List<StoredPostSnapshot> apply(Iterable<StoredPostSnapshot> snapshots) {
     if (!isActive) return snapshots.toList(growable: false);
     final filtered = matchingSnapshots(snapshots).toList();
-    filtered.sort((a, b) => _compareSnapshots(a, b, sort));
+    // Parsing upload timestamps inside the comparator repeats the same work
+    // O(n log n) times on the UI isolate. Resolve each timestamp once.
+    final dates = Map<StoredPostSnapshot, DateTime?>.identity();
+    for (final snapshot in filtered) {
+      dates[snapshot] = _date(snapshot);
+    }
+    filtered.sort((a, b) => _compareSnapshots(a, b, sort, dates));
     return filtered;
   }
 
@@ -62,6 +68,7 @@ int _compareSnapshots(
   StoredPostSnapshot a,
   StoredPostSnapshot b,
   CachedTopicFeedSort sort,
+  Map<StoredPostSnapshot, DateTime?> dates,
 ) {
   if (sort == CachedTopicFeedSort.scoreAscending ||
       sort == CachedTopicFeedSort.scoreDescending) {
@@ -70,8 +77,8 @@ int _compareSnapshots(
       return sort == CachedTopicFeedSort.scoreDescending ? -score : score;
     }
   }
-  final aDate = _date(a);
-  final bDate = _date(b);
+  final aDate = dates[a];
+  final bDate = dates[b];
   // Missing upload dates stay last in either direction, including score ties.
   if (aDate == null && bDate != null) return 1;
   if (aDate != null && bDate == null) return -1;

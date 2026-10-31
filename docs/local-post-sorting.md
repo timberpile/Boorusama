@@ -28,3 +28,12 @@ The location of cached-only sort choices is still an open product decision
 (#107). The existing selector is retained provisionally; this implementation does
 not choose between it and Advanced Search/local conditions. The separate scope
 badge and independent accepted corrections do not settle that placement.
+
+The cache projection resolves each upload timestamp once before sorting. A local
+host diagnostic with 10,000 snapshots, one warm-up and five serial measured runs
+found a median of 31.9 ms for tag filtering plus Newest sorting, versus 343.3 ms
+for the preserved pre-correction comparator. Score sorting measured 33.8 ms
+versus 295.4 ms. These Flutter host test measurements identify synchronous sort
+work; they are not Android frame-time or live-service latency measurements.
+Production Feed tests separately assert that cached filtering and sorting do not
+request remote history and that restoring normal Newest mode allows it again.
