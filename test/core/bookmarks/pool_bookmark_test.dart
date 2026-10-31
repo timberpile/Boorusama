@@ -1,3 +1,8 @@
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
+import 'package:boorusama/boorus/danbooru/posts/listing/src/grid_thumbnail_url.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/images/types.dart';
+
 import 'dart:convert';
 
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.dart';
@@ -12,6 +17,43 @@ import '../search/following_topics/topic_test_utils.dart';
 import 'pool_bookmark_test_utils.dart';
 
 void main() {
+  test('cover variants survive persistence and follow listing quality without member snapshots', () {
+    final cover = PoolBookmarkCover(
+      thumbnail: 'https://a.example/low.jpg',
+      sample: 'https://a.example/sample.jpg',
+      original: 'https://a.example/original.png',
+      variants: {
+        '720x720': 'https://a.example/high.jpg',
+        '360x360': 'https://a.example/medium.jpg',
+      },
+    );
+    final saved = testPool().copyWith(cover: cover);
+    final restored = PoolBookmark.fromJson(
+      jsonDecode(jsonEncode(saved.toJson())) as Map<String, dynamic>,
+    );
+    expect(restored.cover, cover);
+    expect(restored.withGroups({poolGroupB}).cover, cover);
+    final post = restored.cover!.asPost(restored.origin);
+    const resolver = DanbooruGridThumbnailUrlGenerator();
+    String url(ImageQuality quality) => resolver
+        .resolve(
+          post,
+          settings: GridThumbnailSettings(
+            imageQuality: quality,
+            animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+            gridSize: GridSize.normal,
+          ),
+        )
+        .url;
+    expect(url(ImageQuality.high), 'https://a.example/high.jpg');
+    expect(url(ImageQuality.low), 'https://a.example/medium.jpg');
+    expect(url(ImageQuality.original), 'https://a.example/original.png');
+    final legacy = saved.toJson()..remove('cover');
+    expect(PoolBookmark.fromJson(legacy).cover, isNull);
+    expect(PoolBookmark.fromJson(legacy).groupIds, saved.groupIds);
+    expect(restored.toJson().keys, isNot(contains('posts')));
+  });
+
   test(
     'future source engine identity survives a stored reference round trip',
     () {
@@ -35,40 +77,6 @@ void main() {
     expect(visible.entries, [pool, b]);
     expect(visible.postIndices, {b.key: 0});
   });
-
-  test(
-    'collection metadata and different profile scopes cannot project a Series',
-    () {
-      final entries = [
-        BookmarkPostEntry(testPoolPost(1)),
-        BookmarkPostEntry(testPoolPost(2)),
-      ];
-      final collection = testPool(category: BookmarkedPoolCategory.collection);
-      expect(
-        projectBookmarkSeries(entries, {
-          for (final e in entries)
-            e.key: BookmarkSeriesMembership(
-              scope: 'same',
-              pools: {10: collection},
-            ),
-        }),
-        hasLength(2),
-      );
-      expect(
-        projectBookmarkSeries(entries, {
-          entries[0].key: BookmarkSeriesMembership(
-            scope: 'a',
-            pools: {10: testPool()},
-          ),
-          entries[1].key: BookmarkSeriesMembership(
-            scope: 'b',
-            pools: {10: testPool()},
-          ),
-        }),
-        hasLength(2),
-      );
-    },
-  );
 
   BookmarkLibraryState library(
     List<PoolBookmark> pools, {
@@ -203,64 +211,4 @@ void main() {
     expect(order(BookmarkSortType.newestUpload), [10, 11, 12]);
     expect(order(BookmarkSortType.oldestUpload), [10, 11, 12]);
   });
-
-  test(
-    'projection keeps whole Series count and selection restores Post entries',
-    () {
-      final entries = [
-        for (var i = 1; i <= 3; i++) BookmarkPostEntry(testPoolPost(i)),
-        BookmarkPoolEntry(testPool()),
-      ];
-      final memberships = {
-        for (final entry in entries.whereType<BookmarkPostEntry>())
-          entry.key: BookmarkSeriesMembership(
-            scope: 'profile-a',
-            pools: {10: testPool()},
-          ),
-      };
-      final projected = projectBookmarkSeries(entries, memberships);
-      expect(projected, hasLength(2));
-      expect(projected.first.series?.total, 20);
-      expect(projected.first.endIndex, 3);
-      expect(projected.last.entry, isA<BookmarkPoolEntry>());
-      final selecting = projectBookmarkSeries(
-        entries,
-        memberships,
-        enabled: false,
-      );
-      expect(selecting, hasLength(4));
-      expect(selecting.map((e) => e.firstIndex), [0, 1, 2, 3]);
-      expect(selecting.every((e) => e.series == null), isTrue);
-    },
-  );
-
-  test(
-    'deferred metadata freezes built entries and groups only unseen suffix',
-    () {
-      final entries = [
-        for (var i = 1; i <= 4; i++) BookmarkPostEntry(testPoolPost(i)),
-      ];
-      final initial = projectBookmarkSeries(entries, {});
-      final memberships = {
-        for (final entry in entries)
-          entry.key: BookmarkSeriesMembership(
-            scope: 'profile-a',
-            pools: {10: testPool()},
-          ),
-      };
-      final updated = updateUnseenBookmarkSeries(
-        entries: entries,
-        displayed: initial,
-        memberships: memberships,
-        frozenUntil: 2,
-      );
-      expect(updated, hasLength(3));
-      expect(identical(updated[0], initial[0]), isTrue);
-      expect(identical(updated[1], initial[1]), isTrue);
-      expect(updated.last.firstIndex, 2);
-      expect(updated.last.endIndex, 4);
-      expect(updated.last.series?.total, 20);
-      expect(projectBookmarkSeries(entries, memberships), hasLength(1));
-    },
-  );
 }

@@ -58,6 +58,7 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.safeArea = true,
     this.itemBuilder,
     this.body,
+    this.gridBuilder,
     this.header,
     this.bottomInset = 0,
     this.selectionScope,
@@ -75,6 +76,9 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final PostGridController<T> controller;
   final IndexedSelectableWidgetBuilder<T>? itemBuilder;
   final Widget? body;
+
+  /// Presentation projection only; item indices still refer to raw posts.
+  final Widget Function(BuildContext, IndexedWidgetBuilder)? gridBuilder;
   final Widget? header;
   final double bottomInset;
   final Object? selectionScope;
@@ -212,9 +216,13 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           ),
           body:
               widget.body ??
-              _SliverGrid(
-                postController: widget.controller,
-                itemBuilder: (context, index) => ValueListenableBuilder(
+              (widget.gridBuilder ??
+                  (context, itemBuilder) => PostGridSliver<T>(
+                    postController: widget.controller,
+                    itemBuilder: itemBuilder,
+                  ))(
+                context,
+                (context, index) => ValueListenableBuilder(
                   valueListenable: _disableHero,
                   builder: (_, disableHero, _) {
                     final customItem = widget.itemBuilder?.call(
@@ -666,15 +674,17 @@ class _BlacklistedTagsInterceptedNotice extends ConsumerWidget {
   }
 }
 
-class _SliverGrid<T extends Post> extends ConsumerWidget {
-  const _SliverGrid({
+class PostGridSliver<T extends Post> extends ConsumerWidget {
+  const PostGridSliver({
     required this.itemBuilder,
     required this.postController,
+    this.displayItemCount,
     super.key,
   });
 
   final IndexedWidgetBuilder itemBuilder;
   final PostGridController<T> postController;
+  final int? displayItemCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -716,6 +726,7 @@ class _SliverGrid<T extends Post> extends ConsumerWidget {
     return SliverPostGrid(
       itemBuilder: itemBuilder,
       postController: postController,
+      displayItemCount: displayItemCount,
       errorTranslator: appErrorTranslator,
       showRule34ChallengeRecovery: Uri.tryParse(auth.url)?.host == 'rule34.xxx',
       padding: EdgeInsets.symmetric(

@@ -1,3 +1,5 @@
+import '../types/pool_bookmark_cover.dart';
+
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -99,13 +101,12 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
             !(p.status?.matches('deleted') ?? false) &&
             !(p.status?.matches('banned') ?? false),
       );
-      final cover = visible.map((p) => p.thumbnailImageUrl).where((url) {
-        final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
-        return path.endsWith('.jpg') ||
-            path.endsWith('.jpeg') ||
-            path.endsWith('.png') ||
-            path.endsWith('.webp');
-      }).firstOrNull;
+      final coverPost = visible
+          .where((p) => PoolBookmarkCover.isStatic(p.thumbnailImageUrl))
+          .firstOrNull;
+      final cover = coverPost == null
+          ? null
+          : PoolBookmarkCover.fromPost(coverPost);
       final now = DateTime.now().toUtc();
       return PoolBookmark(
         localId: existing?.localId ?? const Uuid().v4(),
@@ -119,7 +120,8 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
         groupIds: existing?.groupIds ?? {defaultBookmarkGroupId},
         tags: index.tags,
         coverage: index.coverage,
-        coverUrl: cover,
+        coverUrl: cover?.thumbnail,
+        cover: cover,
         coverPolicy: poolCoverPolicy(config, blacklist),
         newestUpload: index.newestUpload,
         oldestUpload: index.oldestUpload,
@@ -158,3 +160,21 @@ BooruConfig? resolveBookmarkOriginProfile(
   ResolvedPostOrigin(:final config) => config,
   _ => null,
 };
+
+/// Upgrade fallback for records saved before cover variants were persisted.
+/// It is cached for the lifetime of this source-scoped library view.
+final legacyPoolBookmarkCoverProvider = FutureProvider.autoDispose
+    .family<PoolBookmarkCover?, (BooruConfig, PoolBookmark)>((
+      ref,
+      request,
+    ) async {
+      final (config, pool) = request;
+      final capability = ref.read(poolBookmarkCapabilityProvider(config));
+      if (capability == null) return null;
+      final remote = await capability.getBookmarkPool(config, pool.poolId);
+      if (remote == null) return null;
+      final draft = await ref.watch(
+        poolBookmarkDraftProvider((config, remote)).future,
+      );
+      return draft.cover;
+    });

@@ -1,3 +1,5 @@
+import '../../../posts/listing/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -205,9 +207,25 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
         pool.coverUrl != null &&
         pool.coverPolicy != null &&
         pool.coverPolicy == policy) {
+      final cover =
+          pool.cover ??
+          ref
+              .watch(legacyPoolBookmarkCoverProvider((profile, pool)))
+              .valueOrNull;
+      final media = cover == null
+          ? null
+          : ref
+                .watch(gridThumbnailUrlGeneratorProvider(profile.auth))
+                .resolve(
+                  cover.asPost(pool.origin),
+                  settings: ref.watch(
+                    gridThumbnailSettingsProvider(profile.auth),
+                  ),
+                );
       return BooruImage(
         config: profile.auth,
-        imageUrl: pool.coverUrl!,
+        imageUrl: media?.url ?? pool.coverUrl!,
+        placeholderUrl: pool.coverUrl,
         aspectRatio: .6,
         fit: BoxFit.cover,
         borderRadius: BorderRadius.circular(radius),

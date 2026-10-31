@@ -63,6 +63,7 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     super.key,
     this.extraHeaders,
     this.itemBuilder,
+    this.resultGridBuilder,
   });
 
   final SearchParams params;
@@ -84,6 +85,12 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   fetcher;
 
   final IndexedSelectableSearchWidgetBuilder<T>? itemBuilder;
+  final Widget Function(
+    BuildContext,
+    PostGridController<T>,
+    IndexedWidgetBuilder,
+  )?
+  resultGridBuilder;
 
   final Widget landingView;
 
@@ -411,6 +418,10 @@ class _SearchPageScaffoldState<T extends Post>
       child: SafeArea(
         bottom: false,
         child: PostGrid<T>(
+          gridBuilder: widget.resultGridBuilder == null
+              ? null
+              : (context, itemBuilder) =>
+                    widget.resultGridBuilder!(context, controller, itemBuilder),
           selectionModeController: _selectionModeController,
           scrollController: _scrollController,
           controller: controller,

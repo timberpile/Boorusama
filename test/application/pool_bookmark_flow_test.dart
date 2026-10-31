@@ -1,3 +1,13 @@
+import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/boorus/defaults/widgets.dart';
+import 'package:boorusama/boorus/danbooru/posts/search/widgets.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+import 'package:boorusama/boorus/danbooru/posts/search/src/widgets/search_series_grid.dart';
+import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -47,119 +57,67 @@ import 'support/headless_app_harness.dart';
 
 void main() {
   testWidgets(
-    'viewport admission resolves a later Series without scanning the library or moving its anchor',
+    'normal Search collapses confirmed Series and explicit pool Search stays expanded',
     (tester) async {
-      final setup = await _mount(
-        tester,
-        seedPosts: true,
-        seedPostCount: 90,
-        seriesMembers: [114, 113],
-      );
+      final setup = await _mount(tester, realSearch: true);
       final harness = setup.harness;
-      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
-      List<RequestOptions> memberships() =>
-          setup.adapter.requests.where((r) => r.path == '/pools.json').toList();
-      List<int> requested(RequestOptions call) =>
-          (call.queryParameters['search[post_ids_include_any]'] as String)
-              .split(' ')
-              .map(int.parse)
-              .toList();
-      await harness.pumpUntil(tester, () => memberships().isNotEmpty);
-      expect(requested(memberships().first), hasLength(40));
-      expect(requested(memberships().first), isNot(contains(114)));
-      final gridFinder = find.descendant(
-        of: find.byType(BookmarkScrollView),
-        matching: find.byType(PostGrid<Post>),
+      harness.booruBackend.enqueuePosts(
+        page: 1,
+        query: 'malberrybush',
+        posts: harness.booruBackend.posts,
       );
-      final grid = tester.widget<PostGrid<Post>>(gridFinder);
-      final scroller = grid.scrollController!;
-      expect(memberships(), hasLength(1));
-      for (
-        var step = 0;
-        step < 20 &&
-            !memberships().any((call) => requested(call).contains(114));
-        step++
-      ) {
-        scroller.jumpTo(
-          (scroller.offset + 350).clamp(0, scroller.position.maxScrollExtent),
-        );
-        await harness.settle(tester);
-      }
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('malberrybush');
+      final seriesGrid = find.byType(SearchSeriesGrid);
+      await harness.pumpUntilFound(tester, seriesGrid);
+      final card = find.descendant(
+        of: seriesGrid,
+        matching: find.byType(PoolGridItem),
+      );
+      await harness.pumpUntilFound(tester, card);
+      expect(tester.widget<PoolGridItem>(card).total, 20);
+      expect(tester.widget<PoolGridItem>(card).category, 'Series');
+      final grid = tester.widget<SearchSeriesGrid>(seriesGrid);
+      expect(grid.controller.items.map((p) => p.id), [101, 102]);
       expect(
-        memberships().any((call) => requested(call).contains(114)),
-        isTrue,
+        setup.adapter.requests.where((r) => r.path == '/pools.json'),
+        hasLength(1),
       );
-      expect(memberships().length, lessThan(10));
-      for (final request in memberships()) {
-        expect(requested(request).length, lessThanOrEqualTo(40));
-      }
-      final anchor = scroller.offset;
+      final selection = SelectionMode.of(tester.element(card));
+      await tester.longPress(card);
       await harness.settle(tester);
-      expect(scroller.offset, anchor);
-      // Reveal the prefetched suffix; already built cards must retain anchors.
-      for (
-        var step = 0;
-        step < 20 &&
-            find
-                .byWidgetPredicate(
-                  (widget) => widget is BookmarkPoolCard && widget.projected,
-                )
-                .evaluate()
-                .isEmpty;
-        step++
-      ) {
-        scroller.jumpTo(
-          (scroller.offset + 250).clamp(0, scroller.position.maxScrollExtent),
-        );
-        await harness.settle(tester);
-      }
-      expect(
-        find.byWidgetPredicate(
-          (widget) => widget is BookmarkPoolCard && widget.projected,
-        ),
-        findsOneWidget,
-      );
-      expect(grid.controller.items, hasLength(90));
-      final selection = SelectionMode.of(
-        tester.element(find.byType(BookmarkPoolCard).first),
-      );
-      selection.enable();
+      expect(card, findsNothing);
+      expect(grid.controller.items, hasLength(2));
+      selection.disable();
       await harness.settle(tester);
+      expect(card, findsOneWidget);
+      await tester.tap(card);
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailPage));
       expect(
-        find.byWidgetPredicate(
-          (widget) => widget is BookmarkPoolCard && widget.projected,
+        find.descendant(
+          of: find.byType(PoolDetailPage),
+          matching: find.byType(SearchSeriesGrid),
         ),
         findsNothing,
       );
-      expect(grid.controller.items, hasLength(90));
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets(
-    'late Series metadata cannot project into a newly filtered grid',
-    (tester) async {
-      final setup = await _mount(tester, seedPosts: true, holdSeries: true);
-      final harness = setup.harness;
-      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
-      await harness.pumpUntil(
-        tester,
-        () => setup.adapter.membershipRequested.isCompleted,
-      );
-      final field = find
-          .descendant(
-            of: find.byType(BookmarkSearchBar),
-            matching: find.byType(TextField),
-          )
-          .first;
-      await tester.enterText(field, 'absent_tag');
-      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pageBack();
       await harness.settle(tester);
-      setup.adapter.seriesGate!.complete();
+      expect(card, findsOneWidget);
+      expect(
+        tester.widget<SearchSeriesGrid>(seriesGrid).controller.items,
+        hasLength(2),
+      );
+      await driver.clearSelectedSearchTags();
+      await driver.submitSearch('pool:10');
       await harness.settle(tester);
       expect(
-        find.byWidgetPredicate((w) => w is BookmarkPoolCard && w.projected),
+        find.descendant(of: seriesGrid, matching: find.byType(PoolGridItem)),
         findsNothing,
+      );
+      expect(
+        tester.widget<SearchSeriesGrid>(seriesGrid).controller.items,
+        hasLength(2),
       );
       expect(
         setup.adapter.requests.where((r) => r.path == '/pools.json'),
@@ -168,6 +126,152 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'normal Search admits bounded later metadata without moving the visible anchor',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        realSearch: true,
+        seriesMembers: [114, 113],
+      );
+      final harness = setup.harness;
+      final config = harness.booruBackend.config;
+      final posts = [
+        for (var id = 190; id >= 101; id--)
+          testPoolPost(id).post.copyWith(origin: postOriginFromConfig(config)),
+      ];
+      harness.booruBackend.enqueuePosts(page: 1, query: 'cat', posts: posts);
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('cat');
+      final series = find.byType(SearchSeriesGrid);
+      await harness.pumpUntilFound(tester, series);
+      final grid = tester.widget<PostGrid<Post>>(
+        find.ancestor(of: series, matching: find.byType(PostGrid<Post>)),
+      );
+      final scroll = grid.scrollController!;
+      final card = find.descendant(
+        of: series,
+        matching: find.byType(PoolGridItem),
+      );
+      for (var step = 0; step < 30 && card.evaluate().isEmpty; step++) {
+        scroll.jumpTo(
+          (scroll.offset + 250).clamp(0, scroll.position.maxScrollExtent),
+        );
+        await harness.settle(tester);
+      }
+      expect(card, findsOneWidget);
+      expect(grid.controller.items, hasLength(90));
+      final offset = scroll.offset;
+      await harness.settle(tester);
+      expect(scroll.offset, offset);
+      final requests = setup.adapter.requests
+          .where((r) => r.path == '/pools.json')
+          .toList();
+      expect(requests.length, lessThan(10));
+      for (final request in requests) {
+        expect(
+          (request.queryParameters['search[post_ids_include_any]'] as String)
+              .split(' ')
+              .length,
+          lessThanOrEqualTo(40),
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'an existing persisted cover resolves High and changes quality without changing the reference',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        seedReference: true,
+        legacyCover: true,
+      );
+      final harness = setup.harness;
+      final library = await harness.pumpUntilComplete(
+        tester,
+        setup.container.read(bookmarkProvider.future),
+      );
+      final saved = library.pools.single;
+      expect(saved.cover, isNull);
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      final notifier = setup.container.read(settingsNotifierProvider.notifier);
+      Future<void> quality(ImageQuality value) => harness.pumpUntilComplete(
+        tester,
+        notifier.updateWith(
+          (settings) => settings.copyWith(
+            listing: settings.listing.copyWith(imageQuality: value),
+          ),
+        ),
+      );
+      final image = find.descendant(
+        of: find.byType(BookmarkPoolCoverImage),
+        matching: find.byType(BooruImage),
+      );
+      await quality(ImageQuality.high);
+      await harness.pumpUntil(
+        tester,
+        () =>
+            image.evaluate().length == 1 &&
+            tester.widget<BooruImage>(image).imageUrl ==
+                harness.booruBackend.posts.first.sampleImageUrl,
+      );
+      expect(
+        tester.widget<BooruImage>(image).config,
+        harness.booruBackend.config.auth,
+      );
+      final calls = harness.booruBackend.requests.length;
+      await quality(ImageQuality.low);
+      await harness.settle(tester);
+      expect(
+        tester.widget<BooruImage>(image).imageUrl,
+        harness.booruBackend.posts.first.thumbnailImageUrl,
+      );
+      await quality(ImageQuality.high);
+      await harness.settle(tester);
+      expect(
+        tester.widget<BooruImage>(image).imageUrl,
+        harness.booruBackend.posts.first.sampleImageUrl,
+      );
+      expect(harness.booruBackend.requests.length, calls);
+      expect(
+        setup.container.read(bookmarkProvider).requireValue.pools.single,
+        saved,
+      );
+      expect(setup.posts.bookmarks, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('individual Bookmarks never request Series grouping metadata', (
+    tester,
+  ) async {
+    final setup = await _mount(tester, seedPosts: true, seedPostCount: 90);
+    final harness = setup.harness;
+    await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+    await harness.settle(tester);
+    final grid = tester.widget<PostGrid<Post>>(
+      find.descendant(
+        of: find.byType(BookmarkScrollView),
+        matching: find.byType(PostGrid<Post>),
+      ),
+    );
+    expect(grid.controller.items, hasLength(90));
+    expect(find.byType(BookmarkPoolCard), findsNothing);
+    grid.scrollController!.jumpTo(1200);
+    await harness.settle(tester);
+    await harness.pumpUntilComplete(tester, grid.controller.refresh());
+    expect(grid.controller.items, hasLength(90));
+    expect(
+      setup.adapter.requests.where((r) => r.path == '/pools.json'),
+      isEmpty,
+    );
+    expect(find.byType(BookmarkPoolCard), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('re-adding a Pool supersedes an older removal Undo', (
     tester,
@@ -209,47 +313,6 @@ void main() {
     expect(current.groupIds, {poolGroupA});
     expect(setup.posts.bookmarks, isEmpty);
   });
-
-  testWidgets(
-    'rapid refreshes coalesce an active Series lookup and reuse its scoped result',
-    (tester) async {
-      final setup = await _mount(tester, seedPosts: true, holdSeries: true);
-      final harness = setup.harness;
-      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
-      await harness.pumpUntil(
-        tester,
-        () => setup.adapter.membershipRequested.isCompleted,
-      );
-      final grid = tester.widget<PostGrid<Post>>(
-        find
-            .descendant(
-              of: find.byType(BookmarkScrollView),
-              matching: find.byType(PostGrid<Post>),
-            )
-            .first,
-      );
-      for (var i = 0; i < 3; i++) {
-        await harness.pumpUntilComplete(tester, grid.controller.refresh());
-      }
-      expect(
-        setup.adapter.requests.where((r) => r.path == '/pools.json'),
-        hasLength(1),
-      );
-      setup.adapter.seriesGate!.complete();
-      await harness.settle(tester);
-      await harness.pumpUntilComplete(tester, grid.controller.refresh());
-      await harness.pumpUntilFound(
-        tester,
-        find.byWidgetPredicate((w) => w is BookmarkPoolCard && w.projected),
-      );
-      expect(
-        setup.adapter.requests.where((r) => r.path == '/pools.json'),
-        hasLength(1),
-      );
-      expect(grid.controller.items, hasLength(3));
-      expect(tester.takeException(), isNull);
-    },
-  );
 
   testWidgets(
     'bounded indexing can finish across frames before saving one reference',
@@ -476,18 +539,12 @@ void main() {
   );
 
   testWidgets(
-    'wired Series projection expands Posts for selection and preserves an explicit reference',
+    'individual Posts and an explicit Series remain independent selectable Bookmarks',
     (tester) async {
       final setup = await _mount(tester, seedReference: true, seedPosts: true);
       final harness = setup.harness;
       await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
       await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
-      await harness.pumpUntil(
-        tester,
-        () => setup.adapter.membershipRequested.isCompleted,
-        description: 'bounded Series metadata request',
-      );
-      await harness.settle(tester);
       final grid = tester.widget<PostGrid<Post>>(
         find
             .descendant(
@@ -498,15 +555,14 @@ void main() {
       );
       await harness.pumpUntilComplete(tester, grid.controller.refresh());
       await harness.settle(tester);
-      final projected = find.byWidgetPredicate(
-        (w) => w is BookmarkPoolCard && w.projected,
-      );
-      await harness.pumpUntilFound(tester, projected);
-      expect(find.byType(BookmarkPoolCard), findsNWidgets(2));
-      expect(grid.controller.items, hasLength(3));
-      await tester.longPress(projected);
-      await harness.settle(tester);
       expect(find.byType(BookmarkPoolCard), findsOneWidget);
+      expect(grid.controller.items, hasLength(3));
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/pools.json'),
+        isEmpty,
+      );
+      await tester.longPress(find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
       final selection = SelectionMode.of(
         tester.element(find.byType(BookmarkPoolCard)),
       );
@@ -580,7 +636,9 @@ Future<
 _mount(
   WidgetTester tester, {
   bool initialOtherProfile = false,
+  bool realSearch = false,
   bool seedReference = false,
+  bool legacyCover = false,
   bool seedPosts = false,
   bool holdIndex = false,
   bool holdSeries = false,
@@ -620,7 +678,15 @@ _mount(
   await groups.createGroup('Pool target', id: poolGroupA);
   if (seedReference)
     await groups.writePoolBookmarks([
-      testPool().copyWith(origin: postOriginFromConfig(backend.config)),
+      PoolBookmark.fromJson({
+        ...testPool()
+            .copyWith(origin: postOriginFromConfig(backend.config))
+            .toJson(),
+        if (legacyCover) ...{
+          'coverUrl': backend.posts.first.thumbnailImageUrl,
+          'coverPolicy': poolCoverPolicy(backend.config, {}),
+        },
+      }),
     ]);
   if (seedPosts) {
     final bookmarks = [
@@ -654,6 +720,10 @@ _mount(
     booruBackend: backend,
     phone: TestPhone.smallPortrait,
     additionalOverrides: [
+      if (realSearch)
+        booruBuilderProvider.overrideWith(
+          (ref, auth) => _SeriesSearchBuilder(),
+        ),
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),
       bookmarkGroupRepoProvider.overrideWith((_) async => groups),
@@ -747,4 +817,10 @@ Future<void> _drainNotifications(WidgetTester tester) async {
   dismissAllToast(showAnim: false);
   // Drain notification lifetimes using the widget's controlled clock.
   await tester.pump(const Duration(seconds: 6));
+}
+
+class _SeriesSearchBuilder extends BaseBooruBuilder {
+  @override
+  SearchPageBuilder get searchPageBuilder =>
+      (context, params) => DanbooruSearchPage(params: params);
 }

@@ -1,113 +1,62 @@
 # Neighboring Series and Pool Bookmarks — Current Scope
 
-Issue: [#68 — Bookmark Pools and Series](https://github.com/timberpile/Boorusama/issues/68).
+Issue: [#68](https://github.com/timberpile/Boorusama/issues/68).
 Branch: `feature/group-neighboring-series`.
-Reconciled during the 2026-10-24 branch review.
+Accepted scope corrected on 2026-10-31; earlier acceptance reports describe
+superseded candidates and do not verify the current source.
 
-## Status and authoritative decisions
+## Search grouping
 
-The reconciled feature is implemented and verified locally at runtime commit
-`54b633a9a`; see [acceptance evidence](../handoffs/continuation-2026-10-25-68.md).
-Develop integration and publication still require explicit approval. The current issue and the
-[2026-10-21 agreed scope](https://github.com/timberpile/Boorusama/blob/0d2cbfc6bd09c0d26789d24552ca496855791b53/docs/designs/2026-10-21-issues-and-pool-bookmarks.md#review-5-agreed-scope)
-supersede the earlier proposal in this file. The
-[historical proposal](https://github.com/timberpile/Boorusama/blob/03aa7860529ac1928e3e5874259870c9bc3a9646/docs/designs/2026-10-11-neighboring-series.md)
-is retained in Git history, not as implementation instructions.
+Group only actual adjacent runs of at least two posts with a confirmed common
+Series, scoped to the originating site, profile and authentication context.
+Normal Danbooru Search owns this display projection. Never reorder raw results,
+infer Series from artist/tags, group generic Collections, or replace controller
+posts with synthetic collection posts. The shared `groupNeighboringSeries`
+primitive preserves raw addressing and deterministic common-membership rules.
 
-In particular, do not carry forward its prohibition of saved Pool references,
-visible-run count badge, grouped selection model, or dedicated Bookmark All
-Posts action. Those conflict with the later explicit decisions.
+Use the existing Pool Gallery card with title, Series label and authoritative
+whole-Series count. Loaded-run length is not a remote total. Tapping opens the
+full Series under its source profile; returning preserves the underlying search.
+Direct Series views and explicit `pool:`/`series:` queries do not collapse again.
+Long-press enters selection over actual member posts; selecting all uses the raw
+controller list. Related grouping and its tap interaction remain OPEN.
 
-## Approved behavior
+Metadata admissions contain at most 40 posts, coalesce overlapping requests, and
+retain a bounded source/account-scoped cache. The first admission completes
+before posts are delivered. Later viewport admissions may group only unseen
+entries; built entries and anchors remain stable. Metadata failures keep ordinary
+posts visible. Raw pagination retains its existing ownership/exhaustion rules;
+collapsing posts must not initiate an unbounded remote fill.
 
-Save explicit Pool/Series references alongside individual Post bookmarks in the
-same Bookmark Group. Reuse existing group selection/membership conventions and
-add a visible Bookmark button to Pool and Series detail views. Do not introduce
-separate type tabs or a separate collection browser.
+## Bookmarks and covers
 
-Reuse the existing Pool Gallery card, including title, cover, category and
-**whole-Pool member count**. Tapping opens the full collection using its source
-profile. A projected run of three saved Posts from a twenty-post Series is a
-normal Series card with count 20, not a claim that twenty Posts are bookmarked.
+Keep individual bookmarked Posts separate and perform no automatic membership
+lookup in Bookmarks. Explicit Pool/Series references remain independent cards in
+the same Bookmark Groups. Preserve group memberships, removal/Undo, downloaded
+files, individual Posts, and compatible backups/imports. A reference never implies
+that its remote members are bookmarked or selected.
 
-Persist a reference and bounded aggregate metadata, not member snapshots or a
-durable membership list. Keep source identity, group membership, edits and
-export/import compatible with existing data; never export credentials. Removing
-a reference must not remove separately saved member Posts or downloaded files.
-There is no dedicated Bookmark Posts action or hidden full-pool scan. Existing
-in-pool selection retains its loaded-post scope.
+Persist compact reference metadata and bounded tag coverage/upload extrema,
+never a complete member snapshot database. The existing bounded summary indexer
+and cached-tag filtering rules remain applicable; partial tag unions cannot prove
+absence in all remote members. Unknown upload extrema remain unknown.
 
-Automatically group only adjacent Posts with confirmed common **Series**
-membership, never arbitrary Collection pools. An explicit Pool reference and
-individually saved Posts may coexist; a visual projection must not create a
-stored reference implicitly.
+Persist only one selected static cover's thumbnail, sample, original and media
+variants. Resolve it with the source's existing listing quality provider and
+headers. Existing records lacking variants use the same bounded summary path as
+a fallback without rewriting their identity or memberships. Preserve visibility
+policy, blacklist/rating restrictions, and missing-profile isolation. Quality
+changes do not change ordinary bookmarked Post thumbnail behavior.
 
-**Selection mode disables visual grouping.** Restore projected runs to their
-original Posts before resolving selection indices, counts and bulk operations.
-An explicitly saved Pool remains one independent selectable reference and never
-expands into an implicit selection of remote members.
+## Verification
 
-## Bounded summaries, filtering and sorting
+Verify actual Search routing, confirmed type/count, adjacent/separated/overlapping
+runs, selection, pagination, delayed metadata and stable anchors. Exercise the
+live `malberrybush` search and record current data rather than assuming a Pool ID
+or count. Keep individually saved Series members separate in Bookmarks. Cover
+checks include old records, quality changes after persistence, mixed references
+and Posts, source/account isolation, removal/Undo and backup round trips.
 
-Use a fixed request/member budget and existing metadata to obtain cached
-identity/title/cover/category/count, aggregate tags, coverage and observation
-time, plus optional oldest/newest member upload dates. Process small collections
-within budget; sample large ones without crawling to completion. Transient API
-responses may contain members, but persisted summaries must not retain them.
-
-Filter every Pool against its stored tag union, even when coverage is partial
-or unknown. Required tags must be present and excluded tags must be absent.
-Do not retain a nonmatching Pool because unindexed members might match, and do
-not fetch while filtering. With no tag constraints, unindexed references remain
-browsable. Document that matches concern indexed tags and that required tags
-can occur in different members; incomplete coverage can miss remote matches
-and cannot prove an excluded tag absent from every remote member. Aggregate
-filtering never replaces per-post blacklist, rating or authorization checks.
-
-Newest Uploads uses newest member upload descending; Oldest Uploads uses oldest
-member upload ascending. A known-newest fallback is permitted when obtaining
-oldest is not practical. Retain unknown when no legitimate date is available;
-Pool creation/update time and narrative member order are not upload extrema.
-Use bounded verified queries or already processed members, not per-card calls
-on rebuild/sort. Cache only the resulting summary and respect source access.
-
-## Retained grouping primitive
-
-`groupNeighboringSeries` in
-`lib/core/posts/listing/src/types/neighboring_series.dart` remains a compatible
-presentation primitive. It accepts an already filtered, ordered Post list and
-confirmed Series IDs scoped by normalized site, profile and auth context.
-Unknown membership/origin stays ungrouped. It uses the longest common-Series
-prefix with smallest-ID tie breaking, so `A, A+B, B` is not one three-post run.
-It never reorders or drops Posts, and `firstIndex` retains source addressing.
-
-`entry.posts.length` is the run's source-post count, **not** the card's total
-Series count. Obtain the latter from confirmed Pool metadata. Pass
-`enabled: false` in selection mode. Keep the original Post list as controller
-truth; the projection does not resolve metadata, persist bookmarks, paginate,
-manage selection, or preserve scroll anchors by itself.
-
-Integrate at the display-entry boundary rather than hiding duplicate grid
-items. Preserve filtering, source indices, raw-post pagination, viewer routing,
-range selection and scroll restoration. Bound metadata work outside widget
-builds, coalesce requests by source identity, and reject obsolete results.
-Freeze already displayed entries during deferred resolution rather than making
-visible tiles jump. Extending a tail run on append must preserve its anchor;
-numbered pages remain independent. Bound underfilled-viewport auto-fetching.
-
-## Implementation and review
-
-The primitive is wired into the Bookmark grid alongside typed Pool references,
-bounded metadata indexing, source-aware navigation, persistence and backup/import.
-Tests cover adjacency and source boundaries as well as real application saving,
-selection, removal/Undo, strict indexed-tag filtering and deferred viewport
-admission. The earlier helper-only static review is historical; current executed
-checks and limits belong in the branch handoffs rather than this design.
-
-Read current `AGENTS.md`, Issue #68 and `docs/post_architecture.md` before further
-changes or integration. Preserve the site-global reference identity and strict
-origin-profile reopening policy until a different account identity/migration
-policy is explicitly agreed. Combining local score sorting or selection-action
-changes requires testing the resulting mixed Post/Pool candidate. Full
-final-candidate regression remains required before separately authorized
-integration into develop.
+The local rebase onto develop is required; publication and integration are not
+authorized by the review follow-up. Record exact commits and current-source
+evidence in the branch handoff. Related interaction remains pending separately.

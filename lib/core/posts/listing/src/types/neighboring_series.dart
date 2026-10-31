@@ -9,6 +9,11 @@ class NeighboringSeriesEntry<T> {
     required this.seriesId,
   }) : posts = List.unmodifiable(posts);
 
+  NeighboringSeriesEntry.offset(NeighboringSeriesEntry<T> entry, int offset)
+    : firstIndex = entry.firstIndex + offset,
+      posts = entry.posts,
+      seriesId = entry.seriesId;
+
   final int firstIndex;
   final List<T> posts;
   final int? seriesId;

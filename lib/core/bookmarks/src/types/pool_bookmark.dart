@@ -1,3 +1,5 @@
+import 'pool_bookmark_cover.dart';
+
 import 'package:equatable/equatable.dart';
 
 import '../../../posts/post/types.dart';
@@ -23,6 +25,7 @@ final class PoolBookmark extends Equatable {
     required this.coverage,
     this.total,
     this.coverUrl,
+    this.cover,
     this.coverPolicy,
     this.newestUpload,
     this.oldestUpload,
@@ -53,6 +56,7 @@ final class PoolBookmark extends Equatable {
   final PoolTagCoverage coverage;
   final int? total;
   final String? coverUrl;
+  final PoolBookmarkCover? cover;
 
   /// Digest of non-secret visibility settings and effective blacklist.
   final String? coverPolicy;
@@ -67,6 +71,7 @@ final class PoolBookmark extends Equatable {
     PostOrigin? origin,
     String? localId,
     Set<String>? groupIds,
+    PoolBookmarkCover? cover,
   }) => PoolBookmark(
     localId: localId ?? this.localId,
     origin: origin ?? this.origin,
@@ -81,6 +86,7 @@ final class PoolBookmark extends Equatable {
     coverage: coverage,
     total: total,
     coverUrl: coverUrl,
+    cover: cover ?? this.cover,
     coverPolicy: coverPolicy,
     newestUpload: newestUpload,
     oldestUpload: oldestUpload,
@@ -100,6 +106,7 @@ final class PoolBookmark extends Equatable {
     'coverage': coverage.name,
     'total': ?total,
     'coverUrl': ?coverUrl,
+    'cover': ?cover?.toJson(),
     'coverPolicy': ?coverPolicy,
     'newestUpload': ?newestUpload?.toIso8601String(),
     'oldestUpload': ?oldestUpload?.toIso8601String(),
@@ -133,6 +140,12 @@ final class PoolBookmark extends Equatable {
       coverage: PoolTagCoverage.values.byName(json['coverage'] as String),
       total: json['total'] as int?,
       coverUrl: json['coverUrl'] as String?,
+      cover: switch (json['cover']) {
+        final Map value => PoolBookmarkCover.fromJson(
+          Map<String, dynamic>.from(value),
+        ),
+        _ => null,
+      },
       coverPolicy: json['coverPolicy'] as String?,
       newestUpload: switch (json['newestUpload']) {
         final String value => DateTime.parse(value),
@@ -160,6 +173,7 @@ final class PoolBookmark extends Equatable {
     coverage,
     total,
     coverUrl,
+    cover,
     coverPolicy,
     newestUpload,
     oldestUpload,

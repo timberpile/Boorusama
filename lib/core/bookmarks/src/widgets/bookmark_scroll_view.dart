@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:collection/collection.dart';
 
 import '../../../selection/ordered_selection_controller.dart';
@@ -23,15 +21,9 @@ import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/listing/src/_internal/sliver_post_grid.dart';
-import '../../../posts/filter/types.dart';
-import '../../../posts/post/providers.dart';
 import '../../../errors/providers.dart';
-import '../../../blacklists/providers.dart';
 import '../../../settings/providers.dart';
 import '../types/bookmark_grid_entry.dart';
-import '../types/pool_bookmark.dart';
-import '../types/pool_bookmark_capability.dart';
-import '../providers/pool_bookmark_provider.dart';
 import '../services/bookmark_series_projection.dart';
 import 'bookmark_pool_card.dart';
 import '../../../posts/listing/widgets.dart';
@@ -76,19 +68,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   var _refreshScheduled = false;
   List<BookmarkGridEntry> _fetchedEntries = const [];
   List<BookmarkGridEntry> _entries = const [];
-  var _needsSeriesWarm = false;
-  var _seriesAdmissionEnabled = false;
-  final _admittedSeriesWindows = <int>{};
-  (int, int)? _pendingSeriesWindow;
-  var _seriesWindowScheduled = false;
-  List<BookmarkDisplayEntry> _displayEntries = const [];
   Map<Object, int> _rawPostIndices = const {};
-  final _seriesCache =
-      <(Object, String, BooruConfigAuth), BookmarkSeriesMembership>{};
-  var _projectionGeneration = 0;
-  var _frozenUntil = 0;
-  var _seriesWarmInFlight = false;
-  (List<BookmarkGridEntry>, int, int)? _queuedSeriesWarm;
 
   late String _selectionQuery = widget.searchController.text;
   @override
@@ -183,17 +163,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     in entries.whereType<BookmarkPostEntry>().indexed)
                   entry.key: i,
               };
-              _displayEntries = projectBookmarkSeries(
-                entries,
-                _seriesMemberships(entries),
-              );
-              _frozenUntil = 0;
-              _projectionGeneration++;
-              _needsSeriesWarm = searchTags.isEmpty && selectedBooruUrl == null;
-              _seriesAdmissionEnabled = _needsSeriesWarm;
-              _admittedSeriesWindows
-                ..clear()
-                ..add(0);
             }
             return page == 1
                 ? PostResult(
@@ -208,8 +177,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
         builder: (context, ref, child) {
           ref
             ..listen(booruConfigProvider, (_, _) {
-              _projectionGeneration++;
-              _seriesCache.clear();
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) controller.refresh();
               });
@@ -377,23 +344,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       visible.entries,
     )) {
       _entries = visible.entries;
-      _displayEntries = projectBookmarkSeries(
-        _entries,
-        _seriesMemberships(_entries),
-      );
-      _frozenUntil = 0;
-      _projectionGeneration++;
     }
     _rawPostIndices = visible.postIndices;
-    if (_needsSeriesWarm) {
-      _needsSeriesWarm = false;
-      final entries = _entries;
-      final generation = _projectionGeneration;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && generation == _projectionGeneration)
-          unawaited(_warmSeries(entries, generation));
-      });
-    }
     return _entries.map((e) => e.key).toList();
   }
 
@@ -402,204 +354,15 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       if (_selectionModeController.selectedKeys.contains(entry.key)) entry.pool,
   ];
 
-  Map<Object, BookmarkSeriesMembership> _seriesMemberships(
-    List<BookmarkGridEntry> entries,
-  ) {
-    final configs = ref.read(booruConfigProvider);
-    return {
-      for (final entry in entries.whereType<BookmarkPostEntry>())
-        if (resolveBookmarkOriginProfile(entry.bookmark.post.origin, configs)
-            case final config?)
-          if (_validSeriesCache(entry.key, config) case final membership?)
-            entry.key: membership,
-    };
-  }
-
-  BookmarkSeriesMembership? _validSeriesCache(Object key, BooruConfig config) {
-    final cached = _seriesCache[(key, config.id, config.auth)];
-    final observed = cached?.observedAt;
-    return observed != null &&
-            DateTime.now().toUtc().difference(observed) <
-                const Duration(minutes: 10)
-        ? cached
-        : null;
-  }
-
-  Future<void> _warmSeries(
-    List<BookmarkGridEntry> entries,
-    int generation, {
-    int start = 0,
-  }) async {
-    if (!mounted ||
-        generation != _projectionGeneration ||
-        !_seriesAdmissionEnabled)
-      return;
-    if (_seriesWarmInFlight) {
-      _queuedSeriesWarm = (entries, generation, start);
-      return;
-    }
-    _seriesWarmInFlight = true;
-    _admittedSeriesWindows.add(
-      start ~/ (PoolBookmarkCapability.membershipBudget ~/ 2),
-    );
-    try {
-      final configs = ref.read(booruConfigProvider);
-      final batches = <BooruConfig, List<BookmarkPostEntry>>{};
-      for (final entry
-          in entries
-              .skip(start)
-              .whereType<BookmarkPostEntry>()
-              .take(
-                PoolBookmarkCapability.membershipBudget,
-              )) {
-        final config = resolveBookmarkOriginProfile(
-          entry.bookmark.post.origin,
-          configs,
-        );
-        if (config != null) {
-          if (_validSeriesCache(entry.key, config) != null) continue;
-          if (!batches.containsKey(config) && batches.length >= 4) continue;
-          (batches[config] ??= []).add(entry);
-        }
-      }
-      final requests = [
-        for (final batch in batches.entries)
-          if (ref.read(poolBookmarkCapabilityProvider(batch.key))
-              case final capability?)
-            (
-              config: batch.key,
-              posts: batch.value,
-              capability: capability,
-              blacklist: ref.read(
-                blacklistTagsProvider(batch.key.filter).future,
-              ),
-            ),
-      ];
-      if (requests.isEmpty && _seriesMemberships(entries).isEmpty) return;
-      await Future.wait(
-        requests.map((request) async {
-          try {
-            final metadata = await request.capability.getBookmarkSeries(
-              request.config,
-              request.posts.map((e) => e.bookmark.post).toList(),
-            );
-            final blacklist = await request.blacklist;
-            if (!mounted ||
-                !ref.read(booruConfigProvider).contains(request.config))
-              return;
-            final policy = poolCoverPolicy(request.config, blacklist);
-            final now = DateTime.now().toUtc();
-            for (final entry in request.posts) {
-              final post = entry.bookmark.post;
-              final visible =
-                  poolCoverAllowsRating(request.config, post.rating) &&
-                  filterTags([post], blacklist).isNotEmpty &&
-                  !(post.status?.matches('deleted') ?? false) &&
-                  !(post.status?.matches('banned') ?? false);
-              final cover =
-                  visible &&
-                      RegExp(
-                        r'\.(jpe?g|png|webp)$',
-                        caseSensitive: false,
-                      ).hasMatch(
-                        Uri.tryParse(post.thumbnailImageUrl)?.path ?? '',
-                      )
-                  ? post.thumbnailImageUrl
-                  : null;
-              _seriesCache[(
-                entry.key,
-                request.config.id,
-                request.config.auth,
-              )] = BookmarkSeriesMembership(
-                scope: (request.config.id, request.config.auth),
-                observedAt: now,
-                pools: {
-                  for (final pool
-                      in metadata[post.id] ?? <RemoteBookmarkPool>[])
-                    if (pool.category == BookmarkedPoolCategory.series &&
-                        pool.id > 0)
-                      pool.id: PoolBookmark(
-                        localId:
-                            'projected:${post.origin.sourceHost}:${pool.id}',
-                        origin: postOriginFromConfig(request.config),
-                        poolId: pool.id,
-                        category: BookmarkedPoolCategory.series,
-                        title: pool.title,
-                        total: pool.total,
-                        createdAt: entry.savedAt,
-                        observedAt: now,
-                        groupIds: {},
-                        tags: {},
-                        coverage: PoolTagCoverage.unknown,
-                        coverUrl: cover,
-                        coverPolicy: policy,
-                      ),
-                },
-              );
-            }
-          } catch (_) {
-            // Failed or inaccessible metadata leaves individual Posts visible.
-          }
-        }),
-      );
-      if (!mounted || generation != _projectionGeneration) return;
-      while (_seriesCache.length > 512) {
-        _seriesCache.remove(_seriesCache.keys.first);
-      }
-      setState(() {
-        _displayEntries = updateUnseenBookmarkSeries(
-          entries: entries,
-          displayed: _displayEntries,
-          memberships: _seriesMemberships(entries),
-          frozenUntil: _frozenUntil,
-        );
-      });
-    } finally {
-      _seriesWarmInFlight = false;
-      final queued = _queuedSeriesWarm;
-      _queuedSeriesWarm = null;
-      if (mounted && queued != null && queued.$2 == _projectionGeneration) {
-        unawaited(_warmSeries(queued.$1, queued.$2, start: queued.$3));
-      }
-    }
-  }
-
-  void _admitSeriesNear(int rawEnd) {
-    if (!_seriesAdmissionEnabled) return;
-    final stride = PoolBookmarkCapability.membershipBudget ~/ 2;
-    final window = rawEnd ~/ stride;
-    if (_admittedSeriesWindows.contains(window)) return;
-    _pendingSeriesWindow = (window, _projectionGeneration);
-    if (_seriesWindowScheduled) return;
-    _seriesWindowScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _seriesWindowScheduled = false;
-      final pending = _pendingSeriesWindow;
-      _pendingSeriesWindow = null;
-      if (!mounted ||
-          pending == null ||
-          pending.$2 != _projectionGeneration ||
-          !_seriesAdmissionEnabled)
-        return;
-      // Coalesce the viewport's build/cache window. Each admission remains
-      // bounded and deferred metadata may alter only the unseen suffix.
-      unawaited(_warmSeries(_entries, pending.$2, start: pending.$1 * stride));
-    });
-  }
-
   Widget _mixedGrid(PostGridController<Post> controller) => ListenableBuilder(
     listenable: _selectionModeController,
     builder: (_, _) => ValueListenableBuilder(
       valueListenable: controller.itemsNotifier,
       builder: (context, posts, _) {
-        final selecting = _selectionModeController.isActive;
-        final display = selecting
-            ? projectBookmarkSeries(_entries, {}, enabled: false)
-            : _displayEntries;
         final settings = ref.watch(imageListingSettingsProvider);
         return SliverPostGrid<Post>(
           postController: controller,
-          displayItemCount: display.length,
+          displayItemCount: _entries.length,
           errorTranslator: ref.watch(
             appErrorTranslatorProvider(ref.watchConfigAuth),
           ),
@@ -609,27 +372,21 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           aspectRatio: settings.imageGridAspectRatio,
           borderRadius: BorderRadius.circular(settings.imageBorderRadius),
           itemBuilder: (context, index) {
-            final item = display[index];
-            if (!selecting && item.endIndex > _frozenUntil)
-              _frozenUntil = item.endIndex;
-            if (!selecting) _admitSeriesNear(item.endIndex);
-            final pool =
-                item.series ??
-                switch (item.entry) {
-                  BookmarkPoolEntry(:final pool) => pool,
-                  _ => null,
-                };
+            final item = _entries[index];
+            final pool = switch (item) {
+              BookmarkPoolEntry(:final pool) => pool,
+              _ => null,
+            };
             final Widget child = pool != null
                 ? BookmarkPoolCard(
                     pool: pool,
-                    index: item.firstIndex,
+                    index: index,
                     groupId: widget.view.groupId,
-                    projected: item.series != null,
                   )
                 : _buildItem(
-                    _rawPostIndices[item.entry.key]!,
+                    _rawPostIndices[item.key]!,
                     controller,
-                    selectionIndex: item.firstIndex,
+                    selectionIndex: index,
                   );
             return KeyedSubtree(key: ValueKey(item.key), child: child);
           },

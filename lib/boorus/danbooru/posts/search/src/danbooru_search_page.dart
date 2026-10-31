@@ -1,3 +1,9 @@
+import 'package:foundation/foundation.dart';
+
+import '../../../../../core/bookmarks/src/providers/pool_bookmark_provider.dart';
+import '../../../../../core/posts/post/types.dart';
+import 'widgets/search_series_grid.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
@@ -25,15 +31,42 @@ class DanbooruSearchPage extends ConsumerStatefulWidget {
 }
 
 class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
+  final _series = SearchSeriesIndex();
+
+  @override
+  void dispose() {
+    _series.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final config = ref.watchConfig;
     final postRepo = ref.watch(originAwarePostRepoProvider(config));
     final metatags = ref.watch(metatagsProvider).map((e) => e.name).join('|');
     final extractor = ref.watch(danbooruMetatagExtractorProvider(config.auth));
-    return SearchPageScaffold(
-      fetcher: (page, controller) =>
-          postRepo.getPostsFromController(controller.tagSet, page),
+    return SearchPageScaffold<Post>(
+      resultGridBuilder: (context, controller, itemBuilder) => SearchSeriesGrid(
+        controller: controller,
+        index: _series,
+        config: config,
+        query: InheritedSearchPageController.of(context).tagString.value,
+        itemBuilder: itemBuilder,
+      ),
+      fetcher: (page, controller) => TaskEither(() async {
+        final query = controller.rawTagsString;
+        final capability = ref.read(poolBookmarkCapabilityProvider(config));
+        final result = await postRepo
+            .getPostsFromController(controller.tagSet, page)
+            .run();
+        if (!isExplicitSeriesSearch(query) && capability != null) {
+          await result.fold(
+            (_) async {},
+            (posts) => _series.load(config, posts.posts, capability),
+          );
+        }
+        return result;
+      }),
       params: widget.params,
       textMatchers: [
         RegexMatcher(

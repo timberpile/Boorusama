@@ -47,16 +47,29 @@ A tag union is not a substitute for individual member rating, blacklist or acces
 - Do not treat Pool metadata creation/update time, narrative order, first/last member ID or first/last gallery position as an equivalent upload timestamp.
 - Cache timestamps. Sorting or building the Bookmark Grid must not cause an unbounded number of new requests. Handle inaccessible members and failed requests without inventing dates.
 
-## Series-only visual grouping
+## Series-only visual grouping (scope corrected 2026-10-31)
 
-The independent `feature/group-neighboring-series` work must be reconciled with these later decisions before implementation. Automatic visual grouping applies **only to confirmed Series**, not arbitrary Collection pools.
+Individual Post bookmarks remain separate. Do not resolve Series memberships or
+automatically collapse posts in Bookmarks. Explicit Pool/Series references remain
+independent selectable entries alongside individual Posts, with their existing
+membership, removal/Undo, backup and import behavior.
 
-- When two or more adjacent *visible, already bookmarked* Posts belong to the same verified Series and source identity, they may render as one ordinary Pool Gallery card.
-- Its badge displays the **whole remote Series member count**, not the number of posts in that visible run. Example: three saved posts from a 20-post Series render as `Series · 20`.
-- Tapping this projected card opens the full Series. It does **not** create a persisted Pool bookmark or imply that all 20 posts are bookmarked.
-- **Entering selection mode disables this visual grouping** and restores the original Post items in their actual filtered/sorted order. Selection, removal, download and bulk actions still operate on those individually saved Posts.
-- An explicitly bookmarked Pool/Series reference remains one selectable entry in selection mode. Its actions never implicitly select or modify remote member posts.
-- An explicit Pool reference and separately saved member Posts may coexist. Handle multiple membership candidates and missing Series metadata deterministically without hiding or modifying unrelated saved entries.
+Normal Danbooru Search groups adjacent runs of at least two Posts with confirmed
+common Series membership under the same source/profile/auth context. Reuse the
+Pool Gallery card and authoritative whole-Series count. Do not infer membership
+from artists, tags, Collection pools or parent/child links. Preserve raw posts,
+pagination and ordering. Entering selection exposes actual constituent Posts.
+An explicit Pool/Series search and the Series detail view do not regroup.
+Metadata work is bounded and coalesced; deferred metadata changes only unseen
+entries so built viewport anchors remain stable.
+
+Related grouping and its interaction remain OPEN. Inline expansion has not been
+approved and is not implemented by this correction.
+
+Cover metadata records only the selected static cover's media variants, allowing
+existing source-specific listing quality resolution. Older saved references use
+a bounded metadata fallback and keep their persisted identity and membership.
+Individual Post thumbnails are unchanged.
 
 ## Verification and known limits
 
