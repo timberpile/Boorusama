@@ -16,6 +16,7 @@ import '../../../../foundation/loggers.dart';
 import '../../../config_widgets/website_logo.dart';
 import '../../../../foundation/platform.dart';
 import '../../../configs/config/types.dart';
+import '../../../settings/types.dart';
 import '../../../ddos/handler/providers.dart';
 import '../../../http/client/providers.dart';
 import '../../../downloads/urls/providers.dart';
@@ -51,6 +52,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     required this.auth,
     required this.viewer,
     required this.imageCacheManager,
+    this.postQuality = PostQuality.high,
     this.shareAdapter,
     this.imageClipboardWriter,
     this.profileIconUrl,
@@ -59,6 +61,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     super.key,
   });
 
+  final PostQuality postQuality;
   final Post post;
   final BooruConfigAuth auth;
   final BooruConfigViewer viewer;
@@ -175,9 +178,12 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
-    final imageUrl = ref
-        .watch(mediaUrlResolverProvider(widget.auth))
-        .resolveMediaUrl(post, widget.viewer);
+    final imageUrl = resolveShareImageUrl(
+      post: post,
+      viewerImageUrl: ref
+          .watch(mediaUrlResolverProvider(widget.auth))
+          .resolveMediaUrl(post, widget.viewer),
+    );
     _beginImageMetadataLookup(imageUrl);
     final booruLink = ref
         .watch(postLinkGeneratorProvider(widget.auth))
@@ -189,6 +195,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     final extractor = ref.watch(downloadFileUrlExtractorProvider(widget.auth));
     final payloads = PostSharePayloads.build(
       isVideo: post.isVideo,
+      includeImage: widget.postQuality != PostQuality.original,
       canResolveExactOriginal: hasExactOriginalSource(post, extractor),
       canResolveExactVideo: hasExactVideoSource(post, extractor),
       viewerImageUrl: imageUrl,
@@ -630,6 +637,18 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         );
         checkShareCancellation(token);
         if (!mounted) return;
+        // Preparation commits cache bytes before returning. Reuse them without
+        // delaying the native handoff or fetching media just for the subtitle.
+        if (payload.id == SharePayloadId.image &&
+            request.url == _imageMetadataUrl) {
+          unawaited(
+            _loadCachedImageDescription(
+              request.url,
+              widget.imageCacheManager,
+              _imageMetadataRevision,
+            ),
+          );
+        }
         if (share) {
           _progressVisibilityTimer?.cancel();
           _progressVisibilityTimer = null;

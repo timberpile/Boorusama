@@ -8,6 +8,7 @@ import 'package:kurumi/material.dart';
 import '../../../../foundation/display.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../settings/providers.dart';
 import '../../../downloads/filename/types.dart';
 import '../../post/types.dart';
 import '../../links/boorusama_post_link.dart';
@@ -74,6 +75,7 @@ class ShareService {
       profileIconUrl: profileIconUrl,
       profileName: profileName,
       viewer: configViewer,
+      postQuality: ref.read(postQualityProvider(config)),
       imageCacheManager: imageCacheManager,
     );
 

@@ -7,6 +7,29 @@ import 'share_media_preparation.dart';
 import 'share_payloads.dart';
 import 'share_resolution_control.dart';
 
+/// Sharing a display image must not require opening or hydrating the viewer.
+/// These fallbacks never supply the separate exact-original/video actions.
+String resolveShareImageUrl({
+  required Post post,
+  required String viewerImageUrl,
+}) {
+  final candidates = [
+    viewerImageUrl,
+    if (!post.isVideo) ...[
+      post.sampleImageUrl,
+      post.originalImageUrl,
+      post.thumbnailImageUrl,
+    ],
+  ];
+  for (final candidate in candidates) {
+    final url = _webUrl(candidate);
+    if (url != null && !_videoExtensions.contains(_urlExtension(url))) {
+      return url;
+    }
+  }
+  return '';
+}
+
 bool hasExactOriginalSource(
   Post post,
   DownloadFileUrlExtractor extractor,

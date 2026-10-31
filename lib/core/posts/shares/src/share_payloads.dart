@@ -40,6 +40,7 @@ final class PostSharePayloads {
 
   factory PostSharePayloads.build({
     required bool isVideo,
+    bool includeImage = true,
     bool canResolveExactOriginal = false,
     bool canResolveExactVideo = false,
     required String viewerImageUrl,
@@ -64,12 +65,13 @@ final class PostSharePayloads {
             canShare: true,
           )
         else ...[
-          SharePayload(
-            id: SharePayloadId.image,
-            value: image,
-            canCopy: true,
-            canShare: true,
-          ),
+          if (includeImage)
+            SharePayload(
+              id: SharePayloadId.image,
+              value: image,
+              canCopy: true,
+              canShare: true,
+            ),
           SharePayload(
             id: SharePayloadId.original,
             value: original,

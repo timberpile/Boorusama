@@ -38,6 +38,19 @@ class SharePayloadTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final available = value != null || deferred;
+    final reserveEmptyDescription =
+        available &&
+        !showValue &&
+        description == null &&
+        reserveDescriptionSpace;
+    // Keep the subtitle's space for late cache metadata, split evenly around
+    // the title so an Image without metadata is vertically centered.
+    final halfDescriptionLine = ExcludeSemantics(
+      child: Align(
+        heightFactor: 0.5,
+        child: Text('', style: theme.textTheme.bodySmall),
+      ),
+    );
     return Material(
       color: theme.colorScheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(8),
@@ -57,11 +70,11 @@ class SharePayloadTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (reserveEmptyDescription) halfDescriptionLine,
                   Text(title, style: theme.textTheme.bodyLarge),
-                  if (!available ||
-                      showValue ||
-                      description != null ||
-                      reserveDescriptionSpace)
+                  if (reserveEmptyDescription)
+                    halfDescriptionLine
+                  else if (!available || showValue || description != null)
                     Text(
                       !available
                           ? unavailable
