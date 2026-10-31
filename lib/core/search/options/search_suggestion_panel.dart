@@ -9,6 +9,7 @@ import '../../configs/config/types.dart';
 import '../../tags/autocompletes/types.dart';
 import '../search/src/widgets/search_controller.dart';
 import '../suggestions/providers.dart';
+import '../suggestions/selected_tag_suggestions.dart';
 import '../suggestions/tag_suggestion_item.dart';
 import 'labels.dart';
 import 'catalog/aliases.dart';
@@ -35,6 +36,7 @@ class SearchSuggestionPanel extends ConsumerWidget {
     listenable: Listenable.merge([
       controller.textController,
       controller.inputIsRaw,
+      controller.tagsController,
     ]),
     builder: (context, _) {
       final query = controller.textController.text;
@@ -174,7 +176,12 @@ class SearchSuggestionPanel extends ConsumerWidget {
             );
           }
         }
-        final tags = ref.watch(suggestionProvider((config, query)));
+        final tags = withoutSelectedTagSuggestions(
+          suggestions: ref.watch(suggestionProvider((config, query))),
+          selectedTags: controller.tagsController.tags,
+          extractor: controller.metatagExtractor,
+          optionKeys: controller.optionKeys,
+        );
         final builder = ref
             .watch(booruBuilderProvider(config))
             ?.tagSuggestionItemBuilder;

@@ -21,6 +21,7 @@ import '../../../queries/types.dart';
 import '../../../selected_tags/providers.dart';
 import '../../../selected_tags/types.dart';
 import '../../../suggestions/providers.dart';
+import '../../../suggestions/selected_tag_suggestions.dart';
 import '../../../suggestions/widgets.dart';
 import '../../../syntax/providers.dart';
 import '../types/constants.dart';
@@ -177,11 +178,17 @@ class _DesktopSearchbarState extends ConsumerState<DesktopSearchbar> {
         ),
         maxHeight: min(size.height * 0.8, 400),
       ),
-      child: ValueListenableBuilder(
-        valueListenable: textEditingController,
-        builder: (context, query, child) {
-          final suggestionTags = ref.watch(
-            suggestionProvider((auth, query.text)),
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          textEditingController,
+          selectedTagController,
+        ]),
+        builder: (context, _) {
+          final query = textEditingController.value;
+          final suggestionTags = withoutSelectedTagSuggestions(
+            suggestions: ref.watch(suggestionProvider((auth, query.text))),
+            selectedTags: selectedTagController.tags,
+            extractor: ref.watch(metatagExtractorProvider(auth)),
           );
 
           return query.text.isNotEmpty

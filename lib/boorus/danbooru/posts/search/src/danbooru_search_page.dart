@@ -54,6 +54,8 @@ class _DanbooruSearchPageState extends ConsumerState<DanbooruSearchPage> {
               valueListenable: controller.tagString,
               builder: (context, tags, _) => RelatedTagSection(
                 query: tags,
+                selectedTags: controller.tagsController,
+                extractor: extractor,
                 onAdded: (tag) => controller.tagsController.addTag(
                   TagSearchItem.fromString(tag.tag, extractor: extractor),
                 ),
