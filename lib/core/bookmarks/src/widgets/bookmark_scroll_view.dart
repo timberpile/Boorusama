@@ -31,7 +31,6 @@ import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
-import 'bookmark_appbar.dart';
 import 'bookmark_list_controls.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_multi_selection.dart';
@@ -229,37 +228,26 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   controller,
                 ),
             sliverHeaders: [
-              KurumiSliverAppBar(
-                floating: true,
-                snap: true,
-                pinned: true,
-                automaticallyImplyLeading: false,
-                titleSpacing: 0,
-                backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
-                title: BookmarkAppBar(
-                  title: widget.title,
-                  // Restore only scaling; restoring the full MediaQuery here
-                  // reapplies the status inset inside the outer toolbar.
-                  textScaler: MediaQuery.textScalerOf(context),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: BookmarkSearchBar(
-                  controller: widget.searchController,
-                  postController: controller,
-                  view: widget.view,
-                ),
-              ),
               TimelineHeaderSliver(
-                child: ValueListenableBuilder(
-                  valueListenable: controller.itemsNotifier,
-                  builder: (_, posts, _) => BookmarkListControls(
-                    count: posts.length,
-                    gridConfig: PostGridConfigIconButton(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    BookmarkSearchBar(
+                      controller: widget.searchController,
                       postController: controller,
-                      showBlacklist: false,
+                      view: widget.view,
                     ),
-                  ),
+                    ValueListenableBuilder(
+                      valueListenable: controller.itemsNotifier,
+                      builder: (_, posts, _) => BookmarkListControls(
+                        count: posts.length,
+                        gridConfig: PostGridConfigIconButton(
+                          postController: controller,
+                          showBlacklist: false,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

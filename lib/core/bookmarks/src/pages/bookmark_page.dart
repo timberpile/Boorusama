@@ -10,6 +10,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../widgets/widgets.dart';
 import '../widgets/bookmark_scroll_view.dart';
+import '../widgets/bookmark_appbar.dart';
 import '../types/bookmark_view.dart';
 
 class BookmarkPage extends ConsumerStatefulWidget {
@@ -45,6 +46,7 @@ class _BookmarkPageState extends ConsumerState<BookmarkPage> {
       priority: 2,
       child: CustomContextMenuOverlay(
         child: Scaffold(
+          appBar: BookmarkAppBar(title: widget.title),
           body: BookmarkScrollView(
             scrollController: _scrollController,
             searchController: _searchController,
