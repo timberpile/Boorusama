@@ -1,3 +1,5 @@
+import '../../../posts/listing/src/widgets/timeline_header_sliver.dart';
+
 import '../../../selection/ordered_selection_controller.dart';
 
 // Package imports:
@@ -9,7 +11,6 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
 import '../../../../foundation/loggers.dart';
@@ -249,7 +250,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   view: widget.view,
                 ),
               ),
-              SliverPinnedHeader(
+              TimelineHeaderSliver(
                 child: ValueListenableBuilder(
                   valueListenable: controller.itemsNotifier,
                   builder: (_, posts, _) => BookmarkListControls(

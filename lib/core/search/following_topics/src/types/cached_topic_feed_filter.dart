@@ -4,9 +4,9 @@ import '../../../../boorus/booru/types.dart';
 import '../../../../bookmarks/src/types/bookmark_search_token.dart';
 import '../../../../bookmarks/src/types/bookmark_tag_index.dart';
 import '../../../../posts/post/types.dart';
+import 'topic_feed.dart';
 
 enum CachedTopicFeedSort {
-  stored,
   newest,
   oldest,
   scoreDescending,
@@ -18,7 +18,7 @@ class CachedTopicFeedFilter extends Equatable {
   const CachedTopicFeedFilter({
     this.query = '',
     this.sourceHost,
-    this.sort = CachedTopicFeedSort.stored,
+    this.sort = CachedTopicFeedSort.newest,
   });
 
   final String query;
@@ -28,26 +28,29 @@ class CachedTopicFeedFilter extends Equatable {
   bool get isActive =>
       query.trim().isNotEmpty ||
       sourceHost != null ||
-      sort != CachedTopicFeedSort.stored;
+      sort != CachedTopicFeedSort.newest;
 
-  List<StoredPostSnapshot> apply(Iterable<StoredPostSnapshot> snapshots) {
-    if (!isActive) return snapshots.toList(growable: false);
+  Iterable<StoredPostSnapshot> matchingSnapshots(
+    Iterable<StoredPostSnapshot> snapshots,
+  ) {
     final tokens = parseBookmarkSearchInput(query)
         .map(BookmarkSearchToken.parse)
         .toList();
     final host = sourceHost == null
         ? null
         : normalizePostSourceHost(sourceHost!);
-    final filtered = [
-      for (final snapshot in snapshots)
-        if ((host == null ||
-                normalizePostSourceHost(snapshot.origin.sourceHost) == host) &&
-            _matches(_tags(snapshot), tokens))
-          snapshot,
-    ];
-    if (sort != CachedTopicFeedSort.stored) {
-      filtered.sort((a, b) => _compareSnapshots(a, b, sort));
-    }
+    return snapshots.where(
+      (snapshot) =>
+          (host == null ||
+              normalizePostSourceHost(snapshot.origin.sourceHost) == host) &&
+          (tokens.isEmpty || _matches(_tags(snapshot), tokens)),
+    );
+  }
+
+  List<StoredPostSnapshot> apply(Iterable<StoredPostSnapshot> snapshots) {
+    if (!isActive) return snapshots.toList(growable: false);
+    final filtered = matchingSnapshots(snapshots).toList();
+    filtered.sort((a, b) => _compareSnapshots(a, b, sort));
     return filtered;
   }
 
@@ -76,13 +79,9 @@ int _compareSnapshots(
     final date = aDate.compareTo(bDate);
     if (date != 0) return sort == CachedTopicFeedSort.oldest ? date : -date;
   }
-  final host = a.origin.sourceHost.compareTo(b.origin.sourceHost);
-  if (host != 0) return host;
-  final engine = a.origin.booruTypeId.compareTo(b.origin.booruTypeId);
-  if (engine != 0) return engine;
-  final id = _id(a).compareTo(_id(b));
+  final id = _id(b).compareTo(_id(a));
   if (id != 0) return id;
-  return (a.origin.profileIdHint ?? '').compareTo(b.origin.profileIdHint ?? '');
+  return feedPostIdentity(b).compareTo(feedPostIdentity(a));
 }
 
 // Legacy snapshots already use zero when score metadata was never captured.

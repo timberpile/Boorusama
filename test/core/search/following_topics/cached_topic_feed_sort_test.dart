@@ -21,6 +21,18 @@ StoredPostSnapshot snapshot(
 );
 
 void main() {
+  test('default Newest remains a normal history-capable feed', () {
+    const filter = CachedTopicFeedFilter();
+    expect(filter.sort, CachedTopicFeedSort.newest);
+    expect(filter.isActive, isFalse);
+    expect(
+      const CachedTopicFeedFilter(
+        query: 'cat',
+        sort: CachedTopicFeedSort.newest,
+      ).isActive,
+      isTrue,
+    );
+  });
   final posts = [
     snapshot(1, score: 20, date: '2024-01-01T00:00:00Z'),
     snapshot(2, score: -5, date: '2026-01-01T00:00:00Z'),
@@ -28,7 +40,6 @@ void main() {
     snapshot(4, score: 20),
   ];
   for (final entry in [
-    (sort: CachedTopicFeedSort.stored, ids: [1, 2, 3, 4]),
     (sort: CachedTopicFeedSort.newest, ids: [2, 3, 1, 4]),
     (sort: CachedTopicFeedSort.oldest, ids: [1, 3, 2, 4]),
     (sort: CachedTopicFeedSort.scoreDescending, ids: [1, 4, 3, 2]),
@@ -37,10 +48,10 @@ void main() {
     test(
       '${entry.sort.name} sorts cached snapshots without mutating storage',
       () {
-        final filter = CachedTopicFeedFilter(sort: entry.sort);
+        final filter = CachedTopicFeedFilter(query: 'cat', sort: entry.sort);
         expect(filter.apply(posts).map((post) => post.common['id']), entry.ids);
         expect(posts.map((post) => post.common['id']), [1, 2, 3, 4]);
-        expect(filter.isActive, entry.sort != CachedTopicFeedSort.stored);
+        expect(filter.isActive, true);
       },
     );
   }
@@ -69,17 +80,17 @@ void main() {
       const CachedTopicFeedFilter(sort: CachedTopicFeedSort.scoreDescending)
           .apply(values)
           .map((p) => p.common['id']),
-      [1, 2, 3],
+      [2, 1, 3],
     );
     expect(
       const CachedTopicFeedFilter(sort: CachedTopicFeedSort.oldest)
           .apply(values)
           .map((p) => p.common['id']),
-      [3, 1, 2],
+      [3, 2, 1],
     );
   });
 
-  test('changing only sort changes the projection identity and clearing restores stored mode', () {
+  test('changing only sort changes the projection identity and Newest restores normal history mode', () {
     const unsorted = CachedTopicFeedFilter();
     const sorted = CachedTopicFeedFilter(
       sort: CachedTopicFeedSort.scoreDescending,

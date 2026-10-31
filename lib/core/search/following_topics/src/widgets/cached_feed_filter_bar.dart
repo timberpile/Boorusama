@@ -12,11 +12,12 @@ import '../../../../bookmarks/src/providers/bookmark_search_controller.dart';
 import '../../../../bookmarks/src/providers/suggestion_provider.dart';
 import '../../../../bookmarks/src/types/bookmark_tag_index.dart';
 import '../../../../bookmarks/src/widgets/bookmark_option_selector.dart';
+import '../../../../bookmarks/src/widgets/bookmark_sort_button.dart';
+import '../../../../bookmarks/src/providers/local_providers.dart';
+import '../../../../posts/listing/src/widgets/timeline_toolbar.dart';
 import '../../../../posts/post/types.dart';
 import '../../../../config_widgets/website_logo.dart';
 import '../../../../tags/autocompletes/types.dart';
-import '../../../options/labels.dart';
-import '../../../options/search_option.dart';
 import '../../../search/widgets.dart';
 import '../../../suggestions/tag_suggestion_item.dart';
 import '../providers/cached_feed_tag_index_provider.dart';
@@ -42,7 +43,7 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
   final _focus = FocusNode();
   late final BookmarkSearchController _search;
   String? _sourceHost;
-  var _sort = CachedTopicFeedSort.stored;
+  var _sort = CachedTopicFeedSort.newest;
   var _published = const CachedTopicFeedFilter();
 
   @override
@@ -79,7 +80,7 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
   void _clear() {
     setState(() {
       _sourceHost = null;
-      _sort = CachedTopicFeedSort.stored;
+      _sort = CachedTopicFeedSort.newest;
       _search.clear();
       _publish();
     });
@@ -103,19 +104,14 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
       ? null
       : ref.watch(localTagEntryColorProvider((entry, brightness))).valueOrNull;
 
-  String _sortLabel(CachedTopicFeedSort value) => switch (value) {
-    CachedTopicFeedSort.stored => context.t.generic.action.clear,
-    CachedTopicFeedSort.newest => context.t.explore.newest,
-    CachedTopicFeedSort.oldest => context.t.explore.oldest,
-    CachedTopicFeedSort.scoreDescending => searchOptionChoiceLabel(
-      context,
-      const SearchOptionChoice('score:desc', 'score:desc'),
-    ),
-    CachedTopicFeedSort.scoreAscending => searchOptionChoiceLabel(
-      context,
-      const SearchOptionChoice('score:asc', 'score:asc'),
-    ),
+  BookmarkSortType _bookmarkSort(CachedTopicFeedSort value) => switch (value) {
+    CachedTopicFeedSort.newest => BookmarkSortType.newestUpload,
+    CachedTopicFeedSort.oldest => BookmarkSortType.oldestUpload,
+    CachedTopicFeedSort.scoreDescending => BookmarkSortType.scoreDescending,
+    CachedTopicFeedSort.scoreAscending => BookmarkSortType.scoreAscending,
   };
+  String _sortLabel(CachedTopicFeedSort value) =>
+      bookmarkSortLabel(context, _bookmarkSort(value));
 
   @override
   Widget build(BuildContext context) {
@@ -127,8 +123,12 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
       )),
     );
     final colorScheme = Kurumi.themeOf(context).colorScheme;
+    final availableHosts = cachedTopicFeedSourceHosts(widget.snapshots);
+    final showSource =
+        availableHosts.length > 1 ||
+        (_sourceHost != null && !availableHosts.contains(_sourceHost));
     final hosts = {
-      ...cachedTopicFeedSourceHosts(widget.snapshots),
+      ...availableHosts,
       // Keep a selected source even when a refresh removes its last snapshot.
       // Otherwise the filter would silently clear and resume remote history.
       ?_sourceHost,
@@ -317,10 +317,28 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
                     ),
                   ),
                 ),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
+              TimelineToolbar(
+                trailing: Semantics(
+                  key: const ValueKey('cached-feed-scope'),
+                  liveRegion: true,
+                  label: _published.isActive
+                      ? strings.feed_scope_cached
+                      : context.t.search.history.history,
+                  child: ExcludeSemantics(
+                    child: IgnorePointer(
+                      child: KurumiCompactChip(
+                        label: _published.isActive
+                            ? strings.feed_scope_cached
+                            : context.t.search.history.history,
+                        textStyle: Kurumi.themeOf(context)
+                            .textTheme
+                            .labelMedium,
+                      ),
+                    ),
+                  ),
+                ),
+                children: [
+                  if (showSource) ...[
                     BookmarkOptionSelector<String?>(
                       label: _sourceHost ?? context.t.bookmark.groups.all,
                       prefixLabel: context.t.post.detail.source_label,
@@ -342,33 +360,25 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
                       }),
                     ),
                     const SizedBox(width: 8),
-                    BookmarkOptionSelector<CachedTopicFeedSort>(
-                      key: const ValueKey('cached-feed-sort'),
-                      label: _sort == CachedTopicFeedSort.stored
-                          ? context.t.sort.short
-                          : _sortLabel(_sort),
-                      options: CachedTopicFeedSort.values,
-                      value: _sort,
-                      optionLabel: _sortLabel,
-                      optionSemanticLabel: (value) =>
-                          '${strings.feed_filter_hint}: ${_sortLabel(value)}',
-                      onSelected: (value) => setState(() {
-                        _focus.unfocus();
-                        _sort = value;
-                        _publish();
-                      }),
-                    ),
                   ],
-                ),
-              ),
-              if (_sort != CachedTopicFeedSort.stored)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    strings.feed_filter_hint,
-                    style: Kurumi.themeOf(context).textTheme.bodySmall,
+                  BookmarkOptionSelector<CachedTopicFeedSort>(
+                    key: const ValueKey('cached-feed-sort'),
+                    label: _sortLabel(_sort),
+                    options: CachedTopicFeedSort.values,
+                    value: _sort,
+                    optionLabel: _sortLabel,
+                    optionIcon: (value) =>
+                        bookmarkSortIcon(_bookmarkSort(value)),
+                    optionSemanticLabel: (value) =>
+                        '${strings.feed_filter_hint}: ${_sortLabel(value)}',
+                    onSelected: (value) => setState(() {
+                      _focus.unfocus();
+                      _sort = value;
+                      _publish();
+                    }),
                   ),
-                ),
+                ],
+              ),
             ],
           ),
         ),

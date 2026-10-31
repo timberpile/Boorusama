@@ -5,18 +5,26 @@ snapshot. Both score directions use local bookmark ID as the stable tie-breaker;
 list results and group cover previews use the same comparator. Existing upload,
 bookmark-date and random modes are unchanged. New enum choices are appended.
 
-Cached Feed sorting is available only inside Feed Search. Choosing score or
-upload-date ordering activates the existing local filter projection even with an
-empty tag query, so history loading and feed initialization remain paused. It
-sorts only the feed's retained snapshots, not previously paged remote history.
-Closing Search resets the projection. Clearing the sort leaves any tag/source
-filter intact; clearing all search conditions restores stored/history mode.
-No sort operation requests post metadata, rewrites snapshots or changes the
-persisted feed order.
+The Feed search/filter input is always present and uses “Search Cached...”. Its
+independent compact scope badge shows History in the ordinary mode, where older
+remote history may load, and Cached while a committed query, source filter or
+non-default local sort restricts results to retained snapshots. Draft text alone
+changes neither scope nor requests. Newest is the default and does not pause
+history; there is no Clear or Feed Order sort mode. Returning to Newest preserves
+other active conditions. Clearing every condition restores History.
 
-Missing or malformed legacy scores use zero, consistent with the existing
-shared-post legacy conversion. This is a deterministic fallback, not a claim
-that the upstream score is actually zero. Known upload dates precede unknown
-ones in either date direction. Feed score ties use newest known upload date,
-then source host, engine, post ID and profile hint. These fallback identities do
-not imply that IDs or scores are comparable across different sites.
+Feed and Bookmark controls use the same sort labels/icons and measured floating
+header behavior: downward scrolling hides the bar and a small upward movement
+reveals it. A single available source hides the redundant selector; an unavailable
+active source remains explicitly recoverable without broadening results.
+
+Missing or malformed legacy scores use zero; this is a deterministic fallback,
+not a claim about the upstream score. Known dates precede missing dates. Cached
+Feed score ties use newest known upload date, then descending post ID and full
+feed identity, matching the ordinary feed merge. Sorting changes no persisted
+snapshot or query and requests no post metadata.
+
+The location of cached-only sort choices is still an open product decision
+(#107). The existing selector is retained provisionally; this implementation does
+not choose between it and Advanced Search/local conditions. The separate scope
+badge and independent accepted corrections do not settle that placement.

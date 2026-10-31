@@ -19,7 +19,31 @@ class BookmarkSortButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shuffleProvider = ref.watch(bookmarkShuffleProvider.notifier);
 
-    String label(BookmarkSortType value) => switch (value) {
+    final selected = ref.watch(selectedBookmarkSortTypeProvider);
+
+    return BookmarkOptionSelector<BookmarkSortType>(
+      label: bookmarkSortLabel(context, selected),
+      prefixLabel: context.t.sort.short,
+      value: selected,
+      options: BookmarkSortType.values,
+      optionLabel: (value) => bookmarkSortLabel(context, value),
+      optionIcon: bookmarkSortIcon,
+      optionSemanticLabel: (value) => bookmarkSortSemanticLabel(context, value),
+      onSelected: (value) {
+        if (value == selected) return;
+        ref.read(selectedBookmarkSortTypeProvider.notifier).state = value;
+        if (value == BookmarkSortType.random) {
+          shuffleProvider.shuffle();
+        } else {
+          shuffleProvider.reset();
+        }
+      },
+    );
+  }
+}
+
+String bookmarkSortLabel(BuildContext context, BookmarkSortType value) =>
+    switch (value) {
       BookmarkSortType.newestUpload ||
       BookmarkSortType.newest => context.t.explore.newest,
       BookmarkSortType.oldestUpload ||
@@ -34,43 +58,23 @@ class BookmarkSortButton extends ConsumerWidget {
         const SearchOptionChoice('score:asc', 'score:asc'),
       ),
     };
-    IconData icon(BookmarkSortType value) => switch (value) {
-      BookmarkSortType.newestUpload ||
-      BookmarkSortType.oldestUpload => Icons.file_upload_outlined,
-      BookmarkSortType.newest ||
-      BookmarkSortType.oldest => Icons.bookmark_border,
-      BookmarkSortType.random => Icons.shuffle,
-      BookmarkSortType.scoreDescending => Icons.arrow_downward,
-      BookmarkSortType.scoreAscending => Icons.arrow_upward,
-    };
-    String semanticLabel(BookmarkSortType value) => switch (value) {
-      BookmarkSortType.newestUpload || BookmarkSortType.oldestUpload =>
-        '${context.t.post.detail.upload_date}: ${label(value)}',
-      BookmarkSortType.newest ||
-      BookmarkSortType.oldest => '${context.t.bookmark.title}: ${label(value)}',
-      BookmarkSortType.random => context.t.explore.random,
-      BookmarkSortType.scoreAscending ||
-      BookmarkSortType.scoreDescending => label(value),
-    };
-    final selected = ref.watch(selectedBookmarkSortTypeProvider);
-
-    return BookmarkOptionSelector<BookmarkSortType>(
-      label: label(selected),
-      prefixLabel: context.t.sort.short,
-      value: selected,
-      options: BookmarkSortType.values,
-      optionLabel: label,
-      optionIcon: icon,
-      optionSemanticLabel: semanticLabel,
-      onSelected: (value) {
-        if (value == selected) return;
-        ref.read(selectedBookmarkSortTypeProvider.notifier).state = value;
-        if (value == BookmarkSortType.random) {
-          shuffleProvider.shuffle();
-        } else {
-          shuffleProvider.reset();
-        }
-      },
-    );
-  }
-}
+IconData bookmarkSortIcon(BookmarkSortType value) => switch (value) {
+  BookmarkSortType.newestUpload ||
+  BookmarkSortType.oldestUpload => Icons.file_upload_outlined,
+  BookmarkSortType.newest || BookmarkSortType.oldest => Icons.bookmark_border,
+  BookmarkSortType.random => Icons.shuffle,
+  BookmarkSortType.scoreDescending => Icons.arrow_downward,
+  BookmarkSortType.scoreAscending => Icons.arrow_upward,
+};
+String bookmarkSortSemanticLabel(
+  BuildContext context,
+  BookmarkSortType value,
+) => switch (value) {
+  BookmarkSortType.newestUpload || BookmarkSortType.oldestUpload =>
+    '${context.t.post.detail.upload_date}: ${bookmarkSortLabel(context, value)}',
+  BookmarkSortType.newest || BookmarkSortType.oldest =>
+    '${context.t.bookmark.title}: ${bookmarkSortLabel(context, value)}',
+  BookmarkSortType.random => context.t.explore.random,
+  BookmarkSortType.scoreAscending ||
+  BookmarkSortType.scoreDescending => bookmarkSortLabel(context, value),
+};

@@ -17,7 +17,7 @@ final cachedFeedTagIndexProvider = Provider.autoDispose
       final (snapshots, filter) = request;
       final configs = ref.watch(booruConfigProvider);
       return cachedTopicFeedTagIndex(
-        filter.apply(snapshots),
+        filter.matchingSnapshots(snapshots),
         siteUrl: (snapshot) => switch (const PostOriginResolver().resolve(
           PostOrigin.fromSnapshot(snapshot.origin),
           configs,

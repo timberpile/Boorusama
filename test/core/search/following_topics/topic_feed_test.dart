@@ -116,26 +116,13 @@ void main() {
     expect(controller().items.map((post) => post.id), [42, 41]);
     expect(
       find.byKey(const ValueKey('cached-feed-filter-input')),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const ValueKey('toggle-cached-feed-search')),
       findsNothing,
     );
-    final toggle = find.byKey(const ValueKey('toggle-cached-feed-search'));
-    final toggleBounds = tester.getRect(toggle);
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
-      findsNothing,
-    );
-    await tester.tap(toggle);
-    await settle(tester);
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.search)),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
-      findsOneWidget,
-    );
-    expect(tester.widget<IconButton>(toggle).tooltip, 'Close Search');
-    expect(tester.getRect(toggle), toggleBounds);
+    expect(find.text('History'), findsOneWidget);
     final field = find.descendant(
       of: find.byKey(const ValueKey('cached-feed-filter-input')),
       matching: find.byType(TextField),
@@ -169,23 +156,17 @@ void main() {
     await settle(tester);
     expect(find.text('No cached posts match these filters.'), findsOneWidget);
     expect(historyRequests, 0);
-    await tester.tap(toggle);
+    await tester.tap(find.byTooltip('Remove All Selected Tags'));
     await settle(tester);
     expect(
       find.byKey(const ValueKey('cached-feed-filter-input')),
-      findsNothing,
+      findsWidgets,
     );
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
-      findsNothing,
-    );
-    expect(tester.getRect(toggle), toggleBounds);
+    expect(find.text('History'), findsOneWidget);
     expect(controller().items.map((post) => post.id), [42, 41]);
     expect(controller().hasMore, isTrue);
     await controller().fetcher(2).run();
     expect(historyRequests, 1);
-    await tester.tap(toggle);
-    await settle(tester);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(await harness.repository.getById(source.id), before);
   });

@@ -80,7 +80,7 @@
     "edit_invalid_query": "Finish entering a valid query before updating.",
     "edit_conflict": "This topic changed or was deleted. Reopen it to edit the latest version.",
 
-    "feed_filter_hint": "Search Cached Posts...",
+    "feed_filter_hint": "Search Cached...",
     "feed_filter_close": "Close Search",
     "feed_filter_empty": "No cached posts match these filters.",
     "backup_contents": "Includes folders and feed settings; cached posts and images are not included.",
@@ -283,7 +283,8 @@
     "new_posts_at_least": {
       "one": "At least $n new post",
       "other": "At least $n new posts"
-    }
+    },
+    "feed_scope_cached": "Cached"
   },
   "generic": {
     "done": "Done",

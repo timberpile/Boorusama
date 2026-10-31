@@ -37,6 +37,106 @@ void main() {
   );
   tearDown(() => harness.dispose());
 
+  testWidgets(
+    'bar always exposes correct default, source policy and independent scope',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await harness.pump(
+        tester,
+        MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 640),
+            textScaler: TextScaler.linear(2),
+            viewInsets: EdgeInsets.only(bottom: 220),
+          ),
+          child: Scaffold(
+            body: CachedFeedFilterBar(
+              snapshots: const [_snapshot],
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final selector = tester
+          .widget<BookmarkOptionSelector<CachedTopicFeedSort>>(
+            find.byKey(const ValueKey('cached-feed-sort')),
+          );
+      expect(selector.value, CachedTopicFeedSort.newest);
+      expect(selector.options.any((sort) => sort.name == 'stored'), isFalse);
+      expect(
+        selector.optionIcon?.call(CachedTopicFeedSort.scoreDescending),
+        Icons.arrow_downward,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is BookmarkOptionSelector<String?>,
+        ),
+        findsNothing,
+      );
+      expect(find.byKey(const ValueKey('cached-feed-scope')), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).decoration?.hintText,
+        'Search Cached...',
+      );
+      await tester.enterText(find.byType(TextField), 'cat');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('cached-feed-scope')), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('Cached'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('a missing selected source stays explicit until reset', (
+    tester,
+  ) async {
+    final snapshots = ValueNotifier([
+      _snapshot,
+      _post(2, ['dog'], host: 'b.example'),
+    ]);
+    addTearDown(snapshots.dispose);
+    final filters = <CachedTopicFeedFilter>[];
+    await harness.pump(
+      tester,
+      Scaffold(
+        body: ValueListenableBuilder(
+          valueListenable: snapshots,
+          builder: (_, posts, _) =>
+              CachedFeedFilterBar(snapshots: posts, onChanged: filters.add),
+        ),
+      ),
+    );
+    await settle(tester);
+    final source = find.byType(BookmarkOptionSelector<String?>);
+    await tester.tap(source);
+    await settle(tester);
+    await tester.tap(find.text('a.example').last);
+    await settle(tester);
+    expect(find.text('Cached'), findsOneWidget);
+    snapshots.value = [
+      _post(2, ['dog'], host: 'b.example'),
+    ];
+    await settle(tester);
+    expect(source, findsOneWidget);
+    expect(filters.last.sourceHost, 'a.example');
+    expect(find.text('Cached'), findsOneWidget);
+    await tester.tap(source);
+    await settle(tester);
+    await tester.tap(find.text('All').last);
+    await settle(tester);
+    expect(filters.last.sourceHost, isNull);
+    expect(find.text('History'), findsOneWidget);
+    expect(source, findsNothing);
+    expect(harness.requests, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   test('resolves cached tag metadata under the origin profile URL', () {
     harness.dispose();
     final profile = testProfile.copyWith(
@@ -115,7 +215,7 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Search Cached Posts...'), findsOneWidget);
+    expect(find.text('Search Cached...'), findsOneWidget);
     expect(find.text('Cached Posts Only'), findsNothing);
     expect(find.byIcon(Symbols.search), findsNothing);
     expect(
@@ -438,7 +538,10 @@ void main() {
       tester,
       Scaffold(
         body: CachedFeedFilterBar(
-          snapshots: const [_snapshot],
+          snapshots: [
+            _snapshot,
+            _post(2, ['dog'], host: 'b.example'),
+          ],
           onChanged: filters.add,
         ),
       ),
@@ -449,7 +552,11 @@ void main() {
     await tester.tap(find.byType(BookmarkOptionSelector<String?>));
     await settle(tester);
     final optionLogo = tester.widget<ConfigAwareWebsiteLogo>(
-      find.byType(ConfigAwareWebsiteLogo),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ConfigAwareWebsiteLogo &&
+            widget.url == 'https://a.example',
+      ),
     );
     expect(optionLogo.url, 'https://a.example');
     expect(optionLogo.width, 20);

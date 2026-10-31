@@ -1,3 +1,5 @@
+import 'package:flutter/rendering.dart' show ScrollDirection;
+
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -23,6 +25,7 @@ import '../../../../boorus/booru/types.dart';
 import '../../../../errors/types.dart';
 import '../../../../posts/details/routes.dart';
 import '../../../../posts/listing/widgets.dart';
+import '../../../../posts/listing/src/widgets/timeline_header_sliver.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/src/types/page_mode.dart';
 import '../../../../posts/post/types.dart';
@@ -487,7 +490,7 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   FeedInitializationInterest? _feedInterest;
   final _gridKey = GlobalKey<_CachedFeedGridState>();
   var _filter = const CachedTopicFeedFilter();
-  var _showFilter = false;
+  final _filterBarKey = GlobalKey();
 
   @override
   void initState() {
@@ -527,14 +530,6 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
     _feedInterest ??= _coordinator.acquireFeedInitializationInterest(
       feedId: widget.feedId,
     );
-  }
-
-  void _toggleFilter() {
-    if (_showFilter) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      _filterChanged(const CachedTopicFeedFilter());
-    }
-    setState(() => _showFilter = !_showFilter);
   }
 
   void _filterChanged(CachedTopicFeedFilter filter) {
@@ -593,6 +588,13 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
     final sources =
         state?.topics.where((s) => sourceIds.contains(s.id)).toList() ?? [];
     final strings = context.t.following_topics;
+    final filterBar = feed != null && config != null
+        ? CachedFeedFilterBar(
+            key: _filterBarKey,
+            snapshots: feed.posts,
+            onChanged: _filterChanged,
+          )
+        : null;
     final refreshing = state?.refreshingFeedId == widget.feedId;
     final refreshChecked = refreshing ? state?.feedRefreshChecked ?? 0 : 0;
     final refreshTotal = refreshing ? state?.feedRefreshTotal ?? 0 : 0;
@@ -603,36 +605,6 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
         appBar: KurumiAppBar(
           title: Text(feed?.name ?? strings.topic_feeds),
           actions: [
-            if (feed != null && config != null)
-              IconButton(
-                key: const ValueKey('toggle-cached-feed-search'),
-                tooltip: _showFilter
-                    ? strings.feed_filter_close
-                    : strings.feed_filter_hint,
-                isSelected: _showFilter,
-                icon: const Icon(Icons.search),
-                selectedIcon: SizedBox.square(
-                  dimension: 24,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.search),
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Kurumi.themeOf(context).colorScheme.surface,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.close, size: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                onPressed: _toggleFilter,
-              ),
             PopupMenuButton<String>(
               tooltip: context.t.generic.action.more,
               onSelected: (action) async {
@@ -669,12 +641,6 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
         ),
         body: Column(
           children: [
-            if (_showFilter && feed != null && config != null)
-              CachedFeedFilterBar(
-                key: ValueKey(feed.id),
-                snapshots: feed.posts,
-                onChanged: _filterChanged,
-              ),
             Expanded(
               child: asyncState.isLoading && feed == null
                   ? const Center(child: CircularProgressIndicator())
@@ -697,6 +663,8 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
                   : feed.posts.isEmpty
                   ? CustomScrollView(
                       slivers: [
+                        if (filterBar != null)
+                          TimelineHeaderSliver(child: filterBar),
                         SliverToBoxAdapter(
                           child: _FeedStatusHeader(
                             sources: sources,
@@ -720,6 +688,7 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
                   : _CachedFeedGrid(
                       key: _gridKey,
                       filter: _filter,
+                      filterHeader: filterBar!,
                       feed: feed,
                       config: config,
                       sources: sources,
@@ -764,6 +733,7 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
   const _CachedFeedGrid({
     required this.feed,
     required this.filter,
+    required this.filterHeader,
     required this.config,
     required this.sources,
     required this.refreshChecked,
@@ -772,6 +742,7 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
   });
   final TopicFeed feed;
   final CachedTopicFeedFilter filter;
+  final Widget filterHeader;
   final BooruConfig config;
   final List<FollowingTopic> sources;
   final int refreshChecked;
@@ -1047,6 +1018,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                     )
                   : null,
               sliverHeaders: [
+                TimelineHeaderSliver(child: widget.filterHeader),
                 SliverToBoxAdapter(
                   child: _FeedStatusHeader(
                     sources: widget.sources,
@@ -1064,6 +1036,8 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 if (!widget.filter.isActive &&
                     scroll.hasClients &&
                     scroll.offset > 0 &&
+                    scroll.position.userScrollDirection ==
+                        ScrollDirection.reverse &&
                     controller.hasMore &&
                     index >= controller.items.length - 100 &&
                     _prefetchedAtLength != controller.items.length) {

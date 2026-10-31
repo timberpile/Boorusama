@@ -19,7 +19,7 @@ import 'topic_test_utils.dart';
 void main() {
   for (final scale in [1.0, 2.0]) {
     testWidgets(
-      'sort-only Feed Search blocks history and closing restores it at scale $scale',
+      'cached sort blocks history and Newest restores it at scale $scale',
       (tester) async {
         tester.view.physicalSize = const Size(320, 640);
         tester.view.devicePixelRatio = 1;
@@ -67,20 +67,16 @@ void main() {
         final grid = find.byType(PostGrid<Post>);
         expect(grid, findsOneWidget);
         expect(historyRequests, isEmpty);
-        expect(find.byKey(const ValueKey('cached-feed-sort')), findsNothing);
-
-        await tester.tap(
-          find.byKey(const ValueKey('toggle-cached-feed-search')),
-        );
-        await tester.pumpAndSettle();
+        expect(find.text('History'), findsOneWidget);
         final sort = find.byKey(const ValueKey('cached-feed-sort'));
         final selector = tester
             .widget<BookmarkOptionSelector<CachedTopicFeedSort>>(sort);
         final descending = selector.optionLabel(
           CachedTopicFeedSort.scoreDescending,
         );
-        await tester.ensureVisible(sort);
-        await tester.tap(sort);
+        await tester.tap(
+          find.descendant(of: sort, matching: find.byType(Icon)).first,
+        );
         await tester.pumpAndSettle();
         await tester.tap(find.text(descending).last);
         await tester.pumpAndSettle();
@@ -98,12 +94,18 @@ void main() {
           reason: 'Local sorting must not rewrite the stored snapshot order.',
         );
 
+        expect(find.text('Cached'), findsOneWidget);
         await tester.tap(
-          find.byKey(const ValueKey('toggle-cached-feed-search')),
+          find.descendant(of: sort, matching: find.byType(Icon)).first,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(selector.optionLabel(CachedTopicFeedSort.newest)).last,
         );
         await tester.pumpAndSettle();
         await drain(tester);
-        expect(sort, findsNothing);
+        expect(sort, findsOneWidget);
+        expect(find.text('History'), findsOneWidget);
         final restored = tester.widget<PostGrid<Post>>(grid).controller;
         expect(restored.items.map((post) => post.id), [1, 2, 3]);
         expect(restored.hasMore, isTrue);
@@ -114,6 +116,51 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'the actual Feed bar hides down and returns after a slight upward scroll',
+    (tester) async {
+      final harness = FollowingTopicHarness();
+      addTearDown(harness.dispose);
+      final source = topicFixture(query: 'cat');
+      await harness.seed([source]);
+      final feed = TopicFeed(
+        id: 'scroll-toolbar',
+        profileId: testProfile.id,
+        name: 'Feed',
+        sourceIds: [source.id],
+        initializedSourceIds: [source.id],
+        posts: [for (var i = 1; i <= 100; i++) _snapshot(i, i)],
+      );
+      await harness.repository.restoreFeeds(testProfile.id, [feed]);
+      await harness.pump(
+        tester,
+        TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+      );
+      await drain(tester);
+      final sort = find.byKey(const ValueKey('cached-feed-sort'));
+      final grid = find.byType(PostGrid<Post>);
+      expect(sort.hitTestable(), findsOneWidget);
+      await tester.drag(grid, const Offset(0, -800));
+      await tester.pumpAndSettle();
+      expect(sort.hitTestable(), findsNothing);
+      await tester.drag(grid, const Offset(0, 32));
+      await tester.pumpAndSettle();
+      expect(sort.hitTestable(), findsOneWidget);
+      final vertical = find.descendant(
+        of: grid,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
+      expect(
+        tester.state<ScrollableState>(vertical.first).position.pixels,
+        greaterThan(200),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 StoredPostSnapshot _snapshot(int id, int score) =>
