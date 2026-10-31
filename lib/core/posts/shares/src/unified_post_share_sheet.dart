@@ -22,7 +22,6 @@ import '../../../downloads/urls/providers.dart';
 import '../../../http/client/types.dart';
 import '../../details/providers.dart';
 import '../../links/boorusama_post_link.dart';
-import '../../links/boorusama_box_icon.dart';
 import '../../links/boorusama_link_file.dart';
 import '../../links/boorusama_link_file_share.dart';
 import '../../links/link_file_labels.dart';
@@ -440,7 +439,20 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     ),
     SharePayloadId.imageLink => const Icon(Icons.link),
     SharePayloadId.postId => const Icon(Icons.tag),
-    SharePayloadId.boorusamaLink => const BoorusamaBoxIcon(),
+    // The launcher asset includes generous transparent padding. Crop that
+    // padding so its artwork fills the same 24 dp leading slot as other icons.
+    SharePayloadId.boorusamaLink => ClipRect(
+      child: OverflowBox(
+        maxWidth: 56,
+        maxHeight: 56,
+        child: Image.asset(
+          'assets/icon/icon-512x512.png',
+          width: 56,
+          height: 56,
+          excludeFromSemantics: true,
+        ),
+      ),
+    ),
   };
 
   Future<void> _perform(

@@ -75,7 +75,8 @@ void main() {
         return const ShareResult('', ShareResultStatus.success);
       }),
     );
-    expect(find.byIcon(Icons.share_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.share), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
     await tester.tap(find.byTooltip('Boorusama Link File'));
     await tester.pumpAndSettle();
     expect(calls, 1);

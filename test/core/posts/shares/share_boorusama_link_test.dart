@@ -11,7 +11,6 @@ import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/types.dart';
 import 'package:boorusama/core/posts/links/boorusama_post_link.dart';
 import 'package:boorusama/core/posts/links/boorusama_link_file.dart';
-import 'package:boorusama/core/posts/links/boorusama_box_icon.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/shares/src/share_action_adapter.dart';
@@ -96,7 +95,10 @@ Future<void> _pump(
         dioForWidgetProvider.overrideWith((ref, config) => Dio()),
       ],
       child: MaterialApp(
-        theme: ThemeData(extensions: const [KurumiExtendedColorScheme()]),
+        theme: ThemeData(
+          brightness: tester.platformDispatcher.platformBrightness,
+          extensions: const [KurumiExtendedColorScheme()],
+        ),
         builder: (context, child) => KurumiTheme(
           data: KurumiThemeData.fromMaterial(Theme.of(context)),
           child: OKToast(child: TranslationProvider(child: child!)),
@@ -134,7 +136,13 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('share-bslink-file')),
-        matching: find.byType(BoorusamaBoxIcon),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Image &&
+              widget.image is AssetImage &&
+              (widget.image as AssetImage).assetName ==
+                  'assets/icon/icon-512x512.png',
+        ),
       ),
       findsOneWidget,
     );
@@ -148,6 +156,45 @@ void main() {
     expect(find.byTooltip('Copy Post ID'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  for (final brightness in Brightness.values) {
+    testWidgets('link-file branding fits narrow enlarged $brightness', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      tester.platformDispatcher.platformBrightnessTestValue = brightness;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      final cache = _Cache();
+      when(() => cache.generateCacheKey(any())).thenReturn('key');
+      when(() => cache.getCachedFileBytes(any())).thenReturn(null);
+      await _pump(
+        tester,
+        post: _post(),
+        cache: cache,
+        fs: MemoryAppFileSystem(),
+      );
+      final tile = find.byKey(const ValueKey('share-bslink-file'));
+      final image = find.descendant(of: tile, matching: find.byType(Image));
+      expect(image, findsOneWidget);
+      expect(
+        tester.getSize(
+          find.ancestor(of: image, matching: find.byType(ClipRect)).first,
+        ),
+        const Size(24, 24),
+      );
+      expect(
+        find.descendant(of: tile, matching: find.byIcon(Icons.share)),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
 
   for (final preview in ['https://site.test/sample.png', '']) {
     testWidgets('standalone post document needs no image: $preview', (
