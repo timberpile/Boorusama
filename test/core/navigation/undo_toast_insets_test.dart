@@ -1,5 +1,3 @@
-import '../../support/keyboard_toast_host.dart';
-
 import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
 import 'package:boorusama/core/navigation/navigation_overlay_insets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +24,7 @@ void main() {
           UncontrolledProviderScope(
             container: container,
             child: MaterialApp(
-              builder: (context, child) => KeyboardToastHost(child: child!),
+              builder: (context, child) => OKToast(child: child!),
               home: Builder(
                 builder: (context) {
                   final system = MediaQuery.of(context);

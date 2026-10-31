@@ -663,9 +663,8 @@ class _SelectionMode extends ConsumerWidget {
                       ),
                     ),
                     if (selectionModeController.isActive)
-                      KurumiMeasureSize(
-                        onChange: (size) =>
-                            onBottomObstructionChanged(size.height),
+                      _SelectionBottomObstruction(
+                        onChanged: onBottomObstructionChanged,
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -718,6 +717,58 @@ class _SelectionMode extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Distance above the keyboard to the actual control surface, including any
+/// intervening footer or nested-host offset. Size alone misses those offsets.
+class _SelectionBottomObstruction extends StatefulWidget {
+  const _SelectionBottomObstruction({
+    required this.onChanged,
+    required this.child,
+  });
+  final ValueChanged<double> onChanged;
+  final Widget child;
+  @override
+  State<_SelectionBottomObstruction> createState() =>
+      _SelectionBottomObstructionState();
+}
+
+class _SelectionBottomObstructionState
+    extends State<_SelectionBottomObstruction> {
+  final _bounds = GlobalKey();
+  var _pending = false;
+  var _last = -1.0;
+  late MediaQueryData _media;
+
+  void _measure() {
+    if (!mounted) return;
+    final box = _bounds.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    final viewportBottom = _media.size.height - _media.viewInsets.bottom;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final obstruction = (viewportBottom - top)
+        .clamp(0.0, math.max(0.0, viewportBottom))
+        .toDouble();
+    if ((obstruction - _last).abs() <= .1) return;
+    _last = obstruction;
+    widget.onChanged(obstruction);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _media = MediaQuery.of(context);
+    if (!_pending) {
+      _pending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pending = false;
+        _measure();
+      });
+    }
+    return KurumiMeasureSize(
+      onChange: (_) => _measure(),
+      child: SizedBox(key: _bounds, child: widget.child),
     );
   }
 }

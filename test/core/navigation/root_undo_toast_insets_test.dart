@@ -43,7 +43,10 @@ void main() {
                     data: MediaQuery.of(context).copyWith(
                       textScaler: TextScaler.linear(scale),
                     ),
-                    child: KeyboardToastHost(child: child!),
+                    child: KeyboardToastHost(
+                      enabled: !withShell,
+                      child: child!,
+                    ),
                   ),
                   home: Builder(
                     builder: (context) {

@@ -94,12 +94,12 @@ class _NavigationOverlayInsetsScopeState
             : keyboard
             ? 0.0
             : widget.extent * (1 - hiddenFraction).clamp(0.0, 1.0);
-        final bottom = math.max(media.padding.bottom, overlap);
-        _publishBottomPadding(bottom);
+        final bottom = math.max(keyboard ? 0.0 : media.padding.bottom, overlap);
+        _publishBottomPadding(media.viewInsets.bottom + bottom);
         return KurumiOverlayInsetsScope(
           bottomPadding: bottom,
           bottomViewPadding: math.max(media.viewPadding.bottom, overlap),
-          bottomPaddingListenable: _bottomPadding,
+          bottomObstructionListenable: _bottomPadding,
           child: KeyedSubtree(key: feedbackKey, child: child!),
         );
       },
