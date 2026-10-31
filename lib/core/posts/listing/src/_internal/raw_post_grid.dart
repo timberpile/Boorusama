@@ -746,7 +746,14 @@ class _SelectionBottomObstructionState
     if (!mounted) return;
     final box = _bounds.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return;
-    final viewportBottom = _media.size.height - _media.viewInsets.bottom;
+    // A resizing Scaffold consumes its body's MediaQuery keyboard inset. The
+    // native view still reports it; exclude it from controls measured globally.
+    final view = View.of(context);
+    final keyboardInset = math.max(
+      _media.viewInsets.bottom,
+      view.viewInsets.bottom / view.devicePixelRatio,
+    );
+    final viewportBottom = _media.size.height - keyboardInset;
     final top = box.localToGlobal(Offset.zero).dy;
     final obstruction = (viewportBottom - top)
         .clamp(0.0, math.max(0.0, viewportBottom))
