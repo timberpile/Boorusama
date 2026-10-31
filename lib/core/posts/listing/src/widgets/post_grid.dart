@@ -674,6 +674,75 @@ class _BlacklistedTagsInterceptedNotice extends ConsumerWidget {
   }
 }
 
+/// Registers every projected member at the collection tile's geometry, so
+/// returning from a viewer swipe to a hidden member finds the same anchor.
+class PostGridScrollAnchor extends StatelessWidget {
+  const PostGridScrollAnchor({
+    required this.indices,
+    required this.child,
+    super.key,
+  });
+  final List<int> indices;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _ProjectedAutoScrollTag(
+    key: ValueKey(indices.first),
+    controller: _InheritedAutoScrollController.of(context),
+    indices: indices,
+    child: child,
+  );
+}
+
+class _ProjectedAutoScrollTag extends AutoScrollTag {
+  _ProjectedAutoScrollTag({
+    required this.indices,
+    required super.controller,
+    required super.child,
+    required super.key,
+  }) : super(index: indices.first);
+  final List<int> indices;
+
+  @override
+  AutoScrollTagState<_ProjectedAutoScrollTag> createState() =>
+      _ProjectedAutoScrollTagState();
+}
+
+class _ProjectedAutoScrollTagState
+    extends AutoScrollTagState<_ProjectedAutoScrollTag> {
+  void _register() {
+    for (final index in widget.indices) {
+      widget.controller.tagMap[index] = this;
+    }
+  }
+
+  void _remove(_ProjectedAutoScrollTag tag) {
+    for (final index in tag.indices) {
+      if (tag.controller.tagMap[index] == this)
+        tag.controller.tagMap.remove(index);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _register();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProjectedAutoScrollTag oldWidget) {
+    _remove(oldWidget);
+    super.didUpdateWidget(oldWidget);
+    _register();
+  }
+
+  @override
+  void dispose() {
+    _remove(widget);
+    super.dispose();
+  }
+}
+
 class PostGridSliver<T extends Post> extends ConsumerWidget {
   const PostGridSliver({
     required this.itemBuilder,

@@ -18,6 +18,7 @@ import '../../../../../../core/posts/listing/src/types/neighboring_series.dart';
 import '../../../../../../core/posts/listing/widgets.dart';
 import '../../../../../../core/posts/pools/pool_grid_item.dart';
 import '../../../../../../core/posts/post/types.dart';
+import '../../../../../../core/posts/listing/src/types/page_mode.dart';
 import '../../../../../../core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
 
 bool _matchesSource(BooruConfig config, Post post) =>
@@ -128,16 +129,25 @@ class SearchSeriesGrid extends ConsumerStatefulWidget {
 class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
   List<Post> _posts = const [];
   List<NeighboringSeriesEntry<Post>> _display = const [];
-  var _frozenUntil = 0;
+  var _lastFrozenFirstIndex = -1;
+  var _fillRequests = 0;
+  var _filling = false;
+  var _fillScheduled = false;
+  var _lastPage = 0;
+  var _wasRefreshing = false;
+  var _generation = 0;
+  static const _fillBudget = 3;
   final _admitted = <int>{};
   final _displayPools = <(int, int), RemoteBookmarkPool>{};
 
   List<NeighboringSeriesEntry<Post>> _project(
     List<Post> posts, {
     bool enabled = true,
+    List<NeighboringSeriesEntry<Post>> frozen = const [],
   }) => groupNeighboringSeries(
     posts,
     enabled: enabled,
+    frozen: frozen,
     scopeKey: (p) => _matchesSource(widget.config, p)
         ? (p.origin, widget.config.id, widget.config.auth)
         : null,
@@ -153,7 +163,9 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
         widget.controller != oldWidget.controller) {
       _posts = const [];
       _display = const [];
-      _frozenUntil = 0;
+      _lastFrozenFirstIndex = -1;
+      _generation++;
+      _fillRequests = 0;
       _admitted.clear();
       _displayPools.clear();
     }
@@ -163,9 +175,11 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     final window = start ~/ (PoolBookmarkCapability.membershipBudget ~/ 2);
     if (!_admitted.add(window)) return;
     final config = widget.config;
+    final generation = _generation;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted ||
           widget.config != config ||
+          generation != _generation ||
           isExplicitSeriesSearch(widget.query))
         return;
       final capability = ref.read(poolBookmarkCapabilityProvider(config));
@@ -182,6 +196,49 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     });
   }
 
+  void _scheduleFill() {
+    final controller = widget.controller;
+    if (_fillScheduled ||
+        _filling ||
+        _fillRequests >= _fillBudget ||
+        controller.pageMode != PageMode.infinite ||
+        controller.refreshing ||
+        controller.loadingMore ||
+        !controller.hasMore ||
+        controller.errors.value != null)
+      return;
+    _fillScheduled = true;
+    final generation = _generation;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _fillScheduled = false;
+      if (!mounted ||
+          generation != _generation ||
+          SelectionMode.of(context).isActive ||
+          isExplicitSeriesSearch(widget.query) ||
+          controller.refreshing ||
+          controller.loadingMore ||
+          !controller.hasMore ||
+          controller.errors.value != null)
+        return;
+      _fillRequests++;
+      _filling = true;
+      try {
+        await controller.fetchMore();
+      } finally {
+        // The final controller notification can be coalesced until after this
+        // future completes. Record its page before releasing the automatic
+        // latch, so that rebuild cannot mistake it for a manual continuation.
+        if (mounted &&
+            generation == _generation &&
+            controller == widget.controller) {
+          _lastPage = controller.page;
+        }
+        _filling = false;
+        if (mounted) setState(() {});
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final selection = SelectionMode.of(context);
@@ -189,32 +246,45 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
       listenable: Listenable.merge([
         widget.index,
         selection,
-        widget.controller.itemsNotifier,
+        widget.controller,
       ]),
       builder: (_, _) {
-        final posts = widget.controller.items.toList();
+        final controller = widget.controller;
+        if (controller.refreshing && !_wasRefreshing) {
+          _generation++;
+          _lastFrozenFirstIndex = -1;
+          _display = const [];
+          _admitted.clear();
+          _displayPools.clear();
+          _fillRequests = 0;
+        }
+        _wasRefreshing = controller.refreshing;
+        if (controller.page != _lastPage && !_filling) {
+          _fillRequests = 0;
+        }
+        _lastPage = controller.page;
+        final posts = controller.items.toList();
         final samePrefix =
             _posts.length <= posts.length &&
             _posts.indexed.every((entry) => entry.$2 == posts[entry.$1]);
         if (!samePrefix) {
-          _frozenUntil = 0;
+          _lastFrozenFirstIndex = -1;
+          _generation++;
+          _fillRequests = 0;
           _admitted.clear();
           _display = const [];
           _displayPools.clear();
         }
         _posts = posts;
-        final prefix = _display
-            .where((e) => e.firstIndex < _frozenUntil)
-            .toList();
-        final start = prefix.isEmpty
-            ? 0
-            : prefix.last.firstIndex + prefix.last.posts.length;
-        // Re-project only the unseen suffix. The raw controller never changes.
-        _display = [
-          ...prefix,
-          for (final entry in _project(posts.sublist(start)))
-            NeighboringSeriesEntry.offset(entry, start),
-        ];
+        // Preserve built entries by their original indices, never by a range
+        // inferred from member count. A retained group can extend across pages.
+        _display = _project(
+          posts,
+          frozen: [
+            for (final entry in _display)
+              if (entry.firstIndex <= _lastFrozenFirstIndex) entry,
+          ],
+        );
         for (final entry in _display) {
           if (entry.seriesId case final id?) {
             final pool = widget.index
@@ -228,67 +298,94 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
             selection.isActive || isExplicitSeriesSearch(widget.query)
             ? _project(posts, enabled: false)
             : _display;
-        return PostGridSliver<Post>(
+        final grid = PostGridSliver<Post>(
           postController: widget.controller,
           displayItemCount: display.length,
           itemBuilder: (context, i) {
             final entry = display[i];
             if (!selection.isActive && !isExplicitSeriesSearch(widget.query)) {
-              _frozenUntil =
-                  (_frozenUntil < entry.firstIndex + entry.posts.length)
-                  ? entry.firstIndex + entry.posts.length
-                  : _frozenUntil;
-              _admit(entry.firstIndex + entry.posts.length);
+              // Slivers may build a cache prefix in one layout pass. Freeze all
+              // preceding display entries so a late response cannot move them.
+              if (entry.firstIndex > _lastFrozenFirstIndex) {
+                _lastFrozenFirstIndex = entry.firstIndex;
+              }
+              _admit(entry.lastIndex + 1);
             }
             if (entry.seriesId == null)
-              return widget.itemBuilder(context, entry.firstIndex);
+              return KeyedSubtree(
+                key: ValueKey((widget.config, entry.posts.first.id)),
+                child: widget.itemBuilder(context, entry.firstIndex),
+              );
             final pool = _displayPools[(entry.firstIndex, entry.seriesId!)];
             if (pool == null)
-              return widget.itemBuilder(context, entry.firstIndex);
+              return KeyedSubtree(
+                key: ValueKey((widget.config, entry.posts.first.id)),
+                child: widget.itemBuilder(context, entry.firstIndex),
+              );
             return KeyedSubtree(
-              key: ValueKey((
-                'series',
-                widget.config.auth,
-                pool.id,
-                entry.posts.first.id,
-              )),
-              child: GestureDetector(
-                onLongPress: () =>
-                    selection.enable(initialSelected: [entry.firstIndex]),
-                child: AspectRatio(
-                  aspectRatio: .6,
-                  child: PoolGridItem(
-                    name: pool.title,
-                    total: pool.total,
-                    category: context.t.pool.category.series,
-                    image: FeedPostThumbnail(
-                      post: entry.posts.first,
-                      config: widget.config.auth,
-                    ),
-                    onTap: () async {
-                      final config = widget.config;
-                      final capability = ref.read(
-                        poolBookmarkCapabilityProvider(config),
-                      );
-                      try {
-                        if (capability == null ||
-                            !ref.read(booruConfigProvider).contains(config)) {
-                          throw StateError('Series profile unavailable');
-                        }
-                        await capability.openBookmarkPool(ref, config, pool.id);
-                      } catch (_) {
-                        if (context.mounted)
-                          Kurumi.showErrorToast(
-                            context,
-                            context.t.bookmark.pool_unavailable,
+              key: ValueKey((widget.config, pool.id, entry.posts.first.id)),
+              child: PostGridScrollAnchor(
+                indices: entry.indices,
+                child: GestureDetector(
+                  onLongPress: () =>
+                      selection.enable(initialSelected: [entry.firstIndex]),
+                  child: AspectRatio(
+                    aspectRatio: .6,
+                    child: PoolGridItem(
+                      name: pool.title,
+                      total: pool.total,
+                      displayedCount: entry.posts.length,
+                      category: context.t.pool.category.series,
+                      image: FeedPostThumbnail(
+                        post: entry.posts.first,
+                        config: widget.config.auth,
+                      ),
+                      onTap: () async {
+                        final config = widget.config;
+                        final capability = ref.read(
+                          poolBookmarkCapabilityProvider(config),
+                        );
+                        try {
+                          if (capability == null ||
+                              !ref.read(booruConfigProvider).contains(config)) {
+                            throw StateError('Series profile unavailable');
+                          }
+                          await capability.openBookmarkPool(
+                            ref,
+                            config,
+                            pool.id,
                           );
-                      }
-                    },
+                        } catch (_) {
+                          if (context.mounted)
+                            Kurumi.showErrorToast(
+                              context,
+                              context.t.bookmark.pool_unavailable,
+                            );
+                        }
+                      },
+                    ),
                   ),
                 ),
               ),
             );
           },
+        );
+        return SliverMainAxisGroup(
+          slivers: [
+            grid,
+            SliverLayoutBuilder(
+              builder: (context, constraints) {
+                if (display.length < posts.length &&
+                    constraints.precedingScrollExtent <
+                        constraints.viewportMainAxisExtent &&
+                    !selection.isActive &&
+                    !isExplicitSeriesSearch(widget.query)) {
+                  _scheduleFill();
+                }
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              },
+            ),
+          ],
         );
       },
     );

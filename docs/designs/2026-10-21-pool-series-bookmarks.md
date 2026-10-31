@@ -54,17 +54,21 @@ automatically collapse posts in Bookmarks. Explicit Pool/Series references remai
 independent selectable entries alongside individual Posts, with their existing
 membership, removal/Undo, backup and import behavior.
 
-Normal Danbooru Search groups adjacent runs of at least two Posts with confirmed
-common Series membership under the same source/profile/auth context. Reuse the
-Pool Gallery card and authoritative whole-Series count. Do not infer membership
+Normal Danbooru Search groups at least two confirmed Series members with a
+rolling five-raw-result lookahead after each match under the same
+source/profile/auth context. Preserve unrelated intervening Posts at their
+original positions. Reuse the Pool Gallery card and first grouped Post cover;
+show `Series · X/total` for a partial displayed group, otherwise `Series · total`. Do not infer membership
 from artists, tags, Collection pools or parent/child links. Preserve raw posts,
 pagination and ordering. Entering selection exposes actual constituent Posts.
 An explicit Pool/Series search and the Series detail view do not regroup.
 Metadata work is bounded and coalesced; deferred metadata changes only unseen
-entries so built viewport anchors remain stable.
+entries so built viewport anchors remain stable. Retain every member index and
+map hidden member scroll anchors to its card. Underfilled infinite viewports
+fetch at most three extra pages per cycle, retaining manual Load More and normal
+controller recovery/exhaustion. See the [Search contract](2026-10-11-neighboring-series.md#search-grouping).
 
-Related grouping and its interaction remain OPEN. Inline expansion has not been
-approved and is not implemented by this correction.
+Related Posts grouping is a separate follow-up and excluded from this correction.
 
 Cover metadata records only the selected static cover's media variants, allowing
 existing source-specific listing quality resolution. Older saved references use

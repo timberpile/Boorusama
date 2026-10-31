@@ -14,12 +14,16 @@ class PoolGridItem extends ConsumerWidget {
     required this.total,
     required this.name,
     this.category,
+    this.displayedCount,
     super.key,
   });
 
   final Widget image;
   final void Function() onTap;
   final int? total;
+
+  /// Local projected membership; omitted for full collection/reference cards.
+  final int? displayedCount;
   final String? name;
   final String? category;
 
@@ -86,7 +90,11 @@ class PoolGridItem extends ConsumerWidget {
                           child: Text(
                             [
                               if (category case final value?) value,
-                              if (total case final value?) '$value',
+                              if (total case final value?)
+                                displayedCount != null &&
+                                        displayedCount != value
+                                    ? '$displayedCount/$value'
+                                    : '$value',
                             ].join(' · '),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

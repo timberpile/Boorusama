@@ -1,4 +1,5 @@
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/boorus/defaults/widgets.dart';
@@ -7,6 +8,7 @@ import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/boorus/danbooru/posts/search/src/widgets/search_series_grid.dart';
 import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -33,6 +35,7 @@ import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/router.dart';
@@ -78,6 +81,7 @@ void main() {
       await harness.pumpUntilFound(tester, card);
       expect(tester.widget<PoolGridItem>(card).total, 20);
       expect(tester.widget<PoolGridItem>(card).category, 'Series');
+      expect(find.text('Series · 2/20'), findsOneWidget);
       final grid = tester.widget<SearchSeriesGrid>(seriesGrid);
       expect(grid.controller.items.map((p) => p.id), [101, 102]);
       expect(
@@ -181,6 +185,411 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'rolling Search groups across pages, preserves holes and raw selection indices',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        realSearch: true,
+        seriesMembers: [101, 103, 105],
+      );
+      final harness = setup.harness;
+      List<Post> posts(List<int> ids) => [
+        for (final id in ids)
+          testPoolPost(id).post.copyWith(
+            origin: postOriginFromConfig(harness.booruBackend.config),
+          ),
+      ];
+      harness.booruBackend.enqueuePosts(
+        page: 1,
+        query: 'cat',
+        posts: posts([101, 102, 103]),
+        hasMore: true,
+      );
+      harness.booruBackend.enqueuePosts(
+        page: 2,
+        query: 'cat',
+        posts: posts([104, 105]),
+        hasMore: false,
+      );
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('cat');
+      await harness.pumpUntilFound(tester, find.text('Series · 3/20'));
+      final series = find.byType(SearchSeriesGrid);
+      final controller = tester.widget<SearchSeriesGrid>(series).controller;
+      expect(controller.page, 2);
+      expect(controller.hasMore, isFalse);
+      expect(controller.items.map((p) => p.id), [101, 102, 103, 104, 105]);
+      expect(postTile(102), findsOneWidget);
+      expect(postTile(104), findsOneWidget);
+      final grid = tester.widget<PostGrid<Post>>(
+        find.ancestor(of: series, matching: find.byType(PostGrid<Post>)),
+      );
+      expect(grid.scrollController!.tagMap.keys, containsAll([0, 1, 2, 3, 4]));
+      final card = find.descendant(
+        of: series,
+        matching: find.byType(PoolGridItem),
+      );
+      final cover = tester.widget<FeedPostThumbnail>(
+        find.descendant(of: card, matching: find.byType(FeedPostThumbnail)),
+      );
+      expect(cover.post.id, 101);
+      final selection = SelectionMode.of(tester.element(card));
+      await tester.longPress(card);
+      await harness.settle(tester);
+      expect(
+        selection
+            .selectedFrom(controller.items.toList())
+            .toList()
+            .map((p) => p.id)
+            .toList(),
+        [101],
+      );
+      expect(card, findsNothing);
+      expect(
+        tester
+            .widget<PostGridSliver<Post>>(
+              find.descendant(
+                of: series,
+                matching: find.byType(PostGridSliver<Post>),
+              ),
+            )
+            .displayItemCount,
+        5,
+      );
+      await harness.pumpUntilComplete(
+        tester,
+        grid.scrollController!.scrollToIndex(4),
+      );
+      expect(postTile(105), findsOneWidget);
+      selection.replaceSelection(3);
+      expect(
+        selection
+            .selectedFrom(controller.items.toList())
+            .toList()
+            .map((p) => p.id)
+            .toList(),
+        [104],
+      );
+      selection.disable();
+      grid.scrollController!.jumpTo(0);
+      await harness.settle(tester);
+      expect(find.text('Series · 3/20'), findsOneWidget);
+      expect(
+        identical(
+          grid.scrollController!.tagMap[0],
+          grid.scrollController!.tagMap[4],
+        ),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'collapsed viewport fill stops after three pages and manual Load More can continue',
+    (tester) async {
+      final setup = await _mount(tester, realSearch: true);
+      final harness = setup.harness;
+      for (var page = 1; page <= 6; page++) {
+        harness.booruBackend.enqueuePosts(
+          page: page,
+          query: 'cat',
+          posts: [
+            for (var id = 99 + page * 2; id <= 100 + page * 2; id++)
+              testPoolPost(id).post.copyWith(
+                origin: postOriginFromConfig(harness.booruBackend.config),
+              ),
+          ],
+          hasMore: page < 6,
+        );
+      }
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('cat');
+      await harness.pumpUntilFound(tester, find.text('Series · 8/20'));
+      await harness.settle(tester);
+      final controller = tester
+          .widget<SearchSeriesGrid>(find.byType(SearchSeriesGrid))
+          .controller;
+      expect(controller.page, 4);
+      expect(controller.hasMore, isTrue);
+      expect(controller.loadingMore, isFalse);
+      await tester.pump(const Duration(seconds: 2));
+      expect(
+        controller.page,
+        4,
+        reason: 'rebuilds cannot renew an automatic request budget',
+      );
+      final load = find.widgetWithText(FilledButton, 'Load More');
+      expect(load, findsOneWidget);
+      // The bottom navigation overlaps the footer center on the small phone.
+      // Tap its visible upper edge, exercising the actual manual button.
+      await tester.tapAt(tester.getTopLeft(load) + const Offset(60, 4));
+      await harness.pumpUntilFound(tester, find.text('Series · 12/20'));
+      await harness.settle(tester);
+      expect(controller.page, 6);
+      expect(controller.hasMore, isFalse);
+      expect(controller.items, hasLength(12));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final error in <BooruError>[
+    ServerError(httpStatusCode: 503, message: 'unavailable'),
+    RequestCancelledError(),
+  ]) {
+    testWidgets(
+      'collapsed viewport fill stops on ${error.runtimeType} and explicit retry retains raw state',
+      (tester) async {
+        final setup = await _mount(tester, realSearch: true);
+        final harness = setup.harness;
+        harness.booruBackend.enqueuePosts(
+          page: 1,
+          query: 'cat',
+          posts: harness.booruBackend.posts,
+          hasMore: true,
+        );
+        final gate = harness.booruBackend.enqueuePostGate(
+          siteUrl: harness.booruBackend.config.url,
+          query: 'cat',
+          page: 2,
+        );
+        final driver = AppFlowDriver(tester: tester, harness: harness);
+        await driver.openSearch();
+        await driver.submitSearch('cat');
+        await harness.pumpUntil(
+          tester,
+          () => harness.booruBackend.requests
+              .whereType<FakeBooruPostRequest>()
+              .any((r) => r.query == 'cat' && r.page == 2),
+        );
+        final controller = tester
+            .widget<SearchSeriesGrid>(find.byType(SearchSeriesGrid))
+            .controller;
+        gate.completeFailure(error);
+        await harness.pumpUntil(
+          tester,
+          () => controller.errors.value != null && !controller.loadingMore,
+        );
+        expect(controller.errors.value, error);
+        expect(controller.page, 1);
+        expect(controller.items.map((p) => p.id), [101, 102]);
+        final count = harness.booruBackend.requests
+            .whereType<FakeBooruPostRequest>()
+            .where((r) => r.query == 'cat')
+            .length;
+        await tester.pump(const Duration(seconds: 2));
+        expect(
+          harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
+            (r) => r.query == 'cat',
+          ),
+          hasLength(count),
+        );
+        harness.booruBackend.enqueuePosts(
+          page: 2,
+          query: 'cat',
+          posts: [
+            testPoolPost(103).post.copyWith(
+              origin: postOriginFromConfig(harness.booruBackend.config),
+            ),
+          ],
+          hasMore: false,
+        );
+        await harness.pumpUntilComplete(tester, controller.fetchMore());
+        expect(controller.errors.value, isNull);
+        expect(controller.page, 2);
+        expect(controller.hasMore, isFalse);
+        expect(find.text('Series · 3/20'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'query replacement cancels an in-flight fill without publishing old posts or restarting its cycle',
+    (tester) async {
+      final setup = await _mount(tester, realSearch: true);
+      final harness = setup.harness;
+      final backend = harness.booruBackend;
+      backend.enqueuePosts(
+        page: 1,
+        query: 'cat',
+        posts: backend.posts,
+        hasMore: true,
+      );
+      final gate = backend.enqueuePostGate(
+        siteUrl: backend.config.url,
+        query: 'cat',
+        page: 2,
+      );
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('cat');
+      await harness.pumpUntil(
+        tester,
+        () => backend.requests.whereType<FakeBooruPostRequest>().any(
+          (r) => r.query == 'cat' && r.page == 2,
+        ),
+      );
+      backend.enqueuePosts(
+        page: 1,
+        query: 'dog',
+        posts: [
+          for (final id in [201, 202])
+            testPoolPost(id).post
+                .copyWith(origin: postOriginFromConfig(backend.config)),
+        ],
+        hasMore: false,
+      );
+      await driver.clearSelectedSearchTags();
+      await driver.submitSearch('dog');
+      await harness.pumpUntilFound(tester, postTile(201));
+      gate.completeSuccess(
+        PostResult(posts: [testPoolPost(103).post], total: null, hasMore: true),
+      );
+      await harness.settle(tester);
+      final current = tester.widget<SearchSeriesGrid>(
+        find.byType(SearchSeriesGrid),
+      );
+      expect(current.query, 'dog');
+      expect(current.controller.items.map((p) => p.id), [201, 202]);
+      expect(
+        backend.requests.whereType<FakeBooruPostRequest>().where(
+          (r) => r.query == 'cat' && r.page > 1,
+        ),
+        hasLength(1),
+      );
+      expect(find.byType(PoolGridItem), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'paginated Search keeps a collapsed page without automatic viewport fill',
+    (tester) async {
+      final setup = await _mount(tester, realSearch: true);
+      final harness = setup.harness;
+      await harness.pumpUntilComplete(
+        tester,
+        setup.container
+            .read(settingsNotifierProvider.notifier)
+            .updateWith(
+              (s) => s.copyWith(
+                listing: s.listing.copyWith(pageMode: PageMode.paginated),
+              ),
+            ),
+      );
+      harness.booruBackend.enqueuePosts(
+        page: 1,
+        query: 'cat',
+        posts: harness.booruBackend.posts,
+        hasMore: true,
+      );
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('cat');
+      await harness.pumpUntilFound(tester, find.text('Series · 2/20'));
+      await harness.settle(tester);
+      final controller = tester
+          .widget<SearchSeriesGrid>(find.byType(SearchSeriesGrid))
+          .controller;
+      expect(controller.pageMode, PageMode.paginated);
+      expect(controller.page, 1);
+      expect(controller.hasMore, isTrue);
+      expect(
+        harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
+          (r) => r.query == 'cat' && r.page > 1,
+        ),
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Search waits for bounded initial metadata and timeout keeps built raw tiles stable',
+    (tester) async {
+      final setup = await _mount(tester, realSearch: true, holdSeries: true);
+      final harness = setup.harness;
+      harness.booruBackend.enqueuePosts(
+        page: 1,
+        query: 'cat',
+        posts: harness.booruBackend.posts,
+      );
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('cat');
+      await harness.pumpUntil(
+        tester,
+        () => setup.adapter.membershipRequested.isCompleted,
+      );
+      final grid = find.byType(SearchSeriesGrid);
+      final controller = tester.widget<SearchSeriesGrid>(grid).controller;
+      expect(controller.refreshing, isTrue);
+      expect(controller.items, isEmpty);
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/pools.json'),
+        hasLength(1),
+      );
+      await tester.pump(const Duration(seconds: 11));
+      await harness.settle(tester);
+      expect(controller.refreshing, isFalse);
+      expect(controller.items, hasLength(2));
+      expect(
+        find.descendant(of: grid, matching: find.byType(PoolGridItem)),
+        findsNothing,
+      );
+      final bounds = tester.getRect(postTile(101));
+      setup.adapter.seriesGate!.complete();
+      await harness.settle(tester);
+      expect(tester.getRect(postTile(101)), bounds);
+      expect(
+        find.descendant(of: grid, matching: find.byType(PoolGridItem)),
+        findsNothing,
+      );
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/pools.json').length,
+        lessThanOrEqualTo(2),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'Series whole and partial labels stay bounded at 320dp ${scale}x',
+      (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final setup = await _mount(tester, realSearch: true);
+        final harness = setup.harness;
+        harness.booruBackend.enqueuePosts(
+          page: 1,
+          query: 'cat',
+          posts: [
+            for (var id = 101; id <= 120; id++)
+              testPoolPost(id).post.copyWith(
+                origin: postOriginFromConfig(harness.booruBackend.config),
+              ),
+          ],
+        );
+        final driver = AppFlowDriver(tester: tester, harness: harness);
+        await driver.openSearch();
+        await driver.submitSearch('cat');
+        await harness.pumpUntilFound(tester, find.text('Series · 20'));
+        expect(find.text('Series · 20/20'), findsNothing);
+        final card = find.byType(PoolGridItem);
+        expect(
+          tester.getRect(find.text('Series · 20')).right,
+          lessThanOrEqualTo(tester.getRect(card).right),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'an existing persisted cover resolves High and changes quality without changing the reference',
