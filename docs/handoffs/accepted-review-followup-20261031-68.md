@@ -2,6 +2,8 @@
 
 Prepared 2026-10-31. Branch `feature/group-neighboring-series`.
 
+The subsequent [rolling Search correction](68-rolling-search-2026-10-31.md) supersedes this report for current Search grouping, displayed counts and viewport filling. This report remains historical evidence for its exact earlier candidate.
+
 Verified implementation/test candidate: `833cde34c2994852fcbce7fb3a24f369084b45de`. The final handoff commit changes documentation only; the separate final branch index records that exact resulting HEAD.
 Merge base with local develop: `de5928283aa39f0d67d6a834e42d4fa5e9369b86`. Local develop remained `de5928283aa39f0d67d6a834e42d4fa5e9369b86`; primary checkout remained detached at `405ef9ee9c7f0821d3601866373884015c5323f5`.
 State: PARTIAL — accepted independent changes prepared; named UX choice remains open.

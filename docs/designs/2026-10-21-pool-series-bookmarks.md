@@ -1,6 +1,6 @@
 # Pool and Series Bookmarks
 
-**Status:** Agreed feature design for [Issue #68](https://github.com/timberpile/Boorusama/issues/68). Implemented and verified locally at runtime commit `54b633a9a`; see [acceptance evidence](../handoffs/continuation-2026-10-25-68.md). Develop integration and publication require explicit approval.
+**Status:** Agreed feature design for [Issue #68](https://github.com/timberpile/Boorusama/issues/68), with the accepted rolling Search scope corrected on 2026-10-31. Current implementation/test candidate: `19880c6bb3aec8b6f6322ed87f6e17b5d34c6bed`; see the [current handoff and verification limits](../handoffs/68-rolling-search-2026-10-31.md). User acceptance and develop integration remain pending.
 
 ## Product model
 
