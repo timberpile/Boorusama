@@ -94,8 +94,7 @@ void _showComicStripToast(BuildContext context) {
         ),
       ),
     ),
-    // This notice keeps the native host policy rather than scoped feedback's
-    // complete viewport obstruction.
+    context: context,
     position: ToastPosition.bottom,
     duration: const Duration(seconds: 2),
     dismissOtherToast: true,
