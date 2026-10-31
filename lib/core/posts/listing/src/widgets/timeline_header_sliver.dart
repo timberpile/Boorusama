@@ -15,15 +15,11 @@ class TimelineHeaderSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = ColoredBox(
-      color: Theme.of(context).colorScheme.surface,
-      child: child,
-    );
     return keepVisible
-        ? PinnedHeaderSliver(child: surface)
+        ? PinnedHeaderSliver(child: child)
         : SliverFloatingHeader(
             animationStyle: reduceMotion ? AnimationStyle.noAnimation : null,
-            child: surface,
+            child: child,
           );
   }
 }

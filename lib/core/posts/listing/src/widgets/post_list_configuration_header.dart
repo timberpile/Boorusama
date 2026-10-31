@@ -6,6 +6,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import 'timeline_toolbar.dart';
+
 class PostListConfigurationHeader extends StatefulWidget {
   const PostListConfigurationHeader({
     required this.hiddenCount,
@@ -103,81 +105,58 @@ class _PostListConfigurationHeaderState
         '${context.t.blacklisted_tags.blacklisted_header_title}: '
         '${context.t.posts.hidden_count(hidden: hidden, total: widget.postCount)}';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
-        child: Row(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                key: const ValueKey('timeline-toolbar-content'),
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      context.t.posts.counter(n: widget.postCount),
-                      style: Theme.of(context).textTheme.titleLarge,
+    return TimelineToolbar(
+      trailing: widget.trailing,
+      children: [
+        Text(
+          context.t.posts.counter(n: widget.postCount),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        if (widget.hasBlacklist) ...[
+          const SizedBox(width: 12),
+          KurumiAnchor(
+            controller: _anchor,
+            onShow: () => widget.onExpansionChanged?.call(true),
+            onHide: () => widget.onExpansionChanged?.call(false),
+            overlayBuilder: (_) => UncontrolledProviderScope(
+              container: container,
+              child: InheritedTheme.captureAll(
+                context,
+                widget.blacklistChanges != null
+                    ? ListenableBuilder(
+                        listenable: widget.blacklistChanges!,
+                        builder: (context, _) => _popup(context),
+                      )
+                    : Builder(builder: _popup),
+              ),
+            ),
+            child: Tooltip(
+              message: hiddenLabel,
+              child: Semantics(
+                label: hiddenLabel,
+                excludeSemantics: true,
+                button: true,
+                onTap: _anchor.toggle,
+                child: TextButton.icon(
+                  key: const ValueKey('timeline-blacklist-button'),
+                  onPressed: _anchor.toggle,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
                     ),
-                    if (widget.hasBlacklist) ...[
-                      const SizedBox(width: 12),
-                      KurumiAnchor(
-                        controller: _anchor,
-                        onShow: () => widget.onExpansionChanged?.call(true),
-                        onHide: () => widget.onExpansionChanged?.call(false),
-                        overlayBuilder: (_) => UncontrolledProviderScope(
-                          container: container,
-                          child: InheritedTheme.captureAll(
-                            context,
-                            widget.blacklistChanges != null
-                                ? ListenableBuilder(
-                                    listenable: widget.blacklistChanges!,
-                                    builder: (context, _) => _popup(context),
-                                  )
-                                : Builder(builder: _popup),
-                          ),
-                        ),
-                        child: Tooltip(
-                          message: hiddenLabel,
-                          child: Semantics(
-                            label: hiddenLabel,
-                            excludeSemantics: true,
-                            button: true,
-                            onTap: _anchor.toggle,
-                            child: TextButton.icon(
-                              key: const ValueKey('timeline-blacklist-button'),
-                              onPressed: _anchor.toggle,
-                              style: TextButton.styleFrom(
-                                minimumSize: const Size(48, 48),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                              ),
-                              icon: const Icon(
-                                Symbols.visibility_off,
-                                size: 20,
-                              ),
-                              label: Text('$hidden'),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                  ),
+                  icon: const Icon(
+                    Symbols.visibility_off,
+                    size: 20,
+                  ),
+                  label: Text('$hidden'),
                 ),
               ),
             ),
-            if (widget.trailing case final trailing?) ...[
-              const SizedBox(width: 4),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                child: trailing,
-              ),
-            ],
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
     );
   }
 }

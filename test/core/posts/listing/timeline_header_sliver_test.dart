@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_header_sliver.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:kurumi/kurumi.dart';
@@ -44,10 +47,58 @@ void main() {
         find.text('Toolbar').hitTestable(),
         pinned ? findsOneWidget : findsNothing,
       );
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, 180));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 32));
       await tester.pumpAndSettle();
       expect(find.text('Toolbar').hitTestable(), findsOneWidget);
+      expect(
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels,
+        greaterThan(200),
+      );
       expect(tester.takeException(), isNull);
     });
+  }
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'toolbar renders the backdrop through its transparent surface in $brightness',
+      (tester) async {
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(brightness: brightness),
+            home: RepaintBoundary(
+              key: key,
+              child: const Stack(
+                children: [
+                  Positioned.fill(child: ColoredBox(color: Color(0xff13579b))),
+                  CustomScrollView(
+                    slivers: [
+                      TimelineHeaderSliver(child: SizedBox(height: 60)),
+                      SliverToBoxAdapter(child: SizedBox(height: 1200)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final pixel = await tester.runAsync(() async {
+          final image = await boundary.toImage(pixelRatio: 1);
+          try {
+            final bytes = (await image.toByteData(
+              format: ui.ImageByteFormat.rawRgba,
+            ))!;
+            final offset = (20 * image.width + 20) * 4;
+            return List.generate(4, (i) => bytes.getUint8(offset + i));
+          } finally {
+            image.dispose();
+          }
+        });
+        expect(pixel, [0x13, 0x57, 0x9b, 0xff]);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }
