@@ -116,7 +116,7 @@ ProfileNavigationCapabilities describeEngineNavigation({
       ),
       tool(
         'pixiv.following-artists',
-        (c) => c.t.pixivFollowing.title,
+        (c) => c.t.pixivFollowing.navigationLabel,
         Symbols.group,
         (config.apiKey?.isNotEmpty ?? false) &&
                 (int.tryParse(

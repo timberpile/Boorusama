@@ -6,6 +6,8 @@ import 'package:kurumi/material.dart';
 
 import '../../../core/configs/config/types.dart';
 import '../../../core/configs/create/routes.dart';
+import '../../../core/posts/listing/src/widgets/timeline_option_selector.dart';
+import '../../../core/posts/listing/src/widgets/timeline_toolbar.dart';
 import '../../../core/search/search/routes.dart';
 import '../configs/extra_data.dart';
 import '../posts/query.dart';
@@ -80,35 +82,25 @@ class _FollowingViewState extends ConsumerState<_FollowingView> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text(
-                widget.config.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
+              child: TimelineToolbar(
                 children: [
-                  for (final value in [
-                    PixivFollowRestrict.public,
-                    PixivFollowRestrict.private,
-                  ])
-                    ChoiceChip(
-                      label: Text(
-                        value == PixivFollowRestrict.public
-                            ? strings.public
-                            : strings.private,
-                      ),
-                      selected: _restrict == value,
-                      onSelected: (selected) {
-                        if (selected && value != _restrict)
-                          setState(() => _restrict = value);
-                      },
-                    ),
+                  TimelineOptionSelector<PixivFollowRestrict>(
+                    key: const ValueKey('pixiv-following-privacy'),
+                    label: _restrict == PixivFollowRestrict.public
+                        ? strings.public
+                        : strings.private,
+                    options: const [
+                      PixivFollowRestrict.public,
+                      PixivFollowRestrict.private,
+                    ],
+                    value: _restrict,
+                    optionLabel: (value) => value == PixivFollowRestrict.public
+                        ? strings.public
+                        : strings.private,
+                    onSelected: (value) {
+                      if (value != _restrict) setState(() => _restrict = value);
+                    },
+                  ),
                 ],
               ),
             ),

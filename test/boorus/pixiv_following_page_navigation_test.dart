@@ -10,6 +10,7 @@ import 'package:boorusama/boorus/pixiv/following/page.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_option_selector.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/search/search/routes.dart';
 import 'package:dio/dio.dart';
@@ -59,8 +60,10 @@ void main() {
             path: '/',
             builder: (_, _) => Consumer(
               builder: (context, ref, _) => MediaQuery(
-                data: MediaQuery.of(context)
-                    .copyWith(textScaler: const TextScaler.linear(2)),
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: const TextScaler.linear(2),
+                  viewInsets: const EdgeInsets.only(bottom: 220),
+                ),
                 child: PixivFollowingArtistsPage(config: ref.watch(_current)),
               ),
             ),
@@ -86,11 +89,15 @@ void main() {
       );
       await _until(tester, () => calls.length == 1);
       final public = calls.single;
+      expect(find.text('Pixiv Following'), findsOneWidget);
+      expect(find.text(_a.name), findsNothing);
+      expect(find.byType(ChoiceChip), findsNothing);
       await tester.tap(
-        find.byWidgetPredicate(
-          (widget) => widget is ChoiceChip && !widget.selected,
-        ),
+        find.byType(TimelineOptionSelector<PixivFollowRestrict>),
       );
+      await _until(tester, () => find.text('Private').evaluate().isNotEmpty);
+      await tester.tap(find.text('Private'));
+      await _until(tester, () => find.text('Private').evaluate().length == 1);
       await _until(tester, () => calls.length == 2);
       final private = calls.last;
       expect(public.cancelled, isTrue);
@@ -135,6 +142,7 @@ BooruConfig _profile(int account, String id) => BooruConfig.fromJson({
     customDownloadFileNameFormat: null,
   ).toJson(),
   'id': id,
+  'name': 'Profile $account',
   'apiKey': 'fixture-refresh-$account',
   'passHash': PixivExtraData(userId: '$account', xRestrict: 0).toPassHash(),
 });

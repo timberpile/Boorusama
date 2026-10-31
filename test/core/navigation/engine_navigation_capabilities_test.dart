@@ -4,6 +4,8 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/navigation/destination_definition.dart';
 import 'package:boorusama/core/navigation/navigation_catalog.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:i18n/i18n.dart';
+import 'package:kurumi/material.dart';
 
 void main() {
   ProfileNavigationCapabilities capabilities(
@@ -29,6 +31,26 @@ void main() {
       knownShimmieFavorites: canFavorite,
     );
   }
+
+  testWidgets(
+    'Pixiv navigation uses Following independently of its page title',
+    (tester) async {
+      final following = capabilities(BooruType.pixiv).tools
+          .singleWhere((tool) => tool.toolId == 'pixiv.following-artists');
+      await tester.pumpWidget(
+        BooruLocalization(
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) => Text(following.label(context)),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Following'), findsOneWidget);
+      expect(find.text('Following Artists'), findsNothing);
+      expect(find.text('Pixiv Following'), findsNothing);
+    },
+  );
 
   test('all engines with secondary menus have an explicit inventory', () {
     final expected = {
