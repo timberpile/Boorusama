@@ -23,7 +23,7 @@ void main() {
       final controller = PostGridController<Post>(
         fetcher: (page) => page == 1
             ? TaskEither.right(
-                PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+                PostResult(posts: [Bookmark.empty.toPost()], total: 2),
               )
             : TaskEither.tryCatch(
                 () => pending.future,
@@ -67,7 +67,7 @@ void main() {
         fetcher: (page) {
           if (page == 1) {
             return TaskEither.right(
-              PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+              PostResult(posts: [Bookmark.empty.toPost()], total: 2),
             );
           }
           requestedPages.add(page);

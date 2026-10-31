@@ -90,12 +90,16 @@ class DanbooruClient
 
   Future<int?> countPosts({
     List<String>? tags,
+    bool estimateCount = true,
+    bool skipCache = false,
   }) async {
     try {
       final response = await dio.get(
         '/counts/posts.json',
         queryParameters: {
           if (tags != null && tags.isNotEmpty) 'tags': tags.join(' '),
+          if (!estimateCount) 'estimate_count': false,
+          if (skipCache) 'skip_cache': true,
         },
       );
 

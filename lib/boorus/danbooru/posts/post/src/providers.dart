@@ -18,6 +18,7 @@ import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/settings/providers.dart';
 import '../../../client_provider.dart';
+import '../../../constants.dart';
 import '../../../tags/_shared/tag_list_notifier.dart';
 import '../../../tags/tag/providers.dart';
 import '../../../users/user/providers.dart';
@@ -66,9 +67,31 @@ final danbooruPostRepoProvider =
                     .toList(),
               );
 
+          int? total;
+          bool? hasMore;
+          if (tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
+            // The ordinary count may be estimated or cached. Only a fresh
+            // exact count can prove that every raw member was received.
+            final count = await client.countPosts(
+              tags: [
+                ...tags,
+                if (Uri.tryParse(config.auth.url)?.host.toLowerCase() ==
+                    Uri.parse(kDanbooruSafeUrl).host)
+                  'rating:g',
+              ],
+              estimateCount: false,
+              skipCache: true,
+            );
+            final uniqueCount = posts.map((post) => post.id).toSet().length;
+            if (count != null && count >= uniqueCount && count >= 0) {
+              total = count;
+              if (page == 1 && uniqueCount == count) hasMore = false;
+            }
+          }
+          final result = posts.toResult(total: total, hasMore: hasMore);
           return (options?.cascadeRequest ?? true)
-              ? transformPosts(ref, posts.toResult(), config)
-              : posts.toResult();
+              ? transformPosts(ref, result, config)
+              : result;
         },
         getSettings: () async =>
             ref.read(listingSettingsForAuthProvider(config.auth)),
