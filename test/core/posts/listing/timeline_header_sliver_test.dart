@@ -57,6 +57,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+  testWidgets('floating toolbar survives empty-to-content error recovery', (
+    tester,
+  ) async {
+    final show = ValueNotifier(false);
+    addTearDown(show.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ValueListenableBuilder(
+          valueListenable: show,
+          builder: (context, visible, _) => CustomScrollView(
+            slivers: [
+              TimelineHeaderSliver(
+                child: visible
+                    ? const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Text('Recovered toolbar'),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 1200)),
+            ],
+          ),
+        ),
+      ),
+    );
+    show.value = true;
+    await tester.pump();
+    expect(find.text('Recovered toolbar').hitTestable(), findsOneWidget);
+    show.value = false;
+    await tester.pump();
+    show.value = true;
+    await tester.pump();
+    expect(find.text('Recovered toolbar').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final brightness in Brightness.values) {
     testWidgets(
       'toolbar renders the backdrop through its transparent surface in $brightness',
