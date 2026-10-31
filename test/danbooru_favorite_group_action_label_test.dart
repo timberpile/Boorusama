@@ -5,6 +5,7 @@ import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/widgets/multi_selection_action_bar.dart';
 import 'package:boorusama/boorus/danbooru/posts/listing/src/danbooru_post_grid_presentation.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/types.dart';
+import 'package:boorusama/boorus/danbooru/danbooru_builder.dart';
 
 import 'dart:async';
 
@@ -432,6 +433,7 @@ Future<void> _pumpActions(
               ? const DanbooruPostGridPresentation()
               : const GenericPostPresentation(),
         ),
+        booruBuilderProvider.overrideWith((ref, auth) => DanbooruBuilder()),
         currentReadOnlyBooruConfigProvider.overrideWithValue(config),
         currentReadOnlyBooruConfigAuthProvider.overrideWithValue(config.auth),
         currentReadOnlyBooruConfigDownloadProvider.overrideWithValue(

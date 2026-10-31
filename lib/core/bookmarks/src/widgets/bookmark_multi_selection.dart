@@ -9,6 +9,8 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import 'bookmark_group_label.dart';
+import '../../../groups/folder_tree.dart';
+import 'bookmark_batch_dialog.dart';
 import '../providers/bookmark_provider.dart';
 import '../data/bookmark_convert.dart';
 import '../types/bookmark_group.dart';
@@ -113,62 +115,45 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
     final singleMemberships = bookmarks.length == 1
         ? library?.membershipsFor(bookmarks.single.uniqueId)
         : null;
-    return AlertDialog(
-      title: Text(context.t.bookmark.groups.selector),
-      content: SizedBox(
-        width: 360,
-        height: 320,
-        child: BookmarkFolderPickerContents(
-          folders: library?.folders ?? const [],
-          groups: library?.groups ?? const [],
-          membershipGroupIds: singleMemberships,
-          groupBuilder: (context, group) => ListTile(
-            leading: Icon(
-              Symbols.bookmarks,
-              fill: (singleMemberships?.contains(group.id) ?? false) ? 1 : 0,
-            ),
-            title: Text(
-              group.displayName(context),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            onTap: () => Navigator.pop(context, group.id),
+    return BookmarkBatchDialog(
+      title: context.t.bookmark.groups.selector,
+      child: BookmarkFolderPickerContents(
+        compact: true,
+        folders: library?.folders ?? const [],
+        groups: library?.groups ?? const [],
+        membershipGroupIds: singleMemberships,
+        groupBuilder: (context, group) => BookmarkPickerMenuItem(
+          icon: Icon(
+            Symbols.bookmarks,
+            fill: (singleMemberships?.contains(group.id) ?? false) ? 1 : 0,
           ),
-          onCreateGroup: allowCreate
-              ? (folderId) async {
-                  final name = await showBookmarkGroupNameDialog(
-                    context,
-                    title: context.t.bookmark.groups.create,
-                  );
-                  if (name == null || !context.mounted) return;
-                  try {
-                    final group = await ref
-                        .read(bookmarkProvider.notifier)
-                        .createGroup(
-                          name,
-                          folderId: folderId,
-                        );
-                    if (context.mounted) {
-                      Navigator.pop(context, group.id);
-                    }
-                  } catch (_) {
-                    if (context.mounted) {
-                      Kurumi.showErrorToast(
-                        context,
-                        context.t.bookmark.groups.operation_failed,
-                      );
-                    }
+          title: group.displayName(context),
+          hideOnTap: false,
+          onTap: () => Navigator.pop(context, group.id),
+        ),
+        onCreateGroup: allowCreate
+            ? (folderId) async {
+                final name = await showBookmarkGroupNameDialog(
+                  context,
+                  title: context.t.bookmark.groups.create,
+                );
+                if (name == null || !context.mounted) return;
+                try {
+                  final group = await ref
+                      .read(bookmarkProvider.notifier)
+                      .createGroup(name, folderId: folderId);
+                  if (context.mounted) Navigator.pop(context, group.id);
+                } catch (_) {
+                  if (context.mounted) {
+                    Kurumi.showErrorToast(
+                      context,
+                      context.t.bookmark.groups.operation_failed,
+                    );
                   }
                 }
-              : null,
-        ),
+              }
+            : null,
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(context.t.generic.action.cancel),
-        ),
-      ],
     );
   }
 }
@@ -399,45 +384,45 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     final visibleGroups = groups
         .where((group) => add || summary.countFor(group.id) > 0)
         .toList();
-    return AlertDialog(
-      title: Text(
-        add
-            ? context.t.bookmark.bulk.add_title
-            : context.t.bookmark.bulk.remove_title,
-      ),
-      content: SizedBox(
-        width: 360,
-        height: 320,
-        child: BookmarkFolderPickerContents(
-          folders: state?.folders ?? const [],
-          groups: visibleGroups,
-          membershipGroupIds: posts.length == 1
-              ? state?.membershipsFor(
-                  bookmarkIdentityForPost(posts.single, config.booruIdHint),
-                )
-              : null,
-          groupBuilder: (context, group) => _tile(
-            context,
-            BookmarkGroupSelectionTarget(group.id, group.displayName(context)),
-            summary.countFor(group.id),
-          ),
-          onCreateGroup: add
-              ? (folderId) => _create(context, ref, folderId)
-              : null,
-          footerBuilder: !add && visibleGroups.isEmpty
-              ? (context, folderId) => Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(context.t.bookmark.bulk.no_applicable),
-                )
-              : null,
+    final allFolders = state?.folders ?? const <CollectionFolder>[];
+    final tree = FolderTree(allFolders);
+    final relevantFolderIds = {
+      for (final group in visibleGroups)
+        for (final folder in tree.ancestors(group.folderId)) folder.id,
+    };
+    final visibleFolders = add
+        ? allFolders
+        : allFolders
+              .where((folder) => relevantFolderIds.contains(folder.id))
+              .toList();
+    return BookmarkBatchDialog(
+      title: add
+          ? context.t.bookmark.bulk.add_title
+          : context.t.bookmark.bulk.remove_title,
+      child: BookmarkFolderPickerContents(
+        compact: true,
+        folders: visibleFolders,
+        groups: visibleGroups,
+        membershipGroupIds: posts.length == 1
+            ? state?.membershipsFor(
+                bookmarkIdentityForPost(posts.single, config.booruIdHint),
+              )
+            : null,
+        groupBuilder: (context, group) => _tile(
+          context,
+          BookmarkGroupSelectionTarget(group.id, group.displayName(context)),
+          summary.countFor(group.id),
         ),
+        onCreateGroup: add
+            ? (folderId) => _create(context, ref, folderId)
+            : null,
+        footerBuilder: !add && visibleGroups.isEmpty
+            ? (context, folderId) => Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(context.t.bookmark.bulk.no_applicable),
+              )
+            : null,
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(context.t.generic.action.cancel),
-        ),
-      ],
     );
   }
 
@@ -445,17 +430,16 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     BuildContext context,
     BookmarkGroupSelectionTarget target,
     int count,
-  ) => ListTile(
-    leading: Icon(
+  ) => BookmarkPickerMenuItem(
+    icon: Icon(
       target.id == null ? Symbols.bookmark : Symbols.bookmarks,
       fill: posts.length == 1 && count > 0 ? 1 : 0,
     ),
-    title: Text(target.name),
-    subtitle: Text(
-      context.t.bookmark.bulk.membership_count
-          .replaceAll('{0}', '$count')
-          .replaceAll('{1}', '${posts.length}'),
-    ),
+    title: target.name,
+    detail: context.t.bookmark.bulk.membership_count
+        .replaceAll('{0}', '$count')
+        .replaceAll('{1}', '${posts.length}'),
+    hideOnTap: false,
     onTap: () => Navigator.pop(context, target),
   );
 

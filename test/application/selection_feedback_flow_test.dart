@@ -6,6 +6,8 @@ import 'package:boorusama/core/posts/favorites/src/data/repository.dart';
 import 'package:boorusama/core/posts/favorites/types.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_batch_dialog.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
 import 'package:boorusama/core/widgets/widgets.dart';
 import 'package:flutter/widgets.dart';
@@ -55,7 +57,11 @@ void main() {
       expect(postTile(101).hitTestable(), findsOneWidget);
       await tester.longPress(postTile(101));
       await harness.settle(tester);
-      await tester.tap(find.text(appStrings(tester).generic.action.select));
+      final select = find.text(appStrings(tester).generic.action.select);
+      await tester.ensureVisible(select);
+      await harness.settle(tester);
+      expect(select.hitTestable(), findsOneWidget);
+      await tester.tap(select);
       await harness.settle(tester);
       expect(selection.selection, {0});
       final gesture = await tester.startGesture(
@@ -353,6 +359,15 @@ void main() {
         ),
       );
       await harness.settle(tester);
+      expect(find.byType(BookmarkGroupPicker), findsOneWidget);
+      expect(container.read(navigationChromeProvider).selectionActive, isTrue);
+      await tester.binding.handlePopRoute();
+      await harness.settle(tester);
+      expect(find.byType(BookmarkGroupPicker), findsNothing);
+      await tester.tap(postTile(102));
+      await harness.settle(tester);
+      await tester.tap(find.byKey(const Key('selection-batch-bookmarks')));
+      await harness.settle(tester);
       await tester.tap(
         find.widgetWithText(
           KurumiPopupMenuItem,
@@ -360,6 +375,7 @@ void main() {
         ),
       );
       await harness.settle(tester);
+      expect(find.byType(BookmarkBatchDialog), findsOneWidget);
       expect(container.read(navigationChromeProvider).selectionActive, isTrue);
     },
   );

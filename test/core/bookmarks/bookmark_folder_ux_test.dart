@@ -1538,15 +1538,26 @@ void main() {
           ],
         );
         await tester.pumpAndSettle();
-        final backTarget = tester.getRect(
-          find.byKey(const ValueKey('bookmark-picker-back')),
-        );
-        // The far edge of the path belongs to Back, right up to Group.
-        await tester.tapAt(Offset(backTarget.right - 2, backTarget.center.dy));
-        await tester.pumpAndSettle();
-        expect(tester.widget<legacy.Text>(pathFinder).data, 'Artists');
-        await tester.tap(find.byTooltip('Back').first);
-        await tester.pumpAndSettle();
+        if (entry == 'bulk remove') {
+          // Losing the last applicable leaf removes that subtree and returns
+          // the picker to its valid root; unrelated navigation stays hidden.
+          expect(
+            find.byKey(const ValueKey('bookmark-picker-back')),
+            findsNothing,
+          );
+        } else {
+          final backTarget = tester.getRect(
+            find.byKey(const ValueKey('bookmark-picker-back')),
+          );
+          // The far edge of the path belongs to Back, right up to Group.
+          await tester.tapAt(
+            Offset(backTarget.right - 2, backTarget.center.dy),
+          );
+          await tester.pumpAndSettle();
+          expect(tester.widget<legacy.Text>(pathFinder).data, 'Artists');
+          await tester.tap(find.byTooltip('Back').first);
+          await tester.pumpAndSettle();
+        }
         final updated = tester.widget<BookmarkFolderMembershipIcon>(
           find.descendant(
             of: find.ancestor(

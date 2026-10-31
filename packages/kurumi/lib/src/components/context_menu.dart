@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:anchor_ui/anchor_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -98,6 +100,7 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
   ModalRoute<dynamic>? _historyRoute;
   FocusNode? _returnFocus;
   var _openedByKeyboard = false;
+  var _position = Offset.zero;
 
   @override
   void initState() {
@@ -131,6 +134,7 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
     _open = this;
     _returnFocus = FocusManager.instance.primaryFocus;
     _openedByKeyboard = byKeyboard;
+    _position = position;
     _controller.show(position);
   }
 
@@ -256,6 +260,22 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
               listenable: _pageController,
               builder: (context, _) {
                 final pageBuilder = _pageController.pageBuilder;
+                final padding = MediaQuery.paddingOf(context);
+                final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+                final top = padding.top + 8;
+                final bottom =
+                    MediaQuery.heightOf(context) -
+                    max(padding.bottom, keyboard) -
+                    8;
+                // The anchor flips above/below the pointer; it only shifts
+                // horizontally, so a long menu must fit one of those sides.
+                final availableHeight = max(
+                  0.0,
+                  min(
+                    bottom - top,
+                    max(_position.dy - top, bottom - _position.dy),
+                  ),
+                );
                 return Container(
                   padding: EdgeInsets.symmetric(
                     vertical: pageBuilder == null ? 8 : 0,
@@ -267,12 +287,24 @@ class _KurumiContextMenuState extends State<KurumiContextMenu> {
                     boxShadow: kElevationToShadow[4],
                     border: Border.all(color: colorScheme.outlineVariant),
                   ),
-                  constraints: const BoxConstraints(maxWidth: 240),
+                  constraints: BoxConstraints(
+                    maxWidth: min(
+                      240.0,
+                      max(
+                        0.0,
+                        MediaQuery.widthOf(context) - padding.horizontal - 16,
+                      ),
+                    ),
+                    maxHeight: availableHeight,
+                  ),
                   child:
                       pageBuilder?.call(context) ??
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: widget.menuItemsBuilder(context),
+                      SingleChildScrollView(
+                        primary: false,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: widget.menuItemsBuilder(context),
+                        ),
                       ),
                 );
               },

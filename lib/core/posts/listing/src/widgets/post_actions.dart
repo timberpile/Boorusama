@@ -311,9 +311,8 @@ List<PostActionDefinition> postActionDefinitions(
             await goToShowTaglistPage(ref, post, config: config);
           }),
         ),
-      if (post.hasComment &&
-          ref.watch(booruBuilderProvider(config.auth))?.commentPageBuilder !=
-              null)
+      if (ref.watch(booruBuilderProvider(config.auth))?.commentPageBuilder !=
+          null)
         PostActionDefinition(
           id: PostActionId.comments,
           label: context.t.post.action.view_comments,

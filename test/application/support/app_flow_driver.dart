@@ -104,12 +104,14 @@ final class AppFlowDriver {
   }
 
   Future<void> choosePostMenuAction(String label) async {
-    await tester.tap(
-      find.descendant(
-        of: find.byType(KurumiContextMenuTile),
-        matching: find.text(label),
-      ),
+    final action = find.descendant(
+      of: find.byType(KurumiContextMenuTile),
+      matching: find.text(label),
     );
+    await tester.ensureVisible(action);
+    await harness.settle(tester);
+    expect(action.hitTestable(), findsOneWidget);
+    await tester.tap(action);
     await tester.pump();
     await harness.settle(tester);
   }
