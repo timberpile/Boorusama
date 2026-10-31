@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_appbar.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 
@@ -344,13 +345,9 @@ void main() {
         expect(titleRect.bottom, lessThanOrEqualTo(24 + kToolbarHeight));
         expect(searchRect.top, 24 + kToolbarHeight);
         expect(titleRect.overlaps(searchRect), isFalse);
-        expect(
-          tester
-              .renderObject<RenderSliver>(find.byType(SliverAppBar))
-              .geometry!
-              .maxPaintExtent,
-          kToolbarHeight,
-        );
+        final appBar = find.byType(BookmarkAppBar);
+        expect(tester.getSize(appBar).height, 24 + kToolbarHeight);
+        expect(tester.getRect(appBar).bottom, searchRect.top);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },
