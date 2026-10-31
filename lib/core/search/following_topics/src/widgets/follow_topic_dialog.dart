@@ -78,74 +78,88 @@ class _FollowTopicDialogState extends State<FollowTopicDialog> {
     final strings = context.t.following_topics;
     return PopScope(
       canPop: !_submitting,
-      child: KurumiDialog(
-        dismissible: !_submitting,
-        child: CallbackShortcuts(
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.escape): () {
-              if (!_submitting) Navigator.pop(context);
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: KurumiDialog(
+          dismissible: !_submitting,
+          child: CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.escape): () {
+                if (!_submitting) Navigator.pop(context);
+              },
             },
-          },
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.isFollowing
-                      ? strings.manage_title
-                      : strings.follow_topic_title,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                Text(strings.query_line(query: widget.query)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: strings.name,
-                    hintText: widget.query,
-                  ),
-                  onSubmitted: (_) => _submit(),
-                ),
-                if (widget.extra case final extra?) ...[
-                  const SizedBox(height: 16),
-                  extra,
-                ],
-                if (_failed) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    strings.save_failed,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Wrap(
-                  alignment: WrapAlignment.end,
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => Navigator.pop(context),
-                      child: Text(context.t.generic.action.cancel),
-                    ),
-                    FilledButton(
-                      style: widget.isFollowing
-                          ? null
-                          : FilledButton.styleFrom(
-                              shape: followActionButtonShape,
-                            ),
-                      onPressed: _submitting ? null : _submit,
-                      child: Text(
-                        widget.isFollowing ? strings.save : strings.follow,
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: constraints.maxHeight / 3,
                       ),
+                      child: KurumiFittedText(
+                        Text(
+                          widget.isFollowing
+                              ? strings.manage_title
+                              : strings.follow_topic_title,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(strings.query_line(query: widget.query)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        labelText: strings.name,
+                        hintText: widget.query,
+                      ),
+                      onSubmitted: (_) => _submit(),
+                    ),
+                    if (widget.extra case final extra?) ...[
+                      const SizedBox(height: 16),
+                      extra,
+                    ],
+                    if (_failed) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        strings.save_failed,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Wrap(
+                      alignment: WrapAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: _submitting
+                              ? null
+                              : () => Navigator.pop(context),
+                          child: Text(context.t.generic.action.cancel),
+                        ),
+                        FilledButton(
+                          style: widget.isFollowing
+                              ? null
+                              : FilledButton.styleFrom(
+                                  shape: followActionButtonShape,
+                                ),
+                          onPressed: _submitting ? null : _submit,
+                          child: Text(
+                            widget.isFollowing ? strings.save : strings.follow,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),

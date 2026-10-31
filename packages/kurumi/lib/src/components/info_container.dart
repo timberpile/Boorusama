@@ -1,3 +1,5 @@
+import 'fitted_text.dart';
+
 import 'package:material_ui/material_ui.dart';
 
 class KurumiInfoContainer extends StatelessWidget {
@@ -129,17 +131,23 @@ class _KurumiTemplateContainerState extends State<KurumiTemplateContainer> {
                     children: [
                       if (widget.icon != null) widget.icon!,
                       const SizedBox(width: 8),
-                      Expanded(
-                        child: widget.title == null
-                            ? const SizedBox.shrink()
-                            : Text(
+                      if (widget.title != null)
+                        Expanded(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 40),
+                            child: KurumiFittedText(
+                              Text(
                                 widget.title!,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   color: widget.titleColor,
                                 ),
                               ),
-                      ),
+                            ),
+                          ),
+                        )
+                      else
+                        const Spacer(),
                       // Keep the existing expand/collapse interaction while
                       // exposing the same action to assistive technology.
                       Semantics(
