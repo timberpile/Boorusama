@@ -55,53 +55,62 @@ class _PostsPerPageDialogState extends State<PostsPerPageDialog> {
       child: KurumiDialog(
         width: 360,
         semanticLabel: context.t.settings.performance.posts_per_page,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                context.t.settings.performance.posts_per_page,
-                style: Kurumi.themeOf(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              KurumiTextField(
-                controller: _controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  helperText: '$minPostsPerPage–$maxPostsPerPage',
-                  errorText: _hasError
-                      ? context.t.settings.performance.posts_per_page_invalid
-                      : null,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: constraints.maxHeight / 3,
+                  ),
+                  child: KurumiFittedText(
+                    Text(
+                      context.t.settings.performance.posts_per_page,
+                      style: Kurumi.themeOf(context).textTheme.titleMedium,
+                    ),
+                  ),
                 ),
-                onChanged: (_) {
-                  if (_hasError) setState(() => _hasError = false);
-                },
-                onSubmitted: (_) => _submit(),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(
-                      MaterialLocalizations.of(context).cancelButtonLabel,
-                    ),
+                const SizedBox(height: 12),
+                KurumiTextField(
+                  controller: _controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    helperText: '$minPostsPerPage–$maxPostsPerPage',
+                    errorText: _hasError
+                        ? context.t.settings.performance.posts_per_page_invalid
+                        : null,
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _submit,
-                    child: Text(
-                      MaterialLocalizations.of(context).okButtonLabel,
+                  onChanged: (_) {
+                    if (_hasError) setState(() => _hasError = false);
+                  },
+                  onSubmitted: (_) => _submit(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text(
+                        MaterialLocalizations.of(context).cancelButtonLabel,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _submit,
+                      child: Text(
+                        MaterialLocalizations.of(context).okButtonLabel,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,3 +1,5 @@
+import 'fitted_text.dart';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
@@ -33,11 +35,17 @@ class KurumiBottomSheetHeader extends StatelessWidget {
             onPressed: onClose,
           ),
           Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 52),
+              child: KurumiFittedText(
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                alignment: Alignment.center,
               ),
             ),
           ),
