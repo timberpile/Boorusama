@@ -331,7 +331,15 @@ void main() {
         expect(menu.right, closeTo(size.width - 20 - 8, .1));
         expect(back.left, closeTo(12 + 8, .1));
         expect(follow.right, lessThanOrEqualTo(menu.left));
-        expect(menu.left - follow.right, lessThan(24));
+        final share = tester.getRect(
+          find.ancestor(
+            of: find.byIcon(Icons.share),
+            matching: find.byType(IconButton),
+          ),
+        );
+        expect(follow.right, lessThanOrEqualTo(share.left));
+        expect(share.left - follow.right, lessThan(24));
+        expect(share.right, lessThanOrEqualTo(menu.left));
         expect(back.right, lessThan(follow.left));
         expect(menu.top, greaterThanOrEqualTo(24));
         expect(tester.takeException(), isNull);

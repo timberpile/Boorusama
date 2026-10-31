@@ -12,6 +12,7 @@ import '../details/routes.dart';
 import '../details/widgets.dart';
 import '../post/types.dart';
 import 'boorusama_post_link.dart';
+import 'boorusama_artist_link_page.dart';
 import 'boorusama_search_link_page.dart';
 import 'linked_post_provider.dart';
 
@@ -260,14 +261,18 @@ class _BoorusamaPostLinkPageState extends ConsumerState<BoorusamaPostLinkPage> {
 
 GoRoute boorusamaPostLinkRoute() => GoRoute(
   path: BoorusamaPostLink.routePath.substring(1),
-  builder: (context, state) =>
-      state.uri.scheme == 'boorusama' && state.uri.host == 'search'
-      ? BoorusamaSearchLinkPage(
-          key: ValueKey(state.uri.toString()),
-          uri: state.uri.toString(),
-        )
-      : BoorusamaPostLinkPage(
-          key: ValueKey(state.uri.toString()),
-          uri: state.uri.toString(),
-        ),
+  builder: (context, state) => switch ((state.uri.scheme, state.uri.host)) {
+    ('boorusama', 'artist') => BoorusamaArtistLinkPage(
+      key: ValueKey(state.uri.toString()),
+      uri: state.uri.toString(),
+    ),
+    ('boorusama', 'search') => BoorusamaSearchLinkPage(
+      key: ValueKey(state.uri.toString()),
+      uri: state.uri.toString(),
+    ),
+    _ => BoorusamaPostLinkPage(
+      key: ValueKey(state.uri.toString()),
+      uri: state.uri.toString(),
+    ),
+  },
 );
