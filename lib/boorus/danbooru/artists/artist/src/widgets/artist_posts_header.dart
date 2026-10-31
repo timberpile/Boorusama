@@ -87,6 +87,7 @@ class _ArtistPostsHeaderState extends ConsumerState<DanbooruArtistPostsHeader> {
                   ),
                 ),
                 ArtistLinkShareButton(
+                  profileName: ref.watchConfig.name,
                   link: BoorusamaArtistLink.fromArtist(
                     auth: ref.watchConfigAuth,
                     artistName: widget.artistName,

@@ -46,6 +46,7 @@ void main() {
           'booruId': BooruType.danbooru.id,
           'booruIdHint': BooruType.danbooru.id,
           'url': 'https://artist.test/',
+          'name': 'My Artist Profile',
         });
         final harness = FollowingTopicHarness(
           profiles: [config],
@@ -85,6 +86,8 @@ void main() {
           matching: find.byType(IconButton),
         );
         expect(action.hitTestable(), findsOneWidget);
+        expect(find.byIcon(Icons.share), findsOneWidget);
+        expect(find.byType(Image), findsNothing);
         expect(tester.getRect(action).right, lessThanOrEqualTo(320));
         expect(tester.widget<IconButton>(action).onPressed, isNotNull);
         await tester.tap(action);
@@ -102,7 +105,7 @@ void main() {
         expect(params.files, hasLength(1));
         expect(params.uri, isNull);
         final file = params.files!.single;
-        expect(file.name, 'boorusama-artist.bslink');
+        expect(file.name, 'My Artist Profile-artist_one.bslink');
         expect(file.mimeType, BoorusamaLinkFile.mimeType);
         final document = await tester.runAsync(
           () async => BoorusamaLinkFile.decode(await file.readAsBytes()),

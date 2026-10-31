@@ -18,8 +18,13 @@ final artistLinkShareAdapterProvider = Provider<ShareActionAdapter>(
 );
 
 class ArtistLinkShareButton extends ConsumerStatefulWidget {
-  const ArtistLinkShareButton({required this.link, super.key});
+  const ArtistLinkShareButton({
+    required this.link,
+    required this.profileName,
+    super.key,
+  });
   final BoorusamaArtistLink? link;
+  final String profileName;
   @override
   ConsumerState<ArtistLinkShareButton> createState() =>
       _ArtistLinkShareButtonState();
@@ -30,6 +35,7 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
 
   Future<void> _share() async {
     final link = widget.link;
+    final profileName = widget.profileName;
     if (link == null || _sharing) return;
     setState(() => _sharing = true);
     try {
@@ -42,10 +48,12 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
             fs: ref.read(appFileSystemProvider),
             adapter: ref.read(artistLinkShareAdapterProvider),
           ).share(
-            BoorusamaLinkFile.fromUri(link.uri.toString()),
+            BoorusamaLinkFile.fromArtist(link, profileName: profileName),
             sharePositionOrigin: origin,
             beforeHandoff: () {
-              if (!mounted || widget.link != link)
+              if (!mounted ||
+                  widget.link != link ||
+                  widget.profileName != profileName)
                 throw const FormatException('Artist share changed');
             },
           );
@@ -71,15 +79,7 @@ class _ArtistLinkShareButtonState extends ConsumerState<ArtistLinkShareButton> {
             .canShareMedia;
     return IconButton(
       tooltip: context.linkFileLabel,
-      icon: Opacity(
-        opacity: enabled ? 1 : .38,
-        child: Image.asset(
-          'assets/icon/icon-512x512.png',
-          width: 24,
-          height: 24,
-          excludeFromSemantics: true,
-        ),
-      ),
+      icon: const Icon(Icons.share),
       onPressed: enabled ? _share : null,
     );
   }

@@ -22,9 +22,60 @@ final class BoorusamaLinkFile {
       return BoorusamaLinkFile._(search.uri, 'boorusama-search.bslink');
     }
     if (BoorusamaArtistLink.tryParse(value) case final artist?) {
-      return BoorusamaLinkFile._(artist.uri, 'boorusama-artist.bslink');
+      return BoorusamaLinkFile.fromArtist(
+        artist,
+        profileName: artist.site.host,
+      );
     }
     throw const FormatException('Unsupported Boorusama link');
+  }
+
+  /// The exported name belongs to the page's source profile, never the active
+  /// navigation profile. The portable document still contains no profile name.
+  factory BoorusamaLinkFile.fromArtist(
+    BoorusamaArtistLink artist, {
+    required String profileName,
+  }) {
+    String component(String name, String fallback) {
+      final cleaned = name
+          .replaceAll(
+            RegExp(r'[<>:"/\\|?*\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]'),
+            '_',
+          )
+          .trim()
+          .replaceAll(RegExp(r'^[. ]+|[. ]+$'), '');
+      return cleaned.isEmpty ? fallback : cleaned;
+    }
+
+    String fit(String value, int bytes) {
+      final result = StringBuffer();
+      var used = 0;
+      for (final rune in value.runes) {
+        final character = String.fromCharCode(rune);
+        final size = utf8.encode(character).length;
+        if (used + size > bytes) break;
+        result.write(character);
+        used += size;
+      }
+      return result.toString().trimRight().replaceFirst(RegExp(r'[. ]+$'), '');
+    }
+
+    final profile = component(profileName, artist.site.host);
+    final name = component(artist.artistName, 'artist');
+    // Leave room for the separator and extension within the portable 255-byte
+    // filename limit. Give either component the space the other does not need.
+    final nameBytes = utf8.encode(name).length;
+    final profileBudget = 247 - (nameBytes < 124 ? nameBytes : 124);
+    final safeProfile = fit(profile, profileBudget);
+    final safeArtist = fit(name, 247 - utf8.encode(safeProfile).length);
+    var stem = '$safeProfile-$safeArtist';
+    if (RegExp(
+      r'^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$',
+      caseSensitive: false,
+    ).hasMatch(stem)) {
+      stem = '_${fit(stem, 247)}';
+    }
+    return BoorusamaLinkFile._(artist.uri, '$stem.bslink');
   }
 
   static const mimeType = 'application/vnd.boorusama.link';

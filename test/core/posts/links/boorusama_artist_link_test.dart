@@ -36,11 +36,49 @@ void main() {
   test('round trips a Unicode artist in the existing document envelope', () {
     final artist = BoorusamaArtistLink.parse(link(name: '絵師_(sample)'));
     final document = BoorusamaLinkFile.fromUri(artist.uri.toString());
-    expect(document.fileName, 'boorusama-artist.bslink');
+    expect(document.fileName, 'danbooru.test-絵師_(sample).bslink');
     expect(BoorusamaLinkFile.decode(document.encode()).uri, artist.uri);
     expect(BoorusamaArtistLink.parse(document.uri.toString()), artist);
     expect(jsonDecode(utf8.decode(document.encode()))['version'], 1);
   });
+
+  test(
+    'artist export names preserve structure and safe Unicode components',
+    () {
+      final artist = BoorusamaArtistLink.parse(link(name: '絵師_(sample)'));
+      expect(
+        BoorusamaLinkFile.fromArtist(
+          artist,
+          profileName: 'My Profile',
+        ).fileName,
+        'My Profile-絵師_(sample).bslink',
+      );
+      expect(
+        BoorusamaLinkFile.fromArtist(artist, profileName: ' .. ').fileName,
+        'danbooru.test-絵師_(sample).bslink',
+      );
+      final unsafe = BoorusamaArtistLink.parse(link(name: 'a/b:c?d'));
+      expect(
+        BoorusamaLinkFile.fromArtist(
+          unsafe,
+          profileName: 'My/Profile:*',
+        ).fileName,
+        'My_Profile__-a_b_c_d.bslink',
+      );
+      expect(
+        BoorusamaLinkFile.fromArtist(artist, profileName: 'CON.txt').fileName,
+        '_CON.txt-絵師_(sample).bslink',
+      );
+      final long = BoorusamaLinkFile.fromArtist(
+        BoorusamaArtistLink.parse(link(name: '絵' * 100)),
+        profileName: '界' * 200,
+      );
+      expect(utf8.encode(long.fileName).length, lessThanOrEqualTo(255));
+      expect(long.fileName, endsWith('.bslink'));
+      expect(long.fileName.split('-'), hasLength(2));
+      expect(BoorusamaLinkFile.decode(long.encode()).uri, long.uri);
+    },
+  );
 
   test(
     'sharing includes only a site and artist identity, never account fields',
