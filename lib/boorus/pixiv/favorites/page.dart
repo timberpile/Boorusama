@@ -11,6 +11,8 @@ import '../../../core/posts/listing/types.dart';
 import '../../../core/posts/listing/widgets.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/widgets/widgets.dart';
+import '../../../core/posts/listing/src/widgets/timeline_option_selector.dart';
+import '../../../core/posts/listing/src/widgets/timeline_toolbar.dart';
 import '../configs/extra_data.dart';
 import 'providers.dart';
 
@@ -92,24 +94,24 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+                child: TimelineToolbar(
                   children: [
-                    for (final value in PixivBookmarkVisibility.values)
-                      ChoiceChip(
-                        label: Text(
+                    TimelineOptionSelector<PixivBookmarkVisibility>(
+                      key: const ValueKey('pixiv-favorites-privacy'),
+                      label: _visibility == PixivBookmarkVisibility.public
+                          ? strings.public
+                          : strings.private,
+                      options: PixivBookmarkVisibility.values,
+                      value: _visibility,
+                      optionLabel: (value) =>
                           value == PixivBookmarkVisibility.public
-                              ? strings.public
-                              : strings.private,
-                        ),
-                        selected: _visibility == value,
-                        onSelected: (selected) {
-                          if (selected && value != _visibility) {
-                            setState(() => _visibility = value);
-                          }
-                        },
-                      ),
+                          ? strings.public
+                          : strings.private,
+                      onSelected: (value) {
+                        if (value != _visibility)
+                          setState(() => _visibility = value);
+                      },
+                    ),
                   ],
                 ),
               ),

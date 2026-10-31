@@ -12,6 +12,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_option_selector.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,11 +37,7 @@ void main() {
         await page.pump(tester);
         if (private) {
           final old = page.calls.single;
-          await tester.tap(
-            find.byWidgetPredicate(
-              (widget) => widget is ChoiceChip && !widget.selected,
-            ),
-          );
+          await _selectPrivate(tester);
           await _until(tester, () => page.calls.length == 2);
           old.complete(99);
         }
@@ -88,6 +85,31 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'Favorites privacy menu works at 320 dp, enlarged text and keyboard while loading',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final page = _Harness();
+      await page.pump(tester);
+      final old = page.calls.single;
+      await _selectPrivate(tester);
+      await _until(tester, () => page.calls.length == 2);
+      expect(old.cancelled, isTrue);
+      expect(page.calls.last.options.queryParameters['restrict'], 'private');
+      page.calls.last.complete(2, visible: false);
+      old.complete(99);
+      await _until(tester, () => !page.controller(tester).refreshing);
+      expect(page.controller(tester).items, isEmpty);
+      expect(tester.takeException(), isNull);
+      await page.close(tester);
+    },
+  );
 
   testWidgets(
     'an unverified replacement credential issues no old-account Favorites request',
@@ -175,11 +197,7 @@ void main() {
       await page.pump(tester);
       final public = page.calls.single;
       final context = tester.element(find.byType(PixivFavoritesPage));
-      // The production ChoiceChips are used, including their selected state.
-      final privateChip = find.byWidgetPredicate(
-        (widget) => widget is ChoiceChip && !widget.selected,
-      );
-      await tester.tap(privateChip);
+      await _selectPrivate(tester);
       await _until(tester, () => page.calls.length == 2);
       expect(public.cancelled, isTrue);
       expect(page.calls.last.options.queryParameters['restrict'], 'private');
@@ -201,6 +219,16 @@ void main() {
       await page.close(tester);
     },
   );
+}
+
+Future<void> _selectPrivate(WidgetTester tester) async {
+  final selector = find.byType(TimelineOptionSelector<PixivBookmarkVisibility>);
+  expect(selector, findsOneWidget);
+  expect(find.byType(ChoiceChip), findsNothing);
+  await tester.tap(selector);
+  await _until(tester, () => find.text('Private').evaluate().isNotEmpty);
+  await tester.tap(find.text('Private'));
+  await _until(tester, () => find.text('Private').evaluate().length == 1);
 }
 
 BooruConfig _profile(int account, String id) => BooruConfig.fromJson({
