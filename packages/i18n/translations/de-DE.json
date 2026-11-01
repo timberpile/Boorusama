@@ -40,7 +40,7 @@
     "native_preview": "Diese Vorschau kann beim Wiederholen kurz stocken."
   },
   "following_topics": {
-    "feed_filter_hint": "Gespeicherte Beiträge durchsuchen...",
+    "feed_filter_hint": "Cache durchsuchen...",
     "feed_filter_close": "Suche schließen",
     "edit_update": "Thema aktualisieren",
     "edit_updated": "Thema aktualisiert",
@@ -177,7 +177,9 @@
     "new_posts_at_least": {
       "one": "Mindestens $n neuer Beitrag",
       "other": "Mindestens $n neue Beiträge"
-    }
+    },
+    "feed_scope_cached": "Im Cache",
+    "feed_scope_cached_hint": "Filter und Sortierung gelten nur für bereits im Feed gespeicherte Posts. Aktualisierung und entfernte History sind bei aktiven Filtern pausiert."
   },
   "generic": {
     "done": "Fertig",
@@ -1506,6 +1508,15 @@
       "last_90_days": "Letzte 90 Tage",
       "last_6_months": "Letzte 6 Monate",
       "last_year": "Letztes Jahr"
+    },
+    "compact_age": {
+      "seconds": "${n}s",
+      "minutes": "${n}m",
+      "hours": "${n}h",
+      "days": "${n}T",
+      "weeks": "${n}W",
+      "months": "${n}M",
+      "years": "${n}J"
     }
   },
   "donation": {

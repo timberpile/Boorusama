@@ -622,14 +622,17 @@ void main() {
   );
 
   final dates = [
-    (age: const Duration(seconds: 15), label: 'a moment ago'),
-    (age: const Duration(minutes: 1), label: 'a minute ago'),
-    (age: const Duration(minutes: 8), label: '8 minutes ago'),
-    (age: const Duration(hours: 1), label: 'about an hour ago'),
-    (age: const Duration(hours: 3), label: '3 hours ago'),
-    (age: const Duration(days: 1), label: 'a day ago'),
-    (age: const Duration(days: 2), label: '2 days ago'),
-    (age: const Duration(days: 90), label: '3 months ago'),
+    (age: const Duration(seconds: -30), label: '0s'),
+    (age: const Duration(seconds: 15), label: '15s'),
+    (age: const Duration(minutes: 1), label: '1m'),
+    (age: const Duration(minutes: 8), label: '8m'),
+    (age: const Duration(hours: 1), label: '1h'),
+    (age: const Duration(hours: 7), label: '7h'),
+    (age: const Duration(days: 1), label: '1d'),
+    (age: const Duration(days: 2), label: '2d'),
+    (age: const Duration(days: 7), label: '1w'),
+    (age: const Duration(days: 90), label: '3M'),
+    (age: const Duration(days: 730), label: '2y'),
   ];
   for (final date in dates) {
     testWidgets(
@@ -661,7 +664,31 @@ void main() {
               profileId: '00000000-0000-4000-8000-00000000000c',
             ),
           );
-          expect(find.text('Last Checked: ${date.label}'), findsOneWidget);
+          expect(find.text(date.label), findsOneWidget);
+          final overflow = find.descendant(
+            of: find.byType(AppBar),
+            matching: find.byType(PopupMenuButton<String>),
+          );
+          expect(
+            tester.getRect(overflow).left -
+                tester.getRect(find.byType(FeedLastChecked)).right,
+            closeTo(8, .5),
+            reason: 'The check stamp must sit directly beside overflow.',
+          );
+          expect(
+            find.descendant(
+              of: find.byType(FeedLastChecked),
+              matching: find.byIcon(Icons.schedule),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.byWidgetPredicate(
+              (w) =>
+                  w is Tooltip && (w.message?.contains('2026-09-14') ?? false),
+            ),
+            findsOneWidget,
+          );
           expect(find.textContaining('2026-09-14'), findsNothing);
         });
       },
@@ -722,7 +749,7 @@ void main() {
         profileId: '00000000-0000-4000-8000-00000000000c',
       ),
     );
-    expect(find.text('Never checked'), findsOneWidget);
+    expect(find.text('Never checked'), findsNothing);
   });
 }
 

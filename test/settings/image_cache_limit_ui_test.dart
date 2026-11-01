@@ -1,3 +1,5 @@
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
+
 import 'dart:typed_data';
 
 import 'package:cache_manager/cache_manager.dart';
@@ -186,12 +188,24 @@ void main() {
         expect(reopened.toJson()['imageCacheMaxSize'], '0B');
         expect(reopened.toJson()['videoCacheMaxSize'], '2GB');
         expect(reopened.blacklistedTags, 'kept while dialog open');
+        final searchStorage = ProviderScope.containerOf(
+          tester.element(find.byType(DataAndStoragePage)),
+        ).read(followingTopicRepositoryProvider.notifier);
         await tester.pumpWidget(const SizedBox());
+        // Provider disposal closes native Hive resources asynchronously. Do not
+        // remove their directory or reopen the page until that close completes.
+        await searchStorage.closeFuture;
         await tester.pumpWidget(page(reopened));
         await tester.pumpAndSettle();
         expect(find.text('Disabled'), findsOneWidget);
         expect(find.text('2 GB'), findsOneWidget);
+        final reopenedSearchStorage = ProviderScope.containerOf(
+          tester.element(find.byType(DataAndStoragePage)),
+        ).read(followingTopicRepositoryProvider.notifier);
         await tester.pumpWidget(const SizedBox());
+        // Provider disposal closes native Hive resources asynchronously. Do not
+        // remove their directory or reopen the page until that close completes.
+        await reopenedSearchStorage.closeFuture;
         await manager.dispose();
       });
     },

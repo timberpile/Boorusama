@@ -1,3 +1,5 @@
+import '../../../posts/listing/src/widgets/timeline_header_sliver.dart';
+
 import '../../../selection/ordered_selection_controller.dart';
 
 // Package imports:
@@ -5,11 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
 import '../../../../foundation/loggers.dart';
@@ -30,7 +30,6 @@ import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
-import 'bookmark_appbar.dart';
 import 'bookmark_list_controls.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_multi_selection.dart';
@@ -228,37 +227,26 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   controller,
                 ),
             sliverHeaders: [
-              KurumiSliverAppBar(
-                floating: true,
-                snap: true,
-                pinned: true,
-                automaticallyImplyLeading: false,
-                titleSpacing: 0,
-                backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
-                title: BookmarkAppBar(
-                  title: widget.title,
-                  // Restore only scaling; restoring the full MediaQuery here
-                  // reapplies the status inset inside the outer toolbar.
-                  textScaler: MediaQuery.textScalerOf(context),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: BookmarkSearchBar(
-                  controller: widget.searchController,
-                  postController: controller,
-                  view: widget.view,
-                ),
-              ),
-              SliverPinnedHeader(
-                child: ValueListenableBuilder(
-                  valueListenable: controller.itemsNotifier,
-                  builder: (_, posts, _) => BookmarkListControls(
-                    count: posts.length,
-                    gridConfig: PostGridConfigIconButton(
+              TimelineHeaderSliver(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    BookmarkSearchBar(
+                      controller: widget.searchController,
                       postController: controller,
-                      showBlacklist: false,
+                      view: widget.view,
                     ),
-                  ),
+                    ValueListenableBuilder(
+                      valueListenable: controller.itemsNotifier,
+                      builder: (_, posts, _) => BookmarkListControls(
+                        count: posts.length,
+                        gridConfig: PostGridConfigIconButton(
+                          postController: controller,
+                          showBlacklist: false,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

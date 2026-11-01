@@ -246,7 +246,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final sortItems = find.byType(KurumiPopupMenuItem);
-    expect(sortItems, findsNWidgets(5));
+    expect(sortItems, findsNWidgets(7));
     expect(find.byType(Divider), findsNothing);
     expect(find.byType(VerticalDivider), findsOneWidget);
     final divider = tester.getRect(find.byType(VerticalDivider));
@@ -283,7 +283,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final options = find.byType(KurumiPopupMenuItem);
-    expect(options, findsNWidgets(5));
+    expect(options, findsNWidgets(7));
     for (final index in [0, 1]) {
       expect(
         find.descendant(
@@ -309,6 +309,19 @@ void main() {
       ),
       findsOneWidget,
     );
+    for (final entry in [
+      (5, Icons.arrow_downward, 'Score · Descending'),
+      (6, Icons.arrow_upward, 'Score · Ascending'),
+    ]) {
+      expect(
+        find.descendant(
+          of: options.at(entry.$1),
+          matching: find.byIcon(entry.$2),
+        ),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(entry.$3), findsOneWidget);
+    }
     expect(find.bySemanticsLabel('Upload Date: Newest'), findsOneWidget);
     expect(find.bySemanticsLabel('Bookmarks: Oldest'), findsOneWidget);
 

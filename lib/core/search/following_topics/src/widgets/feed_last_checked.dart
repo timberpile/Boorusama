@@ -4,11 +4,17 @@ import 'package:kurumi/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../../widgets/time_pulse.dart';
+import '../../../../widgets/date_tooltip.dart';
 
 class FeedLastChecked extends StatelessWidget {
-  const FeedLastChecked({required this.checkedAt, super.key});
+  const FeedLastChecked({
+    required this.checkedAt,
+    this.compact = false,
+    super.key,
+  });
 
   final DateTime? checkedAt;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => switch (checkedAt) {
@@ -22,6 +28,34 @@ class FeedLastChecked extends StatelessWidget {
           locale: context.locale.toLanguageTag(),
           clock: clock.now().toLocal(),
         );
+        if (compact) {
+          return DateTooltip(
+            date: timestamp.toLocal(),
+            child: Semantics(
+              label: context.t.following_topics.last_checked.replaceAll(
+                '{date}',
+                relative,
+              ),
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.schedule, size: 14),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        _compactAge(context, timestamp),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
         return Text(
           context.t.following_topics.last_checked.replaceAll(
             '{date}',
@@ -66,4 +100,19 @@ class FeedLastRefresh extends StatelessWidget {
             builder: (_, _) => text(),
           );
   }
+}
+
+String _compactAge(BuildContext context, DateTime timestamp) {
+  final age = clock.now().difference(timestamp);
+  final seconds = age.inSeconds.clamp(0, 1 << 62);
+  final units = context.t.time.compact_age;
+  return switch (seconds) {
+    >= 365 * 86400 => units.years(n: seconds ~/ (365 * 86400)),
+    >= 30 * 86400 => units.months(n: seconds ~/ (30 * 86400)),
+    >= 7 * 86400 => units.weeks(n: seconds ~/ (7 * 86400)),
+    >= 86400 => units.days(n: seconds ~/ 86400),
+    >= 3600 => units.hours(n: seconds ~/ 3600),
+    >= 60 => units.minutes(n: seconds ~/ 60),
+    _ => units.seconds(n: seconds),
+  };
 }

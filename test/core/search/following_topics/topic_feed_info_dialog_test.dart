@@ -1,3 +1,5 @@
+import 'package:boorusama/core/search/following_topics/src/widgets/feed_last_checked.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/search/following_topics/providers.dart';
@@ -55,7 +57,8 @@ void main() {
         TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
       );
       await drain(tester);
-      expect(find.textContaining('Last Checked:'), findsOneWidget);
+      expect(find.textContaining('Last Checked:'), findsNothing);
+      expect(find.byType(FeedLastChecked), findsOneWidget);
       final before = await tester.runAsync(h.repository.getAll);
       await tester.tap(find.byType(PopupMenuButton<String>).first);
       await tester.pumpAndSettle();
