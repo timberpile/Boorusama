@@ -1,12 +1,65 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:oktoast/oktoast.dart';
 
 void main() {
+  testWidgets(
+    'ordinary success toast follows the same live obstruction as Undo',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(dismissAllToast);
+      final bottom = ValueNotifier<double>(100);
+      addTearDown(bottom.dispose);
+      late BuildContext context;
+      await tester.pumpWidget(
+        OKToast(
+          child: MaterialApp(
+            home: KurumiOverlayInsetsScope(
+              bottomPadding: 100,
+              bottomViewPadding: 100,
+              bottomPaddingListenable: bottom,
+              child: Builder(
+                builder: (value) {
+                  context = value;
+                  return const SizedBox.expand();
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      Kurumi.showSuccessToast(
+        context,
+        'Bookmark added',
+        duration: const Duration(seconds: 5),
+      );
+      await tester.pumpAndSettle();
+      final initial = tester.getRect(find.text('Bookmark added')).bottom;
+      bottom.value = 200;
+      await tester.pumpAndSettle();
+      expect(
+        initial - tester.getRect(find.text('Bookmark added')).bottom,
+        closeTo(100, .5),
+      );
+      bottom.value = 0;
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.text('Bookmark added')).bottom - initial,
+        closeTo(100, .5),
+      );
+      dismissAllToast(showAnim: false);
+      await tester.pump(const Duration(seconds: 5));
+    },
+  );
+
   for (final textScale in [1.0, 1.8, 2.0]) {
     testWidgets(
-      'success toast action preserves height and styling at ${textScale}x text and dismisses on tap',
+      'success toast action preserves develop sizing and styling at ${textScale}x text and dismisses on tap',
       (
         tester,
       ) async {
@@ -52,7 +105,6 @@ void main() {
               ),
             )
             .height;
-        final addedHeight = surfaceHeight('Bookmark added');
         var actions = 0;
         Kurumi.showSuccessToast(
           context,
@@ -71,11 +123,20 @@ void main() {
         expect(find.textContaining('|'), findsNothing);
         expect(
           surfaceHeight('2 bookmarks removed'),
-          addedHeight,
+          closeTo(
+            8 +
+                math.max(
+                  tester
+                      .getSize(find.widgetWithText(TextButton, 'Undo'))
+                      .height,
+                  tester.getSize(find.text('2 bookmarks removed')).height + 8,
+                ),
+            .5,
+          ),
         );
         expect(
           tester.getSize(find.widgetWithText(TextButton, 'Undo')).height,
-          greaterThan(tester.getSize(find.text('Undo')).height),
+          closeTo(tester.getSize(find.text('Undo')).height + 8, .5),
         );
         await tester.tap(find.text('Undo'));
         await tester.pumpAndSettle();

@@ -11,6 +11,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../navigation/app_navigation.dart';
 import 'bookmark_group_label.dart';
 import '../../../groups/folder_tree.dart';
 import '../types/bookmark_group.dart';
@@ -102,8 +103,12 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
 
 void _showPickerSuccess(NavigatorState navigator, {required bool added}) {
   if (!navigator.mounted) return;
+  final container = ProviderScope.containerOf(navigator.context, listen: false);
+  final feedback =
+      container.read(appNavigationProvider).feedbackKey.currentContext ??
+      navigator.context;
   Kurumi.showSuccessToast(
-    navigator.context,
+    feedback,
     added
         ? navigator.context.t.bookmark.added
         : navigator.context.t.bookmark.removed,

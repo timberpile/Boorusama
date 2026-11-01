@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:oktoast/oktoast.dart';
 
+import 'media_query.dart';
+
 void kurumiShowSuccessToast(
   BuildContext context,
   String message, {
@@ -10,18 +12,7 @@ void kurumiShowSuccessToast(
   String? actionLabel,
   VoidCallback? onAction,
 }) {
-  if (actionLabel == null || onAction == null) {
-    showToast(
-      message,
-      position: ToastPosition.bottom,
-      margin: const EdgeInsets.all(100),
-      textPadding: const EdgeInsets.all(8),
-      backgroundColor: backgroundColor,
-      textStyle: textStyle,
-      duration: duration,
-    );
-    return;
-  }
+  final hasAction = actionLabel != null && onAction != null;
 
   final theme =
       context.findAncestorWidgetOfExactType<OKToast>() ??
@@ -34,61 +25,112 @@ void kurumiShowSuccessToast(
         fontWeight: FontWeight.normal,
         color: Colors.white,
       );
+  final insets = KurumiOverlayInsetsScope.maybeOf(context);
+  final liveBottom = insets?.bottomPaddingListenable;
+  final view = View.of(context);
+  final nativePaddingAtShow = insets?.keyboardFromView == true
+      ? MediaQueryData.fromView(view).padding.bottom
+      : 0.0;
   late final ToastFuture toast;
   var actionTaken = false;
-  toast = showToastWidget(
-    Container(
-      // Keep the success toast's toolbar clearance, with room for its action
-      // on narrow screens and with enlarged text.
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 100),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: backgroundColor ?? theme.backgroundColor,
-        borderRadius: BorderRadius.circular(theme.radius),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  message,
-                  style: style,
-                  textAlign: theme.textAlign ?? TextAlign.center,
+  final content = Container(
+    key: ValueKey(hasAction ? 'kurumi-action-toast' : 'kurumi-success-toast'),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: hasAction ? 4 : 8),
+    decoration: BoxDecoration(
+      color: backgroundColor ?? theme.backgroundColor,
+      borderRadius: BorderRadius.circular(theme.radius),
+    ),
+    child: Material(
+      type: MaterialType.transparency,
+      child: hasAction
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      message,
+                      style: style,
+                      textAlign: theme.textAlign ?? TextAlign.center,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: style.color,
-                backgroundColor: Colors.white.withValues(alpha: 0.12),
-                textStyle: style,
-                side: BorderSide.none,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                const SizedBox(width: 12),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: style.color,
+                    backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    textStyle: style,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    if (actionTaken) return;
+                    actionTaken = true;
+                    toast.dismiss();
+                    onAction();
+                  },
+                  child: Text(actionLabel),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: () {
-                if (actionTaken) return;
-                actionTaken = true;
-                toast.dismiss();
-                onAction();
-              },
-              child: Text(actionLabel),
+              ],
+            )
+          : Text(
+              message,
+              style: style,
+              textAlign: theme.textAlign ?? TextAlign.center,
             ),
-          ],
+    ),
+  );
+  Widget padded(double bottom, Widget child) {
+    Widget pad(double keyboard) => Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, keyboard + bottom + 16),
+      child: child,
+    );
+    if (insets?.keyboardFromView != true) return pad(0);
+    // This overlay is above the app's MediaQuery and resizing Scaffolds.
+    // Follow native metrics in the same frame; a post-layout control notifier
+    // cannot deliver keyboard animation frames without a visible delay.
+    return MediaQuery.fromView(
+      view: view,
+      child: Builder(
+        builder: (context) => pad(
+          MediaQuery.viewInsetsOf(context).bottom +
+              MediaQuery.paddingOf(context).bottom,
         ),
       ),
-    ),
+    );
+  }
+
+  toast = showToastWidget(
+    liveBottom != null
+        ? ValueListenableBuilder<double>(
+            valueListenable: liveBottom,
+            child: content,
+            builder: (_, bottom, child) => padded(bottom, child!),
+          )
+        : Builder(
+            builder: (overlayContext) => padded(
+              ((insets?.bottomPadding ??
+                          MediaQuery.maybeOf(overlayContext)?.padding.bottom ??
+                          0) -
+                      nativePaddingAtShow)
+                  .clamp(0.0, double.infinity),
+              content,
+            ),
+          ),
     context: context,
-    position: ToastPosition.bottom,
+    // The full-viewport scope disables native host displacement so keyboard
+    // and controls are accounted for once. Legacy hosts retain their policy.
+    position: const ToastPosition(align: Alignment.bottomCenter),
     duration: duration,
     handleTouch: true,
     dismissOtherToast: true,

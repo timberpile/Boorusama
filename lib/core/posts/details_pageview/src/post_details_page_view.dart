@@ -107,6 +107,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   var _freestyleMoveStartOffset = Offset.zero;
   var _freestyleMoveScale = 1.0;
   var _handledExpandedMediaSwipe = false;
+  var _bottomPreviewHeight = 0.0;
 
   static const _edgeSlideDistance = 24.0;
   static const _edgeSlideHalfDuration = Duration(milliseconds: 100);
@@ -205,6 +206,9 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     _controller
       ..attachOverlayAnimController(_overlayAnimController)
       ..attachBottomSheetAnimController(_bottomInfoAnimController);
+    _bottomInfoAnimController?.addListener(_syncBottomObstruction);
+    _controller.forceHideBottomSheet.addListener(_syncBottomObstruction);
+    _controller.bottomSheet.addListener(_syncBottomObstruction);
 
     _isSheetAnimating.addListener(_onSheetAnimatingChanged);
 
@@ -426,7 +430,36 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncBottomObstruction();
+  }
+
+  void _syncBottomObstruction() {
+    if (!mounted) return;
+    final visible =
+        _bottomInfoAnimController?.value ??
+        (_controller.bottomSheet.value ? 1.0 : 0.0);
+    _controller.bottomObstruction.value =
+        widget.bottomSheet == null ||
+            isLargeScreen ||
+            _controller.forceHideBottomSheet.value
+        ? 0
+        : _bottomPreviewHeight * visible;
+  }
+
+  void _onBottomPreviewSize(Size size) {
+    if (!mounted) return;
+    _bottomPreviewHeight = size.height;
+    _syncBottomObstruction();
+  }
+
+  @override
   void dispose() {
+    _bottomInfoAnimController?.removeListener(_syncBottomObstruction);
+    _controller.forceHideBottomSheet.removeListener(_syncBottomObstruction);
+    _controller.bottomSheet.removeListener(_syncBottomObstruction);
+    _controller.bottomObstruction.value = 0;
     _controller.sheetState.removeListener(_onSheetStateChanged);
     _controller.pageController.removeListener(_onPageChanged);
     _controller.sheetController.removeListener(_onSheetChanged);
@@ -538,6 +571,10 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
 
   Widget _buildMain() {
     final bottomSheet = widget.bottomSheet;
+    final measuredBottomSheet = KurumiMeasureSize(
+      onChange: _onBottomPreviewSize,
+      child: bottomSheet ?? const SizedBox.shrink(),
+    );
 
     return Stack(
       children: [
@@ -590,11 +627,11 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                                           curve: Curves.easeInCubic,
                                         ),
                                       ),
-                                  child: bottomSheet,
+                                  child: measuredBottomSheet,
                                 ),
                               ),
                             )
-                          : bottomSheet,
+                          : measuredBottomSheet,
                     ),
             ),
           ),

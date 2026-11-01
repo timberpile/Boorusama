@@ -9,6 +9,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../navigation/app_navigation.dart';
 import 'bookmark_group_label.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
@@ -190,8 +191,11 @@ class _BookmarkContextGroupPageState extends State<_BookmarkContextGroupPage> {
 
   void _added() {
     if (navigator.mounted) {
+      final feedback =
+          container.read(appNavigationProvider).feedbackKey.currentContext ??
+          navigator.context;
       Kurumi.showSuccessToast(
-        navigator.context,
+        feedback,
         navigator.context.t.bookmark.added,
       );
     }

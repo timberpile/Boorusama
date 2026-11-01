@@ -8,6 +8,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
+import '../../../navigation/app_navigation.dart';
 import 'bookmark_group_label.dart';
 import '../../../groups/folder_tree.dart';
 import 'bookmark_batch_dialog.dart';
@@ -294,6 +295,7 @@ class _BookmarkMultiSelectionMenuState
     String? directGroupId,
   }) async {
     final navigator = Navigator.of(context, rootNavigator: true);
+    final navigation = ref.read(appNavigationProvider);
     final notifier = ref.read(bookmarkProvider.notifier);
     final selectedPosts = List<Post>.unmodifiable(widget.posts);
     final config = widget.config;
@@ -318,8 +320,10 @@ class _BookmarkMultiSelectionMenuState
               manual: true,
             );
         if (!navigator.mounted) return;
+        final feedback =
+            navigation.feedbackKey.currentContext ?? navigator.context;
         Kurumi.showSuccessToast(
-          navigator.context,
+          feedback,
           navigator.context.t.bookmark.bulk.add_success
               .replaceAll('{0}', '$changed')
               .replaceAll('{1}', target.name),

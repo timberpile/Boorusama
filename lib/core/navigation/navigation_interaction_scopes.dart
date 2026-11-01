@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/scheduler.dart';
 import 'package:selection_mode/selection_mode.dart';
 import 'package:kurumi/material.dart';
@@ -94,9 +95,11 @@ class NavigationSelectionBridge extends ConsumerStatefulWidget {
     required this.selected,
     required this.child,
     this.controller,
+    this.bottomObstruction,
     super.key,
   });
   final SelectionModeController? controller;
+  final ValueListenable<double>? bottomObstruction;
   final bool selected;
   final Widget child;
   @override
@@ -108,10 +111,12 @@ class _NavigationSelectionBridgeState
     extends ConsumerState<NavigationSelectionBridge> {
   NavigationChromeController? _chrome;
   var _last = false;
+  var _lastObstruction = 0.0;
   @override
   void initState() {
     super.initState();
     widget.controller?.addListener(_sync);
+    widget.bottomObstruction?.addListener(_sync);
   }
 
   @override
@@ -127,6 +132,10 @@ class _NavigationSelectionBridgeState
       oldWidget.controller?.removeListener(_sync);
       widget.controller?.addListener(_sync);
     }
+    if (widget.bottomObstruction != oldWidget.bottomObstruction) {
+      oldWidget.bottomObstruction?.removeListener(_sync);
+      widget.bottomObstruction?.addListener(_sync);
+    }
     _sync();
   }
 
@@ -136,10 +145,18 @@ class _NavigationSelectionBridgeState
     final selected =
         (widget.controller?.isActive ?? widget.selected) &&
         NavigationActivity.selectionChromeOf(context);
-    if (_last == selected) return;
+    final obstruction = selected ? widget.bottomObstruction?.value ?? 0 : 0.0;
+    if (_last == selected && _lastObstruction == obstruction) return;
     _last = selected;
+    _lastObstruction = obstruction;
     void apply() {
-      if (mounted) _chrome?.setSelectionFor(this, _last);
+      if (mounted) {
+        _chrome?.setSelectionFor(
+          this,
+          _last,
+          bottomObstruction: _lastObstruction,
+        );
+      }
     }
 
     if (SchedulerBinding.instance.schedulerPhase ==
@@ -153,6 +170,7 @@ class _NavigationSelectionBridgeState
   @override
   void dispose() {
     widget.controller?.removeListener(_sync);
+    widget.bottomObstruction?.removeListener(_sync);
     final chrome = _chrome;
     if (_last) {
       WidgetsBinding.instance.addPostFrameCallback(

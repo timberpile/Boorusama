@@ -112,6 +112,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   var hasMore = true;
   final loading = ValueNotifier(false);
   final refreshing = ValueNotifier(false);
+  final _selectionBottomObstruction = ValueNotifier(0.0);
   var items = <T>[];
   final _identities = PostSelectionIdentity();
   var _filterScope = <String, bool>{};
@@ -186,6 +187,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
 
     widget.controller.removeListener(_onControllerChange);
     controller.activeFilters.removeListener(_onFilterChanged);
+    _selectionBottomObstruction.dispose();
 
     super.dispose();
   }
@@ -261,6 +263,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
         listenable: _selectionModeController,
         builder: (_, child) => NavigationSelectionBridge(
           controller: _selectionModeController,
+          bottomObstruction: _selectionBottomObstruction,
           selected: _selectionModeController.isActive,
           child: child!,
         ),
@@ -275,6 +278,9 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
             ),
             child: _SelectionMode(
               footer: widget.footer,
+              onBottomObstructionChanged: (height) {
+                if (mounted) _selectionBottomObstruction.value = height;
+              },
               selectionModeController: _selectionModeController,
               selectionOptions: _selectionOptions,
               autoScrollController: _autoScrollController,
@@ -617,6 +623,7 @@ class _SelectionMode extends ConsumerWidget {
     required this.child,
     required this.itemCount,
     required this.bottomInset,
+    required this.onBottomObstructionChanged,
     this.footer,
     this.autoScrollController,
   });
@@ -624,6 +631,7 @@ class _SelectionMode extends ConsumerWidget {
   final Widget child;
   final int itemCount;
   final double bottomInset;
+  final ValueChanged<double> onBottomObstructionChanged;
   final SelectionModeController selectionModeController;
   final AutoScrollController? autoScrollController;
   final SelectionOptions? selectionOptions;
@@ -654,42 +662,54 @@ class _SelectionMode extends ConsumerWidget {
                         child: child,
                       ),
                     ),
-                    if (selectionModeController.isActive) ...[
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: math.max(
-                            0,
-                            math.min(
-                              available.maxHeight - bottomInset,
-                              MediaQuery.sizeOf(context).height * .45,
-                            ),
-                          ),
-                        ),
-                        child: SingleChildScrollView(
-                          child: Material(
-                            color: Kurumi.themeOf(context).colorScheme.surface,
-                            child: SafeArea(
-                              top: false,
-                              bottom: bottomInset == 0,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  PostSelectionControls(
-                                    controller: selectionModeController,
-                                    itemCount: itemCount,
+                    if (selectionModeController.isActive)
+                      _SelectionBottomObstruction(
+                        onChanged: onBottomObstructionChanged,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: math.max(
+                                  0,
+                                  math.min(
+                                    available.maxHeight - bottomInset,
+                                    MediaQuery.sizeOf(context).height * .45,
                                   ),
-                                  if (footer case final footer?) footer,
-                                ],
+                                ),
+                              ),
+                              child: SingleChildScrollView(
+                                child: Material(
+                                  color: Kurumi.themeOf(context)
+                                      .colorScheme
+                                      .surface,
+                                  child: SafeArea(
+                                    top: false,
+                                    bottom: bottomInset == 0,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        PostSelectionControls(
+                                          controller: selectionModeController,
+                                          itemCount: itemCount,
+                                        ),
+                                        if (footer case final footer?) footer,
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            if (bottomInset > 0)
+                              SizedBox(
+                                height: math.min(
+                                  bottomInset,
+                                  available.maxHeight,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      if (bottomInset > 0)
-                        SizedBox(
-                          height: math.min(bottomInset, available.maxHeight),
-                        ),
-                    ],
                   ],
                 ),
               ),
@@ -697,6 +717,65 @@ class _SelectionMode extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Distance above the keyboard to the actual control surface, including any
+/// intervening footer or nested-host offset. Size alone misses those offsets.
+class _SelectionBottomObstruction extends StatefulWidget {
+  const _SelectionBottomObstruction({
+    required this.onChanged,
+    required this.child,
+  });
+  final ValueChanged<double> onChanged;
+  final Widget child;
+  @override
+  State<_SelectionBottomObstruction> createState() =>
+      _SelectionBottomObstructionState();
+}
+
+class _SelectionBottomObstructionState
+    extends State<_SelectionBottomObstruction> {
+  final _bounds = GlobalKey();
+  var _pending = false;
+  var _last = -1.0;
+  late MediaQueryData _media;
+
+  void _measure() {
+    if (!mounted) return;
+    final box = _bounds.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    // A resizing Scaffold consumes its body's MediaQuery keyboard inset. The
+    // native view still reports it; exclude it from controls measured globally.
+    final view = View.of(context);
+    final keyboardInset = math.max(
+      _media.viewInsets.bottom,
+      view.viewInsets.bottom / view.devicePixelRatio,
+    );
+    final viewportBottom = _media.size.height - keyboardInset;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final obstruction = (viewportBottom - top)
+        .clamp(0.0, math.max(0.0, viewportBottom))
+        .toDouble();
+    if ((obstruction - _last).abs() <= .1) return;
+    _last = obstruction;
+    widget.onChanged(obstruction);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _media = MediaQuery.of(context);
+    if (!_pending) {
+      _pending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pending = false;
+        _measure();
+      });
+    }
+    return KurumiMeasureSize(
+      onChange: (_) => _measure(),
+      child: SizedBox(key: _bounds, child: widget.child),
     );
   }
 }
