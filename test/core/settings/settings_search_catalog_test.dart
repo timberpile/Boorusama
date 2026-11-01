@@ -6,6 +6,48 @@ import 'package:boorusama/core/settings/src/search/settings_search.dart';
 import 'package:boorusama/core/settings/src/search/settings_search_catalog.dart';
 
 void main() {
+  for (final locale in ['en-US', 'de-DE']) {
+    testWidgets(
+      'timeline pin setting is discoverable by its visible $locale label',
+      (tester) async {
+        await tester.runAsync(() => ensureI18nInitialized(locale));
+        addTearDown(
+          () => tester.runAsync(() => ensureI18nInitialized('en-US')),
+        );
+        late Translations t;
+        await tester.pumpWidget(
+          BooruLocalization(
+            child: Builder(
+              builder: (context) {
+                t = context.t;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+        final label = locale == 'de-DE'
+            ? 'Timeline-Leiste sichtbar halten'
+            : 'Keep Timeline Toolbar Visible';
+        final catalog = buildSettingsSearchCatalog(
+          t,
+          sections: {'appearance': 'Appearance'},
+          isMobile: true,
+        );
+        for (final query in [label, 'timeline', 'toolbar']) {
+          final found = searchSettings(catalog, query);
+          expect(
+            found.any(
+              (item) =>
+                  item.id == 'appearance.keep_timeline_toolbar_visible' &&
+                  item.title == label,
+            ),
+            isTrue,
+          );
+        }
+      },
+    );
+  }
+
   testWidgets(
     'indexes translated controls only in available categories',
     (tester) async {

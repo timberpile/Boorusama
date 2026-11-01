@@ -801,6 +801,7 @@ class ImageListingSettings extends Equatable {
     required this.pageIndicatorPosition,
     required this.showScoresInGrid,
     required this.showPostListConfigHeader,
+    this.keepTimelineToolbarVisible = false,
     required this.mediaBlurCondition,
     required this.imageGridSpacing,
     required this.imageBorderRadius,
@@ -819,6 +820,7 @@ class ImageListingSettings extends Equatable {
       ),
       showScoresInGrid = json['showScoresInGrid'] ?? false,
       showPostListConfigHeader = json['showPostListConfigHeader'] ?? true,
+      keepTimelineToolbarVisible = json['keepTimelineToolbarVisible'] == true,
       imageBorderRadius = json['imageBorderRadius'],
       pageIndicatorPosition = PageIndicatorPosition.parse(
         json['pageIndicatorPosition'],
@@ -840,7 +842,9 @@ class ImageListingSettings extends Equatable {
   final PageMode pageMode;
   final PageIndicatorPosition pageIndicatorPosition;
   final bool showScoresInGrid;
+  // Retained only for older callers/backups; never interpreted as pinning.
   final bool showPostListConfigHeader;
+  final bool keepTimelineToolbarVisible;
   final MediaBlurCondition mediaBlurCondition;
   final double imageGridSpacing;
   final double imageBorderRadius;
@@ -857,6 +861,7 @@ class ImageListingSettings extends Equatable {
     PageIndicatorPosition? pageIndicatorPosition,
     bool? showScoresInGrid,
     bool? showPostListConfigHeader,
+    bool? keepTimelineToolbarVisible,
     MediaBlurCondition? mediaBlurCondition,
     bool? enableDynamicColoring,
     KurumiThemeMode? themeMode,
@@ -877,6 +882,8 @@ class ImageListingSettings extends Equatable {
       showScoresInGrid: showScoresInGrid ?? this.showScoresInGrid,
       showPostListConfigHeader:
           showPostListConfigHeader ?? this.showPostListConfigHeader,
+      keepTimelineToolbarVisible:
+          keepTimelineToolbarVisible ?? this.keepTimelineToolbarVisible,
       mediaBlurCondition: mediaBlurCondition ?? this.mediaBlurCondition,
       imageGridSpacing: imageGridSpacing ?? this.imageGridSpacing,
       imageBorderRadius: imageBorderRadius ?? this.imageBorderRadius,
@@ -896,6 +903,7 @@ class ImageListingSettings extends Equatable {
     'pageIndicatorPosition': pageIndicatorPosition.toData(),
     'showScoresInGrid': showScoresInGrid,
     'showPostListConfigHeader': showPostListConfigHeader,
+    'keepTimelineToolbarVisible': keepTimelineToolbarVisible,
     'mediaBlurCondition': mediaBlurCondition.toData(),
     'imageGridSpacing': imageGridSpacing,
     'imageBorderRadius': imageBorderRadius,
@@ -914,6 +922,7 @@ class ImageListingSettings extends Equatable {
     pageIndicatorPosition,
     showScoresInGrid,
     showPostListConfigHeader,
+    keepTimelineToolbarVisible,
     mediaBlurCondition,
     imageGridSpacing,
     imageBorderRadius,

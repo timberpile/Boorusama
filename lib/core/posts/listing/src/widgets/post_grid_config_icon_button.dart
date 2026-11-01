@@ -25,6 +25,7 @@ import '../types/grid_size.dart';
 import '../types/image_list_type.dart';
 import '../types/page_mode.dart';
 import 'post_grid_controller.dart';
+import 'timeline_header_sliver.dart';
 
 class PostGridConfigIconButton<T> extends ConsumerWidget {
   const PostGridConfigIconButton({
@@ -71,7 +72,13 @@ class PostGridConfigIconButton<T> extends ConsumerWidget {
             return posts.isNotEmpty
                 ? KurumiPopupMenuButton(
                     iconBackgroundColor:
-                        context.extendedColorScheme.surfaceContainerOverlay,
+                        context
+                                .findAncestorWidgetOfExactType<
+                                  TimelineHeaderSliver
+                                >() !=
+                            null
+                        ? Colors.transparent
+                        : context.extendedColorScheme.surfaceContainerOverlay,
                     iconColor:
                         context.extendedColorScheme.onSurfaceContainerOverlay,
                     items: [

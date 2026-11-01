@@ -119,7 +119,12 @@ void main() {
         expect(find.text(backend.configB.name), findsOneWidget);
         expect(find.byIcon(Icons.check), findsOneWidget);
         expect(find.text(unavailable.name), findsNothing);
-        final menu = tester.getRect(find.byType(SingleChildScrollView));
+        final menu = tester.getRect(
+          find.ancestor(
+            of: find.text(backend.configB.name),
+            matching: find.byType(SingleChildScrollView),
+          ),
+        );
         expect(menu.left, greaterThanOrEqualTo(12));
         expect(menu.right, lessThanOrEqualTo(308));
         await tester.tap(find.text(backend.configB.name));

@@ -1,6 +1,7 @@
 import 'package:i18n/i18n.dart';
 
 import '../../../developer_options/l10n.dart';
+import '../../../posts/listing/src/timeline_toolbar_l10n.dart';
 import 'settings_search.dart';
 
 /// Uses the same translations as the controls, without building settings pages
@@ -84,8 +85,14 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   add('appearance', 'show_bookmark_count', appearance.show_bookmark_count);
   add(
     'appearance',
-    'show_post_list_config_header',
-    appearance.show_post_list_config_header,
+    'keep_timeline_toolbar_visible',
+    t.timelineToolbar.keepVisible,
+    description: t.timelineToolbar.scrollDescription,
+    keywords: [
+      'timeline toolbar header scroll pin keep visible',
+      'Timeline Leiste sichtbar halten',
+      appearance.show_post_list_config_header,
+    ],
   );
   add(
     'appearance',
