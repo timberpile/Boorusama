@@ -8,6 +8,7 @@ import 'pixiv_headers.dart';
 import 'types/types.dart';
 
 part 'pixiv_client_bookmarks.dart';
+part 'pixiv_client_following.dart';
 
 const _kFilter = 'for_ios';
 
@@ -19,8 +20,9 @@ const _kFilter = 'for_ios';
 /// [dio]'s `BaseOptions.headers` is never mutated — it may be shared by
 /// app-side code.
 ///
-/// Illustration feeds use offset pagination. Bookmarks use a validated
-/// `max_bookmark_id` cursor. Server-supplied `next_url` is never requested.
+/// Illustration feeds and followed artists use validated offsets; bookmarks
+/// use a validated `max_bookmark_id` cursor. Server-supplied `next_url` is never
+/// requested directly.
 class PixivClient {
   PixivClient({
     required this.accessToken,

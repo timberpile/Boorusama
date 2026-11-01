@@ -7,6 +7,7 @@ import '../core/configs/config/types.dart';
 import '../core/navigation/destination_definition.dart';
 import 'eshuushuu/configs/extra_data.dart';
 import 'pixiv/configs/extra_data.dart';
+import 'pixiv/following/l10n.dart';
 
 /// Fork-local capability projection. The caller supplies the engine's existing
 /// local login rules and already resolved metadata. No provider is watched and
@@ -113,6 +114,20 @@ ProfileNavigationCapabilities describeEngineNavigation({
         (c) => c.t.pixiv.explore.title,
         Symbols.leaderboard,
       ),
+      tool(
+        'pixiv.following-artists',
+        (c) => c.t.pixivFollowing.navigationLabel,
+        Symbols.group,
+        (config.apiKey?.isNotEmpty ?? false) &&
+                (int.tryParse(
+                          PixivExtraData.fromPassHash(config.passHash).userId ??
+                              '',
+                        ) ??
+                        0) >
+                    0
+            ? available
+            : requiresAccount,
+      ),
     ],
     _ => <SiteToolDefinition>[],
   };
@@ -127,9 +142,15 @@ ProfileNavigationCapabilities describeEngineNavigation({
           BooruType.szurubooru => account,
           BooruType.pixiv =>
             (config.apiKey?.isNotEmpty ?? false) &&
-                (int.tryParse(PixivExtraData.fromPassHash(config.passHash).userId ?? '') ?? 0) > 0
-              ? available
-              : requiresAccount,
+                    (int.tryParse(
+                              PixivExtraData.fromPassHash(config.passHash)
+                                      .userId ??
+                                  '',
+                            ) ??
+                            0) >
+                        0
+                ? available
+                : requiresAccount,
           BooruType.hydrus => available,
           BooruType.sankaku =>
             config.login != null ? available : requiresAccount,
