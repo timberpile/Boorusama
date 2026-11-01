@@ -196,7 +196,11 @@ class ShareMediaPreparation {
         mimeType: _mimeType(effectiveExtension),
       );
     } catch (error, stackTrace) {
-      if (await file.exists()) await file.delete();
+      try {
+        await file.delete();
+      } on PathNotFoundException {
+        // Dio may already have removed a cancelled partial download.
+      }
       if (error is ShareMediaException) rethrow;
       if (error is DioException) {
         if (CancelToken.isCancel(error)) {

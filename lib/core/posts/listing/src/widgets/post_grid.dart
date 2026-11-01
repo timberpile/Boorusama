@@ -39,6 +39,7 @@ import '../types/grid_thumbnail_url_generator.dart';
 import '../types/page_mode.dart';
 import '../types/active_blacklist_count.dart';
 import 'infinite_scroll_listener.dart';
+import 'post_grid_prefetch.dart';
 import 'post_grid_controller.dart';
 
 typedef IndexedSelectableWidgetBuilder<T extends Post> = Widget Function(
@@ -65,6 +66,8 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.multiSelectActions,
     this.scrollToTopButton,
     this.enablePullToRefresh,
+    this.cacheExtent,
+    this.prefetchOnLayout = false,
   });
 
   final List<Widget>? sliverHeaders;
@@ -81,6 +84,8 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final Widget? multiSelectActions;
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
+  final double? cacheExtent;
+  final bool prefetchOnLayout;
 
   @override
   ConsumerState<PostGrid<T>> createState() => _PostGridState();
@@ -124,7 +129,8 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
         controller: _autoScrollController,
         child: RawPostGrid(
           options: PostGridOptions(
-            cacheExtent: ref.watch(gridCacheExtentProvider),
+            cacheExtent:
+                widget.cacheExtent ?? ref.watch(gridCacheExtentProvider),
             hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),
             gridSize: ref.watch(
               imageListingSettingsProvider.select((v) => v.gridSize),
@@ -197,6 +203,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
               PostGridScrollToTopButton(
                 controller: widget.controller,
                 autoScrollController: _autoScrollController,
+                prefetchOnLayout: widget.prefetchOnLayout,
               ),
           onNextPage: () => _goToNextPage(
             widget.controller,
@@ -393,11 +400,13 @@ class PostGridScrollToTopButton extends StatelessWidget {
     required this.autoScrollController,
     super.key,
     this.bottomPadding,
+    this.prefetchOnLayout = false,
   });
 
   final PostGridController controller;
   final AutoScrollController autoScrollController;
   final double? bottomPadding;
+  final bool prefetchOnLayout;
 
   @override
   Widget build(BuildContext context) {
@@ -414,14 +423,10 @@ class PostGridScrollToTopButton extends StatelessWidget {
             padding: multiSelect
                 ? EdgeInsets.only(bottom: effectiveBottomPadding)
                 : EdgeInsets.only(bottom: effectiveBottomPadding),
-            child: InfiniteScrollListener(
+            child: _GridPrefetchHost(
+              controller: controller,
               scrollController: autoScrollController,
-              onBottomReached: () {
-                if (controller.pageMode == PageMode.infinite &&
-                    controller.hasMore) {
-                  controller.fetchMore();
-                }
-              },
+              prefetchOnLayout: prefetchOnLayout,
               child: KurumiScrollToTop(
                 scrollController: autoScrollController,
                 layoutChanges: controller.itemsNotifier,
@@ -829,4 +834,32 @@ class _InheritedAutoScrollController extends InheritedWidget {
   bool updateShouldNotify(_InheritedAutoScrollController oldWidget) {
     return controller != oldWidget.controller;
   }
+}
+
+class _GridPrefetchHost extends StatelessWidget {
+  const _GridPrefetchHost({
+    required this.controller,
+    required this.scrollController,
+    required this.prefetchOnLayout,
+    required this.child,
+  });
+  final PostGridController controller;
+  final ScrollController scrollController;
+  final bool prefetchOnLayout;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => prefetchOnLayout
+      ? PostGridPrefetch(
+          controller: controller,
+          scrollController: scrollController,
+          child: child,
+        )
+      : InfiniteScrollListener(
+          scrollController: scrollController,
+          onBottomReached: () {
+            if (controller.pageMode == PageMode.infinite && controller.hasMore)
+              controller.fetchMore();
+          },
+          child: child,
+        );
 }
