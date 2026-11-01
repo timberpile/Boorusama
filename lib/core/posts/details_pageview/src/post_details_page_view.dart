@@ -12,6 +12,7 @@ import '../../../../foundation/mobile.dart';
 import '../../../../foundation/platform.dart';
 import '../../slideshow/widgets.dart';
 import 'constants.dart';
+import 'details_page_swipe_detector.dart';
 import 'drag_sheet.dart';
 import 'page_nav_button.dart';
 import 'pointer_count_on_screen.dart';
@@ -350,11 +351,25 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     if (pageNum != _controller.page) {
       _controller.currentPage.value = pageNum;
 
-      _controller.sheetState.value = switch (_controller.sheetState.value) {
-        SheetState.expanded => SheetState.expanded,
-        SheetState.collapsed => SheetState.collapsed,
-        SheetState.hidden => SheetState.collapsed,
-      };
+      if (_controller.isExpanded && !isLargeScreen && !useVerticalLayout) {
+        // Do not let the new post inherit the previous post's open details.
+        // Collapse synchronously so an outstanding sheet animation cannot
+        // briefly expose the next post with the old expanded layout.
+        _controller.sheetState.value = SheetState.collapsed;
+        _controller.sheetMaxSize.value = _controller.maxSize;
+        if (_controller.sheetController.isAttached) {
+          _controller.sheetController.jumpTo(0);
+        }
+        _controller.verticalPosition.value = 0.0;
+        _controller.setDisplacement(0.0);
+        _controller.showBottomSheet();
+      } else {
+        _controller.sheetState.value = switch (_controller.sheetState.value) {
+          SheetState.expanded => SheetState.expanded,
+          SheetState.collapsed => SheetState.collapsed,
+          SheetState.hidden => SheetState.collapsed,
+        };
+      }
 
       widget.onPageChanged?.call(pageNum);
 
@@ -639,7 +654,23 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
           alignment: Alignment.bottomCenter,
           child: !isLargeScreen
               ? DragSheet(
-                  sheetBuilder: widget.sheetBuilder,
+                  sheetBuilder: (context, scrollController) =>
+                      ListenableBuilder(
+                        listenable: Listenable.merge([
+                          _controller.sheetState,
+                          _controller.swipe,
+                          _controller.zoom,
+                          _controller.animating,
+                          _isSheetAnimating,
+                          _interacting,
+                        ]),
+                        builder: (_, child) => DetailsPageSwipeDetector(
+                          enabled: _canPageFromDetails,
+                          onSwipe: _pageFromDetails,
+                          child: child!,
+                        ),
+                        child: widget.sheetBuilder(context, scrollController),
+                      ),
                   pageViewController: _controller,
                   isSheetAnimating: _isSheetAnimating,
                 )
@@ -657,6 +688,28 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
         ),
       ],
     );
+  }
+
+  bool get _canPageFromDetails =>
+      !isLargeScreen &&
+      _controller.isExpanded &&
+      !useVerticalLayout &&
+      _controller.swipe.value &&
+      !_controller.zoom.value &&
+      !_controller.animating.value &&
+      !_isSheetAnimating.value &&
+      !_interacting.value &&
+      widget.itemCount > 1;
+
+  void _pageFromDetails(int direction) {
+    if (!_canPageFromDetails) return;
+    final target = _controller.page + direction;
+    if (target < 0 || target >= widget.itemCount) return;
+    if (widget.disableAnimation) {
+      _controller.jumpToPage(target);
+    } else {
+      unawaited(_controller.animateToPage(target));
+    }
   }
 
   void _expandFromBottomPreview() {
@@ -705,10 +758,20 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   ) {
     final isPortrait = !context.isLargeScreen;
 
-    return ValueListenableBuilder(
-      valueListenable: _controller.sheetState,
-      builder: (_, state, _) {
-        final blockSwipe = !swipe || state.isExpanded || interacting;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        _controller.sheetState,
+        _controller.animating,
+        _controller.zoom,
+      ]),
+      builder: (_, _) {
+        final state = _controller.sheetState.value;
+        final blockSwipe =
+            !swipe ||
+            interacting ||
+            _controller.animating.value ||
+            _controller.zoom.value ||
+            (state.isExpanded && (isLargeScreen || useVerticalLayout));
 
         return AnimatedBuilder(
           animation: _edgeSlideController,

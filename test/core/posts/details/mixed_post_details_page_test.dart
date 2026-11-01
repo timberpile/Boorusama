@@ -1723,7 +1723,10 @@ void main() {
       expect(_pageViewController(tester).slideshowController, same(slideshow));
       expect(details.usesOriginalImage(_posts[0]), isTrue);
       expect(details.usesOriginalImage(_posts[1]), isFalse);
-      expect(pageView.sheetState.value, SheetState.expanded);
+      // Phone-horizontal page changes close the previous post's details.
+      expect(pageView.sheetState.value, SheetState.collapsed);
+      expect(pageView.sheetController.size, 0);
+      expect(pageView.displacement.value, 0);
       expect(pageView.zoom.value, isTrue);
 
       await pageView.nextPage(duration: Duration.zero);
@@ -1740,6 +1743,11 @@ void main() {
             .enabled,
         isFalse,
       );
+      // The new post starts collapsed; explicitly reopen its metadata before
+      // checking the unsupported-source tag presentation.
+      final reopen = pageView.expandToSnapPoint();
+      await tester.pumpAndSettle();
+      await reopen;
       expect(find.text('Tags'), findsOneWidget);
       expect(find.textContaining('unknown@'), findsNothing);
       _expectMedia(tester, postId: 1, host: '');
