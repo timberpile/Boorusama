@@ -81,6 +81,9 @@ publication, releases, or upstream synchronization.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.
 - Before UI changes, inspect comparable screens; reuse application components, spacing,
   typography, sizing, and interactions. Justify intentional deviations.
+- For shared UI consistency work, consult `docs/ui_style_guide.md` as a proposed
+  baseline until #136 is accepted; preserve approved feature behavior and inspect
+  the current Kurumi API before introducing new visual patterns.
 - Prefer Kurumi components for popup, context, and anchored menus; do not mix
   differently styled Material and Kurumi menu rows in one popup.
 - Localize user-facing strings and use `context.t`.
