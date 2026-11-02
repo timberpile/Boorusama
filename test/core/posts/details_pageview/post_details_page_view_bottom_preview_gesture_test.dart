@@ -196,42 +196,27 @@ void main() {
     expect(find.byKey(_bottomPreviewKey), findsNothing);
   });
 
-  final navigationCases = [
-    (
-      name: 'horizontal',
-      viewMode: ViewMode.horizontal,
-      offset: const Offset(-700, 0),
-    ),
-    (
-      name: 'vertical',
-      viewMode: ViewMode.vertical,
-      offset: const Offset(0, -400),
-    ),
-  ];
-  for (final navigation in navigationCases) {
-    testWidgets(
-      '${navigation.name} page navigation remains available above the preview',
-      (tester) async {
-        final controller = _controller(viewMode: navigation.viewMode);
-        addTearDown(controller.dispose);
-        await tester.pumpWidget(
-          _TestApp(
-            controller: controller,
-            viewMode: navigation.viewMode,
-          ),
-        );
+  testWidgets(
+    'horizontal page navigation remains available above the preview',
+    (tester) async {
+      final controller = _controller();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(_TestApp(controller: controller));
 
-        await tester.drag(
-          find.byKey(const Key('viewer-page-0')),
-          navigation.offset,
-        );
-        await tester.pumpAndSettle();
+      expect(
+        tester.widget<PageView>(find.byType(PageView)).scrollDirection,
+        Axis.horizontal,
+      );
+      await tester.drag(
+        find.byKey(const Key('viewer-page-0')),
+        const Offset(-700, 0),
+      );
+      await tester.pumpAndSettle();
 
-        expect(controller.currentPage.value, 1);
-        expect(controller.sheetState.value, SheetState.collapsed);
-      },
-    );
-  }
+      expect(controller.currentPage.value, 1);
+      expect(controller.sheetState.value, SheetState.collapsed);
+    },
+  );
 
   testWidgets(
     'a downward swipe on expanded media minimizes before pointer release',
@@ -446,19 +431,14 @@ void main() {
   for (final block in [
     'zoom',
     'swiping disabled',
-    'vertical mode',
     'animation',
   ]) {
     testWidgets('details content preserves $block restriction', (tester) async {
-      final mode = block == 'vertical mode'
-          ? ViewMode.vertical
-          : ViewMode.horizontal;
-      final controller = _controller(viewMode: mode);
+      final controller = _controller();
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         _TestApp(
           controller: controller,
-          viewMode: mode,
           scrollableDetails: true,
         ),
       );
@@ -616,25 +596,20 @@ void main() {
     },
   );
 
-  for (final block in ['zoom', 'swiping disabled', 'vertical mode']) {
+  for (final block in ['zoom', 'swiping disabled']) {
     testWidgets('expanded details preserve the $block paging restriction', (
       tester,
     ) async {
-      final mode = block == 'vertical mode'
-          ? ViewMode.vertical
-          : ViewMode.horizontal;
-      final controller = _controller(viewMode: mode);
+      final controller = _controller();
       addTearDown(controller.dispose);
-      await tester.pumpWidget(_TestApp(controller: controller, viewMode: mode));
+      await tester.pumpWidget(_TestApp(controller: controller));
       await _expandDetails(tester, controller);
       if (block == 'zoom') controller.zoom.value = true;
       if (block == 'swiping disabled') controller.disableAllSwiping();
       await tester.pump();
       await tester.dragFrom(
         const Offset(300, 120),
-        mode == ViewMode.vertical
-            ? const Offset(0, -100)
-            : const Offset(-250, 0),
+        const Offset(-250, 0),
       );
       await tester.pumpAndSettle();
       expect(controller.page, 0);
@@ -764,7 +739,6 @@ void main() {
     final count = ValueNotifier(2);
     addTearDown(count.dispose);
     final controller = _controller(
-      viewMode: ViewMode.vertical,
       disableAnimation: false,
     );
     addTearDown(controller.dispose);
@@ -774,7 +748,6 @@ void main() {
         builder: (_, itemCount, _) => _TestApp(
           controller: controller,
           itemCount: itemCount,
-          viewMode: ViewMode.vertical,
           disableAnimation: false,
         ),
       ),
@@ -802,14 +775,12 @@ void main() {
     tester,
   ) async {
     final controller = _controller(
-      viewMode: ViewMode.vertical,
       disableAnimation: false,
     );
     addTearDown(controller.dispose);
     await tester.pumpWidget(
       _TestApp(
         controller: controller,
-        viewMode: ViewMode.vertical,
         disableAnimation: false,
       ),
     );
@@ -830,7 +801,6 @@ void main() {
 }
 
 PostDetailsPageViewController _controller({
-  ViewMode viewMode = ViewMode.horizontal,
   bool disableAnimation = true,
   bool isLargeScreen = false,
 }) => PostDetailsPageViewController(
@@ -838,7 +808,6 @@ PostDetailsPageViewController _controller({
   totalPage: 2,
   checkIfLargeScreen: () => isLargeScreen,
   disableAnimation: disableAnimation,
-  viewMode: viewMode,
 );
 
 bool _isPageFaded(
@@ -890,7 +859,6 @@ class _TestApp extends StatelessWidget {
     required this.controller,
     this.itemCount = 2,
     this.previewHeight = 96,
-    this.viewMode = ViewMode.horizontal,
     this.disableAnimation = true,
     this.isLargeScreen = false,
     this.scrollableDetails = false,
@@ -905,7 +873,6 @@ class _TestApp extends StatelessWidget {
   final PostDetailsPageViewController controller;
   final int itemCount;
   final double previewHeight;
-  final ViewMode viewMode;
   final bool disableAnimation;
   final bool isLargeScreen;
   final bool scrollableDetails;
@@ -933,7 +900,6 @@ class _TestApp extends StatelessWidget {
           controller: controller,
           checkIfLargeScreen: () => isLargeScreen,
           disableAnimation: disableAnimation,
-          viewMode: viewMode,
           itemCount: itemCount,
           itemBuilder: (context, index) => GestureDetector(
             key: Key('viewer-page-$index'),

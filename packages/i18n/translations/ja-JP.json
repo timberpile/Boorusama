@@ -355,14 +355,6 @@
       },
       "slideshow_skip": "スライドショー遷移をスキップ",
       "slideshow_interval_explanation": "1秒未満では自動でスキップします",
-      "swipe_mode": "スワイプモード",
-      "swipe_mode_disclaimer": "一部のカスタムジェスチャーはすべてのモードで動作しない場合があります",
-      "swipe_modes": {
-        "horizontal": "水平",
-        "horizontal_description": "ギャラリー形式の左右スワイプ。写真ギャラリーやメディアアプリのような操作",
-        "vertical": "垂直",
-        "vertical_description": "TikTok形式の上下スワイプ。ショートビデオプラットフォームで人気。ポートレートモードのみ"
-      },
       "mute_video": "デフォルトで動画をミュート",
       "video_section_title": "動画設定"
     },

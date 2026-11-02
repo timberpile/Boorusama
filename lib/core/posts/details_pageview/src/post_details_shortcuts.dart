@@ -11,14 +11,12 @@ import 'post_details_page_view_controller.dart';
 class PostDetailsShortcuts extends StatefulWidget {
   const PostDetailsShortcuts({
     required this.controller,
-    required this.useVerticalLayout,
     required this.isLargeScreen,
     required this.child,
     super.key,
   });
 
   final PostDetailsPageViewController controller;
-  final bool useVerticalLayout;
   final bool isLargeScreen;
   final Widget child;
 
@@ -48,27 +46,16 @@ class _PostDetailsShortcutsState extends State<PostDetailsShortcuts> {
     }
 
     final duration = widget.isLargeScreen ? Duration.zero : null;
-    final vertical = widget.useVerticalLayout;
 
     return switch (event.logicalKey) {
-      LogicalKeyboardKey.arrowDown when vertical => _handled(
+      LogicalKeyboardKey.arrowRight => _handled(
         () => widget.controller.nextPage(duration: duration),
       ),
-      LogicalKeyboardKey.arrowRight when !vertical => _handled(
-        () => widget.controller.nextPage(duration: duration),
-      ),
-      LogicalKeyboardKey.arrowUp when vertical => _handled(
-        () => widget.controller.previousPage(duration: duration),
-      ),
-      LogicalKeyboardKey.arrowLeft when !vertical => _handled(
+      LogicalKeyboardKey.arrowLeft => _handled(
         () => widget.controller.previousPage(duration: duration),
       ),
       LogicalKeyboardKey.arrowUp => _enterControls(TraversalDirection.up),
       LogicalKeyboardKey.arrowDown => _enterControls(TraversalDirection.down),
-      LogicalKeyboardKey.arrowLeft => _enterControls(TraversalDirection.left),
-      LogicalKeyboardKey.arrowRight => _enterControls(
-        TraversalDirection.right,
-      ),
       _ => KeyEventResult.ignored,
     };
   }

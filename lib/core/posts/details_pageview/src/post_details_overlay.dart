@@ -12,7 +12,6 @@ class PostDetailsOverlay extends StatelessWidget {
     required this.controller,
     required this.leftActions,
     required this.actions,
-    required this.useVerticalLayout,
     required this.isLargeScreen,
     required this.sheetAnimController,
     required this.overlayCurvedAnimation,
@@ -23,7 +22,6 @@ class PostDetailsOverlay extends StatelessWidget {
   final PostDetailsPageViewController controller;
   final List<Widget> leftActions;
   final List<Widget> actions;
-  final bool useVerticalLayout;
   final bool isLargeScreen;
   final AnimationController sheetAnimController;
   final Animation<double>? overlayCurvedAnimation;
@@ -102,7 +100,6 @@ class PostDetailsOverlay extends StatelessWidget {
                 _SheetControlButton(
                   controller: controller,
                   isLargeScreen: isLargeScreen,
-                  useVerticalLayout: useVerticalLayout,
                   disableAnimation: disableAnimation,
                   sheetAnimController: sheetAnimController,
                 ),
@@ -119,14 +116,12 @@ class _SheetControlButton extends StatelessWidget {
   const _SheetControlButton({
     required this.controller,
     required this.isLargeScreen,
-    required this.useVerticalLayout,
     required this.disableAnimation,
     required this.sheetAnimController,
   });
 
   final PostDetailsPageViewController controller;
   final bool isLargeScreen;
-  final bool useVerticalLayout;
   final bool disableAnimation;
   final AnimationController sheetAnimController;
 
@@ -151,7 +146,7 @@ class _SheetControlButton extends StatelessWidget {
       onPressed: () {
         if (controller.animating.value) return;
 
-        if (!isLargeScreen || useVerticalLayout) {
+        if (!isLargeScreen) {
           controller.resetSheet();
         } else {
           controller.toggleExpanded(
@@ -177,7 +172,7 @@ class _SheetControlButton extends StatelessWidget {
       onPressed: () {
         if (controller.animating.value) return;
 
-        if (!isLargeScreen || useVerticalLayout) {
+        if (!isLargeScreen) {
           controller
             ..expandToSnapPoint()
             ..hideBottomSheet();

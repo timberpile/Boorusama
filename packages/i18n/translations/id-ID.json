@@ -421,14 +421,6 @@
       },
       "slideshow_skip": "Lewati transisi tayangan slide",
       "slideshow_interval_explanation": "Nilai kurang dari 1 detik akan secara otomatis melewati transisi",
-      "swipe_mode": "Mode geser",
-      "swipe_mode_disclaimer": "Beberapa isyarat kustom mungkin tidak berfungsi di semua mode",
-      "swipe_modes": {
-        "horizontal_description": "Geser ke kiri/kanan ala galeri. Seperti galeri foto dan aplikasi media.",
-        "vertical": "Vertikal",
-        "vertical_description": "Geser ke atas/bawah ala TikTok. Populer di platform video pendek. Hanya mode potret.",
-        "horizontal": "Horisontal"
-      },
       "mute_video": "Bisukan video secara bawaan",
       "double_tap_seek": "Ketuk dua kali untuk mencari",
       "manage_cache": "Kelola cache",

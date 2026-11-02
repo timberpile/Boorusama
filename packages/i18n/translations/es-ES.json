@@ -403,14 +403,6 @@
         "fixed_interval": "Intervalos fijos",
         "fixed_interval_description": "Avance después del intervalo fijo, incluso si el vídeo está reproduciéndose"
       },
-      "swipe_mode_disclaimer": "Algunos gestos personalizados pueden no funcionar en todos los modos",
-      "swipe_modes": {
-        "horizontal": "Horizontal",
-        "vertical": "Vertical",
-        "vertical_description": "Deslizamiento al estilo TikTok. Popular en plataformas de videos breves. Solo en modo de retrato.",
-        "horizontal_description": "Deslizamiento a la derecha e izquierda. Como galerías de fotos y aplicaciones multimedia."
-      },
-      "swipe_mode": "Modo deslizamiento",
       "double_tap_seek": "Doble-tocar para buscar",
       "manage_cache": "Manejar caché",
       "enable_video_cache": "Activar caché de vídeo",

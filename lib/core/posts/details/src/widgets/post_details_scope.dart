@@ -13,7 +13,6 @@ import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
-import '../types/post_details_swipe_mode.dart';
 import '../types/post_presentation_context.dart';
 import 'post_details_controller.dart';
 import 'post_details_page_view_scope.dart';
@@ -79,10 +78,6 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
       checkIfLargeScreen: () => context.isLargeScreen,
       totalPage: widget.posts.length,
       disableAnimation: reduceAnimations,
-      viewMode: switch (viewerSettings.swipeMode) {
-        PostDetailsSwipeMode.horizontal => ViewMode.horizontal,
-        PostDetailsSwipeMode.vertical => ViewMode.vertical,
-      },
       onBeforeSlideshowAdvance: (currentPage, nextPage) async {
         if (viewerSettings.slideshowVideoBehavior.isWaitForCompletion) {
           final currentPost = widget.posts[currentPage];

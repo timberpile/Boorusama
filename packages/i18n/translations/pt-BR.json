@@ -402,14 +402,6 @@
       },
       "slideshow_skip": "Pular transição de slides",
       "slideshow_interval_explanation": "Valores de menos de 1 segundo irão automaticamente pular a transição",
-      "swipe_mode": "Modo de deslizar",
-      "swipe_mode_disclaimer": "Alguns gestos customizados podem não funcionar em todos os modos",
-      "swipe_modes": {
-        "horizontal": "Horizontal",
-        "horizontal_description": "Deslizamento esquerda/direita no estilo galeria. Semelhante a galerias de fotos e aplicativos de mídia.",
-        "vertical": "Vertical",
-        "vertical_description": "Deslizamento cima/baixo estilo TikTok. Popular em plataformas de vídeos curtos. Apenas para modo retrato."
-      },
       "mute_video": "Silenciar vídeo por padrão",
       "double_tap_seek": "Toque duplo para buscar",
       "video_section_title": "Vídeo",

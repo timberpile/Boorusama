@@ -46,48 +46,6 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
-        KurumiSettingsRadioCard(
-          title: context.t.settings.image_viewer.swipe_mode,
-          subtitle: context.t.settings.image_viewer.swipe_mode_disclaimer,
-          entries: [
-            KurumiSettingsRadioCardEntry(
-              title: context.t.settings.image_viewer.swipe_modes.horizontal,
-              value: PostDetailsSwipeMode.horizontal.name,
-              groupValue: viewer.swipeMode.name,
-              subtitle: context
-                  .t
-                  .settings
-                  .image_viewer
-                  .swipe_modes
-                  .horizontal_description,
-              onSelected: (value) {
-                onUpdate(
-                  (current) => current.copyWith(
-                    swipeMode: PostDetailsSwipeMode.horizontal,
-                  ),
-                );
-              },
-            ),
-            KurumiSettingsRadioCardEntry(
-              title: context.t.settings.image_viewer.swipe_modes.vertical,
-              value: PostDetailsSwipeMode.vertical.name,
-              groupValue: viewer.swipeMode.name,
-              subtitle: context
-                  .t
-                  .settings
-                  .image_viewer
-                  .swipe_modes
-                  .vertical_description,
-              onSelected: (value) {
-                onUpdate(
-                  (current) => current.copyWith(
-                    swipeMode: PostDetailsSwipeMode.vertical,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
         KurumiSwitchListTile(
           title: Text(context.t.settings.image_viewer.load_original_on_zoom),
           subtitle: Text(

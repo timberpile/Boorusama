@@ -415,14 +415,6 @@
       },
       "slideshow_skip": "Bỏ qua hiệu ứng chuyển tiếp",
       "slideshow_interval_explanation": "Dưới 1 giây sẽ tự động bỏ qua hiệu ứng chuyển tiếp",
-      "swipe_mode": "Chế độ vuốt",
-      "swipe_mode_disclaimer": "Một số thao tác vuốt tùy chỉnh có thể không hoạt động trong mọi chế độ",
-      "swipe_modes": {
-        "horizontal": "Ngang",
-        "horizontal_description": "Vuốt trái/phải kiểu thư viện ảnh. Giống các ứng dụng xem ảnh và đa phương tiện.",
-        "vertical": "Dọc",
-        "vertical_description": "Vuốt lên/xuống kiểu TikTok. Phổ biến trên các nền tảng video ngắn. Chỉ dùng chế độ dọc."
-      },
       "mute_video": "Mặc định tắt tiếng video",
       "double_tap_seek": "Chạm hai lần để tua",
       "video_section_title": "Video",

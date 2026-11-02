@@ -202,7 +202,6 @@ class Settings extends Equatable {
       animatedPostsDefaultState: AnimatedPostsDefaultState.defaultValue,
     ),
     viewer: ImageViewerSettings(
-      swipeMode: PostDetailsSwipeMode.defaultValue,
       loadOriginalOnZoom: true,
       snapZoomToFit: true,
       doubleTapZoomMode: DoubleTapZoomMode.defaultValue,
@@ -652,7 +651,6 @@ class ViewerConfigs extends Equatable {
 
 class ImageViewerSettings extends Equatable {
   const ImageViewerSettings({
-    required this.swipeMode,
     this.postQuality = PostQuality.high,
     required this.loadOriginalOnZoom,
     required this.snapZoomToFit,
@@ -669,9 +667,10 @@ class ImageViewerSettings extends Equatable {
     required this.doubleTapSeekDuration,
   });
 
+  // Legacy swipeMode values are intentionally ignored, including restored
+  // global and per-profile settings. Post navigation is always horizontal.
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
     : postQuality = PostQuality.parse(json['postQuality']),
-      swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
       loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? true,
       snapZoomToFit = json['snapZoomToFit'] ?? true,
       doubleTapZoomMode = DoubleTapZoomMode.parse(json['doubleTapZoomMode']),
@@ -697,7 +696,6 @@ class ImageViewerSettings extends Equatable {
       doubleTapSeekDuration = json['doubleTapSeekDuration'] ?? 10;
 
   final PostQuality postQuality;
-  final PostDetailsSwipeMode swipeMode;
   final bool loadOriginalOnZoom;
   final bool snapZoomToFit;
   final DoubleTapZoomMode doubleTapZoomMode;
@@ -714,7 +712,6 @@ class ImageViewerSettings extends Equatable {
 
   ImageViewerSettings copyWith({
     PostQuality? postQuality,
-    PostDetailsSwipeMode? swipeMode,
     bool? loadOriginalOnZoom,
     bool? snapZoomToFit,
     DoubleTapZoomMode? doubleTapZoomMode,
@@ -731,7 +728,6 @@ class ImageViewerSettings extends Equatable {
   }) {
     return ImageViewerSettings(
       postQuality: postQuality ?? this.postQuality,
-      swipeMode: swipeMode ?? this.swipeMode,
       loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
       snapZoomToFit: snapZoomToFit ?? this.snapZoomToFit,
       doubleTapZoomMode: doubleTapZoomMode ?? this.doubleTapZoomMode,
@@ -756,7 +752,6 @@ class ImageViewerSettings extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'postQuality': postQuality.toData(),
-    'swipeMode': swipeMode.toData(),
     'loadOriginalOnZoom': loadOriginalOnZoom,
     'snapZoomToFit': snapZoomToFit,
     'doubleTapZoomMode': doubleTapZoomMode.toData(),
@@ -775,7 +770,6 @@ class ImageViewerSettings extends Equatable {
   @override
   List<Object> get props => [
     postQuality,
-    swipeMode,
     loadOriginalOnZoom,
     snapZoomToFit,
     doubleTapZoomMode,

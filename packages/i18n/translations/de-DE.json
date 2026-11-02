@@ -726,14 +726,6 @@
       },
       "slideshow_skip": "Überspringe Diashowübergang",
       "slideshow_interval_explanation": "Werte weniger als 1 Sekunde überspringt automatisch den Diaübergang",
-      "swipe_mode": "Wischmodus",
-      "swipe_mode_disclaimer": "Einige benutzerdefinierte Gesten funktionieren möglicherweise nicht in allen Modi",
-      "swipe_modes": {
-        "horizontal": "Horizontal",
-        "horizontal_description": "Wischen nach links/rechts im Galerie-Stil. Wie in Fotogalerien und Medien-Apps.",
-        "vertical": "Vertikal",
-        "vertical_description": "Wischen nach oben/unten im TikTok-Stil. Beliebt auf Plattformen für kurze Videos. Nur im Hochformat."
-      },
       "mute_video": "Video standardmäßig stummschalten",
       "double_tap_seek": "Doppeltippen zum Suchen",
       "video_section_title": "Video",

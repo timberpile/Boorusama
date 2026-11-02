@@ -690,16 +690,16 @@ void main() {
 
   for (final scenario in [
     (
-      name: 'Next in vertical LTR mode',
-      vertical: true,
+      name: 'Next with a restored vertical preference in LTR',
+      legacyVertical: true,
       direction: TextDirection.ltr,
       source: 0,
       target: 1,
       drag: -170.0,
     ),
     (
-      name: 'Previous in vertical LTR mode',
-      vertical: true,
+      name: 'Previous with a restored vertical preference in LTR',
+      legacyVertical: true,
       direction: TextDirection.ltr,
       source: 1,
       target: 0,
@@ -707,7 +707,7 @@ void main() {
     ),
     (
       name: 'Next in horizontal RTL mode',
-      vertical: false,
+      legacyVertical: false,
       direction: TextDirection.rtl,
       source: 0,
       target: 1,
@@ -715,7 +715,7 @@ void main() {
     ),
     (
       name: 'Previous in horizontal RTL mode',
-      vertical: false,
+      legacyVertical: false,
       direction: TextDirection.rtl,
       source: 1,
       target: 0,
@@ -730,7 +730,7 @@ void main() {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
         _mobileViewport(tester);
         final harness = _Harness(
-          vertical: scenario.vertical,
+          legacyVertical: scenario.legacyVertical,
           direction: scenario.direction,
           initialIndex: scenario.source,
           reduceAnimations: false,
@@ -908,7 +908,7 @@ void main() {
   ) async {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester);
-    final harness = _Harness(vertical: true);
+    final harness = _Harness(legacyVertical: true);
     addTearDown(harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
@@ -936,7 +936,7 @@ void main() {
   testWidgets('an external page change cancels an edge slide', (tester) async {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester);
-    final harness = _Harness(vertical: true, reduceAnimations: false);
+    final harness = _Harness(legacyVertical: true, reduceAnimations: false);
     addTearDown(harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
@@ -972,7 +972,7 @@ void main() {
   ) async {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester);
-    final harness = _Harness(vertical: true, reduceAnimations: false);
+    final harness = _Harness(legacyVertical: true, reduceAnimations: false);
     addTearDown(harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
@@ -1130,91 +1130,104 @@ void main() {
     },
   );
 
-  testWidgets('keeps vertical gesture navigation available after zoom', (
-    tester,
-  ) async {
-    VisibilityDetectorController.instance.updateInterval = Duration.zero;
-    _mobileViewport(tester);
-    final harness = _Harness(vertical: true);
-    addTearDown(harness.dispose);
-    await tester.pumpWidget(harness.build());
-    await tester.pumpAndSettle();
-    await _waitForCurrentImage(tester);
+  testWidgets(
+    'uses horizontal paging and zoom controls with a restored vertical preference',
+    (
+      tester,
+    ) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final harness = _Harness(legacyVertical: true);
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
 
-    final pageView = _pageViewController(tester);
-    final transform = tester
-        .widget<PostViewerTransformationScope>(
-          find.byType(PostViewerTransformationScope),
-        )
-        .controller
-        .transformationController;
-    expect(pageView.overlay.value, isTrue);
-    expect(_comicButton('Next Page'), findsNothing);
+      final pageView = _pageViewController(tester);
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      expect(pageView.overlay.value, isTrue);
+      expect(_comicButton('Next Page'), findsNothing);
 
-    transform.value = Matrix4.diagonal3Values(2, 2, 1);
-    await tester.pump();
+      transform.value = Matrix4.diagonal3Values(2, 2, 1);
+      await tester.pump();
 
-    expect(pageView.zoom.value, isTrue);
-    expect(pageView.overlay.value, isTrue);
-    expect(_zoomAction('Next Page'), findsOneWidget);
+      expect(pageView.zoom.value, isTrue);
+      expect(pageView.overlay.value, isFalse);
+      expect(_zoomAction('Next Page'), findsOneWidget);
 
-    tester
-        .widget<InteractiveViewerExtended>(
-          find.byType(InteractiveViewerExtended).first,
-        )
-        .onTap
-        ?.call();
-    await tester.pump();
-    expect(pageView.overlay.value, isFalse);
-    expect(_zoomAction('Next Page'), findsOneWidget);
+      tester
+          .widget<InteractiveViewerExtended>(
+            find.byType(InteractiveViewerExtended).first,
+          )
+          .onTap
+          ?.call();
+      await tester.pump();
+      expect(pageView.overlay.value, isTrue);
+      expect(_zoomAction('Next Page'), findsOneWidget);
 
-    tester
-        .widget<InteractiveViewerExtended>(
-          find.byType(InteractiveViewerExtended).first,
-        )
-        .onTap
-        ?.call();
-    await tester.pump();
-    expect(pageView.overlay.value, isTrue);
-    expect(_zoomAction('Next Page'), findsOneWidget);
-  });
+      tester
+          .widget<InteractiveViewerExtended>(
+            find.byType(InteractiveViewerExtended).first,
+          )
+          .onTap
+          ?.call();
+      await tester.pump();
+      expect(pageView.overlay.value, isFalse);
+      expect(_zoomAction('Next Page'), findsOneWidget);
 
-  testWidgets('keeps initially hidden toolbar hidden through vertical zoom', (
-    tester,
-  ) async {
-    VisibilityDetectorController.instance.updateInterval = Duration.zero;
-    _mobileViewport(tester);
-    final harness = _Harness(vertical: true, hideOverlay: true);
-    addTearDown(harness.dispose);
-    await tester.pumpWidget(harness.build());
-    await tester.pumpAndSettle();
-    await _waitForCurrentImage(tester);
+      transform.value = Matrix4.identity();
+      await tester.pumpAndSettle();
+      expect(pageView.zoom.value, isFalse);
+      await tester.drag(_postPageView(tester), const Offset(-300, 0));
+      await tester.pumpAndSettle();
+      expect(pageView.page, 1);
+    },
+  );
 
-    final pageView = _pageViewController(tester);
-    final transform = tester
-        .widget<PostViewerTransformationScope>(
-          find.byType(PostViewerTransformationScope),
-        )
-        .controller
-        .transformationController;
-    expect(pageView.overlay.value, isFalse);
+  testWidgets(
+    'keeps initially hidden toolbar hidden through zoom with a restored vertical preference',
+    (
+      tester,
+    ) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final harness = _Harness(legacyVertical: true, hideOverlay: true);
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
 
-    transform.value = Matrix4.diagonal3Values(2, 2, 1);
-    await tester.pump();
-    expect(pageView.zoom.value, isTrue);
-    expect(pageView.overlay.value, isFalse);
-    expect(_zoomAction('Next Page'), findsOneWidget);
+      final pageView = _pageViewController(tester);
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      expect(pageView.overlay.value, isFalse);
 
-    tester
-        .widget<InteractiveViewerExtended>(
-          find.byType(InteractiveViewerExtended).first,
-        )
-        .onTap
-        ?.call();
-    await tester.pump();
-    expect(pageView.overlay.value, isTrue);
-    expect(_zoomAction('Next Page'), findsOneWidget);
-  });
+      transform.value = Matrix4.diagonal3Values(2, 2, 1);
+      await tester.pump();
+      expect(pageView.zoom.value, isTrue);
+      expect(pageView.overlay.value, isFalse);
+      expect(_zoomAction('Next Page'), findsOneWidget);
+
+      tester
+          .widget<InteractiveViewerExtended>(
+            find.byType(InteractiveViewerExtended).first,
+          )
+          .onTap
+          ?.call();
+      await tester.pump();
+      expect(pageView.overlay.value, isTrue);
+      expect(_zoomAction('Next Page'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'grid details keep the same mixed viewer while Next waits for and opens appended posts',
@@ -1958,7 +1971,7 @@ Future<void> _nextPage(WidgetTester tester) async {
 class _Harness {
   _Harness({
     GoRouter? router,
-    bool vertical = false,
+    bool legacyVertical = false,
     this.direction = TextDirection.ltr,
     this.initialIndex = 0,
     this.posts,
@@ -1982,16 +1995,18 @@ class _Harness {
                listing: Settings.defaultSettings.listing.copyWith(
                  imageQuality: thumbnailQuality,
                ),
-               viewer: Settings.defaultSettings.viewer.copyWith(
-                 loadOriginalOnZoom: loadOriginalOnZoom,
-                 postQuality: postQuality,
-                 swipeMode: vertical
-                     ? PostDetailsSwipeMode.vertical
-                     : PostDetailsSwipeMode.horizontal,
-                 postDetailsOverlayInitialState: hideOverlay
-                     ? PostDetailsOverlayInitialState.hide
-                     : PostDetailsOverlayInitialState.show,
-               ),
+               viewer: ImageViewerSettings.fromJson({
+                 ...Settings.defaultSettings.viewer
+                     .copyWith(
+                       loadOriginalOnZoom: loadOriginalOnZoom,
+                       postQuality: postQuality,
+                       postDetailsOverlayInitialState: hideOverlay
+                           ? PostDetailsOverlayInitialState.hide
+                           : PostDetailsOverlayInitialState.show,
+                     )
+                     .toJson(),
+                 if (legacyVertical) 'swipeMode': 1,
+               }),
              ),
            ),
            colorSchemeProvider.overrideWithValue(
@@ -2280,7 +2295,7 @@ class _LiveRouteHarness {
     );
     harness = _Harness(
       router: router,
-      vertical: true,
+      legacyVertical: true,
       reduceAnimations: reduceAnimations,
     );
   }

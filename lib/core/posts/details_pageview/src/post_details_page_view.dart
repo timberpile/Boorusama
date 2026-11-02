@@ -26,11 +26,6 @@ import 'zoom_page_navigation_scope.dart';
 // Dart imports:
 // ignore_for_file: prefer_int_literals
 
-enum ViewMode {
-  horizontal,
-  vertical,
-}
-
 const _kBottomPreviewSwipeThreshold = 32.0;
 const _kBottomPreviewVerticalDominance = 1.5;
 const _kExpandedMediaSwipeThreshold = 32.0;
@@ -56,7 +51,6 @@ class PostDetailsPageView extends StatefulWidget {
     this.bottomSheet,
     this.sheetStateStorage,
     this.disableAnimation = false,
-    this.viewMode = ViewMode.horizontal,
     this.mainContentBuilder,
     this.nextLoading = false,
     this.nextFailed = false,
@@ -87,7 +81,6 @@ class PostDetailsPageView extends StatefulWidget {
 
   final bool disableAnimation;
   final bool Function() checkIfLargeScreen;
-  final ViewMode viewMode;
   final bool nextLoading;
   final bool nextFailed;
   final bool nextCanLoad;
@@ -154,8 +147,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   late Animation<Offset> _sideSheetSlideAnim;
 
   bool get isLargeScreen => widget.checkIfLargeScreen();
-  bool get isVerticalMode => widget.viewMode == ViewMode.vertical;
-  bool get useVerticalLayout => isVerticalMode && !isLargeScreen;
 
   @override
   void initState() {
@@ -197,7 +188,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
           initialPage: 0,
           checkIfLargeScreen: widget.checkIfLargeScreen,
           totalPage: widget.itemCount,
-          viewMode: widget.viewMode,
         );
 
     _controller.pageController.addListener(_onPageChanged);
@@ -216,7 +206,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     final currentExpanded = _controller.sheetState.value.isExpanded;
 
     // auto expand side sheet if it was expanded before
-    if (isLargeScreen && !currentExpanded && !isVerticalMode) {
+    if (isLargeScreen && !currentExpanded) {
       final expanded = widget.sheetStateStorage?.loadExpandedState();
 
       if (expanded ?? false) {
@@ -241,7 +231,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   void didUpdateWidget(PostDetailsPageView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.itemCount != widget.itemCount ||
-        oldWidget.viewMode != widget.viewMode ||
         oldWidget.disableAnimation != widget.disableAnimation) {
       _cancelEdgeSlide();
     }
@@ -351,7 +340,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     if (pageNum != _controller.page) {
       _controller.currentPage.value = pageNum;
 
-      if (_controller.isExpanded && !isLargeScreen && !useVerticalLayout) {
+      if (_controller.isExpanded && !isLargeScreen) {
         // Do not let the new post inherit the previous post's open details.
         // Collapse synchronously so an outstanding sheet animation cannot
         // briefly expose the next post with the old expanded layout.
@@ -436,7 +425,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       }
     }
 
-    if (isLargeScreen && !isVerticalMode) {
+    if (isLargeScreen) {
       widget.sheetStateStorage?.persistExpandedState(_controller.isExpanded);
     }
 
@@ -507,7 +496,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   Widget build(BuildContext context) {
     return PostDetailsShortcuts(
       controller: _controller,
-      useVerticalLayout: useVerticalLayout,
       isLargeScreen: isLargeScreen,
       child: Stack(
         children: [
@@ -680,7 +668,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
           controller: _controller,
           leftActions: widget.leftActions,
           actions: widget.actions,
-          useVerticalLayout: useVerticalLayout,
           isLargeScreen: isLargeScreen,
           sheetAnimController: _sheetAnimController,
           overlayCurvedAnimation: _overlayCurvedAnimation,
@@ -693,7 +680,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   bool get _canPageFromDetails =>
       !isLargeScreen &&
       _controller.isExpanded &&
-      !useVerticalLayout &&
       _controller.swipe.value &&
       !_controller.zoom.value &&
       !_controller.animating.value &&
@@ -771,7 +757,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
             interacting ||
             _controller.animating.value ||
             _controller.zoom.value ||
-            (state.isExpanded && (isLargeScreen || useVerticalLayout));
+            (state.isExpanded && isLargeScreen);
 
         return AnimatedBuilder(
           animation: _edgeSlideController,
@@ -803,9 +789,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
             );
           },
           child: PageView.builder(
-            scrollDirection: useVerticalLayout
-                ? Axis.vertical
-                : Axis.horizontal,
             onPageChanged: blockSwipe && !isPortrait
                 ? (_) => _controller.startCooldownTimer()
                 : null,
@@ -825,27 +808,19 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
 
   Widget _buildItem(int index, bool blockSwipe) {
     List<Widget> buildNavButtons() {
-      final isVertical = useVerticalLayout;
-
       return [
         PageNavButton(
-          alignment: isVertical
-              ? Alignment.bottomCenter
-              : Alignment.centerRight,
+          alignment: Alignment.centerRight,
           controller: _controller,
           visibleWhen: (page) => page < widget.itemCount - 1,
-          icon: Icon(
-            isVertical ? Symbols.keyboard_arrow_down : Symbols.arrow_forward,
-          ),
+          icon: const Icon(Symbols.arrow_forward),
           onPressed: () => _controller.nextPage(duration: Duration.zero),
         ),
         PageNavButton(
-          alignment: isVertical ? Alignment.topCenter : Alignment.centerLeft,
+          alignment: Alignment.centerLeft,
           controller: _controller,
           visibleWhen: (page) => page > 0,
-          icon: Icon(
-            isVertical ? Symbols.keyboard_arrow_up : Symbols.arrow_back,
-          ),
+          icon: const Icon(Symbols.arrow_back),
           onPressed: () => _controller.previousPage(duration: Duration.zero),
         ),
       ];
@@ -906,9 +881,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       children: [
         Positioned.fill(
           child: ValueListenableBuilder(
-            valueListenable: !isSmall || useVerticalLayout
-                ? _dummyAlwaysFalse
-                : _controller.canPull,
+            valueListenable: !isSmall ? _dummyAlwaysFalse : _controller.canPull,
             builder: (_, canPull, _) => PointerCountOnScreen(
               enable: isSmall,
               onCountChanged: (count) {
@@ -916,20 +889,15 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                 _interacting.value = count > 1;
               },
               child: ValueListenableBuilder(
-                valueListenable: !isSmall || useVerticalLayout
+                valueListenable: !isSmall
                     ? _dummyAlwaysFalse
                     : _controller.pulling,
                 builder: (_, pulling, _) => GestureDetector(
-                  onVerticalDragStart:
-                      canPull && !_interacting.value && !useVerticalLayout
+                  onVerticalDragStart: canPull && !_interacting.value
                       ? _onVerticalDragStart
                       : null,
-                  onVerticalDragUpdate: pulling && !useVerticalLayout
-                      ? _onVerticalDragUpdate
-                      : null,
-                  onVerticalDragEnd: pulling && !useVerticalLayout
-                      ? _onVerticalDragEnd
-                      : null,
+                  onVerticalDragUpdate: pulling ? _onVerticalDragUpdate : null,
+                  onVerticalDragEnd: pulling ? _onVerticalDragEnd : null,
                   child: AnimatedBuilder(
                     animation: Listenable.merge([
                       _controller.freestyleMoveOffset,

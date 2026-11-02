@@ -403,14 +403,6 @@
         "fixed_interval": "고정 간격",
         "fixed_interval_description": "일정 간격 후에 다음 단계로 넘어갑니다, 영상이 재생 중이더라도 마찬가지입니다"
       },
-      "swipe_mode": "스와이프 모드",
-      "swipe_mode_disclaimer": "일부 사용자 지정 제스처는 모든 모드에서 작동하지 않을 수 있습니다",
-      "swipe_modes": {
-        "horizontal": "수평",
-        "horizontal_description": "갤러리처럼 좌우로 스와이프하는 방식입니다. 사진 갤러리나 미디어 앱과 유사합니다.",
-        "vertical": "수직",
-        "vertical_description": "쇼츠 스타일의 위/아래 스와이프 기능. 짧은 동영상 플랫폼에서 인기 있는 기능입니다. 세로 모드에서만 사용 가능합니다."
-      },
       "double_tap_seek": "두 번 클릭으로 찾기",
       "manage_cache": "캐시 관리",
       "enable_video_cache": "비디오 캐시 활성화",

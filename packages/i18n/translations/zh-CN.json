@@ -403,14 +403,6 @@
         "fixed_interval": "固定间隔",
         "fixed_interval_description": "在固定间隔后切换，即使视频仍在播放"
       },
-      "swipe_mode": "滑动模式",
-      "swipe_mode_disclaimer": "某些自定义手势可能无法在所有模式下工作",
-      "swipe_modes": {
-        "horizontal": "水平",
-        "horizontal_description": "画廊风格的左右滑动。类似于照片画廊和媒体应用。",
-        "vertical": "垂直",
-        "vertical_description": "TikTok风格的上下滑动。在短视频平台上流行。仅限纵向模式。"
-      },
       "double_tap_seek": "双击跳转",
       "manage_cache": "管理缓存",
       "enable_video_cache": "启用视频缓存",

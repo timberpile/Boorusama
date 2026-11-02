@@ -290,13 +290,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   );
   add(
     'viewer',
-    'swipe_mode',
-    viewer.swipe_mode,
-    description: viewer.swipe_mode_disclaimer,
-    keywords: [viewer.swipe_modes.horizontal, viewer.swipe_modes.vertical],
-  );
-  add(
-    'viewer',
     'load_original_on_zoom',
     viewer.load_original_on_zoom,
     description: viewer.load_original_on_zoom_description,

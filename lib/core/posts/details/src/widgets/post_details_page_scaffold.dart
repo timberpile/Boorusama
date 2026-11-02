@@ -29,7 +29,6 @@ import '../../../details_parts/types.dart';
 import '../../../post/routes.dart';
 import '../../../post/types.dart';
 import '../types/post_details.dart';
-import '../types/post_details_swipe_mode.dart';
 import '../types/post_viewer_transformation_controller.dart';
 import 'post_details_controller.dart';
 import 'post_details_full_info_sheet.dart';
@@ -373,9 +372,6 @@ class _PostDetailPageScaffoldState<T extends Post>
     final reduceAnimations = ref.watch(
       settingsProvider.select((value) => value.reduceAnimations),
     );
-    final swipeMode = ref.watch(
-      imageViewerSettingsProvider.select((value) => value.swipeMode),
-    );
     final autoAdjustComicStrips = ref.watch(
       imageViewerSettingsProvider.select(
         (value) => value.autoAdjustComicStrips,
@@ -389,10 +385,6 @@ class _PostDetailPageScaffoldState<T extends Post>
         nextCanLoad: widget.nextCanLoad,
         onRetryNext: widget.onRetryNext,
         onLoadMoreNext: widget.onLoadMoreNext,
-        viewMode: switch (swipeMode) {
-          PostDetailsSwipeMode.horizontal => ViewMode.horizontal,
-          PostDetailsSwipeMode.vertical => ViewMode.vertical,
-        },
         disableAnimation: reduceAnimations,
         onPageChanged: (page) {
           final post = posts[page];

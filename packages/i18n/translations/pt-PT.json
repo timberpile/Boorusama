@@ -281,14 +281,6 @@
       },
       "slideshow_skip": "Saltar transição de apresentação de slides",
       "slideshow_interval_explanation": "Valores menores que 1 segundo saltam a transição automaticamente",
-      "swipe_mode": "Modo de deslizar",
-      "swipe_mode_disclaimer": "Alguns gestos personalizados podem não funcionar em todos os modos",
-      "swipe_modes": {
-        "horizontal": "Horizontal",
-        "horizontal_description": "Deslize para a esquerda/direita ao estilo de galeria. Tal como galerias de fotos e aplicações de multimédia.",
-        "vertical": "Vertical",
-        "vertical_description": "Deslize para cima/baixo ao estilo TikTok. Popular em plataformas de vídeo curto. Apenas em modo de retrato."
-      },
       "mute_video": "Silenciar vídeo por predefinição",
       "double_tap_seek": "Toque duplo para procurar",
       "video_section_title": "Vídeo",

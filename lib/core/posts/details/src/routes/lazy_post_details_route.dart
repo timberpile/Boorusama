@@ -5,11 +5,9 @@ import 'package:kurumi/material.dart';
 import '../../../../../foundation/display.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../router.dart';
-import '../../../../settings/providers.dart';
 import '../../../listing/providers.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
-import '../types/post_details_swipe_mode.dart';
 import '../widgets/lazy_post_details_pager.dart';
 import '../widgets/post_details_page.dart';
 import 'details_route_context.dart';
@@ -65,22 +63,16 @@ GoRoute lazyPostDetailsRoutes(Ref ref) => GoRoute(
   },
 );
 
-class _LazyPostDetailsPage extends ConsumerWidget {
+class _LazyPostDetailsPage extends StatelessWidget {
   const _LazyPostDetailsPage({required this.data});
 
   final LazyPostDetailsRouteContext data;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final swipeMode = ref.watch(
-      imageViewerSettingsProvider.select((settings) => settings.swipeMode),
-    );
+  Widget build(BuildContext context) {
     return LazyPostDetailsPager(
       source: data.source,
       initialIndex: data.initialIndex,
-      axis: swipeMode == PostDetailsSwipeMode.vertical && !context.isLargeScreen
-          ? Axis.vertical
-          : Axis.horizontal,
       itemBuilder: (context, postId) => _LazyPostItem(
         postId: postId,
         config: data.config,

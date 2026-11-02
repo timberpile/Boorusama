@@ -4,6 +4,49 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 
 void main() {
+  testWidgets(
+    'vertical content scrolling preserves horizontal post navigation',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      var page = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LazyPostDetailsPager(
+            source: LazyPostDetailsSource(
+              changes: const AlwaysStoppedAnimation(0),
+              postIds: () => [10, 20],
+              hasMore: () => false,
+              fetchMore: () async {},
+            ),
+            initialIndex: 0,
+            onPageChanged: (value) => page = value,
+            itemBuilder: (context, id) => id == 10
+                ? ListView.builder(
+                    controller: scroll,
+                    itemCount: 40,
+                    itemExtent: 60,
+                    itemBuilder: (_, index) => Text('Detail $index'),
+                  )
+                : const Center(child: Text('Post 20')),
+          ),
+        ),
+      );
+
+      await tester.drag(find.byType(ListView), const Offset(0, -300));
+      await tester.pumpAndSettle();
+      expect(scroll.offset, greaterThan(0));
+      expect(page, 0);
+      await tester.drag(find.byType(PageView), const Offset(-300, 0));
+      await tester.pumpAndSettle();
+      expect(page, 1);
+      expect(find.text('Post 20'), findsOneWidget);
+    },
+  );
+
   testWidgets('opening a large list builds only nearby posts', (tester) async {
     final ids = List.generate(1000, (index) => index + 1);
     final built = <int>{};
