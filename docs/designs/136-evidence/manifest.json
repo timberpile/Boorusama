@@ -1,0 +1,312 @@
+{
+  "capture_date": "2026-11-02",
+  "source_commit": "fc601be07b2859eceb8297d10348c68d9611860c",
+  "runtime_diff_from_source_commit": false,
+  "apk_sha256": "56e6955a78a75994b3aa184bd70fccdfcb6a04d2d6fe5d6ab168bbb877b0bf6e",
+  "installed_apk_sha256_matches_build": true,
+  "platform": "Android 17",
+  "engine": "Danbooru API / public Safebooru profile",
+  "appearance": "Existing black default; exact persisted global/profile palette unconfirmed. 12,24,25,26 are theme previews only.",
+  "captures": [
+    {
+      "file": "01-following.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "67adbc76d27541d7aea80ecfb30ea300cbca384280015ca88a368e0aba7165ec"
+    },
+    {
+      "file": "02-following-sort.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "c9729228f46255127139fa91279bbc313bd47d87ff07a8f40d1430002a00a5e5"
+    },
+    {
+      "file": "03-following-editor-keyboard.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "0d1c850cc5406d95780a25dfd478872e2984072caec76ac4e8c23cc6a993ae19"
+    },
+    {
+      "file": "04-navigation.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "7d29dbec39a0deee6bdf566cc899c2246299e1bd73033b2df8af0644bda614c5"
+    },
+    {
+      "file": "05-downloads.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "53235bf9f135db934488e231775e301fbbf0832abd2860ebae9de4a477b69048"
+    },
+    {
+      "file": "06-downloads-menu.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "0e0bf33ca188f070a2823bcc65ece009bf1e009a1952f563914ebf61bd328c9b"
+    },
+    {
+      "file": "07-settings.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "054ab11e14196e641d8b90b56101676ccdaef17181c0002f5f54cc8ca32a21dd"
+    },
+    {
+      "file": "08-appearance.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "cb5b97aff4ad2138b225ca813c5c9c83674bb0e821ef6bab6897882c4062fb0f"
+    },
+    {
+      "file": "09-storage.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "97be8523ab28463363e2ea8f3da59e09e7a19d81518b851bf8501a9df92ba7a4"
+    },
+    {
+      "file": "10-accessibility.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "348790f8dfe2872f01ef4020791c9b79685ab30948e03736f6fa7421763120b8"
+    },
+    {
+      "file": "11-profiles.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "d9a2aff1a3e3a955ea4702ecd59de8109a71a6473c0feaeafcd3b69e4c040c15"
+    },
+    {
+      "file": "12-theme-preview.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "0b8312f5cf71e7055527df1f630aa24b85e9c44a5d1004491d2fc7a68d404861"
+    },
+    {
+      "file": "13-bookmarks.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "44ac1ed4a0164f53942115840e94046d120dab064563abf02890b87a32d69308"
+    },
+    {
+      "file": "14-search-keyboard.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "81650b6f38f33fb24b23f29597af8deccb900ee465db49ea8e88aa088a5c3c8b"
+    },
+    {
+      "file": "15-search-query.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "d112ad6f5369513d760c9d637978d420405411ee329546dadb046c24aa18449f"
+    },
+    {
+      "file": "16-search-empty-result.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "47bf0a1bd06e675249e1dc01b6acd5c885b081d945df8f972fdef72bde94a381"
+    },
+    {
+      "file": "17-grid.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "7f6325b43dbc6d3d39078b7046b7cc8290e5eba8ce5e39f6dbb66216e18a0f8a"
+    },
+    {
+      "file": "18-viewer.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "2861ecd8ad6d943938357c07708ea4dc675e615a96ec7832281aec2705f2ccc1"
+    },
+    {
+      "file": "19-viewer-details.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "06b502ee9bb9027401b2fa212bd3b2d28e29c0ad4755f0c59e1be68785019199"
+    },
+    {
+      "file": "20-following-editor-enabled.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "1580d9d392c2b083befbe5aa01bd383893fc1546d3e6b39b8bb59c42f1d6ddfd"
+    },
+    {
+      "file": "21-following-editor-text2.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 2.0,
+      "sha256": "b973e52243e4decff1e815d34060e222b4c73688cb9cc5da64e3c1dfc233b9ec"
+    },
+    {
+      "file": "22-following-wide.png",
+      "pixel_size": [
+        1600,
+        1000
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "7d1379595d288a4e0fca6b493c7d4e7bc350a0388f4357c185fae18ca30b2a6c"
+    },
+    {
+      "file": "23-following-editor-wide.png",
+      "pixel_size": [
+        1600,
+        1000
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "d376aafce7ae03f7eb03a530db930f3e47fbc6cbd3bf1359c6ede076d00823b5"
+    },
+    {
+      "file": "24-theme-preview-alternative.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "8a0dfb8e0e54a8506e6e7235e1c05d059ec409032236f64736b65348cf126429"
+    },
+    {
+      "file": "25-theme-preview-light.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "a8c4334c86a33f23ef579eaf9a4232234362041c8cb7d4090faab4a1a6ebf354"
+    },
+    {
+      "file": "26-theme-preview-dark.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "4500b9316f20595e6769c45d4a515e95211a27f1a83f08457e9e8c138249abcf"
+    },
+    {
+      "file": "27-bookmark-groups.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "228f7afbfac39fff4931f6e00d8103bc1a9f1d3409d05dac6800a16f1343f325"
+    },
+    {
+      "file": "28-bookmark-default.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "683df869b792b5b79f0bea9e8e59060d388a02e79c2517c166e9615c3d68e6e6"
+    },
+    {
+      "file": "29-artists.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "f3335b98ab6a235d94f9cd4fcfe33882ed72da611317b58ec595d1c644ec58f3"
+    },
+    {
+      "file": "30-artist-details.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "a087689185e54bde82003b1e0c17e7c0dfa5eb7b85c969b9f40953050c744b61"
+    }
+  ]
+}

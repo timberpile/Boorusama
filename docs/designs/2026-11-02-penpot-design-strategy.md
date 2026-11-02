@@ -2,13 +2,13 @@
 
 Date: 2026-11-02
 Tracking: [#136](https://github.com/timberpile/Boorusama/issues/136)
-Status: design proposal; **no Penpot file has been created or connected**.
+Status: proposed design; a connected **draft** now exists. Screenshot import is deferred by the owner until one final batch.
 
 ## Decision
 
 Use Penpot as a **curated visual contract**, not a full duplicate of the Flutter application. Build a reusable Kurumi-oriented component library and around 10 canonical screens with representative states. Code remains authoritative for existing runtime behavior until a new design is approved. Approved designs are the target for visual changes; tests and code define actual behavior and capability constraints.
 
-Penpot supports shared component libraries, variants, design tokens, token themes, and DTCG-style JSON import/export. Its official MCP workflow is available for separately connected compatible clients. This does not imply this chat currently has access to a Penpot workspace. References: [Penpot design tokens](https://help.penpot.app/user-guide/design-systems/design-tokens/), [Penpot MCP](https://help.penpot.app/mcp/).
+Penpot supports shared component libraries, variants, design tokens, token themes, and DTCG-style JSON import/export. Its official MCP workflow is available for separately connected compatible clients. The local continuation verified editor access through the existing MCP plugin. References: [Penpot design tokens](https://help.penpot.app/user-guide/design-systems/design-tokens/), [Penpot MCP](https://help.penpot.app/mcp/).
 
 ## Proposed file organization
 
@@ -62,10 +62,45 @@ Do not enforce pixel-perfect CI against Penpot exports in the first iteration: f
 
 ## Integration requirements and limitations
 
-The official Penpot MCP server can be run locally through `npx @penpot/mcp@stable`, with its browser plugin connected to a design file. A compatible client with that local MCP endpoint is needed to read/write designs. The MCP installation should be treated as a separate environment setup and access action; it was **not performed** here. See https://help.penpot.app/mcp/.
+The official Penpot MCP server can be run locally through `npx @penpot/mcp@stable`, with its browser plugin connected to a design file. A compatible client with that local MCP endpoint is needed to read/write designs. No MCP installation was needed in this continuation: the existing connected plugin was used. See https://help.penpot.app/mcp/.
 
-Do not expose credentials, private user content, or test account data in Penpot. The library may be maintained by a human designer and local agents; current chat tools do not provide a connected Penpot editor.
+Do not expose credentials, private user content, or test account data in Penpot. The library may be maintained by a human designer and local agents. The browser can freeze the plugin tab; focus it before attempting the final screenshot batch.
 
 ## Initial acceptance gate
 
 A Penpot library can become an approved reference when it accurately contains a small sample of current Kurumi components (button, menu, settings card/tile, text field and chips), states, semantic color modes, and at least two canonical screens with screenshots checked against the current fork. The rest can be grown iteratively.
+
+## Verified draft in this continuation
+
+Existing file: `New File 2`, ID `542abcb8-15f9-80f7-8008-e278280a2c47`.
+The original empty `Page 1` and connected external libraries were preserved.
+Added pages:
+
+| Page | ID | Actual content |
+| --- | --- | --- |
+| `136 / Foundations (draft)` | `7944cd2d-8908-807f-8008-e278fe35d16f` | Source-derived swatches; 18 color tokens in Light/Dark/AMOLED sets and three corresponding token themes |
+| `136 / Components (draft)` | `7944cd2d-8908-807f-8008-e278fe47ca78` | Four reusable source studies: dense button, standard/high settings card, enabled text field. Settings cards form a Surface variant group. |
+| `136 / Mobile evidence (draft)` | `7944cd2d-8908-807f-8008-e278fe4dc28f` | Empty; reserved for the final screenshot batch |
+
+Foundation board ID: `7944cd2d-8908-807f-8008-e279160dcbe4`.
+Component study board ID: `7944cd2d-8908-807f-8008-e279ddaa1009`.
+Both were exported and visually inspected. File validation reported no errors
+before the settings variant group was added; both variants subsequently reported
+no variant error. This validates tool structure, not acceptance of the visuals.
+
+Draft tokens map `accent/onAccent`, `surface`, `container` (`surfaceContainer`),
+`high` (`surfaceContainerHigh`) and `content` (`onSurface`) to the explicit
+built-in source values. These are sample sets, not a complete semantic catalog.
+The components carry stable source links in plugin metadata. Geometry follows
+existing component/theme code; typography and Material layout metrics remain
+schematic. No target redesign or global radius scale was approved or generated.
+
+The owner requested retaining screenshots in the repository and importing them
+all at once at the end. All 30 unchanged captures and their source/platform,
+size, text scale and SHA-256 metadata are in [136-evidence](136-evidence/README.md).
+The final import must retain state labels (including loading/error observations,
+preview-only themes and the responsive defects), source commit and code mapping.
+Do not relabel all captures as approved target screens. Menu/chip samples,
+additional component states and at least two reviewed canonical designs remain
+part of the initial acceptance gate above. The live draft is not yet an approved
+Penpot library.

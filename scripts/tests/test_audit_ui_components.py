@@ -57,32 +57,50 @@ class InventoryTests(unittest.TestCase):
                 "class KurumiInput extends StatelessWidget {}\n",
                 encoding="utf-8",
             )
+            kurumi_factory = root / "packages/kurumi/lib/src/components/adaptive_button_row.dart"
+            kurumi_factory.parent.mkdir(parents=True, exist_ok=True)
+            kurumi_factory.write_text(
+                "class KurumiAdaptiveButtonRow {\n"
+                "  factory KurumiAdaptiveButtonRow.menu() => KurumiAdaptiveButtonRow();\n"
+                "}\n",
+                encoding="utf-8",
+            )
             app.write_text(
                 "// PopupMenuButton()\n"
                 "KurumiButton(onPressed: () {});\n"
                 "PopupMenuButton<String>(itemBuilder: (_) => []);\n"
                 "Kurumi.showAdaptiveSheet(context, builder: (_) => null);\n"
                 "const t = 'AlertDialog()';\n"
-                "const KurumiInput();\n",
+                "const KurumiInput();\n"
+                "FilledButton.icon(onPressed: null, label: const Text('x'));\n"
+                "FilledButton.styleFrom();\n"
+                "Dialog.fullscreen();\n"
+                "KurumiAdaptiveButtonRow.menu();\n"
+                "Scaffold.maybeOf(context);\n",
                 encoding="utf-8",
             )
             result = AUDIT.scan(root)
-            self.assertEqual(2, len(result["files"]))
+            self.assertEqual(3, len(result["files"]))
             self.assertEqual(
-                {"KurumiButton", "KurumiInput"},
+                {"KurumiButton", "KurumiInput", "KurumiAdaptiveButtonRow"},
                 {x["symbol"] for x in result["definitions"]},
             )
             uses = {(x["symbol"], x["line"]) for x in result["usages"] if x["path"].startswith("lib/")}
             self.assertEqual(
                 {("KurumiButton", 2), ("PopupMenuButton", 3),
-                 ("Kurumi.showAdaptiveSheet", 4), ("KurumiInput", 6)}, uses
+                 ("Kurumi.showAdaptiveSheet", 4), ("KurumiInput", 6),
+                 ("FilledButton", 7), ("Dialog", 9),
+                 ("KurumiAdaptiveButtonRow", 10)}, uses
             )
+            self.assertNotIn(("FilledButton", 8), uses)
+            self.assertNotIn(("Scaffold", 11), uses)
             app_record = next(x for x in result["files"] if x["path"].startswith("lib/"))
             self.assertEqual("Following Topics", app_record["area"])
-            self.assertEqual(3, app_record["kurumi_calls"])
+            self.assertEqual(4, app_record["kurumi_calls"])
             self.assertEqual(1, app_record["material_review_calls"])
             report = AUDIT.markdown_report(result)
             self.assertIn("Kurumi-named declarations defined in package", report)
+            self.assertIn("Raw package usage records may include constructor declarations", report)
             self.assertIn("PopupMenuButton", report)
             self.assertNotIn("AlertDialog` | 1", report)
 
@@ -95,8 +113,16 @@ class InventoryTests(unittest.TestCase):
             app.mkdir(parents=True)
             (kurumi / "normal.dart").write_text("class KurumiThing {}", encoding="utf-8")
             (app / "generated.g.dart").write_text("KurumiThing();", encoding="utf-8")
+            generated_dir_file = app / "src/generated/generated_file.dart"
+            generated_dir_file.parent.mkdir(parents=True)
+            generated_dir_file.write_text("KurumiThing();", encoding="utf-8")
             (app / "visible.dart").write_text("KurumiThing();", encoding="utf-8")
-            self.assertEqual(2, len(AUDIT.scan(root)["files"]))
+            result = AUDIT.scan(root)
+            self.assertEqual(2, len(result["files"]))
+            self.assertEqual(
+                {"packages/kurumi/lib/normal.dart", "lib/visible.dart"},
+                {item["path"] for item in result["files"]},
+            )
 
 
 if __name__ == "__main__":

@@ -38,8 +38,37 @@ MATERIAL_REVIEW = frozenset(
     }
 )
 
-# Keep constructor detection intentionally conservative: avoid matching Dart
-# declarations, property references, variable types, and arbitrary method calls.
+# These Material named constructors occur in the current source tree and build
+# widgets. Do not treat static helpers such as Button.styleFrom or
+# Scaffold.maybeOf as constructor calls.
+MATERIAL_NAMED_CONSTRUCTORS = frozenset(
+    {
+        ("Dialog", "fullscreen"),
+        ("FilledButton", "icon"),
+        ("FilledButton", "tonal"),
+        ("FilledButton", "tonalIcon"),
+        ("FloatingActionButton", "small"),
+        ("IconButton", "filled"),
+        ("OutlinedButton", "icon"),
+        ("TextButton", "icon"),
+    }
+)
+
+# Named Kurumi widget constructors currently used by app consumers. Keep this
+# list limited to widget factories rather than same-named helpers such as
+# KurumiScreen.of or KurumiThemeData.fromMaterial.
+KURUMI_NAMED_WIDGET_CONSTRUCTORS = frozenset(
+    {
+        ("KurumiAdaptiveButtonRow", "menu"),
+        ("KurumiAdaptiveButtonRow", "scrollable"),
+        ("KurumiAdaptiveButtonRow", "wrap"),
+        ("KurumiDismissible", "route"),
+    }
+)
+
+# Keep constructor detection intentionally conservative: require call-shaped
+# syntax to avoid property references and variable types. Constructor
+# declarations still look like calls in package source; app totals exclude those paths.
 CONSTRUCTOR_RE = re.compile(
     r"\b(?P<name>Kurumi[A-Z]\w*|" + "|".join(sorted(MATERIAL_CONSTRUCTORS)) + r")"
     r"\s*(?:<[^();\n]{1,120}>)?\s*\("
@@ -57,6 +86,23 @@ TOKEN_PATTERNS = {
     "padding": re.compile(r"\bEdgeInsets\.(?:all|only|symmetric|fromLTRB)\s*\("),
     "literal color": re.compile(r"\bColor\s*\(\s*0x[0-9a-fA-F]+\s*\)"),
 }
+
+KURUMI_NAMED_WIDGET_CONSTRUCTOR_RE = re.compile(
+    r"\b(?P<symbol>"
+    + "|".join(
+        re.escape(f"{name}.{constructor}")
+        for name, constructor in sorted(KURUMI_NAMED_WIDGET_CONSTRUCTORS)
+    )
+    + r")\s*(?:<[^();\n]{1,120}>)?\s*\("
+)
+MATERIAL_NAMED_CONSTRUCTOR_RE = re.compile(
+    r"\b(?P<symbol>"
+    + "|".join(
+        re.escape(f"{name}.{constructor}")
+        for name, constructor in sorted(MATERIAL_NAMED_CONSTRUCTORS)
+    )
+    + r")\s*(?:<[^();\n]{1,120}>)?\s*\("
+)
 
 AREA_PREFIXES = (
     ("lib/core/home/", "Home"),
@@ -161,7 +207,11 @@ def dart_sources(root: Path):
         if not source_root.is_dir():
             continue
         for path in sorted(source_root.rglob("*.dart")):
-            if path.is_symlink() or path in seen:
+            if (
+                path.is_symlink()
+                or path in seen
+                or "generated" in path.relative_to(root).parts
+            ):
                 continue
             if path.name.endswith((".g.dart", ".freezed.dart", ".gr.dart", ".gen.dart")):
                 continue
@@ -204,6 +254,16 @@ def scan(root: Path) -> dict:
                 "symbol": symbol, "kind": "kurumi" if symbol.startswith("Kurumi") else "material",
                 "path": relative, "line": line(match.start()), "area": area_of(relative),
             })
+        for match in KURUMI_NAMED_WIDGET_CONSTRUCTOR_RE.finditer(clean):
+            local_usages.append({
+                "symbol": match.group("symbol").rsplit(".", 1)[0], "kind": "kurumi",
+                "path": relative, "line": line(match.start()), "area": area_of(relative),
+            })
+        for match in MATERIAL_NAMED_CONSTRUCTOR_RE.finditer(clean):
+            local_usages.append({
+                "symbol": match.group("symbol").rsplit(".", 1)[0], "kind": "material",
+                "path": relative, "line": line(match.start()), "area": area_of(relative),
+            })
         for match in KURUMI_HELPER_RE.finditer(clean):
             local_usages.append({
                 "symbol": "Kurumi." + match.group("method"), "kind": "kurumi-helper",
@@ -230,6 +290,7 @@ def scan(root: Path) -> dict:
         definitions.extend(local_defs)
         usages.extend(local_usages)
     source_commit = "unknown"
+    repository_worktree_dirty = None
     try:
         result = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
@@ -239,8 +300,18 @@ def scan(root: Path) -> dict:
             source_commit = result.stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         pass
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain"],
+            capture_output=True, text=True, check=False, timeout=3,
+        )
+        if result.returncode == 0:
+            repository_worktree_dirty = bool(result.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired):
+        pass
     return {
         "schema_version": 1, "source_revision": source_commit,
+        "repository_worktree_dirty": repository_worktree_dirty,
         "method": "static lexical approximation; not screenshot or runtime verification",
         "files": records,
         "definitions": sorted(definitions, key=lambda d: (d["symbol"], d["path"], d["line"])),
@@ -256,6 +327,8 @@ def markdown_report(result: dict) -> str:
     definitions = result["definitions"]
     app_usages = [u for u in usages if u["path"].startswith("lib/")]
     kurumi_defs = [d for d in definitions if d["path"].startswith("packages/kurumi/")]
+    dirty_state = result["repository_worktree_dirty"]
+    dirty_label = "unknown" if dirty_state is None else "yes" if dirty_state else "no"
     app_ku = [u for u in app_usages if u["kind"] != "material"]
     app_ma = [u for u in app_usages if u["kind"] == "material"]
     by_symbol = defaultdict(list)
@@ -264,7 +337,8 @@ def markdown_report(result: dict) -> str:
     lines = [
         "# UI component static inventory",
         "",
-        f"Source revision: `{result['source_revision']}`.",
+        f"Source revision: `{result['source_revision']}`; repository worktree dirty: "
+        f"**{dirty_label}**.",
         f"Scanned Dart files: **{len(files)}**; Kurumi-package declarations: **{len(kurumi_defs)}**; "
         f"app Kurumi constructor/helper calls: **{len(app_ku)}**; "
         f"app Material constructor candidates: **{len(app_ma)}**.",
@@ -272,7 +346,10 @@ def markdown_report(result: dict) -> str:
         "This is a source-level inventory, **not proof of rendered visual behavior**. "
         "The counts indicate call sites, not instantiated widget counts. "
         "A Material call is **not automatically a violation**. Generated Dart files are excluded. "
-        "Dynamic construction, code generated elsewhere, and strings with interpolation "
+        "Raw package usage records may include constructor declarations; app totals below "
+        "filter to `lib/`. "
+        "Dynamic construction, code generated elsewhere, unlisted Kurumi or Material named "
+        "constructors, string interpolation, and constructors referenced only through aliases "
         "may not be detected. Review concrete widget trees and screenshots before acting.",
         "",
         "## Kurumi-named declarations defined in package",

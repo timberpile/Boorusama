@@ -39,6 +39,52 @@ Boorusama is a compact, information-dense booru client. Prioritize fast search, 
 - Use established icon semantics, localized labels (`context.t`), and reasonable contrast in every color mode. Avoid unlabelled icon-only actions; provide tooltips/semantics as appropriate. The completed label/icon initiative [#50](https://github.com/timberpile/Boorusama/issues/50) remains the baseline.
 - Avoid fixed heights and widths that break with text scaling, keyboard insets, small screens, or desktop. A compact visual control can have a larger accessible hit target; see [#116](https://github.com/timberpile/Boorusama/issues/116) for a specific 48×48 logical-pixel touch-target precedent.
 
+## Current theme contract
+
+The roles in `packages/kurumi/lib/src/theme/semantic_tokens.dart` alias the active
+Material theme; they do not define a second palette:
+
+| Kurumi role | Runtime source | Use |
+| --- | --- | --- |
+| `accent` / `onAccent` | `primary` / `onPrimary` | Primary action and its content |
+| `accentContainer` / `onAccentContainer` | Material container pair | Selected/emphasized surface and content |
+| `surface`, `surfaceContainer{Low,High,Highest}` | Corresponding Material surface roles | Page, grouped settings, raised/stronger containers |
+| `content` / `contentSecondary` | `onSurface` / `onSurfaceVariant` | Main and supporting text |
+| `contentMuted`, `outline`, `outlineVariant` | `outline`, `outline`, `outlineVariant` | Muted content and boundaries; verify contrast at the actual size |
+| `danger` / `onDanger` | `error` / `onError` | Error/destructive emphasis and content |
+| `overlay{,Dim}` / `onOverlay{,Dim}` | Kurumi extended color scheme | Content over media; preserve the backing overlay |
+
+`Kurumi.generateColorScheme` uses built-in light/dark/AMOLED schemes when dynamic
+schemes are unavailable. Both dynamic light and dark schemes must exist to enter
+the dynamic branch. AMOLED retains its black/surface hierarchy and copies only
+the dynamic primary pair. `ThemeBuilder` applies premium-enabled global or
+profile appearance before the Kurumi Material bridge, then attaches
+`BoorusamaColors`. Theme fixtures must include the app extension when a consumer
+uses it. A profile can therefore legitimately look different from the built-in
+reference palette. Do not infer a contrast pass from the semantic role name.
+
+Keep background/content pairs together when sampling colors in a design tool.
+The current built-in error and muted roles still require rendered contrast
+review; this audit does not certify them. Source references:
+`packages/kurumi/lib/src/kurumi.dart:47`,
+`packages/kurumi/lib/src/theme/theme.dart`, and
+`lib/core/themes/theme/src/theme_buider.dart:24`.
+
+## Choosing a menu or editor
+
+Match the interaction before the class name. Following Topics' sort menu uses
+Material's selected value and icon/text `PopupMenuActionLabel`; Download
+Manager's Kurumi menu dispatches actions. A migration must explicitly preserve
+selection announcements, disabled items, focus return, outside/Back dismissal,
+scrolling, and anchor containment. Compare these different tasks without assuming
+they should expose identical rows.
+
+`KurumiTextField` forwards Material text-editing options and applies Kurumi
+behavior; a native editor is not proof of a different palette. Keep specialized
+tag editing, completion, submission, and cancellation in its existing app
+wrapper. Dialogs must preserve Navigator ownership, IME insets, scrollable
+content, validation, and cancellation before component substitution.
+
 ## Responsive and interaction rules
 
 - Inspect an existing **mobile and desktop counterpart** before changing navigation, search, selection, or dialogs. Preserve screen-specific interactions rather than mechanically scaling a phone mockup.
@@ -73,4 +119,15 @@ From a local Boorusama checkout:
 python3 scripts/audit_ui_components.py
 ```
 
-The script writes an exhaustive **static call-site inventory** in JSON and a summary Markdown report under the ignored `.worktrees/_artifacts/ui-component-audit/` directory. The inventory is a triage aid, not an AST parser or a visual acceptance test. Confirm candidates manually. The report is not a second task tracker: log accepted remediation tasks in GitHub Issues, linking to source evidence and screenshots.
+The script writes a **lexical call-site candidate inventory** in JSON and a summary Markdown report under the ignored `.worktrees/_artifacts/ui-component-audit/` directory. It covers selected symbol families, not every constructor or indirect consumer. The inventory is a triage aid, not an AST parser or a visual acceptance test. Confirm candidates manually. The report is not a second task tracker: log accepted remediation tasks in GitHub Issues, linking to source evidence and screenshots.
+
+For a repeatable visual-drift review, record the source commit and any runtime
+diff, installed APK hash/provenance, device/platform, logical viewport, density,
+text scale, theme/dynamic/profile settings, engine, route and interaction state.
+Capture the same state before and after a UI change with safe public content.
+Compare hierarchy, density, reachability, anchoring and state feedback; classify
+differences caused by content, font rendering, insets or dynamic palettes before
+calling them drift. Use the [canonical capture matrix](designs/2026-11-02-ui-design-system-audit.md#screenshot-and-ux-verification-matrix)
+and add only the states touched by the change. Store raw local captures in durable
+ignored task artifacts; share only reviewed, sanitized evidence. A successful
+Maestro command or a matching APK hash alone is not visual acceptance.
