@@ -54,6 +54,7 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.textMatchers,
     this.extraHeaders,
     this.itemBuilder,
+    this.resultGridBuilder,
     this.searchRegionBuilder,
     this.landingViewBuilder,
   });
@@ -75,6 +76,12 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   fetcher;
   final List<TextMatcher>? textMatchers;
   final IndexedSelectableSearchWidgetBuilder<T>? itemBuilder;
+  final Widget Function(
+    BuildContext,
+    PostGridController<T>,
+    IndexedWidgetBuilder,
+  )?
+  resultGridBuilder;
   final Widget Function(
     ValueNotifier<PostGridController<T>?> postController,
     SearchPageController controller,
@@ -282,6 +289,7 @@ class _SearchPageScaffoldState<T extends Post>
             widget.landingViewBuilder?.call(_controller) ??
             DefaultMobileSearchLandingView(controller: _controller),
         itemBuilder: widget.itemBuilder,
+        resultGridBuilder: widget.resultGridBuilder,
         searchSuggestions: DefaultSearchSuggestions(
           multiSelectController: _searchModeController,
           config: ref.watchConfigAuth,

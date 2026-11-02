@@ -55,6 +55,9 @@ class PoolPagedSliverGrid extends ConsumerWidget {
       onTap: goToPoolDetailPage,
       total: (pool) => pool.postCount,
       name: (pool) => pool.name,
+      kind: (pool) => pool.category == DanbooruPoolCategory.series
+          ? PoolGridItemKind.series
+          : PoolGridItemKind.collection,
     );
   }
 }

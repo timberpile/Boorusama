@@ -26,6 +26,7 @@ class BookmarkImportPlanner {
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
     return BookmarkImportPlan(
       bookmarks: List.unmodifiable(data.bookmarks),
+      pools: data.pools,
       folders: data.folders,
       missingBookmarks: data.bookmarks
           .where(

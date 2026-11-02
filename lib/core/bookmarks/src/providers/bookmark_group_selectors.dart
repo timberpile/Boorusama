@@ -22,6 +22,14 @@ enum BookmarkSortType {
   scoreAscending,
 }
 
+/// The source picker supplies hosts, independent of URL paths and ports.
+bool bookmarkSourceMatchesHost(String source, String selectedHost) {
+  final uri = Uri.tryParse(source.contains('://') ? source : 'https://$source');
+  return uri != null &&
+      uri.host.isNotEmpty &&
+      uri.host.toLowerCase() == selectedHost.toLowerCase();
+}
+
 List<Bookmark> selectBookmarks({
   required BookmarkLibraryState state,
   required BookmarkView view,
@@ -174,7 +182,10 @@ List<Bookmark> filterBookmarks({
             .where(
               (bookmark) =>
                   (selectedBooruUrl == null ||
-                      bookmark.sourceUrl.contains(selectedBooruUrl)) &&
+                      bookmarkSourceMatchesHost(
+                        bookmark.sourceUrl,
+                        selectedBooruUrl,
+                      )) &&
                   (filters.isEmpty || matchesTags(bookmark)),
             )
             .toList();

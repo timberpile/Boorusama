@@ -1,3 +1,5 @@
+import '../widgets/bookmark_pool_card.dart';
+import '../types/pool_bookmark.dart';
 import '../../../selection/collection_selection_bar.dart';
 import '../../../widgets/multi_select_button.dart';
 import '../../../widgets/popup_menu_action_label.dart';
@@ -94,6 +96,7 @@ class _BookmarkGroupBrowserPageState
   (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
   _previewInputs;
   final _previews = <BookmarkView, List<Bookmark>>{};
+  final _poolPreviews = <BookmarkView, List<PoolBookmark>>{};
   AsyncValue<BookmarkLibraryState>? _visibleLibrary;
   Set<String> get _selectedGroups => {
     for (final (kind, id) in _selection.selectedKeys)
@@ -298,6 +301,7 @@ class _BookmarkGroupBrowserPageState
                       previous.$3 != shuffle) {
                     _previewInputs = inputs;
                     _previews.clear();
+                    _poolPreviews.clear();
                   }
                   List<Bookmark> previews(BookmarkView view) =>
                       _previews.putIfAbsent(
@@ -309,6 +313,18 @@ class _BookmarkGroupBrowserPageState
                           shuffleState: shuffle,
                         ),
                       );
+                  List<PoolBookmark> poolPreviews(BookmarkView view) =>
+                      _poolPreviews.putIfAbsent(
+                        view,
+                        () => state.pools
+                            .where(
+                              (pool) =>
+                                  view.kind == BookmarkViewKind.all ||
+                                  pool.groupIds.contains(view.groupId),
+                            )
+                            .take(4)
+                            .toList(),
+                      );
                   Widget specialView(
                     String title,
                     BookmarkView view, {
@@ -316,6 +332,7 @@ class _BookmarkGroupBrowserPageState
                   }) => _GroupCard(
                     title: title,
                     previews: previews(view),
+                    pools: poolPreviews(view),
                     group: group,
                     onTap: (_selecting || selectionModifierPressed)
                         ? null
@@ -449,6 +466,16 @@ class _BookmarkGroupBrowserPageState
                                                       ).take(1),
                                                   ],
                                                   group: null,
+                                                  pools: [
+                                                    for (final group
+                                                        in descendantsGroups
+                                                            .take(4))
+                                                      ...poolPreviews(
+                                                        BookmarkView.group(
+                                                          group.id,
+                                                        ),
+                                                      ).take(1),
+                                                  ].toSet().take(4).toList(),
                                                   isFolder: true,
                                                   selected: _selectedFolders
                                                       .contains(
@@ -499,6 +526,9 @@ class _BookmarkGroupBrowserPageState
                                                   BookmarkView.group(group.id),
                                                 ),
                                                 group: group,
+                                                pools: poolPreviews(
+                                                  BookmarkView.group(group.id),
+                                                ),
                                                 selected: _selectedGroups
                                                     .contains(
                                                       group.id,
@@ -635,7 +665,9 @@ class _BookmarkGroupBrowserPageState
             content: BookmarkCollectionDeletionSummary(
               folders: preview.folderIds.length,
               groups: preview.groupIds.length,
-              uniqueBookmarks: preview.orphanBookmarkIds.length,
+              uniqueBookmarks:
+                  preview.orphanBookmarkIds.length +
+                  preview.orphanPoolIds.length,
             ),
             actions: [
               TextButton(
@@ -764,7 +796,8 @@ class _BookmarkGroupBrowserPageState
           content: BookmarkCollectionDeletionSummary(
             folders: preview.folderIds.length,
             groups: preview.groupIds.length,
-            uniqueBookmarks: preview.orphanBookmarkIds.length,
+            uniqueBookmarks:
+                preview.orphanBookmarkIds.length + preview.orphanPoolIds.length,
           ),
           actions: [
             TextButton(
@@ -835,10 +868,28 @@ class _BookmarkGroupBrowserPageState
     WidgetRef ref,
     BookmarkGroup group,
   ) async {
-    final groups = ref.read(bookmarkProvider).valueOrNull?.groups ?? [group];
-    var current = _deletionPreview(group, groups);
+    final library = ref.read(bookmarkProvider).valueOrNull;
+    final groups = library?.groups ?? [group];
+    final pools = library?.pools ?? <PoolBookmark>[];
+    final otherIds = {
+      for (final other in groups)
+        if (other.id != group.id) ...other.bookmarkIds,
+    };
+    var current = BookmarkGroupDeletionPreview(
+      group: group,
+      orphanBookmarkIds: group.bookmarkIds.difference(otherIds),
+      poolIds: {
+        for (final pool in pools)
+          if (pool.groupIds.contains(group.id)) pool.localId,
+      },
+      orphanPoolIds: {
+        for (final pool in pools)
+          if (pool.groupIds.length == 1 && pool.groupIds.contains(group.id))
+            pool.localId,
+      },
+    );
     while (true) {
-      if (current.group.bookmarkIds.isNotEmpty) {
+      if (current.bookmarkCount > 0) {
         if (!context.mounted) return;
         final confirmed = await showDialog<bool>(
           context: context,
@@ -852,7 +903,7 @@ class _BookmarkGroupBrowserPageState
             content: Text(
               context.t.bookmark.groups.delete_group_message.replaceAll(
                 '{bookmarks}',
-                '${current.group.bookmarkIds.length}',
+                '${current.bookmarkCount}',
               ),
             ),
             actions: [
@@ -891,20 +942,6 @@ class _BookmarkGroupBrowserPageState
     }
   }
 
-  BookmarkGroupDeletionPreview _deletionPreview(
-    BookmarkGroup group,
-    Iterable<BookmarkGroup> groups,
-  ) {
-    final otherBookmarkIds = groups
-        .where((other) => other.id != group.id)
-        .expand((other) => other.bookmarkIds)
-        .toSet();
-    return BookmarkGroupDeletionPreview(
-      group: group,
-      orphanBookmarkIds: group.bookmarkIds.difference(otherBookmarkIds),
-    );
-  }
-
   Future<bool> _runGroupAction(
     BuildContext context,
     Future<Object?> Function() action, {
@@ -936,6 +973,7 @@ class _GroupCard extends StatelessWidget {
     required this.onDuplicate,
     required this.onDelete,
     this.isFolder = false,
+    this.pools = const [],
     this.selected = false,
     this.onSelect,
     this.onMove,
@@ -947,6 +985,7 @@ class _GroupCard extends StatelessWidget {
   final VoidCallback? onMove;
   final String title;
   final List<Bookmark> previews;
+  final List<PoolBookmark> pools;
   final BookmarkGroup? group;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
@@ -979,6 +1018,10 @@ class _GroupCard extends StatelessWidget {
                     Positioned.fill(
                       child: BookmarkGroupPreviewGrid(
                         previews: previews,
+                        additionalPreviews: [
+                          for (final pool in pools)
+                            BookmarkPoolCoverImage(pool: pool),
+                        ],
                         itemBuilder: (_, bookmark) =>
                             _BookmarkGroupPreviewImage(bookmark: bookmark),
                       ),
@@ -1093,10 +1136,12 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
   const BookmarkGroupPreviewGrid({
     required this.previews,
     required this.itemBuilder,
+    this.additionalPreviews = const [],
     super.key,
   });
 
   final List<Bookmark> previews;
+  final List<Widget> additionalPreviews;
   final Widget Function(BuildContext context, Bookmark bookmark) itemBuilder;
 
   @override
@@ -1111,6 +1156,8 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
     itemCount: 4,
     itemBuilder: (context, index) => index < previews.length
         ? itemBuilder(context, previews[index])
+        : index - previews.length < additionalPreviews.length
+        ? additionalPreviews[index - previews.length]
         : const SizedBox.shrink(),
   );
 }

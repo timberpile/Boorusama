@@ -17,10 +17,14 @@ import '../../../groups/folder_tree.dart';
 import '../types/bookmark_group.dart';
 import '../providers/recent_bookmark_groups_provider.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/manage/providers.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
+import '../providers/pool_bookmark_provider.dart';
 import '../types/bookmark_target.dart';
+import '../types/pool_bookmark.dart';
+import '../types/pool_bookmark_capability.dart';
 import 'bookmark_folder_picker_contents.dart';
 import 'bookmark_group_name_dialog.dart';
 
@@ -160,10 +164,37 @@ class BookmarkGroupPicker extends ConsumerStatefulWidget {
     this.anchored = false,
     this.onDismiss,
     super.key,
-  });
+  }) : pool = null,
+       poolConfig = null,
+       remotePool = null;
+
+  const BookmarkGroupPicker.pool({
+    required this.config,
+    required PoolBookmark this.pool,
+    this.anchored = false,
+    this.onDismiss,
+    super.key,
+  }) : post = null,
+       poolConfig = null,
+       remotePool = null;
+
+  BookmarkGroupPicker.remotePool({
+    required BooruConfig config,
+    required RemoteBookmarkPool pool,
+    super.key,
+  }) : config = config.auth,
+       poolConfig = config,
+       remotePool = pool,
+       post = null,
+       pool = null,
+       anchored = false,
+       onDismiss = null;
 
   final BooruConfigAuth config;
-  final Post post;
+  final Post? post;
+  final PoolBookmark? pool;
+  final BooruConfig? poolConfig;
+  final RemoteBookmarkPool? remotePool;
   final bool anchored;
   final VoidCallback? onDismiss;
 
@@ -173,13 +204,41 @@ class BookmarkGroupPicker extends ConsumerStatefulWidget {
 }
 
 class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
+  var _actionPending = false;
+
   BooruConfigAuth get config => widget.config;
-  Post get post => widget.post;
+  Post get post => widget.post!;
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-    final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
+    final remote = widget.remotePool;
+    if (remote != null) {
+      // Start the bounded summary while the user chooses a destination. Opening
+      // the picker does not wait for it; saving still requires the full draft.
+      ref.watch(poolBookmarkDraftProvider((widget.poolConfig!, remote)));
+    }
+    final poolIdentity =
+        widget.pool?.identity ??
+        (remote == null
+            ? null
+            : (
+                widget.poolConfig!.auth.booruType.id,
+                normalizePostSourceHost(widget.poolConfig!.url),
+                remote.id,
+              ));
+    final memberships = switch (poolIdentity) {
+      final identity? =>
+        library?.pools
+                .where((p) => p.identity == identity)
+                .firstOrNull
+                ?.groupIds ??
+            const <String>{},
+      null =>
+        library?.membershipsFor(
+              bookmarkIdentityForPost(post, config.booruIdHint),
+            ) ??
+            const <String>{},
+    };
 
     final recentGroups =
         ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
@@ -262,18 +321,51 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     WidgetRef ref,
     String groupId,
   ) async {
+    if (_actionPending) return;
+    _actionPending = true;
     final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    final outcome = await notifier.togglePostTarget(
-      config,
-      post,
-      target: BookmarkTarget.group(groupId),
-      onRemoved: (r) {
-        if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
-      },
+    void removed(r) {
+      if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
+    }
+
+    try {
+      final resolvedPool = await _resolvePool();
+      if (!mounted || !navigator.mounted) return;
+      final outcome = switch (resolvedPool) {
+        final PoolBookmark pool => await notifier.togglePoolTarget(
+          pool,
+          groupId: groupId,
+          onRemoved: removed,
+        ),
+        null => await notifier.togglePostTarget(
+          config,
+          post,
+          target: BookmarkTarget.group(groupId),
+          onRemoved: removed,
+        ),
+      };
+      final completed = _handleToggleOutcome(navigator, outcome);
+      if (completed && navigator.mounted) _dismiss(navigator);
+    } catch (_) {
+      if (mounted) _showPickerError(navigator);
+    } finally {
+      _actionPending = false;
+    }
+  }
+
+  Future<PoolBookmark?> _resolvePool() async {
+    final remote = widget.remotePool;
+    if (remote == null) return widget.pool;
+    final source = widget.poolConfig!;
+    final draft = await ref.read(
+      poolBookmarkDraftProvider((source, remote)).future,
     );
-    final completed = _handleToggleOutcome(navigator, outcome);
-    if (completed && navigator.mounted) _dismiss(navigator);
+    if (!mounted) throw StateError('Pool picker dismissed');
+    if (!ref.read(booruConfigProvider).contains(source)) {
+      throw StateError('Pool profile changed');
+    }
+    return draft;
   }
 
   Future<void> _createAndAdd(
@@ -281,6 +373,7 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     WidgetRef ref,
     String? folderId,
   ) async {
+    if (_actionPending) return;
     final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
     // An anchor is an overlay, not a route. Close it before opening the dialog
@@ -299,18 +392,22 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     }
 
     void failed() => _showPickerError(navigator);
+    _actionPending = true;
     try {
+      final pool = await _resolvePool();
+      if (!navigator.mounted || (!anchored && !mounted)) return;
       await notifier.createGroupWithPosts(
         name,
         config,
-        [
-          post,
-        ],
+        pool == null ? [post] : [],
         folderId: folderId,
+        pools: [?pool],
       );
       added();
     } catch (_) {
-      failed();
+      if (anchored || mounted) failed();
+    } finally {
+      _actionPending = false;
     }
     if (completed && !anchored && navigator.mounted) _dismiss(navigator);
   }

@@ -159,8 +159,9 @@ class _RecordingNotifier extends BookmarkLibraryNotifier {
   Future<Never> removePostsFromGroup(
     BooruConfigAuth config,
     Iterable<Post> selected,
-    String target,
-  ) async {
+    String target, {
+    Set<String> poolLocalIds = const {},
+  }) async {
     calls++;
     groupId = target;
     posts = List.unmodifiable(selected);

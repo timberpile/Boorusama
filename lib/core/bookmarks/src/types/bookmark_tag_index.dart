@@ -7,6 +7,7 @@ import 'package:foundation/performance.dart';
 // Project imports:
 import '../../../boorus/booru/types.dart';
 import 'bookmark.dart';
+import 'pool_bookmark.dart';
 import 'bookmark_search_token.dart';
 
 class BookmarkTagSource extends Equatable {
@@ -65,6 +66,57 @@ class BookmarkTagIndex {
     Map<String, BookmarkTagEntry> names,
   ) : entries = UnmodifiableListView(sorted),
       byName = UnmodifiableMapView(names);
+
+  BookmarkTagIndex withPoolBookmarks(Iterable<PoolBookmark> pools) {
+    final counts = <String, int>{};
+    final poolSources = <String, Map<BookmarkTagSource, Set<String>>>{};
+    for (final pool in pools) {
+      final source = BookmarkTagSource(
+        url: 'https://${pool.origin.sourceHost}',
+        booruType: pool.origin.booruType,
+      );
+      for (final tag
+          in pool.tags
+              .map(canonicalBookmarkTag)
+              .where((t) => t.isNotEmpty)
+              .toSet()) {
+        counts.update(tag, (n) => n + 1, ifAbsent: () => 1);
+        poolSources.putIfAbsent(tag, () => {})[source] = const {};
+      }
+    }
+    if (counts.isEmpty) return this;
+    final changed = <BookmarkTagEntry>[];
+    for (final tag in counts.keys) {
+      final previous = byName[tag];
+      changed.add(
+        BookmarkTagEntry(
+          tag: tag,
+          count: (previous?.count ?? 0) + counts[tag]!,
+          sources: {...poolSources[tag]!, ...?previous?.sources},
+        ),
+      );
+    }
+    int compare(BookmarkTagEntry a, BookmarkTagEntry b) {
+      final count = b.count.compareTo(a.count);
+      return count != 0 ? count : a.tag.compareTo(b.tag);
+    }
+
+    changed.sort(compare);
+    final unchanged = entries.where((e) => !counts.containsKey(e.tag)).toList();
+    final merged = <BookmarkTagEntry>[];
+    var i = 0, j = 0;
+    while (i < unchanged.length && j < changed.length) {
+      if (compare(unchanged[i], changed[j]) <= 0)
+        merged.add(unchanged[i++]);
+      else
+        merged.add(changed[j++]);
+    }
+    merged.addAll(unchanged.skip(i));
+    merged.addAll(changed.skip(j));
+    return BookmarkTagIndex._owned(merged, {
+      for (final entry in merged) entry.tag: entry,
+    });
+  }
 
   factory BookmarkTagIndex.fromBookmarks(
     Iterable<Bookmark> bookmarks, {

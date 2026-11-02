@@ -18,6 +18,7 @@ class PoolPagedSliverGridView<T> extends ConsumerStatefulWidget {
     required this.name,
     super.key,
     this.refreshKey,
+    this.kind,
   });
 
   final BoxConstraints constraints;
@@ -27,6 +28,7 @@ class PoolPagedSliverGridView<T> extends ConsumerStatefulWidget {
   final void Function(WidgetRef ref, T pool) onTap;
   final int? Function(T pool) total;
   final String? Function(T pool) name;
+  final PoolGridItemKind Function(T pool)? kind;
 
   @override
   ConsumerState<PoolPagedSliverGridView<T>> createState() =>
@@ -93,6 +95,7 @@ class _PoolPagedSliverGridViewState<T>
               onTap: () => widget.onTap(ref, pool),
               total: widget.total(pool),
               name: widget.name(pool),
+              kind: widget.kind?.call(pool) ?? PoolGridItemKind.collection,
             ),
             firstPageProgressIndicatorBuilder: (context) => const Center(
               child: CircularProgressIndicator.adaptive(),

@@ -335,6 +335,7 @@ final class _Presentation
     BuildContext context, {
     required Post post,
     required int index,
+    int? selectionIndex,
     required Widget child,
   }) => Stack(
     children: [

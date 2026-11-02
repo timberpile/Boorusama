@@ -17,7 +17,9 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
 
   @override
   BookmarkBackupData parse(ExportDataPayload metadata) {
-    if (metadata.version != 4 && metadata.version != 5) {
+    if (metadata.version != 4 &&
+        metadata.version != 5 &&
+        metadata.version != 6) {
       throw InvalidBackupFormatException(
         'Unsupported bookmark backup version ${metadata.version}',
       );
@@ -87,8 +89,8 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       if (id != null && !suppliedIds.add(id)) {
         throw InvalidBackupFormatException('groups[$index].id is repeated');
       }
-      final folderId = metadata.version == 5 ? value['folderId'] : null;
-      final position = metadata.version == 5
+      final folderId = metadata.version >= 5 ? value['folderId'] : null;
+      final position = metadata.version >= 5
           ? value['position'] ?? index
           : index;
       if ((folderId != null &&
@@ -120,7 +122,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       );
     }
     try {
-      final rawFolders = metadata.version == 5
+      final rawFolders = metadata.version >= 5
           ? metadata.extraFields['folders']
           : null;
       if (rawFolders != null && rawFolders is! List) {
@@ -154,14 +156,35 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
             position: g.position,
           ),
       ]);
+      final rawPools = metadata.extraFields['collectionBookmarks'];
+      if (rawPools != null && (metadata.version < 6 || rawPools is! List)) {
+        throw const FormatException('Unsupported collection bookmark data');
+      }
+      final pools = <PoolBookmark>[];
+      final poolLocalIds = <String>{};
+      final poolIdentities = <Object>{};
+      for (final row in rawPools as List? ?? []) {
+        final pool = PoolBookmark.fromJson(
+          Map<String, dynamic>.from(row as Map),
+        );
+        if (!Uuid.isValidUUID(fromString: pool.localId) ||
+            !poolLocalIds.add(pool.localId) ||
+            !poolIdentities.add(pool.identity) ||
+            pool.groupIds.isEmpty ||
+            !suppliedIds.containsAll(pool.groupIds)) {
+          throw const FormatException('Invalid collection bookmark references');
+        }
+        pools.add(pool);
+      }
       return BookmarkBackupData(
+        pools: pools,
         bookmarks: bookmarks,
         groups: groups,
         folders: folders,
       );
     } catch (_) {
       throw const InvalidBackupFormatException(
-        'Invalid bookmark folder hierarchy',
+        'Invalid bookmark organization or collection references',
       );
     }
   }

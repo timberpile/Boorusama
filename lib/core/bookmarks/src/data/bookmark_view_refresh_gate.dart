@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
+import '../types/pool_bookmark.dart';
 
 /// Snapshot identity is preserved by normal mutations. Group-only metadata
 /// changes must not refilter/resort the entire post list. Membership badges
@@ -13,6 +14,17 @@ bool bookmarkViewContentsChanged(
 ) {
   if (before == null || after == null) return true;
   if (identical(before, after)) return false;
+  if (!identical(before.pools, after.pools)) {
+    Iterable<PoolBookmark> visible(BookmarkLibraryState state) =>
+        view.kind == BookmarkViewKind.all
+        ? state.pools
+        : state.pools.where((p) => p.groupIds.contains(view.groupId));
+    if (!const IterableEquality<PoolBookmark>().equals(
+      visible(before),
+      visible(after),
+    ))
+      return true;
+  }
   if (view.kind == BookmarkViewKind.all) {
     return !identical(before.items, after.items);
   }

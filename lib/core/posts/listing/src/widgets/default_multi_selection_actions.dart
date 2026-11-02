@@ -31,10 +31,12 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
     this.extraActions,
     this.onBulkDownload,
     this.bookmark = true,
+    this.selectedPostsBuilder,
   });
 
   final PostGridController<T> postController;
   final bool bookmark;
+  final List<T> Function(SelectionModeController)? selectedPostsBuilder;
   final Future<void> Function(List<T> selectedPosts)? onBulkDownload;
   final List<Widget> Function(List<T> selectedPosts)? extraActions;
 
@@ -47,9 +49,22 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
         final selectedPosts = List<T>.unmodifiable(
           postController.refreshing
               ? <T>[]
-              : controller.selectedFrom(postController.items.toList()).toList(),
+              : selectedPostsBuilder?.call(controller) ??
+                    controller
+                        .selectedFrom(postController.items.toList())
+                        .toList(),
         );
-        if (selectedPosts.isEmpty) return const SizedBox.shrink();
+        if (selectedPosts.isEmpty) {
+          if (selectedPostsBuilder == null ||
+              controller.selection.isEmpty ||
+              postController.refreshing) {
+            return const SizedBox.shrink();
+          }
+          final extras = extraActions?.call(selectedPosts) ?? const <Widget>[];
+          return extras.isEmpty
+              ? const SizedBox.shrink()
+              : MultiSelectionActionBar(children: extras);
+        }
         final snapshot = PostActionSnapshot(
           selectedPosts,
           ref.watch(booruConfigProvider),

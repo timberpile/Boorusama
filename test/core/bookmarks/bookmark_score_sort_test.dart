@@ -1,3 +1,8 @@
+import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
+
+import 'pool_bookmark_test_utils.dart';
+
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
@@ -20,6 +25,37 @@ void main() {
     (sort: BookmarkSortType.scoreDescending, ids: [1, 4, 5, 3, 2]),
     (sort: BookmarkSortType.scoreAscending, ids: [2, 3, 5, 1, 4]),
   ]) {
+    test(
+      '${entry.sort.name} keeps post order with unscored Pool references',
+      () {
+        final state = BookmarkLibraryState(
+          bookmarks: bookmarks.reversed.toList(),
+          pools: [
+            testPool(category: BookmarkedPoolCategory.collection),
+            testPool(id: 11),
+          ],
+          groups: const [],
+        );
+        final entries = selectBookmarkGridEntries(
+          state: state,
+          view: const BookmarkView.all(),
+          selectedTags: const [],
+          sortType: entry.sort,
+        );
+        expect(
+          entries.whereType<BookmarkPostEntry>().map((e) => e.bookmark.id),
+          entry.ids,
+        );
+        expect(
+          entries.take(bookmarks.length),
+          everyElement(isA<BookmarkPostEntry>()),
+        );
+        expect(
+          entries.whereType<BookmarkPoolEntry>().map((e) => e.pool.poolId),
+          [10, 11],
+        );
+      },
+    );
     test(
       '${entry.sort.name} has stable ties and the same group cover order',
       () {

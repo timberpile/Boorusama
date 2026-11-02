@@ -60,9 +60,11 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.safeArea = true,
     this.itemBuilder,
     this.body,
+    this.gridBuilder,
     this.header,
     this.bottomInset = 0,
     this.selectionScope,
+    this.selectionKeysBuilder,
     this.multiSelectActions,
     this.scrollToTopButton,
     this.enablePullToRefresh,
@@ -78,9 +80,15 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final PostGridController<T> controller;
   final IndexedSelectableWidgetBuilder<T>? itemBuilder;
   final Widget? body;
+
+  /// Presentation projection only; item indices still refer to raw posts.
+  final Widget Function(BuildContext, IndexedWidgetBuilder)? gridBuilder;
   final Widget? header;
   final double bottomInset;
   final Object? selectionScope;
+
+  /// Optional typed display entries, while the controller stays a Post list.
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final Widget? multiSelectActions;
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
@@ -143,6 +151,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           scrollController: _autoScrollController,
           bottomInset: widget.bottomInset,
           selectionScope: (ref.watchConfigAuth, widget.selectionScope),
+          selectionKeysBuilder: widget.selectionKeysBuilder,
           footer: Consumer(
             builder: (_, ref, _) {
               return widget.multiSelectActions ??
@@ -215,9 +224,13 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           ),
           body:
               widget.body ??
-              _SliverGrid(
-                postController: widget.controller,
-                itemBuilder: (context, index) => ValueListenableBuilder(
+              (widget.gridBuilder ??
+                  (context, itemBuilder) => PostGridSliver<T>(
+                    postController: widget.controller,
+                    itemBuilder: itemBuilder,
+                  ))(
+                context,
+                (context, index) => ValueListenableBuilder(
                   valueListenable: _disableHero,
                   builder: (_, disableHero, _) {
                     final customItem = widget.itemBuilder?.call(
@@ -309,12 +322,14 @@ class PostGridContextMenu extends StatelessWidget {
   const PostGridContextMenu({
     required this.controller,
     required this.index,
+    this.selectionIndex,
     required this.child,
     super.key,
   });
 
   final PostGridController<Post> controller;
   final int index;
+  final int? selectionIndex;
   final Widget child;
 
   @override
@@ -357,6 +372,7 @@ class PostGridContextMenu extends StatelessWidget {
             context,
             post: post,
             index: index,
+            selectionIndex: selectionIndex,
             child: child,
           );
         } else {
@@ -368,10 +384,11 @@ class PostGridContextMenu extends StatelessWidget {
         }
 
         final selection = SelectionMode.maybeOf(context);
+        final selectedIndex = selectionIndex ?? index;
         final targetKey =
             selection is OrderedSelectionController &&
-                index < selection.entries.length
-            ? selection.entries[index]
+                selectedIndex < selection.entries.length
+            ? selection.entries[selectedIndex]
             : post == null
             ? null
             : BookmarkIdentity.tryFromPost(post) ?? ObjectKey(post);
@@ -655,15 +672,86 @@ class _BlacklistedTagsInterceptedNotice extends ConsumerWidget {
   }
 }
 
-class _SliverGrid<T extends Post> extends ConsumerWidget {
-  const _SliverGrid({
+/// Registers every projected member at the collection tile's geometry, so
+/// returning from a viewer swipe to a hidden member finds the same anchor.
+class PostGridScrollAnchor extends StatelessWidget {
+  const PostGridScrollAnchor({
+    required this.indices,
+    required this.child,
+    super.key,
+  });
+  final List<int> indices;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _ProjectedAutoScrollTag(
+    key: ValueKey(indices.first),
+    controller: _InheritedAutoScrollController.of(context),
+    indices: indices,
+    child: child,
+  );
+}
+
+class _ProjectedAutoScrollTag extends AutoScrollTag {
+  _ProjectedAutoScrollTag({
+    required this.indices,
+    required super.controller,
+    required super.child,
+    required super.key,
+  }) : super(index: indices.first);
+  final List<int> indices;
+
+  @override
+  AutoScrollTagState<_ProjectedAutoScrollTag> createState() =>
+      _ProjectedAutoScrollTagState();
+}
+
+class _ProjectedAutoScrollTagState
+    extends AutoScrollTagState<_ProjectedAutoScrollTag> {
+  void _register() {
+    for (final index in widget.indices) {
+      widget.controller.tagMap[index] = this;
+    }
+  }
+
+  void _remove(_ProjectedAutoScrollTag tag) {
+    for (final index in tag.indices) {
+      if (tag.controller.tagMap[index] == this)
+        tag.controller.tagMap.remove(index);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _register();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProjectedAutoScrollTag oldWidget) {
+    _remove(oldWidget);
+    super.didUpdateWidget(oldWidget);
+    _register();
+  }
+
+  @override
+  void dispose() {
+    _remove(widget);
+    super.dispose();
+  }
+}
+
+class PostGridSliver<T extends Post> extends ConsumerWidget {
+  const PostGridSliver({
     required this.itemBuilder,
     required this.postController,
+    this.displayItemCount,
     super.key,
   });
 
   final IndexedWidgetBuilder itemBuilder;
   final PostGridController<T> postController;
+  final int? displayItemCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -705,6 +793,7 @@ class _SliverGrid<T extends Post> extends ConsumerWidget {
     return SliverPostGrid(
       itemBuilder: itemBuilder,
       postController: postController,
+      displayItemCount: displayItemCount,
       errorTranslator: appErrorTranslator,
       showRule34ChallengeRecovery: Uri.tryParse(auth.url)?.host == 'rule34.xxx',
       padding: EdgeInsets.symmetric(

@@ -1,3 +1,5 @@
+import '../../core/bookmarks/src/types/pool_bookmark_capability.dart';
+import 'pools/bookmarks.dart';
 import '../../core/search/search/src/types/search_option.dart';
 
 // Dart imports:
@@ -70,10 +72,24 @@ import 'tags/user_metatags/providers.dart';
 import 'text_markup/providers.dart';
 
 class DanbooruRepository extends BooruRepositoryDefault
-    implements SearchOptionsCapability {
+    implements SearchOptionsCapability, PoolBookmarkCapability {
   const DanbooruRepository({
     required this.ref,
   });
+
+  @override
+  Future<RemoteBookmarkPool?> getBookmarkPool(BooruConfig config, int id) =>
+      DanbooruPoolBookmarks(ref).getBookmarkPool(config, id);
+
+  @override
+  Future<Map<int, List<RemoteBookmarkPool>>> getBookmarkSeries(
+    BooruConfig config,
+    List<Post> posts,
+  ) => DanbooruPoolBookmarks(ref).getBookmarkSeries(config, posts);
+
+  @override
+  Future<void> openBookmarkPool(WidgetRef target, BooruConfig config, int id) =>
+      DanbooruPoolBookmarks(ref).openBookmarkPool(target, config, id);
 
   @override
   List<SearchOption> get searchOptions => const [

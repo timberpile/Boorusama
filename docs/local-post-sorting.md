@@ -4,6 +4,9 @@ Bookmark score sorting uses the score already present in the shared post
 snapshot. Both score directions use local bookmark ID as the stable tie-breaker;
 list results and group cover previews use the same comparator. Existing upload,
 bookmark-date and random modes are unchanged. New enum choices are appended.
+In mixed Bookmark lists, collection references have no score and follow the
+sorted Posts in their existing library order. No member scores are fetched or
+aggregated for a reference.
 
 The Feed search/filter input is always present and uses “Search Cached...”. A
 compact Cached indicator appears only while a committed query, source filter or

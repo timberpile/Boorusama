@@ -2145,6 +2145,7 @@ class _Library extends BookmarkLibraryNotifier {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
+    List<PoolBookmark> pools = const [],
   }) async {
     final group = await createGroup(name, folderId: folderId);
     return (group: group, addedCount: posts.length);

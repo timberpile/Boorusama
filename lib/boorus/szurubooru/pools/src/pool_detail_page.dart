@@ -9,6 +9,8 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../core/bulk_downloads/routes.dart';
+import '../../../../core/bookmarks/src/widgets/pool_bookmark_button.dart';
+import '../bookmarks.dart';
 import '../../../../core/configs/config/providers.dart';
 import '../../../../core/errors/types.dart';
 import '../../../../core/posts/listing/widgets.dart';
@@ -64,6 +66,7 @@ class SzurubooruPoolDetailPage extends ConsumerWidget {
           title: Text(context.t.pool.pool),
           floating: true,
           actions: [
+            PoolBookmarkButton(pool: szurubooruBookmarkPool(effectivePool)),
             IconButton(
               icon: const Icon(Symbols.search),
               onPressed: () {

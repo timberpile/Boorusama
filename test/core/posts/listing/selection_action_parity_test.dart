@@ -55,7 +55,7 @@ void main() {
         expect(
           tester
               .widget<BookmarkGroupPicker>(find.byType(BookmarkGroupPicker))
-              .post
+              .post!
               .id,
           101,
         );

@@ -1,3 +1,5 @@
+import 'package:collection/collection.dart';
+
 import '../../../posts/listing/src/widgets/timeline_header_sliver.dart';
 
 import '../../../selection/ordered_selection_controller.dart';
@@ -18,6 +20,12 @@ import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../posts/listing/providers.dart';
+import '../../../posts/listing/src/_internal/sliver_post_grid.dart';
+import '../../../errors/providers.dart';
+import '../../../settings/providers.dart';
+import '../types/bookmark_grid_entry.dart';
+import '../services/bookmark_series_projection.dart';
+import 'bookmark_pool_card.dart';
 import '../../../posts/listing/widgets.dart';
 import '../../../posts/post/types.dart';
 import '../../../widgets/widgets.dart';
@@ -26,7 +34,6 @@ import '../data/bookmark_convert.dart';
 import '../data/bookmark_view_refresh_gate.dart';
 import '../providers/bookmark_details_mutation_notifier.dart';
 import '../providers/bookmark_provider.dart';
-import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
@@ -58,6 +65,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   );
   final _refreshGate = BookmarkViewRefreshGate();
   var _refreshScheduled = false;
+  List<BookmarkGridEntry> _fetchedEntries = const [];
+  List<BookmarkGridEntry> _entries = const [];
+  Map<Object, int> _rawPostIndices = const {};
 
   late String _selectionQuery = widget.searchController.text;
   @override
@@ -127,7 +137,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
             final shuffleState = ref.read(bookmarkShuffleProvider);
             final library = await ref.read(bookmarkProvider.future);
-            final bookmarks = selectBookmarks(
+            final entries = selectBookmarkGridEntries(
               state: library,
               view: widget.view,
               selectedTags: searchTags,
@@ -137,10 +147,22 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             );
             final posts = performanceRecorder.measureSync(
               PerfOperation.bookmarkProject,
-              () => bookmarks.map((bookmark) => bookmark.toPost()).toList(),
-              items: bookmarks.length,
+              () => entries
+                  .whereType<BookmarkPostEntry>()
+                  .map((entry) => entry.bookmark.toPost())
+                  .toList(),
+              items: entries.length,
             );
 
+            if (page == 1) {
+              _fetchedEntries = entries;
+              _entries = entries;
+              _rawPostIndices = {
+                for (final (i, entry)
+                    in entries.whereType<BookmarkPostEntry>().indexed)
+                  entry.key: i,
+              };
+            }
             return page == 1
                 ? PostResult(
                     posts: posts,
@@ -153,6 +175,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       builder: (context, controller) => Consumer(
         builder: (context, ref, child) {
           ref
+            ..listen(booruConfigProvider, (_, _) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) controller.refresh();
+              });
+            })
             ..listen(selectedBooruUrlProvider, (_, _) {
               _selectionModeController.disable();
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -196,22 +223,34 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           return PostGrid(
             selectionModeController: _selectionModeController,
             selectionScope: widget.view,
+            selectionKeysBuilder: (posts) => controller.refreshing
+                ? _entries.map((e) => e.key).toList()
+                : _synchronizeEntries(posts),
+            body: _mixedGrid(controller),
             scrollController: widget.scrollController,
             controller: controller,
             enablePullToRefresh: true,
             multiSelectActions: DefaultMultiSelectionActions(
               postController: controller,
               bookmark: false,
+              selectedPostsBuilder: (_) => [
+                for (final entry in _entries.whereType<BookmarkPostEntry>())
+                  if (_selectionModeController.selectedKeys.contains(entry.key))
+                    controller.items.toList()[_rawPostIndices[entry.key]!],
+              ],
               // Shared actions resolve each post's source profile and use the
               // ordinary quality, filename, duplicate and sidecar policy.
               extraActions: (selectedPosts) => [
                 MultiSelectPopupButton(
-                  enabled: selectedPosts.isNotEmpty,
+                  enabled:
+                      !controller.refreshing &&
+                      (selectedPosts.isNotEmpty || _selectedPools().isNotEmpty),
                   icon: const Icon(Symbols.bookmarks),
                   name: context.t.bookmark.bulk.title,
                   items: [
                     BookmarkMultiSelectionMenu(
                       posts: selectedPosts,
+                      pools: _selectedPools(),
                       config: auth,
                       currentGroupId: widget.view.groupId,
                       onCompleted: () async {},
@@ -231,15 +270,47 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    BookmarkSearchBar(
-                      controller: widget.searchController,
-                      postController: controller,
-                      view: widget.view,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: BookmarkSearchBar(
+                            controller: widget.searchController,
+                            postController: controller,
+                            view: widget.view,
+                          ),
+                        ),
+                        if (ref
+                                .watch(bookmarkProvider)
+                                .valueOrNull
+                                ?.pools
+                                .isNotEmpty ??
+                            false)
+                          IconButton(
+                            tooltip: context.t.bookmark.pool_filter_help,
+                            icon: const Icon(Icons.info_outline),
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                content: SingleChildScrollView(
+                                  child: Text(
+                                    context.t.bookmark.pool_filter_help,
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: Text(context.t.generic.action.ok),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     ValueListenableBuilder(
                       valueListenable: controller.itemsNotifier,
                       builder: (_, posts, _) => BookmarkListControls(
-                        count: posts.length,
+                        count: _entries.length,
                         gridConfig: PostGridConfigIconButton(
                           postController: controller,
                           showBlacklist: false,
@@ -256,10 +327,69 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     );
   }
 
+  List<Object> _synchronizeEntries(List<Post> posts) {
+    final visible = visibleBookmarkGridEntries(_fetchedEntries, posts);
+    if (!const ListEquality<BookmarkGridEntry>().equals(
+      _entries,
+      visible.entries,
+    )) {
+      _entries = visible.entries;
+    }
+    _rawPostIndices = visible.postIndices;
+    return _entries.map((e) => e.key).toList();
+  }
+
+  List<PoolBookmark> _selectedPools() => [
+    for (final entry in _entries.whereType<BookmarkPoolEntry>())
+      if (_selectionModeController.selectedKeys.contains(entry.key)) entry.pool,
+  ];
+
+  Widget _mixedGrid(PostGridController<Post> controller) => ListenableBuilder(
+    listenable: _selectionModeController,
+    builder: (_, _) => ValueListenableBuilder(
+      valueListenable: controller.itemsNotifier,
+      builder: (context, posts, _) {
+        final settings = ref.watch(imageListingSettingsProvider);
+        return SliverPostGrid<Post>(
+          postController: controller,
+          displayItemCount: _entries.length,
+          errorTranslator: ref.watch(
+            appErrorTranslatorProvider(ref.watchConfigAuth),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: settings.imageGridPadding),
+          listType: settings.imageListType,
+          spacing: settings.imageGridSpacing,
+          aspectRatio: settings.imageGridAspectRatio,
+          borderRadius: BorderRadius.circular(settings.imageBorderRadius),
+          itemBuilder: (context, index) {
+            final item = _entries[index];
+            final pool = switch (item) {
+              BookmarkPoolEntry(:final pool) => pool,
+              _ => null,
+            };
+            final Widget child = pool != null
+                ? BookmarkPoolCard(
+                    pool: pool,
+                    index: index,
+                    groupId: widget.view.groupId,
+                  )
+                : _buildItem(
+                    _rawPostIndices[item.key]!,
+                    controller,
+                    selectionIndex: index,
+                  );
+            return KeyedSubtree(key: ValueKey(item.key), child: child);
+          },
+        );
+      },
+    ),
+  );
+
   Widget _buildItem(
     int index,
-    PostGridController<Post> controller,
-  ) {
+    PostGridController<Post> controller, {
+    int? selectionIndex,
+  }) {
     return ValueListenableBuilder(
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
@@ -278,9 +408,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
         return PostGridContextMenu(
           index: index,
+          selectionIndex: selectionIndex,
           controller: controller,
           child: DefaultImageGridItem(
             index: index,
+            selectionIndex: selectionIndex,
             autoScrollController: widget.scrollController,
             controller: controller,
             useHero: false,

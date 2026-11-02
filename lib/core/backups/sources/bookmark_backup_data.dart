@@ -64,8 +64,10 @@ class BookmarkBackupData extends Equatable {
     required this.bookmarks,
     required this.groups,
     this.folders = const [],
+    this.pools = const [],
   });
 
+  final List<PoolBookmark> pools;
   final List<Bookmark> bookmarks;
   final List<BookmarkGroupBackup> groups;
   final List<CollectionFolder> folders;
@@ -73,10 +75,12 @@ class BookmarkBackupData extends Equatable {
   Map<String, dynamic> get extraFields => {
     'groups': groups.map((group) => group.toJson()).toList(),
     'folders': folders.map((folder) => folder.toJson()).toList(),
+    if (pools.isNotEmpty)
+      'collectionBookmarks': pools.map((pool) => pool.toJson()).toList(),
   };
 
   @override
-  List<Object?> get props => [bookmarks, groups, folders];
+  List<Object?> get props => [bookmarks, groups, folders, pools];
 }
 
 BookmarkBackupData buildBookmarkBackupData({
@@ -84,6 +88,7 @@ BookmarkBackupData buildBookmarkBackupData({
   required List<BookmarkGroup> groups,
   required BookmarkExportScope scope,
   List<CollectionFolder> folders = const [],
+  List<PoolBookmark> pools = const [],
 }) {
   final tree = FolderTree(folders);
   final selectedFolders = {
@@ -124,6 +129,13 @@ BookmarkBackupData buildBookmarkBackupData({
       .toList();
   return BookmarkBackupData(
     bookmarks: exportedBookmarks,
+    pools: [
+      for (final pool in pools)
+        if (scope.isAll)
+          pool
+        else if (pool.groupIds.intersection(selectedGroups).isNotEmpty)
+          pool.withGroups(pool.groupIds.intersection(selectedGroups)),
+    ],
     groups: exportedGroups,
     folders: scope.isAll
         ? folders

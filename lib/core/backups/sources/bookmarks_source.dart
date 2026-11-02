@@ -21,7 +21,7 @@ import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
 
-const kBookmarksBackupVersion = 5;
+const kBookmarksBackupVersion = 6;
 
 class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)
@@ -36,6 +36,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
               .snapshotForExport();
           return buildBookmarkBackupData(
             bookmarks: state.items,
+            pools: state.pools,
             groups: state.groups,
             folders: state.folders,
             scope: const BookmarkExportScope.all(),
@@ -51,6 +52,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           };
           return buildBookmarkBackupData(
             bookmarks: state.items,
+            pools: state.pools,
             groups: state.groups,
             folders: state.folders,
             scope: scope,
@@ -109,7 +111,7 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         ),
         extraPayloadEncoder: (data) => data.extraFields,
         exportResultBuilder: (data) => BackupOperationResult(
-          bookmarkCount: data.bookmarks.length,
+          bookmarkCount: data.bookmarks.length + data.pools.length,
           groupCount: data.groups.length,
         ),
         ref: ref,
@@ -129,9 +131,13 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           subtitle: ref
               .watch(bookmarkProvider)
               .when(
-                data: (bookmarkState) => bookmarkState.bookmarks.isNotEmpty
+                data: (bookmarkState) =>
+                    bookmarkState.bookmarks.isNotEmpty ||
+                        bookmarkState.pools.isNotEmpty
                     ? context.t.bookmark.counter(
-                        n: bookmarkState.bookmarks.length,
+                        n:
+                            bookmarkState.bookmarks.length +
+                            bookmarkState.pools.length,
                       )
                     : context.t.bookmark.none,
                 loading: () => context.t.bookmark.loading,

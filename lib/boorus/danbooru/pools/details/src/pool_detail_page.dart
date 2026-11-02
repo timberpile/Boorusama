@@ -8,6 +8,8 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../../core/bulk_downloads/routes.dart';
+import '../../../../../core/bookmarks/src/widgets/pool_bookmark_button.dart';
+import '../../bookmarks.dart';
 import '../../../../../core/search/search/routes.dart';
 import '../../pool/types.dart';
 import 'types/query_utils.dart';
@@ -32,6 +34,7 @@ class PoolDetailPage extends ConsumerWidget {
           title: Text(context.t.pool.pool),
           floating: true,
           actions: [
+            PoolBookmarkButton(pool: danbooruBookmarkPool(pool)),
             IconButton(
               icon: const Icon(Symbols.search),
               onPressed: () {

@@ -1,3 +1,13 @@
+import 'package:boorusama/core/errors/types.dart';
+import 'package:selection_mode/selection_mode.dart';
+import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
+import 'package:boorusama/boorus/danbooru/posts/search/src/widgets/search_series_grid.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'dart:async';
 
 import 'package:kurumi/kurumi.dart';
@@ -44,6 +54,168 @@ import '../core/search/following_topics/following_topic_test_utils.dart';
 import '../core/search/following_topics/topic_test_utils.dart';
 
 void main() {
+  testWidgets(
+    'leaving Artist while Posts load skips obsolete Series metadata',
+    (tester) async {
+      final gate = Completer<Either<BooruError, PostResult<Post>>>();
+      final requested = Completer<void>();
+      final membership = _ArtistSeriesCapability();
+      final harness = FollowingTopicHarness(
+        overrides: [
+          danbooruArtistProvider.overrideWith(() => _Artist(_artist)),
+          danbooruWikiProvider.overrideWith(() => _Wiki(null)),
+          danbooruRelatedTagCloudProvider.overrideWith((ref, tag) => []),
+          poolBookmarkCapabilityProvider.overrideWith(
+            (ref, config) => membership,
+          ),
+          originAwarePostRepoProvider.overrideWith(
+            (ref, config) => TestSearchPostRepository((query, page, limit) {
+              if (!requested.isCompleted) requested.complete();
+              return gate.future;
+            }),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.pump(
+        tester,
+        CurrentBooruConfigScope(
+          config: otherTestProfile,
+          child: const Scaffold(
+            body: DanbooruArtistPage(artistName: 'artist_one'),
+          ),
+        ),
+      );
+      await drain(tester);
+      expect(requested.isCompleted, isTrue);
+      final controller = tester
+          .widget<PostGrid<Post>>(find.byType(PostGrid<Post>))
+          .controller;
+      final errors = <Object>[];
+      final completed = controller.refresh().catchError((Object error) {
+        errors.add(error);
+      });
+      await harness.pump(tester, const SizedBox.shrink());
+      gate.complete(
+        Either.of(
+          PostResult(
+            posts: [
+              testSearchPost(
+                1,
+                DateTime(2026),
+              ).copyWith(origin: postOriginFromConfig(otherTestProfile)),
+            ],
+            total: 1,
+          ),
+        ),
+      );
+      await drain(tester);
+      await completed;
+      expect(errors, isEmpty);
+      expect(membership.calls, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'long Artist Posts shares Series grouping in Newest and Popular',
+    (tester) async {
+      final membership = _ArtistSeriesCapability();
+      final harness = FollowingTopicHarness(
+        overrides: [
+          danbooruArtistProvider.overrideWith(() => _Artist(_artist)),
+          danbooruWikiProvider.overrideWith(() => _Wiki(_wiki)),
+          danbooruRelatedTagCloudProvider.overrideWith((ref, tag) => []),
+          poolBookmarkCapabilityProvider.overrideWith(
+            (ref, config) => membership,
+          ),
+          originAwarePostRepoProvider.overrideWith(
+            (ref, config) =>
+                TestSearchPostRepository((query, page, limit) async {
+                  final ids = [for (var id = 1; id <= 120; id++) id];
+                  final ordered = query.contains('order:score')
+                      ? ids.reversed
+                      : ids;
+                  return Either.of(
+                    PostResult(
+                      posts: [
+                        for (final id in ordered)
+                          _MediaPost(
+                            testSearchPost(
+                              id,
+                              DateTime(2026),
+                            ).copyWith(origin: postOriginFromConfig(config)),
+                            'jpg',
+                          ),
+                      ],
+                      total: 120,
+                      hasMore: false,
+                    ),
+                  );
+                }),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.pump(
+        tester,
+        CurrentBooruConfigScope(
+          config: otherTestProfile,
+          child: const Scaffold(
+            body: DanbooruArtistPage(artistName: 'artist_one'),
+          ),
+        ),
+      );
+      await drain(tester);
+      for (var pass = 0; pass < 2; pass++) {
+        final series = find.byType(SearchSeriesGrid);
+        expect(series, findsOneWidget);
+        final grid = tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>));
+        final scrollable = find
+            .descendant(
+              of: find.byType(PostGrid<Post>),
+              matching: find.byWidgetPredicate(
+                (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+              ),
+            )
+            .first;
+        final position = tester.state<ScrollableState>(scrollable).position;
+        final card = find.byType(PoolGridItem);
+        for (var step = 0; step < 80 && card.evaluate().isEmpty; step++) {
+          position.jumpTo(
+            (position.pixels + 250).clamp(0, position.maxScrollExtent),
+          );
+          await drain(tester);
+        }
+        expect(card, findsOneWidget);
+        expect(tester.widget<PoolGridItem>(card).displayedCount, 18);
+        expect(grid.controller.items, hasLength(120));
+        await tester.ensureVisible(card);
+        await drain(tester);
+        final selected = SelectionMode.of(tester.element(card));
+        await tester.longPress(card);
+        await drain(tester);
+        expect(selected.selection, hasLength(1));
+        selected.disable();
+        await drain(tester);
+        position.jumpTo(0);
+        await drain(tester);
+        if (pass == 0) {
+          await tester.tap(find.text('Popular'));
+          await drain(tester);
+        }
+      }
+      expect(
+        membership.calls.every(
+          (ids) => ids.length <= PoolBookmarkCapability.membershipBudget,
+        ),
+        isTrue,
+      );
+      expect(membership.calls.length, lessThanOrEqualTo(3));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('artist Search keeps the originating profile and sort on Back', (
     tester,
   ) async {
@@ -969,4 +1141,37 @@ final class _MediaPost extends Post {
   double get width => 200;
   @override
   double get height => 300;
+}
+
+class _ArtistSeriesCapability implements PoolBookmarkCapability {
+  final calls = <List<int>>[];
+  static const pool = RemoteBookmarkPool(
+    id: 27096,
+    title: 'Artist Series',
+    category: BookmarkedPoolCategory.series,
+    total: 18,
+  );
+  @override
+  Future<Map<int, List<RemoteBookmarkPool>>> getBookmarkSeries(
+    BooruConfig config,
+    List<Post> posts,
+  ) async {
+    calls.add(posts.map((p) => p.id).toList());
+    return {
+      for (final p in posts)
+        if (p.id >= 91 && p.id <= 108) p.id: [pool],
+    };
+  }
+
+  @override
+  Future<RemoteBookmarkPool?> getBookmarkPool(
+    BooruConfig config,
+    int id,
+  ) async => pool;
+  @override
+  Future<void> openBookmarkPool(
+    WidgetRef ref,
+    BooruConfig config,
+    int id,
+  ) async {}
 }

@@ -1,6 +1,6 @@
 # Pool and Series Bookmarks
 
-**Status:** Agreed feature design for [Issue #68](https://github.com/timberpile/Boorusama/issues/68). No implementation on this documentation branch.
+Agreed feature design for [Issue #68](https://github.com/timberpile/Boorusama/issues/68), with the accepted rolling Search scope corrected on 2026-10-31. See the [final integration review and verification limits](../handoffs/68-integration-review-20261102.md).
 
 ## Product model
 
@@ -18,6 +18,19 @@ Store a typed reference with sufficient information to reopen the Pool: the sour
 Cache compact display and filter metadata: title, cover, known total member count, aggregate tag set, tag-index coverage (`complete`, `partial`, `unknown`), time observed, and optional oldest/newest member-upload timestamps. An unavailable Pool remains bookmarked with its last safe metadata and an understandable error; offline availability of images must not be implied.
 
 Backups/exports and imports must preserve typed references, local groups, metadata and referential integrity. Existing Post-only libraries remain compatible. An unrecognized future entry type must not be silently lost.
+
+The Series-capable app accepts Bookmark source formats 4, 5 and 6. Reading new
+format-6 exports in older app versions is not required (user clarification on
+2026-11-01); unsupported readers reject them rather than silently dropping
+Series references. These numbers describe the Bookmark data format, not app
+release versions.
+
+The Pool Bookmark control keeps its normal icon while its group picker is open.
+Open the picker without awaiting remote metadata. Prepare the existing bounded
+summary while the user chooses a group, and require that draft before saving.
+Cancelling the picker or removing its source profile must prevent a pending
+save from writing a delayed reference.
+
 
 ## Bounded member-tag indexing
 
@@ -47,16 +60,35 @@ A tag union is not a substitute for individual member rating, blacklist or acces
 - Do not treat Pool metadata creation/update time, narrative order, first/last member ID or first/last gallery position as an equivalent upload timestamp.
 - Cache timestamps. Sorting or building the Bookmark Grid must not cause an unbounded number of new requests. Handle inaccessible members and failed requests without inventing dates.
 
-## Series-only visual grouping
+## Series-only visual grouping (scope corrected 2026-10-31)
 
-The independent `feature/group-neighboring-series` work must be reconciled with these later decisions before implementation. Automatic visual grouping applies **only to confirmed Series**, not arbitrary Collection pools.
+Individual Post bookmarks remain separate. Do not resolve Series memberships or
+automatically collapse posts in Bookmarks. Explicit Pool/Series references remain
+independent selectable entries alongside individual Posts, with their existing
+membership, removal/Undo, backup and import behavior.
 
-- When two or more adjacent *visible, already bookmarked* Posts belong to the same verified Series and source identity, they may render as one ordinary Pool Gallery card.
-- Its badge displays the **whole remote Series member count**, not the number of posts in that visible run. Example: three saved posts from a 20-post Series render as `Series · 20`.
-- Tapping this projected card opens the full Series. It does **not** create a persisted Pool bookmark or imply that all 20 posts are bookmarked.
-- **Entering selection mode disables this visual grouping** and restores the original Post items in their actual filtered/sorted order. Selection, removal, download and bulk actions still operate on those individually saved Posts.
-- An explicitly bookmarked Pool/Series reference remains one selectable entry in selection mode. Its actions never implicitly select or modify remote member posts.
-- An explicit Pool reference and separately saved member Posts may coexist. Handle multiple membership candidates and missing Series metadata deterministically without hiding or modifying unrelated saved entries.
+Normal Danbooru Search and Artist Posts (Newest and Popular) group at least two confirmed Series members with a
+rolling five-raw-result lookahead after each match under the same
+source/profile/auth context. Preserve unrelated intervening Posts at their
+original positions. Reuse the Pool Gallery card and first grouped Post cover;
+show the compact type icon with `X/total` for a partial displayed group,
+otherwise the total. Preserve the complete localized type/count in accessibility
+when the visible badge must fall back to total or icon only. Do not infer membership
+from artists, tags, Collection pools or parent/child links. Preserve raw posts,
+pagination and ordering. Entering selection exposes actual constituent Posts.
+An explicit Pool/Series search and the Series detail view do not regroup.
+Metadata work is bounded and coalesced; deferred metadata changes only unseen
+entries so built viewport anchors remain stable. Retain every member index and
+map hidden member scroll anchors to its card. Underfilled infinite viewports
+fetch at most three extra pages per cycle, retaining manual Load More and normal
+controller recovery/exhaustion. See the [Search contract](2026-10-11-neighboring-series.md#search-grouping).
+
+Related Posts grouping is a separate follow-up and excluded from this correction.
+
+Cover metadata records only the selected static cover's media variants, allowing
+existing source-specific listing quality resolution. Older saved references use
+a bounded metadata fallback and keep their persisted identity and membership.
+Individual Post thumbnails are unchanged.
 
 ## Verification and known limits
 
@@ -64,4 +96,4 @@ Check small Series, very large Pools, interrupted indexing, partial/unknown tag 
 
 The indexing budget and the exact metadata provider implementation remain engineering details. Do not add a member-snapshot database, automatic synchronization service, arbitrary unbounded searches, a separate Series tab, or a new global Bookmark Posts action to solve them.
 
-Related: [#68](https://github.com/timberpile/Boorusama/issues/68), [Series grouping exploration](https://github.com/timberpile/Boorusama/blob/feature/group-neighboring-series/docs/designs/2026-10-11-neighboring-series.md).
+Related: [#68](https://github.com/timberpile/Boorusama/issues/68), [Series grouping design](2026-10-11-neighboring-series.md).
