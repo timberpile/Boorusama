@@ -6,7 +6,8 @@ Issue: https://github.com/timberpile/Boorusama/issues/136
 Branch: `feature/136-kurumi-ui-design-system`
 Base: `origin/develop` at `74cdf43a5bd5205baa8f7cefb164986fe2656dd1`
 Status: local source/screenshot audit completed; design baseline remains proposed.
-Owner acceptance, final Penpot screenshot batch and integration are pending.
+The 30-screenshot Penpot batch is complete. Owner acceptance and integration
+remain pending.
 
 ## Continue in the existing worktree
 
@@ -33,10 +34,10 @@ review/design baseline remains incomplete. Use `Refs #136` in commits.
   scale or broad replacement policy was approved.
 - [Thirty current-fork screenshots](../designs/136-evidence/README.md) and
   [capture manifest](../designs/136-evidence/manifest.json): retained in the repo
-  at the owner's request for one final Penpot batch. Preserve loading/preview
+  and imported into Penpot with manifest-to-board mappings. Preserve loading/preview
   labels and debug overflow evidence. Do not substitute upstream screenshots.
 - [Penpot strategy and actual draft IDs](../designs/2026-11-02-penpot-design-strategy.md):
-  verified connection and draft foundations/components; screenshot import pending.
+  verified draft foundations/components and all 30 imported capture boards.
 - [Independent review prompt](../designs/2026-11-02-ux-expert-review-prompt.md):
   used by a Luna Max reviewer for source, screenshot and counter-review cycles.
   The primary agent checked the resulting findings against code and captures.
@@ -104,11 +105,13 @@ screenshots needed for another machine are in the tracked documents above.
 
 ## Remaining review boundary
 
-Finish the owner-requested Penpot screenshot batch when its browser plugin tab
-is active; do not repeatedly import partial sets. Foundations and source studies
-already exist; the Mobile evidence page is empty. Keep imported evidence distinct
-from approved target designs. Menu/chip studies, additional states and reviewed
-canonical designs still gate Penpot acceptance.
+The owner-requested 30-image Penpot batch is complete in `New File 2`, page
+`136 / Mobile evidence (draft)`. Capture counts, image dimensions, source metadata
+and board containment were verified; Penpot file validation returned no errors.
+Phone/wide exports were visually checked and a named version was saved. Use the
+capture manifest's design IDs for updates; avoid duplicate imports. Keep these
+current-code references distinct from approved target designs. Menu/chip studies,
+additional states and reviewed canonical designs still gate Penpot acceptance.
 
 Obtain owner acceptance of the proposed guide and focused remediation scope
 before significant UI implementation. Full applied light/dark/dynamic/profile

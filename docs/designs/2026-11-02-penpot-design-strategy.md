@@ -2,7 +2,7 @@
 
 Date: 2026-11-02
 Tracking: [#136](https://github.com/timberpile/Boorusama/issues/136)
-Status: proposed design; a connected **draft** now exists. Screenshot import is deferred by the owner until one final batch.
+Status: proposed design; a connected **draft** now exists. All 30 fork screenshots have been imported; design acceptance remains pending.
 
 ## Decision
 
@@ -64,7 +64,7 @@ Do not enforce pixel-perfect CI against Penpot exports in the first iteration: f
 
 The official Penpot MCP server can be run locally through `npx @penpot/mcp@stable`, with its browser plugin connected to a design file. A compatible client with that local MCP endpoint is needed to read/write designs. No MCP installation was needed in this continuation: the existing connected plugin was used. See https://help.penpot.app/mcp/.
 
-Do not expose credentials, private user content, or test account data in Penpot. The library may be maintained by a human designer and local agents. The browser can freeze the plugin tab; focus it before attempting the final screenshot batch.
+Do not expose credentials, private user content, or test account data in Penpot. The library may be maintained by a human designer and local agents. The browser can freeze the plugin tab; focus it before future editor operations.
 
 ## Initial acceptance gate
 
@@ -80,7 +80,7 @@ Added pages:
 | --- | --- | --- |
 | `136 / Foundations (draft)` | `7944cd2d-8908-807f-8008-e278fe35d16f` | Source-derived swatches; 18 color tokens in Light/Dark/AMOLED sets and three corresponding token themes |
 | `136 / Components (draft)` | `7944cd2d-8908-807f-8008-e278fe47ca78` | Four reusable source studies: dense button, standard/high settings card, enabled text field. Settings cards form a Surface variant group. |
-| `136 / Mobile evidence (draft)` | `7944cd2d-8908-807f-8008-e278fe4dc28f` | Empty; reserved for the final screenshot batch |
+| `136 / Mobile evidence (draft)` | `7944cd2d-8908-807f-8008-e278fe4dc28f` | 30 numbered capture boards with state/provenance labels; 28 phone frames and two wide frames |
 
 Foundation board ID: `7944cd2d-8908-807f-8008-e279160dcbe4`.
 Component study board ID: `7944cd2d-8908-807f-8008-e279ddaa1009`.
@@ -95,12 +95,22 @@ The components carry stable source links in plugin metadata. Geometry follows
 existing component/theme code; typography and Material layout metrics remain
 schematic. No target redesign or global radius scale was approved or generated.
 
-The owner requested retaining screenshots in the repository and importing them
-all at once at the end. All 30 unchanged captures and their source/platform,
-size, text scale and SHA-256 metadata are in [136-evidence](136-evidence/README.md).
-The final import must retain state labels (including loading/error observations,
-preview-only themes and the responsive defects), source commit and code mapping.
-Do not relabel all captures as approved target screens. Menu/chip samples,
+The owner-requested screenshot batch is complete. All 30 captures were imported
+unchanged on 2026-11-02 into the Mobile evidence page. The 28 phone captures use
+360×800 logical frames; the two wide captures use 800×500. Numbered boards retain
+loading, preview-only and responsive-defect labels. Each board's plugin metadata
+records source commit, code URL, original SHA-256, APK hash, and capture settings.
+The [manifest](136-evidence/manifest.json) maps repository captures to Penpot board,
+image-shape and media IDs. Original PNGs remain in the repository.
+
+Verified exactly one image per capture, original media dimensions, proportional
+half-scale placement, source hashes in metadata and containment within each
+board. Penpot file validation returned no errors. Phone capture 03 and wide
+capture 23 were exported and visually checked for intact images and readable
+labels. Saved version: `Issue #136 / 30 current-fork screenshots`. The evidence
+page is open at an overview zoom.
+
+These are current-code references, not approved target screens. Menu/chip samples,
 additional component states and at least two reviewed canonical designs remain
 part of the initial acceptance gate above. The live draft is not yet an approved
 Penpot library.

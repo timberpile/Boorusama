@@ -92,7 +92,8 @@ Thirty local captures cover navigation, search with keyboard and no results,
 post grid, viewer and details, bookmark groups/default group, Following Topics,
 settings/Appearance/Accessibility/storage, public profiles, theme previews and
 the Danbooru artists list with an expanded artist. All 30 captures and their [manifest](136-evidence/manifest.json) are retained
-unchanged in the repository for the owner-requested final Penpot batch. Build
+unchanged in the repository and imported into the Penpot evidence page; the
+manifest records their design IDs. Build
 logs and APK restoration evidence remain in durable ignored task artifacts. The
 selected screenshots below show the most relevant findings.
 

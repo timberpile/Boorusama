@@ -4,8 +4,10 @@ These unchanged Android captures document existing behavior at
 `fc601be07b2859eceb8297d10348c68d9611860c`; they are **not approved target designs**.
 See the [audit](../2026-11-02-ui-design-system-audit.md) for findings and limits,
 and [manifest.json](manifest.json) for APK/source provenance, per-image dimensions,
-font scale and hashes. The owner requested retaining the images here for one
-final Penpot import. All screenshots were reviewed for account/private content;
+font scale and hashes. All 30 captures were imported into Penpot file
+`New File 2`, page `136 / Mobile evidence (draft)`, on 2026-11-02. The manifest
+records the file/page and per-capture board, image-shape and media IDs. Original
+PNGs remain unchanged. All screenshots were reviewed for account/private content;
 profile labels and artist data shown are public site metadata.
 
 Phone: Android 17, 720×1600 physical at 320 dpi (360×800 logical), system text
