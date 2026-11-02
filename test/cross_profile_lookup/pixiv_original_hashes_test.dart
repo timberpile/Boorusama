@@ -380,6 +380,38 @@ void main() {
     },
   );
 
+  test('missing page metadata does not hide later original hashes', () async {
+    final downloads = <String>[];
+    final resolver = PixivOriginalHashResolver(
+      artworkId: '12345',
+      loadArtwork: () async => PixivIllustDto.fromJson({
+        'id': 12345,
+        'type': 'manga',
+        'page_count': 3,
+        'meta_pages': [
+          {
+            'image_urls': {'original': _url(0)},
+          },
+          null,
+          {
+            'image_urls': {'original': _url(2)},
+          },
+        ],
+      }),
+      hashOriginal: (uri, _, _, _) async {
+        downloads.add(uri.toString());
+        return _hash;
+      },
+    );
+    addTearDown(resolver.dispose);
+
+    final result = await resolver.resolve();
+
+    expect(downloads, [_url(0), _url(2)]);
+    expect(result.hashes, [_hash]);
+    expect(result.issue, PixivLookupCoverageIssue.originalsUnavailable);
+  });
+
   test(
     'source removal revokes cached digests and prevents later page requests',
     () async {

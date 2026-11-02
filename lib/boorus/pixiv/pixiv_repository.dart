@@ -66,28 +66,35 @@ class PixivRepository extends BooruRepositoryDefault {
     BooruConfigAuth config,
   ) {
     return DownloadFileNameBuilder<Post>(
-      defaultFileNameFormat: kPixivCustomDownloadFileNameFormat,
-      defaultBulkDownloadFileNameFormat: kPixivCustomDownloadFileNameFormat,
-      sampleData: const [],
-      // Pixiv exposes no file hash.
-      hasMd5: false,
-      extensionHandler: (post, config) =>
-          post.format.startsWith('.') ? post.format.substring(1) : post.format,
-      tokenHandlers: [
-        TokenHandler('illust_id', (post, options) {
-          return post.pixivData == null ? '' : post.illustId.toString();
-        }),
-        TokenHandler('page', (post, options) {
-          return post.pixivData == null ? '' : post.pageIndex.toString();
-        }),
-        TokenHandler('user_id', (post, options) {
-          return post.pixivData == null ? '' : post.userId.toString();
-        }),
-        TokenHandler('user_name', (post, options) {
-          return post.pixivData == null ? '' : post.userName;
-        }),
-      ],
-    );
+        defaultFileNameFormat: kPixivCustomDownloadFileNameFormat,
+        defaultBulkDownloadFileNameFormat: kPixivCustomDownloadFileNameFormat,
+        sampleData: const [],
+        // Pixiv exposes no file hash.
+        hasMd5: false,
+        extensionHandler: (post, config) => post.format.startsWith('.')
+            ? post.format.substring(1)
+            : post.format,
+        tokenHandlers: [
+          TokenHandler('illust_id', (post, options) {
+            return post.pixivData == null ? '' : post.illustId.toString();
+          }),
+          TokenHandler('page', (post, options) {
+            return post.pixivData == null ? '' : post.pageIndex.toString();
+          }),
+          TokenHandler('user_id', (post, options) {
+            return post.pixivData == null ? '' : post.userId.toString();
+          }),
+          TokenHandler('user_name', (post, options) {
+            return post.pixivData == null ? '' : post.userName;
+          }),
+        ],
+      )
+      ..tokenizerConfigs.tokenDefinitions.addAll({
+        'illust_id': const [],
+        'page': const [],
+        'user_id': const [],
+        'user_name': const ['maxlength', 'unsafe', 'case', 'urlencode'],
+      });
   }
 
   @override

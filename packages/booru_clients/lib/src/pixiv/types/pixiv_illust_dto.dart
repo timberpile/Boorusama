@@ -125,6 +125,7 @@ class PixivIllustDto {
   ///
   /// The top-level [imageUrls] never carries an `original` URL, so it is
   /// never consulted here.
+  /// Missing URLs are omitted; use [metaPages] indices for page identities.
   List<String> get originalImageUrls {
     if (pageCount != null && pageCount! > 1) {
       return metaPages
@@ -155,9 +156,10 @@ class PixivIllustDto {
   static List<PixivMetaPage> _parseMetaPages(dynamic json) {
     if (json is! List) return const [];
 
-    return json
-        .whereType<Map<String, dynamic>>()
-        .map(PixivMetaPage.fromJson)
-        .toList();
+    // An unavailable slot still occupies a page position in the artwork.
+    return [
+      for (final page in json)
+        PixivMetaPage.fromJson(page is Map<String, dynamic> ? page : null),
+    ];
   }
 }

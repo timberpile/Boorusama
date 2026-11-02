@@ -61,5 +61,30 @@ void main() {
         returnsNormally,
       );
     });
+
+    test('keeps unavailable metadata slots in their original positions', () {
+      final illust = PixivIllustDto.fromJson({
+        'page_count': 5,
+        'meta_pages': [
+          {
+            'image_urls': {'original': 'https://i.pximg.net/p0.jpg'},
+          },
+          null,
+          'invalid page',
+          <String, dynamic>{},
+          {
+            'image_urls': {'original': 'https://i.pximg.net/p4.jpg'},
+          },
+        ],
+      });
+
+      expect(illust.metaPages.map((page) => page.imageUrls?.original), [
+        'https://i.pximg.net/p0.jpg',
+        null,
+        null,
+        null,
+        'https://i.pximg.net/p4.jpg',
+      ]);
+    });
   });
 }
