@@ -1,3 +1,7 @@
+import '../providers/pool_bookmark_provider.dart';
+import '../../../posts/details/src/types/viewer_entry.dart';
+import '../types/pool_bookmark_capability.dart';
+
 import 'package:collection/collection.dart';
 
 import '../../../posts/listing/src/widgets/timeline_header_sliver.dart';
@@ -371,6 +375,14 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ? BookmarkPoolCard(
                     pool: pool,
                     index: index,
+                    onOpen: () => goToBookmarkDetailsPage(
+                      ref,
+                      index,
+                      initialThumbnailUrl: '',
+                      controller: controller,
+                      sourceView: widget.view,
+                      entries: _viewerEntries(),
+                    ),
                     groupId: widget.view.groupId,
                   )
                 : _buildItem(
@@ -384,6 +396,42 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       },
     ),
   );
+
+  List<ViewerEntry> _viewerEntries() {
+    final profiles = ref.read(booruConfigProvider);
+    return List.unmodifiable(
+      _entries.map(
+        (entry) => switch (entry) {
+          BookmarkPostEntry(:final bookmark) => PostViewerEntry(
+            post: bookmark.post,
+            occurrenceId: entry.key,
+            source: switch (resolveBookmarkOriginProfile(
+              bookmark.post.origin,
+              profiles,
+            )) {
+              final config? => ViewerSourceBinding(config),
+              _ => null,
+            },
+          ),
+          BookmarkPoolEntry(:final pool) => PoolViewerEntry(
+            origin: pool.origin,
+            pool: RemoteBookmarkPool(
+              id: pool.poolId,
+              title: pool.title,
+              category: pool.category,
+              total: pool.total,
+              supportsUploadOrder: true,
+            ),
+            occurrenceId: entry.key,
+            source: switch (resolvePoolBookmarkProfile(pool, profiles)) {
+              final config? => ViewerSourceBinding(config),
+              _ => null,
+            },
+          ),
+        },
+      ),
+    );
+  }
 
   Widget _buildItem(
     int index,
@@ -438,7 +486,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             onTap: () {
               goToBookmarkDetailsPage(
                 ref,
-                index,
+                selectionIndex ?? index,
+                entries: _viewerEntries(),
                 sourceView: widget.view,
                 initialThumbnailUrl: ref
                     .read(

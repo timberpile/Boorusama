@@ -1,3 +1,10 @@
+import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
+import 'package:boorusama/core/posts/details/src/routes/post_details_live_source.dart';
+import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
+import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_content.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
+import 'package:boorusama/core/boorus/defaults/types.dart';
 import 'package:boorusama/core/images/types.dart';
 
 import 'progressive_image_test_utils.dart';
@@ -82,6 +89,181 @@ import 'package:boorusama/foundation/url_launcher.dart';
 import '../../../support/fakes/test_platform_services.dart';
 
 void main() {
+  VisibilityDetectorController.instance.updateInterval = Duration.zero;
+  testWidgets(
+    'live entries append a Post to a group-only viewer without replacing its pager',
+    (tester) async {
+      _mobileViewport(tester);
+      final changes = ChangeNotifier();
+      addTearDown(changes.dispose);
+      final entries = <ViewerEntry>[
+        _groupEntry('group', 10, BookmarkedPoolCategory.series),
+      ];
+      final harness = _Harness(
+        posts: const [],
+        entries: entries,
+        repository: const _GalleryRepository(),
+        entrySource: ViewerEntryLiveSource(
+          changes: changes,
+          entries: () => entries,
+          pagination: PostDetailsLiveSource(
+            changes: changes,
+            posts: () => const [],
+            hasMore: () => false,
+            loading: () => false,
+            failed: () => false,
+            fetchMore: () async {},
+          ),
+        ),
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      final pager = _pageViewController(tester);
+      final state = tester.state(find.byType(PostDetailsPageView));
+      entries.add(PostViewerEntry(post: _posts.first, occurrenceId: 'post'));
+      changes.notifyListeners();
+      await tester.pumpAndSettle();
+      expect(_pageViewController(tester), same(pager));
+      expect(tester.state(find.byType(PostDetailsPageView)), same(state));
+      expect(pager.totalPage, 2);
+      expect(pager.page, 0);
+      pager.jumpToPage(1);
+      await tester.pumpAndSettle();
+      expect(_detailsController(tester).postAtPage(1), _posts.first);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('slideshow stops before advancing from a Post into a group', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final harness = _Harness(
+      entries: [
+        PostViewerEntry(post: _posts.first, occurrenceId: 'post'),
+        _groupEntry('group', 10, BookmarkedPoolCategory.series),
+      ],
+      repository: const _GalleryRepository(),
+    );
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final pager = _pageViewController(tester);
+    await pager.startSlideshow();
+    await tester.pump(pager.slideshowOptions.duration);
+    await tester.pumpAndSettle();
+    expect(pager.slideshowController.state.value.isPaused, isTrue);
+    expect(pager.page, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'mixed entries keep one pager through Post, Series, Post, Collection, Post',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final entries = <ViewerEntry>[
+        PostViewerEntry(post: _posts[0], occurrenceId: 'a'),
+        _groupEntry('b', 10, BookmarkedPoolCategory.series),
+        PostViewerEntry(post: _posts[1], occurrenceId: 'c'),
+        _groupEntry('d', 20, BookmarkedPoolCategory.collection),
+        PostViewerEntry(post: _posts[0], occurrenceId: 'e'),
+      ];
+      final harness = _Harness(
+        entries: entries,
+        repository: const _GalleryRepository(),
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      final pager = _pageViewController(tester);
+      final controller = _detailsController(tester);
+      final pagerState = tester.state(find.byType(PostDetailsPageView));
+      for (var i = 1; i < entries.length; i++) {
+        await tester.drag(find.byType(PageView).first, const Offset(-300, 0));
+        await tester.pumpAndSettle();
+        expect(pager.page, i);
+        expect(_pageViewController(tester), same(pager));
+        expect(
+          tester.state(find.byType(PostDetailsPageView)),
+          same(pagerState),
+        );
+        expect(_detailsController(tester), same(controller));
+        if (entries[i] is PoolViewerEntry) {
+          expect(
+            find.text('gallery-${entries[i].occurrenceId}'),
+            findsOneWidget,
+          );
+          expect(find.byType(PostDetailsFullInfoSheet), findsNothing);
+          expect(
+            InheritedPost.maybeOf(
+              tester.element(find.text('gallery-${entries[i].occurrenceId}')),
+            ),
+            isNull,
+          );
+          final before = pager.page;
+          await tester.drag(
+            find.text('gallery-${entries[i].occurrenceId}'),
+            const Offset(0, -250),
+          );
+          await tester.pumpAndSettle();
+          expect(pager.page, before);
+        } else {
+          expect(
+            controller.postAtPage(i),
+            (entries[i] as PostViewerEntry).post,
+          );
+        }
+      }
+      await tester.drag(find.byType(PageView).first, const Offset(300, 0));
+      await tester.pumpAndSettle();
+      expect(pager.page, 3);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a group-only sequence starts directly on a repeated Pool without a Post controller',
+    (tester) async {
+      _mobileViewport(tester);
+      final harness = _Harness(
+        posts: const [],
+        initialIndex: 1,
+        hideOverlay: true,
+        reduceAnimations: false,
+        entries: [
+          _groupEntry('first', 10, BookmarkedPoolCategory.series),
+          _groupEntry('second', 10, BookmarkedPoolCategory.series),
+        ],
+        repository: const _GalleryRepository(),
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      expect(find.text('gallery-second'), findsOneWidget);
+      expect(_pageViewController(tester).overlay.value, isTrue);
+      // Gallery navigation remains available independently of Post overlay
+      // state, including delayed media/route transitions and the O shortcut.
+      _pageViewController(tester).hideOverlay();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(KurumiCircularIconButton).hitTestable(),
+        findsOneWidget,
+      );
+      expect(find.byType(PostDetailsItem<Post>), findsNothing);
+      final context = tester.element(find.text('gallery-second'));
+      expect(PostDetails.maybeOf<Post>(context), isNull);
+      expect(InheritedPost.maybeOf(context), isNull);
+      await tester.drag(find.byType(PageView).first, const Offset(700, 0));
+      await tester.pumpAndSettle();
+      expect(_pageViewController(tester).page, 0);
+      expect(_pageViewController(tester).overlay.value, isTrue);
+      expect(find.text('gallery-first'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final success in [false, true]) {
     testWidgets(
       'mixed viewer retains pixels and matrix through ${success ? 'successful' : 'failed'} decoded upgrade',
@@ -1975,6 +2157,9 @@ class _Harness {
     this.direction = TextDirection.ltr,
     this.initialIndex = 0,
     this.posts,
+    this.entries,
+    this.entrySource,
+    BooruRepository? repository,
     bool reduceAnimations = true,
     bool hideOverlay = false,
     bool loadMedia = true,
@@ -2032,7 +2217,7 @@ class _Harness {
                postQuality: postQuality,
              ),
            ),
-           booruRepoProvider.overrideWith((ref, config) => null),
+           booruRepoProvider.overrideWith((ref, config) => repository),
            booruBuilderProvider.overrideWith((ref, config) => null),
            automaticMediaLoadingEnabledProvider.overrideWithValue(loadMedia),
            dioForWidgetProvider.overrideWith(
@@ -2071,6 +2256,8 @@ class _Harness {
   final TextDirection direction;
   final int initialIndex;
   final List<Post>? posts;
+  final List<ViewerEntry>? entries;
+  final ViewerEntryLiveSource? entrySource;
   final String? initialThumbnailUrl;
 
   Widget build() => UncontrolledProviderScope(
@@ -2089,6 +2276,8 @@ class _Harness {
           textDirection: direction,
           child: MixedPostDetailsPage(
             posts: posts ?? _posts,
+            entries: entries,
+            entrySource: entrySource,
             initialIndex: initialIndex,
             initialThumbnailUrl: initialThumbnailUrl,
             scrollController: null,
@@ -2658,4 +2847,40 @@ class _ReplayableImageAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+PoolViewerEntry _groupEntry(
+  String occurrence,
+  int id,
+  BookmarkedPoolCategory category,
+) => PoolViewerEntry(
+  origin: _posts.first.origin,
+  pool: RemoteBookmarkPool(
+    id: id,
+    title: 'Pool $id',
+    category: category,
+    total: 2,
+  ),
+  occurrenceId: occurrence,
+  source: ViewerSourceBinding(_configs.first),
+);
+
+class _GalleryRepository extends BooruRepositoryDefault
+    implements ViewerEntryContentCapability {
+  const _GalleryRepository();
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+  @override
+  Widget buildViewerEntry(ViewerEntry entry) => CustomScrollView(
+    slivers: [
+      const ViewerEntryNavigationHeader(),
+      SliverToBoxAdapter(child: Text('gallery-${entry.occurrenceId}')),
+      SliverList.list(
+        children: [
+          for (var i = 0; i < 60; i++)
+            SizedBox(height: 50, child: Text('member-$i')),
+        ],
+      ),
+    ],
+  );
 }

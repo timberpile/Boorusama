@@ -23,16 +23,22 @@ import '../../../media_preload/src/preload_metadata_queue.dart';
 import '../../../media_preload/src/viewer_preload_metadata.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
+import '../types/viewer_entry.dart';
 import 'post_details_page_view_scope.dart';
 
 class MixedPostDetailsImagePreloader extends ConsumerStatefulWidget {
   const MixedPostDetailsImagePreloader({
     required this.child,
     required this.posts,
+    this.sequence,
     super.key,
   });
 
   final List<Post> posts;
+  final ViewerEntrySequence? sequence;
+  int get pageCount => sequence?.entries.length ?? posts.length;
+  Post? postAt(int page) =>
+      sequence == null ? posts.elementAtOrNull(page) : sequence!.postAt(page);
   final Widget child;
 
   @override
@@ -62,6 +68,7 @@ class _MixedPostDetailsImagePreloaderState
   int? _lastPage;
   bool _wasActive = false;
   bool _refreshScheduled = false;
+  late int _lastItemCount = widget.pageCount;
 
   PostDetailsPageViewController get _controller => _pageViewController!;
 
@@ -79,7 +86,11 @@ class _MixedPostDetailsImagePreloaderState
   @override
   void didUpdateWidget(MixedPostDetailsImagePreloader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.posts, widget.posts)) _scheduleRefresh();
+    if (!identical(oldWidget.posts, widget.posts) ||
+        _lastItemCount != widget.pageCount) {
+      _scheduleRefresh();
+    }
+    _lastItemCount = widget.pageCount;
   }
 
   @override
@@ -116,6 +127,15 @@ class _MixedPostDetailsImagePreloaderState
     _preloadAdjacentPages(currentPage);
   }
 
+  BooruConfig? _configAt(int index, Post post, List<BooruConfig> profiles) {
+    final binding = widget.sequence?.entries[index].source;
+    if (binding != null) return binding.resolve(profiles);
+    return switch (const PostOriginResolver().resolve(post.origin, profiles)) {
+      ResolvedPostOrigin(:final config) => config,
+      _ => null,
+    };
+  }
+
   void _preloadAdjacentPages(int currentPage) {
     if (!mounted ||
         !NavigationActivity.of(context) ||
@@ -142,7 +162,7 @@ class _MixedPostDetailsImagePreloaderState
     final nearby = strategy
         .getResolutionIndices(
           currentPage: currentPage,
-          itemCount: widget.posts.length,
+          itemCount: widget.pageCount,
         )
         .where((index) => index != currentPage)
         .toList();
@@ -158,18 +178,16 @@ class _MixedPostDetailsImagePreloaderState
 
     nearby.sort((a, b) => priority(a).compareTo(priority(b)));
     final indices = [
-      if (currentPage >= 0 && currentPage < widget.posts.length) currentPage,
+      if (currentPage >= 0 && currentPage < widget.pageCount) currentPage,
       if (_directionHistory.entryPattern != EntryPattern.direct)
         ...nearby.take(4),
     ];
     final requests = <PreloadMetadataRequest<(Post, BooruConfig), Post>>[];
     for (final index in indices) {
-      final post = widget.posts[index];
-      final resolution = const PostOriginResolver().resolve(
-        post.origin,
-        configs,
-      );
-      if (resolution case ResolvedPostOrigin(:final config)) {
+      final post = widget.postAt(index);
+      if (post == null) continue;
+      final config = _configAt(index, post, configs);
+      if (config != null) {
         final repository = ref.read(booruRepoProvider(config.auth));
         if (repository case final ViewerPreloadMetadataResolver resolver) {
           final load = resolver.viewerPreloadMetadataLoader(post, config);
@@ -213,18 +231,12 @@ class _MixedPostDetailsImagePreloaderState
           directionHistory: _directionHistory,
         ),
         currentPage: currentPage,
-        itemCount: widget.posts.length,
+        itemCount: widget.pageCount,
         mediaBuilder: (index) {
           if (diagnosticRecording) diagnosticResolved++;
-          final input = widget.posts[index];
-          final resolution = const PostOriginResolver().resolve(
-            input.origin,
-            configs,
-          );
-          final config = switch (resolution) {
-            ResolvedPostOrigin(:final config) => config,
-            _ => null,
-          };
+          final input = widget.postAt(index);
+          if (input == null) return null;
+          final config = _configAt(index, input, configs);
           if (config == null) return null;
           final repository = ref.read(booruRepoProvider(config.auth));
           final needsMetadata = switch (repository) {
@@ -276,7 +288,7 @@ class _MixedPostDetailsImagePreloaderState
     });
     performanceRecorder.count(
       PerfCounter.mixedCollectionSize,
-      widget.posts.length,
+      widget.pageCount,
     );
     performanceRecorder.count(
       PerfCounter.mixedResolvedPosts,

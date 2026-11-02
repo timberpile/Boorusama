@@ -36,6 +36,7 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
   const PostDetailsItem({
     required this.index,
     required this.posts,
+    this.post,
     required this.transformController,
     required this.isInitPageListenable,
     required this.imageCacheManager,
@@ -51,6 +52,7 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
 
   final int index;
   final List<T> posts;
+  final T? post;
   final TransformationController transformController;
   final ValueListenable<bool> isInitPageListenable;
   final ImageCacheManager? imageCacheManager;
@@ -136,7 +138,7 @@ class _PostDetailsItemState<T extends Post>
 
   Widget _buildItem(BuildContext context) {
     final pageViewController = PostDetailsPageViewScope.of(context);
-    final post = widget.posts[widget.index];
+    final post = widget.post ?? widget.posts[widget.index];
 
     final loadOriginalOnZoom = ref.watch(
       imageViewerSettingsProvider.select(

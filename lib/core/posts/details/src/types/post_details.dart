@@ -24,7 +24,7 @@ class PostDetails extends InheritedWidget {
     super.key,
   });
 
-  final Object data;
+  final Object? data;
 
   static PostDetailsData<T> of<T extends Post>(BuildContext context) {
     final widget = context.dependOnInheritedWidgetOfExactType<PostDetails>();

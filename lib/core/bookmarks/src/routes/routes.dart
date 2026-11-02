@@ -1,3 +1,5 @@
+import '../../../posts/details/src/types/viewer_entry.dart';
+
 // Package imports:
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
@@ -63,6 +65,7 @@ final bookmarkRoutes = GoRoute(
             initialIndex: state.uri.queryParameters['index']?.toInt() ?? 0,
             initialThumbnailUrl: extra['initialThumbnailUrl'] as String,
             controller: extra['controller'] as PostGridController<Post>,
+            entries: extra['entries'] as List<ViewerEntry>?,
           ),
         );
       },

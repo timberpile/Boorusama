@@ -20,6 +20,7 @@ class PostListConfigurationHeader extends StatefulWidget {
     this.axis = Axis.horizontal,
     this.onExpansionChanged,
     this.blacklistChanges,
+    this.additionalControls = const [],
   });
 
   final Widget? trailing;
@@ -31,6 +32,7 @@ class PostListConfigurationHeader extends StatefulWidget {
   final ValueChanged<bool>? onExpansionChanged;
   final Widget blacklistControls;
   final Listenable? blacklistChanges;
+  final List<Widget> additionalControls;
 
   @override
   State<PostListConfigurationHeader> createState() =>
@@ -156,6 +158,7 @@ class _PostListConfigurationHeaderState
             ),
           ),
         ],
+        ...widget.additionalControls,
       ],
     );
   }

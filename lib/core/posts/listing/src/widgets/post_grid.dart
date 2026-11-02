@@ -1,3 +1,4 @@
+import '../../../../navigation/destination_activity.dart';
 import '../../../../bookmarks/src/types/bookmark_identity.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
@@ -552,11 +553,13 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
   const PostGridConfigurationHeader({
     this.axis = Axis.horizontal,
     this.blacklistOnly = false,
+    this.additionalControls = const [],
     super.key,
   });
 
   final Axis axis;
   final bool blacklistOnly;
+  final List<Widget> additionalControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -580,6 +583,7 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
           child: PostListConfigurationHeader(
             key: ValueKey((controller, auth)),
             blacklistChanges: controller,
+            additionalControls: additionalControls,
             blacklistControls: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -946,6 +950,10 @@ class _GridPrefetchHost extends StatelessWidget {
       : InfiniteScrollListener(
           scrollController: scrollController,
           onBottomReached: () {
+            if (!NavigationActivity.of(context) ||
+                !(ModalRoute.of(context)?.isCurrent ?? true)) {
+              return;
+            }
             if (controller.pageMode == PageMode.infinite && controller.hasMore)
               controller.fetchMore();
           },

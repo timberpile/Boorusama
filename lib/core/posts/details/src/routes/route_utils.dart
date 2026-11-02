@@ -1,3 +1,6 @@
+import 'viewer_navigation_scope.dart';
+import '../types/viewer_entry.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
@@ -39,24 +42,32 @@ void goToPostDetailsPageFromController<T extends Post>({
   required String? initialThumbnailUrl,
   AutoScrollController? scrollController,
   BooruConfig? config,
-}) => goToPostDetailsPageCore(
-  ref: ref,
-  posts: controller.items.toList(),
-  initialIndex: initialIndex,
-  scrollController: scrollController,
-  initialThumbnailUrl: initialThumbnailUrl,
-  hero: true,
-  config: config,
-  liveSource: PostDetailsLiveSource(
-    changes: controller,
-    posts: () => controller.items,
-    hasMore: () =>
-        controller.pageMode == PageMode.infinite && controller.hasMore,
-    loading: () => controller.loadingMore,
-    failed: () => controller.errors.value != null,
-    fetchMore: controller.fetchMore,
-  ),
-);
+  bool hero = true,
+}) {
+  final projection = ViewerNavigationScope.maybeOf(ref.context);
+  if (projection != null) {
+    projection.open(initialIndex, initialThumbnailUrl);
+    return;
+  }
+  goToPostDetailsPageCore(
+    ref: ref,
+    posts: controller.items.toList(),
+    initialIndex: initialIndex,
+    scrollController: scrollController,
+    initialThumbnailUrl: initialThumbnailUrl,
+    hero: hero,
+    config: config,
+    liveSource: PostDetailsLiveSource(
+      changes: controller,
+      posts: () => controller.items,
+      hasMore: () =>
+          controller.pageMode == PageMode.infinite && controller.hasMore,
+      loading: () => controller.loadingMore,
+      failed: () => controller.errors.value != null,
+      fetchMore: controller.fetchMore,
+    ),
+  );
+}
 
 void goToPostDetailsPageCore<T extends Post>({
   required WidgetRef ref,
@@ -66,6 +77,8 @@ void goToPostDetailsPageCore<T extends Post>({
   required String? initialThumbnailUrl,
   AutoScrollController? scrollController,
   PostDetailsLiveSource? liveSource,
+  List<ViewerEntry>? entries,
+  ViewerEntryLiveSource? entrySource,
   BooruConfig? config,
 }) {
   ref.pushRoute(
@@ -90,6 +103,8 @@ void goToPostDetailsPageCore<T extends Post>({
               : ref.readConfig),
       useMixedViewer: true,
       liveSource: liveSource,
+      entries: entries,
+      entrySource: entrySource,
     ),
   );
 }

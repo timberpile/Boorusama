@@ -25,12 +25,14 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
     required this.index,
     this.groupId,
     this.projected = false,
+    this.onOpen,
     super.key,
   });
   final PoolBookmark pool;
   final int index;
   final String? groupId;
   final bool projected;
+  final VoidCallback? onOpen;
 
   @override
   ConsumerState<BookmarkPoolCard> createState() => _BookmarkPoolCardState();
@@ -129,10 +131,16 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     );
   }
 
-  Future<void> _open() => _perform(
-    (profile, capability) =>
-        capability.openBookmarkPool(ref, profile, widget.pool.poolId),
-  );
+  Future<void> _open() async {
+    if (widget.onOpen case final open?) {
+      open();
+      return;
+    }
+    await _perform(
+      (profile, capability) =>
+          capability.openBookmarkPool(ref, profile, widget.pool.poolId),
+    );
+  }
 
   Future<void> _refresh() => _perform((profile, capability) async {
     final remote = await capability.getBookmarkPool(

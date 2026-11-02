@@ -1,3 +1,5 @@
+import '../../../posts/details/src/types/viewer_entry.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -28,12 +30,14 @@ class BookmarkDetailsPage extends ConsumerWidget {
     required this.initialIndex,
     required this.initialThumbnailUrl,
     required PostGridController<Post> controller,
+    this.entries,
     super.key,
   }) : posts = List.unmodifiable(controller.items);
 
   final int initialIndex;
   final String? initialThumbnailUrl;
   final List<Post> posts;
+  final List<ViewerEntry>? entries;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,6 +45,7 @@ class BookmarkDetailsPage extends ConsumerWidget {
 
     return MixedPostDetailsPage(
       posts: posts,
+      entries: entries,
       initialIndex: initialIndex,
       initialThumbnailUrl: initialThumbnailUrl,
       scrollController: null,

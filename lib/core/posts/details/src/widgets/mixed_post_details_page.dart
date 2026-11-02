@@ -16,6 +16,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../configs/manage/providers.dart';
 import '../../../../notes/note/widgets.dart';
 import '../../../details_parts/types.dart';
 import '../../../details_parts/widgets.dart';
@@ -24,6 +25,9 @@ import '../providers/providers.dart';
 import '../routes/post_details_live_source.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
+import '../types/viewer_entry.dart';
+import 'viewer_entry_content.dart';
+import 'post_details_page_view_scope.dart';
 import 'post_details_actions.dart';
 import 'post_details_image_preloader.dart';
 import 'post_details_item.dart';
@@ -65,14 +69,21 @@ class MixedPostDetailsPage extends StatefulWidget {
     this.postRecoveryBuilder,
     this.fallbackConfig,
     this.liveSource,
+    this.entries,
+    this.entrySource,
     super.key,
-  }) : assert(posts.length > 0, 'Mixed viewer requires at least one post'),
+  }) : assert(
+         (entries?.length ?? posts.length) > 0,
+         'Mixed viewer requires entries',
+       ),
        assert(
-         initialIndex >= 0 && initialIndex < posts.length,
-         'Initial index must reference a post in the mixed viewer',
+         initialIndex >= 0 && initialIndex < (entries?.length ?? posts.length),
+         'Initial index must reference a displayed viewer entry',
        );
 
   final List<Post> posts;
+  final List<ViewerEntry>? entries;
+  final ViewerEntryLiveSource? entrySource;
   final int initialIndex;
   final String? initialThumbnailUrl;
   final AutoScrollController? scrollController;
@@ -91,7 +102,11 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
   static const _emptyPageBudget = 3;
   static const _emptyPageCooldown = Duration(milliseconds: 150);
 
-  late final List<Post> _posts = widget.posts.toList();
+  late final ViewerEntrySequence? _sequence = widget.entries == null
+      ? null
+      : ViewerEntrySequence(widget.entries!);
+  late final List<Post> _posts = _sequence?.posts ?? widget.posts.toList();
+  int get _pageCount => _sequence?.entries.length ?? _posts.length;
   late final Set<String> _knownPosts = {
     for (final post in _posts) postViewerIdentity(post),
   };
@@ -103,6 +118,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
   void initState() {
     super.initState();
     widget.liveSource?.changes.addListener(_onLiveSourceChanged);
+    widget.entrySource?.changes.addListener(_onEntrySourceChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadNearEnd(widget.initialIndex);
     });
@@ -111,11 +127,24 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
   @override
   void dispose() {
     widget.liveSource?.changes.removeListener(_onLiveSourceChanged);
+    widget.entrySource?.changes.removeListener(_onEntrySourceChanged);
     super.dispose();
   }
 
+  void _onEntrySourceChanged() {
+    if (!mounted) return;
+    setState(() {
+      final before = _pageCount;
+      _sequence?.append(widget.entrySource!.entries());
+      if (_pageCount > before) _needsManualLoadMore = false;
+    });
+  }
+
+  PostDetailsLiveSource? get _source =>
+      widget.entrySource?.pagination ?? widget.liveSource;
+
   void _onLiveSourceChanged() {
-    final source = widget.liveSource;
+    final source = _source;
     if (source == null) return;
     final added = [
       for (final post in source.posts())
@@ -138,11 +167,11 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
   }
 
   void _startNearEndLoad({bool allowFailed = false}) {
-    final source = widget.liveSource;
+    final source = _source;
     if (source == null ||
         !source.hasMore() ||
         (_searchingForVisiblePost || (source.failed() && !allowFailed)) ||
-        _currentIndex < _posts.length - 2) {
+        _currentIndex < _pageCount - 2) {
       return;
     }
     setState(() => _searchingForVisiblePost = true);
@@ -150,14 +179,14 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
   }
 
   Future<void> _fetchUntilVisible(PostDetailsLiveSource source) async {
-    final initialCount = _posts.length;
+    final initialCount = _pageCount;
     var attempts = 0;
     var interrupted = false;
     try {
       while (_isActiveRoute &&
           attempts < _emptyPageBudget &&
           source.hasMore() &&
-          _currentIndex >= _posts.length - 2) {
+          _currentIndex >= _pageCount - 2) {
         attempts++;
         try {
           await source.fetchMore();
@@ -166,10 +195,10 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
           break;
         }
         if (!_isActiveRoute ||
-            _posts.length > initialCount ||
+            _pageCount > initialCount ||
             source.failed() ||
             !source.hasMore() ||
-            _currentIndex < _posts.length - 2) {
+            _currentIndex < _pageCount - 2) {
           break;
         }
         if (attempts < _emptyPageBudget) {
@@ -184,10 +213,10 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
               (attempts == _emptyPageBudget ||
                   interrupted ||
                   !_isActiveRoute) &&
-              _posts.length == initialCount &&
+              _pageCount == initialCount &&
               source.hasMore() &&
               !source.failed() &&
-              _currentIndex >= _posts.length - 2;
+              _currentIndex >= _pageCount - 2;
         });
       }
     }
@@ -214,19 +243,18 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
       initialIndex: widget.initialIndex,
       initialThumbnailUrl: widget.initialThumbnailUrl,
       posts: _posts,
+      sequence: _sequence,
       dislclaimer: widget.disclaimer,
       scrollController: widget.scrollController,
       child: _MixedPostDetailsView(
+        sequence: _sequence,
         fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
         postRecoveryBuilder: widget.postRecoveryBuilder,
         fallbackConfig: widget.fallbackConfig,
-        nextLoading:
-            _searchingForVisiblePost || (widget.liveSource?.loading() ?? false),
+        nextLoading: _searchingForVisiblePost || (_source?.loading() ?? false),
         nextFailed:
-            (widget.liveSource?.hasMore() ?? false) &&
-            (widget.liveSource?.failed() ?? false),
-        nextCanLoad:
-            _needsManualLoadMore && (widget.liveSource?.hasMore() ?? false),
+            (_source?.hasMore() ?? false) && (_source?.failed() ?? false),
+        nextCanLoad: _needsManualLoadMore && (_source?.hasMore() ?? false),
         onRetryNext: _retryLoading,
         onLoadMoreNext: _continueLoading,
         onPageChanged: _loadNearEnd,
@@ -246,6 +274,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
     required this.onRetryNext,
     required this.onLoadMoreNext,
     required this.onPageChanged,
+    this.sequence,
   });
 
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
@@ -258,6 +287,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
   final VoidCallback onRetryNext;
   final VoidCallback onLoadMoreNext;
   final ValueChanged<int> onPageChanged;
+  final ViewerEntrySequence? sequence;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -280,23 +310,114 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
 
   @override
   Widget build(BuildContext context) {
-    final details = PostDetails.of<Post>(context);
-
+    final details = PostDetails.maybeOf<Post>(context);
+    final pager = PostDetailsPageViewScope.of(context);
     return MixedPostDetailsImagePreloader(
-      posts: details.posts,
-      child: ValueListenableBuilder<Post>(
-        valueListenable: details.controller.currentPost,
-        builder: (context, currentPost, _) => PostPagePresentationScope(
-          post: currentPost,
-          fallbackConfig: widget.fallbackConfig,
-          builder: (context, ref, currentPresentation) => _buildViewer(
-            context,
-            ref,
-            details,
-            currentPresentation,
-          ),
-        ),
+      posts: details?.posts ?? const [],
+      sequence: widget.sequence,
+      child: ListenableBuilder(
+        listenable: Listenable.merge([
+          pager.currentPage,
+          if (details != null) details.controller.currentPost,
+        ]),
+        builder: (context, _) {
+          final sequence = widget.sequence;
+          final post = sequence == null
+              ? details!.controller.currentPost.value
+              : sequence.postAt(pager.page);
+          return PostPagePresentationScope(
+            post: post,
+            sourceBinding: widget.sequence?.entries[pager.page].source,
+            fallbackConfig: widget.fallbackConfig,
+            groupBuilder: (context) => CurrentPostDetailsNotes(
+              post: null,
+              viewerConfig: BooruConfig.empty.viewer,
+              authConfig: BooruConfig.empty.auth,
+              enabled: false,
+              child: Stack(children: [_buildGroupViewer(context, details)]),
+            ),
+            builder: (context, ref, presentation) =>
+                _buildViewer(context, ref, details!, presentation),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _entryItem(
+    BuildContext context,
+    int index,
+  ) {
+    final entry = widget.sequence?.entries[index];
+    if (entry != null && entry is! PostViewerEntry) {
+      return ViewerEntryContent(
+        key: PageStorageKey(entry.occurrenceId),
+        entry: entry,
+        index: index,
+      );
+    }
+    throw StateError('Expected a group viewer entry');
+  }
+
+  Widget _buildGroupViewer(
+    BuildContext context,
+    PostDetailsData<Post>? details,
+  ) => PostDetailsPageScaffold<Post>(
+    sequence: widget.sequence,
+    controller: details?.controller,
+    posts: details?.posts ?? const [],
+    transformController: _transformController,
+    isInitPage: _isInitPage,
+    gestureConfig: null,
+    layoutConfig: null,
+    postGestureHandlerBuilder: null,
+    uiBuilder: null,
+    actions: const [],
+    nextLoading: widget.nextLoading,
+    nextFailed: widget.nextFailed,
+    nextCanLoad: widget.nextCanLoad,
+    onRetryNext: widget.onRetryNext,
+    onLoadMoreNext: widget.onLoadMoreNext,
+    onPageChanged: widget.onPageChanged,
+    itemBuilder: (context, index) {
+      final post = widget.sequence!.postAt(index);
+      if (post == null) return _entryItem(context, index);
+      return _buildPostItem(context, index, details!);
+    },
+  );
+
+  Widget _buildPostItem(
+    BuildContext context,
+    int index,
+    PostDetailsData<Post> details,
+  ) {
+    final post = widget.sequence?.postAt(index) ?? details.posts[index];
+    return PostPagePresentationScope(
+      post: post,
+      sourceBinding: widget.sequence?.entries[index].source,
+      fallbackConfig: widget.fallbackConfig,
+      builder: (context, ref, presentation) {
+        final config = presentation.effectiveConfig;
+        final resolver = ref.watch(mediaUrlResolverProvider(config.auth));
+        return PostDetailsItem<Post>(
+          index: index,
+          post: post,
+          posts: details.posts,
+          transformController: _transformController,
+          isInitPageListenable: _isInitPage,
+          authConfig: config.auth,
+          viewerConfig: config.viewer,
+          gestureConfig: config.postGestures,
+          imageCacheManager: null,
+          detailsController: details.controller,
+          imageUrlBuilder: (post) =>
+              resolver.resolveMediaUrl(post, config.viewer),
+          mediaAspectRatioBuilder: (post) =>
+              resolver.resolveMediaAspectRatio(post, config.viewer),
+          videoAspectRatioBuilder: (post) =>
+              resolver.resolveVideoAspectRatio(post, config.viewer),
+        );
+      },
     );
   }
 
@@ -359,6 +480,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         : currentPresentation.context.presentation.detailsBuilder(currentPost);
 
     final scaffold = PostDetailsPageScaffold<Post>(
+      sequence: widget.sequence,
       transformController: _transformController,
       isInitPage: _isInitPage,
       controller: controller,
@@ -402,37 +524,10 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         ),
       ),
       itemBuilder: (context, index) {
-        final post = posts[index];
-        return PostPagePresentationScope(
-          post: post,
-          fallbackConfig: widget.fallbackConfig,
-          builder: (context, ref, pagePresentation) {
-            final pageConfig = pagePresentation.effectiveConfig;
-            final pageAuth = pageConfig.auth;
-            final pageViewer = pageConfig.viewer;
-            final mediaUrlResolver = ref.watch(
-              mediaUrlResolverProvider(pageAuth),
-            );
-
-            return PostDetailsItem<Post>(
-              index: index,
-              posts: posts,
-              transformController: _transformController,
-              isInitPageListenable: _isInitPage,
-              authConfig: pageAuth,
-              viewerConfig: pageViewer,
-              gestureConfig: pageConfig.postGestures,
-              imageCacheManager: null,
-              detailsController: controller,
-              imageUrlBuilder: (post) =>
-                  mediaUrlResolver.resolveMediaUrl(post, pageViewer),
-              mediaAspectRatioBuilder: (post) =>
-                  mediaUrlResolver.resolveMediaAspectRatio(post, pageViewer),
-              videoAspectRatioBuilder: (post) =>
-                  mediaUrlResolver.resolveVideoAspectRatio(post, pageViewer),
-            );
-          },
-        );
+        if (widget.sequence != null && widget.sequence!.postAt(index) == null) {
+          return _entryItem(context, index);
+        }
+        return _buildPostItem(context, index, details);
       },
     );
 
@@ -466,7 +561,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     required PostRecoveryCallback recovery,
   }) async {
     if (!mounted || _recovering.contains(index)) return;
-    final originalIdentity = postViewerIdentity(details.posts[index]);
+    final originalIdentity = postViewerIdentity(
+      details.controller.postAtPage(index)!,
+    );
     setState(() => _recovering.add(index));
     late final PostRecoveryResult result;
     try {
@@ -477,12 +574,22 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       );
     }
     if (!mounted) return;
-    if (index >= details.posts.length ||
-        postViewerIdentity(details.posts[index]) != originalIdentity) {
+    if (details.controller.postAtPage(index) == null ||
+        postViewerIdentity(details.controller.postAtPage(index)!) !=
+            originalIdentity) {
       setState(() => _recovering.remove(index));
       return;
     }
 
+    final binding = widget.sequence?.entries[index].source;
+    if (binding != null &&
+        binding.resolve(ref.read(booruConfigProvider)) == null) {
+      setState(() {
+        _recovering.remove(index);
+        _fallbackReasons[index] = PostPresentationFallbackReason.missingProfile;
+      });
+      return;
+    }
     switch (result) {
       case PostRecoverySuccess(:final post):
         details.controller.replacePost(index, post);

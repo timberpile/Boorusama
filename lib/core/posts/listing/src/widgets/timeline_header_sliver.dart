@@ -4,6 +4,8 @@ import 'package:flutter/rendering.dart';
 import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 
+import 'measured_floating_header.dart';
+
 /// Uses the child's measured extent, including enlarged text and custom headers.
 class TimelineHeaderSliver extends StatelessWidget {
   const TimelineHeaderSliver({
@@ -25,16 +27,34 @@ class TimelineHeaderSliver extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Keep a stable measured render child across empty/error header changes.
-    final surface = ColoredBox(
+    Widget surface({double topInset = 0}) => ColoredBox(
       color: backgroundColorOf(context),
-      child: SizedBox(width: double.infinity, child: child),
+      child: Padding(
+        padding: EdgeInsets.only(top: topInset),
+        child: SizedBox(width: double.infinity, child: child),
+      ),
     );
     return keepVisible
-        ? PinnedHeaderSliver(child: surface)
+        ? SliverLayoutBuilder(
+            builder: (context, constraints) {
+              // The viewport may extend behind the system bar. Only reserve
+              // its uncovered part as the header reaches the leading edge;
+              // a visible AppBar or an ancestor SafeArea already covers it.
+              final leading =
+                  constraints.viewportMainAxisExtent -
+                  constraints.remainingPaintExtent +
+                  math.max(0, constraints.overlap);
+              final inset = math.max(
+                0.0,
+                MediaQuery.paddingOf(context).top - leading,
+              );
+              return PinnedHeaderSliver(child: surface(topInset: inset));
+            },
+          )
         : _AvoidHeaderOverlap(
-            child: SliverFloatingHeader(
-              animationStyle: reduceMotion ? AnimationStyle.noAnimation : null,
-              child: surface,
+            child: MeasuredFloatingHeader(
+              reduceMotion: reduceMotion,
+              child: surface(),
             ),
           );
   }

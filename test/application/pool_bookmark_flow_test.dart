@@ -1,3 +1,17 @@
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_toolbar.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/post_list_configuration_header.dart';
+import 'package:boorusama/boorus/danbooru/pools/details/src/widgets/pool_order_selector.dart';
+import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/core/posts/pools/widgets.dart';
+import 'package:boorusama/core/bookmarks/src/pages/bookmark_details_page.dart';
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_content.dart';
+import 'package:boorusama/core/posts/details/widgets.dart';
+import 'package:boorusama/core/posts/details_pageview/widgets.dart';
+import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
+
 import 'dart:io';
 
 import 'package:boorusama/core/images/booru_image.dart';
@@ -9,7 +23,6 @@ import 'package:boorusama/boorus/danbooru/posts/search/widgets.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/boorus/danbooru/posts/search/src/widgets/search_series_grid.dart';
-import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
 
 import 'dart:async';
@@ -61,6 +74,711 @@ import 'support/fake_image_dio.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  for (final size in [
+    const Size(320, 844),
+    const Size(390, 844),
+    const Size(844, 390),
+    const Size(1280, 800),
+  ]) {
+    for (final scale in [1.0, 2.0]) {
+      for (final pinned in [false, true]) {
+        testWidgets(
+          'Pool Variant A floats without overlap at $size $scale text pinned=$pinned',
+          (tester) async {
+            tester.platformDispatcher.textScaleFactorTestValue = scale;
+            addTearDown(
+              tester.platformDispatcher.clearTextScaleFactorTestValue,
+            );
+            final setup = await _mount(
+              tester,
+              seedReference: true,
+              seedPosts: true,
+              seedMixedSequence: true,
+              longGallery: true,
+              galleryMemberCount: 120,
+              viewportSize: size,
+              keepTimelineVisible: pinned,
+            );
+            final harness = setup.harness;
+            await AppFlowDriver(
+              tester: tester,
+              harness: harness,
+            ).openBookmarks();
+            await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+            await harness.settle(tester);
+            // Exercise the projected viewer route independently of the origin
+            // grid's available card height in landscape or enlarged text.
+            tester
+                .widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard).first)
+                .onOpen!();
+            await harness.pumpUntilFound(
+              tester,
+              find.byType(PoolDetailContent),
+            );
+            await harness.settle(tester);
+            final content = find.byType(PoolDetailContent);
+            Finder inside(Finder finder) =>
+                find.descendant(of: content, matching: finder);
+            final back = inside(find.byIcon(Symbols.arrow_back_ios));
+            final actionBar = inside(find.byType(NavigationToolbar));
+            final timeline = inside(find.byType(PostListConfigurationHeader));
+            final selector = inside(find.byType(PoolOrderSelector));
+            final grid = tester.widget<PostGrid<Post>>(
+              inside(find.byType(PostGrid<Post>)),
+            );
+            await harness.pumpUntil(
+              tester,
+              () => grid.controller.items.length >= 60,
+            );
+            await harness.settle(tester);
+            expect(back.hitTestable(), findsOneWidget);
+            expect(inside(find.byType(PoolBookmarkButton)), findsOneWidget);
+            expect(inside(find.byIcon(Symbols.search)), findsOneWidget);
+            expect(inside(find.byIcon(Symbols.download)), findsOneWidget);
+            expect(find.byType(PoolOrderToggle), findsNothing);
+            final bar = tester.getRect(actionBar);
+            final title = tester.getRect(inside(find.text('Series 10')));
+            expect(bar.height, 56);
+            expect(title.top - bar.bottom, closeTo(8, 1));
+            expect(
+              tester.getRect(timeline).top - title.bottom,
+              lessThan(70 * scale),
+            );
+            if (scale == 1) {
+              expect(
+                tester.getTopLeft(inside(postTile(101))).dy,
+                lessThan(260),
+              );
+            }
+            final header = inside(find.byType(ViewerEntryNavigationHeader));
+            final targets =
+                [
+                      ...find
+                          .descendant(
+                            of: header,
+                            matching: find.byType(KurumiCircularIconButton),
+                          )
+                          .evaluate(),
+                      ...find
+                          .descendant(
+                            of: header,
+                            matching: find.byType(IconButton),
+                          )
+                          .evaluate(),
+                    ]
+                    .map(
+                      (element) => tester.getRect(
+                        find.byElementPredicate((e) => identical(e, element)),
+                      ),
+                    )
+                    .toList();
+            expect(targets, hasLength(4));
+            for (var i = 0; i < targets.length; i++) {
+              expect(targets[i].width, greaterThanOrEqualTo(48));
+              expect(targets[i].height, greaterThanOrEqualTo(48));
+              expect(targets[i].left, greaterThanOrEqualTo(0));
+              expect(targets[i].right, lessThanOrEqualTo(size.width));
+              for (var j = i + 1; j < targets.length; j++) {
+                expect(targets[i].overlaps(targets[j]), isFalse);
+              }
+            }
+            grid.scrollController!.jumpTo(1000);
+            await harness.settle(tester);
+            expect(back.hitTestable(), findsNothing);
+            expect(
+              timeline.hitTestable(),
+              pinned ? findsOneWidget : findsNothing,
+            );
+            if (pinned) {
+              final controls = inside(find.byType(TimelineToolbar));
+              expect(
+                tester.getTopLeft(controls).dy,
+                greaterThanOrEqualTo(
+                  tester.view.padding.top / tester.view.devicePixelRatio,
+                ),
+              );
+            }
+            final vertical = find
+                .descendant(
+                  of: content,
+                  matching: find.byWidgetPredicate(
+                    (widget) =>
+                        widget is Scrollable &&
+                        widget.axisDirection == AxisDirection.down,
+                  ),
+                )
+                .first;
+            await tester.drag(vertical, const Offset(0, 80));
+            await harness.settle(tester);
+            expect(back.hitTestable(), findsOneWidget);
+            expect(timeline.hitTestable(), findsOneWidget);
+            expect(
+              tester.widget<AppBar>(inside(find.byType(AppBar))).toolbarOpacity,
+              1,
+            );
+            expect(
+              tester.getTopLeft(timeline).dy,
+              greaterThanOrEqualTo(tester.getBottomLeft(actionBar).dy),
+            );
+            expect(grid.scrollController!.offset, greaterThan(bar.height * 2));
+            final overflow = inside(
+              find.byWidgetPredicate(
+                (widget) => widget is PostGridConfigIconButton,
+              ),
+            );
+            final overflowBounds = tester.getRect(overflow);
+            final horizontal = inside(
+              find.byKey(const ValueKey('timeline-toolbar-content')),
+            );
+            final horizontalState = tester.state<ScrollableState>(
+              find
+                  .descendant(of: horizontal, matching: find.byType(Scrollable))
+                  .first,
+            );
+            // Only an overflowing toolbar owns horizontal scrolling. At wider
+            // widths the same gesture correctly belongs to the outer pager.
+            if (horizontalState.position.maxScrollExtent > 0) {
+              await tester.drag(horizontal, const Offset(-500, 0));
+              await harness.settle(tester);
+              expect(horizontalState.position.pixels, greaterThan(0));
+            }
+            expect(tester.getRect(overflow), overflowBounds);
+            expect(overflow.hitTestable(), findsOneWidget);
+            await tester.ensureVisible(selector);
+            await tester.tap(selector);
+            await harness.settle(tester);
+            expect(find.text('Latest').hitTestable(), findsOneWidget);
+            expect(find.text('Oldest').hitTestable(), findsOneWidget);
+            await tester.tap(find.text('Latest'));
+            await harness.settle(tester);
+            expect(
+              tester.widget<PoolOrderSelector>(selector).value,
+              PoolDetailsOrder.latest,
+            );
+            expect(grid.scrollController!.offset, 0);
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
+  }
+
+  testWidgets(
+    'long Pool title wraps with one status inset and no empty metadata gap',
+    (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final setup = await _mount(
+        tester,
+        longGallery: true,
+        viewportSize: const Size(320, 844),
+      );
+      const title =
+          'Original - A long Collection title that remains completely readable (Artist Name)';
+      unawaited(
+        setup.container
+            .read(routerProvider)
+            .push(
+              '/danbooru/pools/10',
+              extra: (
+                pool: _pool(name: title, includeUpdated: false),
+                config: setup.harness.booruBackend.config,
+              ),
+            ),
+      );
+      await setup.harness.pumpUntilFound(
+        tester,
+        find.byType(PoolDetailContent),
+      );
+      await setup.harness.settle(tester);
+      final bar = tester.getRect(find.byType(NavigationToolbar).last);
+      final heading = find.text(title);
+      expect(bar.top, tester.view.padding.top / tester.view.devicePixelRatio);
+      expect(tester.getRect(heading).top - bar.bottom, 8);
+      expect(tester.getRect(heading).height, greaterThan(100));
+      expect(tester.widget<Text>(heading).maxLines, isNull);
+      final timeline = find.descendant(
+        of: find.byType(PoolDetailContent),
+        matching: find.byType(PostListConfigurationHeader),
+      );
+      final longGrid = tester.widget<PostGrid<Post>>(
+        find.byType(PostGrid<Post>).last,
+      );
+      longGrid.scrollController!.jumpTo(tester.getRect(heading).height);
+      await setup.harness.settle(tester);
+      await setup.harness.pumpUntilFound(tester, timeline);
+      await setup.harness.settle(tester);
+      expect(
+        tester.getTopLeft(timeline).dy - tester.getBottomLeft(heading).dy,
+        closeTo(8, 1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'standalone Collection uses the same compact action header and sort toolbar',
+    (tester) async {
+      final setup = await _mount(tester, longGallery: true);
+      final harness = setup.harness;
+      setup.container
+          .read(routerProvider)
+          .push(
+            '/danbooru/pools/20',
+            extra: (
+              pool: _pool(category: DanbooruPoolCategory.collection)
+                  .copyWith(id: 20),
+              config: harness.booruBackend.config,
+            ),
+          );
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+      await harness.settle(tester);
+      expect(find.byType(ViewerEntryNavigationHeader), findsOneWidget);
+      expect(find.byType(PoolOrderSelector), findsOneWidget);
+      expect(find.text('Pool'), findsNothing);
+      expect(find.byType(PoolOrderToggle), findsNothing);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.settle(tester);
+      expect(find.byType(PoolDetailContent), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'an evicted long gallery restores beyond the first loaded member page',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        seedReference: true,
+        seedPosts: true,
+        seedMixedSequence: true,
+        memberPageSize: 2,
+      );
+      final harness = setup.harness;
+      for (var start = 101; start < 121; start += 2) {
+        for (var repeat = 0; repeat < 2; repeat++) {
+          harness.booruBackend.enqueuePosts(
+            page: 1,
+            query: 'id:$start,${start + 1}',
+            posts: [
+              TestPost(id: start),
+              TestPost(id: start + 1),
+            ],
+          );
+        }
+      }
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      await tester.tap(find.byType(BookmarkPoolCard).first);
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+      await harness.settle(tester);
+      final pager = tester
+          .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+          .controller!;
+      PostGrid<Post> gallery() => tester.widget<PostGrid<Post>>(
+        find.descendant(
+          of: find.byType(PoolDetailContent),
+          matching: find.byType(PostGrid<Post>),
+        ),
+      );
+      final firstPageExtent =
+          gallery().scrollController!.position.maxScrollExtent;
+      for (var i = 0; i < 3; i++)
+        await harness.pumpUntilComplete(
+          tester,
+          gallery().controller.fetchMore(),
+        );
+      final previous = gallery().scrollController!;
+      previous.jumpTo(previous.position.maxScrollExtent * .8);
+      await harness.settle(tester);
+      final offset = previous.offset;
+      final visitedPage = gallery().controller.page;
+      expect(offset, greaterThan(firstPageExtent + 1));
+      FocusManager.instance.primaryFocus?.unfocus();
+      pager.jumpToPage(4);
+      await harness.settle(tester);
+      expect(find.byType(PoolDetailContent), findsNothing);
+      pager.jumpToPage(1);
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+      await harness.settle(tester);
+      expect(gallery().scrollController, isNot(same(previous)));
+      await harness.pumpUntil(
+        tester,
+        () => (gallery().scrollController!.offset - offset).abs() < 1,
+      );
+      expect(gallery().scrollController!.offset, closeTo(offset, 1));
+      expect(gallery().controller.page, lessThanOrEqualTo(visitedPage));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Search viewer reuses frozen Series entries while live results append',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        realSearch: true,
+        seriesMembers: [101, 102],
+      );
+      final harness = setup.harness;
+      final backend = harness.booruBackend;
+      backend.enqueuePosts(
+        page: 1,
+        query: 'mixed',
+        posts: [
+          for (var id = 101; id <= 105; id++) TestPost(id: id),
+        ],
+        hasMore: true,
+      );
+      final next = backend.enqueuePostGate(
+        query: 'mixed',
+        page: 2,
+        siteUrl: backend.config.url,
+      );
+      final driver = AppFlowDriver(tester: tester, harness: harness);
+      await driver.openSearch();
+      await driver.submitSearch('mixed');
+      await harness.pumpUntilFound(tester, find.byType(PoolGridItem));
+      await harness.settle(tester);
+      final grid = tester.widget<SearchSeriesGrid>(
+        find.byType(SearchSeriesGrid),
+      );
+      await tester.tap(find.byType(PoolGridItem).first);
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+      await harness.settle(tester);
+      final pager = tester
+          .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+          .controller!;
+      expect(pager.page, 0);
+      expect(pager.totalPage, 4);
+      // Raw 101/102 occupy one Series entry; 103 is the next displayed page.
+      pager.jumpToPage(1);
+      await harness.settle(tester);
+      expect(currentDetailPost(tester).id, 103);
+      pager.jumpToPage(3);
+      await harness.pumpUntil(
+        tester,
+        () => backend.requests.whereType<FakeBooruPostRequest>().any(
+          (r) => r.query == 'mixed' && r.page == 2 && r.pending,
+        ),
+      );
+      next.completeSuccess(
+        PostResult(
+          posts: [TestPost(id: 106), TestPost(id: 107)],
+          total: 7,
+          hasMore: false,
+        ),
+      );
+      await harness.pumpUntil(tester, () => pager.totalPage == 6);
+      await harness.settle(tester);
+      expect(pager.page, 3);
+      expect(currentDetailPost(tester).id, 105);
+      pager.jumpToPage(4);
+      await harness.settle(tester);
+      expect(currentDetailPost(tester).id, 106);
+      expect(grid.controller.items, hasLength(7));
+      backend.enqueuePosts(
+        page: 1,
+        query: 'mixed',
+        posts: [TestPost(id: 108), TestPost(id: 109)],
+        hasMore: false,
+      );
+      await harness.pumpUntilComplete(tester, grid.controller.refresh());
+      expect(pager.totalPage, 6);
+      expect(pager.page, 4);
+      expect(currentDetailPost(tester).id, 106);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.pumpUntilFound(tester, find.byType(SearchSeriesGrid));
+      await harness.settle(tester);
+      expect(grid.controller.items.map((p) => p.id), [108, 109]);
+      expect(find.byType(PoolGridItem), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('unavailable Pool retries without losing its mixed sequence', (
+    tester,
+  ) async {
+    final setup = await _mount(
+      tester,
+      seedReference: true,
+      seedPosts: true,
+      seedMixedSequence: true,
+    );
+    final harness = setup.harness;
+    setup.adapter.poolFailures = 1;
+    await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+    await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+    await harness.settle(tester);
+    await tester.tap(find.byType(BookmarkPoolCard).first);
+    await harness.pumpUntilFound(tester, find.text('Retry'));
+    await harness.settle(tester);
+    expect(find.byIcon(Symbols.arrow_back_ios).hitTestable(), findsOneWidget);
+    expect(find.byType(PoolBookmarkButton).hitTestable(), findsOneWidget);
+    expect(find.byIcon(Symbols.search).hitTestable(), findsOneWidget);
+    expect(find.byIcon(Symbols.download).hitTestable(), findsOneWidget);
+    final pager = tester
+        .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+        .controller!;
+    expect(pager.page, 1);
+    expect(pager.totalPage, 5);
+    await tester.tap(find.text('Retry'));
+    await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    await harness.settle(tester);
+    expect(pager.page, 1);
+    pager.jumpToPage(2);
+    await harness.settle(tester);
+    expect(currentDetailPost(tester).id, 102);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'removing the origin cancels pending gallery metadata and keeps outer navigation',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        seedReference: true,
+        seedPosts: true,
+        seedMixedSequence: true,
+      );
+      final harness = setup.harness;
+      setup.adapter.poolGate = Completer<void>();
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      await tester.tap(find.byType(BookmarkPoolCard).first);
+      await harness.pumpUntil(
+        tester,
+        () => setup.adapter.requests.any((r) => r.path == '/pools/10.json'),
+      );
+      await harness.settle(tester);
+      expect(find.byIcon(Symbols.arrow_back_ios).hitTestable(), findsOneWidget);
+      expect(find.byType(PoolBookmarkButton).hitTestable(), findsOneWidget);
+      final pager = tester
+          .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+          .controller!;
+      await setup.container
+          .read(booruConfigProvider.notifier)
+          .delete(harness.booruBackend.config);
+      await harness.pumpUntil(tester, () => setup.adapter.poolCancelled);
+      await harness.settle(tester);
+      expect(find.byIcon(Symbols.arrow_back_ios).hitTestable(), findsOneWidget);
+      expect(find.byType(PoolBookmarkButton).hitTestable(), findsNothing);
+      if (!setup.adapter.poolGate!.isCompleted) {
+        setup.adapter.poolGate!.complete();
+      }
+      await harness.settle(tester);
+      expect(find.byType(PoolDetailContent), findsNothing);
+      expect(pager.page, 1);
+      expect(pager.totalPage, 5);
+      pager.jumpToPage(4);
+      await harness.settle(tester);
+      expect(pager.page, 4);
+      expect(
+        setup.adapter.requests.where((r) => r.path == '/pools/10.json'),
+        hasLength(1),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'mixed Bookmark sequence restores gallery after member Back at $scale text',
+      (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final setup = await _mount(
+          tester,
+          seedReference: true,
+          seedPosts: true,
+          seedMixedSequence: true,
+          longGallery: true,
+        );
+        final harness = setup.harness;
+        final driver = AppFlowDriver(tester: tester, harness: harness);
+        await driver.openBookmarks();
+        await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+        await harness.settle(tester);
+        // The stored dates interleave Posts and group references deliberately.
+        await tester.tap(postTile(103));
+        await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
+        await harness.settle(tester);
+        final pager = tester
+            .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+            .controller!;
+        expect(pager.totalPage, 5);
+        expect(pager.page, 0);
+        expect(currentDetailPost(tester).id, 103);
+        await tester.drag(find.byType(PageView).first, const Offset(-280, 0));
+        await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+        await harness.settle(tester);
+        expect(pager.page, 1);
+        expect(
+          tester
+              .widget<PoolDetailContent>(find.byType(PoolDetailContent))
+              .pool
+              .id,
+          10,
+        );
+        final gallery = tester.widget<PostGrid<Post>>(
+          find.descendant(
+            of: find.byType(PoolDetailContent),
+            matching: find.byType(PostGrid<Post>),
+          ),
+        );
+        await harness.pumpUntil(
+          tester,
+          () => gallery.controller.items.length == 20,
+        );
+        gallery.scrollController!.jumpTo(150);
+        await harness.settle(tester);
+        final firstMember = find
+            .descendant(
+              of: find.byType(PoolDetailContent),
+              matching: find.byType(SliverPostGridImageGridItem),
+            )
+            .first;
+        await tester.ensureVisible(firstMember);
+        await tester.longPress(firstMember);
+        await harness.settle(tester);
+        final selection = SelectionMode.of(tester.element(firstMember));
+        expect(selection.isActive, isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.drag(find.byType(PageView).first, const Offset(-280, 0));
+        await harness.settle(tester);
+        expect(pager.page, 1);
+        selection.disable();
+        await harness.settle(tester);
+        final scroll = gallery.scrollController!;
+        scroll.jumpTo(150);
+        await harness.settle(tester);
+        final offset = scroll.offset;
+        final member = find
+            .descendant(
+              of: find.byType(PoolDetailContent),
+              matching: find.byType(SliverPostGridImageGridItem),
+            )
+            .first;
+        await tester.tap(member);
+        await harness.pumpUntil(
+          tester,
+          () => find.byType(BookmarkDetailsPage).evaluate().isEmpty,
+        );
+        await harness.settle(tester);
+        expect(find.byType(MixedPostDetailsPage), findsOneWidget);
+        final beforeShortcut = harness.booruBackend.requests
+            .whereType<FakeBooruPostRequest>()
+            .where((r) => r.query.startsWith('id:'))
+            .length;
+        await tester.sendKeyEvent(LogicalKeyboardKey.f5);
+        await harness.settle(tester);
+        expect(
+          harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
+            (r) => r.query.startsWith('id:'),
+          ),
+          hasLength(beforeShortcut),
+        );
+        await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+        await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
+        await harness.settle(tester);
+        expect(pager.page, 1);
+        expect(scroll.offset, offset);
+        harness.booruBackend.enqueuePosts(
+          page: 1,
+          query: 'id:${[for (var id = 101; id <= 120; id++) id].join(',')}',
+          posts: [for (var id = 101; id <= 120; id++) TestPost(id: id)],
+        );
+        FocusManager.instance.primaryFocus?.unfocus();
+        pager.jumpToPage(4);
+        await harness.settle(tester);
+        expect(find.byType(PoolDetailContent), findsNothing);
+        pager.jumpToPage(1);
+        await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+        await harness.settle(tester);
+        final restoredGallery = tester.widget<PostGrid<Post>>(
+          find.descendant(
+            of: find.byType(PoolDetailContent),
+            matching: find.byType(PostGrid<Post>),
+          ),
+        );
+        await harness.pumpUntil(
+          tester,
+          () => restoredGallery.controller.items.length == 20,
+        );
+        await harness.settle(tester);
+        expect(restoredGallery.scrollController, isNot(same(scroll)));
+        expect(restoredGallery.scrollController!.offset, offset);
+        restoredGallery.scrollController!.jumpTo(0);
+        await harness.settle(tester);
+        await tester.ensureVisible(find.byType(PoolOrderSelector));
+        await tester.tap(find.byType(PoolOrderSelector));
+        await harness.settle(tester);
+        await tester.tap(find.text('Latest'));
+        await harness.settle(tester);
+        expect(
+          tester
+              .widget<PoolOrderSelector>(find.byType(PoolOrderSelector))
+              .value,
+          PoolDetailsOrder.latest,
+        );
+        pager.jumpToPage(2);
+        await harness.settle(tester);
+        expect(currentDetailPost(tester).id, 102);
+        pager.jumpToPage(3);
+        await harness.pumpUntil(
+          tester,
+          () => find
+              .byWidgetPredicate(
+                (w) => w is PoolDetailContent && w.pool.id == 20,
+              )
+              .evaluate()
+              .isNotEmpty,
+        );
+        await harness.settle(tester);
+        final collectionOrder = find.descendant(
+          of: find.byWidgetPredicate(
+            (w) => w is PoolDetailContent && w.pool.id == 20,
+          ),
+          matching: find.byType(PoolOrderSelector),
+        );
+        expect(
+          tester.widget<PoolOrderSelector>(collectionOrder).value,
+          PoolDetailsOrder.order,
+        );
+        pager.jumpToPage(4);
+        await harness.settle(tester);
+        expect(currentDetailPost(tester).id, 101);
+        pager.jumpToPage(1);
+        await harness.pumpUntil(
+          tester,
+          () => find
+              .byWidgetPredicate(
+                (w) => w is PoolDetailContent && w.pool.id == 10,
+              )
+              .evaluate()
+              .isNotEmpty,
+        );
+        await harness.settle(tester);
+        expect(
+          tester
+              .widget<PoolOrderSelector>(find.byType(PoolOrderSelector))
+              .value,
+          PoolDetailsOrder.latest,
+        );
+        await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+        await harness.pumpUntilFound(tester, find.byType(BookmarkScrollView));
+        await harness.settle(tester);
+        expect(
+          setup.container.read(bookmarkProvider).requireValue.pools,
+          hasLength(2),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'live malberrybush order groups later Series before cached tiles freeze',
     (tester) async {
@@ -209,15 +927,15 @@ void main() {
       await harness.settle(tester);
       expect(card, findsOneWidget);
       await tester.tap(card);
-      await harness.pumpUntilFound(tester, find.byType(PoolDetailPage));
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
       expect(
         find.descendant(
-          of: find.byType(PoolDetailPage),
+          of: find.byType(PoolDetailContent),
           matching: find.byType(SearchSeriesGrid),
         ),
         findsNothing,
       );
-      await tester.pageBack();
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
       await harness.settle(tester);
       expect(card, findsOneWidget);
       expect(
@@ -1144,12 +1862,14 @@ void main() {
       await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
       await harness.settle(tester);
       await tester.tap(find.byType(BookmarkPoolCard));
-      await harness.pumpUntilFound(tester, find.byType(PoolDetailPage));
-      final page = tester.widget<PoolDetailPage>(find.byType(PoolDetailPage));
+      await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+      final page = tester.widget<PoolDetailContent>(
+        find.byType(PoolDetailContent),
+      );
       expect(page.pool.id, 10);
       expect(page.pool.postIds, hasLength(20));
       final scoped = ProviderScope.containerOf(
-        tester.element(find.byType(PoolDetailPage)),
+        tester.element(find.byType(PoolDetailContent)),
         listen: false,
       );
       expect(
@@ -1245,15 +1965,19 @@ void main() {
   );
 }
 
-DanbooruPool _pool() => DanbooruPool(
+DanbooruPool _pool({
+  DanbooruPoolCategory category = DanbooruPoolCategory.series,
+  String name = 'Series_10',
+  bool includeUpdated = true,
+}) => DanbooruPool(
   id: 10,
   postIds: [for (var id = 101; id <= 120; id++) id],
-  category: DanbooruPoolCategory.series,
+  category: category,
   description: '',
   postCount: 20,
-  name: 'Series_10',
+  name: name,
   createdAt: DateTime.utc(2000),
-  updatedAt: DateTime.utc(2026),
+  updatedAt: includeUpdated ? DateTime.utc(2026) : null,
 );
 
 Future<
@@ -1267,9 +1991,15 @@ Future<
 >
 _mount(
   WidgetTester tester, {
+  Size? viewportSize,
+  bool? keepTimelineVisible,
   bool initialOtherProfile = false,
   bool realSearch = false,
   bool seedReference = false,
+  bool seedMixedSequence = false,
+  bool longGallery = false,
+  int galleryMemberCount = 20,
+  int? memberPageSize,
   bool legacyCover = false,
   bool seedPosts = false,
   bool holdIndex = false,
@@ -1301,8 +2031,29 @@ _mount(
   backend.enqueuePosts(
     page: 1,
     query: 'id:${[for (var id = 101; id <= 120; id++) id].join(',')}',
-    posts: backend.posts,
+    posts: longGallery
+        ? [for (var id = 101; id <= 120; id++) TestPost(id: id)]
+        : backend.posts,
   );
+  if (galleryMemberCount > 20) {
+    final pageSize =
+        memberPageSize ?? Settings.defaultSettings.listing.postsPerPage;
+    for (var start = 101; start < 101 + galleryMemberCount; start += pageSize) {
+      final ids = [
+        for (
+          var id = start;
+          id < start + pageSize && id < 101 + galleryMemberCount;
+          id++
+        )
+          id,
+      ];
+      backend.enqueuePosts(
+        page: 1,
+        query: 'id:${ids.join(',')}',
+        posts: [for (final id in ids) TestPost(id: id)],
+      );
+    }
+  }
   final posts = MemoryBookmarkRepository();
   final groups = BookmarkGroupRepositoryHive(
     MemoryBox<BookmarkGroupHiveObject>(),
@@ -1315,23 +2066,43 @@ _mount(
         ...testPool()
             .copyWith(origin: postOriginFromConfig(backend.config))
             .toJson(),
+        if (seedMixedSequence)
+          'createdAt': testPoolPost(102).createdAt
+              .add(const Duration(hours: 12))
+              .toIso8601String(),
         if (legacyCover) ...{
           'coverUrl': backend.posts.first.thumbnailImageUrl,
           'coverPolicy': poolCoverPolicy(backend.config, {}),
         },
       }),
+      if (seedMixedSequence)
+        PoolBookmark.fromJson({
+          ...testPool(
+            id: 20,
+            category: BookmarkedPoolCategory.collection,
+          ).copyWith(origin: postOriginFromConfig(backend.config)).toJson(),
+          'createdAt': testPoolPost(101).createdAt
+              .add(const Duration(hours: 12))
+              .toIso8601String(),
+        }),
     ]);
   if (seedPosts) {
     final bookmarks = [
       for (var id = 101; id < 101 + seedPostCount; id++)
         (() {
           final old = testPoolPost(id);
-          final post = old.post.copyWith(
-            origin: postOriginFromConfig(backend.config),
-          );
+          final post = (seedMixedSequence ? TestPost(id: id) : old.post)
+              .copyWith(
+                origin: postOriginFromConfig(backend.config),
+              );
           return old.copyWith(
             post: post,
-            snapshot: const StoredPostCodec().encode(post),
+            snapshot: const StoredPostCodec().encode(
+              post,
+              dataCodec: seedMixedSequence
+                  ? const EmptyPostDataCodec('test')
+                  : null,
+            ),
           );
         })(),
     ];
@@ -1339,6 +2110,7 @@ _mount(
     await groups.addBookmarks(poolGroupA, bookmarks.map((b) => b.id).toSet());
   }
   final adapter = _PoolAdapter(
+    poolMemberCount: galleryMemberCount,
     holdSeries: holdSeries,
     seriesMembers: seriesMembers,
     seriesPools: seriesPools,
@@ -1352,12 +2124,34 @@ _mount(
     tester,
     runtime: runtime,
     booruBackend: backend,
-    phone: TestPhone.smallPortrait,
+    phone: viewportSize == null
+        ? TestPhone.smallPortrait
+        : viewportSize.width >= 1100
+        ? null
+        : TestPhone(
+            name: 'Pool layout $viewportSize',
+            size: viewportSize,
+            keyboardHeight: viewportSize.height >= 550 ? 260 : 200,
+            safeArea: viewportSize.width > viewportSize.height
+                ? const EdgeInsets.only(left: 20, right: 20, bottom: 16)
+                : const EdgeInsets.only(top: 24, bottom: 16),
+          ),
+    viewportSize: viewportSize,
     additionalOverrides: [
+      if (memberPageSize != null || keepTimelineVisible != null)
+        imageListingSettingsProvider.overrideWith(
+          (ref) => Settings.defaultSettings.listing.copyWith(
+            postsPerPage: memberPageSize,
+            keepTimelineToolbarVisible: keepTimelineVisible,
+          ),
+        ),
       if (realSearch)
         booruBuilderProvider.overrideWith(
           (ref, auth) => _SeriesSearchBuilder(),
         ),
+      viewerEntryContentCapabilityProvider.overrideWith(
+        (ref, config) => DanbooruRepository(ref: ref),
+      ),
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),
       bookmarkGroupRepoProvider.overrideWith((_) async => groups),
@@ -1391,8 +2185,13 @@ _mount(
 }
 
 class _PoolAdapter implements HttpClientAdapter {
-  _PoolAdapter({bool holdSeries = false, this.seriesMembers, this.seriesPools})
-    : seriesGate = holdSeries ? Completer<void>() : null;
+  _PoolAdapter({
+    bool holdSeries = false,
+    this.poolMemberCount = 20,
+    this.seriesMembers,
+    this.seriesPools,
+  }) : seriesGate = holdSeries ? Completer<void>() : null;
+  final int poolMemberCount;
   final Completer<void>? seriesGate;
   final List<int>? seriesMembers;
   final List<Map<String, Object?>>? seriesPools;
@@ -1401,6 +2200,9 @@ class _PoolAdapter implements HttpClientAdapter {
   final tailRequested = Completer<void>();
   int? delayedPostId;
   Completer<void>? tailGate;
+  Completer<void>? poolGate;
+  var poolFailures = 0;
+  var poolCancelled = false;
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -1408,12 +2210,28 @@ class _PoolAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
+    if (RegExp(r'^/pools/\d+\.json$').hasMatch(options.path)) {
+      if (poolFailures > 0) {
+        poolFailures--;
+        return ResponseBody.fromString('Unavailable', 503);
+      }
+      if (poolGate != null) {
+        unawaited(
+          cancelFuture?.then((_) {
+            poolCancelled = true;
+          }),
+        );
+        await poolGate!.future;
+      }
+    }
     final json = {
       'id': 10,
       'name': 'Series_10',
       'category': 'series',
-      'post_count': 20,
-      'post_ids': seriesMembers ?? [for (var id = 101; id <= 120; id++) id],
+      'post_count': poolMemberCount,
+      'post_ids':
+          seriesMembers ??
+          [for (var id = 101; id < 101 + poolMemberCount; id++) id],
       'created_at': '2000-01-01T00:00:00Z',
       'updated_at': '2026-01-01T00:00:00Z',
     };
@@ -1438,7 +2256,12 @@ class _PoolAdapter implements HttpClientAdapter {
     }
     if (options.path.endsWith('.json'))
       return ResponseBody.fromString(
-        jsonEncode(json),
+        jsonEncode({
+          ...json,
+          'id':
+              int.tryParse(options.path.split('/').last.split('.').first) ?? 10,
+          if (options.path == '/pools/20.json') 'category': 'collection',
+        }),
         200,
         headers: {
           Headers.contentTypeHeader: ['application/json'],
@@ -1456,6 +2279,7 @@ class _PoolAdapter implements HttpClientAdapter {
   @override
   void close({bool force = false}) {
     if (seriesGate != null && !seriesGate!.isCompleted) seriesGate!.complete();
+    if (poolGate != null && !poolGate!.isCompleted) poolGate!.complete();
     if (tailGate != null && !tailGate!.isCompleted) tailGate!.complete();
   }
 }

@@ -1,3 +1,5 @@
+import '../../../../navigation/destination_activity.dart';
+
 import 'package:flutter/foundation.dart' show mapEquals;
 
 import 'dart:math' as math;
@@ -174,6 +176,10 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   }
 
   bool _handleKeyEvent(KeyEvent event) {
+    if (!NavigationActivity.of(context) ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return false;
+    }
     if (isKeyPressed(LogicalKeyboardKey.f5, event: event)) {
       controller.refresh();
     }

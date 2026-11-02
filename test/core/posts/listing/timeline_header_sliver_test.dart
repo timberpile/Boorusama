@@ -7,6 +7,77 @@ import 'package:kurumi/kurumi.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final insetAlreadyConsumed in [false, true]) {
+    testWidgets(
+      'pinned controls respect status inset without double padding: consumed=$insetAlreadyConsumed',
+      (tester) async {
+        final controller = ScrollController();
+        addTearDown(controller.dispose);
+        const controls = ValueKey('safe-pinned-controls');
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                padding: const EdgeInsets.only(top: 24),
+                viewPadding: const EdgeInsets.only(top: 24),
+              ),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: SafeArea(
+                top: insetAlreadyConsumed,
+                bottom: false,
+                child: CustomScrollView(
+                  controller: controller,
+                  slivers: [
+                    const SliverAppBar(
+                      floating: true,
+                      snap: true,
+                      title: Text('Actions'),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                    const TimelineHeaderSliver(
+                      keepVisible: true,
+                      child: SizedBox(
+                        key: controls,
+                        height: 56,
+                        child: Text('Pinned controls'),
+                      ),
+                    ),
+                    SliverList.builder(
+                      itemCount: 80,
+                      itemBuilder: (_, index) => SizedBox(
+                        height: 100,
+                        child: Text('Post $index'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.getTopLeft(find.byKey(controls)).dy, 200);
+        controller.jumpTo(186);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(find.byKey(controls)).dy, 24);
+        controller.jumpTo(600);
+        await tester.pumpAndSettle();
+        expect(tester.getTopLeft(find.byKey(controls)).dy, 24);
+        expect(find.byKey(controls).hitTestable(), findsOneWidget);
+
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, 80));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getTopLeft(find.byKey(controls)).dy,
+          tester.getBottomLeft(find.byType(NavigationToolbar)).dy,
+        );
+        expect(controller.offset, greaterThan(200));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final pinned in [false, true]) {
     testWidgets('toolbar scroll visibility with pinning $pinned', (
       tester,

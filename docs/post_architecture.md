@@ -1,9 +1,9 @@
 # Post architecture
 
 Searches, server favorites, bookmarks, and Following Feeds all expose the same
-final `Post` runtime type. Shared grids and viewers must consume `Post` directly;
-feature-specific wrappers may hold a post, but must not define another post
-model.
+final `Post` runtime type. Shared Post media and action components consume `Post`
+directly; feature-specific wrappers may hold a post, but must not define another
+post model. Mixed navigation uses the separate viewer-entry contract below.
 
 ## Runtime model
 
@@ -61,6 +61,68 @@ for home, search, favorites, and engine-owned listing pages.
 changes the read-only profile and presentation for each active post. It does
 not change the globally selected profile. Media resolution is also scoped per
 page so adjacent posts from different engines cannot inherit stale settings.
+
+### Mixed viewer entries
+
+`ViewerEntry` separates content identity (engine, normalized host, content kind
+and upstream ID), transient source authorization, and occurrence identity in a
+displayed sequence. `PostViewerEntry` carries a real Post; `PoolViewerEntry`
+carries bounded Pool metadata. Series and Collections retain their existing Pool
+category. Engine repositories implement `ViewerEntryContentCapability` to supply
+non-Post content without importing engine implementation classes into Core.
+
+`ViewerEntrySequence` owns the route snapshot and explicitly maps displayed page
+indices to its compact list of real Posts. Repeated content may occupy distinct
+occurrences. Live updates append new occurrences without replacing established
+pages when the source changes. Bookmark navigation uses the current mixed grid
+projection directly. Grouped Search shares the grid's existing projection owner
+and freezes established entries when opening its viewer; it never independently
+regroups the viewer's raw Posts. Explicit Pool searches remain ordinary Post
+sequences.
+
+One `PostDetailsPageView` and scaffold own horizontal navigation. Post controllers
+are optional for Pool-only sequences; their `postAtPage` lookup returns null for
+groups. The retained `currentPost` notifier is for real Post consumers only.
+Pool pages have no inherited current Post, details sheet, zoom transformation,
+playback controls or vertical dismiss gesture. Preloading resolves only real
+Posts in the existing bounded displayed-index window. Slideshow advancement
+pauses before entering a group.
+
+Danbooru's standalone Pool route and embedded pages use `PoolDetailContent`.
+Pool entries declare content-owned navigation through
+`usesContentNavigationHeader`; the outer Post overlay is omitted for those
+entries. The shared 56dp floating action bar contains Back, Bookmark, Search
+and Download and owns the status-bar inset. Loading and error states retain
+that navigation; a missing source offers Back without source-dependent actions.
+The title and description scroll with the grid. A `TimelineOptionSelector`
+supplies local Pool order through the timeline's optional `additionalControls`,
+leaving blacklist controls and the fixed overflow action intact.
+When pinned, the timeline reserves the still-uncovered top system inset as it
+reaches the viewport edge. A visible action bar or an ancestor SafeArea already
+covers that inset, so it is not added twice.
+
+Floating timeline headers measure their natural extent with Flutter's
+persistent-header renderer. Cached extents and deferred snapping avoid reading
+child size from a scroll listener during ancestor layout, including gallery
+checkpoint restoration. Empty-to-content changes retain natural measurement.
+
+Each occurrence owns its sort and scroll state; only lightweight checkpoints
+survive page eviction in route-local `PageStorage`. Restoring a viewport beyond
+the first member batch reloads sequentially within the previously visited page
+extent; user scrolling cancels restoration. Metadata and members load on demand,
+with cancellable metadata requests and existing Post repository filtering and
+pagination. Source bindings require the original profile ID, credentials,
+host, and configured visibility policy; removing or changing the account never
+borrows another account on the same host. Unavailable groups keep the surrounding
+pager navigable and offer localized retry for request failures.
+
+Gallery selection suspends outer paging shortcuts and swipes. Opening a member
+uses a normal Post viewer above the gallery, with its member sequence and without
+the originating-grid exit scroll adjustment or competing Hero transitions. Back
+therefore preserves the gallery offset and outer page. Inactive grids do not
+respond to refresh shortcuts or automatic scroll pagination. Entries, source
+bindings, live callbacks and controllers are transient; persisted Post/Pool
+snapshots and backup formats remain unchanged.
 
 For sites whose listings expose only thumbnails, keep that thumbnail as the
 provisional media URL instead of deriving an original path that the listing

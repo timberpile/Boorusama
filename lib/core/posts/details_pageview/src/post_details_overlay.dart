@@ -16,6 +16,7 @@ class PostDetailsOverlay extends StatelessWidget {
     required this.sheetAnimController,
     required this.overlayCurvedAnimation,
     required this.disableAnimation,
+    this.detailsEnabled = true,
     super.key,
   });
 
@@ -26,6 +27,7 @@ class PostDetailsOverlay extends StatelessWidget {
   final AnimationController sheetAnimController;
   final Animation<double>? overlayCurvedAnimation;
   final bool disableAnimation;
+  final bool detailsEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +49,10 @@ class PostDetailsOverlay extends StatelessWidget {
               ),
             ),
           );
+
+          // Non-Post entries that use this overlay retain explicit Back navigation
+          // independently of media overlay hiding and animation state.
+          if (!detailsEnabled) return overlay;
 
           return ValueListenableBuilder(
             valueListenable: controller.forceHideOverlay,
@@ -97,12 +103,13 @@ class PostDetailsOverlay extends StatelessWidget {
               children: [
                 ...actions,
                 const SizedBox(width: 8),
-                _SheetControlButton(
-                  controller: controller,
-                  isLargeScreen: isLargeScreen,
-                  disableAnimation: disableAnimation,
-                  sheetAnimController: sheetAnimController,
-                ),
+                if (detailsEnabled)
+                  _SheetControlButton(
+                    controller: controller,
+                    isLargeScreen: isLargeScreen,
+                    disableAnimation: disableAnimation,
+                    sheetAnimController: sheetAnimController,
+                  ),
               ],
             ),
           ),

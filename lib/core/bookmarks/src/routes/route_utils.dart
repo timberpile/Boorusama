@@ -1,3 +1,5 @@
+import '../../../posts/details/src/types/viewer_entry.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -44,6 +46,7 @@ Future<void> goToBookmarkDetailsPage(
   required String initialThumbnailUrl,
   required PostGridController<Post> controller,
   BookmarkView sourceView = const BookmarkView.all(),
+  List<ViewerEntry>? entries,
 }) async {
   final detailsMutations = ref.read(
     bookmarkDetailsMutationProvider.notifier,
@@ -60,6 +63,7 @@ Future<void> goToBookmarkDetailsPage(
       ).toString(),
       extra: {
         'controller': controller,
+        'entries': entries,
         'initialThumbnailUrl': initialThumbnailUrl,
       },
     );

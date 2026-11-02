@@ -1,7 +1,12 @@
+import 'pool_gallery_checkpoint.dart';
+import '../../../../../../core/posts/details/src/routes/route_utils.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
@@ -21,9 +26,21 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     required this.pool,
     super.key,
     this.sliverHeaders,
+    this.order,
+    this.checkpointIdentity,
+    this.scrollController,
+    this.onSelectionChanged,
+    this.orderControl,
+    this.useHero = true,
   });
 
   final DanbooruPool pool;
+  final PoolDetailsOrder? order;
+  final Object? checkpointIdentity;
+  final AutoScrollController? scrollController;
+  final ValueChanged<bool>? onSelectionChanged;
+  final bool useHero;
+  final Widget? orderControl;
   final List<Widget>? sliverHeaders;
 
   @override
@@ -32,42 +49,106 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
       imageListingSettingsProvider.select((value) => value.postsPerPage),
     );
     final config = ref.watchConfig;
-    final order = ref.watch(poolFilterProvider.select((state) => state.order));
+    final selectedOrder = order ?? ref.watch(poolFilterProvider).order;
     final repo = ref.watch(originAwarePostRepoProvider(config));
 
     return CustomContextMenuOverlay(
       child: PostScope<Post>(
-        key: ValueKey((order, perPage)),
+        key: ValueKey((selectedOrder, perPage)),
         fetcher: (page) => TaskEither.tryCatch(
           () => repo.fetchPostIds(
             ids: pool.postIds ?? const [],
             page: page,
             perPage: perPage,
-            order: order,
+            order: selectedOrder,
           ),
           (error, stackTrace) => UnknownError(
             error: error,
             message: error.toString(),
           ),
         ),
-        builder: (context, controller) => PostGrid(
-          controller: controller,
-          itemBuilder: (context, index, scrollController, useHero) =>
-              DanbooruPostListingContextMenu(
-                index: index,
-                controller: controller,
-                child: DefaultDanbooruImageGridItem(
+        builder: (context, controller) {
+          final grid = PostGrid(
+            safeArea: false,
+            header: PostGridConfigurationHeader<Post>(
+              additionalControls: [
+                if (orderControl case final control?) control,
+              ],
+            ),
+            scrollController: scrollController,
+            controller: controller,
+            itemBuilder: (context, index, scrollController, useHero) =>
+                DanbooruPostListingContextMenu(
                   index: index,
-                  autoScrollController: scrollController,
                   controller: controller,
-                  useHero: useHero,
+                  child: DefaultDanbooruImageGridItem(
+                    index: index,
+                    autoScrollController: scrollController,
+                    controller: controller,
+                    useHero: this.useHero && useHero,
+                    // Back must preserve the gallery viewport, rather than apply
+                    // the ordinary originating-grid scroll-to-current behavior.
+                    onTap: this.useHero
+                        ? null
+                        : () => goToPostDetailsPageFromController(
+                            ref: ref,
+                            initialIndex: index,
+                            controller: controller,
+                            initialThumbnailUrl: null,
+                            config: config,
+                            hero: false,
+                          ),
+                  ),
                 ),
+            sliverHeaders: [
+              ...?sliverHeaders,
+              SliverToBoxAdapter(
+                child: _PoolSelectionListener(onChanged: onSelectionChanged),
               ),
-          sliverHeaders: [
-            ...?sliverHeaders,
-          ],
-        ),
+            ],
+          );
+          final identity = checkpointIdentity;
+          final scroll = scrollController;
+          return identity == null || scroll == null
+              ? grid
+              : PoolGalleryCheckpoint(
+                  identity: identity,
+                  controller: controller,
+                  scrollController: scroll,
+                  perPage: perPage,
+                  child: grid,
+                );
+        },
       ),
     );
   }
+}
+
+class _PoolSelectionListener extends StatefulWidget {
+  const _PoolSelectionListener({this.onChanged});
+  final ValueChanged<bool>? onChanged;
+  @override
+  State<_PoolSelectionListener> createState() => _PoolSelectionListenerState();
+}
+
+class _PoolSelectionListenerState extends State<_PoolSelectionListener> {
+  SelectionModeController? _selection;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final selection = SelectionMode.of(context);
+    if (_selection == selection) return;
+    _selection?.removeListener(_changed);
+    _selection = selection..addListener(_changed);
+  }
+
+  void _changed() => widget.onChanged?.call(_selection!.isActive);
+  @override
+  void dispose() {
+    _selection?.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

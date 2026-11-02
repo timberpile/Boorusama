@@ -29,6 +29,7 @@ import '../../../details_parts/types.dart';
 import '../../../post/routes.dart';
 import '../../../post/types.dart';
 import '../types/post_details.dart';
+import '../types/viewer_entry.dart';
 import '../types/post_viewer_transformation_controller.dart';
 import 'post_details_controller.dart';
 import 'post_details_full_info_sheet.dart';
@@ -52,6 +53,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     required this.actions,
     required this.postGestureHandlerBuilder,
     required this.uiBuilder,
+    this.sequence,
     super.key,
     this.onExpanded,
     this.preferredParts,
@@ -68,7 +70,8 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
 
   final List<T> posts;
   final void Function()? onExpanded;
-  final PostDetailsController<T> controller;
+  final PostDetailsController<T>? controller;
+  final ViewerEntrySequence? sequence;
   final PostDetailsUIBuilder? uiBuilder;
   final Set<DetailsPart>? preferredParts;
   final Set<DetailsPart>? preferredPreviewParts;
@@ -95,7 +98,12 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
 
 class _PostDetailPageScaffoldState<T extends Post>
     extends ConsumerState<PostDetailsPageScaffold<T>> {
-  late final _posts = widget.posts;
+  List<T> get _posts => widget.posts;
+  int get _pageCount => widget.sequence?.entries.length ?? _posts.length;
+  Post? _postAt(int page) => widget.sequence == null
+      ? _posts.elementAtOrNull(page)
+      : widget.sequence!.postAt(page);
+  bool get _isPostPage => _postAt(_controller.page) != null;
   late final _viewerTransformationController =
       PostViewerTransformationController(widget.transformController);
 
@@ -115,13 +123,11 @@ class _PostDetailPageScaffoldState<T extends Post>
 
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       if (!mounted) return;
-      widget.controller.setPage(
-        widget.controller.initialPage,
-      );
-      _onPageSettled(widget.controller.initialPage);
+      widget.controller?.setPage(_controller.page);
+      _onPageSettled(_controller.page);
     });
 
-    widget.controller.isVideoPlaying.addListener(_isVideoPlayingChanged);
+    widget.controller?.isVideoPlaying.addListener(_isVideoPlayingChanged);
   }
 
   @override
@@ -139,7 +145,7 @@ class _PostDetailPageScaffoldState<T extends Post>
 
     _volumeKeyPageNavigator = VolumeKeyPageNavigator(
       pageViewController: controller,
-      totalPosts: () => _posts.length,
+      totalPosts: () => _pageCount,
       visibilityNotifier: visibilityNotifier,
       enableVolumeKeyViewerNavigation: () => ref.read(
         settingsProvider.select((value) => value.volumeKeyViewerNavigation),
@@ -151,17 +157,17 @@ class _PostDetailPageScaffoldState<T extends Post>
   void didUpdateWidget(covariant PostDetailsPageScaffold<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
-      oldWidget.controller.isVideoPlaying.removeListener(
+      oldWidget.controller?.isVideoPlaying.removeListener(
         _isVideoPlayingChanged,
       );
-      widget.controller.isVideoPlaying.addListener(_isVideoPlayingChanged);
+      widget.controller?.isVideoPlaying.addListener(_isVideoPlayingChanged);
     }
   }
 
   @override
   void dispose() {
     _volumeKeyPageNavigator?.dispose();
-    widget.controller.isVideoPlaying.removeListener(_isVideoPlayingChanged);
+    widget.controller?.isVideoPlaying.removeListener(_isVideoPlayingChanged);
     _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
     visibilityNotifier.dispose();
 
@@ -175,7 +181,7 @@ class _PostDetailPageScaffoldState<T extends Post>
         focusedContext?.findAncestorWidgetOfExactType<EditableText>() != null;
     if (!_controller.keyboardShortcutsEnabled.value ||
         !visibilityNotifier.value ||
-        !widget.controller.currentPost.value.isVideo ||
+        !(_postAt(_controller.page)?.isVideo ?? false) ||
         editing) {
       return;
     }
@@ -211,10 +217,10 @@ class _PostDetailPageScaffoldState<T extends Post>
   void _isVideoPlayingChanged() {
     if (context.isLargeScreen && ref.read(appPlatformProvider).isDesktop) {
       // force overlay to be on when video is not playing
-      if (!widget.controller.isVideoPlaying.value) {
+      if (!(widget.controller?.isVideoPlaying.value ?? false)) {
         _controller.disableHoverToControlOverlay();
       } else {
-        if (widget.controller.currentPost.value.isVideo) {
+        if (_postAt(_controller.page)?.isVideo ?? false) {
           _controller.enableHoverToControlOverlay();
         }
       }
@@ -232,7 +238,7 @@ class _PostDetailPageScaffoldState<T extends Post>
           final distance = (page - precisePage).abs();
 
           if (distance <= 0.25) {
-            widget.controller.updateCurrentPost(page);
+            widget.controller?.updateCurrentPost(page);
           }
 
           if (distance == 0) {
@@ -246,7 +252,7 @@ class _PostDetailPageScaffoldState<T extends Post>
   void _onPageSettled(int page) {
     performanceRecorder.measureSync(PerfOperation.viewerSettlement, () {
       _viewerTransformationController.onPageSettled(page);
-      widget.controller.onPageSettled(page);
+      widget.controller?.onPageSettled(page);
     });
   }
 
@@ -300,24 +306,26 @@ class _PostDetailPageScaffoldState<T extends Post>
         const SingleActivator(
           LogicalKeyboardKey.keyF,
           control: true,
-        ): () => goToOriginalImagePage(
-          ref,
-          widget.posts[_controller.page],
-        ),
+        ): () {
+          final post = _postAt(_controller.page);
+          if (_isPostPage && visibilityNotifier.value && post != null) {
+            goToOriginalImagePage(ref, post);
+          }
+        },
         const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
             _handleMediaKey(
-              () => widget.controller.toggleCurrentVideo(showAnimation: true),
+              () => widget.controller?.toggleCurrentVideo(showAnimation: true),
             ),
         const SingleActivator(LogicalKeyboardKey.mediaPlay): () =>
             _handleMediaKey(
-              () => widget.controller.setCurrentVideoPlaying(
+              () => widget.controller?.setCurrentVideoPlaying(
                 true,
                 showAnimation: true,
               ),
             ),
         const SingleActivator(LogicalKeyboardKey.mediaPause): () =>
             _handleMediaKey(
-              () => widget.controller.setCurrentVideoPlaying(
+              () => widget.controller?.setCurrentVideoPlaying(
                 false,
                 showAnimation: true,
               ),
@@ -330,15 +338,16 @@ class _PostDetailPageScaffoldState<T extends Post>
 
           if (info.visibleFraction == 0) {
             visibilityNotifier.value = false;
-            _previouslyPlaying = widget.controller.isVideoPlaying.value;
+            _previouslyPlaying =
+                widget.controller?.isVideoPlaying.value ?? false;
             if (_previouslyPlaying) {
-              widget.controller.pauseCurrentVideo();
+              widget.controller?.pauseCurrentVideo();
             }
           } else if (info.visibleFraction == 1 &&
               NavigationActivity.of(context)) {
             visibilityNotifier.value = true;
             if (_previouslyPlaying) {
-              widget.controller.playCurrentVideo();
+              widget.controller?.playCurrentVideo();
             }
           }
         },
@@ -387,15 +396,15 @@ class _PostDetailPageScaffoldState<T extends Post>
         onLoadMoreNext: widget.onLoadMoreNext,
         disableAnimation: reduceAnimations,
         onPageChanged: (page) {
-          final post = posts[page];
+          final post = _postAt(page);
 
-          widget.controller.setPage(page);
+          widget.controller?.setPage(page);
 
           _isInitPage.value = false;
           widget.onPageChanged?.call(page);
 
           if (_controller.overlay.value) {
-            if (post.isVideo) {
+            if (post?.isVideo ?? false) {
               _controller.enableHoverToControlOverlay();
             } else {
               _controller.disableHoverToControlOverlay();
@@ -412,11 +421,19 @@ class _PostDetailPageScaffoldState<T extends Post>
         checkIfLargeScreen: () => context.isLargeScreen,
         controller: _controller,
         onExit: () {
-          widget.controller.onExit();
+          widget.controller?.onExit();
         },
-        itemCount: posts.length,
+        itemCount: _pageCount,
+        detailsEnabled: _isPostPage,
+        overlayEnabled:
+            !(widget
+                    .sequence
+                    ?.entries[_controller.page]
+                    .usesContentNavigationHeader ??
+                false),
+        isPostPage: (index) => _postAt(index) != null,
         leftActions: [
-          if (widget.controller.dislclaimer != null)
+          if (widget.controller?.dislclaimer != null)
             KurumiCircularIconButton(
               icon: const Icon(
                 Symbols.warning,
@@ -425,20 +442,20 @@ class _PostDetailPageScaffoldState<T extends Post>
               onPressed: () => Kurumi.showAppModalBarBottomSheet(
                 context: context,
                 builder: (_) => DisclaimerDialog(
-                  disclaimer: widget.controller.dislclaimer!,
+                  disclaimer: widget.controller!.dislclaimer!,
                 ),
               ),
             ),
         ],
         onSwipeDownThresholdReached:
-            gestures.canSwipeDown && postGesturesHandler != null
+            _isPostPage && gestures.canSwipeDown && postGesturesHandler != null
             ? () {
                 _controller.resetSheet();
 
                 postGesturesHandler(
                   ref,
                   gestures?.swipeDown,
-                  posts[_controller.page],
+                  _postAt(_controller.page)!,
                 );
               }
             : null,
@@ -474,17 +491,19 @@ class _PostDetailPageScaffoldState<T extends Post>
               child,
               Align(
                 alignment: Alignment.bottomCenter,
-                child: ValueListenableBuilder(
-                  valueListenable: widget.controller.currentPost,
-                  builder: (context, post, child) {
-                    return post.isVideo && context.isLargeScreen
-                        ? PostDetailsVideoControlsDesktop(
-                            controller: widget.controller,
-                            pageViewController: _controller,
-                          )
-                        : const SizedBox.shrink();
-                  },
-                ),
+                child: !_isPostPage
+                    ? const SizedBox.shrink()
+                    : ValueListenableBuilder(
+                        valueListenable: widget.controller!.currentPost,
+                        builder: (context, post, child) {
+                          return post.isVideo && context.isLargeScreen
+                              ? PostDetailsVideoControlsDesktop(
+                                  controller: widget.controller!,
+                                  pageViewController: _controller,
+                                )
+                              : const SizedBox.shrink();
+                        },
+                      ),
               ),
               if (widget.viewerWarning case final warning?)
                 Align(
@@ -496,33 +515,37 @@ class _PostDetailPageScaffoldState<T extends Post>
         ),
         itemBuilder: (context, index) {
           final child = widget.itemBuilder(context, index);
-          if (!widget.enableViewerTransformations) return child;
+          if (!widget.enableViewerTransformations || _postAt(index) == null) {
+            return child;
+          }
 
-          final post = posts[index];
+          final post = _postAt(index)!;
           return PostViewerTransformationViewport(
             child: PostViewerAutoComicStrip(
               index: index,
               postId: post.id,
               contentSize: Size(post.width, post.height),
-              currentSettledPage: widget.controller.currentSettledPage,
+              currentSettledPage: widget.controller!.currentSettledPage,
               enabled: autoAdjustComicStrips && !post.isVideo,
               child: child,
             ),
           );
         },
-        bottomSheet: Consumer(
-          builder: (_, ref, _) {
-            return switch (widget.uiBuilder) {
-              null => _buildFallbackPreview(),
-              final uiBuilder when uiBuilder.preview.isNotEmpty =>
-                _buildCustomPreview(
-                  uiBuilder: uiBuilder,
-                  hasPremium: ref.watch(hasPremiumLayoutProvider),
-                ),
-              _ => const SizedBox.shrink(),
-            };
-          },
-        ),
+        bottomSheet: !_isPostPage
+            ? null
+            : Consumer(
+                builder: (_, ref, _) {
+                  return switch (widget.uiBuilder) {
+                    null => _buildFallbackPreview(),
+                    final uiBuilder when uiBuilder.preview.isNotEmpty =>
+                      _buildCustomPreview(
+                        uiBuilder: uiBuilder,
+                        hasPremium: ref.watch(hasPremiumLayoutProvider),
+                      ),
+                    _ => const SizedBox.shrink(),
+                  };
+                },
+              ),
         actions: widget.actions,
         onExpanded: () {
           widget.onExpanded?.call();
@@ -571,20 +594,20 @@ class _PostDetailPageScaffoldState<T extends Post>
       shrinkWrap: true,
       slivers: [
         ValueListenableBuilder(
-          valueListenable: widget.controller.currentPost,
+          valueListenable: widget.controller!.currentPost,
           builder: (_, post, _) => post.isVideo
               ? SliverToBoxAdapter(
                   child: DecoratedBox(
                     decoration: decoration,
                     child: PostDetailsVideoControlsMobile(
-                      controller: widget.controller,
+                      controller: widget.controller!,
                     ),
                   ),
                 )
               : const SliverSizedBox.shrink(),
         ),
         ValueListenableBuilder(
-          valueListenable: widget.controller.currentPost,
+          valueListenable: widget.controller!.currentPost,
           builder: (_, post, _) {
             final multiSliver = MultiSliver(
               children: preferredPreviewParts
@@ -623,10 +646,10 @@ class _PostDetailPageScaffoldState<T extends Post>
 
   Widget _buildVideoControls() {
     return ValueListenableBuilder(
-      valueListenable: widget.controller.currentPost,
+      valueListenable: widget.controller!.currentPost,
       builder: (context, post, _) => post.isVideo
           ? PostDetailsVideoControlsMobile(
-              controller: widget.controller,
+              controller: widget.controller!,
             )
           : const SizedBox.shrink(),
     );

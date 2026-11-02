@@ -12,6 +12,7 @@ import '../../../../navigation/navigation_chrome_controller.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
+import '../types/viewer_entry.dart';
 import '../types/post_details.dart';
 import '../types/post_presentation_context.dart';
 import 'post_details_controller.dart';
@@ -25,9 +26,11 @@ class PostDetailsScope<T extends Post> extends ConsumerStatefulWidget {
     required this.dislclaimer,
     required this.child,
     required this.scrollController,
+    this.sequence,
     super.key,
   });
 
+  final ViewerEntrySequence? sequence;
   final int initialIndex;
   final String? initialThumbnailUrl;
   final List<T> posts;
@@ -42,7 +45,11 @@ class PostDetailsScope<T extends Post> extends ConsumerStatefulWidget {
 
 class _PostDetailsLayoutSwitcherState<T extends Post>
     extends ConsumerState<PostDetailsScope<T>> {
-  late final PostDetailsController<T> _controller;
+  PostDetailsController<T>? _controller;
+  int get _pageCount => widget.sequence?.entries.length ?? widget.posts.length;
+  Post? _postAt(int page) => widget.sequence == null
+      ? widget.posts.elementAtOrNull(page)
+      : widget.sequence!.postAt(page);
   late final PostDetailsPageViewController _pageViewController;
   NavigationChromeController? _navigationChrome;
   Animation<double>? _routeAnimation;
@@ -58,17 +65,9 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
     final reduceAnimations = settings.reduceAnimations;
     final hideOverlay = viewerSettings.postDetailsOverlayInitialState.isHide;
     final slideshowOptions = toSlideShowOptions(viewerSettings);
-    final hoverToControlOverlay = widget.posts[initialPage].isVideo;
+    final hoverToControlOverlay = _postAt(initialPage)?.isVideo ?? false;
 
-    _controller = PostDetailsController<T>(
-      scrollController: widget.scrollController,
-      initialPage: initialPage,
-      initialThumbnailUrl: widget.initialThumbnailUrl,
-      posts: widget.posts,
-      reduceAnimations: reduceAnimations,
-      dislclaimer: widget.dislclaimer,
-      doubleTapSeekDuration: viewerSettings.doubleTapSeekDuration,
-    );
+    _createPostController(initialPage);
 
     _pageViewController = PostDetailsPageViewController(
       initialPage: initialPage,
@@ -76,17 +75,37 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
       slideshowOptions: slideshowOptions,
       hoverToControlOverlay: hoverToControlOverlay,
       checkIfLargeScreen: () => context.isLargeScreen,
-      totalPage: widget.posts.length,
+      totalPage: _pageCount,
       disableAnimation: reduceAnimations,
       onBeforeSlideshowAdvance: (currentPage, nextPage) async {
+        if (_postAt(nextPage) == null) {
+          _pageViewController.stopSlideshow();
+          return;
+        }
         if (viewerSettings.slideshowVideoBehavior.isWaitForCompletion) {
-          final currentPost = widget.posts[currentPage];
+          final currentPost = _postAt(currentPage);
 
-          if (currentPost.isVideo) {
-            await _controller.waitForVideoCompletion(currentPost);
+          if (currentPost?.isVideo ?? false) {
+            await _controller?.waitForVideoCompletion(currentPost!);
           }
         }
       },
+    );
+  }
+
+  void _createPostController(int page) {
+    if (_controller != null || widget.posts.isEmpty) return;
+    _controller = PostDetailsController<T>(
+      postIndexForPage: widget.sequence?.postIndex,
+      scrollController: widget.scrollController,
+      initialPage: page,
+      initialThumbnailUrl: widget.initialThumbnailUrl,
+      posts: widget.posts,
+      reduceAnimations: ref.read(settingsProvider).reduceAnimations,
+      dislclaimer: widget.dislclaimer,
+      doubleTapSeekDuration: ref
+          .read(imageViewerSettingsProvider)
+          .doubleTapSeekDuration,
     );
   }
 
@@ -124,7 +143,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
     }
     _syncNavigationChrome();
     final active = NavigationActivity.of(context);
-    _controller.setNavigationActive(active);
+    _controller?.setNavigationActive(active);
     if (!active) _pageViewController.stopSlideshow();
   }
 
@@ -138,7 +157,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
       );
     _pageViewController.overlay.removeListener(_syncNavigationChrome);
     _pageViewController.bottomObstruction.removeListener(_syncNavigationChrome);
-    _controller.dispose();
+    _controller?.dispose();
     _pageViewController.dispose();
 
     super.dispose();
@@ -146,19 +165,20 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
 
   @override
   Widget build(BuildContext context) {
-    _pageViewController.totalPage = widget.posts.length;
+    _pageViewController.totalPage = _pageCount;
+    _createPostController(_pageViewController.page);
+    final controller = _controller;
+    final child = PostDetails(
+      data: controller == null
+          ? null
+          : PostDetailsData(posts: widget.posts, controller: controller),
+      child: widget.sequence == null
+          ? CurrentPostScope(post: controller!.currentPost, child: widget.child)
+          : widget.child,
+    );
     return PostDetailsPageViewScope(
       controller: _pageViewController,
-      child: PostDetails(
-        data: PostDetailsData(
-          posts: widget.posts,
-          controller: _controller,
-        ),
-        child: CurrentPostScope(
-          post: _controller.currentPost,
-          child: widget.child,
-        ),
-      ),
+      child: child,
     );
   }
 }

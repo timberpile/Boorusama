@@ -1,3 +1,8 @@
+import '../../../../../../core/navigation/destination_activity.dart';
+import '../../../../../../core/posts/details/src/types/viewer_entry.dart';
+import '../../../../../../core/posts/details/src/routes/route_utils.dart';
+import '../../../../../../core/posts/details/src/routes/post_details_live_source.dart';
+import '../../../../../../core/posts/details/src/routes/viewer_navigation_scope.dart';
 import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/posts/listing/providers.dart';
 import '../../../../../../core/settings/src/types/utils.dart';
@@ -7,7 +12,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../../../core/bookmarks/src/providers/pool_bookmark_provider.dart';
@@ -233,6 +237,8 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _fillScheduled = false;
       if (!mounted ||
+          !NavigationActivity.of(context) ||
+          !(ModalRoute.of(context)?.isCurrent ?? true) ||
           generation != _generation ||
           SelectionMode.of(context).isActive ||
           isExplicitSeriesSearch(widget.query) ||
@@ -260,6 +266,122 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     });
   }
 
+  void _syncProjection() {
+    final controller = widget.controller;
+    if (controller.refreshing && !_wasRefreshing) {
+      _generation++;
+      _lastFrozenFirstIndex = -1;
+      _display = const [];
+      _admitted.clear();
+      _displayPools.clear();
+      _fillRequests = 0;
+    }
+    _wasRefreshing = controller.refreshing;
+    if (controller.page != _lastPage && !_filling) {
+      _fillRequests = 0;
+    }
+    _lastPage = controller.page;
+    final posts = controller.items.toList();
+    final samePrefix =
+        _posts.length <= posts.length &&
+        _posts.indexed.every((entry) => entry.$2 == posts[entry.$1]);
+    if (!samePrefix) {
+      _lastFrozenFirstIndex = -1;
+      _generation++;
+      _fillRequests = 0;
+      _admitted.clear();
+      _display = const [];
+      _displayPools.clear();
+    }
+    _posts = posts;
+    // Preserve built entries by their original indices, never by a range
+    // inferred from member count. A retained group can extend across pages.
+    _display = _project(
+      posts,
+      frozen: [
+        for (final entry in _display)
+          if (entry.firstIndex <= _lastFrozenFirstIndex) entry,
+      ],
+    );
+    for (final entry in _display) {
+      if (entry.seriesId case final id?) {
+        final pool = widget.index
+            .pools(widget.config, entry.posts.first)
+            .where((pool) => pool.id == id)
+            .firstOrNull;
+        if (pool != null) _displayPools[(entry.firstIndex, id)] = pool;
+      }
+    }
+  }
+
+  List<ViewerEntry> _viewerEntries() {
+    _syncProjection();
+    if (_display.isNotEmpty) _lastFrozenFirstIndex = _display.last.firstIndex;
+    final source = ViewerSourceBinding(widget.config);
+    return [
+      for (final entry in _display)
+        if (_displayPools[(entry.firstIndex, entry.seriesId)] case final pool?)
+          PoolViewerEntry(
+            origin: entry.posts.first.origin,
+            pool: pool,
+            occurrenceId: (_generation, entry.firstIndex, 'pool', pool.id),
+            source: source,
+          )
+        else
+          PostViewerEntry(
+            post: entry.posts.first,
+            occurrenceId: (_generation, entry.firstIndex, 'post'),
+            source: source,
+          ),
+    ];
+  }
+
+  void _openViewer(int displayIndex, String? thumbnail) {
+    final entries = _viewerEntries();
+    final generation = _generation;
+    final controller = widget.controller;
+    final config = widget.config;
+    bool valid() =>
+        mounted &&
+        generation == _generation &&
+        controller == widget.controller &&
+        config == widget.config &&
+        ref.read(booruConfigProvider).contains(config);
+    final pagination = PostDetailsLiveSource(
+      changes: controller,
+      posts: () => controller.items,
+      hasMore: () =>
+          valid() &&
+          controller.pageMode == PageMode.infinite &&
+          controller.hasMore,
+      loading: () => valid() && controller.loadingMore,
+      failed: () => valid() && controller.errors.value != null,
+      fetchMore: () async {
+        if (valid()) await controller.fetchMore();
+      },
+    );
+    goToPostDetailsPageCore(
+      ref: ref,
+      posts: controller.items.toList(),
+      initialIndex: displayIndex,
+      hero: false,
+      initialThumbnailUrl: thumbnail,
+      entries: entries,
+      config: config,
+      entrySource: ViewerEntryLiveSource(
+        changes: Listenable.merge([controller, widget.index]),
+        entries: () {
+          if (!valid()) return const [];
+          final entries = _viewerEntries();
+          // Refresh/query replacement can invalidate the projection during
+          // synchronization itself. Do not append the replacement generation.
+          return valid() ? entries : const [];
+        },
+        pagination: pagination,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selection = SelectionMode.of(context);
@@ -270,51 +392,8 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
         widget.controller,
       ]),
       builder: (_, _) {
-        final controller = widget.controller;
-        if (controller.refreshing && !_wasRefreshing) {
-          _generation++;
-          _lastFrozenFirstIndex = -1;
-          _display = const [];
-          _admitted.clear();
-          _displayPools.clear();
-          _fillRequests = 0;
-        }
-        _wasRefreshing = controller.refreshing;
-        if (controller.page != _lastPage && !_filling) {
-          _fillRequests = 0;
-        }
-        _lastPage = controller.page;
-        final posts = controller.items.toList();
-        final samePrefix =
-            _posts.length <= posts.length &&
-            _posts.indexed.every((entry) => entry.$2 == posts[entry.$1]);
-        if (!samePrefix) {
-          _lastFrozenFirstIndex = -1;
-          _generation++;
-          _fillRequests = 0;
-          _admitted.clear();
-          _display = const [];
-          _displayPools.clear();
-        }
-        _posts = posts;
-        // Preserve built entries by their original indices, never by a range
-        // inferred from member count. A retained group can extend across pages.
-        _display = _project(
-          posts,
-          frozen: [
-            for (final entry in _display)
-              if (entry.firstIndex <= _lastFrozenFirstIndex) entry,
-          ],
-        );
-        for (final entry in _display) {
-          if (entry.seriesId case final id?) {
-            final pool = widget.index
-                .pools(widget.config, entry.posts.first)
-                .where((pool) => pool.id == id)
-                .firstOrNull;
-            if (pool != null) _displayPools[(entry.firstIndex, id)] = pool;
-          }
-        }
+        _syncProjection();
+        final posts = _posts;
         final display =
             selection.isActive || isExplicitSeriesSearch(widget.query)
             ? _project(posts, enabled: false)
@@ -335,13 +414,33 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
             if (entry.seriesId == null)
               return KeyedSubtree(
                 key: ValueKey((widget.config, entry.posts.first.id)),
-                child: widget.itemBuilder(context, entry.firstIndex),
+                child: isExplicitSeriesSearch(widget.query)
+                    ? widget.itemBuilder(context, entry.firstIndex)
+                    : ViewerNavigationScope(
+                        open: (raw, thumbnail) => _openViewer(
+                          display.indexWhere(
+                            (entry) => entry.indices.contains(raw),
+                          ),
+                          thumbnail,
+                        ),
+                        child: widget.itemBuilder(context, entry.firstIndex),
+                      ),
               );
             final pool = _displayPools[(entry.firstIndex, entry.seriesId!)];
             if (pool == null)
               return KeyedSubtree(
                 key: ValueKey((widget.config, entry.posts.first.id)),
-                child: widget.itemBuilder(context, entry.firstIndex),
+                child: isExplicitSeriesSearch(widget.query)
+                    ? widget.itemBuilder(context, entry.firstIndex)
+                    : ViewerNavigationScope(
+                        open: (raw, thumbnail) => _openViewer(
+                          display.indexWhere(
+                            (entry) => entry.indices.contains(raw),
+                          ),
+                          thumbnail,
+                        ),
+                        child: widget.itemBuilder(context, entry.firstIndex),
+                      ),
               );
             return KeyedSubtree(
               key: ValueKey((widget.config, pool.id, entry.posts.first.id)),
@@ -370,29 +469,7 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
                         post: entry.posts.first,
                         config: widget.config.auth,
                       ),
-                      onTap: () async {
-                        final config = widget.config;
-                        final capability = ref.read(
-                          poolBookmarkCapabilityProvider(config),
-                        );
-                        try {
-                          if (capability == null ||
-                              !ref.read(booruConfigProvider).contains(config)) {
-                            throw StateError('Series profile unavailable');
-                          }
-                          await capability.openBookmarkPool(
-                            ref,
-                            config,
-                            pool.id,
-                          );
-                        } catch (_) {
-                          if (context.mounted)
-                            Kurumi.showErrorToast(
-                              context,
-                              context.t.bookmark.pool_unavailable,
-                            );
-                        }
-                      },
+                      onTap: () => _openViewer(i, null),
                     ),
                   ),
                 ),

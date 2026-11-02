@@ -57,11 +57,17 @@ class PostDetailsPageView extends StatefulWidget {
     this.nextCanLoad = false,
     this.onRetryNext,
     this.onLoadMoreNext,
+    this.detailsEnabled = true,
+    this.overlayEnabled = true,
+    this.isPostPage,
   });
 
   final Widget Function(BuildContext, ScrollController? scrollController)
   sheetBuilder;
   final int itemCount;
+  final bool detailsEnabled;
+  final bool overlayEnabled;
+  final bool Function(int)? isPostPage;
   final IndexedWidgetBuilder itemBuilder;
   final double maxSize;
   final double swipeDownThreshold;
@@ -197,6 +203,9 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     _controller
       ..attachOverlayAnimController(_overlayAnimController)
       ..attachBottomSheetAnimController(_bottomInfoAnimController);
+    if (!widget.detailsEnabled) {
+      _controller.showOverlay(includeSystemStatus: false);
+    }
     _bottomInfoAnimController?.addListener(_syncBottomObstruction);
     _controller.forceHideBottomSheet.addListener(_syncBottomObstruction);
     _controller.bottomSheet.addListener(_syncBottomObstruction);
@@ -206,7 +215,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     final currentExpanded = _controller.sheetState.value.isExpanded;
 
     // auto expand side sheet if it was expanded before
-    if (isLargeScreen && !currentExpanded) {
+    if (widget.detailsEnabled && isLargeScreen && !currentExpanded) {
       final expanded = widget.sheetStateStorage?.loadExpandedState();
 
       if (expanded ?? false) {
@@ -216,11 +225,11 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       }
     }
 
-    if (_controller.initialHideOverlay) {
+    if (_controller.initialHideOverlay && widget.detailsEnabled) {
       Future.delayed(
         const Duration(milliseconds: 250),
         () {
-          if (!mounted) return;
+          if (!mounted || !widget.detailsEnabled) return;
           hideSystemStatus();
         },
       );
@@ -230,6 +239,19 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   @override
   void didUpdateWidget(PostDetailsPageView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.detailsEnabled && !widget.detailsEnabled) {
+      _controller.animating.value = true;
+      if (_controller.sheetController.isAttached) {
+        _controller.sheetController.jumpTo(0);
+      }
+      _controller.sheetState.value = SheetState.collapsed;
+      _controller.verticalPosition.value = 0;
+      _controller.setDisplacement(0);
+      _controller.animating.value = false;
+      _controller.stopSlideshow();
+      _controller.disableHoverToControlOverlay();
+      _controller.showOverlay();
+    }
     if (oldWidget.itemCount != widget.itemCount ||
         oldWidget.disableAnimation != widget.disableAnimation) {
       _cancelEdgeSlide();
@@ -363,8 +385,11 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       widget.onPageChanged?.call(pageNum);
 
       // Hide UI elements when page changes
-      if (_controller.initialHideOverlay && !isLargeScreen) {
+      final isPost = widget.isPostPage?.call(pageNum) ?? true;
+      if (_controller.initialHideOverlay && !isLargeScreen && isPost) {
         _controller.hideAllUI();
+      } else if (!isPost) {
+        _controller.showOverlay();
       }
     }
   }
@@ -514,7 +539,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                   },
                 ),
               ),
-              if (!isLargeScreen)
+              if (!widget.detailsEnabled || !isLargeScreen)
                 const SizedBox.shrink()
               else if (!widget.disableAnimation)
                 AnimatedBuilder(
@@ -547,7 +572,9 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
               ),
             ],
           ),
-          if (isLargeScreen && !widget.disableAnimation)
+          if (widget.detailsEnabled &&
+              isLargeScreen &&
+              !widget.disableAnimation)
             Align(
               alignment: Alignment.centerRight,
               child: SlideTransition(
@@ -640,7 +667,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
           ),
         Align(
           alignment: Alignment.bottomCenter,
-          child: !isLargeScreen
+          child: widget.detailsEnabled && !isLargeScreen
               ? DragSheet(
                   sheetBuilder: (context, scrollController) =>
                       ListenableBuilder(
@@ -664,15 +691,17 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                 )
               : const SizedBox.shrink(),
         ),
-        PostDetailsOverlay(
-          controller: _controller,
-          leftActions: widget.leftActions,
-          actions: widget.actions,
-          isLargeScreen: isLargeScreen,
-          sheetAnimController: _sheetAnimController,
-          overlayCurvedAnimation: _overlayCurvedAnimation,
-          disableAnimation: widget.disableAnimation,
-        ),
+        if (widget.overlayEnabled)
+          PostDetailsOverlay(
+            controller: _controller,
+            leftActions: widget.leftActions,
+            actions: widget.actions,
+            detailsEnabled: widget.detailsEnabled,
+            isLargeScreen: isLargeScreen,
+            sheetAnimController: _sheetAnimController,
+            overlayCurvedAnimation: _overlayCurvedAnimation,
+            disableAnimation: widget.disableAnimation,
+          ),
       ],
     );
   }
@@ -707,7 +736,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   }
 
   Widget _buildBottomDisplacement() {
-    return !isLargeScreen
+    return widget.detailsEnabled && !isLargeScreen
         ? ValueListenableBuilder(
             valueListenable: _controller.sheetMaxSize,
             builder: (_, maxSize, _) => ValueListenableBuilder(
@@ -877,6 +906,14 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       child: widget.itemBuilder(context, index),
     );
 
+    if (!(widget.isPostPage?.call(index) ?? true)) {
+      return Stack(
+        children: [
+          Positioned.fill(child: navigation),
+          if (isDesktopPlatform()) ...buildNavButtons(),
+        ],
+      );
+    }
     return Stack(
       children: [
         Positioned.fill(
