@@ -196,7 +196,7 @@ class Settings extends Equatable {
       mediaBlurCondition: MediaBlurCondition.defaultValue,
       imageGridSpacing: 4,
       imageBorderRadius: 4,
-      imageGridPadding: 16,
+      imageGridPadding: 4,
       imageGridAspectRatio: 0.7,
       postsPerPage: 60,
       animatedPostsDefaultState: AnimatedPostsDefaultState.defaultValue,
@@ -824,7 +824,7 @@ class ImageListingSettings extends Equatable {
       ),
       postsPerPage = json['postsPerPage'] ?? 60,
       imageGridAspectRatio = json['imageGridAspectRatio'] ?? 0.7,
-      imageGridPadding = json['imageGridPadding'] ?? 16,
+      imageGridPadding = json['imageGridPadding'] ?? 4,
       imageGridSpacing = json['imageGridSpacing'] ?? 4,
       animatedPostsDefaultState = AnimatedPostsDefaultState.parse(
         json['animatedPostsDefaultState'],
