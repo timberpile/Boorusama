@@ -1,5 +1,9 @@
 # Local handoff — Issue #136: Kurumi UI design system
 
+Continuation: [2026-11-03 timeline contract supplement](136-timeline-contract-20261103.md)
+records later accepted rules and ten additional captures. The original source
+audit, 30 captures and Penpot imports below retain their existing limits.
+
 Date: 2026-11-02
 Repository: https://github.com/timberpile/Boorusama
 Issue: https://github.com/timberpile/Boorusama/issues/136
