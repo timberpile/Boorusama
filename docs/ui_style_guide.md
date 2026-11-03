@@ -1,6 +1,6 @@
 # Boorusama UI style guide (baseline)
 
-Status: **proposed baseline**, pending review and acceptance under [#136](https://github.com/timberpile/Boorusama/issues/136). Most sections describe existing patterns and conservative rules. The timeline contract below records the user's accepted 2026-11-03 decision; it supersedes only #107's earlier translucent-surface choice. Other approved feature behavior remains authoritative. Recording the contract does not authorize its runtime implementation.
+Status: **proposed baseline**, pending review and acceptance under [#136](https://github.com/timberpile/Boorusama/issues/136). Most sections describe existing patterns and conservative rules. The timeline contract below records the user's accepted 2026-11-03 decision and subsequent rounded-search-field clarification; it supersedes only #107's earlier translucent-surface choice. Other approved feature behavior remains authoritative. Recording the contract does not authorize its runtime implementation.
 
 See the [Kurumi component index](designs/2026-11-02-kurumi-component-inventory.md), [source audit](designs/2026-11-02-ui-design-system-audit.md) and [Penpot design strategy](designs/2026-11-02-penpot-design-strategy.md).
 
@@ -93,6 +93,19 @@ tag editing, completion, submission, and cancellation in its existing app
 wrapper. Dialogs must preserve Navigator ownership, IME insets, scrollable
 content, validation, and cancellation before component substitution.
 
+### Navigation and action placement
+
+Prefer existing Kurumi navigation, back controls, menus, dialogs and application
+controls where suitable components exist. Comparable screens use a consistent
+Kurumi back-navigation presentation. Reuse built-in adaptive title fitting and
+normal Header spacing; avoid page-specific title-fitting wrappers.
+
+Context-menu action icons normally lead their labels. Actual status, counts,
+selection marks and submenu indicators may remain trailing. Use directional
+spacing so leading/trailing mirror correctly in RTL; an action glyph is not a
+reason to move unrelated trailing information. Preserve keyboard/focus,
+accessibility and dismissal behavior. Radius decisions remain owned by #105.
+
 ### Popup trigger geometry
 
 [\#105](https://github.com/timberpile/Boorusama/issues/105) owns radius decisions
@@ -128,9 +141,12 @@ Toolbar region.
   hide the Header while scrolling down and reveal it after slight upward scrolling,
   including away from the top. Preserve route restoration, actions and selection.
 - When Search Bar and Timeline Toolbar form one region, one parent owns their
-  **opaque semantic surface**. Their children remain transparent; do not stack
-  translucent fills, rounded outer search backgrounds or gaps between the rows.
-  Internal suggestion menus and editor overlays retain their own Kurumi surfaces.
+  **opaque semantic surface**. Search inputs retain the distinct, rounded default
+  Kurumi field surface used by Browse; sharing an opaque parent is not a reason
+  to make the input transparent. Other individual toolbar controls remain
+  transparent by default. Keep adjacent surfaces semantically consistent, without
+  stacked translucent layers or gaps between rows. Suggestion menus and editor
+  overlays retain their own Kurumi surfaces.
 - Use the active theme's semantic surface and matching content roles. Do not
   hardcode black, copy a screenshot color or treat AMOLED as ordinary dark mode.
   #139 uses the active `colorScheme.surface` for the Bookmark region.
@@ -245,3 +261,8 @@ calling them drift. Use the [canonical capture matrix](designs/2026-11-02-ui-des
 and add only the states touched by the change. Store raw local captures in durable
 ignored task artifacts; share only reviewed, sanitized evidence. A successful
 Maestro command or a matching APK hash alone is not visual acceptance.
+
+The earlier timeline supplement's transparent Bookmark input captures are
+historical evidence. The user's later #139 correction restores the default
+rounded Kurumi input surface while keeping the common opaque parent; those
+captures do not supersede this approved distinction.
