@@ -152,8 +152,10 @@ class _PostActionsBar extends ConsumerWidget {
               key: const Key('selection-single-bookmark'),
               decorate: (context, child) => BookmarkGroupPickerAnchor(
                 key: ValueKey((singlePost.origin, singlePost.id, bookmarkAuth)),
-                config: bookmarkAuth,
-                post: singlePost,
+                request: PostBookmarkPickerRequest(
+                  config: bookmarkAuth,
+                  post: singlePost,
+                ),
                 builder: (context, showPicker) {
                   showBookmarkPicker = showPicker;
                   return child;

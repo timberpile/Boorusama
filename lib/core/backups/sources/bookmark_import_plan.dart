@@ -20,11 +20,13 @@ class BookmarkGroupImport extends Equatable {
     this.destinationId,
     this.folderId,
     this.position = 0,
+    this.addedAt = const {},
   });
 
   final String id;
   final String name;
   final Set<BookmarkUniqueId> bookmarkIds;
+  final Map<BookmarkUniqueId, DateTime> addedAt;
   final bool conflicts;
   final BookmarkGroupConflictChoice? choice;
   final ImportAction? action;
@@ -55,6 +57,7 @@ class BookmarkGroupImport extends Equatable {
         id: id,
         name: name,
         bookmarkIds: bookmarkIds,
+        addedAt: addedAt,
         conflicts: conflicts,
         choice: choice,
         action: action,
@@ -72,6 +75,7 @@ class BookmarkGroupImport extends Equatable {
     id: id,
     name: name,
     bookmarkIds: bookmarkIds,
+    addedAt: addedAt,
     conflicts: conflicts,
     choice: choice,
     action: action,
@@ -86,6 +90,7 @@ class BookmarkGroupImport extends Equatable {
     id,
     name,
     bookmarkIds,
+    addedAt,
     conflicts,
     choice,
     action,
@@ -105,7 +110,7 @@ class BookmarkImportPlan extends Equatable {
     this.pools = const [],
   });
 
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final List<Bookmark> bookmarks;
   final List<Bookmark> missingBookmarks;
   final List<BookmarkGroupImport> groups;

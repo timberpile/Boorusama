@@ -1,3 +1,6 @@
+import '../../core/posts/related/related_family.dart';
+import 'posts/related/related_gallery.dart';
+
 import 'package:flutter/widgets.dart';
 
 import '../../core/posts/details/src/types/viewer_entry.dart';
@@ -87,6 +90,7 @@ class DanbooruRepository extends BooruRepositoryDefault
 
   @override
   Widget buildViewerEntry(ViewerEntry entry) => switch (entry) {
+    final RelatedViewerEntry related => RelatedGallery(entry: related),
     final PoolViewerEntry pool => DanbooruPoolViewerContent(entry: pool),
     _ => const SizedBox.shrink(),
   };

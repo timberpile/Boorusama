@@ -1,3 +1,7 @@
+import 'package:boorusama/core/posts/related/related_posts_order.dart';
+import 'package:boorusama/core/settings/src/types/settings_repository.dart';
+import 'package:boorusama/core/posts/related/related_family.dart';
+import 'package:boorusama/boorus/danbooru/posts/related/related_gallery.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_toolbar.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
@@ -63,6 +67,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:selection_mode/selection_mode.dart';
+import 'package:i18n/i18n.dart';
 
 import '../core/bookmarks/pool_bookmark_test_utils.dart';
 import '../core/search/following_topics/topic_test_utils.dart';
@@ -74,6 +79,492 @@ import 'support/fake_image_dio.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  for (final failSave in [false, true]) {
+    testWidgets(
+      'Related order persists separately and retains content when save fails=$failSave',
+      (tester) async {
+        final repository = MemorySettingsRepository();
+        final setup = await _mount(
+          tester,
+          seedRelated: true,
+          settingsRepository: failSave
+              ? _FailedRelatedSettingsRepository(repository)
+              : repository,
+        );
+        final harness = setup.harness;
+        await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+        await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+        await harness.settle(tester);
+        final card = find.byType(BookmarkPoolCard);
+        expect(
+          find.byTooltip(tester.element(card).t.bookmark.pool_filter_help),
+          findsNothing,
+        );
+        expect(
+          tester
+              .widget<PoolGridItem>(
+                find.descendant(of: card, matching: find.byType(PoolGridItem)),
+              )
+              .name,
+          isNull,
+        );
+        tester.widget<BookmarkPoolCard>(card).onOpen!();
+        await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+        await harness.settle(tester);
+        PostGrid<Post> gallery() => tester.widget<PostGrid<Post>>(
+          find.descendant(
+            of: find.byType(RelatedGallery),
+            matching: find.byType(PostGrid<Post>),
+          ),
+        );
+        await harness.pumpUntil(
+          tester,
+          () => gallery().controller.items.isNotEmpty,
+        );
+        final original = gallery().controller;
+        expect(original.items.first.id, 10);
+        gallery().selectionModeController!.enable(initialSelected: [0]);
+        await harness.settle(tester);
+        await tester.ensureVisible(find.text('Oldest').last);
+        await tester.tap(find.text('Oldest').last);
+        await harness.settle(tester);
+        await tester.tap(find.text('Newest').last);
+        await harness.settle(tester);
+        if (failSave) {
+          expect(gallery().controller, same(original));
+          expect(original.items.first.id, 10);
+          expect(
+            repository.settings.relatedPostsOrder,
+            RelatedPostsOrder.oldest,
+          );
+        } else {
+          await harness.pumpUntil(
+            tester,
+            () => gallery().controller.items.firstOrNull?.id == 129,
+          );
+          expect(gallery().selectionModeController!.isActive, isFalse);
+          expect(
+            repository.settings.relatedPostsOrder,
+            RelatedPostsOrder.newest,
+          );
+          expect(repository.settings.listing, Settings.defaultSettings.listing);
+          await harness.pumpUntilComplete(
+            tester,
+            gallery().controller.fetchMore(),
+          );
+          expect(gallery().controller.items.map((p) => p.id).toList(), [
+            for (var id = 129; id >= 10; id--) id,
+          ]);
+          await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+          await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+          tester
+              .widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard))
+              .onOpen!();
+          await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+          await harness.pumpUntil(
+            tester,
+            () => gallery().controller.items.firstOrNull?.id == 129,
+          );
+        }
+        await _drainNotifications(tester);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Related order rejects an old page completing after the order changes',
+    (tester) async {
+      final setup = await _mount(tester, seedRelated: true, relatedVisits: 0);
+      final harness = setup.harness;
+      for (final order in RelatedPostsOrder.values) {
+        final ids = [for (var id = 10; id < 130; id++) id];
+        harness.booruBackend.enqueuePostSuccess(
+          siteUrl: harness.booruBackend.config.url,
+          query: 'parent:10 ${order.queryOrder}',
+          page: 1,
+          result: PostResult(
+            posts: (order == RelatedPostsOrder.oldest ? ids : ids.reversed)
+                .take(60)
+                .map((id) => testRelatedPost(id, parent: id == 10 ? null : 10))
+                .toList(),
+            total: 120,
+            hasMore: true,
+          ),
+        );
+      }
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.settle(tester);
+      PostGrid<Post> gallery() => tester.widget<PostGrid<Post>>(
+        find.descendant(
+          of: find.byType(RelatedGallery),
+          matching: find.byType(PostGrid<Post>),
+        ),
+      );
+      await harness.pumpUntil(
+        tester,
+        () => gallery().controller.items.isNotEmpty,
+      );
+      final gate = harness.booruBackend.enqueuePostGate(
+        siteUrl: harness.booruBackend.config.url,
+        query: 'parent:10 order:id_asc',
+        page: 2,
+      );
+      final pending = gallery().controller.fetchMore();
+      await tester.pump();
+      await tester.ensureVisible(find.text('Oldest').last);
+      await tester.tap(find.text('Oldest').last);
+      await harness.settle(tester);
+      await tester.tap(find.text('Newest').last);
+      await harness.pumpUntil(
+        tester,
+        () => gallery().controller.items.firstOrNull?.id == 129,
+      );
+      gate.completeSuccess(
+        PostResult(
+          posts: [testRelatedPost(42, parent: 10)],
+          total: 1,
+          hasMore: false,
+        ),
+      );
+      await harness.pumpUntilComplete(tester, pending);
+      expect(gallery().controller.items.first.id, 129);
+      expect(gallery().controller.items, hasLength(60));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'Related gallery restores member Back and guards selection at $scale text',
+      (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final setup = await _mount(
+          tester,
+          seedReference: true,
+          seedRelated: true,
+          seedPosts: true,
+          seedMixedSequence: true,
+          viewportSize: const Size(320, 844),
+        );
+        final harness = setup.harness;
+        await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+        await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+        await harness.settle(tester);
+        expect(
+          harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
+            (r) => r.query == 'parent:10',
+          ),
+          isEmpty,
+        );
+        final related = find.byWidgetPredicate(
+          (w) => w is BookmarkPoolCard && w.pool.isRelated,
+        );
+        tester.widget<BookmarkPoolCard>(related).onOpen!();
+        await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+        await harness.settle(tester);
+        final pager = tester
+            .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+            .controller!;
+        expect(pager.totalPage, 6);
+        expect(pager.page, 2);
+        final gallery = tester.widget<PostGrid<Post>>(
+          find.descendant(
+            of: find.byType(RelatedGallery),
+            matching: find.byType(PostGrid<Post>),
+          ),
+        );
+        await harness.pumpUntil(
+          tester,
+          () => gallery.controller.items.length == 60,
+        );
+        await harness.pumpUntilComplete(tester, gallery.controller.fetchMore());
+        expect(gallery.controller.items.length, 120);
+        expect(gallery.controller.hasMore, isFalse);
+        expect(
+          find.byTooltip('Bookmark Related').hitTestable(),
+          findsOneWidget,
+        );
+        final source = ProviderScope.containerOf(
+          tester.element(find.byType(RelatedGallery)),
+          listen: false,
+        ).read(currentReadOnlyBooruConfigProvider);
+        expect(source.id, harness.booruBackend.config.id);
+        gallery.scrollController!.jumpTo(700);
+        await harness.settle(tester);
+        expect(find.byTooltip('Bookmark Related').hitTestable(), findsNothing);
+        final tile = find
+            .descendant(
+              of: find.byType(RelatedGallery),
+              matching: find.byType(SliverPostGridImageGridItem),
+            )
+            .hitTestable()
+            .first;
+        await tester.longPress(tile);
+        await harness.settle(tester);
+        final selection = SelectionMode.of(tester.element(tile));
+        expect(selection.isActive, isTrue);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.drag(find.byType(PageView).first, const Offset(-280, 0));
+        await harness.settle(tester);
+        expect(pager.page, 2);
+        selection.disable();
+        await harness.settle(tester);
+        final offset = gallery.scrollController!.offset;
+        await tester.tap(tile);
+        await harness.pumpUntil(
+          tester,
+          () => find.byType(BookmarkDetailsPage).evaluate().isEmpty,
+        );
+        await harness.settle(tester);
+        expect(find.byType(MixedPostDetailsPage), findsOneWidget);
+        await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+        await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
+        await harness.settle(tester);
+        expect(pager.page, 2);
+        expect(gallery.scrollController!.offset, offset);
+        FocusManager.instance.primaryFocus?.unfocus();
+        pager.jumpToPage(5);
+        await harness.settle(tester);
+        pager.jumpToPage(2);
+        await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+        await harness.settle(tester);
+        final restored = tester.widget<PostGrid<Post>>(
+          find.descendant(
+            of: find.byType(RelatedGallery),
+            matching: find.byType(PostGrid<Post>),
+          ),
+        );
+        await harness.pumpUntil(
+          tester,
+          () => restored.controller.items.isNotEmpty,
+        );
+        await harness.settle(tester);
+        expect(restored.scrollController!.offset, offset);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Related group picker membership removal and Undo leave Post bookmarks intact',
+    (tester) async {
+      final setup = await _mount(tester, seedRelated: true, seedPosts: true);
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.settle(tester);
+      double? bookmarkFill() => tester
+          .widget<Icon>(
+            find.descendant(
+              of: find.byTooltip('Bookmark Related'),
+              matching: find.byType(Icon),
+            ),
+          )
+          .fill;
+      expect(bookmarkFill(), 1);
+      await tester.tap(find.byTooltip('Bookmark Related'));
+      await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+      await harness.settle(tester);
+      await tester.tap(find.text('Pool target').hitTestable().first);
+      await harness.pumpUntil(
+        tester,
+        () =>
+            setup.container.read(bookmarkProvider).valueOrNull?.pools.isEmpty ??
+            false,
+      );
+      expect(bookmarkFill(), 0);
+      expect(setup.posts.bookmarks, hasLength(3));
+      await harness.pumpUntilFound(tester, find.text('Undo'));
+      await tester.tap(find.text('Undo'));
+      await harness.pumpUntil(
+        tester,
+        () =>
+            setup.container.read(bookmarkProvider).valueOrNull?.pools.length ==
+            1,
+      );
+      await harness.settle(tester);
+      expect(bookmarkFill(), 1);
+      expect(setup.posts.bookmarks, hasLength(3));
+      expect(
+        setup.container
+            .read(bookmarkProvider)
+            .valueOrNull!
+            .pools
+            .single
+            .family!
+            .anchorId,
+        10,
+      );
+      await _drainNotifications(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'unavailable Related family keeps its reference and surrounding navigation',
+    (tester) async {
+      final setup = await _mount(
+        tester,
+        seedRelated: true,
+        emptyRelated: true,
+        seedPosts: true,
+      );
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.pumpUntilFound(
+        tester,
+        find.text('Related family unavailable'),
+      );
+      await harness.settle(tester);
+      expect(find.text('Retry').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Retry'));
+      await harness.settle(tester);
+      expect(
+        setup.container.read(bookmarkProvider).valueOrNull!.pools,
+        hasLength(1),
+      );
+      final pager = tester
+          .widget<PostDetailsPageView>(find.byType(PostDetailsPageView))
+          .controller!;
+      pager.jumpToPage(0);
+      await harness.settle(tester);
+      expect(currentDetailPost(tester).id, 103);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final exit in ['cancel', 'remove profile']) {
+    testWidgets('pending Related picker rejects writes after $exit', (
+      tester,
+    ) async {
+      final setup = await _mount(tester, seedRelated: true, relatedVisits: 1);
+      final harness = setup.harness;
+      final backend = harness.booruBackend;
+      final groupRepo = await setup.container.read(
+        bookmarkGroupRepoProvider.future,
+      );
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.settle(tester);
+      await harness.pumpUntilComplete(
+        tester,
+        setup.container
+            .read(bookmarkProvider.notifier)
+            .removePostsFromGroup(
+              backend.config.auth,
+              [],
+              poolGroupA,
+              poolLocalIds: {poolGroupB},
+            ),
+      );
+      final gate = backend.enqueuePostGate(
+        siteUrl: backend.config.url,
+        query: 'parent:10',
+        page: 1,
+      );
+      await tester.tap(find.byTooltip('Bookmark Related'));
+      await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+      await harness.settle(tester);
+      expect(gate.isCompleted, isFalse);
+      await tester.tap(find.text('Pool target').hitTestable().first);
+      await tester.pump();
+      if (exit == 'cancel') {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      } else {
+        await setup.container
+            .read(booruConfigProvider.notifier)
+            .delete(backend.config);
+      }
+      gate.completeSuccess(
+        PostResult(posts: [testRelatedPost(10)], total: 1, hasMore: false),
+      );
+      await harness.settle(tester);
+      expect(await groupRepo.getPoolBookmarks(), isEmpty);
+      expect(setup.posts.bookmarks, isEmpty);
+      if (exit != 'cancel') {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await harness.settle(tester);
+        expect(find.byType(RelatedGallery), findsNothing);
+      }
+      await _drainNotifications(tester);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'Related picker creates a destination with enlarged text and keyboard open',
+    (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final setup = await _mount(
+        tester,
+        seedRelated: true,
+        viewportSize: const Size(320, 844),
+      );
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.settle(tester);
+      await harness.pumpUntilComplete(
+        tester,
+        setup.container
+            .read(bookmarkProvider.notifier)
+            .removePostsFromGroup(
+              harness.booruBackend.config.auth,
+              [],
+              poolGroupA,
+              poolLocalIds: {poolGroupB},
+            ),
+      );
+      await tester.tap(find.byTooltip('Bookmark Related'));
+      await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
+      await harness.settle(tester);
+      await tester.tap(
+        find.byKey(const ValueKey('bookmark-picker-create-group')),
+      );
+      await harness.pumpUntilFound(tester, find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Related review');
+      await harness.settle(tester);
+      expect(tester.testTextInput.isVisible, isTrue);
+      expect(find.text('Save').hitTestable(), findsOneWidget);
+      await tester.tap(find.text('Save'));
+      await harness.pumpUntil(
+        tester,
+        () =>
+            setup.container.read(bookmarkProvider).valueOrNull?.pools.length ==
+            1,
+      );
+      final library = setup.container.read(bookmarkProvider).requireValue;
+      final group = library.groups.singleWhere(
+        (g) => g.name == 'Related review',
+      );
+      expect(library.pools.single.groupIds, contains(group.id));
+      expect(library.pools.single.family!.anchorId, 10);
+      expect(setup.posts.bookmarks, isEmpty);
+      await _drainNotifications(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final size in [
     const Size(320, 844),
     const Size(390, 844),
@@ -1131,7 +1622,7 @@ void main() {
   testWidgets(
     'collapsed viewport fill stops after three pages and manual Load More can continue',
     (tester) async {
-      final setup = await _mount(tester, realSearch: true);
+      final setup = await _mount(tester, realSearch: true, gridPadding: 16);
       final harness = setup.harness;
       for (var page = 1; page <= 6; page++) {
         harness.booruBackend.enqueuePosts(
@@ -1170,8 +1661,8 @@ void main() {
       );
       final load = find.widgetWithText(FilledButton, 'Load More');
       expect(load, findsOneWidget);
-      // The bottom navigation overlaps the footer center on the small phone.
-      // Tap its visible upper edge, exercising the actual manual button.
+      // Fix the underfilled/manual-footer geometry independently of defaults.
+      // Scrolling the larger 4 dp-default tile exercises automatic loading instead.
       await tester.tapAt(tester.getTopLeft(load) + const Offset(60, 4));
       await harness.pumpUntilFound(
         tester,
@@ -1684,9 +2175,10 @@ void main() {
             .read(booruConfigProvider.notifier)
             .delete(harness.booruBackend.config);
       } else {
-        await tester.tap(find.text('Cancel'));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       }
-      await harness.settle(tester);
+      // Complete while the anchor's reverse transition still owns its widget.
+      await tester.pump();
       setup.indexGate!.completeSuccess(
         PostResult(posts: harness.booruBackend.posts, total: 2),
       );
@@ -1694,10 +2186,10 @@ void main() {
       expect(await groupRepository.readPoolBookmarks(), isEmpty);
       expect(setup.posts.bookmarks, isEmpty);
       if (exit == 'remove profile') {
-        // A removed source rejects saving; the existing modal stays dismissible.
-        expect(find.byType(BookmarkGroupPicker), findsOneWidget);
-        await tester.tap(find.text('Cancel'));
-        await harness.settle(tester);
+        if (find.byType(BookmarkGroupPicker).evaluate().isNotEmpty) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          await harness.settle(tester);
+        }
       }
       expect(find.byType(BookmarkGroupPicker), findsNothing);
       await _drainNotifications(tester);
@@ -1919,13 +2411,11 @@ void main() {
         tester.element(find.byType(BookmarkPoolCard)),
       );
       expect(selection.selection, hasLength(1));
-      final helpIcon = find
-          .descendant(
-            of: find.byType(BookmarkScrollView),
-            matching: find.byIcon(Icons.info_outline),
-          )
-          .first;
-      Focus.of(tester.element(helpIcon)).requestFocus();
+      final bookmarkActionIcon = find.descendant(
+        of: find.byType(MultiSelectPopupButton).first,
+        matching: find.byType(Icon),
+      );
+      Focus.of(tester.element(bookmarkActionIcon.first)).requestFocus();
       await tester.pump();
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
@@ -1996,10 +2486,14 @@ _mount(
   bool initialOtherProfile = false,
   bool realSearch = false,
   bool seedReference = false,
+  bool seedRelated = false,
+  bool emptyRelated = false,
+  int relatedVisits = 8,
   bool seedMixedSequence = false,
   bool longGallery = false,
   int galleryMemberCount = 20,
   int? memberPageSize,
+  double? gridPadding,
   bool legacyCover = false,
   bool seedPosts = false,
   bool holdIndex = false,
@@ -2007,8 +2501,38 @@ _mount(
   int seedPostCount = 3,
   List<int>? seriesMembers,
   List<Map<String, Object?>>? seriesPools,
+  SettingsRepository? settingsRepository,
 }) async {
   final backend = FakeBooruBackend();
+  if (seedRelated) {
+    for (var visit = 0; visit < relatedVisits; visit++) {
+      for (final oldest in [true, false]) {
+        final ids = [for (var id = 10; id < 130; id++) id];
+        final ordered = oldest ? ids : ids.reversed.toList();
+        final query = 'parent:10 order:${oldest ? 'id_asc' : 'id_desc'}';
+        backend.enqueuePosts(
+          page: 1,
+          query: query,
+          posts: emptyRelated
+              ? []
+              : [
+                  for (final id in ordered.take(60))
+                    testRelatedPost(id, parent: id == 10 ? null : 10),
+                ],
+          hasMore: !emptyRelated,
+        );
+        backend.enqueuePosts(
+          page: 2,
+          query: query,
+          posts: [
+            for (final id in ordered.skip(60))
+              testRelatedPost(id, parent: id == 10 ? null : 10),
+          ],
+          hasMore: false,
+        );
+      }
+    }
+  }
   final indexGate = holdIndex
       ? backend.enqueuePostGate(
           siteUrl: backend.config.url,
@@ -2060,21 +2584,39 @@ _mount(
     organizationBox: MemoryBox<dynamic>(),
   );
   await groups.createGroup('Pool target', id: poolGroupA);
-  if (seedReference)
+  if (seedReference || seedRelated)
     await groups.writePoolBookmarks([
-      PoolBookmark.fromJson({
-        ...testPool()
-            .copyWith(origin: postOriginFromConfig(backend.config))
-            .toJson(),
-        if (seedMixedSequence)
-          'createdAt': testPoolPost(102).createdAt
-              .add(const Duration(hours: 12))
-              .toIso8601String(),
-        if (legacyCover) ...{
-          'coverUrl': backend.posts.first.thumbnailImageUrl,
-          'coverPolicy': poolCoverPolicy(backend.config, {}),
-        },
-      }),
+      if (seedRelated)
+        RelatedBookmark(
+          family: RelatedFamilyReference(
+            origin: postOriginFromConfig(backend.config),
+            anchorId: 10,
+          ),
+          localId: poolGroupB,
+          createdAt: testPoolPost(102).createdAt.add(const Duration(hours: 6)),
+          observedAt: DateTime.utc(2026),
+          groupIds: {poolGroupA},
+        ),
+      if (seedReference)
+        PoolBookmark.fromJson({
+          ...testPool()
+              .copyWith(origin: postOriginFromConfig(backend.config))
+              .toJson(),
+          if (seedMixedSequence) ...{
+            'createdAt': testPoolPost(102).createdAt
+                .add(const Duration(hours: 12))
+                .toIso8601String(),
+            'addedAt': {
+              poolGroupA: testPoolPost(102).createdAt
+                  .add(const Duration(hours: 12))
+                  .toIso8601String(),
+            },
+          },
+          if (legacyCover) ...{
+            'coverUrl': backend.posts.first.thumbnailImageUrl,
+            'coverPolicy': poolCoverPolicy(backend.config, {}),
+          },
+        }),
       if (seedMixedSequence)
         PoolBookmark.fromJson({
           ...testPool(
@@ -2084,6 +2626,11 @@ _mount(
           'createdAt': testPoolPost(101).createdAt
               .add(const Duration(hours: 12))
               .toIso8601String(),
+          'addedAt': {
+            poolGroupA: testPoolPost(101).createdAt
+                .add(const Duration(hours: 12))
+                .toIso8601String(),
+          },
         }),
     ]);
   if (seedPosts) {
@@ -2107,7 +2654,15 @@ _mount(
         })(),
     ];
     await posts.addBookmarkWithBookmarks(bookmarks);
-    await groups.addBookmarks(poolGroupA, bookmarks.map((b) => b.id).toSet());
+    // Seed saved history explicitly; creating fixtures must not assign now to
+    // every Post membership and change the mixed viewer's chronological order.
+    await groups.replaceMemberships(
+      poolGroupA,
+      bookmarks.map((b) => b.id).toSet(),
+      addedAt: {
+        for (final bookmark in bookmarks) bookmark.id: bookmark.createdAt,
+      },
+    );
   }
   final adapter = _PoolAdapter(
     poolMemberCount: galleryMemberCount,
@@ -2119,6 +2674,7 @@ _mount(
     configs: [backend.config, backend.configB],
     initialConfig: initialOtherProfile ? backend.configB : backend.config,
     bookmarkRepository: posts,
+    settingsRepository: settingsRepository,
   );
   final harness = await HeadlessAppHarness.mount(
     tester,
@@ -2138,10 +2694,13 @@ _mount(
           ),
     viewportSize: viewportSize,
     additionalOverrides: [
-      if (memberPageSize != null || keepTimelineVisible != null)
+      if (memberPageSize != null ||
+          keepTimelineVisible != null ||
+          gridPadding != null)
         imageListingSettingsProvider.overrideWith(
           (ref) => Settings.defaultSettings.listing.copyWith(
             postsPerPage: memberPageSize,
+            imageGridPadding: gridPadding,
             keepTimelineToolbarVisible: keepTimelineVisible,
           ),
         ),
@@ -2294,4 +2853,13 @@ class _SeriesSearchBuilder extends BaseBooruBuilder {
   @override
   SearchPageBuilder get searchPageBuilder =>
       (context, params) => DanbooruSearchPage(params: params);
+}
+
+class _FailedRelatedSettingsRepository implements SettingsRepository {
+  _FailedRelatedSettingsRepository(this.delegate);
+  final SettingsRepository delegate;
+  @override
+  SettingsOrError load() => delegate.load();
+  @override
+  Future<bool> save(Settings settings) async => false;
 }

@@ -18,7 +18,7 @@ class BookmarkLibraryState extends Equatable {
     required List<Bookmark> bookmarks,
     required List<BookmarkGroup> groups,
     List<CollectionFolder> folders = const [],
-    List<PoolBookmark> pools = const [],
+    List<CollectionBookmark> pools = const [],
   }) : pools = List.unmodifiable(pools),
        folders = List.unmodifiable(folders),
        items = List.unmodifiable(bookmarks),
@@ -55,7 +55,7 @@ class BookmarkLibraryState extends Equatable {
     required this.membershipsByBookmark,
   });
 
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final List<CollectionFolder> folders;
   final List<Bookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
@@ -69,7 +69,7 @@ class BookmarkLibraryState extends Equatable {
   /// lists are shallow-copied only when needed; stored post snapshots are never
   /// decoded here. Only affected membership entries are reconstructed.
   BookmarkLibraryState applyCommittedChanges({
-    List<PoolBookmark>? pools,
+    List<CollectionBookmark>? pools,
     Iterable<Bookmark> upserts = const [],
     Set<int> removedIds = const {},
     required List<BookmarkGroup> groups,
@@ -188,9 +188,9 @@ class BookmarkLibraryState extends Equatable {
 
     final nextPools =
         pools == null ||
-            const ListEquality<PoolBookmark>().equals(this.pools, pools)
+            const ListEquality<CollectionBookmark>().equals(this.pools, pools)
         ? this.pools
-        : List<PoolBookmark>.unmodifiable(pools);
+        : List<CollectionBookmark>.unmodifiable(pools);
     if (identical(nextPools, this.pools) &&
         identical(nextItems, items) &&
         identical(nextGroups, this.groups) &&
@@ -316,7 +316,14 @@ bool _sameGroup(BookmarkGroup? before, BookmarkGroup after) =>
         before.name == after.name &&
         before.folderId == after.folderId &&
         before.position == after.position &&
-        const SetEquality<int>().equals(before.bookmarkIds, after.bookmarkIds);
+        const SetEquality<int>().equals(
+          before.bookmarkIds,
+          after.bookmarkIds,
+        ) &&
+        const MapEquality<int, DateTime>().equals(
+          before.addedAt,
+          after.addedAt,
+        );
 
 Map<BookmarkUniqueId, Set<String>> _buildMemberships(
   List<Bookmark> bookmarks,

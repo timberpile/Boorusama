@@ -56,7 +56,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
             if (selectionModeController case final controller?)
               KurumiContextMenuTile(
                 title: context.t.generic.action.select,
-                trailing: const Icon(Icons.checklist),
+                leading: const Icon(Icons.checklist),
                 onTap: () {
                   controller.enable(
                     initialSelected: [selectionIndex ?? index],

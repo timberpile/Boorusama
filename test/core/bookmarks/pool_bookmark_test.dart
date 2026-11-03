@@ -187,7 +187,7 @@ void main() {
       state: state,
       view: const BookmarkView.all(),
       selectedTags: tags,
-    ).map((p) => p.poolId).toList();
+    ).map((p) => p.referenceId).toList();
     expect(selected([]), [10, 11]);
     expect(selected(['alpha', 'beta']), [10]);
     expect(selected(['missing']), isEmpty);
@@ -207,7 +207,7 @@ void main() {
       view: const BookmarkView.all(),
       selectedTags: [],
       sortType: sort,
-    ).whereType<BookmarkPoolEntry>().map((e) => e.pool.poolId).toList();
+    ).whereType<BookmarkPoolEntry>().map((e) => e.pool.referenceId).toList();
     expect(order(BookmarkSortType.newestUpload), [10, 11, 12]);
     expect(order(BookmarkSortType.oldestUpload), [10, 11, 12]);
   });

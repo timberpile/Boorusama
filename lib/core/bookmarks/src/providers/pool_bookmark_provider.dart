@@ -57,7 +57,7 @@ final poolCoverPolicyProvider =
     );
 
 final poolBookmarkDraftProvider = FutureProvider.autoDispose
-    .family<PoolBookmark, (BooruConfig, RemoteBookmarkPool)>((
+    .family<CollectionBookmark, (BooruConfig, RemoteBookmarkPool)>((
       ref,
       request,
     ) async {
@@ -142,9 +142,11 @@ bool poolCoverAllowsRating(BooruConfig config, Rating rating) =>
 /// A stored hint must resolve to its original profile. Removing that profile
 /// never authorizes borrowing the sole remaining account on the same host.
 BooruConfig? resolvePoolBookmarkProfile(
-  PoolBookmark pool,
+  CollectionBookmark pool,
   List<BooruConfig> configs,
-) => pool.sourceTypeId != pool.origin.booruType.id
+) =>
+    (pool.isRelated && pool.origin.profileIdHint == null) ||
+        pool.sourceTypeId != pool.origin.booruType.id
     ? null
     : resolveBookmarkOriginProfile(pool.origin, configs);
 
@@ -164,14 +166,14 @@ BooruConfig? resolveBookmarkOriginProfile(
 /// Upgrade fallback for records saved before cover variants were persisted.
 /// It is cached for the lifetime of this source-scoped library view.
 final legacyPoolBookmarkCoverProvider = FutureProvider.autoDispose
-    .family<PoolBookmarkCover?, (BooruConfig, PoolBookmark)>((
+    .family<PoolBookmarkCover?, (BooruConfig, CollectionBookmark)>((
       ref,
       request,
     ) async {
       final (config, pool) = request;
       final capability = ref.read(poolBookmarkCapabilityProvider(config));
-      if (capability == null) return null;
-      final remote = await capability.getBookmarkPool(config, pool.poolId);
+      if (pool.isRelated || capability == null) return null;
+      final remote = await capability.getBookmarkPool(config, pool.referenceId);
       if (remote == null) return null;
       final draft = await ref.watch(
         poolBookmarkDraftProvider((config, remote)).future,

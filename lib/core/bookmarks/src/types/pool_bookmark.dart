@@ -1,4 +1,5 @@
 import 'pool_bookmark_cover.dart';
+import '../../../posts/related/related_family.dart';
 
 import 'package:equatable/equatable.dart';
 
@@ -10,17 +11,19 @@ enum BookmarkedPoolCategory { series, collection, unknown }
 
 /// A remote collection reference. Member IDs and member snapshots are transient
 /// indexing inputs and deliberately have no representation in this record.
-final class PoolBookmark extends Equatable {
-  PoolBookmark({
+class CollectionBookmark extends Equatable {
+  CollectionBookmark._({
     required this.localId,
     required this.origin,
-    required this.poolId,
+    required this.referenceId,
+    this.family,
     int? sourceTypeId,
     required this.category,
     required this.title,
     required this.createdAt,
     required this.observedAt,
     required Set<String> groupIds,
+    Map<String, DateTime> addedAt = const {},
     required Set<String> tags,
     required this.coverage,
     this.total,
@@ -31,27 +34,33 @@ final class PoolBookmark extends Equatable {
     this.oldestUpload,
   }) : sourceTypeId = sourceTypeId ?? origin.booruType.id,
        groupIds = Set.unmodifiable(groupIds),
+       addedAt = Map.unmodifiable({
+         for (final id in groupIds) id: (addedAt[id] ?? createdAt).toUtc(),
+       }),
        tags = Set.unmodifiable(tags) {
     if (localId.isEmpty ||
-        poolId <= 0 ||
+        referenceId <= 0 ||
         origin.sourceHost.isEmpty ||
         (total != null && total! < 0) ||
         (oldestUpload != null &&
             newestUpload != null &&
             oldestUpload!.isAfter(newestUpload!))) {
-      throw const FormatException('Invalid Pool bookmark');
+      throw const FormatException('Invalid collection bookmark');
     }
   }
 
   final String localId;
   final PostOrigin origin;
-  final int poolId;
+  final int referenceId;
+  final RelatedFamilyReference? family;
+  bool get isRelated => family != null;
   final int sourceTypeId;
   final BookmarkedPoolCategory category;
   final String title;
   final DateTime createdAt;
   final DateTime observedAt;
   final Set<String> groupIds;
+  final Map<String, DateTime> addedAt;
   final Set<String> tags;
   final PoolTagCoverage coverage;
   final int? total;
@@ -63,25 +72,47 @@ final class PoolBookmark extends Equatable {
   final DateTime? newestUpload;
   final DateTime? oldestUpload;
 
-  (int, String, int) get identity => (sourceTypeId, origin.sourceHost, poolId);
+  Object get identity =>
+      family?.identity ?? (sourceTypeId, origin.sourceHost, referenceId);
 
-  PoolBookmark withGroups(Set<String> groups) => copyWith(groupIds: groups);
+  CollectionBookmark withGroups(
+    Set<String> groups, {
+    Map<String, DateTime>? addedAt,
+    DateTime? now,
+  }) => copyWith(
+    groupIds: groups,
+    addedAt:
+        addedAt ??
+        {
+          ...this.addedAt,
+          for (final id in groups.difference(groupIds))
+            id: now ?? DateTime.now(),
+        },
+  );
 
-  PoolBookmark copyWith({
+  CollectionBookmark copyWith({
     PostOrigin? origin,
     String? localId,
     Set<String>? groupIds,
+    Map<String, DateTime>? addedAt,
     PoolBookmarkCover? cover,
-  }) => PoolBookmark(
+  }) => CollectionBookmark._(
     localId: localId ?? this.localId,
     origin: origin ?? this.origin,
-    poolId: poolId,
+    referenceId: referenceId,
+    family: family == null
+        ? null
+        : RelatedFamilyReference(
+            origin: origin ?? this.origin,
+            anchorId: family!.anchorId,
+          ),
     sourceTypeId: sourceTypeId,
     category: category,
     title: title,
     createdAt: createdAt,
     observedAt: observedAt,
     groupIds: groupIds ?? this.groupIds,
+    addedAt: addedAt ?? this.addedAt,
     tags: tags,
     coverage: coverage,
     total: total,
@@ -90,18 +121,21 @@ final class PoolBookmark extends Equatable {
     coverPolicy: coverPolicy,
     newestUpload: newestUpload,
     oldestUpload: oldestUpload,
-  );
+  )._typed();
 
   Map<String, Object?> toJson() => {
-    'kind': 'pool',
+    'kind': isRelated ? 'related' : 'pool',
     'localId': localId,
     'origin': origin.toSnapshot().toJson()..['booruTypeId'] = sourceTypeId,
-    'poolId': poolId,
+    if (isRelated) 'anchorId': family!.anchorId else 'poolId': referenceId,
     'category': category.name,
     'title': title,
     'createdAt': createdAt.toIso8601String(),
     'observedAt': observedAt.toIso8601String(),
     'groupIds': groupIds.toList()..sort(),
+    'addedAt': addedAt.map(
+      (id, date) => MapEntry(id, date.toUtc().toIso8601String()),
+    ),
     'tags': tags.toList()..sort(),
     'coverage': coverage.name,
     'total': ?total,
@@ -112,20 +146,45 @@ final class PoolBookmark extends Equatable {
     'oldestUpload': ?oldestUpload?.toIso8601String(),
   };
 
-  factory PoolBookmark.fromJson(Map<String, dynamic> json) {
+  factory CollectionBookmark.fromJson(Map<String, dynamic> json) {
+    final memberIds = (json['groupIds'] as List)
+        .cast<String>()
+        .map((id) => id.toLowerCase())
+        .toSet();
+    final dates = _parseMembershipDates(json['addedAt']);
+    if (!memberIds.containsAll(dates.keys)) {
+      throw const FormatException('Membership date references an absent group');
+    }
     // Refuse unsupported entries rather than silently dropping them on a
     // subsequent write or export by an older application version.
-    if (json['kind'] != 'pool') {
+    if (json['kind'] != 'pool' && json['kind'] != 'related') {
       throw const FormatException('Unsupported bookmark entry type');
+    }
+    if ((json['kind'] == 'related' && json.containsKey('poolId')) ||
+        (json['kind'] == 'pool' && json.containsKey('anchorId'))) {
+      throw const FormatException('Conflicting bookmark reference IDs');
+    }
+    if (json['kind'] == 'related' &&
+        (json['category'] != BookmarkedPoolCategory.unknown.name ||
+            json['title'] != '')) {
+      throw const FormatException('Invalid Related metadata');
     }
     final origin = PostOriginSnapshot.fromJson(
       Map<String, dynamic>.from(json['origin'] as Map),
     );
-    return PoolBookmark(
+    return CollectionBookmark._(
       localId: json['localId'] as String,
       origin: PostOrigin.fromSnapshot(origin),
       sourceTypeId: origin.booruTypeId,
-      poolId: json['poolId'] as int,
+      referenceId:
+          (json['kind'] == 'related' ? json['anchorId'] : json['poolId'])
+              as int,
+      family: json['kind'] == 'related'
+          ? RelatedFamilyReference(
+              origin: PostOrigin.fromSnapshot(origin),
+              anchorId: json['anchorId'] as int,
+            )
+          : null,
       category: BookmarkedPoolCategory.values.byName(
         json['category'] as String,
       ),
@@ -136,6 +195,7 @@ final class PoolBookmark extends Equatable {
           .cast<String>()
           .map((id) => id.toLowerCase())
           .toSet(),
+      addedAt: dates,
       tags: (json['tags'] as List).cast<String>().toSet(),
       coverage: PoolTagCoverage.values.byName(json['coverage'] as String),
       total: json['total'] as int?,
@@ -155,20 +215,59 @@ final class PoolBookmark extends Equatable {
         final String value => DateTime.parse(value),
         _ => null,
       },
-    );
+    )._typed();
   }
+
+  CollectionBookmark _typed() => family == null
+      ? PoolBookmark(
+          poolId: referenceId,
+          localId: localId,
+          origin: origin,
+          sourceTypeId: sourceTypeId,
+          category: category,
+          title: title,
+          createdAt: createdAt,
+          observedAt: observedAt,
+          groupIds: groupIds,
+          addedAt: addedAt,
+          tags: tags,
+          coverage: coverage,
+          total: total,
+          coverUrl: coverUrl,
+          cover: cover,
+          coverPolicy: coverPolicy,
+          newestUpload: newestUpload,
+          oldestUpload: oldestUpload,
+        )
+      : RelatedBookmark(
+          family: family!,
+          localId: localId,
+          createdAt: createdAt,
+          observedAt: observedAt,
+          groupIds: groupIds,
+          addedAt: addedAt,
+          tags: tags,
+          coverage: coverage,
+          total: total,
+          cover: cover,
+          coverPolicy: coverPolicy,
+          newestUpload: newestUpload,
+          oldestUpload: oldestUpload,
+        );
 
   @override
   List<Object?> get props => [
     localId,
     origin,
     sourceTypeId,
-    poolId,
+    referenceId,
+    family,
     category,
     title,
     createdAt,
     observedAt,
     groupIds,
+    addedAt,
     tags,
     coverage,
     total,
@@ -178,4 +277,88 @@ final class PoolBookmark extends Equatable {
     newestUpload,
     oldestUpload,
   ];
+}
+
+final class PoolBookmark extends CollectionBookmark {
+  PoolBookmark({
+    required int poolId,
+    required super.localId,
+    required super.origin,
+    int? sourceTypeId,
+    required super.category,
+    required super.title,
+    required super.createdAt,
+    required super.observedAt,
+    required super.groupIds,
+    super.addedAt,
+    required super.tags,
+    required super.coverage,
+    super.total,
+    super.coverUrl,
+    super.cover,
+    super.coverPolicy,
+    super.newestUpload,
+    super.oldestUpload,
+  }) : super._(referenceId: poolId, sourceTypeId: sourceTypeId);
+  int get poolId => referenceId;
+  @override
+  (int, String, int) get identity => (sourceTypeId, origin.sourceHost, poolId);
+  factory PoolBookmark.fromJson(Map<String, dynamic> json) {
+    if (json['kind'] != 'pool')
+      throw const FormatException('Expected Pool bookmark');
+    return CollectionBookmark.fromJson(json) as PoolBookmark;
+  }
+}
+
+final class RelatedBookmark extends CollectionBookmark {
+  RelatedBookmark({
+    required RelatedFamilyReference family,
+    required String localId,
+    required DateTime createdAt,
+    required DateTime observedAt,
+    required Set<String> groupIds,
+    Map<String, DateTime> addedAt = const {},
+    Set<String> tags = const {},
+    PoolTagCoverage coverage = PoolTagCoverage.unknown,
+    int? total,
+    PoolBookmarkCover? cover,
+    String? coverPolicy,
+    DateTime? newestUpload,
+    DateTime? oldestUpload,
+  }) : super._(
+         localId: localId,
+         origin: family.origin,
+         referenceId: family.anchorId,
+         family: family,
+         category: BookmarkedPoolCategory.unknown,
+         title: '',
+         createdAt: createdAt,
+         observedAt: observedAt,
+         groupIds: groupIds,
+         addedAt: addedAt,
+         tags: tags,
+         coverage: coverage,
+         total: total,
+         coverUrl: cover?.thumbnail,
+         cover: cover,
+         coverPolicy: coverPolicy,
+         newestUpload: newestUpload,
+         oldestUpload: oldestUpload,
+       );
+}
+
+Map<String, DateTime> _parseMembershipDates(Object? raw) {
+  if (raw == null) return const {};
+  if (raw is! Map) throw const FormatException('Invalid membership dates');
+  final dates = <String, DateTime>{};
+  for (final entry in raw.entries) {
+    final value = entry.value;
+    if (entry.key is! String || value is! String) {
+      throw const FormatException('Invalid membership date');
+    }
+    final date = DateTime.tryParse(value);
+    if (date == null) throw const FormatException('Invalid membership date');
+    dates[(entry.key as String).toLowerCase()] = date;
+  }
+  return dates;
 }

@@ -14,7 +14,9 @@ import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+
 import '../../profile_uuid_utils.dart';
+
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 
@@ -27,39 +29,42 @@ void main() {
     },
   );
 
-  test('version 4 round trips the complete snapshot, identity and group', () {
-    final bookmark = _nativeBookmark(localId: 12);
-    final data = BookmarkBackupData(
-      bookmarks: [bookmark],
-      groups: const [
-        BookmarkGroupBackup(id: groupId, name: 'Native', bookmarkIds: [12]),
-      ],
-    );
-    final encoded = codec.encode(data);
+  test(
+    'version 4 imports the complete legacy snapshot, identity and group',
+    () {
+      final bookmark = _nativeBookmark(localId: 12);
+      final data = BookmarkBackupData(
+        bookmarks: [bookmark],
+        groups: const [
+          BookmarkGroupBackup(id: groupId, name: 'Native', bookmarkIds: [12]),
+        ],
+      );
+      final encoded = data.bookmarks.map((b) => _row(codec, b)).toList();
 
-    expect(encoded, [
-      {
-        'localId': 12,
-        'createdAt': '2026-01-02T00:00:00.000Z',
-        'updatedAt': '2026-02-03T00:00:00.000Z',
-        'snapshot': bookmark.snapshot.toJson(),
-        'postId': 42,
-        'identity': {'site': 'gelbooru.example/board', 'postKey': 'id:42'},
-      },
-    ]);
-    final restored = codec.parse(
-      decodeData(
-        data: jsonEncode({
-          'version': 4,
-          'data': encoded,
-          ...data.extraFields,
-        }),
-      ),
-    );
+      expect(encoded, [
+        {
+          'localId': 12,
+          'createdAt': '2026-01-02T00:00:00.000Z',
+          'updatedAt': '2026-02-03T00:00:00.000Z',
+          'snapshot': bookmark.snapshot.toJson(),
+          'postId': 42,
+          'identity': {'site': 'gelbooru.example/board', 'postKey': 'id:42'},
+        },
+      ]);
+      final restored = codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 4,
+            'data': encoded,
+            ..._legacyExtra(data),
+          }),
+        ),
+      );
 
-    expect(restored.bookmarks.single, bookmark);
-    expect(restored.groups, data.groups);
-  });
+      expect(restored.bookmarks.single, bookmark);
+      expect(restored.groups, data.groups);
+    },
+  );
 
   test(
     'version 5 preserves the system role alongside ordinary groups named Default',
@@ -81,8 +86,8 @@ void main() {
         decodeData(
           data: jsonEncode({
             'version': 5,
-            'data': codec.encode(data),
-            ...data.extraFields,
+            'data': data.bookmarks.map((b) => _row(codec, b)).toList(),
+            ..._legacyExtra(data),
           }),
         ),
       );
@@ -262,13 +267,21 @@ void main() {
   });
 }
 
-Map<String, dynamic> _row(BookmarkBackupCodec codec, Bookmark bookmark) =>
-    codec
-            .encode(
-              BookmarkBackupData(bookmarks: [bookmark], groups: const []),
-            )
-            .single
-        as Map<String, dynamic>;
+// Historical fixtures use the legacy global date; the current encoder writes v9.
+Map<String, dynamic> _row(BookmarkBackupCodec codec, Bookmark bookmark) => {
+  ...codec
+          .encode(BookmarkBackupData(bookmarks: [bookmark], groups: const []))
+          .single
+      as Map<String, dynamic>,
+  'createdAt': bookmark.createdAt.toIso8601String(),
+};
+
+Map<String, dynamic> _legacyExtra(BookmarkBackupData data) => {
+  'groups': data.groups.map((group) => group.toJson()).toList(),
+  'folders': data.folders.map((folder) => folder.toJson()).toList(),
+  if (data.pools.isNotEmpty)
+    'collectionBookmarks': data.pools.map((pool) => pool.toJson()).toList(),
+};
 
 ExportDataPayload _payload(List<Map<String, dynamic>> rows) =>
     decodeData(data: jsonEncode({'version': 4, 'data': rows}));

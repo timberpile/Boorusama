@@ -23,6 +23,7 @@ class BookmarkImportPlanner {
       for (final bookmark in data.bookmarks)
         bookmark.id: bookmark.transferIdentity,
     };
+    final importedBookmarks = {for (final b in data.bookmarks) b.id: b};
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
     return BookmarkImportPlan(
       bookmarks: List.unmodifiable(data.bookmarks),
@@ -44,6 +45,11 @@ class BookmarkImportPlanner {
             bookmarkIds: {
               for (final exportedId in group.bookmarkIds)
                 ?importedByLocalId[exportedId],
+            },
+            addedAt: {
+              for (final id in group.bookmarkIds)
+                if (importedBookmarks[id] case final b?)
+                  b.transferIdentity: group.addedAt[id] ?? b.createdAt,
             },
             conflicts:
                 !group.isDefault &&

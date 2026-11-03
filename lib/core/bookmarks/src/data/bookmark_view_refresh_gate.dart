@@ -15,24 +15,45 @@ bool bookmarkViewContentsChanged(
   if (before == null || after == null) return true;
   if (identical(before, after)) return false;
   if (!identical(before.pools, after.pools)) {
-    Iterable<PoolBookmark> visible(BookmarkLibraryState state) =>
+    Iterable<CollectionBookmark> visible(BookmarkLibraryState state) =>
         view.kind == BookmarkViewKind.all
         ? state.pools
         : state.pools.where((p) => p.groupIds.contains(view.groupId));
-    if (!const IterableEquality<PoolBookmark>().equals(
+    if (!const IterableEquality<CollectionBookmark>().equals(
       visible(before),
       visible(after),
     ))
       return true;
   }
   if (view.kind == BookmarkViewKind.all) {
-    return !identical(before.items, after.items);
+    if (!identical(before.items, after.items)) return true;
+    if (identical(before.groups, after.groups)) return false;
+    for (final id in {...before.groupsById.keys, ...after.groupsById.keys}) {
+      final previous = before.groupsById[id];
+      final next = after.groupsById[id];
+      if (!const SetEquality<int>().equals(
+            previous?.bookmarkIds ?? const {},
+            next?.bookmarkIds ?? const {},
+          ) ||
+          !const MapEquality<int, DateTime>().equals(
+            previous?.addedAt ?? const {},
+            next?.addedAt ?? const {},
+          )) {
+        return true;
+      }
+    }
+    return false;
   }
   final previousMembers =
       before.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
   final nextMembers =
       after.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
   if (!const SetEquality<int>().equals(previousMembers, nextMembers))
+    return true;
+  if (!const MapEquality<int, DateTime>().equals(
+    before.groupsById[view.groupId]?.addedAt,
+    after.groupsById[view.groupId]?.addedAt,
+  ))
     return true;
   if (identical(before.items, after.items)) return false;
   return nextMembers.any(

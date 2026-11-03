@@ -167,6 +167,7 @@ final class MemoryBookmarkGroupRepository
     return _write(
       duplicate.copyWith(
         bookmarkIds: source.bookmarkIds,
+        addedAt: source.addedAt,
         folderId: source.folderId,
       ),
     );
@@ -182,14 +183,23 @@ final class MemoryBookmarkGroupRepository
   @override
   Future<BookmarkGroup> replaceMemberships(
     String id,
-    Set<int> bookmarkIds,
-  ) async => _write(_require(id).copyWith(bookmarkIds: bookmarkIds));
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) async =>
+      _write(_require(id).copyWith(bookmarkIds: bookmarkIds, addedAt: addedAt));
 
   @override
   Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) async {
     final group = _require(id);
     return _write(
-      group.copyWith(bookmarkIds: {...group.bookmarkIds, ...bookmarkIds}),
+      group.copyWith(
+        bookmarkIds: {...group.bookmarkIds, ...bookmarkIds},
+        addedAt: {
+          ...group.addedAt,
+          for (final id in bookmarkIds.difference(group.bookmarkIds))
+            id: DateTime.now(),
+        },
+      ),
     );
   }
 

@@ -21,7 +21,6 @@ import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
-import 'package:flutter/material.dart' as material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/rendering.dart';
@@ -462,16 +461,17 @@ void main() {
           } else {
             await setMode(tester, 'group');
           }
-          final dialog = tester.renderObject<RenderBox>(
-            find.byType(AlertDialog).last,
+          final surface = tester.getRect(
+            find.byKey(const Key('bookmark-batch-surface')),
           );
+          expect(surface.width, lessThanOrEqualTo(size.width));
+          expect(surface.height, lessThanOrEqualTo(size.height));
           expect(
-            dialog.getMinIntrinsicHeight(dialog.size.width).isFinite,
-            isTrue,
-          );
-          expect(
-            dialog.getMaxIntrinsicHeight(dialog.size.width).isFinite,
-            isTrue,
+            find.descendant(
+              of: find.byKey(const Key('bookmark-batch-surface')),
+              matching: find.byType(AlertDialog),
+            ),
+            findsNothing,
           );
           await tap(tester, find.text('Cancel'));
           expect(tester.takeException(), isNull);
@@ -586,14 +586,14 @@ void main() {
   );
 
   testWidgets(
-    'nested selection and creation provide their own legacy dependencies',
+    'nested selection and creation use Kurumi without a legacy bridge',
     (tester) async {
       await prepare();
       await mount(tester, legacyBridge: false);
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Group');
-      await tester.enterText(find.byType(material.TextField), 'New target');
+      await tester.enterText(find.byType(TextField), 'New target');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       expect(
@@ -668,7 +668,7 @@ void main() {
       tester.view.viewInsets = const FakeViewPadding(bottom: 280);
       addTearDown(tester.view.resetViewInsets);
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(material.TextField), 'New favorites');
+      await tester.enterText(find.byType(TextField), 'New favorites');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       tester.view.viewInsets = FakeViewPadding.zero;

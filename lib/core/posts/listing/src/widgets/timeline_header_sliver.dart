@@ -12,12 +12,14 @@ class TimelineHeaderSliver extends StatelessWidget {
     required this.child,
     this.keepVisible = false,
     this.reduceMotion = false,
+    this.backgroundColor,
     super.key,
   });
 
   final Widget child;
   final bool keepVisible;
   final bool reduceMotion;
+  final Color? backgroundColor;
 
   static Color backgroundColorOf(BuildContext context) =>
       (Theme.of(context).extension<KurumiExtendedColorScheme>() ??
@@ -28,7 +30,7 @@ class TimelineHeaderSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     // Keep a stable measured render child across empty/error header changes.
     Widget surface({double topInset = 0}) => ColoredBox(
-      color: backgroundColorOf(context),
+      color: backgroundColor ?? backgroundColorOf(context),
       child: Padding(
         padding: EdgeInsets.only(top: topInset),
         child: SizedBox(width: double.infinity, child: child),

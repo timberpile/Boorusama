@@ -80,7 +80,7 @@ class FavoriteContextMenuTile extends ConsumerWidget {
           )
         : KurumiContextMenuTile(
             title: title,
-            trailing: Icon(
+            leading: Icon(
               isFavorited ? Icons.favorite : Icons.favorite_border,
             ),
             enabled: isFaved != null,

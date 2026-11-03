@@ -51,7 +51,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
         if (selectionModeController case final controller?)
           KurumiContextMenuTile(
             title: context.t.generic.action.select,
-            trailing: const Icon(Icons.checklist),
+            leading: const Icon(Icons.checklist),
             onTap: () {
               controller.enable(
                 initialSelected: [index],
@@ -98,7 +98,7 @@ List<Widget> buildDanbooruSinglePostActions(
         )
       : KurumiContextMenuTile(
           title: title,
-          trailing: Icon(icon),
+          leading: Icon(icon),
           onTap: () => execute(onTap),
         );
   return [

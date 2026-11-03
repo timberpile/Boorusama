@@ -254,7 +254,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   });
 
   Future<int> _addPoolsToGroup(
-    List<PoolBookmark> drafts,
+    List<CollectionBookmark> drafts,
     String groupId,
   ) async {
     if (drafts.isEmpty) return 0;
@@ -269,10 +269,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     for (final draft in drafts) {
       final current = next[draft.identity];
       if (current?.groupIds.contains(groupId) ?? false) continue;
-      next[draft.identity] = (current ?? draft).withGroups({
-        ...?current?.groupIds,
-        groupId,
-      });
+      // Prepared metadata is not a saved membership, including its provisional
+      // Default group. Assign the first membership date only on this write.
+      next[draft.identity] = (current ?? draft.copyWith(groupIds: const {}))
+          .withGroups({
+            ...?current?.groupIds,
+            groupId,
+          });
       _poolRemovals.remove(draft.identity);
       added++;
     }
@@ -281,7 +284,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }
 
   Future<BookmarkToggleOutcome> togglePoolTarget(
-    PoolBookmark draft, {
+    CollectionBookmark draft, {
     required String groupId,
     void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) => _serialize(() async {
@@ -315,7 +318,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
   });
 
-  Future<void> refreshPoolBookmark(PoolBookmark summary) =>
+  Future<void> refreshPoolBookmark(CollectionBookmark summary) =>
       runSerializedMutation(() async {
         final repository = await ref.read(bookmarkGroupRepoProvider.future);
         final pools = await repository.getPoolBookmarks();
@@ -331,7 +334,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         await repository.replacePoolBookmarks([
           for (final pool in pools)
             if (pool.identity == summary.identity)
-              summary.withGroups(pool.groupIds)
+              summary.withGroups(pool.groupIds, addedAt: pool.addedAt)
             else
               pool,
         ]);
@@ -1051,7 +1054,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Iterable<Post> posts,
     String? groupId, {
     bool manual = false,
-    List<PoolBookmark> pools = const [],
+    List<CollectionBookmark> pools = const [],
   }) => _serialize(() async {
     if (pools.isEmpty) {
       final result = await _addPostsToGroup(config, posts, groupId);
@@ -1136,7 +1139,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
-    List<PoolBookmark> pools = const [],
+    List<CollectionBookmark> pools = const [],
   }) => _serialize(() async {
     for (final post in posts) {
       BookmarkIdentity.fromPost(post);

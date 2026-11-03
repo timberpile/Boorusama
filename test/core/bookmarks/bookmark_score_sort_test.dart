@@ -51,7 +51,7 @@ void main() {
           everyElement(isA<BookmarkPostEntry>()),
         );
         expect(
-          entries.whereType<BookmarkPoolEntry>().map((e) => e.pool.poolId),
+          entries.whereType<BookmarkPoolEntry>().map((e) => e.pool.referenceId),
           [10, 11],
         );
       },

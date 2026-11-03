@@ -52,6 +52,10 @@ class BookmarkImportService {
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
 
   Future<void> replace(BookmarkBackupData data) async {
+    _validateReferences(
+      data.pools,
+      data.groups.map((g) => g.id).nonNulls.toSet(),
+    );
     FolderTree(data.folders).validatePlacements([
       for (final (i, g) in data.groups.indexed)
         FolderPlacement(
@@ -84,6 +88,7 @@ class BookmarkImportService {
         for (final b in data.bookmarks)
           b.id: savedByIdentity[b.transferIdentity],
       };
+      final sourceById = {for (final b in data.bookmarks) b.id: b};
       final restored = <BookmarkGroup>[];
       for (final g in data.groups) {
         final group =
@@ -91,9 +96,16 @@ class BookmarkImportService {
                 ? await groupRepository.getGroup(defaultBookmarkGroupId)
                 : null) ??
             await groupRepository.createGroup(g.name, id: g.id);
-        final members = await groupRepository.replaceMemberships(group.id, {
-          for (final id in g.bookmarkIds) importedIds[id]!,
-        });
+        final members = await groupRepository.replaceMemberships(
+          group.id,
+          {
+            for (final id in g.bookmarkIds) importedIds[id]!,
+          },
+          addedAt: {
+            for (final id in g.bookmarkIds)
+              importedIds[id]!: g.addedAt[id] ?? sourceById[id]!.createdAt,
+          },
+        );
         restored.add(
           members.copyWith(folderId: g.folderId, position: g.position),
         );
@@ -120,6 +132,7 @@ class BookmarkImportService {
 
   Future<BookmarkImportResult> apply(BookmarkImportPlan plan) async {
     if (!plan.isResolved) throw StateError('Import conflicts are unresolved.');
+    _validateReferences(plan.pools, plan.groups.map((g) => g.id).toSet());
     final oldGroups = await groupRepository.getGroups();
     final oldFolders = await groupRepository.getFolders();
     final oldPools = await groupRepository.getPoolBookmarks();
@@ -139,6 +152,11 @@ class BookmarkImportService {
     );
     var addedBookmarks = const <Bookmark>[];
     final orphanCandidates = <int>{};
+    final oldDates = {for (final b in oldBookmarks) b.id: b.createdAt.toUtc()};
+    Map<int, DateTime> preservedDates(BookmarkGroup group) => {
+      for (final id in group.bookmarkIds)
+        if ((group.addedAt[id] ?? oldDates[id]) case final date?) id: date,
+    };
     try {
       final copies = plan.groups
           .where((g) => !g.isDefault && g.resolvedAction == ImportAction.copy)
@@ -187,6 +205,10 @@ class BookmarkImportService {
             .map((id) => localIds[id])
             .nonNulls
             .toSet();
+        final incomingDates = {
+          for (final entry in imported.addedAt.entries)
+            if (localIds[entry.key] case final id?) id: entry.value,
+        };
         if (imported.isDefault) {
           if (await groupRepository.getGroup(defaultBookmarkGroupId) == null) {
             await groupRepository.createGroup(
@@ -194,9 +216,16 @@ class BookmarkImportService {
               id: defaultBookmarkGroupId,
             );
           }
-          await groupRepository.addBookmarks(
+          final current = (await groupRepository.getGroup(
             defaultBookmarkGroupId,
-            membershipIds,
+          ))!;
+          await groupRepository.replaceMemberships(
+            defaultBookmarkGroupId,
+            {
+              ...current.bookmarkIds,
+              ...membershipIds,
+            },
+            addedAt: {...incomingDates, ...preservedDates(current)},
           );
           poolGroupTargets[imported.id] = defaultBookmarkGroupId;
           continue;
@@ -220,6 +249,7 @@ class BookmarkImportService {
           await groupRepository.replaceMemberships(
             destinationId,
             membershipIds,
+            addedAt: incomingDates,
           );
           poolGroupTargets[imported.id] = destinationId;
           continue;
@@ -244,17 +274,26 @@ class BookmarkImportService {
             await groupRepository.replaceMemberships(
               imported.id,
               membershipIds,
+              addedAt: incomingDates,
             );
           case ImportAction.merge:
-            await groupRepository.replaceMemberships(imported.id, {
-              ...existing.bookmarkIds,
-              ...membershipIds,
-            });
+            await groupRepository.replaceMemberships(
+              imported.id,
+              {
+                ...existing.bookmarkIds,
+                ...membershipIds,
+              },
+              addedAt: {...incomingDates, ...preservedDates(existing)},
+            );
           case ImportAction.mergeIntoTarget:
-            await groupRepository.replaceMemberships(existingId, {
-              ...existing.bookmarkIds,
-              ...membershipIds,
-            });
+            await groupRepository.replaceMemberships(
+              existingId,
+              {
+                ...existing.bookmarkIds,
+                ...membershipIds,
+              },
+              addedAt: {...incomingDates, ...preservedDates(existing)},
+            );
           case ImportAction.copy:
             final destinationId =
                 createdPlacements[imported.id]?.itemId ??
@@ -269,6 +308,7 @@ class BookmarkImportService {
             await groupRepository.replaceMemberships(
               destinationId,
               membershipIds,
+              addedAt: incomingDates,
             );
           case ImportAction.skip:
           case ImportAction.configureItems:
@@ -311,7 +351,7 @@ class BookmarkImportService {
         }
       }
       await _ensureDefault();
-      final nextPools = <Object, PoolBookmark>{
+      final nextPools = <Object, CollectionBookmark>{
         for (final pool in oldPools)
           if (pool.groupIds.difference(replacedPoolGroups)
               case final memberships when memberships.isNotEmpty)
@@ -319,9 +359,12 @@ class BookmarkImportService {
       };
       final occupiedPoolIds = nextPools.values.map((p) => p.localId).toSet();
       for (final pool in plan.pools) {
-        final memberships = {
-          for (final group in pool.groupIds) ?poolGroupTargets[group],
+        final incomingDates = {
+          for (final group in pool.groupIds)
+            if (poolGroupTargets[group] case final target?)
+              target: pool.addedAt[group] ?? pool.createdAt,
         };
+        final memberships = incomingDates.keys.toSet();
         if (memberships.isEmpty) continue;
         final current = nextPools[pool.identity];
         final localId =
@@ -329,10 +372,13 @@ class BookmarkImportService {
             (occupiedPoolIds.contains(pool.localId)
                 ? const Uuid().v4()
                 : pool.localId);
-        final saved = (current ?? pool.copyWith(localId: localId)).withGroups({
-          ...?current?.groupIds,
-          ...memberships,
-        });
+        final saved = (current ?? pool.copyWith(localId: localId)).withGroups(
+          {
+            ...?current?.groupIds,
+            ...memberships,
+          },
+          addedAt: {...incomingDates, ...?current?.addedAt},
+        );
         nextPools[pool.identity] = saved;
         occupiedPoolIds.add(localId);
       }
@@ -380,7 +426,7 @@ class BookmarkImportService {
 
   Future<List<Object>> _rollback({
     required List<BookmarkGroup> oldGroups,
-    required List<PoolBookmark> oldPools,
+    required List<CollectionBookmark> oldPools,
     required List<CollectionFolder> oldFolders,
     required Set<String> oldGroupIds,
     required List<Bookmark> oldBookmarks,
@@ -445,9 +491,16 @@ class BookmarkImportService {
         } else if (!group.isDefault) {
           await groupRepository.renameGroup(group.id, group.name);
         }
-        await groupRepository.replaceMemberships(group.id, {
-          for (final id in group.bookmarkIds) restoredIds[id] ?? id,
-        });
+        await groupRepository.replaceMemberships(
+          group.id,
+          {
+            for (final id in group.bookmarkIds) restoredIds[id] ?? id,
+          },
+          addedAt: {
+            for (final entry in group.addedAt.entries)
+              restoredIds[entry.key] ?? entry.key: entry.value,
+          },
+        );
       } catch (error) {
         errors.add(error);
       }
@@ -458,6 +511,10 @@ class BookmarkImportService {
           g.copyWith(
             bookmarkIds: {
               for (final id in g.bookmarkIds) restoredIds[id] ?? id,
+            },
+            addedAt: {
+              for (final entry in g.addedAt.entries)
+                restoredIds[entry.key] ?? entry.key: entry.value,
             },
           ),
       ]);
@@ -470,5 +527,24 @@ class BookmarkImportService {
       errors.add(error);
     }
     return errors;
+  }
+}
+
+// Validate every typed reference before any Post, group or folder write. The
+// decoder also enforces this at the untrusted backup boundary.
+void _validateReferences(
+  List<CollectionBookmark> references,
+  Set<String> groups,
+) {
+  final identities = <Object>{};
+  final localIds = <String>{};
+  for (final reference in references) {
+    if (!Uuid.isValidUUID(fromString: reference.localId) ||
+        !identities.add(reference.identity) ||
+        !localIds.add(reference.localId) ||
+        reference.groupIds.isEmpty ||
+        !groups.containsAll(reference.groupIds)) {
+      throw const FormatException('Invalid collection bookmark references');
+    }
   }
 }

@@ -40,7 +40,6 @@ void main() {
                     builder: (context) => BookmarkBatchDialog(
                       title: title,
                       child: BookmarkFolderPickerContents(
-                        compact: true,
                         folders: nested
                             ? const [
                                 CollectionFolder(id: 'folder', name: 'Folder'),

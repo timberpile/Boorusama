@@ -194,14 +194,15 @@ class BookmarkGroupHiveObjectAdapter
       name: fields[1] as String,
       bookmarkIds: (fields[2] as List).cast<int>(),
       folderId: fields[3] as String?,
-      position: fields[4] as int? ?? 0,
+      position: fields[4] == null ? 0 : (fields[4] as num).toInt(),
+      addedAt: (fields[5] as Map?)?.cast<dynamic, dynamic>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, BookmarkGroupHiveObject obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(6)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -211,7 +212,9 @@ class BookmarkGroupHiveObjectAdapter
       ..writeByte(3)
       ..write(obj.folderId)
       ..writeByte(4)
-      ..write(obj.position);
+      ..write(obj.position)
+      ..writeByte(5)
+      ..write(obj.addedAt);
   }
 
   @override

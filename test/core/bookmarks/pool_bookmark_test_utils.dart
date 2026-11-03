@@ -61,3 +61,39 @@ Bookmark testPoolPost(int id, {Set<String> tags = const {}}) {
     post: post,
   );
 }
+
+Post testRelatedPost(
+  int id, {
+  int? parent,
+  String host = 'danbooru.donmai.us',
+}) {
+  final core = const StoredPostCodec()
+      .encode(
+        TestPost(
+          id: id,
+          booruData: const LegacyPostData(
+            typeKey: 'legacy_danbooru',
+            custom: {},
+          ),
+        ),
+      )
+      .common;
+  final decoded = const StoredPostCodec().decode(
+    StoredPostSnapshot(
+      origin: poolOrigin(host: host).toSnapshot(),
+      common: {
+        ...core,
+        'parentId': parent,
+        'hasParentOrChildren': parent != null,
+      },
+      custom: const {},
+      codecVersion: 1,
+    ),
+  );
+  return switch (decoded) {
+    StoredPostDecodeSuccess(:final post) => post.copyWith(
+      booruData: const EmptyPostData(typeKey: 'test'),
+    ),
+    _ => throw StateError('Invalid fixture'),
+  };
+}

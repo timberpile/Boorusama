@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:kurumi/material.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
@@ -19,7 +19,6 @@ class BookmarkFolderPickerContents extends StatefulWidget {
     this.pinnedFooter,
     this.membershipGroupIds,
     this.onRootBack,
-    this.compact = false,
     super.key,
   });
 
@@ -34,7 +33,6 @@ class BookmarkFolderPickerContents extends StatefulWidget {
   // Null means bulk mode: a single-bookmark badge would be ambiguous.
   final Set<String>? membershipGroupIds;
   final VoidCallback? onRootBack;
-  final bool compact;
 
   @override
   State<BookmarkFolderPickerContents> createState() =>
@@ -170,38 +168,23 @@ class _BookmarkFolderPickerContentsState
     final entries = <Widget>[
       for (final folder in bookmarkFoldersByName(_tree.children(currentId)))
         MergeSemantics(
-          child: widget.compact
-              ? BookmarkPickerMenuItem(
-                  icon: BookmarkFolderMembershipIcon(
-                    count: _membershipCounts[folder.id] ?? 0,
-                  ),
-                  title: folder.name,
-                  trailing: const ExcludeSemantics(
-                    child: Icon(Icons.chevron_right),
-                  ),
-                  hideOnTap: false,
-                  onTap: () => _openFolder(folder.id),
-                )
-              : ListTile(
-                  leading: BookmarkFolderMembershipIcon(
-                    count: _membershipCounts[folder.id] ?? 0,
-                  ),
-                  title: Text(
-                    folder.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: const ExcludeSemantics(
-                    child: Icon(Icons.chevron_right),
-                  ),
-                  onTap: () => _openFolder(folder.id),
-                ),
+          child: BookmarkPickerMenuItem(
+            icon: BookmarkFolderMembershipIcon(
+              count: _membershipCounts[folder.id] ?? 0,
+            ),
+            title: folder.name,
+            trailing: const ExcludeSemantics(
+              child: Icon(Icons.chevron_right),
+            ),
+            hideOnTap: false,
+            onTap: () => _openFolder(folder.id),
+          ),
         ),
       if (currentId == null) ...widget.homeChildren,
       for (final group in _groups.where((g) => g.folderId == currentId))
         widget.groupBuilder(context, group),
       if (widget.footerBuilder case final footer?) ...[
-        if (widget.compact) const KurumiContextMenuDivider(),
+        const KurumiContextMenuDivider(),
         footer(context, currentId),
       ],
     ];

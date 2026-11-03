@@ -52,17 +52,20 @@ void main() {
     }
   });
 
-  test('an unrelated group membership does not refresh this group or All', () {
+  test('a new group membership refreshes All but not an unchanged group', () {
     final after = before.applyCommittedChanges(
       groups: [
         before.groups.first,
-        before.groups.last.copyWith(bookmarkIds: {1, 2}),
+        before.groups.last.copyWith(
+          bookmarkIds: {1, 2},
+          addedAt: {1: DateTime.utc(2026)},
+        ),
       ],
       folders: before.folders,
     );
     expect(
       bookmarkViewContentsChanged(before, after, const BookmarkView.all()),
-      isFalse,
+      isTrue,
     );
     expect(
       bookmarkViewContentsChanged(

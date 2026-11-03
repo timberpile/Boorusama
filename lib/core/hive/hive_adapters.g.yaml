@@ -69,7 +69,7 @@ types:
         index: 16
   BookmarkGroupHiveObject:
     typeId: 5
-    nextIndex: 5
+    nextIndex: 6
     fields:
       id:
         index: 0
@@ -81,6 +81,8 @@ types:
         index: 3
       position:
         index: 4
+      addedAt:
+        index: 5
   SearchPostPreviewHiveObject:
     typeId: 7
     nextIndex: 5

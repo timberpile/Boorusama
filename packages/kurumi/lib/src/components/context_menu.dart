@@ -428,6 +428,7 @@ class KurumiContextMenuTile extends StatelessWidget {
     this.onTap,
     this.enabled = true,
     this.hideOnTap = true,
+    this.leading,
     this.trailing,
     this.destructive = false,
   });
@@ -436,6 +437,7 @@ class KurumiContextMenuTile extends StatelessWidget {
   final VoidCallback? onTap;
   final bool enabled;
   final bool hideOnTap;
+  final Widget? leading;
   final Widget? trailing;
   final bool destructive;
 
@@ -488,6 +490,28 @@ class KurumiContextMenuTile extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
+                    if (leading case final icon?)
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 8),
+                        child: IgnorePointer(
+                          child: IconTheme.merge(
+                            data: IconThemeData(
+                              color: switch ((
+                                enabled,
+                                destructive,
+                                highlighted,
+                              )) {
+                                (false, _, _) =>
+                                  colorScheme.onSurface.withValues(alpha: 0.38),
+                                (true, _, true) => colorScheme.onPrimary,
+                                (true, true, false) => colorScheme.error,
+                                (true, false, false) => colorScheme.onSurface,
+                              },
+                            ),
+                            child: icon,
+                          ),
+                        ),
+                      ),
                     Expanded(
                       child: Text(
                         title,
@@ -505,7 +529,7 @@ class KurumiContextMenuTile extends StatelessWidget {
                     ),
                     if (trailing case final trailing?)
                       Padding(
-                        padding: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsetsDirectional.only(start: 8),
                         child: IgnorePointer(child: trailing),
                       ),
                   ],

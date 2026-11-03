@@ -9,7 +9,6 @@ import 'pool_bookmark.dart';
 sealed class BookmarkGridEntry {
   const BookmarkGridEntry();
   Object get key;
-  DateTime get savedAt;
   DateTime? uploadDate({required bool oldest});
 }
 
@@ -23,18 +22,14 @@ final class BookmarkPostEntry extends BookmarkGridEntry {
   @override
   final Object key;
   @override
-  DateTime get savedAt => bookmark.createdAt;
-  @override
   DateTime? uploadDate({required bool oldest}) => bookmark.post.createdAt;
 }
 
 final class BookmarkPoolEntry extends BookmarkGridEntry {
   BookmarkPoolEntry(this.pool) : key = ('pool', pool.localId);
-  final PoolBookmark pool;
+  final CollectionBookmark pool;
   @override
   final Object key;
-  @override
-  DateTime get savedAt => pool.createdAt;
   @override
   DateTime? uploadDate({required bool oldest}) =>
       oldest ? pool.oldestUpload ?? pool.newestUpload : pool.newestUpload;
@@ -42,7 +37,7 @@ final class BookmarkPoolEntry extends BookmarkGridEntry {
 
 /// Local, strict matching against each reference's stored union. Coverage never
 /// keeps a nonmatch visible, and this selector cannot perform I/O.
-List<PoolBookmark> selectPoolBookmarks({
+List<CollectionBookmark> selectPoolBookmarks({
   required BookmarkLibraryState state,
   required BookmarkView view,
   required List<String> selectedTags,
@@ -80,6 +75,11 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
     selectedTags: selectedTags,
     selectedBooruUrl: selectedBooruUrl,
   );
+  final membershipDates = bookmarkMembershipDates(
+    state: state,
+    view: view,
+    sortType: sortType,
+  );
   final posts = selectBookmarks(
     state: state,
     view: view,
@@ -89,6 +89,7 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
         : sortType,
     selectedBooruUrl: selectedBooruUrl,
     shuffleState: shuffleState,
+    addedAt: membershipDates,
   );
   final entries = <BookmarkGridEntry>[
     ...posts.map(BookmarkPostEntry.new),
@@ -113,9 +114,27 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
   final uploads =
       sortType == BookmarkSortType.oldestUpload ||
       sortType == BookmarkSortType.newestUpload;
+  final poolDates = <String, DateTime>{};
+  if (!uploads) {
+    for (final pool in pools) {
+      final dates = view.kind == BookmarkViewKind.group
+          ? [pool.addedAt[view.groupId] ?? pool.createdAt]
+          : pool.addedAt.values;
+      poolDates[pool.localId] = dates.isEmpty
+          ? pool.createdAt
+          : dates.reduce(
+              (a, b) => (oldest ? a.isBefore(b) : a.isAfter(b)) ? a : b,
+            );
+    }
+  }
+  DateTime savedAt(BookmarkGridEntry entry) => switch (entry) {
+    BookmarkPostEntry(:final bookmark) =>
+      membershipDates?[bookmark.id] ?? bookmark.createdAt,
+    BookmarkPoolEntry(:final pool) => poolDates[pool.localId] ?? pool.createdAt,
+  };
   entries.sort((a, b) {
-    final ad = uploads ? a.uploadDate(oldest: oldest) : a.savedAt;
-    final bd = uploads ? b.uploadDate(oldest: oldest) : b.savedAt;
+    final ad = uploads ? a.uploadDate(oldest: oldest) : savedAt(a);
+    final bd = uploads ? b.uploadDate(oldest: oldest) : savedAt(b);
     if (ad == null && bd != null) return 1;
     if (ad != null && bd == null) return -1;
     if (ad != null && bd != null) {

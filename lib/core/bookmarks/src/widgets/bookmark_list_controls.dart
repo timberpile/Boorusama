@@ -21,60 +21,57 @@ class BookmarkListControls extends ConsumerWidget {
     final showCount = ref.watch(
       settingsProvider.select((s) => s.showBookmarkCount),
     );
-    return ColoredBox(
-      color: Kurumi.themeOf(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            BookmarkSortButton(),
-                            BookmarkShuffleButton(),
-                            SizedBox(
-                              height: 24,
-                              child: VerticalDivider(width: 12, thickness: 1),
-                            ),
-                            BookmarkBooruSourceUrlSelector(),
-                          ],
-                        ),
-                        if (showCount)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 8,
-                            ),
-                            child: Text(
-                              context.t.bookmark.counter(n: count),
-                              maxLines: 1,
-                              style: Kurumi.themeOf(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Kurumi.themeOf(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
-                            ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          BookmarkSortButton(),
+                          BookmarkShuffleButton(),
+                          SizedBox(
+                            height: 24,
+                            child: VerticalDivider(width: 12, thickness: 1),
                           ),
-                      ],
-                    ),
+                          BookmarkBooruSourceUrlSelector(),
+                        ],
+                      ),
+                      if (showCount)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            context.t.bookmark.counter(n: count),
+                            maxLines: 1,
+                            style: Kurumi.themeOf(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Kurumi.themeOf(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
             ),
-            ?gridConfig,
-          ],
-        ),
+          ),
+          ?gridConfig,
+        ],
       ),
     );
   }

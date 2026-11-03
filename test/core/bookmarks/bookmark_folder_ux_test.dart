@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:boorusama/core/configs/config/providers.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:foundation/performance.dart';
@@ -23,6 +24,7 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_collection_deletio
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_context_menu_section.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_name_dialog.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -240,7 +242,13 @@ void main() {
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 240);
       addTearDown(tester.view.resetViewInsets);
-      await tester.enterText(find.byType(legacy.TextField), 'New group');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BookmarkGroupNameDialog),
+          matching: find.byType(TextField),
+        ),
+        'New group',
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
@@ -464,7 +472,13 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.enterText(find.byType(legacy.TextField), 'Renamed');
+        await tester.enterText(
+          find.descendant(
+            of: find.byType(BookmarkGroupNameDialog),
+            matching: find.byType(TextField),
+          ),
+          'Renamed',
+        );
         await tester.tap(find.text('Save'));
         await tester.pumpAndSettle();
         expect(find.text('Renamed'), findsOneWidget);
@@ -969,7 +983,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('New Folder'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(legacy.TextField), ' Child ');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BookmarkGroupNameDialog),
+          matching: find.byType(TextField),
+        ),
+        ' Child ',
+      );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(library.library.folders.last.parentId, 'root');
@@ -982,14 +1002,26 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Add Group'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(legacy.TextField), ' New ');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BookmarkGroupNameDialog),
+          matching: find.byType(TextField),
+        ),
+        ' New ',
+      );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(library.library.groups.last.folderId, 'root');
       await _menu(tester, 'Zeta');
       await tester.tap(find.text('Rename'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(legacy.TextField), 'Aardvark');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BookmarkGroupNameDialog),
+          matching: find.byType(TextField),
+        ),
+        'Aardvark',
+      );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(_above(tester, 'Aardvark', 'Alpha'), isTrue);
@@ -1484,15 +1516,13 @@ void main() {
           find.byKey(const ValueKey('bookmark-picker-navigation')),
         );
         final pathFinder = find.byKey(const ValueKey('bookmark-picker-path'));
-        final path = tester.widget<legacy.Text>(pathFinder);
+        final path = tester.widget<Text>(pathFinder);
         expect(path.data, 'Artists');
         expect(path.maxLines, 1);
         expect(path.overflow, TextOverflow.ellipsis);
         expect(
           path.style!.color,
-          legacy.Theme.of(tester.element(pathFinder))
-              .colorScheme
-              .onSurfaceVariant,
+          Theme.of(tester.element(pathFinder)).colorScheme.onSurfaceVariant,
         );
         final back = tester.getRect(
           find.byKey(const ValueKey('bookmark-picker-back')),
@@ -1519,7 +1549,7 @@ void main() {
         expect(find.textContaining('Artists /'), findsNothing);
         await tester.tap(find.text('Cookie'));
         await tester.pumpAndSettle();
-        expect(tester.widget<legacy.Text>(pathFinder).data, 'Artists / Cookie');
+        expect(tester.widget<Text>(pathFinder).data, 'Artists / Cookie');
         expect(
           tester
               .getRect(find.byKey(const ValueKey('bookmark-picker-navigation')))
@@ -1554,7 +1584,7 @@ void main() {
             Offset(backTarget.right - 2, backTarget.center.dy),
           );
           await tester.pumpAndSettle();
-          expect(tester.widget<legacy.Text>(pathFinder).data, 'Artists');
+          expect(tester.widget<Text>(pathFinder).data, 'Artists');
           await tester.tap(find.byTooltip('Back').first);
           await tester.pumpAndSettle();
         }
@@ -1639,7 +1669,13 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Group'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(legacy.TextField), 'Nested group');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BookmarkGroupNameDialog),
+          matching: find.byType(TextField),
+        ),
+        'Nested group',
+      );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(library.library.groups.single.folderId, 'child');
@@ -1675,7 +1711,7 @@ void main() {
       0,
     );
     expect(
-      tester.widget<legacy.Badge>(find.byType(legacy.Badge)).isLabelVisible,
+      tester.widget<Badge>(find.byType(Badge)).isLabelVisible,
       isFalse,
     );
   });
@@ -1761,7 +1797,13 @@ void main() {
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 240);
       addTearDown(tester.view.resetViewInsets);
-      await tester.enterText(find.byType(legacy.TextField), 'Home group');
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(BookmarkGroupNameDialog),
+          matching: find.byType(TextField),
+        ),
+        'Home group',
+      );
       await tester.pumpAndSettle();
       expect(find.text('Cancel').hitTestable(), findsOneWidget);
       expect(find.text('Save').hitTestable(), findsOneWidget);
@@ -1797,7 +1839,7 @@ void main() {
         ),
       );
       expect(
-        tester.widget<legacy.Badge>(find.byType(legacy.Badge)).isLabelVisible,
+        tester.widget<Badge>(find.byType(Badge)).isLabelVisible,
         isFalse,
       );
       semantics.dispose();
@@ -1899,6 +1941,9 @@ Future<GoRouter> _pump(
     ProviderScope(
       overrides: [
         bookmarkProvider.overrideWith(() => library),
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: [_config]),
+        ),
         firstMatchingConfigByBooruTypeProvider.overrideWith(
           (ref, _) => BooruConfig.empty,
         ),
@@ -1992,8 +2037,10 @@ class _Launcher extends ConsumerWidget {
               )
             : entry == 'anchored'
             ? BookmarkGroupPickerAnchor(
-                config: _config.auth,
-                post: post,
+                request: PostBookmarkPickerRequest(
+                  config: _config.auth,
+                  post: post,
+                ),
                 builder: (context, show) => ElevatedButton(
                   onPressed: show,
                   child: const Text('Open picker'),
@@ -2145,7 +2192,7 @@ class _Library extends BookmarkLibraryNotifier {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
-    List<PoolBookmark> pools = const [],
+    List<CollectionBookmark> pools = const [],
   }) async {
     final group = await createGroup(name, folderId: folderId);
     return (group: group, addedCount: posts.length);

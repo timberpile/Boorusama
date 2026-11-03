@@ -96,7 +96,7 @@ class _BookmarkGroupBrowserPageState
   (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
   _previewInputs;
   final _previews = <BookmarkView, List<Bookmark>>{};
-  final _poolPreviews = <BookmarkView, List<PoolBookmark>>{};
+  final _poolPreviews = <BookmarkView, List<CollectionBookmark>>{};
   AsyncValue<BookmarkLibraryState>? _visibleLibrary;
   Set<String> get _selectedGroups => {
     for (final (kind, id) in _selection.selectedKeys)
@@ -313,7 +313,7 @@ class _BookmarkGroupBrowserPageState
                           shuffleState: shuffle,
                         ),
                       );
-                  List<PoolBookmark> poolPreviews(BookmarkView view) =>
+                  List<CollectionBookmark> poolPreviews(BookmarkView view) =>
                       _poolPreviews.putIfAbsent(
                         view,
                         () => state.pools
@@ -870,7 +870,7 @@ class _BookmarkGroupBrowserPageState
   ) async {
     final library = ref.read(bookmarkProvider).valueOrNull;
     final groups = library?.groups ?? [group];
-    final pools = library?.pools ?? <PoolBookmark>[];
+    final pools = library?.pools ?? <CollectionBookmark>[];
     final otherIds = {
       for (final other in groups)
         if (other.id != group.id) ...other.bookmarkIds,
@@ -985,7 +985,7 @@ class _GroupCard extends StatelessWidget {
   final VoidCallback? onMove;
   final String title;
   final List<Bookmark> previews;
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final BookmarkGroup? group;
   final VoidCallback? onTap;
   final VoidCallback? onRename;

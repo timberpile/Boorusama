@@ -11,9 +11,14 @@ class BookmarkGroup extends Equatable {
     required this.id,
     required this.name,
     required Set<int> bookmarkIds,
+    Map<int, DateTime> addedAt = const {},
     this.folderId,
     this.position = 0,
-  }) : bookmarkIds = Set.unmodifiable(bookmarkIds);
+  }) : bookmarkIds = Set.unmodifiable(bookmarkIds),
+       addedAt = Map.unmodifiable({
+         for (final entry in addedAt.entries)
+           if (bookmarkIds.contains(entry.key)) entry.key: entry.value.toUtc(),
+       });
 
   BookmarkGroupSystemRole? get systemRole => id == defaultBookmarkGroupId
       ? BookmarkGroupSystemRole.defaultGroup
@@ -25,10 +30,12 @@ class BookmarkGroup extends Equatable {
   final String? folderId;
   final int position;
   final Set<int> bookmarkIds;
+  final Map<int, DateTime> addedAt;
 
   BookmarkGroup copyWith({
     String? name,
     Set<int>? bookmarkIds,
+    Map<int, DateTime>? addedAt,
     String? folderId,
     bool home = false,
     int? position,
@@ -37,13 +44,21 @@ class BookmarkGroup extends Equatable {
       id: id,
       name: name ?? this.name,
       bookmarkIds: bookmarkIds ?? this.bookmarkIds,
+      addedAt: addedAt ?? this.addedAt,
       folderId: home ? null : folderId ?? this.folderId,
       position: position ?? this.position,
     );
   }
 
   @override
-  List<Object?> get props => [id, name, bookmarkIds, folderId, position];
+  List<Object?> get props => [
+    id,
+    name,
+    bookmarkIds,
+    addedAt,
+    folderId,
+    position,
+  ];
 }
 
 class BookmarkGroupDeletionPreview extends Equatable {

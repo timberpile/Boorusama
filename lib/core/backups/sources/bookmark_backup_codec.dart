@@ -19,7 +19,10 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   BookmarkBackupData parse(ExportDataPayload metadata) {
     if (metadata.version != 4 &&
         metadata.version != 5 &&
-        metadata.version != 6) {
+        metadata.version != 6 &&
+        metadata.version != 7 &&
+        metadata.version != 8 &&
+        metadata.version != 9) {
       throw InvalidBackupFormatException(
         'Unsupported bookmark backup version ${metadata.version}',
       );
@@ -27,28 +30,13 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     final bookmarks = <Bookmark>[];
     final fileBookmarkIds = <int>{};
     final bookmarkIdentities = <Object>{};
+    // Group dates must be validated before v9 Post rows can be reconstructed.
     for (final (index, value) in metadata.data.indexed) {
-      if (value is! Map<String, dynamic>) {
-        throw InvalidBackupFormatException('data[$index] must be an object');
-      }
-      try {
-        final bookmark = _parseVersion4Bookmark(value, index);
-        if (!fileBookmarkIds.add(bookmark.id)) {
-          throw InvalidBackupFormatException(
-            'data[$index].id is repeated',
-          );
-        }
-        final identity = bookmark.identity;
-        if (!bookmarkIdentities.add(identity)) {
-          throw InvalidBackupFormatException(
-            'data[$index] repeats a bookmark identity',
-          );
-        }
-        bookmarks.add(bookmark);
-      } on InvalidBackupFormatException {
-        rethrow;
-      } catch (_) {
+      if (value is! Map<String, dynamic> || value['localId'] is! int) {
         throw InvalidBackupFormatException('data[$index] is invalid');
+      }
+      if (!fileBookmarkIds.add(value['localId'] as int)) {
+        throw InvalidBackupFormatException('data[$index].id is repeated');
       }
     }
 
@@ -111,15 +99,62 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       if (id == defaultBookmarkGroupId && folderId != null) {
         throw const InvalidBackupFormatException('Default must be at Home');
       }
+      final dates = _groupDates(
+        value['addedAt'],
+        bookmarkIds.cast<int>().toSet(),
+      );
+      if (metadata.version >= 9 && dates.length != bookmarkIds.toSet().length) {
+        throw InvalidBackupFormatException(
+          'groups[$index] is missing membership dates',
+        );
+      }
       groups.add(
         BookmarkGroupBackup(
           id: id,
           name: name.trim(),
           bookmarkIds: bookmarkIds.cast<int>().toSet().toList(),
+          addedAt: dates,
           folderId: (folderId as String?)?.toLowerCase(),
           position: position,
         ),
       );
+    }
+    final firstMembership = <int, DateTime>{};
+    if (metadata.version >= 9) {
+      for (final group in groups) {
+        for (final entry in group.addedAt.entries) {
+          final previous = firstMembership[entry.key];
+          if (previous == null || entry.value.isBefore(previous)) {
+            firstMembership[entry.key] = entry.value;
+          }
+        }
+      }
+    }
+    for (final (index, raw) in metadata.data.indexed) {
+      final value = raw as Map<String, dynamic>;
+      try {
+        final membershipDate = firstMembership[value['localId']];
+        if (metadata.version >= 9 && membershipDate == null) {
+          throw InvalidBackupFormatException(
+            'data[$index] has no dated membership',
+          );
+        }
+        final bookmark = _parseVersion4Bookmark(
+          value,
+          index,
+          membershipDate: membershipDate,
+        );
+        if (!bookmarkIdentities.add(bookmark.identity)) {
+          throw InvalidBackupFormatException(
+            'data[$index] repeats a bookmark identity',
+          );
+        }
+        bookmarks.add(bookmark);
+      } on InvalidBackupFormatException {
+        rethrow;
+      } catch (_) {
+        throw InvalidBackupFormatException('data[$index] is invalid');
+      }
     }
     try {
       final rawFolders = metadata.version >= 5
@@ -160,12 +195,19 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       if (rawPools != null && (metadata.version < 6 || rawPools is! List)) {
         throw const FormatException('Unsupported collection bookmark data');
       }
-      final pools = <PoolBookmark>[];
+      final pools = <CollectionBookmark>[];
       final poolLocalIds = <String>{};
       final poolIdentities = <Object>{};
       for (final row in rawPools as List? ?? []) {
-        final pool = PoolBookmark.fromJson(
-          Map<String, dynamic>.from(row as Map),
+        if (metadata.version < 7 && (row as Map)['kind'] != 'pool') {
+          throw const FormatException('Related references require version 7');
+        }
+        final pool = CollectionBookmark.fromJson(
+          {
+            ...Map<String, dynamic>.from(row as Map),
+            if (metadata.version >= 9)
+              'createdAt': _collectionMembershipDate(row).toIso8601String(),
+          },
         );
         if (!Uuid.isValidUUID(fromString: pool.localId) ||
             !poolLocalIds.add(pool.localId) ||
@@ -204,7 +246,6 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     }
     return {
       'localId': bookmark.localId,
-      'createdAt': bookmark.createdAt.toIso8601String(),
       'updatedAt': bookmark.updatedAt.toIso8601String(),
       'snapshot': bookmark.snapshot.toJson(),
       'postId': bookmark.postId,
@@ -212,14 +253,18 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     };
   }
 
-  Bookmark _parseSnapshotBookmark(Map<String, dynamic> value, int index) {
+  Bookmark _parseSnapshotBookmark(
+    Map<String, dynamic> value,
+    int index, {
+    DateTime? membershipDate,
+  }) {
     final localId = value['localId'];
     final createdAt = value['createdAt'];
     final updatedAt = value['updatedAt'];
     final rawSnapshot = value['snapshot'];
     final postId = value['postId'];
     if (localId is! int ||
-        createdAt is! String ||
+        (membershipDate == null && createdAt is! String) ||
         updatedAt is! String ||
         rawSnapshot is! Map<String, dynamic> ||
         postId is! int) {
@@ -235,7 +280,8 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     return switch (decoded) {
       StoredPostDecodeSuccess(:final post) => Bookmark.fromSnapshot(
         id: localId,
-        createdAt: DateTime.parse(createdAt),
+        // Compatibility projection for local models; v9 stores only group dates.
+        createdAt: membershipDate ?? DateTime.parse(createdAt as String),
         updatedAt: DateTime.parse(updatedAt),
         snapshot: snapshot,
         post: post,
@@ -247,12 +293,20 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     };
   }
 
-  Bookmark _parseVersion4Bookmark(Map<String, dynamic> value, int index) {
+  Bookmark _parseVersion4Bookmark(
+    Map<String, dynamic> value,
+    int index, {
+    DateTime? membershipDate,
+  }) {
     final rawIdentity = value['identity'];
     if (rawIdentity is! Map<String, dynamic> || value['postId'] is! int) {
       throw InvalidBackupFormatException('data[$index].identity is invalid');
     }
-    final bookmark = _parseSnapshotBookmark(value, index);
+    final bookmark = _parseSnapshotBookmark(
+      value,
+      index,
+      membershipDate: membershipDate,
+    );
     final identity = BookmarkIdentity.fromJson(rawIdentity);
     if (rawIdentity['site'] != identity.site ||
         bookmark.postId != bookmark.post.id ||
@@ -263,4 +317,50 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     }
     return bookmark;
   }
+}
+
+Map<int, DateTime> _groupDates(Object? raw, Set<int> members) {
+  if (raw == null) return const {};
+  if (raw is! Map)
+    throw const InvalidBackupFormatException('Invalid membership dates');
+  final result = <int, DateTime>{};
+  for (final entry in raw.entries) {
+    final id = entry.key is String ? int.tryParse(entry.key as String) : null;
+    final date = entry.value is String
+        ? DateTime.tryParse(entry.value as String)
+        : null;
+    if (id == null ||
+        !members.contains(id) ||
+        result.containsKey(id) ||
+        date == null) {
+      throw const InvalidBackupFormatException('Invalid membership date');
+    }
+    result[id] = date.toUtc();
+  }
+  return result;
+}
+
+DateTime _collectionMembershipDate(Map row) {
+  final rawGroups = row['groupIds'];
+  final rawDates = row['addedAt'];
+  if (rawGroups is! List || rawDates is! Map || rawGroups.isEmpty) {
+    throw const FormatException('Missing collection membership dates');
+  }
+  final groups = rawGroups.cast<String>().map((id) => id.toLowerCase()).toSet();
+  if (rawDates.length != groups.length) {
+    throw const FormatException('Incomplete collection membership dates');
+  }
+  final seen = <String>{};
+  DateTime? first;
+  for (final entry in rawDates.entries) {
+    final id = entry.key is String ? (entry.key as String).toLowerCase() : null;
+    final date = entry.value is String
+        ? DateTime.tryParse(entry.value as String)?.toUtc()
+        : null;
+    if (id == null || !groups.contains(id) || !seen.add(id) || date == null) {
+      throw const FormatException('Invalid collection membership date');
+    }
+    if (first == null || date.isBefore(first)) first = date;
+  }
+  return first!;
 }

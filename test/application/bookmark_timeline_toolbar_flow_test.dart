@@ -6,11 +6,16 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_scroll_view.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_header_sliver.dart';
+import 'package:boorusama/core/search/search/widgets.dart';
+import 'package:i18n/i18n.dart';
+
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 
 import 'support/headless_app_harness.dart';
 import 'support/app_flow_finders.dart';
@@ -36,10 +41,14 @@ void main() {
         final config = harness.booruBackend.config;
         final group = await harness.pumpUntilComplete(
           tester,
-          notifier.createGroupWithPosts('Scroll fixture', config.auth, [
-            for (var id = 1000; id < 1100; id++)
-              TestPost(id: id, origin: postOriginFromConfig(config)),
-          ]),
+          notifier.createGroupWithPosts(
+            'Scroll fixture',
+            config.auth,
+            [
+              for (var id = 1000; id < 1100; id++)
+                TestPost(id: id, origin: postOriginFromConfig(config)),
+            ],
+          ),
         );
         Navigator.of(context).push(
           MaterialPageRoute<void>(
@@ -52,6 +61,61 @@ void main() {
         await harness.settle(tester);
         final search = find.byType(BookmarkSearchBar);
         final controls = find.byType(BookmarkListControls);
+        final header = tester.widget<TimelineHeaderSliver>(
+          find
+              .ancestor(of: search, matching: find.byType(TimelineHeaderSliver))
+              .first,
+        );
+        final theme = Theme.of(tester.element(search));
+        expect(header.backgroundColor, theme.colorScheme.surface);
+        expect(header.backgroundColor!.a, 1);
+        expect(
+          find.byTooltip(tester.element(search).t.bookmark.pool_filter_help),
+          findsNothing,
+        );
+        final searchSurface = find
+            .ancestor(of: search, matching: find.byType(ColoredBox))
+            .first;
+        final toolbarSurface = find
+            .ancestor(of: controls, matching: find.byType(ColoredBox))
+            .first;
+        expect(
+          searchSurface.evaluate().single,
+          same(toolbarSurface.evaluate().single),
+        );
+        expect(
+          tester
+              .widget<BooruSearchBar>(
+                find.descendant(
+                  of: search,
+                  matching: find.byType(BooruSearchBar),
+                ),
+              )
+              .backgroundColor,
+          isNull,
+        );
+        final fieldSurface =
+            tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: find.descendant(
+                              of: search,
+                              matching: find.byType(KurumiSearchBar),
+                            ),
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration;
+        expect(
+          fieldSurface.color,
+          theme.brightness == Brightness.dark
+              ? theme.colorScheme.surfaceContainerHigh
+              : theme.colorScheme.surfaceContainerHighest,
+        );
+        expect(fieldSurface.borderRadius, BorderRadius.circular(8));
         await tester.drag(body, const Offset(0, -800));
         await harness.settle(tester);
         expect(search.hitTestable(), findsNothing);

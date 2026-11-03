@@ -133,7 +133,7 @@ class _PoolTagOverlay {
   BookmarkTagIndex? _value;
   BookmarkTagIndex build(
     BookmarkTagIndex base,
-    List<PoolBookmark> pools,
+    List<CollectionBookmark> pools,
     Object revision,
   ) {
     if (identical(base, _base) && revision == _revision) return _value!;

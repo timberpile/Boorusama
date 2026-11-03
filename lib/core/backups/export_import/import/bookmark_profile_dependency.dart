@@ -10,7 +10,7 @@ import 'import_plan.dart';
 BackupProfileReference bookmarkProfileReference(Bookmark bookmark) =>
     bookmarkOriginProfileReference(bookmark.post.origin);
 
-BackupProfileReference poolBookmarkProfileReference(PoolBookmark pool) =>
+BackupProfileReference poolBookmarkProfileReference(CollectionBookmark pool) =>
     bookmarkOriginProfileReference(pool.origin);
 
 BackupProfileReference bookmarkOriginProfileReference(PostOrigin origin) {
@@ -68,7 +68,7 @@ Bookmark bookmarkWithProfileHint(Bookmark bookmark, String profileId) {
   );
 }
 
-List<PoolBookmark> selectedProfilePools(
+List<CollectionBookmark> selectedProfilePools(
   BookmarkBackupData data,
   ResolvedImportSource resolution,
 ) {
@@ -82,12 +82,14 @@ List<PoolBookmark> selectedProfilePools(
   return data.pools.where((p) => p.groupIds.any(groups.contains)).toList();
 }
 
-PoolBookmark poolBookmarkWithProfileHint(PoolBookmark pool, String profileId) =>
-    pool.copyWith(
-      origin: PostOrigin.fromSource(
-        booruType: pool.origin.booruType,
-        booruId: pool.origin.booruId,
-        source: pool.origin.sourceHost,
-        profileIdHint: profileId,
-      ),
-    );
+CollectionBookmark poolBookmarkWithProfileHint(
+  CollectionBookmark pool,
+  String profileId,
+) => pool.copyWith(
+  origin: PostOrigin.fromSource(
+    booruType: pool.origin.booruType,
+    booruId: pool.origin.booruId,
+    source: pool.origin.sourceHost,
+    profileIdHint: profileId,
+  ),
+);

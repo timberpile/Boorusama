@@ -270,6 +270,10 @@ Future<HeadlessAppHarness> _mountHome(
     phone: phone,
     runtime: backend.createRuntime(
       settings: Settings.defaultSettings.copyWith(
+        // Keep whole-tile geometry fixed for keyboard-coverage assertions.
+        listing: Settings.defaultSettings.listing.copyWith(
+          imageGridPadding: 16,
+        ),
         searchBarPosition: position,
         autoFocusSearchBar: false,
       ),

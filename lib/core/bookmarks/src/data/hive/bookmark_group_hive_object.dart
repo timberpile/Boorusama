@@ -5,14 +5,19 @@ class BookmarkGroupHiveObject extends HiveObject {
   BookmarkGroupHiveObject({
     required this.id,
     required this.name,
-    required this.bookmarkIds,
+    required List<int> bookmarkIds,
     this.folderId,
     this.position = 0,
-  });
+    Map<dynamic, dynamic>? addedAt,
+  }) : bookmarkIds = List.unmodifiable(bookmarkIds),
+       addedAt = addedAt == null ? null : Map.unmodifiable(addedAt);
 
-  String id;
-  String name;
-  List<int> bookmarkIds;
-  String? folderId;
-  int position;
+  final String id;
+  final String name;
+  final List<int> bookmarkIds;
+  final String? folderId;
+  final int position;
+
+  // Read defensively: invalid timestamps fall back to the saved creation date.
+  final Map<dynamic, dynamic>? addedAt;
 }

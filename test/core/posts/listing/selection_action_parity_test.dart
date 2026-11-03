@@ -52,19 +52,11 @@ void main() {
         expect(downloads.requests.single.url, contains('/101.jpg'));
         await tester.tap(single);
         await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
-        expect(
-          tester
-              .widget<BookmarkGroupPicker>(find.byType(BookmarkGroupPicker))
-              .post!
-              .id,
-          101,
+        final picker = tester.widget<BookmarkGroupPicker>(
+          find.byType(BookmarkGroupPicker),
         );
-        expect(
-          tester
-              .widget<BookmarkGroupPicker>(find.byType(BookmarkGroupPicker))
-              .anchored,
-          isTrue,
-        );
+        expect((picker.request as PostBookmarkPickerRequest).post.id, 101);
+        expect(find.byType(BookmarkGroupPickerAnchor), findsWidgets);
         expect(find.byType(Dialog), findsNothing);
         await tester.tapAt(const Offset(2, 2));
         await harness.settle(tester);

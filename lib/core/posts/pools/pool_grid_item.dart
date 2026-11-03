@@ -17,7 +17,8 @@ extension on PoolGridItemKind {
 
 const _badgeCountStyle = TextStyle(
   color: Colors.white,
-  fontSize: 12,
+  fontSize: 11,
+  height: 1,
   fontWeight: FontWeight.w700,
 );
 
@@ -56,7 +57,7 @@ class PoolGridItem extends ConsumerWidget {
       if (total == null && displayedCount != null) '$displayedCount/?',
     ];
     // Keep the type icon. Prefer the total to the visible subset when tight.
-    final availableTextWidth = availableWidth - 10 - 18 - 4;
+    final availableTextWidth = availableWidth - 8 - 16 - 4;
     if (availableTextWidth <= 0) return null;
     for (final candidate in candidates) {
       final painter = TextPainter(
@@ -65,7 +66,7 @@ class PoolGridItem extends ConsumerWidget {
         textDirection: Directionality.of(context),
         textScaler: MediaQuery.textScalerOf(context),
       )..layout();
-      final fits = painter.width <= availableTextWidth;
+      final fits = painter.width <= availableTextWidth && painter.height <= 24;
       painter.dispose();
       if (fits) return candidate;
     }
@@ -133,7 +134,7 @@ class PoolGridItem extends ConsumerWidget {
             end: 4,
             child: IgnorePointer(
               child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (sourceIcon case final icon?) ...[
                     SizedBox.square(
@@ -158,9 +159,9 @@ class PoolGridItem extends ConsumerWidget {
                             child: ExcludeSemantics(
                               child: Container(
                                 key: const ValueKey('pool-badge'),
-                                height: 28,
+                                height: 24,
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 5,
+                                  horizontal: 4,
                                 ),
                                 decoration: const BoxDecoration(
                                   color: Color(0xC0000000),
@@ -174,8 +175,8 @@ class PoolGridItem extends ConsumerWidget {
                                     SvgPicture.asset(
                                       kind.iconAsset,
                                       key: ValueKey('pool-kind-' + kind.name),
-                                      width: 18,
-                                      height: 18,
+                                      width: 16,
+                                      height: 16,
                                     ),
                                     if (count != null) ...[
                                       const SizedBox(width: 4),

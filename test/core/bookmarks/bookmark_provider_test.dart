@@ -1,3 +1,7 @@
+import 'pool_bookmark_test_utils.dart';
+
+import 'package:boorusama/core/posts/related/related_family.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:kurumi/kurumi.dart' show KurumiOverlayInsetsScope;
@@ -108,6 +112,55 @@ void main() {
     );
     addTearDown(container.dispose);
     return container;
+  }
+
+  for (final related in [false, true]) {
+    test(
+      'a new ${related ? "Related" : "Pool"} Default membership does not inherit a draft date',
+      () async {
+        final preparedAt = DateTime.utc(2000);
+        final container = createContainer();
+        final notifier = container.read(bookmarkProvider.notifier);
+        await notifier.future;
+        final pool = testPool(groups: {defaultBookmarkGroupId});
+        final draft = related
+            ? RelatedBookmark(
+                family: RelatedFamilyReference(
+                  origin: pool.origin,
+                  anchorId: 42,
+                ),
+                localId: pool.localId,
+                createdAt: preparedAt,
+                observedAt: preparedAt,
+                groupIds: {defaultBookmarkGroupId},
+              )
+            : PoolBookmark.fromJson({
+                ...pool.toJson(),
+                'createdAt': preparedAt.toIso8601String(),
+                'addedAt': {
+                  defaultBookmarkGroupId: preparedAt.toIso8601String(),
+                },
+              });
+        expect(
+          await notifier.togglePoolTarget(
+            draft,
+            groupId: defaultBookmarkGroupId,
+          ),
+          BookmarkToggleOutcome.added,
+        );
+        final saved = container
+            .read(bookmarkProvider)
+            .requireValue
+            .pools
+            .single;
+        expect(saved.createdAt, preparedAt);
+        expect(
+          saved.addedAt[defaultBookmarkGroupId],
+          isNot(preparedAt),
+          reason: 'An unsaved draft has no committed membership date',
+        );
+      },
+    );
   }
 
   test('only successful manual changes reorder recent groups', () async {

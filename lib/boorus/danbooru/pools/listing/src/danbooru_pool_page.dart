@@ -33,7 +33,6 @@ class DanbooruPoolPage extends ConsumerWidget {
             return CustomScrollView(
               slivers: [
                 KurumiSliverAppBar(
-                  titleSpacing: 0,
                   backgroundColor: colorScheme.surface,
                   title: Text(context.t.pool.pool_gallery),
                   actions: [

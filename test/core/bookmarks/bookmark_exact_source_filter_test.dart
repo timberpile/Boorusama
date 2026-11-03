@@ -54,10 +54,13 @@ void main() {
         5,
         6,
       ]);
-      expect(entries.whereType<BookmarkPoolEntry>().map((e) => e.pool.poolId), [
-        10,
-        14,
-      ]);
+      expect(
+        entries.whereType<BookmarkPoolEntry>().map((e) => e.pool.referenceId),
+        [
+          10,
+          14,
+        ],
+      );
     }
     final all = selectBookmarkGridEntries(
       state: state,

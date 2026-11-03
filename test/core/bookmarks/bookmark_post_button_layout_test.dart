@@ -368,6 +368,9 @@ Future<_Library> _pump(
     ProviderScope(
       overrides: [
         bookmarkProvider.overrideWith(() => notifier),
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: [BooruConfig.empty]),
+        ),
         serverFavoriteSettingsProvider.overrideWith(
           () => _FavoriteSettings(ignoreSyncedGroup),
         ),
@@ -397,9 +400,11 @@ Future<_Library> _pump(
           home: Scaffold(
             body: Center(
               child: modal
-                  ? BookmarkGroupPicker(
-                      config: BooruConfig.empty.auth,
-                      post: bookmark.toPost(),
+                  ? BookmarkGroupPickerDialog(
+                      request: PostBookmarkPickerRequest(
+                        config: BooruConfig.empty.auth,
+                        post: bookmark.toPost(),
+                      ),
                     )
                   : likeButton
                   ? BookmarkPostLikeButtonButton(post: bookmark.toPost())

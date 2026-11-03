@@ -30,6 +30,37 @@ bool bookmarkSourceMatchesHost(String source, String selectedHost) {
       uri.host.toLowerCase() == selectedHost.toLowerCase();
 }
 
+/// Resolve dates once before sorting, rather than scanning groups in every
+/// comparison. All uses current memberships: latest for Newest, earliest for
+/// Oldest. Missing legacy dates retain their creation-time migration fallback.
+Map<int, DateTime>? bookmarkMembershipDates({
+  required BookmarkLibraryState state,
+  required BookmarkView view,
+  required BookmarkSortType sortType,
+}) {
+  if (sortType != BookmarkSortType.newest &&
+      sortType != BookmarkSortType.oldest) {
+    return null;
+  }
+  if (view.kind == BookmarkViewKind.group) {
+    return state.groupsById[view.groupId]?.addedAt;
+  }
+  final oldest = sortType == BookmarkSortType.oldest;
+  final dates = <int, DateTime>{};
+  for (final group in state.groups) {
+    for (final id in group.bookmarkIds) {
+      final date = group.addedAt[id] ?? state.bookmarksById[id]?.createdAt;
+      if (date == null) continue;
+      final previous = dates[id];
+      if (previous == null ||
+          (oldest ? date.isBefore(previous) : date.isAfter(previous))) {
+        dates[id] = date;
+      }
+    }
+  }
+  return dates;
+}
+
 List<Bookmark> selectBookmarks({
   required BookmarkLibraryState state,
   required BookmarkView view,
@@ -37,6 +68,7 @@ List<Bookmark> selectBookmarks({
   required BookmarkSortType sortType,
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
+  Map<int, DateTime>? addedAt,
 }) {
   return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
     final groupIds = state.groupsById[view.groupId]?.bookmarkIds;
@@ -60,6 +92,13 @@ List<Bookmark> selectBookmarks({
       sortType: sortType,
       selectedBooruUrl: selectedBooruUrl,
       shuffleState: shuffleState,
+      addedAt:
+          addedAt ??
+          bookmarkMembershipDates(
+            state: state,
+            view: view,
+            sortType: sortType,
+          ),
     );
   }, items: state.items.length);
 }
@@ -99,7 +138,14 @@ List<Bookmark> selectBookmarkPreviews({
           shuffleState?.seed ?? _defaultPreviewShuffle.seed!,
         );
       }
-      final compare = _bookmarkComparator(sortType);
+      final compare = _bookmarkComparator(
+        sortType,
+        addedAt: bookmarkMembershipDates(
+          state: state,
+          view: view,
+          sortType: sortType,
+        ),
+      );
       final best = <Bookmark>[];
       for (final candidate in candidates) {
         var index = 0;
@@ -164,6 +210,7 @@ List<Bookmark> filterBookmarks({
   required BookmarkSortType sortType,
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
+  Map<int, DateTime>? addedAt,
 }) {
   final filters = selectedTags
       .map(BookmarkSearchToken.parse)
@@ -189,7 +236,9 @@ List<Bookmark> filterBookmarks({
                   (filters.isEmpty || matchesTags(bookmark)),
             )
             .toList();
-  final sorted = filtered.sorted(_bookmarkComparator(sortType));
+  final sorted = filtered.sorted(
+    _bookmarkComparator(sortType, addedAt: addedAt),
+  );
 
   if (sortType != BookmarkSortType.random) return sorted;
   final activeShuffleState = shuffleState?.seed != null
@@ -198,7 +247,10 @@ List<Bookmark> filterBookmarks({
   return activeShuffleState.applyShuffleToList(sorted);
 }
 
-Comparator<Bookmark> _bookmarkComparator(BookmarkSortType sortType) =>
+Comparator<Bookmark> _bookmarkComparator(
+  BookmarkSortType sortType, {
+  Map<int, DateTime>? addedAt,
+}) =>
     (a, b) => switch (sortType) {
       BookmarkSortType.newestUpload => _compareUploadDate(
         a,
@@ -210,8 +262,8 @@ Comparator<Bookmark> _bookmarkComparator(BookmarkSortType sortType) =>
         b,
         newestFirst: false,
       ),
-      BookmarkSortType.newest => _compareBookmarkDate(b, a),
-      BookmarkSortType.oldest => _compareBookmarkDate(a, b),
+      BookmarkSortType.newest => _compareBookmarkDate(b, a, addedAt),
+      BookmarkSortType.oldest => _compareBookmarkDate(a, b, addedAt),
       BookmarkSortType.random => 0,
       BookmarkSortType.scoreDescending => _compareScore(a, b, descending: true),
       BookmarkSortType.scoreAscending => _compareScore(a, b, descending: false),
@@ -225,8 +277,10 @@ int _compareScore(Bookmark a, Bookmark b, {required bool descending}) {
   return a.id.compareTo(b.id);
 }
 
-int _compareBookmarkDate(Bookmark a, Bookmark b) {
-  final byDate = a.createdAt.compareTo(b.createdAt);
+int _compareBookmarkDate(Bookmark a, Bookmark b, Map<int, DateTime>? addedAt) {
+  final byDate = (addedAt?[a.id] ?? a.createdAt).compareTo(
+    addedAt?[b.id] ?? b.createdAt,
+  );
   // Several imported bookmarks can share the clock/storage's time precision.
   // Local IDs retain their insertion order without inventing creation times.
   return byDate != 0 ? byDate : a.id.compareTo(b.id);

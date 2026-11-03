@@ -1,3 +1,5 @@
+import '../../../related/related_family.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -55,7 +57,11 @@ class _ViewerEntryContentState extends ConsumerState<ViewerEntryContent> {
       builder: (context, page, _) {
         _visited |= page == widget.index;
         if (config == null || repo == null) {
-          final unavailable = Text(context.t.bookmark.pool_unavailable);
+          final unavailable = Text(
+            widget.entry is RelatedViewerEntry
+                ? context.t.bookmark.related_unavailable
+                : context.t.bookmark.pool_unavailable,
+          );
           return widget.entry.usesContentNavigationHeader
               ? ViewerEntryNavigationStatus(child: unavailable)
               : SafeArea(child: Center(child: unavailable));

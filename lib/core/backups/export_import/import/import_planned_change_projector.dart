@@ -31,7 +31,7 @@ final class BookmarkImportLocalSnapshot {
   }) : bookmarks = List.unmodifiable(bookmarks),
        groups = List.unmodifiable(groups);
 
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final List<Bookmark> bookmarks;
   final List<BookmarkGroup> groups;
   final List<CollectionFolder> folders;
@@ -263,7 +263,7 @@ final class ImportPlannedChangeProjector {
           profileId,
         );
     }
-    final mappedPools = <String, PoolBookmark>{};
+    final mappedPools = <String, CollectionBookmark>{};
     for (final pool in selectedProfilePools(incoming, resolution)) {
       final profileId =
           profileMappings[ProfileReferenceKey.fromReference(
@@ -300,6 +300,13 @@ final class ImportPlannedChangeProjector {
           name: group.name,
           folderId: group.folderId,
           position: group.position,
+          addedAt: {
+            for (final id in group.bookmarkIds)
+              if (localIdentityById[id] case final identity?)
+                identity:
+                    group.addedAt[id] ??
+                    localByIdentity[identity]!.createdAt.toUtc(),
+          },
           bookmarkIds: {
             for (final id in group.bookmarkIds) ?localIdentityById[id],
           },
@@ -317,6 +324,10 @@ final class ImportPlannedChangeProjector {
       defaultBookmarkGroupId,
       () => _BookmarkGroupValue(
         name: 'Default',
+        addedAt: {
+          for (final entry in localByIdentity.entries)
+            entry.key: entry.value.createdAt.toUtc(),
+        },
         bookmarkIds: localByIdentity.keys.toSet().difference(localMemberships),
       ),
     );
@@ -341,6 +352,13 @@ final class ImportPlannedChangeProjector {
       for (final bookmark in data.bookmarks)
         bookmark.transferIdentity: bookmark,
     };
+    Map<BookmarkUniqueId, DateTime> datesFor(BookmarkGroupBackup group) => {
+      for (final id in group.bookmarkIds)
+        if (incomingIdentityById[id] case final identity?)
+          identity:
+              (group.addedAt[id] ?? incomingByIdentity[identity]!.createdAt)
+                  .toUtc(),
+    };
     if (resolution.action == ImportAction.replace) {
       final projected = <Object, Object?>{
         for (final pool in data.pools)
@@ -356,6 +374,7 @@ final class ImportPlannedChangeProjector {
             name: group.name,
             folderId: group.folderId,
             position: group.position,
+            addedAt: datesFor(group),
             bookmarkIds: {
               for (final id in group.bookmarkIds) ?incomingIdentityById[id],
             },
@@ -371,6 +390,11 @@ final class ImportPlannedChangeProjector {
       projected[defaultKey] = _BookmarkGroupValue(
         name: 'Default',
         poolIds: existingDefault?.poolIds ?? const {},
+        addedAt: {
+          for (final entry in incomingByIdentity.entries)
+            entry.key: entry.value.createdAt.toUtc(),
+          ...?existingDefault?.addedAt,
+        },
         bookmarkIds: {
           ...?existingDefault?.bookmarkIds,
           for (final b in data.bookmarks)
@@ -494,10 +518,12 @@ final class ImportPlannedChangeProjector {
           folderId: existing?.folderId,
           position: existing?.position ?? group.position,
           bookmarkIds: memberships,
+          addedAt: datesFor(group),
         ),
         ImportAction.replace => _BookmarkGroupValue(
           name: group.name,
           bookmarkIds: memberships,
+          addedAt: datesFor(group),
         ),
         ImportAction.merge ||
         ImportAction.mergeIntoTarget => _BookmarkGroupValue(
@@ -505,6 +531,7 @@ final class ImportPlannedChangeProjector {
           folderId: existing?.folderId,
           position: existing?.position ?? group.position,
           bookmarkIds: {...?existing?.bookmarkIds, ...memberships},
+          addedAt: {...datesFor(group), ...?existing?.addedAt},
         ),
         ImportAction.copy => _BookmarkGroupValue(
           name: group.name,
@@ -513,6 +540,7 @@ final class ImportPlannedChangeProjector {
               : hierarchy?.folderIds[group.folderId],
           position: group.position,
           bookmarkIds: memberships,
+          addedAt: datesFor(group),
         ),
         ImportAction.skip || ImportAction.configureItems => throw StateError(
           'Group action is not applicable',
@@ -524,7 +552,7 @@ final class ImportPlannedChangeProjector {
       }
       touched.add(_key('bookmark-group', targetId));
     }
-    final projectedPools = <Object, PoolBookmark>{
+    final projectedPools = <Object, CollectionBookmark>{
       for (final pool in local.pools)
         if (pool.groupIds.difference(replacedPoolGroups) case final memberships
             when memberships.isNotEmpty)
@@ -535,15 +563,21 @@ final class ImportPlannedChangeProjector {
         touched.add(_key('pool-bookmark', pool.identity));
     }
     for (final pool in data.pools) {
-      final memberships = {
-        for (final id in pool.groupIds) ?poolGroupTargets[id],
+      final incomingDates = {
+        for (final id in pool.groupIds)
+          if (poolGroupTargets[id] case final target?)
+            target: pool.addedAt[id] ?? pool.createdAt.toUtc(),
       };
+      final memberships = incomingDates.keys.toSet();
       if (memberships.isEmpty) continue;
       final current = projectedPools[pool.identity];
-      var saved = (current ?? pool).withGroups({
-        ...?current?.groupIds,
-        ...memberships,
-      });
+      var saved = (current ?? pool).withGroups(
+        {
+          ...?current?.groupIds,
+          ...memberships,
+        },
+        addedAt: {...incomingDates, ...?current?.addedAt},
+      );
       if (mappedPools.containsKey(pool.localId) &&
           pool.origin.profileIdHint != null) {
         saved = poolBookmarkWithProfileHint(saved, pool.origin.profileIdHint!);
@@ -562,6 +596,11 @@ final class ImportPlannedChangeProjector {
     final defaultBefore = projectedGroups[defaultBookmarkGroupId];
     projectedGroups[defaultBookmarkGroupId] = _BookmarkGroupValue(
       name: 'Default',
+      addedAt: {
+        for (final entry in projectedBookmarks.entries)
+          entry.key: entry.value.createdAt.toUtc(),
+        ...?defaultBefore?.addedAt,
+      },
       bookmarkIds: {
         ...?defaultBefore?.bookmarkIds,
         ...projectedBookmarks.keys.toSet().difference(finalMemberships),
@@ -1063,6 +1102,19 @@ String _profileId(
   return id;
 }
 
+// Global bookmark creation dates are compatibility metadata. Membership dates
+// carry ordering semantics and must still participate in import comparisons.
+bool _sameProjectedEntity(Object? before, Object? after) {
+  if (identical(before, after)) return true;
+  if (before is CollectionBookmark && after is CollectionBookmark) {
+    return const DeepCollectionEquality().equals(
+      before.toJson()..remove('createdAt'),
+      after.toJson()..remove('createdAt'),
+    );
+  }
+  return before == after;
+}
+
 PlannedChangeSummary _summarize({
   required Map<Object, Object?> local,
   required Map<Object, Object?> projected,
@@ -1085,7 +1137,7 @@ PlannedChangeSummary _summarize({
     } else if (!hasProjected) {
       deleted++;
       change = const PlannedChangeSummary(deleted: 1);
-    } else if (local[key] != projected[key]) {
+    } else if (!_sameProjectedEntity(local[key], projected[key])) {
       updated++;
       change = const PlannedChangeSummary(updated: 1);
     } else if (touched.contains(key)) {
@@ -1118,7 +1170,7 @@ List<ImportChangePreviewRow> _previewRows(
   var metadataChanges = 0;
   for (final key in {...local.keys, ...projected.keys}.cast<_EntityKey>()) {
     final before = local[key], after = projected[key];
-    if (before == after) continue;
+    if (_sameProjectedEntity(before, after)) continue;
     final kind = before == null
         ? ImportChangeKind.added
         : after == null
@@ -1167,11 +1219,13 @@ List<ImportChangePreviewRow> _previewRows(
             entityChanged: true,
           ),
         );
-      case final PoolBookmark _:
-        if (before is PoolBookmark && after is PoolBookmark) {
-          Map<String, Object?> metadata(PoolBookmark pool) => pool.toJson()
-            ..remove('groupIds')
-            ..remove('localId');
+      case final CollectionBookmark _:
+        if (before is CollectionBookmark && after is CollectionBookmark) {
+          Map<String, Object?> metadata(CollectionBookmark pool) =>
+              pool.toJson()
+                ..remove('createdAt')
+                ..remove('groupIds')
+                ..remove('localId');
           if (!const DeepCollectionEquality().equals(
             metadata(before),
             metadata(after),
@@ -1587,26 +1641,23 @@ final class _EntityKey extends Equatable {
 
 final class _BookmarkValue extends Equatable {
   const _BookmarkValue({
-    required this.createdAt,
     required this.updatedAt,
     required this.snapshot,
     required this.postId,
   });
 
   factory _BookmarkValue.from(Bookmark bookmark) => _BookmarkValue(
-    createdAt: bookmark.createdAt,
     updatedAt: bookmark.updatedAt,
     snapshot: bookmark.snapshot,
     postId: bookmark.postId,
   );
 
-  final DateTime createdAt;
   final DateTime updatedAt;
   final Object snapshot;
   final int? postId;
 
   @override
-  List<Object?> get props => [createdAt, updatedAt, snapshot, postId];
+  List<Object?> get props => [updatedAt, snapshot, postId];
 }
 
 final class _BookmarkGroupValue extends Equatable {
@@ -1614,16 +1665,23 @@ final class _BookmarkGroupValue extends Equatable {
     required this.name,
     required Set<BookmarkUniqueId> bookmarkIds,
     this.poolIds = const {},
+    Map<BookmarkUniqueId, DateTime> addedAt = const {},
     this.folderId,
     this.position = 0,
-  }) : bookmarkIds = Set.unmodifiable(bookmarkIds);
+  }) : bookmarkIds = Set.unmodifiable(bookmarkIds),
+       addedAt = Map.unmodifiable({
+         for (final entry in addedAt.entries)
+           if (bookmarkIds.contains(entry.key)) entry.key: entry.value.toUtc(),
+       });
 
+  final Map<BookmarkUniqueId, DateTime> addedAt;
   final String name;
   final Set<BookmarkUniqueId> bookmarkIds;
   final Set<Object> poolIds;
   _BookmarkGroupValue withPools(Set<Object> ids) => _BookmarkGroupValue(
     name: name,
     bookmarkIds: bookmarkIds,
+    addedAt: addedAt,
     poolIds: ids,
     folderId: folderId,
     position: position,
@@ -1632,7 +1690,14 @@ final class _BookmarkGroupValue extends Equatable {
   final int position;
 
   @override
-  List<Object?> get props => [name, bookmarkIds, folderId, position, poolIds];
+  List<Object?> get props => [
+    name,
+    bookmarkIds,
+    addedAt,
+    folderId,
+    position,
+    poolIds,
+  ];
 }
 
 final class _SearchValue extends Equatable {

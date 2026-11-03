@@ -15,42 +15,40 @@ class BookmarkBatchDialog extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Dialog(
-    insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-    child: ConstrainedBox(
-      key: const Key('bookmark-batch-surface'),
-      constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+    child: KurumiDialog(
+      width: 420,
+      height: 560,
+      semanticLabel: title,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: SizedBox(
+        key: const Key('bookmark-batch-surface'),
         width: 420,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: LayoutBuilder(
-            builder: (context, constraints) => Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Bound the title to the available dialog, retaining room for
-                // group navigation and Cancel without forcing a line count.
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: constraints.maxHeight / 3,
-                  ),
-                  child: KurumiFittedText(
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
-                  ),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight / 3,
                 ),
-                const SizedBox(height: 8),
-                Flexible(child: child),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(context.t.generic.action.cancel),
-                  ),
+                child: KurumiFittedText(
+                  Text(title, style: Theme.of(context).textTheme.titleLarge),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              Flexible(child: child),
+              const SizedBox(height: 4),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(context.t.generic.action.cancel),
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -823,7 +823,7 @@ void main() {
     ], firstGroupId);
     final failing = BookmarkLibraryService(
       bookmarkRepository: bookmarkRepository,
-      groupRepository: _FailingAddGroupRepository(groupRepository),
+      groupRepository: _FailsFirstReplaceGroupRepository(groupBox),
       imageUrlResolver: resolver,
     );
     await expectLater(failing.undoRemoval(removal), throwsStateError);
@@ -982,8 +982,11 @@ class _FailingAddGroupRepository implements BookmarkGroupRepository {
       delegate.renameGroup(id, name);
 
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
-      delegate.replaceMemberships(id, bookmarkIds);
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) => delegate.replaceMemberships(id, bookmarkIds, addedAt: addedAt);
 }
 
 class _CommitsThenThrowsAddGroupRepository implements BookmarkGroupRepository {
@@ -1036,8 +1039,11 @@ class _CommitsThenThrowsAddGroupRepository implements BookmarkGroupRepository {
       delegate.renameGroup(id, name);
 
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
-      delegate.replaceMemberships(id, bookmarkIds);
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) => delegate.replaceMemberships(id, bookmarkIds, addedAt: addedAt);
 }
 
 class _FailingRemoveGroupRepository implements BookmarkGroupRepository {
@@ -1100,8 +1106,11 @@ class _FailingRemoveGroupRepository implements BookmarkGroupRepository {
       delegate.renameGroup(id, name);
 
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
-      delegate.replaceMemberships(id, bookmarkIds);
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) => delegate.replaceMemberships(id, bookmarkIds, addedAt: addedAt);
 }
 
 class _CommitsThenThrowsRemoveGroupRepository
@@ -1155,8 +1164,11 @@ class _CommitsThenThrowsRemoveGroupRepository
       delegate.renameGroup(id, name);
 
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) =>
-      delegate.replaceMemberships(id, bookmarkIds);
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) => delegate.replaceMemberships(id, bookmarkIds, addedAt: addedAt);
 }
 
 class _FailingReplaceGroupRepository implements BookmarkGroupRepository {
@@ -1165,7 +1177,11 @@ class _FailingReplaceGroupRepository implements BookmarkGroupRepository {
   final BookmarkGroupRepository delegate;
 
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds) {
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) {
     throw StateError('membership replacement failed');
   }
 
@@ -1221,5 +1237,22 @@ class _FailsSecondCopyRepository extends BookmarkGroupRepositoryHive {
     attempted.add(name);
     if (name == 'Copy B') throw StateError('second copy rejected');
     return super.createGroup(name, id: id);
+  }
+}
+
+class _FailsFirstReplaceGroupRepository extends BookmarkGroupRepositoryHive {
+  _FailsFirstReplaceGroupRepository(super.box);
+  bool _failed = false;
+  @override
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) {
+    if (!_failed) {
+      _failed = true;
+      throw StateError('Injected Undo write failure');
+    }
+    return super.replaceMemberships(id, bookmarkIds, addedAt: addedAt);
   }
 }

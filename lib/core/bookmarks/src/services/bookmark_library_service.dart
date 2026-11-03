@@ -22,9 +22,11 @@ class BookmarkGroupRemovalResult extends Equatable {
     this.removedBookmarks = const [],
     this.groupId,
     this.removedPools = const [],
+    this.addedAt = const {},
   });
 
-  final List<PoolBookmark> removedPools;
+  final List<CollectionBookmark> removedPools;
+  final Map<BookmarkUniqueId, DateTime> addedAt;
   final List<Bookmark> deletedBookmarks;
   final List<Bookmark> removedBookmarks;
   final String? groupId;
@@ -37,6 +39,7 @@ class BookmarkGroupRemovalResult extends Equatable {
     removedBookmarks,
     deletedBookmarks,
     removedPools,
+    addedAt,
     removedCount,
   ];
 }
@@ -84,6 +87,7 @@ class BookmarkLibraryService {
         validBookmarkIds: bookmarks.map((bookmark) => bookmark.id).toSet(),
       );
       await ensureDefaultMemberships(bookmarks);
+      await _initializeMembershipDates(bookmarks);
       await repairPoolMemberships();
       final groups = await groupRepository.getGroups();
       final folders = await groupRepository.getFolders();
@@ -129,11 +133,42 @@ class BookmarkLibraryService {
     final missing = bookmarks.map((b) => b.id).toSet().difference(members);
     if (missing.isNotEmpty) {
       try {
-        await groupRepository.addBookmarks(defaultBookmarkGroupId, missing);
+        await groupRepository.replaceMemberships(
+          defaultBookmarkGroupId,
+          {
+            ...?groups.where((g) => g.isDefault).firstOrNull?.bookmarkIds,
+            ...missing,
+          },
+          addedAt: {
+            ...?groups.where((g) => g.isDefault).firstOrNull?.addedAt,
+            for (final b in bookmarks)
+              if (missing.contains(b.id)) b.id: b.createdAt,
+          },
+        );
       } catch (_) {
         final saved = await groupRepository.getGroup(defaultBookmarkGroupId);
         if (saved == null || !saved.bookmarkIds.containsAll(missing)) rethrow;
       }
+    }
+  }
+
+  Future<void> _initializeMembershipDates(List<Bookmark> bookmarks) async {
+    final pending = (await groupRepository.getGroups())
+        .where(
+          (g) => g.addedAt.length != g.bookmarkIds.length,
+        )
+        .toList();
+    if (pending.isEmpty) return;
+    final byId = {for (final b in bookmarks) b.id: b};
+    for (final group in pending) {
+      await groupRepository.replaceMemberships(
+        group.id,
+        group.bookmarkIds,
+        addedAt: {
+          for (final id in group.bookmarkIds)
+            if (byId[id] case final b?) id: group.addedAt[id] ?? b.createdAt,
+        },
+      );
     }
   }
 
@@ -153,7 +188,13 @@ class BookmarkLibraryService {
               memberships.containsAll(pool.groupIds))
             return pool;
           changed = true;
-          return pool.withGroups(memberships);
+          return pool.withGroups(
+            memberships,
+            addedAt: {
+              for (final id in memberships)
+                id: pool.addedAt[id] ?? pool.createdAt,
+            },
+          );
         })(),
     ];
     if (changed) await groupRepository.replacePoolBookmarks(repaired);
@@ -406,11 +447,18 @@ class BookmarkLibraryService {
       final result = await groupRepository.replaceMemberships(
         duplicate.id,
         source.bookmarkIds,
+        addedAt: source.addedAt,
       );
       await groupRepository.replacePoolBookmarks([
         for (final pool in pools)
           if (pool.groupIds.contains(source.id))
-            pool.withGroups({...pool.groupIds, duplicate.id})
+            pool.withGroups(
+              {...pool.groupIds, duplicate.id},
+              addedAt: {
+                ...pool.addedAt,
+                duplicate.id: pool.addedAt[source.id] ?? pool.createdAt,
+              },
+            )
           else
             pool,
       ]);
@@ -493,7 +541,7 @@ class BookmarkLibraryService {
     Set<String> poolLocalIds = const {},
   }) async {
     final pools = poolLocalIds.isEmpty
-        ? const <PoolBookmark>[]
+        ? const <CollectionBookmark>[]
         : await groupRepository.getPoolBookmarks();
     final affectedPools = pools
         .where(
@@ -569,6 +617,11 @@ class BookmarkLibraryService {
     return BookmarkGroupRemovalResult(
       removedCount: affectedIds.length + affectedPools.length,
       removedPools: List.unmodifiable(affectedPools),
+      addedAt: {
+        for (final id in affectedIds)
+          selectedById[id]!.uniqueId:
+              target.addedAt[id] ?? selectedById[id]!.createdAt,
+      },
       groupId: groupId,
       removedBookmarks: List.unmodifiable(
         affectedIds.map((id) => selectedById[id]!),
@@ -588,7 +641,7 @@ class BookmarkLibraryService {
     );
     final deleted = removal.deletedBookmarks.map((b) => b.uniqueId).toSet();
     final oldPools = removal.removedPools.isEmpty
-        ? const <PoolBookmark>[]
+        ? const <CollectionBookmark>[]
         : await groupRepository.getPoolBookmarks();
     final created = <Bookmark>[];
     final members = <int>{};
@@ -610,15 +663,36 @@ class BookmarkLibraryService {
         }
       }
       final added = members.difference(target.bookmarkIds);
-      if (added.isNotEmpty) await groupRepository.addBookmarks(groupId, added);
+      if (added.isNotEmpty)
+        await groupRepository.replaceMemberships(
+          groupId,
+          {
+            ...target.bookmarkIds,
+            ...added,
+          },
+          addedAt: {
+            ...target.addedAt,
+            for (final old in removal.removedBookmarks)
+              if (byIdentity[old.uniqueId] case final restored?
+                  when added.contains(restored.id))
+                restored.id: removal.addedAt[old.uniqueId] ?? old.createdAt,
+          },
+        );
       if (removal.removedPools.isNotEmpty) {
         final next = {for (final pool in oldPools) pool.identity: pool};
         for (final old in removal.removedPools) {
           final current = next[old.identity];
-          next[old.identity] = (current ?? old).withGroups({
-            ...?current?.groupIds,
-            groupId,
-          });
+          next[old.identity] = (current ?? old).withGroups(
+            {
+              ...?current?.groupIds,
+              groupId,
+            },
+            addedAt: {
+              ...?current?.addedAt,
+              if (!(current?.groupIds.contains(groupId) ?? false))
+                groupId: old.addedAt[groupId] ?? old.createdAt,
+            },
+          );
         }
         await groupRepository.replacePoolBookmarks(next.values.toList());
       }
@@ -734,7 +808,11 @@ class BookmarkLibraryService {
     final errors = <Object>[];
     for (final group in groups) {
       try {
-        await groupRepository.replaceMemberships(group.id, group.bookmarkIds);
+        await groupRepository.replaceMemberships(
+          group.id,
+          group.bookmarkIds,
+          addedAt: group.addedAt,
+        );
       } catch (error) {
         errors.add(error);
       }

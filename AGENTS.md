@@ -81,11 +81,30 @@ publication, releases, or upstream synchronization.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.
 - Before UI changes, inspect comparable screens; reuse application components, spacing,
   typography, sizing, and interactions. Justify intentional deviations.
-- Prefer Kurumi components for popup, context, and anchored menus; do not mix
-  differently styled Material and Kurumi menu rows in one popup.
+- For shared UI consistency work, consult `docs/ui_style_guide.md` as a proposed
+  baseline until #136 is accepted; preserve approved feature behavior and inspect
+  the current Kurumi API before introducing new visual patterns.
 - Localize user-facing strings and use `context.t`.
 - Treat external/site/API data as nullable; use `equatable` when useful.
 - Prefer readable pattern matching; comment non-obvious decisions.
+
+### Kurumi dialogs and popup surfaces
+
+Use existing Kurumi components for application dialogs, popup menus, anchored
+pickers, bottom sheets, and context menus. Do not introduce raw Material
+`AlertDialog`, `Dialog`, `SimpleDialog`, or `PopupMenuButton` when an appropriate
+Kurumi alternative exists.
+
+Prefer `KurumiAnchor`, `KurumiDialog`, `KurumiPopupMenuButton`,
+`KurumiContextMenu`, or existing Kurumi sheet components according to the
+interaction. Flutter's `showDialog` is allowed as a routing mechanism when
+presenting a Kurumi-styled dialog. Do not mix differently styled Material and
+Kurumi menu rows in one popup.
+
+Keep reusable picker content and state independent from presentation surfaces.
+The same workflow must use consistent presentation patterns across entry points.
+Exceptions require a documented technical justification and must preserve the
+application's established styling.
 
 ## Verification and devices
 

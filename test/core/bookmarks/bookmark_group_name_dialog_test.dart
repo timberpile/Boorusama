@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/material.dart' as legacy;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 
 void main() {
   for (final action in ['Save', 'Cancel', 'Back', 'Outside', 'Submit']) {
@@ -34,7 +35,7 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(legacy.TextField), '  Edited  ');
+      await tester.enterText(find.byType(TextField), '  Edited  ');
       switch (action) {
         case 'Save' || 'Cancel':
           await tester.tap(find.text(action));
@@ -75,7 +76,7 @@ void main() {
     );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(legacy.TextField), 'DismissalProbe');
+    await tester.enterText(find.byType(TextField), 'DismissalProbe');
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpAndSettle();
@@ -83,9 +84,10 @@ void main() {
     tester.view.viewInsets = FakeViewPadding.zero;
     await tester.pumpAndSettle();
     expect(find.text('DismissalProbe'), findsOneWidget);
-    expect(find.byType(legacy.AlertDialog), findsOneWidget);
+    expect(find.byType(KurumiDialog), findsOneWidget);
+    expect(find.byType(legacy.AlertDialog), findsNothing);
     await tester.enterText(
-      find.byType(legacy.TextField),
+      find.byType(TextField),
       'Edited after dismissal',
     );
     await tester.tap(find.text('Cancel'));

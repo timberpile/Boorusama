@@ -1,3 +1,4 @@
+import '../../../posts/related/related_family.dart';
 import '../providers/pool_bookmark_provider.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../types/pool_bookmark_capability.dart';
@@ -14,6 +15,7 @@ import 'package:foundation/foundation.dart';
 import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 
@@ -271,45 +273,14 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ),
             sliverHeaders: [
               TimelineHeaderSliver(
+                backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: BookmarkSearchBar(
-                            controller: widget.searchController,
-                            postController: controller,
-                            view: widget.view,
-                          ),
-                        ),
-                        if (ref
-                                .watch(bookmarkProvider)
-                                .valueOrNull
-                                ?.pools
-                                .isNotEmpty ??
-                            false)
-                          IconButton(
-                            tooltip: context.t.bookmark.pool_filter_help,
-                            icon: const Icon(Icons.info_outline),
-                            onPressed: () => showDialog<void>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                content: SingleChildScrollView(
-                                  child: Text(
-                                    context.t.bookmark.pool_filter_help,
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: Text(context.t.generic.action.ok),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
+                    BookmarkSearchBar(
+                      controller: widget.searchController,
+                      postController: controller,
+                      view: widget.view,
                     ),
                     ValueListenableBuilder(
                       valueListenable: controller.itemsNotifier,
@@ -343,7 +314,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     return _entries.map((e) => e.key).toList();
   }
 
-  List<PoolBookmark> _selectedPools() => [
+  List<CollectionBookmark> _selectedPools() => [
     for (final entry in _entries.whereType<BookmarkPoolEntry>())
       if (_selectionModeController.selectedKeys.contains(entry.key)) entry.pool,
   ];
@@ -413,10 +384,19 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               _ => null,
             },
           ),
+          BookmarkPoolEntry(:final pool) when pool.family != null =>
+            RelatedViewerEntry(
+              family: pool.family!,
+              occurrenceId: entry.key,
+              source: switch (resolvePoolBookmarkProfile(pool, profiles)) {
+                final config? => ViewerSourceBinding(config),
+                _ => null,
+              },
+            ),
           BookmarkPoolEntry(:final pool) => PoolViewerEntry(
             origin: pool.origin,
             pool: RemoteBookmarkPool(
-              id: pool.poolId,
+              id: pool.referenceId,
               title: pool.title,
               category: pool.category,
               total: pool.total,

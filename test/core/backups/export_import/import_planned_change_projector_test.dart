@@ -1,4 +1,5 @@
 import '../../../profile_uuid_utils.dart';
+
 import 'package:boorusama/core/backups/export_import/import/bookmark_profile_dependency.dart';
 import 'package:boorusama/core/backups/export_import/import/import_change_preview.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
@@ -18,6 +19,46 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const projector = ImportPlannedChangeProjector();
+
+  test('membership timestamp updates are visible while merges preserve local dates', () {
+    final bookmark = _bookmark(localId: 1, postId: 101);
+    final before = DateTime.utc(2020), incoming = DateTime.utc(2022);
+    for (final action in [ImportAction.update, ImportAction.merge]) {
+      final result = projector.bookmarks(
+        local: BookmarkImportLocalSnapshot(
+          bookmarks: [bookmark],
+          groups: [
+            BookmarkGroup(
+              id: 'g',
+              name: 'A',
+              bookmarkIds: {1},
+              addedAt: {1: before},
+            ),
+          ],
+        ),
+        incoming: BookmarkBackupData(
+          bookmarks: [bookmark],
+          groups: [
+            BookmarkGroupBackup(
+              id: 'g',
+              name: 'A',
+              bookmarkIds: [1],
+              addedAt: {1: incoming},
+            ),
+          ],
+        ),
+        resolution: ResolvedImportSource(
+          id: 'bookmarks',
+          action: ImportAction.configureItems,
+          items: [ResolvedImportItem(id: 'group:g', action: action)],
+        ),
+      )!;
+      expect(
+        result.updated,
+        action == ImportAction.update ? greaterThan(0) : 0,
+      );
+    }
+  });
 
   test('preview counts memberships without an extra changed group', () {
     final a = _bookmark(localId: 1, postId: 101);
@@ -200,8 +241,7 @@ void main() {
           {'id': 2, 'name': 'rating:e -scenery'},
           {
             'id': 3,
-            'name':
-                'https://user:private@site.example/?auth=hidden&access_key=hidden&pwd=hidden&signature=hidden',
+            'name': 'https://user:private@site.example/?auth=hidden&access_key=hidden&pwd=hidden&signature=hidden',
           },
         ],
         resolution: _source('blacklisted_tags', ImportAction.replace),

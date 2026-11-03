@@ -255,6 +255,10 @@ void main() {
                   'id': groupId,
                   'name': 'Imported',
                   'bookmarkIds': [1, 2],
+                  'addedAt': {
+                    '1': _bookmark(1, sourceUrl).createdAt.toIso8601String(),
+                    '2': _bookmark(2, sourceUrl).createdAt.toIso8601String(),
+                  },
                 },
               ],
             },

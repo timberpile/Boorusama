@@ -12,7 +12,11 @@ abstract interface class BookmarkGroupRepository {
 
   Future<BookmarkGroup> renameGroup(String id, String name);
 
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> bookmarkIds);
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  });
 
   Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds);
 

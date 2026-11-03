@@ -1,3 +1,5 @@
+import '../../../posts/related/related_posts_order.dart';
+
 // Dart imports:
 import 'dart:convert';
 
@@ -78,11 +80,13 @@ class Settings extends Equatable {
     this.searchRefresh = const SearchRefreshSettings(),
     this.followingTopicSort = 'manual',
     this.topicFeedMemberSort = 'addedDate',
+    this.relatedPostsOrder = RelatedPostsOrder.oldest,
     this.automaticUpdateChecks = true,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
-    : safeMode = json['safeMode'] ?? true,
+    : relatedPostsOrder = RelatedPostsOrder.parse(json['relatedPostsOrder']),
+      safeMode = json['safeMode'] ?? true,
       listing = ImageListingSettings.fromJson(json),
       viewer = ImageViewerSettings.fromJson(json),
       blacklistedTags = json['hideBlacklist'] ?? '',
@@ -196,7 +200,7 @@ class Settings extends Equatable {
       mediaBlurCondition: MediaBlurCondition.defaultValue,
       imageGridSpacing: 4,
       imageBorderRadius: 4,
-      imageGridPadding: 16,
+      imageGridPadding: 4,
       imageGridAspectRatio: 0.7,
       postsPerPage: 60,
       animatedPostsDefaultState: AnimatedPostsDefaultState.defaultValue,
@@ -323,6 +327,7 @@ class Settings extends Equatable {
   final SearchRefreshSettings searchRefresh;
   final String followingTopicSort;
   final String topicFeedMemberSort;
+  final RelatedPostsOrder relatedPostsOrder;
 
   final CacheSize videoCacheMaxSize;
   final CacheSize imageCacheMaxSize;
@@ -371,6 +376,7 @@ class Settings extends Equatable {
     SearchRefreshSettings? searchRefresh,
     String? followingTopicSort,
     String? topicFeedMemberSort,
+    RelatedPostsOrder? relatedPostsOrder,
     CacheSize? videoCacheMaxSize,
     CacheSize? imageCacheMaxSize,
   }) => Settings(
@@ -432,6 +438,7 @@ class Settings extends Equatable {
     searchRefresh: searchRefresh ?? this.searchRefresh,
     followingTopicSort: followingTopicSort ?? this.followingTopicSort,
     topicFeedMemberSort: topicFeedMemberSort ?? this.topicFeedMemberSort,
+    relatedPostsOrder: relatedPostsOrder ?? this.relatedPostsOrder,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
     imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
@@ -484,6 +491,7 @@ class Settings extends Equatable {
       'searchRefresh': searchRefresh.toJson(),
       'followingTopicSort': followingTopicSort,
       'topicFeedMemberSort': topicFeedMemberSort,
+      'relatedPostsOrder': relatedPostsOrder.name,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
       'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
@@ -533,6 +541,7 @@ class Settings extends Equatable {
     searchRefresh,
     followingTopicSort,
     topicFeedMemberSort,
+    relatedPostsOrder,
     videoCacheMaxSize,
     imageCacheMaxSize,
   ];
@@ -824,7 +833,7 @@ class ImageListingSettings extends Equatable {
       ),
       postsPerPage = json['postsPerPage'] ?? 60,
       imageGridAspectRatio = json['imageGridAspectRatio'] ?? 0.7,
-      imageGridPadding = json['imageGridPadding'] ?? 16,
+      imageGridPadding = json['imageGridPadding'] ?? 4,
       imageGridSpacing = json['imageGridSpacing'] ?? 4,
       animatedPostsDefaultState = AnimatedPostsDefaultState.parse(
         json['animatedPostsDefaultState'],

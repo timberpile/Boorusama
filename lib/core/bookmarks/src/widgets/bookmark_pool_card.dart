@@ -1,4 +1,9 @@
+import '../providers/related_bookmark_provider.dart';
+import '../../../posts/related/related_family.dart';
+import '../../../posts/details/routes.dart';
+import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../posts/listing/providers.dart';
+import '../../../posts/post/types.dart';
 import '../../../config_widgets/website_logo.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +33,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
     this.onOpen,
     super.key,
   });
-  final PoolBookmark pool;
+  final CollectionBookmark pool;
   final int index;
   final String? groupId;
   final bool projected;
@@ -51,11 +56,13 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     );
     final card = PoolGridItem(
       total: pool.total,
-      name: pool.title,
-      kind: switch (pool.category) {
-        BookmarkedPoolCategory.series => PoolGridItemKind.series,
-        _ => PoolGridItemKind.collection,
-      },
+      name: pool.isRelated ? null : pool.title,
+      kind: pool.isRelated
+          ? PoolGridItemKind.related
+          : switch (pool.category) {
+              BookmarkedPoolCategory.series => PoolGridItemKind.series,
+              _ => PoolGridItemKind.collection,
+            },
       sourceIcon: ClipRRect(
         borderRadius: BorderRadius.circular(4),
         child: profile == null
@@ -70,11 +77,14 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
                 fit: BoxFit.contain,
               ),
       ),
-      category: switch (pool.category) {
-        BookmarkedPoolCategory.series => context.t.pool.category.series,
-        BookmarkedPoolCategory.collection => context.t.pool.category.collection,
-        BookmarkedPoolCategory.unknown => null,
-      },
+      category: pool.isRelated
+          ? null
+          : switch (pool.category) {
+              BookmarkedPoolCategory.series => context.t.pool.category.series,
+              BookmarkedPoolCategory.collection =>
+                context.t.pool.category.collection,
+              BookmarkedPoolCategory.unknown => null,
+            },
       image: BookmarkPoolCoverImage(pool: pool, showLabel: true),
       onTap: () {
         if (!handleSelectionTap(context, widget.index)) _open();
@@ -90,11 +100,12 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
         if (!widget.projected) ...[
           KurumiContextMenuTile(
             title: context.t.post.action.bookmark,
-            onTap: () => showDialog<void>(
-              context: context,
-              builder: (_) => BookmarkGroupPicker.pool(
+            onTap: () => showBookmarkPickerDialog(
+              context,
+              request: StoredBookmarkPickerRequest(
                 config: profile?.auth ?? BooruConfig.empty.auth,
-                pool: pool,
+                collection: pool,
+                source: profile,
               ),
             ),
           ),
@@ -136,16 +147,52 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       open();
       return;
     }
+    if (widget.pool.family case final family?) {
+      final config = resolvePoolBookmarkProfile(
+        widget.pool,
+        ref.read(booruConfigProvider),
+      );
+      goToPostDetailsPageCore<Post>(
+        ref: ref,
+        posts: const [],
+        initialIndex: 0,
+        hero: false,
+        initialThumbnailUrl: null,
+        config: config,
+        entries: [
+          RelatedViewerEntry(
+            family: family,
+            occurrenceId: widget.pool.localId,
+            source: config == null ? null : ViewerSourceBinding(config),
+          ),
+        ],
+      );
+      return;
+    }
     await _perform(
       (profile, capability) =>
-          capability.openBookmarkPool(ref, profile, widget.pool.poolId),
+          capability.openBookmarkPool(ref, profile, widget.pool.referenceId),
     );
   }
 
   Future<void> _refresh() => _perform((profile, capability) async {
+    if (widget.pool.family case final family?) {
+      final summary = await ref.read(
+        relatedBookmarkDraftProvider((profile, family)).future,
+      );
+      if (!mounted ||
+          resolvePoolBookmarkProfile(
+                widget.pool,
+                ref.read(booruConfigProvider),
+              ) !=
+              profile)
+        throw StateError('Related profile changed');
+      await ref.read(bookmarkProvider.notifier).refreshPoolBookmark(summary);
+      return;
+    }
     final remote = await capability.getBookmarkPool(
       profile,
-      widget.pool.poolId,
+      widget.pool.referenceId,
     );
     if (remote == null || !mounted) throw StateError('Pool unavailable');
     final summary = await ref.read(
@@ -180,7 +227,12 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       await action(profile, capability);
     } catch (_) {
       if (mounted)
-        Kurumi.showErrorToast(context, context.t.bookmark.pool_unavailable);
+        Kurumi.showErrorToast(
+          context,
+          widget.pool.isRelated
+              ? context.t.bookmark.related_unavailable
+              : context.t.bookmark.pool_unavailable,
+        );
     } finally {
       _busy = false;
     }
@@ -216,7 +268,7 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
     this.showLabel = false,
     super.key,
   });
-  final PoolBookmark pool;
+  final CollectionBookmark pool;
   final bool showLabel;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -236,9 +288,11 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
         pool.coverPolicy == policy) {
       final cover =
           pool.cover ??
-          ref
-              .watch(legacyPoolBookmarkCoverProvider((profile, pool)))
-              .valueOrNull;
+          (pool.isRelated
+              ? null
+              : ref
+                    .watch(legacyPoolBookmarkCoverProvider((profile, pool)))
+                    .valueOrNull);
       final media = cover == null
           ? null
           : ref

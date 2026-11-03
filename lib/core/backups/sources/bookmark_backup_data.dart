@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import '../../bookmarks/types.dart';
 import '../../groups/folder_tree.dart';
 import '../types/backup_data_source.dart';
+import '../types/types.dart';
 
 class BookmarkExportScope extends Equatable implements BackupExportScope {
   const BookmarkExportScope.all()
@@ -36,6 +37,7 @@ class BookmarkGroupBackup extends Equatable {
     required this.bookmarkIds,
     this.folderId,
     this.position = 0,
+    this.addedAt = const {},
   });
 
   bool get isDefault => id == defaultBookmarkGroupId;
@@ -43,6 +45,7 @@ class BookmarkGroupBackup extends Equatable {
   final String? id;
   final String name;
   final List<int> bookmarkIds;
+  final Map<int, DateTime> addedAt;
   final String? folderId;
   final int position;
 
@@ -51,12 +54,22 @@ class BookmarkGroupBackup extends Equatable {
     if (isDefault) 'systemRole': 'default',
     'name': name,
     'bookmarkIds': bookmarkIds,
+    'addedAt': addedAt.map(
+      (id, date) => MapEntry('$id', date.toUtc().toIso8601String()),
+    ),
     'folderId': folderId,
     'position': position,
   };
 
   @override
-  List<Object?> get props => [id, name, bookmarkIds, folderId, position];
+  List<Object?> get props => [
+    id,
+    name,
+    bookmarkIds,
+    addedAt,
+    folderId,
+    position,
+  ];
 }
 
 class BookmarkBackupData extends Equatable {
@@ -67,17 +80,70 @@ class BookmarkBackupData extends Equatable {
     this.pools = const [],
   });
 
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final List<Bookmark> bookmarks;
   final List<BookmarkGroupBackup> groups;
   final List<CollectionFolder> folders;
 
-  Map<String, dynamic> get extraFields => {
-    'groups': groups.map((group) => group.toJson()).toList(),
-    'folders': folders.map((folder) => folder.toJson()).toList(),
-    if (pools.isNotEmpty)
-      'collectionBookmarks': pools.map((pool) => pool.toJson()).toList(),
-  };
+  Map<String, dynamic> get extraFields {
+    final byId = {for (final bookmark in bookmarks) bookmark.id: bookmark};
+    if (groups.any(
+      (group) => group.bookmarkIds.any((id) => !byId.containsKey(id)),
+    )) {
+      throw const InvalidBackupFormatException(
+        'Group references an absent bookmark',
+      );
+    }
+    final exportGroups = <BookmarkGroupBackup>[
+      for (final group in groups)
+        BookmarkGroupBackup(
+          id: group.id,
+          name: group.name,
+          folderId: group.folderId,
+          position: group.position,
+          bookmarkIds: group.bookmarkIds,
+          addedAt: {
+            for (final id in group.bookmarkIds)
+              id:
+                  group.addedAt[id] ??
+                  byId[id]?.createdAt ??
+                  (throw const InvalidBackupFormatException(
+                    'Group references an absent bookmark',
+                  )),
+          },
+        ),
+    ];
+    final assigned = {for (final group in exportGroups) ...group.bookmarkIds};
+    final ungrouped = byId.keys.toSet().difference(assigned);
+    // Legacy ungrouped data gets the same Default membership as library repair.
+    if (ungrouped.isNotEmpty) {
+      final index = exportGroups.indexWhere((group) => group.isDefault);
+      final previous = index < 0 ? null : exportGroups[index];
+      final defaultGroup = BookmarkGroupBackup(
+        id: defaultBookmarkGroupId,
+        name: previous?.name ?? 'Default',
+        bookmarkIds: [...?previous?.bookmarkIds, ...ungrouped],
+        position: previous?.position ?? 0,
+        addedAt: {
+          ...?previous?.addedAt,
+          for (final id in ungrouped) id: byId[id]!.createdAt,
+        },
+      );
+      if (index < 0) {
+        exportGroups.add(defaultGroup);
+      } else {
+        exportGroups[index] = defaultGroup;
+      }
+    }
+    return {
+      'groups': exportGroups.map((group) => group.toJson()).toList(),
+      'folders': folders.map((folder) => folder.toJson()).toList(),
+      if (pools.isNotEmpty)
+        'collectionBookmarks': pools
+            .map((pool) => pool.toJson()..remove('createdAt'))
+            .toList(),
+    };
+  }
 
   @override
   List<Object?> get props => [bookmarks, groups, folders, pools];
@@ -88,9 +154,10 @@ BookmarkBackupData buildBookmarkBackupData({
   required List<BookmarkGroup> groups,
   required BookmarkExportScope scope,
   List<CollectionFolder> folders = const [],
-  List<PoolBookmark> pools = const [],
+  List<CollectionBookmark> pools = const [],
 }) {
   final tree = FolderTree(folders);
+  final byId = {for (final bookmark in bookmarks) bookmark.id: bookmark};
   final selectedFolders = {
     for (final id in scope.folderIds)
       if (tree.byId.containsKey(id)) ...tree.subtree(id),
@@ -124,6 +191,10 @@ BookmarkBackupData buildBookmarkBackupData({
           folderId: group.folderId,
           position: group.position,
           bookmarkIds: group.bookmarkIds.intersection(exportedIds).toList(),
+          addedAt: {
+            for (final id in group.bookmarkIds.intersection(exportedIds))
+              id: group.addedAt[id] ?? byId[id]!.createdAt,
+          },
         ),
       )
       .toList();

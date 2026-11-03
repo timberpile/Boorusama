@@ -35,8 +35,7 @@ class BookmarkPostButton extends ConsumerWidget {
     final presentation = state.presentation;
     final isBookmarked = presentation?.isBookmarked ?? false;
     return BookmarkGroupPickerAnchor(
-      config: config,
-      post: post,
+      request: PostBookmarkPickerRequest(config: config, post: post),
       builder: (context, showPicker) => IconButton(
         tooltip: context.t.bookmark.groups.selector,
         splashRadius: 16,
@@ -73,8 +72,7 @@ class BookmarkPostLikeButtonButton extends ConsumerWidget {
     final state = ref.watch(bookmarkButtonStateProvider(uniqueId));
     final presentation = state.presentation;
     return BookmarkGroupPickerAnchor(
-      config: config,
-      post: post,
+      request: PostBookmarkPickerRequest(config: config, post: post),
       builder: (context, showPicker) => GestureDetector(
         // Consume a held pointer instead of opening the picker on release.
         onLongPress: () {},

@@ -1,5 +1,5 @@
 // Flutter imports:
-import 'package:flutter/material.dart';
+import 'package:kurumi/material.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,18 +29,22 @@ Future<bool> showBookmarkMultiSelectionActions(
   required List<Bookmark> bookmarks,
 }) async {
   final container = ProviderScope.containerOf(context, listen: false);
-  final action = await showModalBottomSheet<String>(
+  final action = await Kurumi.showAppModalBottomSheet<String>(
     context: context,
     builder: (context) => SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ListTile(
-            title: Text(context.t.bookmark.bulk.add),
+          BookmarkPickerMenuItem(
+            icon: const Icon(Symbols.bookmark_add),
+            title: context.t.bookmark.bulk.add,
+            hideOnTap: false,
             onTap: () => Navigator.pop(context, 'add'),
           ),
-          ListTile(
-            title: Text(context.t.bookmark.bulk.remove),
+          BookmarkPickerMenuItem(
+            icon: const Icon(Symbols.bookmark_remove),
+            title: context.t.bookmark.bulk.remove,
+            hideOnTap: false,
             onTap: () => Navigator.pop(context, 'remove'),
           ),
         ],
@@ -120,7 +124,6 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
     return BookmarkBatchDialog(
       title: context.t.bookmark.groups.selector,
       child: BookmarkFolderPickerContents(
-        compact: true,
         folders: library?.folders ?? const [],
         groups: library?.groups ?? const [],
         membershipGroupIds: singleMemberships,
@@ -171,7 +174,7 @@ class BookmarkGroupSelectionSummary {
     required Iterable<Post> posts,
     required BookmarkLibraryState? state,
     required int booruId,
-    List<PoolBookmark> pools = const [],
+    List<CollectionBookmark> pools = const [],
   }) {
     var bookmarked = 0;
     final counts = <String, int>{};
@@ -233,7 +236,7 @@ class BookmarkMultiSelectionMenu extends ConsumerStatefulWidget {
   });
 
   final List<Post> posts;
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final BooruConfigAuth config;
   final Future<void> Function() onCompleted;
 
@@ -312,7 +315,7 @@ class _BookmarkMultiSelectionMenuState
     final navigation = ref.read(appNavigationProvider);
     final notifier = ref.read(bookmarkProvider.notifier);
     final selectedPosts = List<Post>.unmodifiable(widget.posts);
-    final selectedPools = List<PoolBookmark>.unmodifiable(widget.pools);
+    final selectedPools = List<CollectionBookmark>.unmodifiable(widget.pools);
     final config = widget.config;
     final onCompleted = widget.onCompleted;
     final target = directGroupId == null
@@ -373,7 +376,7 @@ Future<BookmarkGroupSelectionTarget?> showBookmarkGroupSelectionDialog(
   required BookmarkMultiSelectionOperation operation,
   required List<Post> posts,
   required BooruConfigAuth config,
-  List<PoolBookmark> pools = const [],
+  List<CollectionBookmark> pools = const [],
 }) => showDialog<BookmarkGroupSelectionTarget>(
   context: context,
   builder: (_) => _BookmarkGroupSelectionDialog(
@@ -394,7 +397,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
 
   final BookmarkMultiSelectionOperation operation;
   final List<Post> posts;
-  final List<PoolBookmark> pools;
+  final List<CollectionBookmark> pools;
   final BooruConfigAuth config;
 
   @override
@@ -427,7 +430,6 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
           ? context.t.bookmark.bulk.add_title
           : context.t.bookmark.bulk.remove_title,
       child: BookmarkFolderPickerContents(
-        compact: true,
         folders: visibleFolders,
         groups: visibleGroups,
         membershipGroupIds: posts.length + pools.length == 1

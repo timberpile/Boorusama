@@ -67,7 +67,7 @@ class BookmarkTagIndex {
   ) : entries = UnmodifiableListView(sorted),
       byName = UnmodifiableMapView(names);
 
-  BookmarkTagIndex withPoolBookmarks(Iterable<PoolBookmark> pools) {
+  BookmarkTagIndex withPoolBookmarks(Iterable<CollectionBookmark> pools) {
     final counts = <String, int>{};
     final poolSources = <String, Map<BookmarkTagSource, Set<String>>>{};
     for (final pool in pools) {
