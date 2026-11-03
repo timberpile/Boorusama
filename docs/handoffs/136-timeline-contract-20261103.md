@@ -1,5 +1,9 @@
 # Issue #136: Timeline contract supplement
 
+Later clarification: [approved UI conventions](136-approved-ui-conventions-20261103.md)
+keeps search fields rounded and reconciles AGENTS.md with #145. Transparent-input
+captures below remain historical evidence, not the current target.
+
 Local branch: `feature/136-kurumi-ui-design-system`, continuing `e0c3306c9`.
 Documentation and reviewed screenshot evidence only. Runtime source, the original
 30 captures and their Penpot imports remain unchanged. The broader #136 baseline
