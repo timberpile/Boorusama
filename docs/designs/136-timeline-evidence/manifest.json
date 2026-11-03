@@ -1,0 +1,117 @@
+{
+  "date": "2026-11-03",
+  "device": "exclusively leased emulator-5554",
+  "android": "17",
+  "physical_pixels": [
+    720,
+    1600
+  ],
+  "density_dpi": 320,
+  "logical_viewport": [
+    360,
+    800
+  ],
+  "navigation_mode": "gesture (Android setting 2)",
+  "profile": "Safebooru (Danbooru)",
+  "profile_theme_override": "none observed; global applied theme changed the timeline",
+  "runtime_commit": "eb315fd6955666260ff183dabc0d7964e768a7dc",
+  "baseline_commit": "f1412fa12ea1410e57c8db43e250b879e676b177",
+  "notes": [
+    "The current APK was built before commit; runtime files match eb315fd69. Later changes were tests/docs only. Installed SHA-256 matched the local APK.",
+    "The baseline is the prior #145 build; it has 28 dp overlays. The group gained Series/Collection references after that capture, so this is not a content-identical pixel diff.",
+    "Timeline contract remains a target. Collection captures demonstrate existing transparency/system-bar drift, not an implemented fix.",
+    "No three-button, RTL device, physical device or assistive-technology acceptance is claimed."
+  ],
+  "captures": [
+    {
+      "file": "01-before-related-28.png",
+      "sha256": "71fad6be448a187c817627a4b1246de6a019b127a137212ac4320ad198c565db",
+      "theme": "Midnight",
+      "dynamic_color": false,
+      "state": "Bookmark group; baseline Related card",
+      "text_scale": 1.0,
+      "apk_sha256": "96355fbf98e3bcd7b762a9a7491b9b9d023874fd823bb3a4edd41c57b8624e19"
+    },
+    {
+      "file": "02-midnight-24.png",
+      "sha256": "24dadc589a1bcafa10e77917fc0a12df132f644e9059596443c4ff85fe72f6c0",
+      "theme": "Midnight",
+      "dynamic_color": false,
+      "state": "Bookmark group; Collection, Series, Related",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "03-light-24.png",
+      "sha256": "d607f49507ca246e9753fa6474cb35885ba7c2c1e7333861d9b5231d65d9bc29",
+      "theme": "Light",
+      "dynamic_color": false,
+      "state": "Bookmark group; same three references",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "04-dark-24.png",
+      "sha256": "32f40bcf4d3b3ccc092a76260290f274847c8faafbcdab010db37e9f14f69576",
+      "theme": "Dark",
+      "dynamic_color": false,
+      "state": "Bookmark group; same three references",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "05-dark-dynamic.png",
+      "sha256": "bb73aefafbe9889c0618c7f40fc2481a4681b3a9f5cc3fafc5f9871777e96cdd",
+      "theme": "Dark",
+      "dynamic_color": true,
+      "state": "Bookmark group; dynamic color enabled",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "06-dark-keyboard.png",
+      "sha256": "c6d84e1c39b2bb39095c43c61970a59934989fd8f9e9e7f7fbb8514e0a7b692f",
+      "theme": "Dark",
+      "dynamic_color": false,
+      "state": "Bookmark search draft dress; actual soft keyboard open",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "07-collection-top.png",
+      "sha256": "6894d85a9c0ca7a3e5865788dea11b004122d40a0e5117fb5c5810fd181296f1",
+      "theme": "Midnight",
+      "dynamic_color": false,
+      "state": "Collection detail at top",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "08-collection-down.png",
+      "sha256": "6514ab1e26b288bccb0d2c50800f681dd2f98c4f4126b18a3496e8eabbca7607",
+      "theme": "Midnight",
+      "dynamic_color": false,
+      "state": "Collection detail after downward scroll",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "09-collection-reveal.png",
+      "sha256": "d6dd8f7a1afb5b3c8fe70a8eb5e6eb7cd0ec0ea1200ceb8544ead51469d5e08b",
+      "theme": "Midnight",
+      "dynamic_color": false,
+      "state": "Collection detail after slight upward scroll",
+      "text_scale": 1.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    },
+    {
+      "file": "10-dark-large-text.png",
+      "sha256": "914de4854310a20b764fb2d7162307ead859ed948de021449fd89c1f7837920f",
+      "theme": "Dark",
+      "dynamic_color": false,
+      "state": "Bookmark group at system font scale 2.0; keyboard closed",
+      "text_scale": 2.0,
+      "apk_sha256": "4a4d1dd54ab5f352304693da8b7a3c8e1af5eb2272063a84707a23e7330e298f"
+    }
+  ]
+}

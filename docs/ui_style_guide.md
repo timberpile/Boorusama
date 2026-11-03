@@ -1,6 +1,6 @@
 # Boorusama UI style guide (baseline)
 
-Status: **proposed baseline**, pending review and acceptance under [#136](https://github.com/timberpile/Boorusama/issues/136). This document describes existing patterns and conservative rules; it does not authorize a redesign or supersede approved feature specifications.
+Status: **proposed baseline**, pending review and acceptance under [#136](https://github.com/timberpile/Boorusama/issues/136). Most sections describe existing patterns and conservative rules. The timeline contract below records the user's accepted 2026-11-03 decision; it supersedes only #107's earlier translucent-surface choice. Other approved feature behavior remains authoritative. Recording the contract does not authorize its runtime implementation.
 
 See the [Kurumi component index](designs/2026-11-02-kurumi-component-inventory.md), [source audit](designs/2026-11-02-ui-design-system-audit.md) and [Penpot design strategy](designs/2026-11-02-penpot-design-strategy.md).
 
@@ -72,6 +72,14 @@ review; this audit does not certify them. Source references:
 
 ## Choosing a menu or editor
 
+Use existing Kurumi surfaces for application dialogs, popup menus, anchored
+pickers, bottom sheets and context menus. Do not introduce raw Material
+`AlertDialog`, `Dialog`, `SimpleDialog` or `PopupMenuButton` where an appropriate
+Kurumi alternative exists. Flutter `showDialog` remains valid as routing for
+Kurumi-styled content. Keep reusable picker content and state independent of its
+container; equivalent entry points should present the same workflow consistently.
+Document a technical justification for exceptions and preserve established styling.
+
 Match the interaction before the class name. Following Topics' sort menu uses
 Material's selected value and icon/text `PopupMenuActionLabel`; Download
 Manager's Kurumi menu dispatches actions. A migration must explicitly preserve
@@ -84,6 +92,112 @@ behavior; a native editor is not proof of a different palette. Keep specialized
 tag editing, completion, submission, and cancellation in its existing app
 wrapper. Dialogs must preserve Navigator ownership, IME insets, scrollable
 content, validation, and cancellation before component substitution.
+
+### Popup trigger geometry
+
+[\#105](https://github.com/timberpile/Boorusama/issues/105) owns radius decisions
+and runtime changes. Evaluate the existing **8 dp** rounded shape before choosing
+another value; this is not a new token scale. A control's resting outline and its
+pressed, hover and focus effects must follow the same geometry. Preserve circular
+icon-only controls and distinguish the visual footprint from the touch target.
+
+Source inspection found that `KurumiPopupMenuButton`'s custom-child branch wraps
+its child in transparent `Material` and an `InkWell` without a `borderRadius`.
+A rounded child therefore does not guarantee rounded interaction feedback. The
+icon-only branch already uses `CircleBorder`; menu rows already use 8 dp. Verify
+both branches and their actual clipping in #105, rather than adding radius fixes
+to unrelated feature branches.
+
+## Timeline regions and scrolling
+
+The following terminology describes responsibilities, not required API names:
+
+| Term | Responsibility | Typical component |
+| --- | --- | --- |
+| **Header** | Upper navigation, route title and primary route actions | `KurumiAppBar` / `KurumiSliverAppBar` |
+| **Timeline Toolbar** | Sort, source/filter, count, grid and related list controls | Existing timeline option selectors and toolbar widgets |
+| **Search Bar** | Search input and directly associated search actions/chips | Existing search wrapper and `KurumiSearchBar` |
+
+Do not rename `TimelineHeaderSliver` or other established APIs solely to match
+these prose terms. An existing class called “header” may implement the Timeline
+Toolbar region.
+
+### Accepted surface and scroll contract
+
+- Standard timeline Headers are **opaque**. On comparable scrolling timelines,
+  hide the Header while scrolling down and reveal it after slight upward scrolling,
+  including away from the top. Preserve route restoration, actions and selection.
+- When Search Bar and Timeline Toolbar form one region, one parent owns their
+  **opaque semantic surface**. Their children remain transparent; do not stack
+  translucent fills, rounded outer search backgrounds or gaps between the rows.
+  Internal suggestion menus and editor overlays retain their own Kurumi surfaces.
+- Use the active theme's semantic surface and matching content roles. Do not
+  hardcode black, copy a screenshot color or treat AMOLED as ordinary dark mode.
+  #139 uses the active `colorScheme.surface` for the Bookmark region.
+- Keep Search Bar visibility and Timeline Toolbar visibility independently
+  configurable where these preferences exist. Header scrolling must not couple
+  or silently reset them. Preserve Feed cached-only semantics and all of #107's
+  other accepted controls, sorting, source handling and pagination behavior.
+- Header, Search Bar, Timeline Toolbar and content must stay reachable without
+  overlap throughout transitions. Reserve each region once. Coordinate positioned
+  overlays with slivers; a preceding sliver's overlap value cannot account for a
+  sibling overlay. Avoid page-specific offset patches and duplicate safe areas.
+
+The Bookmark-only surface correction belongs to #139 and is inherited by #145.
+The broader runtime contract is tracked in
+[\#148](https://github.com/timberpile/Boorusama/issues/148); Browse's reported
+Search Bar/Timeline Toolbar collision is
+[\#146](https://github.com/timberpile/Boorusama/issues/146). #98 covers search-option
+overlay gaps and #114 covers Timeline Toolbar behavior; neither establishes a
+completed implementation of this Header contract. These tasks are recorded for
+later implementation, not implemented by this documentation change.
+
+### Android system bars and inset ownership
+
+On standard timelines, keep the status bar visible with an opaque semantic
+backdrop, even when the Header is hidden. Assign status-bar inset ownership to
+one route/shell region so content neither paints through it nor gains duplicate
+padding. Match icon brightness to the actual painted backdrop.
+
+Preserve modern Android edge-to-edge layout. Gesture navigation can remain
+transparent when the content and inset treatment are coherent; three-button
+navigation needs a consistent semantic backdrop and readable controls. Intentional
+immersive media-viewer behavior is an explicit exception. Entering and leaving
+that viewer must restore the timeline policy. Runtime work belongs to
+[\#147](https://github.com/timberpile/Boorusama/issues/147).
+
+`SystemUiOverlayStyle` configuration alone does not prove the rendered result.
+Inspect actual pixels, icon contrast, inset ownership and scroll transitions.
+Current source includes globally transparent system-bar colors, positioned Browse
+search, fixed Bookmark/Feed app bars and floating viewer-entry Headers; these are
+implementation findings, not evidence that every route meets this target.
+
+### Required timeline capture matrix
+
+Record source/APK provenance, Android version, logical viewport, text scale,
+named theme, dynamic-color state, profile overrides and navigation mode for every
+capture set. Keep existing #136 evidence and Penpot imports; new captures supplement
+them. A theme-preview screen does not establish that a timeline was tested with
+that theme applied.
+
+| Coverage | States to compare |
+| --- | --- |
+| Browse, Bookmarks, Topic Feed, Pool/Series/Collection and Related timelines | At top; downward scroll with Header hidden; slight upward reveal; restored Back position |
+| Search and Timeline Toolbar | Each visibility setting independently; top/bottom search placement; chips; multi-selection; keyboard open |
+| Theme | Applied light, dark and AMOLED; dynamic color on/off when available; active profile override recorded |
+| Android navigation | Gesture and three-button modes; status/navigation backdrop, icon contrast, cutout and bottom inset |
+| Constrained input | Narrow viewport, enlarged text, RTL; focused control, popup at available screen edge, dismissal/focus return |
+
+Compare the same safe public content before/after. Separate decoded-media
+readiness from layout acceptance. Mark missing matrix cells as unverified; a
+passing widget test, successful Maestro flow or matching APK hash does not fill
+them. The existing 30-image #136 set remains historical evidence with its original
+provenance and limits, not acceptance of this newly agreed timeline contract.
+
+The [2026-11-03 timeline supplement](designs/136-timeline-evidence/README.md)
+adds ten actual timeline/input captures with applied Light, Dark, AMOLED and
+dynamic-color states. It records current drift and explicitly lists missing
+acceptance cells; it does not replace the original evidence or Penpot imports.
 
 ## Responsive and interaction rules
 
