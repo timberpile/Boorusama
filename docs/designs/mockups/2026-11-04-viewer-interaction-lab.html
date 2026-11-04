@@ -37,6 +37,7 @@ let works=[...demos],workIndex=0,mode='image',positions=new Map(),transforms=new
 const image=()=>works[workIndex].pages[positions.get(works[workIndex])||0];
 const pageIndex=()=>positions.get(works[workIndex])||0;
 const media=$('media'),picture=$('picture');
+picture.draggable=false;media.style.userSelect='none';media.addEventListener('dragstart',e=>e.preventDefault());
 function toast(message){$('toast').textContent=message;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),1900);}
 function geometry(focus=false){const p=image(),w=$('viewport').clientWidth,h=mode==='overview'&&!focus?Math.min(340,$('viewport').clientHeight*.50,Math.max(90,w*p.height/p.width)):$('viewport').clientHeight;const f=Math.min(w/p.width,h/p.height);return{w,h,bw:p.width*f,bh:p.height*f,q:Math.max((p.width/p.height)/(w/h),(w/h)/(p.width/p.height)),tall:p.height/p.width>3*h/w};}
 function initial(g){if($('comic').checked&&g.tall)return{s:g.q,cx:.5,cy:g.h/(2*g.bh*g.q)};return{s:1,cx:.5,cy:.5};}
