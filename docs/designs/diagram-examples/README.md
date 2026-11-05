@@ -10,6 +10,12 @@ Read the [diagram style guide](../diagram_style_guide.md).
 
 This addresses the user's feedback: **Soft Pastel is the preferred palette, but the more important comparison is information structure and layout**. The earlier draw.io and Mermaid reproductions were visually unsatisfactory for these two explanation posters; retain them as historical experiments, not required future outputs. External image failure leaves an intentional placeholder.
 
+## Closer match to the original generated poster
+
+![Editable architecture poster reconstruction](architecture-poster-faithful.svg)
+
+[View the higher-fidelity SVG reconstruction](architecture-poster-faithful.svg). This retains the original poster's compact hierarchy, short labels, gradients, card spacing and icons more closely than the first SVG experiment. Every label, box and icon is a real SVG element; no PNG is embedded. It is a hand-redrawn approximation rather than a pixel-exact conversion. The vector source is about 21 KB compared with about 1.7 MB for the original raster poster.
+
 ## Architecture: Post, remote Groups and mixed listings
 
 ![Architecture, editable SVG](architecture.svg)
