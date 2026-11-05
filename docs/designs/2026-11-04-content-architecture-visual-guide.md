@@ -1,6 +1,6 @@
 # Content Architecture: Visual Guide for Discussion
 
-> **Technical appendix.** For a shorter and less technical explanation, start with the [illustrated Content Architecture overview](2026-11-04-content-architecture.md). This reference keeps detailed type, state and data-migration discussions; **the listed types are architectural responsibilities, not eleven mandatory Dart classes.**
+> **Technical appendix.** For a shorter and less technical explanation, start with the [illustrated Content Architecture overview](2026-11-04-content-architecture.md). For the **latest researched recommendations and unanswered product decisions**, see [Six Architecture Decisions](2026-11-05-architecture-decision-series.md). Older diagrams and interfaces below remain candidates, not authoritative final implementations; **the listed types are responsibilities, not eleven mandatory Dart classes.**
 
 ## Quick visual orientation
 
