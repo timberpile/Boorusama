@@ -5,6 +5,10 @@ Application baseline: `e306ff5338a2255a89731c61bd0672336a933344`.
 
 **Design/research only.** No runtime implementation, new issue, PR or develop merge. Proposed types, Work layouts, zoom constants and filter placement still need user decisions. GitHub Issues remain the task tracker.
 
+## Structure-first HTML experiment (2026-11-05)
+
+[Try the native HTML/CSS architecture and Pixiv Work comparison](diagram-examples/content-native-html.html). Soft Pastel is preferred visually, while layout and clarity matter more than palette. This newer comparison uses real HTML/CSS components, remote photo URLs (not stored media), and a direct HTTPS image URL field. The older SVG/draw.io/Mermaid/inline-SVG experiments are retained as references, not required output formats.
+
 ## Latest review: start here
 
 [Open the Image View / Overview Lab with local images](mockups/2026-11-04-viewer-interaction-lab.html).
