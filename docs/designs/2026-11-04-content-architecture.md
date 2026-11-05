@@ -4,6 +4,12 @@
 
 **The central idea:** keep `Post` as one image, video or animation. Add just enough shared **group behavior** so a Danbooru Pool, a Pixiv Work, a Pixiv Manga Series and an nhentai Gallery can reuse navigation, bookmarks and viewer components without needing separate implementations for every website.
 
+## New: six researched decisions, ready to review together (2026-11-05)
+
+[**Open the Architecture Decision Series**](2026-11-05-architecture-decision-series.md). It contains six separate briefs on: minimal shared Group contracts; Work/Page actions; Pixiv Series/user discovery/recommendations; nhentai API and Tag catalog; backup compatibility; and aspect-aware zoom. Each brief distinguishes confirmed source facts, external unverified endpoints, recommendations and the specific remaining choice.
+
+**Discussion order:** one topic at a time. Nothing in the briefs is automatically approved runtime architecture. The latest user preference is a compact Work UI: normal local Bookmark tap saves the Work; holding Bookmark chooses Work or current Page; Download taps target the current Page and holding offers Download All; the Share Sheet exposes both Boorusama Work/Page links without duplicating unrelated links. Existing Pool/Related views retain group-level header actions and independent per-Post actions.
+
 ## 1. What exactly is a Group?
 
 ![Pastel diagram showing Post and remote Content Groups, including Danbooru Pool, Pixiv Work, Pixiv Manga Series and nhentai Gallery](visuals/01-posts-and-groups.svg)
@@ -70,10 +76,11 @@ Only for a list that can mix media and groups. In `[single image, Pixiv Work car
 
 Example: a Pixiv Work has five pages and you are viewing **2 / 5**.
 
-- **Work:** Pixiv bookmark (whole Work, account-bound); locally save Work; share Work reference; possibly download all pages.
-- **Current Page:** locally save this image only; share its link or image; download it; load the original where available.
+- **Work:** Pixiv account bookmark (whole Work, account-bound); tap local Bookmark for the entire Work; create a portable Work reference.
+- **Current Page:** hold the local Bookmark button to choose Work/Page; normal Download targets this image, holding it offers Download All; media links and image sharing stay Page-specific.
+- **Share Sheet:** Boorusama **Work** and **Page** link tiles share one compact section. The Pixiv website URL points to the Work, whereas an image URL addresses the selected media.
 
-**UI direction under discussion:** keep a few Work-level actions near the Work title. Put less frequent Page actions into the existing overflow, using familiar icons and a divider between **Work** (stack icon) and **Current Page** (image icon). No second persistent action toolbar or new unexplained bookmark icons.
+**Leading UI candidate:** keep the existing compact action row. In its overflow use familiar action icons, a short **Work / Current Page** grouping with a divider, and accessibility alternatives to long press. The existing Pool/Related Header + Post Timeline requires no duplicated Work/Page toolbar. See [Decision 2](2026-11-05-decision-02-work-page-ux-and-actions.md).
 
 The current local Post bookmarking and sharing already supports Pixiv page identities. **Work bookmark sharing and Pixiv server-side bookmark writing are future features**, not already delivered by this diagram.
 
