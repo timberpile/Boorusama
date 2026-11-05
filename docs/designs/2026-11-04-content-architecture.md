@@ -5,6 +5,13 @@ Application baseline: `e306ff5338a2255a89731c61bd0672336a933344`.
 
 **Design/research only.** No runtime implementation, new issue, PR or develop merge. Proposed types, Work layouts, zoom constants and filter placement still need user decisions. GitHub Issues remain the task tracker.
 
+## Latest SVG fidelity and Viewer Lab update (2026-11-05)
+
+- [Closer editable SVG of the original generated architecture poster](diagram-examples/architecture-poster-faithful.svg): manually reconstructed compact hierarchy, typography, icons and callouts, no embedded raster content. It remains an approximation, not an exact vector extraction.
+- [Viewer Lab with correct landscape rotation and removable observations](mockups/2026-11-04-viewer-interaction-lab.html): landscape preview width is now the matching portrait preview height; portrait and landscape share the same virtual dimensions. Each recorded zoom observation has an X control; deleted entries are omitted from the CSV.
+- Browser checks covered 1800x1000, 1366x768, 1040x850, 390x844 and 844x390 viewports. Every checked landscape width equalled its portrait height within rounding, with observation addition/deletion/export and no JavaScript exceptions.
+- [Format and structure comparison](diagram-examples/README.md) and [visual style guide](diagram_style_guide.md) remain experimental. SVG works well for static diagrams; HTML/CSS suits interactive UX examples.
+
 ## Structure-first HTML experiment (2026-11-05)
 
 [Try the native HTML/CSS architecture and Pixiv Work comparison](diagram-examples/content-native-html.html). Soft Pastel is preferred visually, while layout and clarity matter more than palette. This newer comparison uses real HTML/CSS components, remote photo URLs (not stored media), and a direct HTTPS image URL field. The older SVG/draw.io/Mermaid/inline-SVG experiments are retained as references, not required output formats.
