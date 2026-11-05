@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1448" height="1086" viewBox="0 0 1448 1086" role="img" aria-labelledby="heading explanation">
+<title id="heading">Boorusama Content Architecture (Draft), faithful vector reconstruction</title>
+<desc id="explanation">A manually editable reconstruction inspired by the original generated poster: Post remains one media item, groups contain members, mixed list entries wrap posts or group summaries, and content references, identities, viewer occurrences and local bookmark membership are separate.</desc>
+<defs>
+ <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F2F9FF"/><stop offset="1" stop-color="#D7E9FE"/></linearGradient>
+ <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FBF9FF"/><stop offset="1" stop-color="#EEE5FC"/></linearGradient>
+ <linearGradient id="groupband" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#F3E9FC"/><stop offset="1" stop-color="#F3EAFC"/></linearGradient>
+ <linearGradient id="greeng" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#EEF9F1"/><stop offset="1" stop-color="#E6F4EC"/></linearGradient>
+ <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFBF3"/><stop offset="1" stop-color="#FFF4E4"/></linearGradient>
+ <linearGradient id="stage" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#EEF6FF"/><stop offset="1" stop-color="#E2EDFD"/></linearGradient>
+ <filter id="shadow" x="-15%" y="-20%" width="130%" height="150%"><feDropShadow dx="1" dy="3" stdDeviation="2.8" flood-opacity="0.10"/></filter>
+ <marker id="arrow" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7Z" fill="#314568"/></marker>
+ <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="6.5" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M1 1L7 4L1 7Z" fill="#6B3396"/></marker>
+</defs>
+<rect width="1448" height="1086" fill="#FFFFFF" />
+<g font-family="Inter, Arial, Helvetica, sans-serif">
+
+<text x="35" y="43" font-size="45" font-weight="750" fill="#142036" text-anchor="start" >Boorusama Content Architecture (Draft)</text>
+<text x="36" y="79" font-size="26" font-weight="500" fill="#566173" text-anchor="start" >Keep Post. Add a small shared Group layer.</text>
+<path d="M20 99H1391" fill="none" stroke="#B5C2D5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="254" y="118" width="600" height="46" rx="12" fill="#FCFCFE" stroke="#3B526D" stroke-width="1.6" stroke-dasharray="6 6"/>
+<text x="283" y="149" font-size="24" font-weight="730" fill="#0D1B31" text-anchor="start" >Content</text>
+<text x="391" y="148" font-size="21" font-weight="400" fill="#0D1B31" text-anchor="start" >(concept only, not necessarily a superclass)</text>
+<path d="M552 165V184H176V216" fill="none" stroke="#304769" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 5" marker-end="url(#arrow)" />
+<path d="M552 165V184H691V216" fill="none" stroke="#304769" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6 5" marker-end="url(#arrow)" />
+<rect x="41" y="217" width="308" height="143" rx="14" fill="url(#blue)" stroke="#1262A9" stroke-width="1.8" filter="url(#shadow)" />
+<g transform="translate(67,239) scale(2.2916666666666665)" fill="none" stroke="#105B9A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="2.2"/><circle cx="16.5" cy="8.3" r="1.55"/><path d="m3.5 16.5 5.5-5.5 4.2 4.4 3.5-3.3 4 4.7"/></g>
+<text x="143" y="256" font-size="27" font-weight="760" fill="#0D1B31" text-anchor="start" >Post</text>
+<text x="143" y="283" font-size="19" font-weight="400" fill="#0D1B31" text-anchor="start" >One image, video, or</text>
+<text x="143" y="306" font-size="19" font-weight="400" fill="#0D1B31" text-anchor="start" >animation</text>
+<rect x="107" y="319" width="198" height="28" rx="8" fill="#BEDCFA" />
+<text x="206" y="339" font-size="17" font-weight="600" fill="#112B42" text-anchor="middle" font-style="italic" >Existing model stays</text>
+<rect x="526" y="218" width="472" height="132" rx="14" fill="url(#purple)" stroke="#68359C" stroke-width="1.9" filter="url(#shadow)" />
+<g transform="translate(556,236) scale(2.5)" fill="none" stroke="#713E9D" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5L3 7z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></g>
+<text x="637" y="255" font-size="29" font-weight="760" fill="#281739" text-anchor="start" >Group</text>
+<text x="637" y="282" font-size="19" font-weight="400" fill="#222237" text-anchor="start" >A source resource with members</text>
+<rect x="622" y="299" width="347" height="27" rx="8" fill="#E6D7FA" />
+<text x="795" y="318" font-size="17" font-weight="500" fill="#24153C" text-anchor="middle" font-style="italic" >Shared concept, not one UI for everything</text>
+<rect x="1095" y="129" width="303" height="153" rx="15" fill="#E9F7EE" stroke="#2F9858" stroke-width="1.7" />
+<g transform="translate(1117,143) scale(1.4583333333333333)" fill="none" stroke="#176E3A" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></g>
+<text x="1167" y="167" font-size="22" font-weight="760" fill="#0D1B31" text-anchor="start" >Key takeaway</text>
+<text x="1119" y="202" font-size="19" font-weight="420" fill="#0D1B31" text-anchor="start" >Separate identity, access,</text>
+<text x="1119" y="227" font-size="19" font-weight="420" fill="#0D1B31" text-anchor="start" >occurrence, and local</text>
+<text x="1119" y="252" font-size="19" font-weight="420" fill="#0D1B31" text-anchor="start" >bookmark membership.</text>
+<rect x="1095" y="304" width="304" height="179" rx="15" fill="#EDF5FE" stroke="#5092D6" stroke-width="1.7" />
+<g transform="translate(1117,316) scale(1.5)" fill="none" stroke="#155D9D" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1.5 14.6 9.4 22.5 12l-7.9 2.6L12 22.5l-2.6-7.9L1.5 12l7.9-2.6z"/></g>
+<text x="1170" y="343" font-size="22" font-weight="760" fill="#0D1B31" text-anchor="start" >UI / reuse</text>
+<text x="1119" y="378" font-size="18.5" font-weight="420" fill="#0D1B31" text-anchor="start" >Reuse Danbooru/Kurumi UI</text>
+<text x="1119" y="402" font-size="18.5" font-weight="420" fill="#0D1B31" text-anchor="start" >patterns, but allow media-first</text>
+<text x="1119" y="426" font-size="18.5" font-weight="420" fill="#0D1B31" text-anchor="start" >Works and description-first</text>
+<text x="1119" y="450" font-size="18.5" font-weight="420" fill="#0D1B31" text-anchor="start" >Pools.</text>
+<path d="M695 350V385H298V425" fill="none" stroke="#6B3396" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M695 385H521V425" fill="none" stroke="#6B3396" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M695 385H740V425" fill="none" stroke="#6B3396" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M695 385H974V425" fill="none" stroke="#6B3396" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M293 417L298 426L303 417" fill="none" stroke="#6B3396" stroke-width="2"/>
+<path d="M516 417L521 426L526 417" fill="none" stroke="#6B3396" stroke-width="2"/>
+<path d="M735 417L740 426L745 417" fill="none" stroke="#6B3396" stroke-width="2"/>
+<path d="M969 417L974 426L979 417" fill="none" stroke="#6B3396" stroke-width="2"/>
+<rect x="18" y="411" width="1074" height="180" rx="17" fill="url(#groupband)" />
+<text x="37" y="466" font-size="22" font-weight="760" fill="#392450" text-anchor="start" >Group</text>
+<text x="37" y="491" font-size="22" font-weight="760" fill="#392450" text-anchor="start" >examples</text>
+<text x="37" y="514" font-size="16" font-weight="400" fill="#3D2C50" text-anchor="start" >(and membership)</text>
+<rect x="180" y="427" width="227" height="148" rx="14" fill="#FAF7FF" stroke="#9B72C6" stroke-width="1.5" />
+<g transform="translate(198,441) scale(1.5833333333333333)" fill="none" stroke="#7B4EAB" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5L3 7z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></g>
+<text x="249" y="463" font-size="20" font-weight="740" fill="#24182E" text-anchor="start" >Danbooru Pool</text>
+<text x="249" y="489" font-size="16" font-weight="420" fill="#0D1B31" text-anchor="start" >Category: Series or</text>
+<text x="249" y="511" font-size="17" font-weight="420" fill="#0D1B31" text-anchor="start" >Collection</text>
+<rect x="212" y="527" width="167" height="33" rx="9" fill="#E8D7FC" />
+<g transform="translate(226,536) scale(0.9583333333333334)" fill="none" stroke="#7743A7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="2.2"/><circle cx="16.5" cy="8.3" r="1.55"/><path d="m3.5 16.5 5.5-5.5 4.2 4.4 3.5-3.3 4 4.7"/></g>
+<text x="256" y="550" font-size="16.5" font-weight="500" fill="#0D1B31" text-anchor="start" >Contains Posts</text>
+<rect x="417" y="427" width="195" height="148" rx="14" fill="#FBF8FF" stroke="#9B72C6" stroke-width="1.5" />
+<g transform="translate(442,442) scale(1.375)" fill="none" stroke="#7B4EAB" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h8l5 5v15H6z"/><path d="M14 2v6h5"/></g>
+<text x="481" y="463" font-size="20" font-weight="740" fill="#24182E" text-anchor="start" >Pixiv Work</text>
+<rect x="429" y="524" width="174" height="38" rx="9" fill="#E8D7FC" />
+<g transform="translate(441,534) scale(0.9166666666666666)" fill="none" stroke="#7743A7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="2.2"/><circle cx="16.5" cy="8.3" r="1.55"/><path d="m3.5 16.5 5.5-5.5 4.2 4.4 3.5-3.3 4 4.7"/></g>
+<text x="474" y="539" font-size="15.5" font-weight="450" fill="#2D1D44" text-anchor="start" font-style="italic" >Contains Pages /</text>
+<text x="475" y="557" font-size="15.5" font-weight="450" fill="#2D1D44" text-anchor="start" font-style="italic" >Posts</text>
+<rect x="618" y="427" width="239" height="148" rx="14" fill="#FAF7FF" stroke="#9B72C6" stroke-width="1.5" />
+<g transform="translate(636,439) scale(1.5833333333333333)" fill="none" stroke="#7B4EAB" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5C8 2.3 4 2.8 2 4.2v15c3-1.2 7-1.5 10 1.4 3-2.9 7-2.6 10-1.4v-15C18 2.7 15 2.6 12 5z"/><path d="M12 5v15.6"/></g>
+<text x="681" y="462" font-size="18" font-weight="740" fill="#24182E" text-anchor="start" >Pixiv Manga Series</text>
+<path d="M742 479V482H684V499" fill="none" stroke="#794CB0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M742 482H798V499" fill="none" stroke="#794CB0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<rect x="644" y="499" width="79" height="33" rx="7" fill="#FCFAFF" stroke="#8E5EBD" stroke-width="1.5" />
+<rect x="759" y="499" width="78" height="33" rx="7" fill="#FCFAFF" stroke="#8E5EBD" stroke-width="1.5" />
+<text x="684" y="521" font-size="15" font-weight="700" fill="#2E2348" text-anchor="middle" >Work</text>
+<text x="798" y="521" font-size="15" font-weight="700" fill="#2E2348" text-anchor="middle" >Work</text>
+<text x="740" y="520" font-size="19" font-weight="650" fill="#392450" text-anchor="middle" >…</text>
+<rect x="658" y="539" width="161" height="28" rx="8" fill="#E8D7FC" />
+<text x="739" y="559" font-size="16" font-weight="500" fill="#332244" text-anchor="middle" font-style="italic" >Contains Works</text>
+<rect x="867" y="427" width="213" height="148" rx="14" fill="#FAF7FF" stroke="#9B72C6" stroke-width="1.5" />
+<g transform="translate(888,439) scale(1.4166666666666667)" fill="none" stroke="#7B4EAB" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v19l-7-5-7 5z"/></g>
+<text x="927" y="462" font-size="19" font-weight="740" fill="#24182E" text-anchor="start" >nhentai Gallery</text>
+<rect x="890" y="527" width="169" height="33" rx="9" fill="#E8D7FC" />
+<g transform="translate(901,536) scale(0.9583333333333334)" fill="none" stroke="#7743A7" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="2.2"/><circle cx="16.5" cy="8.3" r="1.55"/><path d="m3.5 16.5 5.5-5.5 4.2 4.4 3.5-3.3 4 4.7"/></g>
+<text x="929" y="549" font-size="16.3" font-weight="500" fill="#312040" text-anchor="start" >Contains Posts</text>
+<rect x="10" y="614" width="1388" height="173" rx="15" fill="url(#greeng)" stroke="#83C59B" stroke-width="1.5" />
+<text x="38" y="652" font-size="26" font-weight="760" fill="#1A4930" text-anchor="start" >Mixed List Boundary</text>
+<text x="39" y="690" font-size="19.5" font-weight="400" fill="#172928" text-anchor="start" font-style="italic" >Use only where a list can contain</text>
+<text x="39" y="713" font-size="19.5" font-weight="400" fill="#172928" text-anchor="start" font-style="italic" >both posts and groups.</text>
+<rect x="567" y="624" width="357" height="47" rx="10" fill="#E6F8EC" stroke="#247A3A" stroke-width="2" />
+<g transform="translate(614,635) scale(1.1666666666666667)" fill="none" stroke="#1C7838" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="5" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="19" r="1"/><path d="M9 5h12M9 12h12M9 19h12"/></g>
+<text x="665" y="657" font-size="22" font-weight="760" fill="#173123" text-anchor="start" >ContentListEntry</text>
+<path d="M745 671V688H566V705" fill="none" stroke="#19763A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M745 688H949V705" fill="none" stroke="#19763A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M561 699L566 707L571 699" fill="none" stroke="#19763A" stroke-width="2"/>
+<path d="M944 699L949 707L954 699" fill="none" stroke="#19763A" stroke-width="2"/>
+<rect x="430" y="707" width="275" height="65" rx="11" fill="#E8F7EC" stroke="#16823C" stroke-width="1.6" />
+<g transform="translate(463,723) scale(1.4166666666666667)" fill="none" stroke="#188044" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="2.2"/><circle cx="16.5" cy="8.3" r="1.55"/><path d="m3.5 16.5 5.5-5.5 4.2 4.4 3.5-3.3 4 4.7"/></g>
+<text x="524" y="735" font-size="21.5" font-weight="760" fill="#102F1F" text-anchor="start" >PostListEntry</text>
+<text x="524" y="759" font-size="17.5" font-weight="400" fill="#19362A" text-anchor="start" font-style="italic" >wraps a Post</text>
+<rect x="797" y="707" width="305" height="65" rx="11" fill="#E8F7EC" stroke="#16823C" stroke-width="1.6" />
+<g transform="translate(822,722) scale(1.625)" fill="none" stroke="#188044" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5L3 7z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></g>
+<text x="872" y="735" font-size="21.5" font-weight="760" fill="#102F1F" text-anchor="start" >GroupListEntry</text>
+<text x="872" y="759" font-size="16.5" font-weight="400" fill="#19362A" text-anchor="start" font-style="italic" >wraps a Group summary</text>
+<rect x="10" y="801" width="1388" height="139" rx="15" fill="url(#amber)" stroke="#E8BC78" stroke-width="1.4" />
+<text x="38" y="830" font-size="24" font-weight="760" fill="#57381F" text-anchor="start" >Addresses and occurrences</text>
+<rect x="54" y="847" width="288" height="76" rx="12" fill="#FFFDF7" stroke="#B98125" stroke-width="1.6" />
+<g transform="translate(75,858) scale(1.5416666666666667)" fill="none" stroke="#8B590B" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 13.5a5.5 5.5 0 0 0 8 0l2.5-2.5a5 5 0 0 0-7-7l-3 3"/><path d="M13.5 10.5a5.5 5.5 0 0 0-8 0L3 13a5 5 0 0 0 7 7l3-3"/></g>
+<text x="136" y="877" font-size="20" font-weight="760" fill="#251D18" text-anchor="start" >ContentReference</text>
+<text x="136" y="899" font-size="17" font-weight="400" fill="#332B24" text-anchor="start" font-style="italic" >portable address</text>
+<rect x="407" y="847" width="270" height="76" rx="12" fill="#FFFDF7" stroke="#B98125" stroke-width="1.6" />
+<g transform="translate(428,858) scale(1.5416666666666667)" fill="none" stroke="#8B590B" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3C6 3 3 8 3 13M21 12c0-6-3.5-9-9-9M7 21c3-5 1-9 5-11 4-1 5 2 4 5-1 3-1 5-2 7M6 16c-1-4 0-7 3-9 5-3 10 0 10 5M12 14c.3 3-.2 6-2 8M19 17c-.2 2-.7 3-1.4 4"/></g>
+<text x="489" y="877" font-size="20" font-weight="760" fill="#251D18" text-anchor="start" >ContentIdentity</text>
+<text x="489" y="899" font-size="17" font-weight="400" fill="#332B24" text-anchor="start" font-style="italic" >same content?</text>
+<rect x="733" y="847" width="270" height="76" rx="12" fill="#FFFDF7" stroke="#B98125" stroke-width="1.6" />
+<g transform="translate(754,858) scale(1.5416666666666667)" fill="none" stroke="#8B590B" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="19" height="13.5" rx="1.6"/><path d="M12 17v4M8 21h8"/></g>
+<text x="815" y="877" font-size="20" font-weight="760" fill="#251D18" text-anchor="start" >ViewerEntry</text>
+<text x="815" y="899" font-size="17" font-weight="400" fill="#332B24" text-anchor="start" font-style="italic" >one open occurrence</text>
+<rect x="1064" y="847" width="315" height="76" rx="12" fill="#FFFDF7" stroke="#B98125" stroke-width="1.6" />
+<g transform="translate(1085,858) scale(1.5416666666666667)" fill="none" stroke="#8B590B" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14v19l-7-5-7 5z"/></g>
+<text x="1146" y="877" font-size="20" font-weight="760" fill="#251D18" text-anchor="start" >BookmarkMembership</text>
+<text x="1146" y="899" font-size="17" font-weight="400" fill="#332B24" text-anchor="start" font-style="italic" >saved in local group</text>
+<text x="373" y="892" font-size="35" font-weight="500" fill="#8B6B36" text-anchor="middle" >↔</text>
+<text x="703" y="892" font-size="35" font-weight="500" fill="#8B6B36" text-anchor="middle" >↔</text>
+<text x="1033" y="892" font-size="35" font-weight="500" fill="#8B6B36" text-anchor="middle" >↔</text>
+<rect x="10" y="956" width="1388" height="91" rx="15" fill="url(#stage)" stroke="#84B8F4" stroke-width="1.5" />
+<text x="30" y="995" font-size="23" font-weight="760" fill="#18334F" text-anchor="start" >Pipeline</text>
+<rect x="162" y="970" width="327" height="65" rx="10" fill="#E7F2FE" stroke="#155C9D" stroke-width="1.6" />
+<g transform="translate(195,982) scale(1.625)" fill="none" stroke="#14558E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6l.8 2.5 2.2 1.2 2.5-1 2.5 4.5-2.1 1.8v2.3l2 1.5-2.5 4.5-2.5-1-2.1 1.2L15 22H9l-.9-2.5-2.1-1.2-2.5 1L1 14.8l2.1-1.5V11L1 9.2l2.5-4.5 2.5 1L8.1 4.5z"/><circle cx="12" cy="12" r="3.2"/></g>
+<text x="278" y="996" font-size="20" font-weight="760" fill="#132642" text-anchor="start" >Source API /</text>
+<text x="278" y="1020" font-size="19.5" font-weight="760" fill="#132642" text-anchor="start" >Engine adapter</text>
+<rect x="560" y="970" width="324" height="65" rx="10" fill="#E7F2FE" stroke="#155C9D" stroke-width="1.6" />
+<g transform="translate(593,982) scale(1.625)" fill="none" stroke="#14558E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3.4"/><path d="M3 5v14c0 4 18 4 18 0V5M3 12c0 4 18 4 18 0"/></g>
+<text x="676" y="996" font-size="20" font-weight="760" fill="#132642" text-anchor="start" >Session &amp; state</text>
+<rect x="959" y="970" width="416" height="65" rx="10" fill="#E7F2FE" stroke="#155C9D" stroke-width="1.6" />
+<g transform="translate(992,982) scale(1.625)" fill="none" stroke="#14558E" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="2"/><path d="M3 8h18M6 5.5h.1M9 5.5h.1"/></g>
+<text x="1052" y="996" font-size="20" font-weight="760" fill="#132642" text-anchor="start" >Shared page composition</text>
+<text x="1052" y="1020" font-size="19.5" font-weight="760" fill="#132642" text-anchor="start" >+ existing viewer</text>
+<path d="M508 1001H544" fill="none" stroke="#173A64" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" />
+<path d="M905 1001H944" fill="none" stroke="#173A64" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" />
+</g></svg>
