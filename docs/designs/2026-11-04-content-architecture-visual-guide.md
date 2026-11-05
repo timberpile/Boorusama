@@ -1,5 +1,26 @@
 # Content Architecture: Visual Guide for Discussion
 
+> **Technical appendix.** For a shorter and less technical explanation, start with the [illustrated Content Architecture overview](2026-11-04-content-architecture.md). This reference keeps detailed type, state and data-migration discussions; **the listed types are architectural responsibilities, not eleven mandatory Dart classes.**
+
+## Quick visual orientation
+
+| What you want to understand | Diagram |
+| --- | --- |
+| What is a Post or Group? | ![Post and Content Groups](visuals/01-posts-and-groups.svg) |
+| How can a Series contain Works and Pages? | ![Nested Groups](visuals/03-groups-inside-groups.svg) |
+| Which layer loads and displays information? | ![Source, State and UI](visuals/02-from-source-to-screen.svg) |
+| What are Work actions versus Page actions? | ![Action Scope](visuals/04-work-versus-page-actions.svg) |
+
+**Simple mental model:** a Post is an individual media item. A Content Group is a source-defined object with members. A Content Reference is its portable address. The session loads data using an authorized profile; the ViewerEntry remembers one position in the viewer; local Bookmark Groups store separate memberships. Neither the graphical hierarchy nor `Content` implies Dart inheritance.
+
+**Distinguish facts and plans:** the existing `Post`, mixed Viewer, Pool and local bookmark mechanisms are real. The generalized reference/member contracts, group-level Pixiv Actions and universal presentation composition remain proposed. Remote recommendations such as Pixiv Related Works are not group members.
+
+The original detailed diagrams and type table follow below as evidence and design candidates.
+
+---
+
+
+
 Date: 2026-11-04. Baseline: `e306ff5338a2255a89731c61bd0672336a933344`.
 **Status: proposed type names and boundaries, not an approved runtime specification.**
 
