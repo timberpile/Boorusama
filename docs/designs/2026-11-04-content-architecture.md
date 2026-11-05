@@ -111,6 +111,7 @@ You do **not** need these for the first read. They preserve implementation evide
 
 - [Technical Visual Guide — proposed types, identity and state](2026-11-04-content-architecture-visual-guide.md)
 - [Pool/Series terminology and viewer navigation clarifications](2026-11-04-content-model-and-viewer-clarifications.md)
+- [Work vs Current Page action menus — three UX options](2026-11-05-work-page-action-options.md)
 - [User feedback and Pixiv/nhentai research](2026-11-04-content-architecture-feedback.md)
 - [Full Architecture Rereview](2026-11-03-content-architecture-rereview.md)
 - [Interactive original A/B/C and Favorites layout comparison](mockups/2026-11-04-content-design-lab.html)
