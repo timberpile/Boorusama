@@ -4,6 +4,12 @@
 
 Read the [diagram style guide](../diagram_style_guide.md).
 
+## New: native HTML/CSS layout experiment (2026-11-05)
+
+[Open the structure-first comparison](content-native-html.html). It contains **both diagrams in a single standalone HTML file**, built with ordinary HTML cards and CSS Grid/Flexbox. There is **no embedded SVG**. Three remote HTTPS photo URLs are reused in architecture cards and Pixiv Work phone views; you can substitute your own HTTPS image URL. Image bytes are not stored in the repository.
+
+This addresses the user's feedback: **Soft Pastel is the preferred palette, but the more important comparison is information structure and layout**. The earlier draw.io and Mermaid reproductions were visually unsatisfactory for these two explanation posters; retain them as historical experiments, not required future outputs. External image failure leaves an intentional placeholder.
+
 ## Architecture: Post, remote Groups and mixed listings
 
 ![Architecture, editable SVG](architecture.svg)
