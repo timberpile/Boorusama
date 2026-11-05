@@ -57,6 +57,14 @@ Keep Option A discoverable, but allow a long-press on the image to open a compac
 
 **Benefits:** fast for experienced users. **Costs:** conflicts with existing configurable gestures and image interaction, poor discoverability and accessibility if it is the only path. Only consider it as an optional secondary shortcut after gesture review.
 
+## Option D — tap the Page counter for a Page tray
+
+For multi-page Works the small `2 / 5` counter is already visible in Image View. Tapping it **could** open a temporary thumbnail strip or short Page menu with actions for the current page.
+
+**Benefits:** visible context already exists; works without a second permanent toolbar; a thumbnail strip also permits jumping directly to another page. **Costs:** a top-corner target can be hard to reach with one hand; repurposing a counter as a button is not obvious without an affordance. It must not disrupt immersive reading, drag/zoom gestures or the always-visible subtle counter.
+
+Treat this as a **secondary exploration**, not the default. More direct labels in Overview's overflow are easier for a first-time user.
+
 ## Image View versus Overview
 
 - **Image View:** centered media; unobtrusive page counter for multi-page Works. No persistent full Work/Page toolbars.
