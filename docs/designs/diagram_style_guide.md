@@ -1,69 +1,78 @@
-# Visual Explainer Style Guide (Candidate)
+# Visual Explainer Style Guide
 
-Status: **style comparison**, not a globally approved Boorusama runtime design rule.
-This is for diagrams, architecture explanations and UX studies; actual UI follows `docs/ui_style_guide.md`.
+Status: **approved authoring workflow**, not an approved application UI design or an architecture implementation. This guide covers diagrams, illustrated explanations and exploratory mockups. App UI still follows [Boorusama UI Style Guide](../ui_style_guide.md), Kurumi conventions and current code.
 
-## Current design preference (2026-11-05)
+## The three-stage workflow
 
-**Structure before palette.** The preferred visual tone is **Soft Pastel**, but the critical design work is information grouping, hierarchy, clear arrows, concise examples, comparison of interaction states, and readable mobile UI regions. Do not treat three color schemes of the same layout as three useful design alternatives. When offering alternatives, vary the **composition and information flow**, and explain their tradeoffs.
+Choose the format by **purpose**, not by a desire to make every illustration editable immediately.
 
-**Prefer semantic native HTML/CSS for interactive concept sheets**: one self-contained file, ordinary headings, cards, CSS Grid/Flexbox, minimal JavaScript for actual interactions. Do not create an HTML shell that merely embeds three giant copies of the same SVG. Keep SVG for static diagrams directly displayed in GitHub Markdown, or for genuinely complex vector connections. Mermaid and draw.io were visually unsatisfactory for these specific polished architecture/UI sheets and are not required default deliverables.
+### 1. Discussion: image first
 
-Illustrative media can be linked with remote HTTPS `<img>` URLs, reused across all relevant views without downloading assets into the repository. Use a graceful placeholder when images cannot load (offline, hotlink restriction, deleted URL). Stable public URLs must be verified where practical. The earlier generated example illustrations have no public source URLs, so replacements must be described honestly rather than claimed to be identical. Remote image requests expose the viewer's IP address to the host.
+For exploratory architecture explanations, UI concepts and comparisons, generate an explanatory image first when a visual is useful.
 
-Current [HTML-native structure comparison](diagram-examples/content-native-html.html) is a prototype for evaluating maintainability and content hierarchy, not a new runtime UI contract.
+- Show the **actual information hierarchy**: a clear heading, relevant concept groups, meaningful relationships, short labels, visual examples and concise callouts.
+- Prefer a small number of accurate examples over dense posters. Mark existing facts, proposed designs and unresolved questions.
+- Generate different **layouts/compositions** when comparing alternatives, not merely recolored copies.
+- Discuss and select the composition with the user before treating it as documentation.
+- A generated image is a rendered illustration, **not editable source**. Keep it as reference/evidence, not a replacement for a technical specification.
+- This stage is optional when the source and structure are already agreed or the user specifically requests an editable document directly.
 
-## Generated poster fidelity and SVG image references
+### 2. Documentation: faithful SVG reconstruction
 
-The original architecture/UI posters were rendered by image generation, not retrieved from an image host. Their illustrative artwork has no original public URL. A visually **pixel-identical** SVG can embed the PNG, but that only wraps raster pixels and is not semantically editable. A faithful vector redraw instead creates real shapes, icons, connectors and editable text; minor anti-aliasing, font and geometry differences remain.
+When the user wants a chosen static explanation in the repository, redraw the approved image as **real editable SVG**. Preserve the selected content, layout, relative grouping and main visual style as closely as practical.
 
-A new [editable poster reconstruction](diagram-examples/architecture-poster-faithful.svg) retains the earlier generated architecture image's geometry and compact structure much more closely. It is an illustrative, manual reconstruction, not a lossless export.
+- Use actual SVG text, shapes, icon paths and connectors. Verify arrow direction and explicit relationships.
+- Avoid text-heavy boxes and ornamental complexity; preserve readability at documentation and mobile widths.
+- Record deviations from the image prototype. Manual vector reconstruction is **not** guaranteed to be pixel-perfect.
+- **Never** substitute a PNG/JPEG embedded into an SVG and call the file editable.
+- Store the SVG with the Markdown document and embed it using a relative link. Keep meaning and current decisions in nearby Markdown rather than hiding requirements only inside an image.
+- SVG can reference external images, but external images are often blocked when an SVG is embedded as an image (e.g. in GitHub). Prefer image-free SVG for dependable documentation; avoid remote assets for required meaning.
+- Simple already-specified diagrams may be drawn directly as SVG without a preceding generated image.
 
-SVG documents may use `<image href="https://...">` to reference external images; however **SVG embedded as an image** (including typical Markdown rendering) generally cannot depend on loading remote resources. Use plain SVG shapes for stable GitHub diagrams and HTML `<img>` elements for remotely hosted example imagery in interactive mockups. Do not claim SVG cannot reference external images at all.
+### 3. Interaction: standalone HTML/CSS/JavaScript
 
-## Goals
-- Prefer a concrete, accurate explanation over decorative complexity.
-- Show existing, proposed, approved and unverified concepts distinctly.
-- Use readable text, short labels, labeled arrows, and clear sections.
-- Keep domain identity, access context, local membership and viewer occurrence separate.
-- Reuse the same information for comparison variants. Do not silently choose the visual style.
+For zoom, gestures, state switching, responsiveness, custom images and clickable diagrams, use **one directly executable HTML file**.
 
-## Candidate styles
-| Style | Visual language | Best use |
-| --- | --- | --- |
-| **Soft Pastel** | Off-white background, muted blue/lavender/green/amber zones, rounded cards | Friendly architecture and UX explainers |
-| **Editorial Neutral** | White, blue-gray and charcoal, restrained borders, substantial whitespace | Dense technical documentation |
-| **Night Blueprint** | Dark navy background, bright but controlled accents | Dark-themed presentation and screen comparisons |
+- Build regular UI layout from native HTML and CSS (cards, headings, grids, flexbox and forms).
+- Use only the JavaScript needed for real interaction. Do not wrap giant repeated SVG posters in an HTML shell.
+- Inline all CSS/JS; no build process or local server. External image URLs are permitted for optional visual examples, with a fallback. Local user images stay browser-local.
+- Preserve the target device aspect ratio, show the relevant state and make comparisons reproducible.
+- Clearly distinguish a browser simulation from verified Flutter or Android behavior.
+- When a static screenshot or diagram from the HTML becomes an accepted documentation asset, recreate/export a standalone editable SVG if useful. The interactive HTML remains the source for its behavior.
 
-All three styles are illustrative choices, not application theme definitions. Preserve sufficient text contrast in every variant.
+**Default decision:** exploratory explanatory visual → image; selected static repo reference → SVG; working behavior study → HTML. Do not create all three formats by default.
 
-## Diagram grammar
-1. Lead with one sentence stating the point of the diagram.
-2. Distinguish real inheritance from conceptual grouping: solid edges for real data flow or membership; dashed edges for conceptual or optional relationships.
-3. Use a single box per concept. Do not confuse remote Content Groups with local Bookmark Groups.
-4. Include an example for every unfamiliar abstraction, e.g. Pixiv Work 120 / Page 2.
-5. Keep source/API data, temporary state and UI composition separate.
-6. Put exceptions in small callouts and detailed explanations in accompanying Markdown.
-7. Mark illustrative UI and fictional data explicitly, including interaction choices not yet approved.
-8. Respect target device ratios and narrow screen / enlarged text when depicting UI.
+## Visual style: information structure before colors
 
-## Preferred outputs
-| Format | Strength | Weakness |
-| --- | --- | --- |
-| **SVG** | Lightweight, crisp, GitHub renders, editable real vector objects | Complex spatial editing may need an editor |
-| **draw.io** | Convenient GUI editing of individual shapes and connectors | XML is bulkier; exported render needs checking |
-| **Mermaid** | Excellent compact source, Git diffs, native diagram preview | Weak control of phone layouts and decorative callouts |
-| **Single HTML file with inline SVG** | Accurate, theme-switching and interactive UX experiments | More code, GitHub usually shows source, not an embedded UI |
+Our preferred visual palette is **Soft Pastel**: off-white canvas, restrained blue/lavender/green/amber areas, dark high-contrast typography, rounded cards and a few well-drawn icons. The palette is a starting point, not the main criterion.
 
-When visually rich posters are hand-redrawn as vectors, describe them as **editable approximations**, never lossless or pixel-exact conversions. No raster images embedded as fake vector sources, bundled fonts or external build/CDN dependencies.
+1. Begin with a one-sentence takeaway, then organize 4–8 core concepts into obvious sections.
+2. Use solid connectors for real containment/data flow, dashed connectors for conceptual or optional relationships. Never draw misleading inheritance.
+3. Keep text brief within nodes; put nuanced explanations in the adjacent Markdown.
+4. Include grounded concrete examples (e.g. Pixiv Work 120 / Page 2).
+5. Keep domain values, access context, viewer occurrence and local bookmark membership distinct. Remote Groups are not local Bookmark Groups.
+6. UI images should explain what is visible in **Image View** versus **Overview**, how page paging differs from Work switching, and which controls are optional or temporary.
+7. Preserve exact device ratios when given; test narrow screens and text scaling.
+8. Label fictional UI/media and experimental settings. Do not imply proposed controls or external API capabilities are implemented.
 
-## Checks
-- Parse SVG/draw.io as XML and ensure editable text/shapes.
-- Render screenshots of the variants and inspect layout and readability.
-- Test responsive standalone HTML without network and check interaction/console failures.
-- Validate Mermaid with a renderer when available; report if not validated.
-- Test with real image dimensions where relevant; keep local user images browser-only.
-- Publish explanatory Markdown with direct links to the source, examples and any known verification limits.
+Older comparison palettes, Editorial Neutral and Night Blueprint, remain archived as alternatives; future variants should change **structure** when structural comparison is the question, not merely the palette. Historical draw.io/Mermaid reproductions remain for reference but were not satisfactory for these polished concept posters.
 
-## Example
-Compare [architecture and Pixiv Work concepts in four formats](diagram-examples/README.md). The sample set is not the final architecture decision.
+## Asset provenance and media
+
+- Images produced by an image-generation tool are synthetic output and do not have original public image URLs.
+- Do not claim a hand-redrawn SVG is a one-to-one automatic conversion of such an image.
+- Use optional HTTPS image URLs in **HTML** when the image is legitimately available at a stable address. Reuse the same images across comparison variants, supply a missing-image fallback, and disclose that remote hosts receive image requests.
+- Do not commit user-supplied images, private content, credentials, or third-party fonts.
+
+## Verification and publication
+
+For **images**: inspect the rendering and compare factual labels to inspected source or the accepted design. For **SVG**: parse XML, inspect a rendered preview, verify text, connectors and lack of flattened raster payloads. For **HTML**: open it in a real browser, test meaningful controls and screen sizes, inspect JavaScript errors and network behavior. Do not claim tests that were not run.
+
+Use isolated task branches, make incremental English commits for significant changes, and document remaining uncertainties. Documentation-only work needs direct artifact checks, not full Flutter regression. Do not merge without authorization.
+
+## Existing examples
+
+- [Editable architecture poster, derived manually from selected image](diagram-examples/architecture-poster-faithful.svg)
+- [Previous four-format experiment](diagram-examples/README.md) (historical, not the required workflow)
+- [Interactive Image View / Overview lab](mockups/2026-11-04-viewer-interaction-lab.html)
+- [Native HTML structure experiment](diagram-examples/content-native-html.html)
