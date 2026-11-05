@@ -3,6 +3,16 @@
 Status: **style comparison**, not a globally approved Boorusama runtime design rule.
 This is for diagrams, architecture explanations and UX studies; actual UI follows `docs/ui_style_guide.md`.
 
+## Current design preference (2026-11-05)
+
+**Structure before palette.** The preferred visual tone is **Soft Pastel**, but the critical design work is information grouping, hierarchy, clear arrows, concise examples, comparison of interaction states, and readable mobile UI regions. Do not treat three color schemes of the same layout as three useful design alternatives. When offering alternatives, vary the **composition and information flow**, and explain their tradeoffs.
+
+**Prefer semantic native HTML/CSS for interactive concept sheets**: one self-contained file, ordinary headings, cards, CSS Grid/Flexbox, minimal JavaScript for actual interactions. Do not create an HTML shell that merely embeds three giant copies of the same SVG. Keep SVG for static diagrams directly displayed in GitHub Markdown, or for genuinely complex vector connections. Mermaid and draw.io were visually unsatisfactory for these specific polished architecture/UI sheets and are not required default deliverables.
+
+Illustrative media can be linked with remote HTTPS `<img>` URLs, reused across all relevant views without downloading assets into the repository. Use a graceful placeholder when images cannot load (offline, hotlink restriction, deleted URL). Stable public URLs must be verified where practical. The earlier generated example illustrations have no public source URLs, so replacements must be described honestly rather than claimed to be identical. Remote image requests expose the viewer's IP address to the host.
+
+Current [HTML-native structure comparison](diagram-examples/content-native-html.html) is a prototype for evaluating maintainability and content hierarchy, not a new runtime UI contract.
+
 ## Goals
 - Prefer a concrete, accurate explanation over decorative complexity.
 - Show existing, proposed, approved and unverified concepts distinctly.
