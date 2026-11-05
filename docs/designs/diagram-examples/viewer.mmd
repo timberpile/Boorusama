@@ -1,0 +1,31 @@
+---
+title: Pixiv Work UI Concepts · behavior
+---
+flowchart LR
+  subgraph IMAGE["01 · Image View"]
+    A1["2 / 5 · always-visible page counter"]
+    A2["Centered media<br/>contain, zoom + pan"]
+    A3["Swipe media: previous/next page"]
+    A1 --> A2 --> A3
+  end
+  subgraph OVERVIEW["02 · Overview"]
+    B1["Selected image<br/>capped preview height"]
+    B2["Artist · title · actions"]
+    B3["Description · tags · metadata"]
+    B4["More by Artist · Related Works"]
+    B1 --> B2 --> B3 --> B4
+  end
+  subgraph ASPECT["03 · Aspect-ratio behavior"]
+    C1["Wide: full preview width"]
+    C2["Normal: contain, centered"]
+    C3["Tall Comic: capped overview<br/>resume reading in Image View"]
+  end
+  A2 <-->|"Tap = toggle view"| B1
+  A3 -. "page only" .-> A2
+  B3 -. "horizontal swipe skips Work" .-> B3
+  classDef image fill:#e7f1ff,stroke:#276bd3,color:#10213e
+  classDef panel fill:#f1e9ff,stroke:#7851b5,color:#10213e
+  classDef note fill:#e8f8ef,stroke:#23785b,color:#10213e
+  class A1,A2,A3 image
+  class B1,B2,B3,B4 panel
+  class C1,C2,C3 note
