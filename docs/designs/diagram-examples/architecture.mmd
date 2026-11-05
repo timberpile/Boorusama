@@ -1,0 +1,35 @@
+---
+title: Boorusama Content Architecture · semantic model
+---
+flowchart TB
+    C["Content — concept only"] -. not inheritance .-> P["Post<br/>One media item"]
+    C -. not inheritance .-> G["Content Group<br/>Source-owned members"]
+    G --> D["Danbooru Pool<br/>Series or Collection"]
+    G --> R["Danbooru Related family"]
+    G --> W["Pixiv Work"]
+    G --> S["Pixiv Manga Series"]
+    G --> N["nhentai Gallery"]
+    D --> P
+    R --> P
+    W --> P
+    N --> P
+    S --> W
+    subgraph LIST["Mixed listing boundary — optional"]
+       E["ContentListEntry"] --> PE["PostListEntry — wraps Post"]
+       E --> GE["GroupListEntry — wraps Group summary"]
+    end
+    subgraph IDENT["Orthogonal responsibilities"]
+       REF["ContentReference<br/>portable address"]
+       ID["ContentIdentity<br/>same underlying content?"]
+       VIEW["ViewerEntry<br/>one viewer occurrence"]
+       BM["BookmarkMembership<br/>one local save date"]
+    end
+    API["Source API and engine adapter"] --> STATE["Session + loading state"] --> UI["Shared group UI + existing Post viewer"]
+    classDef post fill:#e7f1ff,stroke:#276bd3,color:#10213e
+    classDef group fill:#f1e9ff,stroke:#7851b5,color:#10213e
+    classDef list fill:#e8f8ef,stroke:#23785b,color:#10213e
+    classDef ident fill:#fff4e0,stroke:#a36a25,color:#10213e
+    class P post
+    class G,D,R,W,S,N group
+    class E,PE,GE,LIST list
+    class REF,ID,VIEW,BM,IDENT ident
