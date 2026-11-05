@@ -13,6 +13,14 @@ Illustrative media can be linked with remote HTTPS `<img>` URLs, reused across a
 
 Current [HTML-native structure comparison](diagram-examples/content-native-html.html) is a prototype for evaluating maintainability and content hierarchy, not a new runtime UI contract.
 
+## Generated poster fidelity and SVG image references
+
+The original architecture/UI posters were rendered by image generation, not retrieved from an image host. Their illustrative artwork has no original public URL. A visually **pixel-identical** SVG can embed the PNG, but that only wraps raster pixels and is not semantically editable. A faithful vector redraw instead creates real shapes, icons, connectors and editable text; minor anti-aliasing, font and geometry differences remain.
+
+A new [editable poster reconstruction](diagram-examples/architecture-poster-faithful.svg) retains the earlier generated architecture image's geometry and compact structure much more closely. It is an illustrative, manual reconstruction, not a lossless export.
+
+SVG documents may use `<image href="https://...">` to reference external images; however **SVG embedded as an image** (including typical Markdown rendering) generally cannot depend on loading remote resources. Use plain SVG shapes for stable GitHub diagrams and HTML `<img>` elements for remotely hosted example imagery in interactive mockups. Do not claim SVG cannot reference external images at all.
+
 ## Goals
 - Prefer a concrete, accurate explanation over decorative complexity.
 - Show existing, proposed, approved and unverified concepts distinctly.
