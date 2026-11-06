@@ -51,6 +51,42 @@
 4. The Zoom Study can continue in parallel; final constants wait for the user's actual Android JSON.
 5. Reflect each accepted choice into the parent visual guide and future implementation specs. Do not start broad refactors from candidate diagrams alone.
 
+## Confirmed follow-up decisions and Related discussion (2026-11-06)
+
+These later user decisions supersede unanswered options in the initial six briefs:
+
+- **Design reviews:** Every proposed type/class must show a compact concrete field-and-type sketch with a short description of each field. Avoid type names without their contracts.
+- **Work navigation:** Horizontal swiping on the image changes pages inside a Work; horizontal swiping in the details/Overview region changes whole Works. This is the agreed UX direction, still subject to real Android gesture verification.
+- **Backup compatibility:** Introduce v10 with typed Group references when needed, continue reading legacy v9, and reject unsupported Group kinds and structural versions in preflight unless lossless opaque round-tripping is explicitly implemented and proven. Do not silently drop records.
+- **Pixiv first delivery:** Support Works and their Pages first. Manga Series, Related Works, user-name search, and other Pixiv improvements follow separately; the shared design may anticipate nested Groups without implementing their full UI in phase one.
+- **nhentai:** Native anonymous API, tag and CDN behavior awaits the user's controlled live read-only checks. The third-party OpenAPI mirror alone is not operational proof.
+
+### Open: Danbooru Related member order and media-first presentation
+
+**Confirmed in develop:** `RelatedGallery` currently renders members as a `PostGrid` and opens selected Posts in a separate viewer. Its `RelatedPostsOrder.oldest/newest` uses `order:id_asc` or `order:id_desc`. The selected order is retained in per-occurrence `PageStorage` and updated in the global `settings.relatedPostsOrder`, but `RelatedBookmark` contains no per-bookmark order. These are Post-ID sorts, not authoritative narrative sequence.
+
+**Concrete proposal for discussion, not approved:**
+
+```text
+RelatedBookmark (extend existing stored model)
+  family: RelatedFamilyReference        // existing stable parent/anchor identity
+  preferredOrder?: RelatedPostsOrder    // oldest/newest chosen on save; null in old records
+  // Preserve existing localId, memberships/addedAt and safe summary/cover fields.
+
+RelatedViewerEntry (extend existing transient occurrence)
+  family: RelatedFamilyReference        // existing canonical family
+  occurrenceId: Object                  // independent mixed-viewer position
+  source?: ViewerSourceBinding          // transient profile authorization, never serialized
+  initialPostId?: int                   // selected Post when opened from a Post
+  initialOrder: RelatedPostsOrder       // saved preference, else global default
+```
+
+Resolve the order at entry opening, update the saved preference if the user changes a bookmarked family's order, and preserve the original selection and family identity. Keep legacy `null` order compatible with the global setting. Do not persist a fixed list of member IDs merely to express ascending/descending sort. Per-bookmark viewing preference is distinct from source-owned Group member order.
+
+**Presentation alternative:** For small Related families, evaluate a media-first horizontal Post pager, with an optional compact Overview or thumbnail strip and family-level Bookmark controls, rather than always opening the current grid/Timeline. Reuse the Pixiv image/details interaction pattern and existing per-Post actions without inventing Work metadata, a fictional description, or a new universal media type. Compare larger families, missing Posts, outer mixed-viewer navigation and restoring the selected Post. Danbooru Related often represents variants rather than authored sequences; never infer true reading order from Post ID.
+
+**Still to decide together:** whether per-bookmark sort is desirable and how its default should be captured; whether media-first should be the Related default or an alternative to the current grid, and whether a small thumbnail Overview is worthwhile. Do not implement these proposals yet.
+
 ### Earlier, more detailed material
 
 - [Illustrated entry page](2026-11-04-content-architecture.md)
