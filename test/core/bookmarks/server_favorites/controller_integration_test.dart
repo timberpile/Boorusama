@@ -254,7 +254,7 @@ void main() {
   });
 
   test(
-    'confirmed first binding clears only selected groups and never fetches',
+    'first binding preserves every selected group and explicit fetch is additive',
     () async {
       final library = h.container.read(bookmarkLibraryProvider.notifier);
       final global = await library.createGroup('Global');
@@ -272,80 +272,63 @@ void main() {
         expected: await h.container.read(serverFavoriteSettingsProvider.future),
         globalGroupId: global.id,
         target: ServerFavoriteTarget.group(override.id),
-        confirmedClears: [
-          before.groupsById[global.id]!,
-          before.groupsById[override.id]!,
-        ],
       );
-      final after = await library.snapshotForExport();
-      expect(after.groupsById[global.id]!.bookmarkIds, isEmpty);
-      expect(after.groupsById[override.id]!.bookmarkIds, isEmpty);
-      expect(
-        after.groupsById[other.id]!.bookmarkIds,
-        before.groupsById[other.id]!.bookmarkIds,
-      );
-      expect(after.items.map((b) => b.post.id), [3]);
+      expect(await library.snapshotForExport(), before);
       expect(h.source.calls, 0);
       final progress = await h.container
           .read(serverFavoriteFetchProvider.notifier)
           .start(h.profile.id);
       expect(progress.added, 2);
+      final after = await library.snapshotForExport();
       expect(
-        (await library.snapshotForExport())
-            .groupsById[override.id]!
-            .bookmarkIds
-            .length,
-        2,
+        after.groupsById[override.id]!.bookmarkIds
+            .map((id) => after.bookmarksById[id]!.post.id)
+            .toSet(),
+        {4, 1, 2},
       );
+      expect(after.groupsById[global.id], before.groupsById[global.id]);
+      expect(after.groupsById[other.id], before.groupsById[other.id]);
+      for (final bookmark in before.items) {
+        expect(after.bookmarksById[bookmark.id], bookmark);
+        expect(
+          after.groupsById[override.id]!.addedAt[bookmark.id],
+          before.groupsById[override.id]!.addedAt[bookmark.id],
+        );
+      }
     },
   );
 
   test(
-    'changed contents invalidate confirmation before any group is cleared',
+    'content added while editing is preserved by destination assignment',
     () async {
       final library = h.container.read(bookmarkLibraryProvider.notifier);
       final first = await library.createGroup('First');
       final second = await library.createGroup('Second');
       await library.addPostsToGroup(h.profile.auth, [h.post(3)], first.id);
       await library.addPostsToGroup(h.profile.auth, [h.post(4)], second.id);
-      final shown = await library.snapshotForExport();
+      final expected = await h.container.read(serverFavoriteSettingsProvider.future);
       await library.addPostsToGroup(h.profile.auth, [h.post(5)], second.id);
       final before = await library.snapshotForExport();
-      await expectLater(
-        h.container
-            .read(serverFavoriteSettingsProvider.notifier)
-            .saveForProfile(
-              profile: h.profile,
-              expected: await h.container.read(
-                serverFavoriteSettingsProvider.future,
-              ),
-              globalGroupId: first.id,
-              target: ServerFavoriteTarget.group(second.id),
-              confirmedClears: [
-                shown.groupsById[first.id]!,
-                shown.groupsById[second.id]!,
-              ],
-            ),
-        throwsA(
-          isA<ServerFavoriteException>().having(
-            (e) => e.problem,
-            'problem',
-            ServerFavoriteProblem.confirmationRequired,
-          ),
-        ),
-      );
+      await h.container
+          .read(serverFavoriteSettingsProvider.notifier)
+          .saveForProfile(
+            profile: h.profile,
+            expected: expected,
+            globalGroupId: first.id,
+            target: ServerFavoriteTarget.group(second.id),
+          );
       expect(await library.snapshotForExport(), before);
       expect(
         (await h.container.read(serverFavoriteSettingsProvider.future))
             .globalGroupId,
-        isNull,
+        first.id,
       );
       expect(h.source.calls, 0);
     },
   );
 
   test(
-    'failed combined persistence restores cleared bookmarks and assignments',
+    'failed combined persistence preserves bookmarks and assignments without clearing',
     () async {
       final library = h.container.read(bookmarkLibraryProvider.notifier);
       final first = await library.createGroup('First');
@@ -363,24 +346,11 @@ void main() {
               expected: old,
               globalGroupId: first.id,
               target: ServerFavoriteTarget.group(second.id),
-              confirmedClears: [
-                before.groupsById[first.id]!,
-                before.groupsById[second.id]!,
-              ],
             ),
         throwsStateError,
       );
       final after = await library.snapshotForExport();
-      for (final group in [first, second]) {
-        expect(
-          after.groupsById[group.id]!.bookmarkIds
-              .map((id) => after.bookmarksById[id]!.post.id)
-              .toSet(),
-          before.groupsById[group.id]!.bookmarkIds
-              .map((id) => before.bookmarksById[id]!.post.id)
-              .toSet(),
-        );
-      }
+      expect(after, before);
       expect(after.items.map((b) => b.post.id).toSet(), {3, 4});
       expect(
         await h.container.read(serverFavoriteSettingsProvider.future),
