@@ -4,6 +4,12 @@
 
 **The central idea:** keep `Post` as one image, video or animation. Add just enough shared **group behavior** so a Danbooru Pool, a Pixiv Work, a Pixiv Manga Series and an nhentai Gallery can reuse navigation, bookmarks and viewer components without needing separate implementations for every website.
 
+## Latest: direct member counts and an explicit Zoom algorithm (2026-11-06)
+
+A Series counts direct **Works**, a Work counts direct **Pages**, and a Pool counts direct Posts. The shared `ContentGroupSummary.memberCount` is one nullable number, not an aggregate descendant count. See [the concrete Summary/Details design](2026-11-06-content-group-summary-details-candidates.md).
+
+The [Aspect-Aware Classic zoom algorithm](2026-11-06-aspect-aware-classic-zoom-algorithm.md) is now a fully specified experimental function: readability targets for extreme images, detail zoom for normal images, smooth interpolation. The user will still need to validate it on-device before choosing constants.
+
 ## New: six researched decisions, ready to review together (2026-11-05)
 
 [**Open the Architecture Decision Series**](2026-11-05-architecture-decision-series.md). It contains six separate briefs on: minimal shared Group contracts; Work/Page actions; Pixiv Series/user discovery/recommendations; nhentai API and Tag catalog; backup compatibility; and aspect-aware zoom. Each brief distinguishes confirmed source facts, external unverified endpoints, recommendations and the specific remaining choice.

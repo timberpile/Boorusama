@@ -13,6 +13,10 @@
 | **5. Persisted data** | [v9-to-v10 migration and future records](2026-11-05-decision-05-migration-future-records.md) | Opaque unknown Group retention versus preflight rejection? | Typed v10 Group references when added; v9 still readable; reject unsupported structural versions; only preserve opaque unknown kinds if lossless round-trip is proven |
 | **6. Zoom** | [Aspect-aware Classic and real-device samples](2026-11-05-decision-06-zoom-geometry-and-data.md) | What first double-tap amount and reset baseline do real observations support? | One-in/next-out, measured aspect-aware target; Comic reading baseline treated explicitly; wait for JSON from the test branch |
 
+**Concrete Zoom algorithm:** [Aspect-Aware Classic test candidate](2026-11-06-aspect-aware-classic-zoom-algorithm.md) translates the user's four extreme-image footprint rules into smooth transitions and a normal-picture detail zoom. The coefficients are experimental and not deployed.
+
+**Direct Group member counting:** A single nullable `memberCount` represents **immediate** members only (Series → Works, Work → Pages, Pool → Posts, Gallery → Pages); derived display labels, no aggregated grandchild Page count in the shared Series Summary. [Concrete Group field proposal](2026-11-06-content-group-summary-details-candidates.md).
+
 ## Updated user direction (2026-11-06)
 
 - **Group metadata:** User prefers **separate Summary and Details stages**, not one all-optional domain class. Both should be reusable across engines, but have optional **typed engine-specific payloads** analogous to `Post.booruData`; missing source fields remain unknown. See [the concrete field comparison](2026-11-06-content-group-summary-details-candidates.md). Exact payload interface and persisted codec still require approval.

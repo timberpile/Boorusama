@@ -17,6 +17,8 @@ On `develop`, Kurumi `DoubleTapZoomMode.classic`:
 
 The user-test branch [Zoom Study Diagnostics](https://github.com/timberpile/Boorusama/tree/maintenance/zoom-study-diagnostics) changes the Snap-to-Fit tolerance from ±5% to **±10%**, adds a developer-only live meter and records preferred zoom levels for individual images, with real image dimensions and viewport orientation in a JSON file in Downloads. **That branch has not passed Flutter/Android verification in this session and is not merged.** Do not describe 10% as the current `develop` value.
 
+**Concrete computed candidate (2026-11-06):** [Aspect-Aware Classic: target geometry, smoothing formula and measured error](2026-11-06-aspect-aware-classic-zoom-algorithm.md). This newer calculation is the leading test candidate; later sections here preserve earlier algorithm explorations, not current defaults.
+
 ## Updated user intent and actual preferred image footprint (2026-11-06)
 
 **The objective is the visible *image footprint*, not a generic zoom multiplier.** The user describes two reasons for zoom: **readability** (very narrow/tall or wide media needs enough screen area to pan through) and **detail inspection** (normally readable images should enlarge the selected area). These are distinct intents. Normal images should not be forced into the same square-ish crop rule as extreme formats.
