@@ -13,6 +13,12 @@
 | **5. Persisted data** | [v9-to-v10 migration and future records](2026-11-05-decision-05-migration-future-records.md) | Opaque unknown Group retention versus preflight rejection? | Typed v10 Group references when added; v9 still readable; reject unsupported structural versions; only preserve opaque unknown kinds if lossless round-trip is proven |
 | **6. Zoom** | [Aspect-aware Classic and real-device samples](2026-11-05-decision-06-zoom-geometry-and-data.md) | What first double-tap amount and reset baseline do real observations support? | One-in/next-out, measured aspect-aware target; Comic reading baseline treated explicitly; wait for JSON from the test branch |
 
+## Updated user direction (2026-11-06)
+
+- **Group metadata:** User prefers **separate Summary and Details stages**, not one all-optional domain class. Both should be reusable across engines, but have optional **typed engine-specific payloads** analogous to `Post.booruData`; missing source fields remain unknown. See [the concrete field comparison](2026-11-06-content-group-summary-details-candidates.md). Exact payload interface and persisted codec still require approval.
+- **Zoom:** User distinguishes readability zoom on extreme image ratios from detail inspection on normal images. Extreme tall portrait → fill width; tall landscape → square-ish centered image column; wide portrait → square-ish/slightly portrait image band; wide landscape → fill height. Empirical user-selected image footprint medians strongly support these targets. See [the updated Zoom brief](2026-11-05-decision-06-zoom-geometry-and-data.md). These samples were deliberately manually chosen; do not dismiss them because Snap or Auto Comic settings were enabled.
+- Runtime remains untouched by these documents. No final zoom thresholds or source-payload Dart signatures are approved.
+
 ## Confidence and research limitations
 
 **Confirmed in current source:** existing `Post`, `ViewerEntry`, strict Pool/Related bookmarks, v9 backup dates, Pixiv Work/Page stable keys, Post-only search boundary, Share Sheet fields and current zoom algorithms.
