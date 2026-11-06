@@ -17,6 +17,54 @@ On `develop`, Kurumi `DoubleTapZoomMode.classic`:
 
 The user-test branch [Zoom Study Diagnostics](https://github.com/timberpile/Boorusama/tree/maintenance/zoom-study-diagnostics) changes the Snap-to-Fit tolerance from ±5% to **±10%**, adds a developer-only live meter and records preferred zoom levels for individual images, with real image dimensions and viewport orientation in a JSON file in Downloads. **That branch has not passed Flutter/Android verification in this session and is not merged.** Do not describe 10% as the current `develop` value.
 
+## Updated user intent and actual preferred image footprint (2026-11-06)
+
+**The objective is the visible *image footprint*, not a generic zoom multiplier.** The user describes two reasons for zoom: **readability** (very narrow/tall or wide media needs enough screen area to pan through) and **detail inspection** (normally readable images should enlarge the selected area). These are distinct intents. Normal images should not be forced into the same square-ish crop rule as extreme formats.
+
+The user explicitly clarified: **all recorded values were manually chosen as preferred results**. Do not discount or reweight them just because Auto Comic or Snap-to-Fit was enabled. Existing Snap behavior should still be preserved in the eventual algorithm.
+
+### Four extreme-image target geometries
+
+Let `a = imageWidth/imageHeight`, `v = viewportWidth/viewportHeight`, and `z` be magnification relative to initial full Contain Fit.
+
+| Image + orientation | Desired visible picture geometry | Candidate target `z` | Why |
+| --- | --- | --- | --- |
+| **Very tall + portrait** | Image fills **viewport width**, vertically pannable | `z = v/a` | Comic-style readable column |
+| **Very tall + landscape** | Rendered image is about **one viewport height wide**, with deliberate side gutters and vertical pan | `z = kTall/a`, where `kTall≈1.0–1.1` is image displayed width / viewport height | Square-ish or slightly landscape window without forcing full landscape width |
+| **Very wide + portrait** | Rendered image has a height around **1.0–1.2 viewport widths**; horizontal pan and top/bottom gutters | `z = kWide*a`, where `kWide≈1.1–1.2` is displayed image height / viewport width | Square-ish or slightly portrait window, not full portrait height |
+| **Very wide + landscape** | Image fills **viewport height**, horizontally pannable | `z = a/v` | Natural horizontal panorama reading |
+
+The usual *viewport rectangle itself* always keeps the phone's aspect ratio. A **square visible image area** in these cases means the displayed image fills a smaller, centered square-ish band/column with side or top/bottom gutters. It does **not** mean making the screen viewport square.
+
+### Evidence from the user's 76 real-device choices
+
+Dataset: 76 records, 65 portrait and 11 landscape, with **decoded** image dimensions. Do not commit raw Post IDs or private source links. The following medians include all samples in the specified categories, including those near a Snap value.
+
+| Category | Count | Measured median **image footprint** | Inference |
+| --- | ---: | ---: | --- |
+| Tall `a<0.30`, portrait | 4 | Displayed width = **1.000 × viewport width** | Exact width fit in each sample |
+| Tall `a<0.30`, landscape | 4 | Displayed width = **0.983 × viewport height** | Nearly square; individual values ~0.86–1.09 |
+| Wide `a>2`, portrait | 6 | Displayed height = **1.125 × viewport width** | Square-ish, slightly portrait image band |
+| Wide `a>2`, landscape | 6 | Displayed height = **1.000 × viewport height** | Exact height fit in each sample |
+| Ordinary `0.5<=a<=1.9`, portrait | 55 | Chosen zoom **2.30×** | Detail examination more important than basic fit |
+| Near-square `0.9<=a<=1.2`, portrait | 9 | Chosen zoom **2.86×** | Square detail zoom may deserve a higher target |
+
+Viewport examples from the JSON: portrait ~363.43×800 (v=0.4543), landscape ~759.71×363.43 (v=2.0904). A very wide `a=4.4` image predicts about `4.4×1.1=4.84×` in portrait (observed 4.76×) and `4.4/2.09=2.11×` in landscape (observed 2.10×). A very tall `a=0.25` image predicts `0.4543/0.25=1.82×` in portrait (observed 1.82×) and `1/0.25=4×` in landscape (observed ~3.98× for this image).
+
+**Do not overfit** the 4/6-sample extreme categories into hard exact thresholds. The observed range of `kTall` and `kWide` is genuine per-image subjectivity; the user allows a slightly non-square target.
+
+### Transition to ordinary images (still open)
+
+The four rules should apply when the content is **genuinely extreme**, not to normal portrait images that happen to mismatch a landscape screen. Use an explicit aspect category or a smoothly blended transition to the **detail zoom** regime. A normal 2:3 portrait in a portrait phone is comfortably readable at Contain Fit; its first zoom should target detail inspection, not a barely visible other-dimension fit. Likewise, a square portrait image favored ~2.86× rather than a mandatory 2.20×.
+
+Candidates to test:
+- **Readability regime:** choose the picture-footprint targets above.
+- **Detail regime:** roughly 2.2–2.5× for common formats, investigate ~2.7–2.9× near square. This is a candidate based on the user's measured medians, **not** a published default.
+- **Smooth transition:** ease between the two regimes so crossing an aspect threshold doesn't abruptly change zoom, and keep the double-tap focus point/pan stable.
+- **Snap canonical fits:** if a computed target is sufficiently close to exact contain/width/height fit, snap to that canonical target (test ~10% in the user-study branch), but never overwrite the meaning of the chosen values in the measurements.
+
+**Preserve Classic's fast one-in/next-out interaction**. Reset should return to a meaningful viewer starting state (including reading position if relevant), not blindly to identity when the initial display already had fit-width or another transform.
+
 ## Geometry independent of device pixels
 
 Let `imageAspect = imageWidth / imageHeight` and `mediaAspect = usableViewportWidth / usableViewportHeight`. The zoom multiplier to fill the **other** dimension from an initial Contain Fit is:
