@@ -8,10 +8,6 @@ import '../../../cache/misc_data_store.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
 import '../providers/bookmark_provider.dart';
-import '../data/providers.dart';
-import '../services/bookmark_library_service.dart';
-import '../types/bookmark_group.dart';
-import 'binding.dart';
 import 'target_settings.dart';
 
 /// Not a bookmark/profile field: exporting either must not export behavior.
@@ -49,20 +45,15 @@ class ServerFavoriteSettingsNotifier
         : ServerFavoriteSettings.fromJson(jsonDecode(encoded));
   }
 
-  Future<void> setGlobal(
-    String? groupId, {
-    List<BookmarkGroup> confirmedClears = const [],
-  }) => _update(
+  Future<void> setGlobal(String? groupId) => _update(
     (current) => current.withGlobal(groupId),
     (current, updated) => [groupId],
-    confirmedClears: confirmedClears,
   );
 
   Future<void> setProfile(
     String profileId,
-    ServerFavoriteTarget target, {
-    List<BookmarkGroup> confirmedClears = const [],
-  }) => _update(
+    ServerFavoriteTarget target,
+  ) => _update(
     (current) {
       if (!ref.read(booruConfigProvider).any((p) => p.id == profileId)) {
         throw const ServerFavoriteException(
@@ -72,7 +63,6 @@ class ServerFavoriteSettingsNotifier
       return current.withProfile(profileId, target);
     },
     (current, updated) => [updated.resolve(profileId)],
-    confirmedClears: confirmedClears,
   );
 
   /// Save one dialog's global and profile choices in a single durable write.
@@ -82,7 +72,6 @@ class ServerFavoriteSettingsNotifier
     required ServerFavoriteSettings expected,
     required String? globalGroupId,
     required ServerFavoriteTarget target,
-    List<BookmarkGroup> confirmedClears = const [],
   }) => _update(
     (current) {
       if (!ref
@@ -107,7 +96,6 @@ class ServerFavoriteSettingsNotifier
       if (current.targetFor(profile.id) != updated.targetFor(profile.id))
         updated.resolve(profile.id),
     ],
-    confirmedClears: confirmedClears,
   );
 
   /// Commit the shared editor atomically, including every profile override.
@@ -115,7 +103,6 @@ class ServerFavoriteSettingsNotifier
     required List<BooruConfig> profiles,
     required ServerFavoriteSettings expected,
     required ServerFavoriteSettings updated,
-    List<BookmarkGroup> confirmedClears = const [],
   }) => _update(
     (current) async {
       if (current != expected) {
@@ -143,19 +130,16 @@ class ServerFavoriteSettingsNotifier
         if (current.targetFor(profile.id) != updated.targetFor(profile.id))
           updated.resolve(profile.id),
     ],
-    confirmedClears: confirmedClears,
   );
 
   Future<void> _update(
     FutureOr<ServerFavoriteSettings> Function(ServerFavoriteSettings) update,
     Iterable<String?> Function(ServerFavoriteSettings, ServerFavoriteSettings)
-    groupsToBind, {
-    List<BookmarkGroup> confirmedClears = const [],
-  }) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+    groupsToBind,
+  ) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
     final current = await future;
     final updated = await update(current);
     final groupIds = groupsToBind(current, updated).nonNulls.toSet();
-    var clears = <BookmarkGroup>[];
     if (groupIds.isNotEmpty) {
       final library = await ref
           .read(bookmarkLibraryProvider.notifier)
@@ -166,71 +150,18 @@ class ServerFavoriteSettingsNotifier
           groupIds: library.groupsById.keys.toSet(),
         );
       }
-      clears = serverFavoriteGroupsToClear(current, updated, library.groups);
-      if (clears.any((group) => !confirmedClears.contains(group))) {
-        throw const ServerFavoriteException(
-          ServerFavoriteProblem.confirmationRequired,
-        );
-      }
     }
     if (updated == current) return;
-    Future<void> persist() => ref
+    // Assignment only changes local settings. Existing Post and collection
+    // memberships, snapshots and dates are never cleared or rewritten here.
+    await ref
         .read(miscDataStoreProvider)
         .put(
           serverFavoriteSettingsStorageKey,
           jsonEncode(updated.toJson()),
         );
-    if (clears.isEmpty) {
-      await persist();
-    } else {
-      final bookmarks = ref.read(bookmarkLibraryProvider.notifier);
-      await bookmarks.runSerializedMutation(() async {
-        final service = BookmarkLibraryService(
-          bookmarkRepository: await bookmarks.bookmarkRepository,
-          groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
-          imageUrlResolver: (id) => ref.read(bookmarkUrlResolverProvider(id)),
-        );
-        final snapshot = await service.load();
-        final removals = <BookmarkGroupRemovalResult>[];
-        try {
-          for (final group in clears) {
-            // Recheck durable contents before any destructive work.
-            if (snapshot.groupsById[group.id] != group) {
-              throw const ServerFavoriteException(
-                ServerFavoriteProblem.confirmationRequired,
-              );
-            }
-          }
-          for (final group in clears) {
-            removals.add(
-              await service.removeBookmarksFromGroup(
-                snapshot.items.where((b) => group.bookmarkIds.contains(b.id)),
-                group.id,
-              ),
-            );
-          }
-          await persist();
-        } catch (error, stack) {
-          final rollbackErrors = <Object>[];
-          for (final removal in removals.reversed) {
-            try {
-              await service.undoRemoval(removal);
-            } catch (failure) {
-              rollbackErrors.add(failure);
-            }
-          }
-          if (rollbackErrors.isNotEmpty) {
-            throw BookmarkLibraryRollbackException(
-              operationError: error,
-              rollbackErrors: rollbackErrors,
-            );
-          }
-          Error.throwWithStackTrace(error, stack);
-        }
-      });
-    }
-    // Only explicitly confirmed first bindings clear content. Shared groups and
-    // all other assignment changes preserve membership; nothing starts a fetch.
+    // Publish only a successful settings write. Explicit fetch actions are
+    // handled by the fetch controller, never by assigning a destination.
     state = AsyncData(updated);
   });
 }
