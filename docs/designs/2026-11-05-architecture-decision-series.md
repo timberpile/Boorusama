@@ -76,7 +76,7 @@ RelatedBookmark (extend existing stored model)
 RelatedViewerEntry (extend existing transient occurrence)
   family: RelatedFamilyReference        // existing canonical family
   occurrenceId: Object                  // independent mixed-viewer position
-  source?: ViewerSourceBinding          // transient profile authorization, never serialized
+  source: ViewerSourceBinding           // required transient profile authorization, never serialized
   initialPostId?: int                   // selected Post when opened from a Post
   initialOrder: RelatedPostsOrder       // saved preference, else global default
 ```
