@@ -23,7 +23,7 @@ Examples:
 | Role | Recommended realization | Necessity |
 | --- | --- | --- |
 | `ContentReference` | Immutable validated portable address: engine, normalized source namespace, stable **resource kind**, opaque stable key | **New shared value** |
-| `ContentGroupSummary` | Lightweight card data: reference, optional title/cover, optional count **with unit**, presentation category and known/unknown metadata | **New shared value**, or a compatible existing summary adapted to it |
+| `ContentGroupSummary` | Lightweight card data: reference, optional title/cover, optional **direct** `memberCount` (nullable; label from direct member kind), presentation category and known/unknown metadata | **New shared value**, or a compatible existing summary adapted to it |
 | `GroupMember` | A member reference plus immutable source position/key and availability; may hold already loaded Post/summary | **New small value** if a reference alone cannot express source order/missing members |
 | Group source capability | Engine adapter: load one group's metadata, a bounded ordered/paged batch of members, and supported actions | **New narrow interface**, not a generic content repository rewrite |
 | `Post` | Existing Post, media providers, downloads, snapshots | **Keep unchanged** |
@@ -62,6 +62,8 @@ ContentGroupSummary       Engine Group Adapter
 **One content may occur multiple times.** Viewer occurrence IDs, originating list positions, scroll state, temporary paging and local group membership dates are separate from source identity.
 
 **Positions must survive gaps.** A missing Pixiv page 1 does not rename page 2. Source positions and original IDs stay stable after filtering and pagination. Unknown member availability must not be rendered as a fake `Post`.
+
+**Member counting is direct only.** Manga Series count Works; their constituent Works separately count Pages. A single nullable `memberCount` is authoritative if supplied (unknown `null`, known-empty `0`); loaded/currently accessible counts live in UI state. Group presentation derives Works/Pages/Posts labels from the direct member kind. No redundant descendant page counter or `countUnit` field in shared Summary.
 
 **Group metadata is not the entire group.** Card summary may be available without members; a manifest may be partially loaded; a known page count is not a proof that the media is accessible. A group can include mixed nested resources without eagerly downloading a whole hierarchy. Source-specific tags and tag coverage are not necessarily unions of all member tags.
 

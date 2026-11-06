@@ -35,8 +35,8 @@ These names describe **what the website provides**, not a requirement for four s
 
 Imagine a Pixiv Manga Series named *Summer Stories*:
 
-- **Series** contains Work A and Work B.
-- **Work A** contains pages 0, 1 and 2.
+- **Series** contains Work A and Work B; its `memberCount` counts Works, never all grandchild Pages.
+- **Work A** contains pages 0, 1 and 2; its own `memberCount` counts those Pages.
 - **Work B** contains pages 0 and 1.
 - You can open either Work without loading every image in the entire Series.
 

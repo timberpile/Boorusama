@@ -77,7 +77,7 @@ classDiagram
         ContentReference reference
         title optional
         cover optional
-        count optional with unit
+        memberCount (direct children only, nullable)
         displayCategory
         metadataKnowledge
     }
@@ -91,6 +91,8 @@ Only the listing wrappers are variants of the new boundary union. **Post does no
 
 The existing `ViewerEntry` remains the transient viewer-occurrence contract. Listing entries adapt to it; it should not become the persisted source model.
 
+**Updated member-count convention (2026-11-06):** Only direct members count: Series → Works, Work/Gallery → Pages, Pool → Posts. Use one nullable `memberCount`; derive the unit from direct member semantics. Do not store an aggregated Page count on a Manga Series Summary. See [the concrete fields and their source payloads](2026-11-06-content-group-summary-details-candidates.md).
+
 ## 3. Data types and their proposed properties
 
 | Type or concept | Properties/responsibility | Not allowed inside |
@@ -98,7 +100,7 @@ The existing `ViewerEntry` remains the transient viewer-occurrence contract. Lis
 | `ContentReference` | Engine, normalized source address, stable resource kind, validated source key | Credentials, Widget, controller, local membership, media URL as identity |
 | Derived `ContentIdentity` | Canonical namespace + stable kind/key, using only verified alias rules | Viewer index, mutable category/title, active profile |
 | `Post` | Existing media, tags, source facts and engine payload | A fake group disguised with dummy media fields |
-| `ContentGroupSummary` | Reference; nullable title/safe cover; known count with unit; semantic display category; metadata provenance | Eager full member list, user save date |
+| `ContentGroupSummary` | Reference; nullable title/safe cover; known direct memberCount; semantic display category; metadata provenance | Eager full member list, user save date |
 | `ContentGroupDetails` | Summary plus typed source-owned fields (artist, description, statistics, relationships) | UI builders or automatic full-library loading |
 | `GroupMember` | Content reference; member key/source position; availability; optional hydrated Post or child-group summary | Renumbered position after filtering |
 | `GroupMemberPage` | Bounded member results; source continuation; end-of-list evidence; known totals if supplied | Assumption that empty visible results imply exhaustion |

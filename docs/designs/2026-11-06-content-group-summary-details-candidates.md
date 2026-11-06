@@ -15,7 +15,7 @@ ContentGroupSummary
   reference: ContentReference                // durable engine + source + kind + key
   title?: String                              // known summary title
   cover?: GroupCover                         // thumbnail/media reference and safety
-  memberCount?: CountWithUnit                 // e.g. 12 Works; 245 Pages
+  int? memberCount;                          // direct members only (12 Works OR 5 Pages)
   displayCategory?: String                    // e.g. Danbooru Series/Collection
   previewTags?: GroupTagPreview               // only if source lists provide them
   sourceData?: BooruGroupSummaryData          // typed Pixiv/Nhentai/Danbooru extension
@@ -59,8 +59,7 @@ ContentGroup {
   String? title;
   GroupCover? cover;
   String? displayCategory;             // source category, not identity
-  int? memberCount;
-  MemberCountUnit? countUnit;          // posts | pages | works
+  int? memberCount;                   // direct members only; null means unknown
   GroupTags? tagPreview;               // can be ID-only or partial
   MetadataKnowledge metadataKnowledge;
 
@@ -84,8 +83,7 @@ ContentGroupSummary {
   String? title;
   GroupCover? cover;
   String? displayCategory;
-  int? memberCount;
-  MemberCountUnit? countUnit;
+  int? memberCount;                   // direct members only; null means unknown
   GroupTags? tagPreview;
   MetadataKnowledge metadataKnowledge;
 }
@@ -105,6 +103,21 @@ ContentGroupDetails {
 Advantages: a bounded search/list request returns only the summary; opening can fetch Details independently; optional source values do not fill every lightweight result. Fits both Pixiv and nhentai's separate list/detail HTTP responses. Costs: one additional small value type and a reference to the summary in Details.
 
 **Preferred candidate:** B. No separate, mandatory `ContentGroup` superclass, no new session-domain type, and no request to load all members when loading details. Two values are not two different *kinds of group*.
+
+## Direct member count: one field, one meaning (agreed 2026-11-06)
+
+Use **only `int? memberCount` for direct members**. A Pixiv Manga Series reports its number of **Works**, and a Pixiv Work reports its number of **Pages**. A Danbooru Pool reports Posts; an nhentai Gallery reports Pages. Do not put an aggregate descendant page count into the common Series Summary or display it as an alternative `pageCount`. This count is source-authoritative, not the number of currently loaded members. `null` means unknown and `0` means confirmed empty.
+
+The UI derives the label (Works, Pages, Posts or generic Items for a mixed/unknown member type) from the source/group's supported direct member kind, rather than storing another count or a redundant `countUnit` field in Summary. If one source exposes aggregate statistics about descendants, they belong in explicitly optional engine-specific detail information and are not a second common member-count property.
+
+```text
+Pixiv Manga Series: memberCount = 12   → 12 direct Works
+     ├─ Pixiv Work A: memberCount = 5  →  5 direct Pages
+     └─ Pixiv Work B: memberCount = 8  →  8 direct Pages
+
+Danbooru Pool: memberCount = 22        → 22 direct Posts
+nhentai Gallery: memberCount = 180     → 180 direct Pages
+```
 
 ## What the nested values actually contain
 
@@ -129,7 +142,7 @@ Advantages: a bounded search/list request returns only the summary; opening can 
 
 ## Worked examples, without inventing source values
 
-- **Pixiv Work** summary: genuine illustration ID, title, cover, category, known `pageCount`, unit `pages`. Details: caption, Pixiv user ID/name/account/avatar when available, canonical tags, nullable view/bookmark statistics, Series reference only if the API supplies a Series ID.
+- **Pixiv Work** summary: genuine illustration ID, title, cover, category, known direct `memberCount` (Pages). Details: caption, Pixiv user ID/name/account/avatar when available, canonical tags, nullable view/bookmark statistics, Series reference only if the API supplies a Series ID.
 - **Danbooru Pool** summary: Pool ID, name, category `series|collection`, cover and known post count. Details: description and any real source timestamps. Category changes do not change identity.
 - **nhentai Gallery** summary: Gallery ID, English title, thumbnail, page count when supplied and tag IDs. Details: upload date, full tags, known favorites, alternative title and scanlator if supplied. The `PageInfo` media manifest is a **separately loaded member source**, not a field of Details.
 
