@@ -108,25 +108,43 @@ void main() {
   });
 
   test(
-    'populated first bindings require exact explicit confirmation',
+    'populated first bindings preserve contents without confirmation',
     () async {
       final before = library.snapshot;
-      await expectLater(
-        container
-            .read(serverFavoriteSettingsProvider.notifier)
-            .setGlobal('populated'),
-        throwsA(
-          isA<ServerFavoriteException>().having(
-            (e) => e.problem,
-            'problem',
-            ServerFavoriteProblem.confirmationRequired,
-          ),
-        ),
-      );
-      expect(store.writes, 0);
+      await container
+          .read(serverFavoriteSettingsProvider.notifier)
+          .setGlobal('populated');
+      expect(store.writes, 1);
       expect(library.snapshot, same(before));
+      expect(library.snapshot.groupsById['populated']!.bookmarkIds, {1});
+      expect(
+        (await container.read(serverFavoriteSettingsProvider.future))
+            .globalGroupId,
+        'populated',
+      );
     },
   );
+
+  test('a missing destination still fails before saving settings', () async {
+    await expectLater(
+      container
+          .read(serverFavoriteSettingsProvider.notifier)
+          .setGlobal('deleted'),
+      throwsA(
+        isA<ServerFavoriteException>().having(
+          (error) => error.problem,
+          'problem',
+          ServerFavoriteProblem.targetMissing,
+        ),
+      ),
+    );
+    expect(store.writes, 0);
+    expect(
+      (await container.read(serverFavoriteSettingsProvider.future))
+          .globalGroupId,
+      isNull,
+    );
+  });
 
   test(
     'disabling remains possible while the bookmark library is unavailable',
