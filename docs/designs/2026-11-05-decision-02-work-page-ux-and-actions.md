@@ -19,6 +19,21 @@ Example: Work 120, selected Page 2 of 5:
 | Find on Other Profiles | Source artwork query or exact Page file match, depending on search scope | Existing Pixiv cross-profile logic needs the real Work ID, never synthetic Post ID |
 | Tags, descriptions, comments | Scope depends on source API | A Work description should not be reproduced as a fake page-specific fact |
 
+## Accepted control geometry: hold indicators (2026-11-06)
+
+Any action button offering a hold/long-press alternative **must** display the same subtle small chevron as the existing Download action. This includes the whole-Work Bookmark button and Page/All download, and applies consistently to any future hold-capable button.
+
+**Hard invariants**:
+- Keep the primary action icon's rendered size, optical center, glyph weight and position unchanged.
+- Keep the existing IconButton dimensions, constraints, padding, touch bounds, spacing, overflow layout, splash/ripple radius and tap semantics unchanged.
+- Place a miniature right-side chevron as decoration **within the existing fixed button bounds**, using a shared Kurumi/app icon-overlay presentation; do not add a Row, second hit target, expand constraints or shrink the main glyph to make room.
+- The whole button owns one tap and one hold recognizer. A hold must not also activate the tap action on release. An equivalent overflow/semantics action remains available without long-press.
+- Test a same-row baseline versus decorated icon for measured size/center/touch area and both light/dark themes, small screen and text scaling.
+- Current `DownloadPostButton` already draws a custom `24×24` icon with a chevron; inspect its painter and actual layout before reusing or replacing it. Do not assume that wrapping it with extra padding preserves geometry.
+- The previously observed Bookmark-button geometry regression is a test case; do not repeat it.
+
+This is an approved **future UI invariant**, not a runtime change on this documentation branch.
+
 ## Preferred compact mobile interaction
 
 **Overview** (artist/title/description below selected image):
