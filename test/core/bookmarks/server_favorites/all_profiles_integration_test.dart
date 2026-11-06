@@ -53,7 +53,7 @@ void main() {
     },
   );
 
-  test('changing any persisted account rejects all confirmed clears', () async {
+  test('changing any persisted account rejects assignments without changing contents', () async {
     final library = h.container.read(bookmarkLibraryProvider.notifier);
     final first = await library.createGroup('First');
     final second = await library.createGroup('Second');
@@ -78,10 +78,6 @@ void main() {
                   profiles.last.id,
                   ServerFavoriteTarget.group(second.id),
                 ),
-            confirmedClears: [
-              before.groupsById[first.id]!,
-              before.groupsById[second.id]!,
-            ],
           ),
       throwsA(
         isA<ServerFavoriteException>().having(
