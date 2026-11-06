@@ -230,7 +230,7 @@ void main() {
     );
     if (row.hitTestable().evaluate().isEmpty) {
       final scrollable = find.descendant(
-        of: find.byKey(const Key('bookmark-picker-hierarchy')),
+        of: find.byKey(const ValueKey('bookmark-picker-hierarchy')),
         matching: find.byWidgetPredicate(
           (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
         ),

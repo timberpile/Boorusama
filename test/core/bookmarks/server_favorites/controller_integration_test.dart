@@ -306,7 +306,9 @@ void main() {
       final second = await library.createGroup('Second');
       await library.addPostsToGroup(h.profile.auth, [h.post(3)], first.id);
       await library.addPostsToGroup(h.profile.auth, [h.post(4)], second.id);
-      final expected = await h.container.read(serverFavoriteSettingsProvider.future);
+      final expected = await h.container.read(
+        serverFavoriteSettingsProvider.future,
+      );
       await library.addPostsToGroup(h.profile.auth, [h.post(5)], second.id);
       final before = await library.snapshotForExport();
       await h.container
