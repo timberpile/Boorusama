@@ -16,6 +16,8 @@ Examples:
 - A local Boorusama Bookmark Group organizes saved content; it is **not** a remote Content Group.
 - Pixiv Related Works are recommendations, **not** members of a Work. Danbooru direct parent/children are a different relationship.
 
+**Concrete field comparison (2026-11-06):** [One ContentGroup versus ContentGroupSummary + ContentGroupDetails](2026-11-06-content-group-summary-details-candidates.md). This shows the proposed typed fields, source examples and the separate member-loading boundary. Both remain candidates until reviewed with the user.
+
 ## Proposed smallest boundary
 
 | Role | Recommended realization | Necessity |
