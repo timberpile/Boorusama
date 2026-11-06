@@ -145,7 +145,6 @@ enum ServerFavoriteProblem {
   ambiguousAccount,
   noTarget,
   targetMissing,
-  confirmationRequired,
   targetChanged,
   accountChanged,
   missingPostIdentity,
