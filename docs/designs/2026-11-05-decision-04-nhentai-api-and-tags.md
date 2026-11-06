@@ -15,12 +15,13 @@ The user provided terminal results from a local WSL environment. These are direc
 | `GET /api/v2/tags/ids?ids=152` | HTTP 200; tag ID resolves with name/type |
 | `GET /api/v2/tags/general` | HTTP 400; API rejects `general` as a type, accepts `tag` instead |
 | `GET /api/v2/tags/tag?sort=popular&page=1&per_page=5` | HTTP 200; reported **4,774 total tags** and **40 pages**, but supplied JSON has **120 actual results** despite requesting `per_page=5` |
+| `GET /api/v2/tags/tag?sort=popular&page=2&per_page=5` | User-run follow-up also returns **120 results**, reporting **4,774 total tags** and **40 pages**; first returned ID **35972**, last ID **28349** |
 | `HEAD https://t1.nhentai.net/galleries/4301386/thumb.webp` | HTTP 200, `image/webp`, `content-length: 26226`, strong cache headers |
 | `HEAD https://i1.nhentai.net/galleries/4301386/1.webp` | HTTP 200, `image/webp`, `content-length: 148402`, strong cache headers |
 
 **New implementation implications:**
 
-- Use the real tag type key `tag`, not `general`. Do not assume `per_page` is honored by the live endpoint; calculate progress from actual returned items and server-reported completion, and confirm page-2 continuity. The observed ~120/page explains 40 pages for 4,774 tags. Earlier examples assuming 100 tags/page or five pages = 500 tags were estimates, not measured operational contracts.
+- Use the real tag type key `tag`, not `general`. Do not assume `per_page` is honored by the live endpoint; calculate progress from actual returned items and server-reported completion, and confirm page-2 continuity. The observed ~120/page explains 40 pages for 4,774 tags. A second-page response confirms the 120-item behavior on two pages, but does not alone prove gap-free or duplicate-free pagination across the catalog. Earlier examples assuming 100 tags/page or five pages = 500 tags were estimates, not measured operational contracts.
 - Treat `Gallery.id`, `media_id`, and `PageInfo.number` as distinct fields. Preserve the original 1-based page number. Some returned `thumbnail` paths include `.webp.webp`; preserve source-supplied paths pending direct checks rather than rewriting file extensions.
 - Respect the API-supplied CDN server list and validated paths. CDN HEAD success is useful but does **not** prove full GET decoding, image access across hosts, cache freshness, or Android compatibility.
 - Anonymous API access worked from one network/time; do not infer rate limits, authenticated behavior, all categories' counts, search pagination, CORS, geographic reliability, or future uptime.
