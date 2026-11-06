@@ -2,6 +2,54 @@
 
 **Status: comparison for joint decision, not approved Dart APIs.** Based on the current Group-contract [Decision 1](2026-11-05-decision-01-shared-group-contract.md). These two alternatives store **identical domain facts**. They differ only in whether lightweight and detail fields have distinct immutable value types.
 
+## Latest decision direction (2026-11-06): choose B and support typed engine payloads
+
+The user prefers **two loading stages**, matching the data already available in search/list responses versus a separate detailed content request. The user also explicitly requires **engine-specific extension fields**, analogous to the existing `Post.booruData` pattern. Variant A remains below for comparison, not as a second implementation to build.
+
+**Both `ContentGroupSummary` and `ContentGroupDetails` are common application values usable by Danbooru Pools, Pixiv Works/Series, nhentai Galleries and other sources.** They must NOT become giant classes containing all site-specific fields. A field absent from the source is optional/unknown, not an invented zero or empty item. An adapter maps each source's list/detail DTOs into the appropriate common stage plus typed source payload.
+
+### Recommended minimal shape (design sketch, not finalized Dart)
+
+```text
+ContentGroupSummary
+  reference: ContentReference                // durable engine + source + kind + key
+  title?: String                              // known summary title
+  cover?: GroupCover                         // thumbnail/media reference and safety
+  memberCount?: CountWithUnit                 // e.g. 12 Works; 245 Pages
+  displayCategory?: String                    // e.g. Danbooru Series/Collection
+  previewTags?: GroupTagPreview               // only if source lists provide them
+  sourceData?: BooruGroupSummaryData          // typed Pixiv/Nhentai/Danbooru extension
+
+ContentGroupDetails
+  summary: ContentGroupSummary               // same source group, no duplicate ID
+  description?: String
+  creators?: List<CreatorRef>
+  tags?: GroupTags                            // source-owned and coverage-aware
+  sourceDates?: GroupSourceDates
+  sourceData?: BooruGroupDetailsData          // typed engine-specific detail extension
+
+GroupMemberSource (separate from both)
+  load members/continuation
+  preserve stable source position, unavailable members, access binding
+```
+
+The `BooruGroupSummaryData` and `BooruGroupDetailsData` names are **candidate contracts**, not necessarily two required public interfaces for every engine. They can share the equivalent of `BooruPostData`'s `typeKey`/`schemaVersion` and typed codec strategy if persistence requires it. Avoid a generic unvalidated JSON map in the UI and do not make engines define empty payload classes when no extra fields exist.
+
+| Source | Common summary | Optional summary payload | Common details | Optional detail payload |
+| --- | --- | --- | --- | --- |
+| Danbooru Pool | ref, title, cover, Post count, Series/Collection badge | Source-only pool ordering/filter metadata if exposed | description, supported tags/dates | Engine-defined Pool facts only when needed |
+| Pixiv Work | ref, title, cover, Page count, type badge | Work kind and source-specific preview flags | caption, creator reference, Work tags | Series **ID**/relationship, AI indicator or richer Pixiv-only fields |
+| Pixiv Manga Series | ref, title, cover, **Work** count | Source-specific Series summary fields | synopsis/author, if supplied | Source pagination/order facts, separately from member loader |
+| nhentai Gallery | ref, title, thumbnail, Page count, tag ID previews | `media_id` or other source ID needed for source resolution, safe metadata | source tags, upload date, known favorite statistics | alternative titles, scanlator, source-specific details |
+
+**Do not persist account-scoped state in an otherwise reusable group value.** For example, Pixiv `isBookmarked`/Public-Private state belongs to the authenticated account state/capability layer, not a global static Summary. Likewise, image URLs are media references, not stable group keys. Preserve credentials/privacy boundaries in caches.
+
+**An API's list/detail DTO is not the same thing as a persistent domain value.** When the detail API already provides enough fields, the adapter may construct a Summary from it; no extra list request is needed. Detailed members remain independently fetched even if a detail response includes a page manifest.
+
+**Current implementation reference:** `Post.booruData` uses `BooruPostData` with a `typeKey`, `schemaVersion` and typed codec, plus an `UnknownPostData` fallback for unsupported custom versions. The Group equivalent should follow this pattern where it materially reduces lost engine information, rather than copying every Post abstraction mechanically.
+
+**Remaining design choices:** precise common field minimum; whether both loading stages require separately typed payload interfaces or a single versioned source value; which extra fields must survive offline Bookmark snapshots; provenance/unknown states for counts and tags. The choice of **two common stages with typed source extensions** is the accepted direction.
+
 ## A — one progressively enriched `ContentGroup`
 
 ```dart
