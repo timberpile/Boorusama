@@ -10,6 +10,15 @@ This supersedes the former 2.90× square-image peak and the unrestricted normal-
 
 The earlier in-sample error `~0.29×` documented below was measured for the stronger candidate, **not** this new conservative one. It is retained only as historical evidence and must not be quoted as this version's predictive accuracy. For validation, compare over-zoom frequency and subjective comfort, not only mean absolute error.
 
+## Latest on-device acceptance (2026-11-06)
+
+The user is satisfied with the conservative Classic target values and does **not** want more tuning tests at this stage. The only requested refinements were applied on `maintenance/zoom-study-diagnostics`:
+
+- **One-way automatic fit snap:** when a calculated Classic target lies within the 10% tolerance of an exact width/height fit, snap **only if it reduces the zoom**, thereby avoiding needless two-dimensional panning. **Never increase** the calculated zoom to reach a fit. This only changes Classic automatic target selection; manual pinch snapping and Fit Cycle are unchanged.
+- **Stronger tall Comic detail step:** when an extremely tall image is already auto-fitted to width in portrait, the first Classic double tap magnifies the existing reading baseline by **1.60×** (previously 1.35×), and the next tap restores the previous reading position. Landscape stays unchanged.
+
+This replaces the earlier bidirectional snap and weaker Comic step proposals below. The algorithm remains experimental on a task branch, not integrated into `develop`.
+
 ## Product goal, not a universal fixed multiplier
 
 A first double tap can mean two different things:
@@ -118,9 +127,9 @@ Only aggregate statistics are recorded here. **Do not commit the raw JSON or ind
 
 For the eventual runtime behavior:
 1. Compute the absolute target relative to **Contain Fit**, using decoded media dimensions and the current viewport. Keep the tapped point steady as the existing Kurumi viewer does.
-2. When computed zoom is within **10% relative scale** of a **nontrivial** exact fit-to-width or fit-to-height target, use that canonical fit. Never snap a purposeful double-tap zoom back to contain scale ~1× merely because it is near.
+2. When the computed Classic zoom is **above** a nontrivial exact dimension-fit scale by **no more than 10%**, snap **downward only** to the fit. Do not snap upward or snap a purposeful double tap back to contain ~1×.
 3. Distinguish the actual **viewer baseline transformation** (Contain or previously applied Comic width-fit, including reading position) from an explicit **double-tap-zoom-active** state. Next double tap restores the previous meaningful baseline instead of unconditionally `Matrix4.identity()`.
-4. If a tall Comic is already auto-fitted to width, the readability target may equal its starting baseline. Then a first double tap must not silently do nothing. A **separate detail increment** from that reading baseline is a reasonable candidate, while the next resets; choose this exact increment only after UX/device review.
+4. If a tall Comic is already auto-fitted to width in portrait, use the user's chosen provisional **1.60× detail increment** from its reading baseline, then restore the earlier scale and pan position on the next tap. For landscape, retain the current square-ish column behavior.
 5. Preserve page transitions, reset after orientation change without stale pixel coordinates, and source-configured gestures and video seek semantics.
 
 ## Tests needed on the future implementation
