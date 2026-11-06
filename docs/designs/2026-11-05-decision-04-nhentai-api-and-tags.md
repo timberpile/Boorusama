@@ -1,6 +1,32 @@
 # Decision 4 — nhentai Feasibility, CDN and Tag Catalog
 
-**Status:** Research and recommendation. **API schema was read**, but production HTTP/API/CDN endpoints have **not** been successfully called from this session. No claims of current site availability, CORS permission, successful login, or source-server reliability.
+**Status:** Research and recommendation with a subsequent **user-run live WSL HTTP check on 2026-11-06**. Public API and two CDN HEAD requests succeeded in that environment; Android runtime, actual media GET, auth, rate limits, and broader reliability remain unverified.
+
+## Live WSL results (user-supplied, 2026-11-06)
+
+The user provided terminal results from a local WSL environment. These are direct evidence of requests that succeeded there, unlike the earlier third-party schema or blocked browsing-tool fetches:
+
+| Read-only endpoint | Observation |
+| --- | --- |
+| `GET /api/v2/config` | HTTP 200 JSON; four image CDN hosts and four thumbnail hosts |
+| `GET /api/v2/galleries?page=1&per_page=2` | HTTP 200; real summary objects with Gallery `id`, separate `media_id`, tag IDs and page counts |
+| `GET /api/v2/cdn` | HTTP 200; same configured host families |
+| `GET /api/v2/galleries/694482` | HTTP 200; 41 ordered Pages with source numbers **1–41** and concrete page/thumbnail paths |
+| `GET /api/v2/tags/ids?ids=152` | HTTP 200; tag ID resolves with name/type |
+| `GET /api/v2/tags/general` | HTTP 400; API rejects `general` as a type, accepts `tag` instead |
+| `GET /api/v2/tags/tag?sort=popular&page=1&per_page=5` | HTTP 200; reported **4,774 total tags** and **40 pages**, but supplied JSON has **120 actual results** despite requesting `per_page=5` |
+| `HEAD https://t1.nhentai.net/galleries/4301386/thumb.webp` | HTTP 200, `image/webp`, `content-length: 26226`, strong cache headers |
+| `HEAD https://i1.nhentai.net/galleries/4301386/1.webp` | HTTP 200, `image/webp`, `content-length: 148402`, strong cache headers |
+
+**New implementation implications:**
+
+- Use the real tag type key `tag`, not `general`. Do not assume `per_page` is honored by the live endpoint; calculate progress from actual returned items and server-reported completion, and confirm page-2 continuity. The observed ~120/page explains 40 pages for 4,774 tags. Earlier examples assuming 100 tags/page or five pages = 500 tags were estimates, not measured operational contracts.
+- Treat `Gallery.id`, `media_id`, and `PageInfo.number` as distinct fields. Preserve the original 1-based page number. Some returned `thumbnail` paths include `.webp.webp`; preserve source-supplied paths pending direct checks rather than rewriting file extensions.
+- Respect the API-supplied CDN server list and validated paths. CDN HEAD success is useful but does **not** prove full GET decoding, image access across hosts, cache freshness, or Android compatibility.
+- Anonymous API access worked from one network/time; do not infer rate limits, authenticated behavior, all categories' counts, search pagination, CORS, geographic reliability, or future uptime.
+- Follow-ups: small paged tag requests (including page 2), bounded CDN GET/decode from the returned exact paths, search and Android Dio-stack probes. No credentials or anti-bot workarounds needed for these initial reads.
+
+The original API-schema-based feasibility checklist below remains the next validation framework. Its speculative request counts and page-size assumptions must be revisited using these observations.
 
 ## One-minute explanation
 
