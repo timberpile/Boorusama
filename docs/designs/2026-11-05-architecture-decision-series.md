@@ -17,6 +17,8 @@
 
 **Direct Group member counting:** A single nullable `memberCount` represents **immediate** members only (Series → Works, Work → Pages, Pool → Posts, Gallery → Pages); derived display labels, no aggregated grandchild Page count in the shared Series Summary. [Concrete Group field proposal](2026-11-06-content-group-summary-details-candidates.md).
 
+**Conservative zoom preference (later clarification, 2026-11-06):** User prefers a slightly weaker zoom to a too-strong one; ordinary images should usually start around 2.0–2.5×, square boost tentatively only to 2.45×. Extreme wide/tall **readability** zoom is exempt from that ordinary-image limit. The [concrete candidate](2026-11-06-aspect-aware-classic-zoom-algorithm.md) has been updated. Earlier 0.29× fitting statistics refer to the **previous** stronger model, not the revised conservative one.
+
 ## Updated user direction (2026-11-06)
 
 - **Group metadata:** User prefers **separate Summary and Details stages**, not one all-optional domain class. Both should be reusable across engines, but have optional **typed engine-specific payloads** analogous to `Post.booruData`; missing source fields remain unknown. See [the concrete field comparison](2026-11-06-content-group-summary-details-candidates.md). Exact payload interface and persisted codec still require approval.

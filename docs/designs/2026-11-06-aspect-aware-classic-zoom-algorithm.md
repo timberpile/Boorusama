@@ -2,6 +2,14 @@
 
 **Status:** Experimental, **not** an approved runtime implementation. Current reference: `develop` `e306ff533`. The user wants Classic's **one-in / next-out** interaction and image-footprint goals for extreme aspect ratios, without fitting the model to Snap/Auto Comic internals. A separate opt-in [Zoom Study branch](https://github.com/timberpile/Boorusama/tree/maintenance/zoom-study-diagnostics) has the agreed ±10% Snap setting but is not merged.
 
+## User preference update: conservative normal zoom (2026-11-06)
+
+The user clarified that **slightly too little magnification is preferable to too much**. For ordinary image formats, most preferred first-double-tap results are **2.0–2.5×**; 3× or more was occasionally selected during manual sampling, but those cases would generally still have been acceptable at 2.2–2.5×. **Do not optimize the median measurements as if overshoot and undershoot had equal subjective cost.**
+
+This supersedes the former 2.90× square-image peak and the unrestricted normal-image landscape other-fit. Use a **2.25× normal-image base**, a **small maximum 2.45× boost near square in portrait**, and **2.5× as the provisional upper bound for ordinary images**, including a normal-image landscape other-fit. These are only initial comparison values, not approved constants. **Never apply the 2.5× normal-image bound to extreme media readability targets**, such as square-footprint panoramas or tall comics, which can legitimately need higher magnification.
+
+The earlier in-sample error `~0.29×` documented below was measured for the stronger candidate, **not** this new conservative one. It is retained only as historical evidence and must not be quoted as this version's predictive accuracy. For validation, compare over-zoom frequency and subjective comfort, not only mean absolute error.
+
 ## Product goal, not a universal fixed multiplier
 
 A first double tap can mean two different things:
@@ -38,8 +46,8 @@ The four extreme geometries should be **fully in effect** only at clear extremes
 
 - Tall fully active when `a <= 0.30`; blend to normal by `a = 0.55`.
 - Wide fully active when `a >= 2.40`; blend from normal starting at `a = 1.75`.
-- In the middle, portrait detail zoom has a moderate **2.25×** base, plus an approximately **0.65×** bump narrowly centered on square images. This fits the user's roughly 2.30× ordinary-image median and 2.86× near-square median.
-- Landscape normal zoom uses the exact other-dimension fit `q` with a tentative **1.15× minimum** to avoid a no-op on a screen-matched image. This rule has much less data behind it than the portrait detail curve.
+- In the middle, portrait detail zoom has a moderate **2.25×** base, plus a conservative **0.20×** bump narrowly centered on square images (peak **2.45×**). The user explicitly prefers less zoom over excessive zoom; higher manually selected samples should not force the default above 2.5×.
+- Landscape normal zoom starts from the exact other-dimension fit `q`, with a tentative **1.15× minimum** and **2.50× maximum for ordinary images**. Extreme tall/wide readability targets remain exempt; this rule still has much less data behind it than portrait preferences.
 - For extreme portrait-wide images, `1.10` is the displayed-image-height-to-viewport-width ratio. Treat it as adjustable, approximately 1.0–1.2, not an image zoom constant.
 
 ### Pure target-scale pseudocode (Dart-like)
@@ -56,7 +64,7 @@ double targetZoom(double imageAspect, double viewportAspect) {
   final q = max(a / v, v / a);
 
   if (v >= 1) { // landscape
-    final normal = max(1.15, q);
+    final normal = q.clamp(1.15, 2.50).toDouble();
     if (a >= 0.55) return normal;
     final t = smoothstep(0.30, 0.55, a);
     final tallSquareFootprint = 1.0 / a;
@@ -66,7 +74,7 @@ double targetZoom(double imageAspect, double viewportAspect) {
   // portrait: ordinary images get a detail zoom;
   // approximately square images get a little more.
   final squareDistance = log(a) / 0.13;
-  final detail = 2.25 + 0.65 * exp(-0.5 * squareDistance * squareDistance);
+  final detail = 2.25 + 0.20 * exp(-0.5 * squareDistance * squareDistance);
 
   if (a < 0.55) {
     final t = smoothstep(0.30, 0.55, a);
@@ -87,8 +95,8 @@ double targetZoom(double imageAspect, double viewportAspect) {
 | Image aspect `a` | Portrait `v=0.454` | Landscape `v=2.090` | Intent |
 | --- | ---: | ---: | --- |
 | Very tall Comic 1:4 | **1.82×** | **4.00×** | Portrait width fit; landscape square-ish column |
-| Ordinary portrait 2:3 | **2.26×** | **3.14×** | Detail portrait / other-fit landscape |
-| Square 1:1 | **2.90×** | **2.09×** | Extra square detail portrait |
+| Ordinary portrait 2:3 | **2.25×** | **2.50×** | Conservative detail portrait / capped normal landscape |
+| Square 1:1 | **2.45×** | **2.09×** | Small square detail boost, no 3× default |
 | Ordinary landscape 3:2 | **2.25×** | **1.39×** | Detail portrait / other-fit landscape |
 | Wide 2.4:1 | **2.64×** | **1.15×** | Slightly portrait band / height fit |
 | Panorama 4.4:1 | **4.84×** | **2.11×** | Readable band / full-height landscape |
@@ -98,7 +106,7 @@ These are **algorithm calculations**, not separate source observations.
 ## Check against the user's first JSON
 
 - Input: **76 manual preferences**, 65 portrait and 11 landscape, all with decoded media dimensions. Some images appear in both orientations; one image has two different manual portrait preferences.
-- On these same 76 observations, mean absolute scale difference is about **0.29×**, median absolute about **0.17×**, and **70/76 are within ±25% relative to the selected preference**. By comparison, current Classic's geometry/3× behavior yields about **1.41× mean absolute difference** on the same values.
+- The **older, more aggressive variant** had mean absolute scale difference about **0.29×**, median about **0.17×**, and 70/76 within ±25% of the selected preferences. These scores **do not apply to the conservative 2.45×-peak variant**. The current Classic's geometry/3× behavior was about **1.41×** mean absolute difference on these observations. Because the user prefers under-zooming, optimizing symmetric absolute error alone is inappropriate.
 - These coefficients were **chosen after inspecting this dataset**. This is descriptive in-sample fit, **not independent predictive validation** or evidence that every image should match the algorithm.
 - High-residual choices exist. In particular one ordinary portrait image of ratio 0.75 was set to about 4.28× and another of ratio 1.41 to about 4.11×, beyond the ordinary-size prediction. A ratio-only first-double-tap algorithm cannot infer the desired semantic subject-level magnification for every picture. Pinch remains available.
 
@@ -125,6 +133,6 @@ For the eventual runtime behavior:
 
 ## Proposed next decision
 
-Accept the **geometry/transition structure** as a test candidate, but do **not** finalize its numeric constants yet. The most important remaining user questions are (a) whether landscape-normal images should always use other-fit, including when the zoom is almost 1×; (b) the first double-tap action when a Comic already starts width-fitted; and (c) whether the portrait square boost feels too strong on genuinely low-resolution imagery.
+Accept the **geometry/transition structure with a conservative ordinary-image zoom** as a test candidate, but do **not** finalize its numeric constants yet. The most important remaining user questions are (a) whether landscape-normal images should always use other-fit, including when the zoom is almost 1×; (b) the first double-tap action when a Comic already starts width-fitted; and (c) whether the portrait square boost feels too strong on genuinely low-resolution imagery.
 
 Related: [Zoom Decision 6](2026-11-05-decision-06-zoom-geometry-and-data.md).
