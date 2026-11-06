@@ -61,31 +61,65 @@ These later user decisions supersede unanswered options in the initial six brief
 - **Pixiv first delivery:** Support Works and their Pages first. Manga Series, Related Works, user-name search, and other Pixiv improvements follow separately; the shared design may anticipate nested Groups without implementing their full UI in phase one.
 - **nhentai:** Native anonymous API, tag and CDN behavior awaits the user's controlled live read-only checks. The third-party OpenAPI mirror alone is not operational proof.
 
-### Open: Danbooru Related member order and media-first presentation
+### Accepted: retain the existing Related Gallery, persist only its own order
 
-**Confirmed in develop:** `RelatedGallery` currently renders members as a `PostGrid` and opens selected Posts in a separate viewer. Its `RelatedPostsOrder.oldest/newest` uses `order:id_asc` or `order:id_desc`. The selected order is retained in per-occurrence `PageStorage` and updated in the global `settings.relatedPostsOrder`, but `RelatedBookmark` contains no per-bookmark order. These are Post-ID sorts, not authoritative narrative sequence.
+**Confirmed in develop:** `RelatedGallery` currently shows a `PostGrid` and opens an ordinary Post viewer. Oldest/newest correspond to `order:id_asc` and `order:id_desc`; the order is currently only a global preference plus transient occurrence state. The existing `RelatedBookmark` is a subclass of `CollectionBookmark`, not a new type to introduce.
 
-**Concrete proposal for discussion, not approved:**
+**User direction:** Keep the current Related grid/timeline and ordinary Post viewer for the initial group-architecture integration. Do **not** build or ship the proposed separate media-first Related viewer/Overview or an alternate Timeline-overflow switch yet. A later UI experiment must start from the actually agreed Pixiv Work designs and established Post Details sheet, rather than independent illustration-driven mockups.
+
+Store the chosen member order **only for saved Related families**, not as a generic Content Group viewing option:
 
 ```text
-RelatedBookmark (extend existing stored model)
-  family: RelatedFamilyReference        // existing stable parent/anchor identity
-  preferredOrder?: RelatedPostsOrder    // oldest/newest chosen on save; null in old records
-  // Preserve existing localId, memberships/addedAt and safe summary/cover fields.
-
-RelatedViewerEntry (extend existing transient occurrence)
-  family: RelatedFamilyReference        // existing canonical family
-  occurrenceId: Object                  // independent mixed-viewer position
-  source: ViewerSourceBinding           // required transient profile authorization, never serialized
-  initialPostId?: int                   // selected Post when opened from a Post
-  initialOrder: RelatedPostsOrder       // saved preference, else global default
+RelatedBookmark (existing type; add a field on the current model or its future equivalent)
+  family: RelatedFamilyReference        // canonical parent/anchor identity
+  preferredOrder?: RelatedPostsOrder    // saved oldest/newest for this family; null for legacy records
+  // All existing local group memberships, added dates and summary data remain.
 ```
 
-Resolve the order at entry opening, update the saved preference if the user changes a bookmarked family's order, and preserve the original selection and family identity. Keep legacy `null` order compatible with the global setting. Do not persist a fixed list of member IDs merely to express ascending/descending sort. Per-bookmark viewing preference is distinct from source-owned Group member order.
+On first save, capture the current visible order. When opening a saved family, use its own order; when opening an unsaved or legacy family, fall back to the global preference. Explicitly changing the order of a saved family updates only that family. Preserve the order across metadata refresh and backup import/export. Do not persist a fixed list of member IDs just to express the sort direction. Post IDs are not guaranteed story chronology, so no automatic inference of authorial sequence is claimed.
 
-**Presentation alternative:** For small Related families, evaluate a media-first horizontal Post pager, with an optional compact Overview or thumbnail strip and family-level Bookmark controls, rather than always opening the current grid/Timeline. Reuse the Pixiv image/details interaction pattern and existing per-Post actions without inventing Work metadata, a fictional description, or a new universal media type. Compare larger families, missing Posts, outer mixed-viewer navigation and restoring the selected Post. Danbooru Related often represents variants rather than authored sequences; never infer true reading order from Post ID.
+### Open proposal: a unified local Bookmark contract and membership model
 
-**Still to decide together:** whether per-bookmark sort is desirable and how its default should be captured; whether media-first should be the Related default or an alternative to the current grid, and whether a small thumbnail Overview is worthwhile. Do not implement these proposals yet.
+**Current code:** `Bookmark` represents a saved Post with an automatically allocated Hive `int` ID; `BookmarkGroup.bookmarkIds` and `addedAt` reference those Post IDs. Existing `CollectionBookmark` stores Pool/Related entries separately in the organization store using a UUID `localId` and its own `groupIds`/`addedAt`. This historical compatibility design is not a Flutter limitation; adding more Group bookmark families should not automatically duplicate it.
+
+**User question for joint architecture review:** Would one generic `Bookmark` interface, one local integer ID namespace, and one group membership mechanism better express the product, while retaining typed Post and Group data?
+
+**Concrete candidate, not an approved Dart API:**
+
+```text
+Bookmark (abstract interface)
+  id: int                              // unique stable local bookmark ID, not a source ID
+
+PostBookmark implements Bookmark
+  id: int                              // retain existing Post bookmark ID
+  snapshot: StoredPostSnapshot        // existing full Post snapshot
+  createdAt: DateTime                  // original local creation
+  updatedAt: DateTime                  // last snapshot update
+
+ContentGroupBookmark implements Bookmark
+  id: int                              // allocated from the same local ID namespace
+  reference: ContentReference          // stable engine/source/kind/key
+  summary: ContentGroupSummary         // stored offline-safe Group summary
+  createdAt: DateTime                  // local creation date
+  observedAt: DateTime                 // last successful metadata observation
+
+RelatedBookmark extends ContentGroupBookmark (specialized existing concept)
+  preferredOrder?: RelatedPostsOrder    // only for Danbooru Related families
+
+BookmarkGroup (extend existing structure)
+  id: String                           // local group UUID, unchanged
+  name: String                         // user-visible group title
+  folderId?: String                    // local organization
+  position: int                        // display order
+  bookmarkIds: Set<int>                // local IDs of Post AND Group bookmarks
+  addedAt: Map<int, DateTime>          // group-specific membership date per local bookmark ID
+```
+
+Common bookmark classification here describes the persisted **bookmark**, not a new universal superclass for `Post` and `ContentGroupSummary`. Post media APIs keep their specialized Post types. Preserve lazy snapshots, indexes, and efficient large-library mutations.
+
+**Migration/feasibility constraints:** Existing Post IDs must remain stable. Collection UUIDs and content identities require a lossless mapping to new integers, including undo/import/backup and per-group `addedAt`. Hive Post writes currently use `Box.add()`; that allocator must not collide with Group IDs. A shared durable allocation strategy or equivalent storage layout is needed before claiming one integer namespace. Backup v9 remains readable and v10 changes are preflight-validated and transactional; never drop Group members or merge a Page bookmark into a Work bookmark.
+
+A narrower fallback is a typed local ID (old Post integer vs Group UUID) behind the same Bookmark interface and group-membership contract; it avoids ID reallocation but is less uniform. Decide whether the extra migration cost of global integer IDs is warranted before implementation.
 
 ### Earlier, more detailed material
 
