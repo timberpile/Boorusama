@@ -406,6 +406,7 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
       config: config,
       urls: [media.url, ...media.fallbackUrls],
       imageCacheManager: imageCacheManager,
+      onDecodedAspectRatio: masonry ? onDecodedAspectRatio : null,
       placeholder: placeholder,
       builder: (provider) {
         // Preserve grid sizing while reusing the already decoded provider.
@@ -413,13 +414,6 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
         final image = LayoutBuilder(
           builder: (context, constraints) => ExtendedImage(
             image: provider,
-            enableLoadState: masonry,
-            loadStateChanged: masonry
-                ? (state) => reportDecodedAspectRatio(
-                    state,
-                    onDecodedAspectRatio,
-                  )
-                : null,
             width: constraints.maxWidth.roundToDouble(),
             height: constraints.maxHeight.roundToDouble(),
             fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
