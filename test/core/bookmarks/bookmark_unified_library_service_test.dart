@@ -1025,4 +1025,53 @@ void main() {
       expect(reopened.groupsById[poolGroupA]!.addedAt[opaque.id], opaqueDate);
     },
   );
+  test(
+    'non-authoritative partial Details keep cached fields and dates',
+    () async {
+      final before = await service.load();
+      final native = before.records
+          .whereType<ContentGroupBookmark>()
+          .where((r) => r is! RelatedBookmark)
+          .single;
+      final creators = [CreatorRef(displayName: 'Retained creator')];
+      final previous = ContentGroupDetails(
+        summary: native.summary,
+        creators: creators,
+        sourceDates: GroupSourceDates(createdAt: DateTime.utc(2010)),
+      );
+      await service.updateGroupSnapshot(
+        native.id,
+        StoredGroupSnapshot(summary: native.summary, details: previous),
+      );
+      await service.updateGroupSnapshot(
+        native.id,
+        StoredGroupSnapshot(
+          summary: native.summary,
+          details: ContentGroupDetails(
+            summary: native.summary,
+            description: const GroupDescription(
+              text: 'Newly loaded',
+              format: GroupTextFormat.dtext,
+            ),
+            sourceDates: GroupSourceDates(updatedAt: DateTime.utc(2012)),
+          ),
+        ),
+      );
+      final result = (await bookmarks.read(native.id))! as ContentGroupBookmark;
+      expect(result.snapshot.details!.creators, creators);
+      expect(
+        result.snapshot.details!.sourceDates!.createdAt,
+        DateTime.utc(2010),
+      );
+      expect(
+        result.snapshot.details!.sourceDates!.updatedAt,
+        DateTime.utc(2012),
+      );
+      expect(result.snapshot.details!.description!.text, 'Newly loaded');
+      final after = await service.load();
+      expect(after.groups, before.groups);
+      await restart();
+      expect(await bookmarks.read(native.id), result);
+    },
+  );
 }

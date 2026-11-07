@@ -294,6 +294,8 @@ final class UnifiedBookmarkGroupRepository
       final previousView = current == null ? null : viewsById[current.id];
       final keep =
           previousView != null &&
+          (value.loadedDetails == null ||
+              value.loadedDetails == previousView.loadedDetails) &&
           const DeepCollectionEquality().equals(
             _metadata(previousView),
             _metadata(value),

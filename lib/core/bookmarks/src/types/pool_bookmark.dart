@@ -1,5 +1,6 @@
 import 'pool_bookmark_cover.dart';
 import '../../../posts/related/related_family.dart';
+import '../../../content/types.dart';
 
 import 'package:equatable/equatable.dart';
 
@@ -17,6 +18,7 @@ class CollectionBookmark extends Equatable {
     required this.origin,
     this.bookmarkId,
     this.sourceSite,
+    this.loadedDetails,
     required this.referenceId,
     this.family,
     int? sourceTypeId,
@@ -58,6 +60,7 @@ class CollectionBookmark extends Equatable {
   // or an explicit current-source draft, never from imported numeric IDs.
   final int? bookmarkId;
   final Uri? sourceSite;
+  final ContentGroupDetails? loadedDetails;
   final PostOrigin origin;
   final int referenceId;
   final RelatedFamilyReference? family;
@@ -103,6 +106,7 @@ class CollectionBookmark extends Equatable {
     String? localId,
     int? Function()? bookmarkId,
     Uri? Function()? sourceSite,
+    ContentGroupDetails? Function()? loadedDetails,
     Set<String>? groupIds,
     Map<String, DateTime>? addedAt,
     PoolBookmarkCover? cover,
@@ -110,6 +114,7 @@ class CollectionBookmark extends Equatable {
     localId: localId ?? this.localId,
     bookmarkId: bookmarkId == null ? this.bookmarkId : bookmarkId(),
     sourceSite: sourceSite == null ? this.sourceSite : sourceSite(),
+    loadedDetails: loadedDetails == null ? this.loadedDetails : loadedDetails(),
     origin: origin ?? this.origin,
     referenceId: referenceId,
     family: family == null
@@ -236,6 +241,7 @@ class CollectionBookmark extends Equatable {
           localId: localId,
           bookmarkId: bookmarkId,
           sourceSite: sourceSite,
+          loadedDetails: loadedDetails,
           origin: origin,
           sourceTypeId: sourceTypeId,
           category: category,
@@ -258,6 +264,7 @@ class CollectionBookmark extends Equatable {
           localId: localId,
           bookmarkId: bookmarkId,
           sourceSite: sourceSite,
+          loadedDetails: loadedDetails,
           createdAt: createdAt,
           observedAt: observedAt,
           groupIds: groupIds,
@@ -276,6 +283,7 @@ class CollectionBookmark extends Equatable {
     localId,
     bookmarkId,
     sourceSite,
+    loadedDetails,
     origin,
     sourceTypeId,
     referenceId,
@@ -304,6 +312,7 @@ final class PoolBookmark extends CollectionBookmark {
     required super.origin,
     super.bookmarkId,
     super.sourceSite,
+    super.loadedDetails,
     int? sourceTypeId,
     required super.category,
     required super.title,
@@ -336,6 +345,7 @@ final class RelatedCollectionBookmark extends CollectionBookmark {
     required String localId,
     int? bookmarkId,
     Uri? sourceSite,
+    ContentGroupDetails? loadedDetails,
     required DateTime createdAt,
     required DateTime observedAt,
     required Set<String> groupIds,
@@ -351,6 +361,7 @@ final class RelatedCollectionBookmark extends CollectionBookmark {
          localId: localId,
          bookmarkId: bookmarkId,
          sourceSite: sourceSite,
+         loadedDetails: loadedDetails,
          origin: family.origin,
          referenceId: family.anchorId,
          family: family,

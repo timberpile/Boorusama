@@ -1,4 +1,5 @@
 import 'package:boorusama/core/bookmarks/src/data/bookmark_collection_projection.dart';
+import 'package:boorusama/core/bookmarks/src/data/legacy_group_codec.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
@@ -127,6 +128,160 @@ void main() {
         () => collectionRecordForSave(incompatible, id: 1, previous: original),
         throwsFormatException,
       );
+    },
+  );
+  test(
+    'first save persists already loaded Details and projection retains them',
+    () {
+      final site = Uri.parse('http://example.test:8080/install');
+      final reference = const ContentReferenceCodec().parse(
+        engine: BooruType.danbooru,
+        site: site,
+        kind: ContentKind.group,
+        sourceKey: 'pool:10',
+      );
+      final details = ContentGroupDetails(
+        summary: ContentGroupSummary(reference: reference),
+        description: const GroupDescription(
+          text: 'Already loaded',
+          format: GroupTextFormat.dtext,
+        ),
+        creators: [CreatorRef(displayName: 'Already loaded creator')],
+        tags: GroupTags(
+          values: [GroupTag(name: 'native_tag')],
+          coverage: MetadataCoverage.partial,
+        ),
+        sourceDates: GroupSourceDates(createdAt: DateTime.utc(2010)),
+      );
+      final metadata = testPool(host: site.toString()).copyWith(
+        sourceSite: () => site,
+        loadedDetails: () => details,
+      );
+      final record =
+          collectionRecordForSave(metadata, id: 12) as ContentGroupBookmark;
+      expect(record.snapshot.details!.description, details.description);
+      expect(record.snapshot.details!.creators, details.creators);
+      expect(record.snapshot.details!.tags, details.tags);
+      expect(record.snapshot.details!.sourceDates, details.sourceDates);
+      expect(record.snapshot.details!.summary, record.summary);
+      final projected = bookmarkCollectionProjection(record, memberships: {})!;
+      expect(projected.loadedDetails, record.snapshot.details);
+      expect(
+        projected.withGroups({poolGroupA}).loadedDetails,
+        record.snapshot.details,
+      );
+      expect(projected.toJson().containsKey('loadedDetails'), isFalse);
+      expect(
+        CollectionBookmark.fromJson(projected.toJson()).loadedDetails,
+        isNull,
+      );
+    },
+  );
+
+  test('loaded Details from another Group cannot be silently discarded', () {
+    final site = Uri.parse('https://example.test');
+    final metadata = testPool(host: site.toString()).copyWith(
+      sourceSite: () => site,
+      loadedDetails: () => ContentGroupDetails(
+        summary: ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: BooruType.danbooru,
+            site: site,
+            kind: ContentKind.group,
+            sourceKey: 'pool:99',
+          ),
+        ),
+      ),
+    );
+    expect(
+      () => collectionRecordForSave(metadata, id: 12),
+      throwsFormatException,
+    );
+  });
+
+  test(
+    'partial loaded Details retain cached fields during a metadata refresh',
+    () {
+      final site = Uri.parse('https://example.test');
+      final metadata = testPool(host: site.toString())
+          .copyWith(sourceSite: () => site);
+      final original =
+          collectionRecordForSave(metadata, id: 12) as ContentGroupBookmark;
+      final details = ContentGroupDetails(
+        summary: original.summary,
+        description: const GroupDescription(
+          text: 'Previous',
+          format: GroupTextFormat.dtext,
+        ),
+        creators: [CreatorRef(displayName: 'Retained creator')],
+        sourceDates: GroupSourceDates(
+          createdAt: DateTime.utc(2010),
+          updatedAt: DateTime.utc(2011),
+        ),
+      );
+      final previous = original.copyWith(
+        snapshot: StoredGroupSnapshot(
+          summary: original.summary,
+          details: details,
+        ),
+      );
+      final incoming = ContentGroupDetails(
+        summary: original.summary,
+        description: const GroupDescription(
+          text: '',
+          format: GroupTextFormat.dtext,
+        ),
+        sourceDates: GroupSourceDates(updatedAt: DateTime.utc(2012)),
+      );
+      final refreshed = collectionRecordForSave(
+        metadata.copyWith(loadedDetails: () => incoming),
+        id: 12,
+        previous: previous,
+      ) as ContentGroupBookmark;
+      expect(refreshed.snapshot.details!.description!.text, '');
+      expect(refreshed.snapshot.details!.creators, details.creators);
+      expect(
+        refreshed.snapshot.details!.sourceDates!.createdAt,
+        DateTime.utc(2010),
+      );
+      expect(
+        refreshed.snapshot.details!.sourceDates!.updatedAt,
+        DateTime.utc(2012),
+      );
+    },
+  );
+  test(
+    'legacy encoding fails instead of dropping transient loaded Details',
+    () {
+      final site = Uri.parse('https://example.test');
+      final details = ContentGroupDetails(
+        summary: ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: BooruType.danbooru,
+            site: site,
+            kind: ContentKind.group,
+            sourceKey: 'pool:10',
+          ),
+        ),
+      );
+      final metadata = testPool(host: site.toString())
+          .copyWith(loadedDetails: () => details);
+      final legacy = LegacyGroupBookmark.fromMetadata(
+        id: 2,
+        metadata: metadata,
+      );
+      expect(
+        () => const LegacyGroupCodec().encode(legacy),
+        throwsFormatException,
+      );
+      final native =
+          collectionRecordForSave(metadata, id: 2) as ContentGroupBookmark;
+      expect(
+        native.reference.site,
+        site,
+        reason: 'Already validated Details provide their exact locator',
+      );
+      expect(native.snapshot.details, details.withSummary(native.summary));
     },
   );
 }

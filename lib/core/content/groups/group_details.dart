@@ -38,6 +38,32 @@ final class ContentGroupDetails extends Equatable {
     );
   }
 
+  /// Partial observations retain unknown fields. Known empty values replace
+  /// their previous value; authoritative removal bypasses this merge.
+  ContentGroupDetails mergeWithPrevious(ContentGroupDetails? previous) {
+    if (previous == null) return this;
+    const ContentReferenceCodec().requireCompatible(
+      previous.summary.reference,
+      summary.reference,
+    );
+    final dates = sourceDates;
+    final oldDates = previous.sourceDates;
+    return ContentGroupDetails(
+      summary: summary,
+      description: description ?? previous.description,
+      creators: creators ?? previous.creators,
+      tags: tags ?? previous.tags,
+      sourceDates: dates == null
+          ? oldDates
+          : GroupSourceDates(
+              createdAt: dates.createdAt ?? oldDates?.createdAt,
+              publishedAt: dates.publishedAt ?? oldDates?.publishedAt,
+              updatedAt: dates.updatedAt ?? oldDates?.updatedAt,
+            ),
+      sourceData: sourceData ?? previous.sourceData,
+    );
+  }
+
   @override
   List<Object?> get props => [
     summary,

@@ -61,6 +61,7 @@ CollectionBookmark? bookmarkCollectionProjection(
       localId: '${record.id}',
       bookmarkId: record.id,
       sourceSite: reference.site,
+      loadedDetails: record.snapshot.details,
       family: RelatedFamilyReference(origin: origin, anchorId: upstreamId),
       createdAt: record.createdAt,
       observedAt: record.observedAt,
@@ -79,6 +80,7 @@ CollectionBookmark? bookmarkCollectionProjection(
     localId: '${record.id}',
     bookmarkId: record.id,
     sourceSite: reference.site,
+    loadedDetails: record.snapshot.details,
     origin: origin,
     poolId: upstreamId,
     category: BookmarkedPoolCategory.values.firstWhere(
@@ -124,6 +126,8 @@ Bookmark collectionRecordForSave(
         'Group draft locator disagrees with its source',
       );
     }
+  } else if (metadata.loadedDetails case final details?) {
+    reference = details.summary.reference;
   } else if (previous is saved.ContentGroupBookmark) {
     reference = previous.reference;
   }
@@ -153,6 +157,18 @@ Bookmark collectionRecordForSave(
           : null,
     );
   }
+  final loaded = metadata.loadedDetails;
+  if (loaded != null) {
+    const ContentReferenceCodec().requireCompatible(
+      reference,
+      loaded.summary.reference,
+    );
+    if (reference.site != loaded.summary.reference.site) {
+      throw const FormatException(
+        'Loaded Group Details use a different locator',
+      );
+    }
+  }
   final old = previous is saved.ContentGroupBookmark ? previous : null;
   final selectedCover = metadata.cover;
   final thumbnail = selectedCover?.thumbnail ?? metadata.coverUrl;
@@ -176,12 +192,14 @@ Bookmark collectionRecordForSave(
     displayCategory: metadata.category == BookmarkedPoolCategory.unknown
         ? null
         : metadata.category.name,
-    previewTags: old?.summary.previewTags,
-    sourceData: old?.summary.sourceData,
+    previewTags: loaded?.summary.previewTags ?? old?.summary.previewTags,
+    sourceData: loaded?.summary.sourceData ?? old?.summary.sourceData,
   );
   final snapshot = StoredGroupSnapshot(
     summary: summary,
-    details: old?.snapshot.details,
+    details:
+        loaded?.withSummary(summary).mergeWithPrevious(old?.snapshot.details) ??
+        old?.snapshot.details,
     index: GroupBookmarkIndex(
       tags: metadata.tags,
       basis: GroupTagIndexBasis.memberUnion,

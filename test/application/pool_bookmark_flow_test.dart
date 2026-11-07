@@ -41,6 +41,12 @@ import 'package:boorusama/boorus/danbooru/pools/pool/types.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_repository.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_group_repository.dart';
+import 'package:boorusama/core/hive/hive_adapters.dart';
+import 'package:boorusama/foundation/data_mutation_coordinator.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_picker_actions.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/related_bookmark_provider.dart';
@@ -54,6 +60,7 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/pool_bookmark_button.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
@@ -73,7 +80,6 @@ import 'package:selection_mode/selection_mode.dart';
 import 'package:i18n/i18n.dart';
 
 import '../core/bookmarks/pool_bookmark_test_utils.dart';
-import '../core/search/following_topics/topic_test_utils.dart';
 import '../support/fakes/memory_repositories.dart';
 import 'support/app_flow_driver.dart';
 import 'support/app_flow_finders.dart';
@@ -465,7 +471,7 @@ void main() {
             false,
       );
       expect(bookmarkFill(), 0);
-      expect(setup.posts.bookmarks, hasLength(3));
+      expect(setup.postRows.values, hasLength(3));
       await harness.pumpUntilFound(tester, find.text('Undo'));
       await tester.tap(find.text('Undo'));
       await harness.pumpUntil(
@@ -476,7 +482,7 @@ void main() {
       );
       await harness.settle(tester);
       expect(bookmarkFill(), 1);
-      expect(setup.posts.bookmarks, hasLength(3));
+      expect(setup.postRows.values, hasLength(3));
       expect(
         setup.container
             .read(bookmarkProvider)
@@ -578,7 +584,7 @@ void main() {
       draftGate.complete(_summaryRelatedDraft(backend.config));
       await harness.settle(tester);
       expect(await groupRepo.getPoolBookmarks(), isEmpty);
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       if (exit != 'cancel') {
         await tester.sendKeyEvent(LogicalKeyboardKey.escape);
         await harness.settle(tester);
@@ -641,7 +647,7 @@ void main() {
       );
       expect(library.pools.single.groupIds, contains(group.id));
       expect(library.pools.single.family!.anchorId, 10);
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);
       expect(tester.takeException(), isNull);
     },
@@ -2088,7 +2094,7 @@ void main() {
         setup.container.read(bookmarkProvider).requireValue.pools.single,
         saved,
       );
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       expect(tester.takeException(), isNull);
     },
   );
@@ -2158,7 +2164,7 @@ void main() {
         .single;
     expect(current.localId, saved.localId);
     expect(current.groupIds, {poolGroupA});
-    expect(setup.posts.bookmarks, isEmpty);
+    expect(setup.postRows.values, isEmpty);
   });
 
   testWidgets(
@@ -2207,13 +2213,17 @@ void main() {
       expect(saved.total, 20);
       expect(saved.coverage, PoolTagCoverage.unknown);
       expect(saved.tags, isEmpty);
+      expect(saved.loadedDetails!.description!.text, '');
+      expect(saved.loadedDetails!.description!.format, GroupTextFormat.dtext);
+      expect(saved.loadedDetails!.sourceDates!.createdAt, DateTime.utc(2000));
+      expect(saved.loadedDetails!.sourceDates!.updatedAt, DateTime.utc(2026));
       expect(
         harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
           (request) => request.query == 'pool:10',
         ),
         isEmpty,
       );
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);
       expect(tester.takeException(), isNull);
     },
@@ -2232,7 +2242,7 @@ void main() {
       final harness = setup.harness;
       final groupRepository = (await setup.container.read(
         bookmarkGroupRepoProvider.future,
-      )) as BookmarkGroupRepositoryHive;
+      )) as UnifiedBookmarkGroupRepository;
       unawaited(
         setup.container
             .read(routerProvider)
@@ -2263,7 +2273,7 @@ void main() {
       draftGate.complete(_summaryPoolDraft(harness.booruBackend.config));
       await harness.settle(tester);
       expect(await groupRepository.readPoolBookmarks(), isEmpty);
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       if (exit == 'remove profile') {
         if (find.byType(BookmarkGroupPicker).evaluate().isNotEmpty) {
           await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -2312,7 +2322,7 @@ void main() {
       expect(saved.tags, isNot(contains('alpha')));
       expect(saved.groupIds, {poolGroupA});
       expect(saved.localId, testPool().localId);
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);
       expect(tester.takeException(), isNull);
     },
@@ -2361,7 +2371,7 @@ void main() {
           tester,
           () => container.read(bookmarkProvider).valueOrNull?.pools.length == 1,
         );
-        expect(setup.posts.bookmarks, isEmpty);
+        expect(setup.postRows.values, isEmpty);
         final saved = container
             .read(bookmarkProvider)
             .requireValue
@@ -2390,7 +2400,7 @@ void main() {
         );
         expect(selection.selection, {0});
         expect(find.text('Download'), findsNothing);
-        expect(setup.posts.bookmarks, isEmpty);
+        expect(setup.postRows.values, isEmpty);
         selection.disable();
         await harness.settle(tester);
 
@@ -2455,7 +2465,7 @@ void main() {
         detail.uri.host,
         isNot(Uri.parse(harness.booruBackend.configB.url).host),
       );
-      expect(setup.posts.bookmarks, isEmpty);
+      expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);
       expect(tester.takeException(), isNull);
     },
@@ -2511,7 +2521,7 @@ void main() {
       );
       expect(menu.posts, hasLength(3));
       expect(menu.pools, hasLength(1));
-      expect(setup.posts.bookmarks, hasLength(3));
+      expect(setup.postRows.values, hasLength(3));
       await tester.tap(find.text('Remove From'));
       await harness.pumpUntilFound(tester, find.text('Pool target'));
       await harness.settle(tester);
@@ -2553,7 +2563,7 @@ Future<
   ({
     HeadlessAppHarness harness,
     ProviderContainer container,
-    MemoryBookmarkRepository posts,
+    Box<BookmarkHiveObject> postRows,
     _PoolAdapter adapter,
     FakeBooruPostGate? indexGate,
   })
@@ -2660,11 +2670,67 @@ _mount(
       );
     }
   }
-  final posts = MemoryBookmarkRepository();
-  final groups = BookmarkGroupRepositoryHive(
-    MemoryBox<BookmarkGroupHiveObject>(),
-    organizationBox: MemoryBox<dynamic>(),
+  // Exercise the production unified facade and Hive codecs without OS I/O
+  // during fake-clock UI actions. Real durability/restart tests live in core.
+  Hive.init('/pool-flow-memory');
+  if (!Hive.isAdapterRegistered(4)) {
+    Hive.registerAdapter(BookmarkHiveObjectAdapter());
+  }
+  if (!Hive.isAdapterRegistered(5)) {
+    Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+  }
+  final postRows = await Hive.openBox<BookmarkHiveObject>(
+    'posts',
+    bytes: Uint8List(0),
   );
+  final payloads = await Hive.openBox<dynamic>('payloads', bytes: Uint8List(0));
+  final metadata = await Hive.openBox<dynamic>('metadata', bytes: Uint8List(0));
+  const groupName = 'groups_unified_v2';
+  const organizationName = 'organization_unified_v2';
+  final groupRows = await Hive.openBox<BookmarkGroupHiveObject>(
+    groupName,
+    bytes: Uint8List(0),
+  );
+  final organization = await Hive.openBox<dynamic>(
+    organizationName,
+    bytes: Uint8List(0),
+  );
+  final coordinator = DataMutationCoordinator();
+  final posts = BookmarkHiveRepository(
+    postRows,
+    groupPayloadBox: payloads,
+    metadataBox: metadata,
+    coordinator: coordinator,
+    postDataCodec: (_) => const EmptyPostDataCodec('test'),
+    syncBoxes: (_) async {},
+  );
+  await metadata.put('activeOrganization', {
+    'version': 2,
+    'generation': {'groups': groupName, 'organization': organizationName},
+  });
+  // Only the initial generation-file existence probe crosses the IO API.
+  // Its boxes are already open in memory; keep the whole fixture on the
+  // controlled test clock rather than mixing real/fake async lock chains.
+  await IOOverrides.runZoned(
+    posts.readAll,
+    createFile: (path) {
+      if (path == '/pool-flow-memory/$groupName.hive' ||
+          path == '/pool-flow-memory/$organizationName.hive') {
+        return _PresentGenerationFile();
+      }
+      throw StateError(
+        'Unexpected filesystem access in memory UI fixture: $path',
+      );
+    },
+  );
+  final groups = UnifiedBookmarkGroupRepository(
+    bookmarks: posts,
+    reader: BookmarkGroupRepositoryHive(
+      groupRows,
+      organizationBox: organization,
+    ),
+  );
+  addTearDown(Hive.close);
   await groups.createGroup('Pool target', id: poolGroupA);
   if (seedReference || seedRelated)
     await groups.writePoolBookmarks([
@@ -2735,14 +2801,18 @@ _mount(
           );
         })(),
     ];
-    await posts.addBookmarkWithBookmarks(bookmarks);
+    final saved = await posts.addBookmarkWithBookmarks(bookmarks);
     // Seed saved history explicitly; creating fixtures must not assign now to
     // every Post membership and change the mixed viewer's chronological order.
     await groups.replaceMemberships(
       poolGroupA,
-      bookmarks.map((b) => b.id).toSet(),
+      {
+        ...(await groups.getGroup(poolGroupA))!.bookmarkIds,
+        ...saved.map((b) => b.id),
+      },
       addedAt: {
-        for (final bookmark in bookmarks) bookmark.id: bookmark.createdAt,
+        ...(await groups.getGroup(poolGroupA))!.addedAt,
+        for (final bookmark in saved) bookmark.id: bookmark.createdAt,
       },
     );
   }
@@ -2795,6 +2865,7 @@ _mount(
       ),
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),
+      dataMutationCoordinatorProvider.overrideWithValue(coordinator),
       bookmarkGroupRepoProvider.overrideWith((_) async => groups),
       if (bookmarkNotifierFactory != null)
         bookmarkProvider.overrideWith(
@@ -2831,7 +2902,7 @@ _mount(
   return (
     harness: harness,
     container: container,
-    posts: posts,
+    postRows: postRows,
     adapter: adapter,
     indexGate: indexGate,
   );
@@ -3060,4 +3131,14 @@ class _SeriesSearchBuilder extends BaseBooruBuilder {
   @override
   SearchPageBuilder get searchPageBuilder =>
       (context, params) => DanbooruSearchPage(params: params);
+}
+
+// The production facade still validates its active generation; only the
+// existence result for the two already-open in-memory boxes is substituted.
+class _PresentGenerationFile implements File {
+  @override
+  Future<bool> exists() async => true;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

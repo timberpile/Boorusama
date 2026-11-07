@@ -58,6 +58,11 @@ class BookmarkGroupRepositoryHive
     final localIds = <String>{};
     final groups = (await getGroups()).map((g) => g.id).toSet();
     for (final bookmark in bookmarks) {
+      if (bookmark.loadedDetails != null) {
+        throw const FormatException(
+          'Loaded Details require unified Group storage',
+        );
+      }
       if (!Uuid.isValidUUID(fromString: bookmark.localId) ||
           !identities.add(bookmark.identity) ||
           !localIds.add(bookmark.localId) ||

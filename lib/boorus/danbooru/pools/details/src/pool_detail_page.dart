@@ -6,6 +6,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../../../../../core/configs/config/providers.dart';
 import '../../bookmarks.dart';
 import '../../pool/types.dart';
 
@@ -129,7 +130,12 @@ class _PoolDetailContentState extends ConsumerState<PoolDetailContent> {
               }
             : null,
         sliverHeaders: [
-          PoolGalleryHeader(pool: danbooruBookmarkPool(pool)),
+          PoolGalleryHeader(
+            pool: danbooruBookmarkPool(
+              pool,
+              site: Uri.parse(ref.watchConfigAuth.url),
+            ),
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

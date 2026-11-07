@@ -17,6 +17,11 @@ final class LegacyGroupCodec {
   };
 
   Map<String, Object?> encode(LegacyGroupBookmark bookmark) {
+    if (bookmark.metadata.loadedDetails != null) {
+      throw const FormatException(
+        'Loaded Details require a native Group snapshot',
+      );
+    }
     final metadata = bookmark.metadata.toJson();
     _localFields.forEach(metadata.remove);
     return {'version': 1, 'metadata': metadata};

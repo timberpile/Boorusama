@@ -182,7 +182,9 @@ class BookmarkLibraryService {
         ? snapshot
         : StoredGroupSnapshot(
             summary: snapshot.summary,
-            details: snapshot.details ?? record.snapshot.details,
+            details:
+                snapshot.details?.mergeWithPrevious(record.snapshot.details) ??
+                record.snapshot.details,
             index: snapshot.index ?? record.snapshot.index,
           );
     final updated = record.copyWith(

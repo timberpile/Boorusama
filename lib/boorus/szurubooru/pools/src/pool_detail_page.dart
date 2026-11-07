@@ -66,7 +66,12 @@ class SzurubooruPoolDetailPage extends ConsumerWidget {
           title: Text(context.t.pool.pool),
           floating: true,
           actions: [
-            PoolBookmarkButton(pool: szurubooruBookmarkPool(effectivePool)),
+            PoolBookmarkButton(
+              pool: szurubooruBookmarkPool(
+                effectivePool,
+                site: Uri.parse(config.url),
+              ),
+            ),
             IconButton(
               icon: const Icon(Symbols.search),
               onPressed: () {

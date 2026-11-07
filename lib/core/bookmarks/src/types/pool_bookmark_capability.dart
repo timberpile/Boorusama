@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../configs/config/types.dart';
+import '../../../content/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../settings/src/types/utils.dart' show maxPostsPerPage;
 import 'pool_bookmark.dart';
@@ -30,10 +31,12 @@ final class RemoteBookmarkPool {
     required this.category,
     required this.total,
     this.supportsUploadOrder = false,
+    this.loadedDetails,
   });
   final int id;
   final String title;
   final BookmarkedPoolCategory category;
   final int? total;
   final bool supportsUploadOrder;
+  final ContentGroupDetails? loadedDetails;
 }

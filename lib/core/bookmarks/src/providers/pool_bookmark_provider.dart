@@ -77,6 +77,7 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
       return PoolBookmark(
         localId: const Uuid().v4(),
         sourceSite: Uri.parse(config.url),
+        loadedDetails: pool.loadedDetails,
         origin: origin,
         poolId: pool.id,
         category: pool.category,
@@ -145,6 +146,7 @@ final poolBookmarkRefreshProvider = FutureProvider.autoDispose
       return PoolBookmark(
         localId: existing?.localId ?? const Uuid().v4(),
         sourceSite: Uri.parse(config.url),
+        loadedDetails: pool.loadedDetails,
         origin: origin,
         poolId: pool.id,
         category: pool.category,
