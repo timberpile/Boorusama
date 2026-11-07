@@ -110,8 +110,9 @@ CollectionBookmark poolBookmarkWithProfileHint(
   ),
 );
 
-/// Source hints participate in the existing import dependency gate only. They
-/// never authorize a request or supply missing historical locator evidence.
+/// Source hints can be remapped to compatible profiles during import. Missing
+/// mappings never block Bookmark persistence, authorize requests, or supply
+/// missing historical locator evidence.
 BackupProfileReference bookmarkRecordProfileReference(Bookmark record) {
   final (engine, site, hint) = switch (record) {
     PostBookmark() => (

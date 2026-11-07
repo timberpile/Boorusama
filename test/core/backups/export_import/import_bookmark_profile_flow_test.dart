@@ -332,7 +332,9 @@ void main() {
           );
           expect(
             state.preflight!.errors.map((issue) => issue.code),
-            contains('unresolved_profile_dependency'),
+            crossCategories
+                ? contains('unresolved_profile_dependency')
+                : isEmpty,
           );
           if (canonicalBoundary) {
             expect(
@@ -361,7 +363,9 @@ void main() {
             );
           }
           notifier.replaceSource(original);
-          await notifier.apply(context);
+          // Only the selected Topics remain blocking. Bookmark-only mappings
+          // are optional; previewing them must still leave storage untouched.
+          if (crossCategories) await notifier.apply(context);
           expect(bookmarkBox.length, 1);
           expect((await groups.getGroup(groupId))!.name, 'Original');
           final bookmarkKey = ProfileReferenceKey.fromReference(

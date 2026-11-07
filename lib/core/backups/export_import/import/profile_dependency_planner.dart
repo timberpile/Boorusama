@@ -54,6 +54,7 @@ final class ProfileDependencyMapping extends Equatable {
     required Iterable<String> candidateIds,
     this.profileId,
     required this.providedByImport,
+    this.isRequired = true,
   }) : references = List.unmodifiable(references ?? [reference]),
        candidateIds = Set.unmodifiable(candidateIds);
 
@@ -62,6 +63,7 @@ final class ProfileDependencyMapping extends Equatable {
   final Set<String> candidateIds;
   final String? profileId;
   final bool providedByImport;
+  final bool isRequired;
   ProfileSiteKey get siteKey => ProfileSiteKey.fromReference(reference);
   bool get isResolved => profileId != null;
 
@@ -71,6 +73,7 @@ final class ProfileDependencyMapping extends Equatable {
     candidateIds,
     profileId,
     providedByImport,
+    isRequired,
   ];
 }
 
@@ -105,6 +108,7 @@ final class ProfileDependencyPlanner {
   ProfileDependencyPlan plan({
     required Iterable<BackupProfileReference> references,
     required List<BooruConfig> localProfiles,
+    Iterable<BackupProfileReference> optionalReferences = const [],
     Map<ProfileReferenceKey, Set<String>> dependentSources = const {},
     List<BooruConfig> importedProfiles = const [],
     ResolvedImportSource? profileResolution,
@@ -145,9 +149,14 @@ final class ProfileDependencyPlanner {
       }
     }
 
+    final requiredReferences = references.toList();
+    final requiredKeys = {
+      for (final reference in requiredReferences)
+        ProfileReferenceKey.fromReference(reference),
+    };
     final grouped =
         <ProfileSiteKey, Map<ProfileReferenceKey, BackupProfileReference>>{};
-    for (final reference in references) {
+    for (final reference in [...requiredReferences, ...optionalReferences]) {
       grouped.putIfAbsent(
         ProfileSiteKey.fromReference(reference),
         () => {},
@@ -158,6 +167,15 @@ final class ProfileDependencyPlanner {
       final siteKey = entry.key;
       final group = entry.value.values.toList();
       final reference = group.first;
+      final requiredGroup = group
+          .where(
+            (r) => requiredKeys.contains(ProfileReferenceKey.fromReference(r)),
+          )
+          .toList();
+      final isRequired = requiredGroup.isNotEmpty;
+      // Portable Bookmark hints cannot select an account for a Topic or turn
+      // an otherwise valid Bookmark import into a profile dependency error.
+      final decisionGroup = isRequired ? requiredGroup : group;
       final validSite = normalizePostSourceHost(reference.url).isNotEmpty;
       bool matches(BooruConfig profile) =>
           validSite &&
@@ -166,14 +184,14 @@ final class ProfileDependencyPlanner {
       final candidates = projected.where(matches).toList();
       final candidateIds = {for (final profile in candidates) profile.id};
       final conflicts = <String>{};
-      for (final reference in group) {
+      for (final reference in decisionGroup) {
         for (final profile in [...localProfiles, ...projected]) {
           if (profile.id == reference.id && !matches(profile)) {
             conflicts.add(reference.id);
           }
         }
       }
-      for (final id in conflicts) {
+      for (final id in isRequired ? conflicts : const <String>{}) {
         errors.add(
           ImportPlanIssue(
             code: 'profile_identity_conflict',
@@ -183,7 +201,7 @@ final class ProfileDependencyPlanner {
         );
       }
       final exactTargets = <String>{};
-      for (final reference in group) {
+      for (final reference in decisionGroup) {
         final destination = destinationIds[reference.id];
         if (destination != null && candidateIds.contains(destination)) {
           exactTargets.add(destination);
@@ -209,11 +227,12 @@ final class ProfileDependencyPlanner {
           profileId: chosen,
           providedByImport:
               chosen != null && destinationIds.values.contains(chosen),
+          isRequired: isRequired,
         ),
       );
-      if (chosen == null && conflicts.isEmpty) {
+      if (isRequired && chosen == null && conflicts.isEmpty) {
         final sourceIds = <String>{
-          for (final reference in group)
+          for (final reference in requiredGroup)
             ...?dependentSources[ProfileReferenceKey.fromReference(reference)],
         };
         errors.add(

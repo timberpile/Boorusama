@@ -674,6 +674,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       _ => const <BooruConfig>[],
     };
     final references = <BackupProfileReference>[];
+    final optionalReferences = <BackupProfileReference>[];
     final dependentSources = <ProfileReferenceKey, Set<String>>{};
     void addReference(BackupProfileReference reference, String sourceId) {
       references.add(reference);
@@ -687,7 +688,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final resolution?,
     )) {
       for (final record in selectedProfileRecords(data, resolution)) {
-        addReference(bookmarkRecordProfileReference(record), 'bookmarks');
+        optionalReferences.add(bookmarkRecordProfileReference(record));
       }
     }
     if (resolvedById[followingTopicsBackupSourceId]?.action !=
@@ -738,6 +739,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     }
     return const ProfileDependencyPlanner().plan(
       references: references,
+      optionalReferences: optionalReferences,
       dependentSources: dependentSources,
       localProfiles:
           _sources['profiles']?._localSnapshot as List<BooruConfig>? ??
@@ -1324,13 +1326,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
     final mapped = {
       for (final record in selectedProfileRecords(incoming, resolution))
         if (!preserveOrigins)
-          record.id: bookmarkRecordWithProfileHint(
-            record,
-            _profileId(bookmarkRecordProfileReference(record)) ??
-                (throw StateError(
-                  'Bookmark profile missing from approved preflight',
-                )),
-          ),
+          if (_profileId(bookmarkRecordProfileReference(record))
+              case final hint?)
+            record.id: bookmarkRecordWithProfileHint(record, hint),
     };
     final data = BookmarkBackupData.unified(
       records: [for (final r in incoming.records) mapped[r.id] ?? r],

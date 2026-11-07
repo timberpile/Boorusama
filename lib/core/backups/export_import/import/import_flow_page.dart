@@ -169,6 +169,11 @@ class _ReviewImport extends ConsumerWidget {
             title: Text(strings.replace_explanation_title),
             subtitle: Text(strings.replace_explanation),
           ),
+        if (state.profileMappings.any((m) => !m.isRequired && !m.isResolved))
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: Text(strings.bookmark_profiles_optional),
+          ),
         for (final mapping in state.profileMappings)
           if (mapping.candidateIds.length > 1)
             _ProfileMappingTile(
@@ -613,7 +618,11 @@ class _ProfileMappingTile extends StatelessWidget {
                 value: mapping.candidateIds.contains(mapping.profileId)
                     ? mapping.profileId
                     : null,
-                hint: Text(strings.issues.select_profile_target),
+                hint: Text(
+                  mapping.isRequired
+                      ? strings.issues.select_profile_target
+                      : strings.issues.select_profile_optional,
+                ),
                 items: [
                   for (final id in mapping.candidateIds)
                     DropdownMenuItem(
