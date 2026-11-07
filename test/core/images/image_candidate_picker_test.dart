@@ -22,18 +22,36 @@ void main() {
     PaintingBinding.instance.imageCache.clearLiveImages();
   });
 
-  Widget app({int? preferred, ValueChanged<int?>? onSelected}) =>
+  Widget app({
+    int? preferred,
+    ValueChanged<int?>? onSelected,
+    ValueChanged<double>? onDecodedAspectRatio,
+  }) =>
       Directionality(
         textDirection: TextDirection.ltr,
         child: ImageCandidatePicker(
           candidates: [for (final candidate in candidates) candidate.create],
           preferredIndex: preferred,
           onSelected: onSelected ?? (_) {},
+          onDecodedAspectRatio: onDecodedAspectRatio,
           placeholder: const Text('Thumbnail'),
           builder: (provider) =>
               Text('Selected ${(provider as _Candidate).id}'),
         ),
       );
+
+  testWidgets('reports decoded dimensions of the chosen candidate', (
+    tester,
+  ) async {
+    final aspectRatios = <double>[];
+    await tester.pumpWidget(app(onDecodedAspectRatio: aspectRatios.add));
+    candidates[0].stream.complete(decoded.clone());
+    await tester.pump();
+    await tester.pump();
+
+    expect(aspectRatios, [decoded.width / decoded.height]);
+    expect(candidates.map((candidate) => candidate.loads), [1, 1, 0, 0, 0]);
+  });
 
   testWidgets('starts both JPEG probes and chooses a decoded image', (
     tester,
