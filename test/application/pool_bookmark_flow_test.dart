@@ -89,7 +89,7 @@ import 'support/headless_app_harness.dart';
 
 void main() {
   testWidgets(
-    'unsaved Related order stays with its occurrence and preserves global fallback',
+    'saved Related order survives reopening without changing global fallback',
     (tester) async {
       final repository = MemorySettingsRepository();
       final setup = await _mount(
@@ -168,7 +168,7 @@ void main() {
       await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
       await harness.pumpUntil(tester, () {
         final grid = maybeGallery();
-        return grid?.controller.items.firstOrNull?.id == 10;
+        return grid?.controller.items.firstOrNull?.id == 129;
       });
       expect(repository.settings.relatedPostsOrder, RelatedPostsOrder.oldest);
       await _drainNotifications(tester);
@@ -565,7 +565,14 @@ void main() {
               backend.config.auth,
               [],
               poolGroupA,
-              poolLocalIds: {poolGroupB},
+              poolLocalIds: {
+                setup.container
+                    .read(bookmarkProvider)
+                    .requireValue
+                    .pools
+                    .single
+                    .localId,
+              },
             ),
       );
       await tester.tap(find.byTooltip('Bookmark Related'));
@@ -620,7 +627,14 @@ void main() {
               harness.booruBackend.config.auth,
               [],
               poolGroupA,
-              poolLocalIds: {poolGroupB},
+              poolLocalIds: {
+                setup.container
+                    .read(bookmarkProvider)
+                    .requireValue
+                    .pools
+                    .single
+                    .localId,
+              },
             ),
       );
       await tester.tap(find.byTooltip('Bookmark Related'));
@@ -2148,7 +2162,13 @@ void main() {
     expect(setup.container.read(bookmarkProvider).requireValue.pools, isEmpty);
     await setup.harness.pumpUntilComplete(
       tester,
-      notifier.togglePoolTarget(saved, groupId: poolGroupA),
+      notifier.togglePoolTarget(
+        saved.copyWith(
+          bookmarkId: () => null,
+          localId: '550e8400-e29b-41d4-a716-000000000999',
+        ),
+        groupId: poolGroupA,
+      ),
     );
     final rejected = await setup.harness.pumpUntilComplete(
       tester,
@@ -2162,7 +2182,7 @@ void main() {
         .requireValue
         .pools
         .single;
-    expect(current.localId, saved.localId);
+    expect(current.localId, isNot(saved.localId));
     expect(current.groupIds, {poolGroupA});
     expect(setup.postRows.values, isEmpty);
   });
@@ -2321,7 +2341,7 @@ void main() {
       expect(saved.tags, containsAll(['cat', 'landscape']));
       expect(saved.tags, isNot(contains('alpha')));
       expect(saved.groupIds, {poolGroupA});
-      expect(saved.localId, testPool().localId);
+      expect(saved.localId, '0');
       expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);
       expect(tester.takeException(), isNull);

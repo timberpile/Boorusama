@@ -32,6 +32,7 @@ import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../services/bookmark_mutation_repository.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_record_fields.dart';
 import '../types/pool_bookmark.dart';
 import '../types/pool_bookmark_repository.dart';
 import '../types/bookmark_group.dart';
@@ -129,6 +130,30 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   // borrow an in-flight operation's write-through view.
   BookmarkMutationRepository? get _mutation =>
       Zone.current[_mutationSessionKey] as BookmarkMutationRepository?;
+
+  void _discardRestoredRemovalUndo(BookmarkLibraryState next) {
+    if (!next.hasUnifiedRecords || _recordRemovals.isEmpty) return;
+    // Only the most recent removal batch is offered as Undo. A later save
+    // can have a fresh local ID, so check its compatible semantic identity.
+    final removal = _recordRemovals.values.first;
+    final group = next.groupsById[removal.groupId];
+    if (group == null) return;
+    for (final frozen in removal.removedRecords) {
+      final identity = bookmarkContentIdentity(frozen);
+      final current =
+          next.byId[frozen.id] ??
+          (identity == null ? null : next.byId[next.idByContent[identity]]);
+      if (current != null &&
+          bookmarkContentIdentity(current) == identity &&
+          bookmarkEngine(current) == bookmarkEngine(frozen) &&
+          group.bookmarkIds.contains(current.id)) {
+        _removals.clear();
+        _poolRemovals.clear();
+        _recordRemovals.clear();
+        return;
+      }
+    }
+  }
 
   void _recordRemoval(BookmarkGroupRemovalResult result) {
     if (result.removedCount == 0) return;
@@ -534,7 +559,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _reload() async {
     _mutation?.invalidate();
     try {
-      state = AsyncValue.data(await (await _service).load());
+      final next = await (await _service).load();
+      _discardRestoredRemovalUndo(next);
+      state = AsyncValue.data(next);
       _pendingHydration.clear();
       _pendingHydrationRevision = null;
       _hydrationPublicationTimer?.cancel();
@@ -579,6 +606,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (mutation != null && mutation.isValid) {
       try {
         final next = await _readMutationState(mutation);
+        _discardRestoredRemovalUndo(next);
         if (!identical(state.valueOrNull, next)) state = AsyncValue.data(next);
         _requiresRefresh = false;
         return;

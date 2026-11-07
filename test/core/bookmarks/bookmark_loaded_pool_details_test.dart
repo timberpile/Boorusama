@@ -24,7 +24,6 @@ import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.d
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart';
 import 'package:boorusama/boorus/danbooru/pools/pool/src/data/providers.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
