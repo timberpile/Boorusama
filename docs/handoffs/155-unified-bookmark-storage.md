@@ -52,3 +52,5 @@ This proves synthetic native storage/codec/helper behavior, not normal applicati
 ## Delivery and pause
 
 Local only. No PR, push, develop integration, issue closure or release was performed. #155 stays open pending acceptance and authorized publication. The required checks and independent re-review have passed. This handoff completes #155 locally; **pause before #142**, as explicitly requested. Preserve the isolated branch/worktree and unrelated work. Resuming the rollout requires the user.
+
+The attempted GitHub transition from `in-progress` to `review` was rejected by automatic approval review as an external tracker mutation outside the current authorization. No label changed; #155 remains open with its existing labels. This metadata limitation does not change the completed local verification or independent approval. Do not retry the tracker mutation without authorization.
