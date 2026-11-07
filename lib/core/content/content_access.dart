@@ -74,6 +74,18 @@ final class ContentAccessContext {
   final Uri baseUrl;
   final BooruConfig? config;
 
+  /// Registered adapters may map an authorized installation to their verified
+  /// API endpoint. The account/policy binding is preserved; no imported address
+  /// can grant access or substitute another configuration.
+  ContentAccessContext withEndpoint(Uri endpoint) => ContentAccessContext._(
+    key: key,
+    baseUrl: BoorusamaPostLink.parseSourceSite(endpoint.toString()),
+    config: config,
+  );
+
+  bool hasSameAuthorization(ContentAccessContext other) =>
+      key == other.key && identical(config, other.config);
+
   bool accepts(ContentReference reference) =>
       reference.engine == key.engine &&
       reference.siteNamespace == key.siteNamespace;

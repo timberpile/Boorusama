@@ -35,6 +35,15 @@ final contentEffectivePolicyProvider = Provider.autoDispose
 
 /// Only current profiles and monotonic counters are retained. Policy/client work
 /// is deferred to the one profile actually requested by a visible consumer.
+/// Shared across nested provider scopes which can share the same engine registry.
+/// Values contain no profile data; only active scope maps retain configurations.
+final contentAccessEpochsProvider = Provider((ref) => ContentAccessEpochs());
+
+class ContentAccessEpochs {
+  var _value = 0;
+  int next() => ++_value;
+}
+
 typedef ContentProfileScope = ({
   BooruConfig config,
   int authEpoch,
@@ -44,13 +53,12 @@ typedef ContentProfileScope = ({
 final contentAccessScopesProvider =
     NotifierProvider<ContentAccessScopes, Map<String, ContentProfileScope>>(
       ContentAccessScopes.new,
-      dependencies: [booruConfigProvider],
+      dependencies: [booruConfigProvider, contentAccessEpochsProvider],
     );
 
 class ContentAccessScopes extends Notifier<Map<String, ContentProfileScope>> {
-  var _epoch = 0;
   var _previous = <String, ContentProfileScope>{};
-  int nextEpoch() => ++_epoch;
+  int nextEpoch() => ref.read(contentAccessEpochsProvider).next();
 
   @override
   Map<String, ContentProfileScope> build() {
@@ -110,8 +118,9 @@ class ContentProfileAccess
       return _revoke();
     }
     final policy = ref.watch(contentEffectivePolicyProvider(profileId));
-    if (policy.isLoading || policy.hasError || !policy.hasValue)
+    if (policy.isLoading || policy.hasError || !policy.hasValue) {
       return _revoke();
+    }
     final digest = policy.requireValue;
     if (_previous != null &&
         _policy == digest &&
@@ -146,8 +155,9 @@ final contentAccessContextProvider = Provider.autoDispose
         if (scope == null ||
             scope.authEpoch != key.authEpoch ||
             scope.config.auth.booruType != key.engine ||
-            normalizePostSourceHost(scope.config.url) != key.siteNamespace)
+            normalizePostSourceHost(scope.config.url) != key.siteNamespace) {
           return null;
+        }
         final context = ref.watch(contentProfileAccessProvider(id));
         return context?.key == key ? context : null;
       },

@@ -166,7 +166,7 @@ final class GroupMetadataCodec {
       variants: map['variants'] == null
           ? const {}
           : contentMap(map['variants'])
-                .map((key, value) => MapEntry(key, value as String)),
+                .map((key, value) => MapEntry(key, value! as String)),
     );
   }
 
@@ -262,8 +262,12 @@ final class GroupMetadataCodec {
   static T _decode<T>(T Function() decode) {
     try {
       return decode();
+      // Casts and URI decoding are an untrusted wire boundary. Normalize their
+      // runtime failures so preflight can reject the whole record without writes.
+      // ignore: avoid_catching_errors
     } on TypeError {
       throw const FormatException('Invalid Group metadata field');
+      // ignore: avoid_catching_errors
     } on ArgumentError {
       throw const FormatException('Invalid Group metadata field');
     }

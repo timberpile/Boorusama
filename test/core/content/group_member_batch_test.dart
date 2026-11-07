@@ -87,13 +87,35 @@ void main() {
     expect(batch.page.items, hasLength(2));
     expect(batch.resolved, hasLength(1));
     final empty = ContentPage<GroupMember>(
-      items: [],
+      items: const [],
       next: ContentCursor('next:3'),
       total: 10,
     );
     expect(empty.items, isEmpty);
     expect(empty.next, isNotNull);
     expect(empty.total, 10);
+  });
+
+  test('unavailable placeholders cannot carry hydrated blocked metadata', () {
+    final ref = reference('id:7');
+    expect(
+      () => validateGroupMemberBatch(
+        GroupMemberQuery(reference: reference('pool:42', ContentKind.group)),
+        (
+          page: ContentPage(
+            items: [
+              GroupMember(
+                reference: ref,
+                memberKey: 'blocked',
+                availability: MemberAvailability.unavailable,
+              ),
+            ],
+          ),
+          resolved: [PostContentEntry(reference: ref, post: post(7))],
+        ),
+      ),
+      throwsFormatException,
+    );
   });
 
   test(
@@ -154,7 +176,7 @@ void main() {
         throwsFormatException,
       );
       expect(
-        () => ContentPage<GroupMember>(items: [], total: -1),
+        () => ContentPage<GroupMember>(items: const [], total: -1),
         throwsFormatException,
       );
       expect(() => ContentCursor(''), throwsFormatException);

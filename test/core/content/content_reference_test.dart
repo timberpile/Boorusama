@@ -80,7 +80,7 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () => address(kind: ContentKind.post, key: 'pool:42'),
+      () => address(key: 'pool:42'),
       throwsFormatException,
     );
   });

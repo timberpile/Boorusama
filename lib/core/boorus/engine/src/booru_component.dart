@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../booru/types.dart';
+import '../../../content/groups/group_capability.dart';
 import 'booru_builder.dart';
 import 'booru_engine.dart';
 import 'booru_repository.dart';
@@ -12,11 +13,13 @@ class BooruComponents {
     required this.parser,
     required this.createBuilder,
     required this.createRepository,
+    this.createGroupCapability,
   });
 
   final BooruParser parser;
   final BooruBuilder Function() createBuilder;
   final BooruRepository Function(Ref ref) createRepository;
+  final BooruGroupCapability Function(Ref ref)? createGroupCapability;
 }
 
 class BooruRegistry {
@@ -42,6 +45,7 @@ class BooruRegistry {
       booru: booru,
       builder: components.createBuilder(),
       repository: components.createRepository(ref),
+      groupCapability: components.createGroupCapability?.call(ref),
     );
   }
 

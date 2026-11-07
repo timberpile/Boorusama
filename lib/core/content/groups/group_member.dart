@@ -66,11 +66,15 @@ GroupMemberBatch validateGroupMemberBatch(
 ) {
   final members = <String, GroupMember>{};
   final references = <ContentIdentity, List<ContentReference>>{};
+  final readable = <ContentIdentity>{};
   for (final member in batch.page.items) {
     if (members.containsKey(member.memberKey)) {
       throw const FormatException('Duplicate Group member occurrence');
     }
     members[member.memberKey] = member;
+    if (member.availability != MemberAvailability.unavailable) {
+      readable.add(member.reference.identity);
+    }
     references
         .putIfAbsent(member.reference.identity, () => [])
         .add(member.reference);
@@ -79,6 +83,7 @@ GroupMemberBatch validateGroupMemberBatch(
   for (final entry in batch.resolved) {
     final matches = references[entry.reference.identity];
     if (matches == null ||
+        !readable.contains(entry.reference.identity) ||
         hydrated.containsKey(entry.reference.identity) ||
         entry.reference.engine != query.reference.engine ||
         entry.reference.siteNamespace != query.reference.siteNamespace) {

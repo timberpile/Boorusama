@@ -1,9 +1,10 @@
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 
 void main() {
-  final references = ContentReferenceCodec();
+  const references = ContentReferenceCodec();
   final reference = references.parse(
     engine: BooruType.pixiv,
     site: Uri.parse('https://www.pixiv.net'),
@@ -11,7 +12,6 @@ void main() {
     sourceKey: 'work:120',
   );
   final codec = GroupMetadataCodec(
-    references: references,
     dataCodecFor: (engine) =>
         engine == BooruType.pixiv ? const _DataCodec() : null,
   );
@@ -96,7 +96,7 @@ void main() {
       final wire = codec.encodeSummary(summary);
       expect(codec.decodeSummary(<Object?, Object?>{...wire}), summary);
       expect(
-        () => GroupMetadataCodec().decodeSummary(wire),
+        () => const GroupMetadataCodec().decodeSummary(wire),
         throwsFormatException,
       );
       expect(
@@ -121,6 +121,29 @@ void main() {
         }),
         throwsFormatException,
       );
+    },
+  );
+
+  test(
+    'a Pool category observation changes metadata without changing identity',
+    () {
+      final pool = references.parse(
+        engine: BooruType.danbooru,
+        site: Uri.parse('https://example.test'),
+        kind: ContentKind.group,
+        sourceKey: 'pool:42',
+      );
+      final series = ContentGroupSummary(
+        reference: pool,
+        displayCategory: 'series',
+      );
+      final collection = ContentGroupSummary(
+        reference: pool,
+        displayCategory: 'collection',
+      );
+      expect(series.reference.identity, collection.reference.identity);
+      expect(series, isNot(collection));
+      expect(codec.decodeSummary(codec.encodeSummary(collection)), collection);
     },
   );
 
@@ -181,7 +204,7 @@ void main() {
       );
       final details = ContentGroupDetails(
         summary: summary,
-        creators: [],
+        creators: const [],
         tags: GroupTags(
           values: [
             GroupTag(
@@ -202,6 +225,7 @@ void main() {
   );
 }
 
+@immutable
 final class _SummaryData implements BooruGroupSummaryData {
   const _SummaryData(this.workType);
   final String workType;
@@ -216,6 +240,7 @@ final class _SummaryData implements BooruGroupSummaryData {
   int get hashCode => workType.hashCode;
 }
 
+@immutable
 final class _DetailsData implements BooruGroupDetailsData {
   const _DetailsData({this.views, this.bookmarks});
   final int? views;
@@ -247,8 +272,9 @@ final class _DataCodec implements BooruGroupDataCodec {
   BooruGroupSummaryData decodeSummary(Map<String, Object?> value) {
     if (value['typeKey'] != 'pixiv.work.summary' ||
         value['schemaVersion'] != 1 ||
-        value['workType'] is! String)
+        value['workType'] is! String) {
       throw const FormatException('Unsupported fixture payload');
+    }
     return _SummaryData(value['workType']! as String);
   }
 
@@ -261,8 +287,10 @@ final class _DataCodec implements BooruGroupDataCodec {
   };
   @override
   BooruGroupDetailsData decodeDetails(Map<String, Object?> value) {
-    if (value['typeKey'] != 'pixiv.work.details' || value['schemaVersion'] != 1)
+    if (value['typeKey'] != 'pixiv.work.details' ||
+        value['schemaVersion'] != 1) {
       throw const FormatException('Unsupported fixture payload');
+    }
     return _DetailsData(
       views: value['views'] as int?,
       bookmarks: value['bookmarks'] as int?,

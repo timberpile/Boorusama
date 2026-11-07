@@ -7,3 +7,4 @@ export 'content_entry.dart';
 export 'content_page.dart';
 export 'groups/group_member.dart';
 export 'content_access.dart';
+export 'groups/group_source.dart';

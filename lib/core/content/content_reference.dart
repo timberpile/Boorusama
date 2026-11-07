@@ -139,7 +139,7 @@ final class ContentReferenceCodec {
         '';
     var path = rawPath;
     for (var depth = 0; depth < 3; depth++) {
-      if (RegExp(r'%2f|%5c', caseSensitive: false).hasMatch(path) ||
+      if (RegExp('%2f|%5c', caseSensitive: false).hasMatch(path) ||
           path.split('/').any((part) => part == '.' || part == '..')) {
         throw const FormatException('Unsafe content installation path');
       }

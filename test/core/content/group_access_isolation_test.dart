@@ -121,6 +121,45 @@ void main() {
   });
 
   test(
+    'scoped profile overrides cannot reuse another credential context key',
+    () {
+      final parent = ProviderContainer(
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: [profile('a')]),
+          ),
+          contentEffectivePolicyProvider.overrideWith(
+            (ref, id) => const AsyncData('visibility'),
+          ),
+        ],
+      );
+      final child = ProviderContainer(
+        parent: parent,
+        overrides: [
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(
+              initialConfigs: [profile('a', apiKey: 'child-fixture')],
+            ),
+          ),
+        ],
+      );
+      addTearDown(parent.dispose);
+      addTearDown(child.dispose);
+      final request = ContentAccessRequest(reference: group);
+      final rootAccess = parent.read(
+        contentAccessForReferenceProvider(request),
+      )!;
+      final scopedAccess = child.read(
+        contentAccessForReferenceProvider(request),
+      )!;
+      expect(rootAccess.config!.auth.apiKey, 'fixture');
+      expect(scopedAccess.config!.auth.apiKey, 'child-fixture');
+      expect(scopedAccess.key, isNot(rootAccess.key));
+      expect(child.read(contentAccessContextProvider(rootAccess.key)), isNull);
+    },
+  );
+
+  test(
     'resolving one source does not load policies for unrelated profiles',
     () {
       final seen = <String>{};
