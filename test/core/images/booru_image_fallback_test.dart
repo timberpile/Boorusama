@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:material_ui/material_ui.dart';
@@ -26,6 +27,84 @@ import 'package:boorusama/foundation/info/device_info.dart';
 import '../posts/details/progressive_image_test_utils.dart' as images;
 
 void main() {
+  testWidgets('reports decoded image proportions instead of the tile ratio', (
+    tester,
+  ) async {
+    final dio = Dio();
+    addTearDown(() => dio.close(force: true));
+    final ratios = <double>[];
+
+    await tester.pumpWidget(
+      _testApp(
+        SizedBox(
+          width: 120,
+          child: BooruRawImage(
+            dio: dio,
+            imageUrl: '',
+            aspectRatio: 1,
+            cachedImageBytes: base64Decode(_widePng),
+            onDecodedAspectRatio: ratios.add,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(ratios, isNotEmpty);
+    expect(ratios.last, 2);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    tester.binding.imageCache.clear();
+  });
+
+  testWidgets('reports decoded fallback dimensions after the main image fails', (
+    tester,
+  ) async {
+    const primaryUrl = 'https://example.test/poster.jpg';
+    const fallbackUrl = 'https://example.test/thumbnail.jpg';
+    final adapter = images.ControlledImageAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    addTearDown(() => dio.close(force: true));
+    final ratios = <double>[];
+
+    await tester.pumpWidget(
+      _testApp(
+        SizedBox(
+          width: 120,
+          child: BooruRawImage(
+            dio: dio,
+            imageUrl: primaryUrl,
+            fallbackUrl: fallbackUrl,
+            onDecodedAspectRatio: ratios.add,
+          ),
+        ),
+      ),
+    );
+    await tester.runAsync(() async {
+      await images.pumpUntil(
+        tester,
+        () => adapter.pending.containsKey(primaryUrl),
+        reason: 'primary image request',
+      );
+      adapter.complete(primaryUrl, Uint8List(0), status: 404);
+      await images.pumpUntil(
+        tester,
+        () => adapter.pending.containsKey(fallbackUrl),
+        reason: 'fallback image request',
+      );
+      adapter.complete(fallbackUrl, base64Decode(_tallPng));
+      await images.pumpUntil(
+        tester,
+        () => ratios.isNotEmpty,
+        reason: 'decoded fallback proportions',
+      );
+    });
+    expect(ratios.last, 0.5);
+    expect(adapter.requests.length, 2);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    tester.binding.imageCache.clear();
+  });
+
   testWidgets(
     'HTTP 404 advances extensions and a decoded PNG stops the chain',
     (
@@ -301,3 +380,9 @@ List<String> _networkUrls(WidgetTester tester) => tester
     .whereType<DioExtendedNetworkImageProvider>()
     .map((provider) => provider.url)
     .toList();
+
+// Tiny 4x2 and 2x4 PNGs keep decoding tests independent of remote media.
+const _widePng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAYAAAB/qH1jAAAAE0lEQVR4nGPkEpH7z4AEmBjQAAAltAE/TFqhyQAAAABJRU5ErkJggg==';
+const _tallPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAIAAAAECAYAAACk7+45AAAAFklEQVR4nGPkEpH7z8DAwMDEAAWYDAAoeAFDw42DnwAAAABJRU5ErkJggg==';
