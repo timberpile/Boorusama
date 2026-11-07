@@ -2,6 +2,12 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
+import 'package:boorusama/core/backups/export_import/import/bookmark_profile_dependency.dart';
+import 'package:boorusama/core/backups/sources/bookmark_unified_import.dart';
+import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
+import 'package:boorusama/core/backups/export_import/import/import_planned_change_projector.dart';
+import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_record_fields.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_plan.dart';
@@ -737,4 +743,186 @@ void main() {
       );
     },
   );
+  for (final replace in [false, true]) {
+    for (final decodeBeforeHint in [false, true]) {
+      test(
+        'v1 opaque Post hint remapping stays independent (replace=$replace decodeBeforeHint=$decodeBeforeHint)',
+        () async {
+          final legacySource = await Hive.openBox<BookmarkHiveObject>(
+            'incoming_v1',
+          );
+          final legacySnapshot = StoredPostSnapshot(
+            origin: localPost.snapshot.origin,
+            common: {...localPost.snapshot.common, 'schemaVersion': 1},
+            custom: const {
+              'retained': {
+                'unknown': [1, null, 'kept'],
+              },
+            },
+            codecVersion: 2,
+          );
+          final raw = favoriteToHiveObject(localPost)
+            ..postSnapshot = legacySnapshot.toJson()
+            ..snapshotSchemaVersion = 1
+            ..createdAt = DateTime.utc(2018, 8, 9)
+            ..updatedAt = DateTime.utc(2020, 2, 3);
+          await legacySource.put(7001, raw);
+          final migrated =
+              tryMapBookmarkHiveObjectToBookmark(
+                raw,
+                (_) => const DefaultImageUrlResolver(),
+              ).fold(
+                (error) => throw StateError('Fixture failed migration: $error'),
+                (record) => record,
+              );
+          expect(migrated.postId, isNull);
+          expect(migrated.post.origin.sourceHost, isEmpty);
+          expect(
+            migrated.snapshot.origin.sourceHost,
+            localPost.snapshot.origin.sourceHost,
+          );
+          expect(migrated.post.id, localPost.post.id);
+          final date = DateTime.utc(2026, 8, 9, 10, 11, 12, 345, 678);
+          BookmarkBackupData dataFor(PostBookmark record) =>
+              BookmarkBackupData.unified(
+                records: [record],
+                groups: [
+                  BookmarkGroupBackup(
+                    id: _newGroupId,
+                    name: 'Independent opaque',
+                    bookmarkIds: [record.id],
+                    addedAt: {record.id: date},
+                  ),
+                ],
+              );
+          final codec = BookmarkBackupCodec();
+          BookmarkBackupData transfer(BookmarkBackupData data) => codec.parse(
+            decodeData(
+              data: encodeData(
+                version: 10,
+                exportDate: DateTime.utc(2026),
+                exportVersion: null,
+                payload: codec.encode(data),
+                extraFields: data.extraFields,
+              ),
+            ),
+          );
+          final incoming = decodeBeforeHint
+              ? transfer(dataFor(migrated)).records.single as PostBookmark
+              : migrated;
+          final mapped = bookmarkRecordWithProfileHint(
+            incoming,
+            '00000000-0000-4000-8000-000000000021',
+          ) as PostBookmark;
+          final data = dataFor(mapped);
+          final importPlan = await plan(data);
+          final currentRecords = await bookmarks.readAll();
+          final currentGroups = await groups.getGroups();
+          final currentFolders = await groups.getFolders();
+          final preview = BookmarkImportPreparation.prepare(
+            plan: importPlan,
+            currentRecords: currentRecords,
+            currentGroups: currentGroups,
+            currentFolders: currentFolders,
+            normalize: (record, {previous}) => record,
+            replace: replace,
+          );
+          final projected = const ImportPlannedChangeProjector().bookmarks(
+            local: BookmarkImportLocalSnapshot(
+              records: currentRecords,
+              groups: currentGroups,
+              folders: currentFolders,
+            ),
+            incoming: dataFor(incoming),
+            resolution: ResolvedImportSource(
+              id: 'bookmarks',
+              action: replace
+                  ? ImportAction.replace
+                  : ImportAction.configureItems,
+              items: [
+                ResolvedImportItem(
+                  id: 'group:$_newGroupId',
+                  action: ImportAction.copy,
+                ),
+              ],
+            ),
+            profileMappings: {
+              ProfileReferenceKey.fromReference(
+                bookmarkRecordProfileReference(incoming),
+              ): '00000000-0000-4000-8000-000000000021',
+            },
+          )!;
+          final counterBefore =
+              contentMap(storage.metadataBox.get('idReservation'))['nextId']!
+                  as int;
+          final actual = BookmarkImportPreparation.prepare(
+            plan: importPlan,
+            currentRecords: currentRecords,
+            currentGroups: currentGroups,
+            currentFolders: currentFolders,
+            normalize: bookmarks.normalizeRecord,
+            replace: replace,
+          );
+          if (replace) {
+            await service().replace(data);
+          } else {
+            await service().apply(importPlan);
+          }
+          expect(actual.alreadyExistedCount, 0);
+          expect(projected.entitySummaries['bookmark']!.created, 1);
+          expect(
+            projected.entitySummaries['bookmark']!.deleted,
+            replace ? currentRecords.length : 0,
+          );
+          expect(
+            contentMap(storage.metadataBox.get('idReservation'))['nextId'],
+            counterBefore + 1,
+          );
+          expect(preview.alreadyExistedCount, actual.alreadyExistedCount);
+          expect(preview.newIds, hasLength(1));
+          final savedGroup = (await groups.getGroups()).singleWhere(
+            (g) => g.name == 'Independent opaque',
+          );
+          final freshId = savedGroup.bookmarkIds.single;
+          expect(freshId, isNot(localPost.id));
+          expect(freshId, isNot(migrated.id));
+          final saved = (await bookmarks.read(freshId))! as PostBookmark;
+          expect(saved.postId, isNull);
+          expect(bookmarkContentIdentity(saved), isNull);
+          expect(saved.snapshot.common, migrated.snapshot.common);
+          expect(saved.snapshot.custom, migrated.snapshot.custom);
+          expect(saved.snapshot.codecVersion, migrated.snapshot.codecVersion);
+          expect(
+            saved.snapshot.origin.sourceHost,
+            migrated.snapshot.origin.sourceHost,
+          );
+          expect(
+            saved.snapshot.origin.profileIdHint,
+            '00000000-0000-4000-8000-000000000021',
+          );
+          expect(saved.createdAt, migrated.createdAt);
+          expect(saved.updatedAt, migrated.updatedAt);
+          expect(savedGroup.addedAt[freshId], date);
+          expect(
+            await bookmarks.read(localPost.id),
+            replace ? null : localPost,
+          );
+          await restart();
+          final reopened = (await bookmarks.read(freshId))! as PostBookmark;
+          expect(reopened, saved);
+          expect(reopened.postId, isNull);
+          expect(bookmarkContentIdentity(reopened), isNull);
+          final reopenedGroup = (await groups.getGroups()).singleWhere(
+            (g) => g.name == 'Independent opaque',
+          );
+          expect(reopenedGroup.bookmarkIds, {freshId});
+          expect(reopenedGroup.addedAt[freshId], date);
+          expect(
+            await bookmarks.read(localPost.id),
+            replace ? null : localPost,
+          );
+        },
+      );
+    }
+  }
 }

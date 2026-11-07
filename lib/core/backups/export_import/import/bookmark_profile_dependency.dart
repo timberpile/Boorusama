@@ -59,7 +59,14 @@ PostBookmark bookmarkWithProfileHint(PostBookmark bookmark, String profileId) {
     sourceHost: origin.sourceHost,
     profileIdHint: profileId,
   );
-  return bookmark.copyWith(
+  // A profile hint is not proof of an upstream ID. Preserve the retained
+  // nullable addressability and snapshot rather than rebuilding legacy data.
+  return PostBookmark.fromSnapshot(
+    id: bookmark.id,
+    createdAt: bookmark.createdAt,
+    updatedAt: bookmark.updatedAt,
+    postId: bookmark.postId,
+    sourceUrl: bookmark.sourceUrl,
     snapshot: StoredPostSnapshot(
       origin: mappedOrigin,
       common: snapshot.common,
