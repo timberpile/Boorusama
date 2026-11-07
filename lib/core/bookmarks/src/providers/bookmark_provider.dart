@@ -36,6 +36,7 @@ import '../types/bookmark_group_repository.dart';
 import '../../../groups/folder_tree.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
+import '../types/unified_bookmark_store.dart';
 import '../types/bookmark_target.dart';
 import '../types/bookmark_view.dart';
 
@@ -117,6 +118,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   final _poolRemovals = <Object, BookmarkGroupRemovalResult>{};
   final _mutationSessionKey = Object();
   final _pendingHydration = <int, PostBookmark>{};
+  int? _pendingHydrationRevision;
   Timer? _hydrationPublicationTimer;
 
   // Zone-local rather than a notifier field: unrelated async readers must never
@@ -208,6 +210,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   @override
   FutureOr<BookmarkLibraryState> build() async {
     _pendingHydration.clear();
+    _pendingHydrationRevision = null;
     _hydrationPublicationTimer?.cancel();
     _hydrationPublicationTimer = null;
     ref.onDispose(() => _hydrationPublicationTimer?.cancel());
@@ -372,15 +375,26 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       BookmarkMutationRepository? mutation;
       try {
         if (_requiresRefresh) await _reload();
+        final repository = await bookmarkRepository;
+        final store = unifiedBookmarkStorage(repository);
+        if ((await future).hasUnifiedRecords && store != null) {
+          final durableRevision = await store.readRevision();
+          final expectedRevision =
+              _pendingHydrationRevision ?? (await future).revision;
+          if (durableRevision != expectedRevision) await _reload();
+        }
         if (publishHydration) _publishHydration();
         mutation = BookmarkMutationRepository(
-          delegate: await bookmarkRepository,
+          delegate: repository,
           base: await future,
         );
         completer.complete(
-          await runZoned(
-            operation,
-            zoneValues: {_mutationSessionKey: mutation},
+          await observeBookmarkWrites(
+            () => runZoned(
+              operation,
+              zoneValues: {_mutationSessionKey: mutation},
+            ),
+            mutation.recordCommittedChange,
           ),
         );
       } catch (error, stackTrace) {
@@ -403,6 +417,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     try {
       state = AsyncValue.data(await (await _service).load());
       _pendingHydration.clear();
+      _pendingHydrationRevision = null;
       _hydrationPublicationTimer?.cancel();
       _hydrationPublicationTimer = null;
       _requiresRefresh = false;
@@ -428,9 +443,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         ),
     ]);
     return mutation.base.applyCommittedChanges(
-      pools: await repository.getPoolBookmarks(),
+      pools: mutation.base.hasUnifiedRecords
+          ? null
+          : await repository.getPoolBookmarks(),
       upserts: mutation.upserts,
       removedIds: mutation.removedIds,
+      revision: mutation.base.hasUnifiedRecords ? mutation.revision : null,
       groups: groups,
       folders: folders,
     );
@@ -540,6 +558,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
             dataCodec: codec,
           );
           _pendingHydration[upgraded.id] = upgraded;
+          _pendingHydrationRevision = _mutation?.revision;
           if (_pendingHydration.length >= 32) {
             _publishHydration();
           } else {
@@ -576,10 +595,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final current = state.requireValue;
     final next = current.applyCommittedChanges(
       upserts: _pendingHydration.values,
+      revision: current.hasUnifiedRecords ? _pendingHydrationRevision : null,
       groups: current.groups,
       folders: current.folders,
     );
     _pendingHydration.clear();
+    _pendingHydrationRevision = null;
     _hydrationPublicationTimer?.cancel();
     _hydrationPublicationTimer = null;
     state = AsyncValue.data(next);
@@ -1136,6 +1157,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         current.withAddedGroupMembers(
           createdBookmarks: createdBookmarks,
           group: group,
+          revision: current.hasUnifiedRecords ? _mutation?.revision : null,
         ),
       );
     } catch (_) {

@@ -451,6 +451,47 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   }
 
   @override
+  bool get supportsUnifiedRecords => true;
+
+  @override
+  Future<T> runReadWriteScope<T>(Future<T> Function() operation) =>
+      _ready(operation);
+
+  @override
+  Future<int> readRevision() =>
+      _ready(() async => _metadata.get(_revision) as int);
+
+  @override
+  Future<Bookmark?> lookupContent(
+    ContentIdentity identity, {
+    required BooruType engine,
+  }) => _ready(() async {
+    final entry = _content(identity);
+    if (entry == null) return null;
+    if (entry['engine'] != engine.id) {
+      throw const FormatException('Incompatible content engines');
+    }
+    return _read(_localId(entry['id']));
+  });
+
+  @override
+  Future<void> commitOrganization({
+    Iterable<Bookmark> records = const [],
+    Set<int> removeIds = const {},
+    List<BookmarkGroup> groups = const [],
+    Set<String> removeGroupIds = const {},
+    List<CollectionFolder>? folders,
+  }) => _ready(
+    () => _mutate(
+      records.toList(),
+      removeIds.map(_localId).toSet(),
+      organizationGroups: groups,
+      removedOrganizationGroups: removeGroupIds,
+      organizationFolders: folders,
+    ),
+  );
+
+  @override
   Future<List<int>> reserveIds(int count) =>
       _ready(() => _allocator.reserve(count));
   @override
@@ -482,6 +523,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
 
   /// Validate preparation with registered payload codecs before allocating an
   /// ID. This performs no storage write, source lookup or network request.
+  @override
   Bookmark normalizeRecord(Bookmark record) =>
       _codec.decode(_codec.encode(record));
 
@@ -515,6 +557,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     }
     final deleting = deletes.map((entry) => entry['id']! as int).toSet();
     final upserts = <Map<String, Object?>>[];
+    final normalized = <Bookmark>[];
     final headers = <String, Object?>{};
     final identities = <ContentIdentity, int>{};
     final bound = (await _ids.readNextId())!;
@@ -558,6 +601,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       previous['$id'] = before;
       headers['$id'] = header;
       upserts.add(wire);
+      normalized.add(record);
     }
     final organization = await _prepareOrganization(
       groups: organizationGroups,
@@ -585,6 +629,13 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     await _metadata.put(_journal, journal);
     await _sync([_metadata]);
     await _apply(plan);
+    publishBookmarkWrite(
+      BookmarkCommittedChange(
+        records: normalized,
+        removedIds: deleting,
+        revision: revision + 1,
+      ),
+    );
   }
 
   static String _hash(Object value) =>

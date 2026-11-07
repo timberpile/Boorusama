@@ -51,9 +51,8 @@ extension BookmarkRepositoryExtensions on BookmarkRepository {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {
     final repository = this;
-    if (repository is UnifiedBookmarkStore) {
-      return (repository as UnifiedBookmarkStore).read(id);
-    }
+    final store = unifiedBookmarkStorage(repository);
+    if (store != null) return store.read(id);
     for (final record in await getAllBookmarksOrThrow(
       imageUrlResolver: imageUrlResolver,
     )) {

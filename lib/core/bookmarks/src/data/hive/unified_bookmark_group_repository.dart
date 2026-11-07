@@ -21,7 +21,8 @@ final class UnifiedBookmarkGroupRepository
         BookmarkGroupRepository,
         BookmarkFolderRepository,
         BookmarkRecentGroupRepository,
-        PoolBookmarkRepository {
+        PoolBookmarkRepository,
+        UnifiedBookmarkOrganization {
   UnifiedBookmarkGroupRepository({
     required this.bookmarks,
     required BookmarkGroupRepositoryHive reader,
@@ -31,6 +32,7 @@ final class UnifiedBookmarkGroupRepository
        _uuid = uuid,
        _now = now ?? DateTime.now;
 
+  @override
   final BookmarkHiveRepository bookmarks;
   final BookmarkGroupRepositoryHive _reader;
   final Uuid _uuid;

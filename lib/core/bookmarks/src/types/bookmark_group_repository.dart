@@ -1,4 +1,5 @@
 import 'bookmark_group.dart';
+import 'unified_bookmark_store.dart';
 import '../../../groups/folder_tree.dart';
 
 abstract interface class BookmarkGroupRepository {
@@ -87,4 +88,9 @@ extension BookmarkRecentGroupStorage on BookmarkGroupRepository {
           .recordManualGroupInteraction(groupId);
     }
   }
+}
+
+/// Marks an organization whose integer memberships share the payload journal.
+abstract interface class UnifiedBookmarkOrganization {
+  UnifiedBookmarkStore get bookmarks;
 }

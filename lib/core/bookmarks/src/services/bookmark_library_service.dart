@@ -14,6 +14,8 @@ import '../types/bookmark_group.dart';
 import '../types/bookmark_group_repository.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
+import '../types/bookmark_record_fields.dart';
+import '../types/unified_bookmark_store.dart';
 
 class BookmarkGroupRemovalResult extends Equatable {
   const BookmarkGroupRemovalResult({
@@ -73,22 +75,34 @@ class BookmarkLibraryService {
   Future<BookmarkLibraryState> _snapshotForMutation() =>
       readMutationSnapshot?.call() ?? load();
 
-  Future<BookmarkLibraryState> load() async {
+  UnifiedBookmarkStore? get unifiedStore =>
+      groupRepository is UnifiedBookmarkOrganization
+      ? unifiedBookmarkStorage(bookmarkRepository)
+      : null;
+
+  Future<BookmarkLibraryState> load() =>
+      unifiedStore?.runReadWriteScope(_load) ?? _load();
+
+  Future<BookmarkLibraryState> _load() async {
     final performanceSpan = performanceRecorder.begin(
       PerfOperation.bookmarkLibraryLoad,
       PerfSpanKind.asyncWall,
     );
     var performanceFailed = false;
     try {
-      final bookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
-        imageUrlResolver: imageUrlResolver,
-      );
+      final store = unifiedStore;
+      final records = store == null
+          ? await bookmarkRepository.getAllBookmarksOrThrow(
+              imageUrlResolver: imageUrlResolver,
+            )
+          : await store.readAll();
+      final bookmarks = records.whereType<PostBookmark>().toList();
       await groupRepository.repair(
-        validBookmarkIds: bookmarks.map((bookmark) => bookmark.id).toSet(),
+        validBookmarkIds: records.map((bookmark) => bookmark.id).toSet(),
       );
-      await ensureDefaultMemberships(bookmarks);
-      await _initializeMembershipDates(bookmarks);
-      await repairPoolMemberships();
+      await ensureDefaultMemberships(records);
+      await _initializeMembershipDates(records);
+      if (store == null) await repairPoolMemberships();
       final groups = await groupRepository.getGroups();
       final folders = await groupRepository.getFolders();
       FolderTree(folders).validatePlacements([
@@ -101,7 +115,11 @@ class BookmarkLibraryService {
       ]);
       return BookmarkLibraryState(
         bookmarks: bookmarks,
-        pools: await groupRepository.getPoolBookmarks(),
+        records: store == null ? null : records,
+        revision: store == null ? 0 : await store.readRevision(),
+        pools: store == null
+            ? await groupRepository.getPoolBookmarks()
+            : const [],
         groups: groups,
         folders: folders,
       );
@@ -114,7 +132,7 @@ class BookmarkLibraryService {
   }
 
   /// Idempotent repair is also used after legacy import and full replacement.
-  Future<void> ensureDefaultMemberships(List<PostBookmark> bookmarks) async {
+  Future<void> ensureDefaultMemberships(List<Bookmark> bookmarks) async {
     var groups = await groupRepository.getGroups();
     if (!groups.any((g) => g.isDefault)) {
       try {
@@ -142,7 +160,7 @@ class BookmarkLibraryService {
           addedAt: {
             ...?groups.where((g) => g.isDefault).firstOrNull?.addedAt,
             for (final b in bookmarks)
-              if (missing.contains(b.id)) b.id: b.createdAt,
+              if (missing.contains(b.id)) b.id: bookmarkCreatedAt(b),
           },
         );
       } catch (_) {
@@ -152,7 +170,7 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<void> _initializeMembershipDates(List<PostBookmark> bookmarks) async {
+  Future<void> _initializeMembershipDates(List<Bookmark> bookmarks) async {
     final pending = (await groupRepository.getGroups())
         .where(
           (g) => g.addedAt.length != g.bookmarkIds.length,
@@ -166,7 +184,8 @@ class BookmarkLibraryService {
         group.bookmarkIds,
         addedAt: {
           for (final id in group.bookmarkIds)
-            if (byId[id] case final b?) id: group.addedAt[id] ?? b.createdAt,
+            if (byId[id] case final b?)
+              id: group.addedAt[id] ?? bookmarkCreatedAt(b),
         },
       );
     }

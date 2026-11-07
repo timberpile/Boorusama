@@ -9,22 +9,6 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         return operation();
       });
 
-  Future<void> commitOrganization({
-    Iterable<Bookmark> records = const [],
-    Set<int> removeIds = const {},
-    List<BookmarkGroup> groups = const [],
-    Set<String> removeGroupIds = const {},
-    List<CollectionFolder>? folders,
-  }) => _ready(
-    () => _mutate(
-      records.toList(),
-      removeIds.map(_localId).toSet(),
-      organizationGroups: groups,
-      removedOrganizationGroups: removeGroupIds,
-      organizationFolders: folders,
-    ),
-  );
-
   Future<(Box<BookmarkGroupHiveObject>, Box<dynamic>)>
   _organizationBoxes() async {
     final active = contentMap(_metadata.get('activeOrganization'));
