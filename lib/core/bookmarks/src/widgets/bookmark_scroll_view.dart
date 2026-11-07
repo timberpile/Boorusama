@@ -18,6 +18,7 @@ import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
+import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../foundation/loggers.dart';
@@ -54,6 +55,7 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
     required this.view,
     this.title,
     this.leadingSlivers = const [],
+    this.localGroupSelectionController,
     super.key,
   });
 
@@ -62,6 +64,7 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
   final BookmarkView view;
   final String? title;
   final List<Widget> leadingSlivers;
+  final SelectionModeController? localGroupSelectionController;
 
   @override
   ConsumerState<BookmarkScrollView> createState() => _BookmarkScrollViewState();
@@ -82,6 +85,29 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   void initState() {
     super.initState();
     widget.searchController.addListener(_onCommittedQueryChanged);
+    _selectionModeController.addListener(_onBookmarkSelectionChanged);
+    widget.localGroupSelectionController?.addListener(
+      _onLocalGroupSelectionChanged,
+    );
+  }
+
+  void _onBookmarkSelectionChanged() {
+    final groups = widget.localGroupSelectionController;
+    if (_selectionModeController.isActive && (groups?.isActive ?? false)) {
+      groups!.disable();
+    }
+  }
+
+  void _onLocalGroupSelectionChanged() {
+    if ((widget.localGroupSelectionController?.isActive ?? false) &&
+        _selectionModeController.isActive) {
+      _selectionModeController.disable();
+    }
+  }
+
+  void _endLocalGroupSelection() {
+    final groups = widget.localGroupSelectionController;
+    if (groups?.isActive ?? false) groups!.disable();
   }
 
   void _onCommittedQueryChanged() {
@@ -94,6 +120,18 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   @override
   void didUpdateWidget(BookmarkScrollView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.localGroupSelectionController !=
+        widget.localGroupSelectionController) {
+      oldWidget.localGroupSelectionController?.removeListener(
+        _onLocalGroupSelectionChanged,
+      );
+      widget.localGroupSelectionController?.addListener(
+        _onLocalGroupSelectionChanged,
+      );
+      _selectionModeController.synchronizeDuringBuild(
+        _onLocalGroupSelectionChanged,
+      );
+    }
     if (oldWidget.searchController != widget.searchController) {
       oldWidget.searchController.removeListener(_onCommittedQueryChanged);
       widget.searchController.addListener(_onCommittedQueryChanged);
@@ -124,6 +162,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   @override
   void dispose() {
     widget.searchController.removeListener(_onCommittedQueryChanged);
+    widget.localGroupSelectionController?.removeListener(
+      _onLocalGroupSelectionChanged,
+    );
+    _selectionModeController.removeListener(_onBookmarkSelectionChanged);
     _selectionModeController.dispose();
 
     super.dispose();
@@ -371,14 +413,17 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ? BookmarkPoolCard(
                     pool: pool,
                     index: index,
-                    onOpen: () => goToBookmarkDetailsPage(
-                      ref,
-                      index,
-                      initialThumbnailUrl: '',
-                      controller: controller,
-                      sourceView: widget.view,
-                      entries: _viewerEntries(),
-                    ),
+                    onOpen: () {
+                      _endLocalGroupSelection();
+                      goToBookmarkDetailsPage(
+                        ref,
+                        index,
+                        initialThumbnailUrl: '',
+                        controller: controller,
+                        sourceView: widget.view,
+                        entries: _viewerEntries(),
+                      );
+                    },
                     groupId: widget.view.kind == BookmarkViewKind.group
                         ? widget.view.groupId
                         : null,
@@ -491,6 +536,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               ),
             ],
             onTap: () {
+              _endLocalGroupSelection();
               goToBookmarkDetailsPage(
                 ref,
                 selectionIndex ?? index,

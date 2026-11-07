@@ -51,6 +51,8 @@ class BookmarkGroupBrowserPage extends ConsumerStatefulWidget {
 class _BookmarkGroupBrowserPageState
     extends ConsumerState<BookmarkGroupBrowserPage> {
   late String? _requestedId = widget.groupId ?? widget.folderId;
+  late bool _legacyFolderRequest =
+      widget.groupId == null && widget.folderId != null;
   List<String> _lastPath = const [];
   AsyncValue<BookmarkLibraryState>? _visibleLibrary;
   final _search = TextEditingController();
@@ -84,19 +86,26 @@ class _BookmarkGroupBrowserPageState
 
   String? _currentId(BookmarkLibraryState? state) {
     if (state == null) return _requestedId;
-    final resolved = state.legacyFolderGroupIds[_requestedId] ?? _requestedId;
+    final resolved = _legacyFolderRequest
+        ? state.legacyFolderGroupIds[_requestedId] ?? _requestedId
+        : _requestedId;
     if (state.groupsById.containsKey(resolved)) return resolved;
     // A removed open node returns to its nearest surviving ancestor.
     return _lastPath.reversed.where(state.groupsById.containsKey).firstOrNull;
   }
 
   void _open(String? id) {
-    if (id == _currentId(ref.read(bookmarkProvider).valueOrNull)) return;
+    if (id == _currentId(ref.read(bookmarkProvider).valueOrNull)) {
+      _requestedId = id;
+      _legacyFolderRequest = false;
+      return;
+    }
     _selection.disable();
     FocusScope.of(context).unfocus();
     _search.clear();
     setState(() {
       _requestedId = id;
+      _legacyFolderRequest = false;
       _lastPath = const [];
     });
   }
@@ -144,8 +153,9 @@ class _BookmarkGroupBrowserPageState
     final scope = (id, mode);
     final scroll = _scrolls.putIfAbsent(scope, AutoScrollController.new);
     _selection.reconcileDuringBuild([
-      for (final child in ordinaryChildren)
-        (CollectionSelectionKind.group, child.id),
+      if (mode == BookmarkGroupViewMode.structure)
+        for (final child in ordinaryChildren)
+          (CollectionSelectionKind.group, child.id),
     ], scope: scope);
     final selected = {
       for (final (_, selectedId) in _selection.selectedKeys) selectedId,
@@ -280,6 +290,13 @@ class _BookmarkGroupBrowserPageState
                         const Center(child: Icon(Icons.error_outline)),
                     data: (state) {
                       _updatePreviewInputs(state);
+                      final genuinelyEmpty =
+                          view != null &&
+                          state.bookmarkIdsForView(view).isEmpty &&
+                          (state.hasUnifiedRecords ||
+                              !state.pools.any(
+                                (pool) => pool.groupIds.contains(id),
+                              ));
                       final cards = _cards(
                         state,
                         id,
@@ -289,7 +306,13 @@ class _BookmarkGroupBrowserPageState
                       final slivers = <Widget>[
                         if (mode == BookmarkGroupViewMode.structure &&
                             (id == null || ordinaryChildren.isNotEmpty))
-                          cards,
+                          if (id != null && !genuinelyEmpty)
+                            CollectionSelectionBinding(
+                              controller: _selection,
+                              child: cards,
+                            )
+                          else
+                            cards,
                         if (id != null &&
                             mode == BookmarkGroupViewMode.structure &&
                             ordinaryChildren.isNotEmpty)
@@ -301,13 +324,6 @@ class _BookmarkGroupBrowserPageState
                             ),
                           ),
                       ];
-                      final genuinelyEmpty =
-                          view != null &&
-                          state.bookmarkIdsForView(view).isEmpty &&
-                          (state.hasUnifiedRecords ||
-                              !state.pools.any(
-                                (pool) => pool.groupIds.contains(id),
-                              ));
                       if (id == null || genuinelyEmpty) {
                         return OrderedSelectionCanvas(
                           controller: _selection,
@@ -327,13 +343,17 @@ class _BookmarkGroupBrowserPageState
                           ),
                         );
                       }
-                      return BookmarkScrollView(
-                        key: ValueKey(scope),
-                        scrollController: scroll,
-                        searchController: _search,
-                        view: view!,
-                        title: title,
-                        leadingSlivers: slivers,
+                      return OrderedSelectionCanvas(
+                        controller: _selection,
+                        child: BookmarkScrollView(
+                          key: ValueKey(scope),
+                          scrollController: scroll,
+                          searchController: _search,
+                          localGroupSelectionController: _selection,
+                          view: view!,
+                          title: title,
+                          leadingSlivers: slivers,
+                        ),
                       );
                     },
                   ),

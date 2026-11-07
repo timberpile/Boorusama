@@ -15,6 +15,9 @@ Names may repeat. Parent pointers are authoritative: there is no persisted
 folder flag, child list, or descendant-membership list. `BookmarkGroupTree`
 provides immutable ordered adjacency, iterative traversal, and graph validation.
 Following Topics retain their independent folder model.
+Legacy folder aliases apply only to explicitly tagged folder references and
+old folder routes. Canonical Group UUIDs, including Default, are never remapped
+through that compatibility table.
 
 `BookmarkLibraryState` publishes the canonical records and direct membership
 indexes. `.group(id)` is a direct read scope, `.subtree(id)` is a local union,
@@ -69,6 +72,11 @@ Pinning resumes as soon as the header fits again.
 Group search suggestions stay between the navigation Header and the keyboard.
 When that area cannot fit an interactive row, suggestions remain hidden until
 space is available; they never cover the mode or ancestor controls.
+
+Local child cards and saved records use separate typed selection controllers.
+The card section binds its Group controller explicitly inside the shared
+timeline viewport. Entering either selection scope clears the other; hidden
+child cards in All Bookmarks are not keyboard-selection targets.
 
 The Header title opens a Kurumi ancestor menu; Back moves up one group level.
 The Header mode control preserves the committed query while changing scope,
