@@ -3,6 +3,7 @@ import '../../../posts/related/related_family.dart';
 import '../../../posts/details/routes.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../posts/listing/providers.dart';
+import '../../../posts/listing/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../config_widgets/website_logo.dart';
 
@@ -297,8 +298,8 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
           ? null
           : ref
                 .watch(gridThumbnailUrlGeneratorProvider(profile.auth))
-                .resolve(
-                  cover.asPost(pool.origin),
+                .resolveStaticCover(
+                  cover,
                   settings: ref.watch(
                     gridThumbnailSettingsProvider(profile.auth),
                   ),

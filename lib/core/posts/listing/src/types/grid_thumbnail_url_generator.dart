@@ -9,10 +9,22 @@ import '../../../../images/types.dart';
 import '../../../post/types.dart';
 import 'animated_posts_default_state.dart';
 import 'grid_size.dart';
+import 'grid_thumbnail_static_media.dart';
+
+export 'grid_thumbnail_static_media.dart';
 
 abstract class GridThumbnailUrlGenerator {
   GridThumbnailMedia resolve(
     Post post, {
+    required GridThumbnailSettings settings,
+  });
+}
+
+/// Optional source-specific selection for saved static covers.
+abstract interface class GridThumbnailStaticCoverResolver
+    implements GridThumbnailUrlGenerator {
+  GridThumbnailMedia resolveStaticCover(
+    GridThumbnailStaticMedia cover, {
     required GridThumbnailSettings settings,
   });
 }

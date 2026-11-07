@@ -1,20 +1,24 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../posts/listing/src/types/grid_thumbnail_static_media.dart';
 import '../../../posts/post/types.dart';
-import '../../../posts/rating/types.dart';
-import '../../../posts/sources/types.dart';
 
 /// Only the selected static cover's media variants, never collection members.
-final class PoolBookmarkCover extends Equatable {
+final class PoolBookmarkCover extends Equatable
+    implements GridThumbnailStaticMedia {
   PoolBookmarkCover({
     required this.thumbnail,
     required this.sample,
     required this.original,
     required Map<String, String> variants,
   }) : variants = Map.unmodifiable(variants);
+  @override
   final String thumbnail;
+  @override
   final String sample;
+  @override
   final String original;
+  @override
   final Map<String, String> variants;
 
   static bool isStatic(String url) => RegExp(
@@ -34,33 +38,6 @@ final class PoolBookmarkCover extends Equatable {
       for (final entry in post.mediaVariants.entries)
         if (isStatic(entry.value)) entry.key: entry.value,
     },
-  );
-
-  Post asPost(PostOrigin origin) => Post(
-    origin: origin,
-    core: PostCoreData(
-      id: 0,
-      thumbnailImageUrl: thumbnail,
-      sampleImageUrl: sample,
-      originalImageUrl: original,
-      videoUrl: '',
-      videoThumbnailUrl: '',
-      width: 0,
-      height: 0,
-      format: 'jpg',
-      md5: '',
-      fileSize: 0,
-      duration: 0,
-      tags: const {},
-      rating: Rating.unknown,
-      hasComment: false,
-      isTranslated: false,
-      hasParentOrChildren: false,
-      source: PostSource.none(),
-      score: 0,
-      mediaVariants: variants,
-    ),
-    booruData: const LegacyPostData(typeKey: 'pool-cover', custom: {}),
   );
 
   Map<String, Object?> toJson() => {
