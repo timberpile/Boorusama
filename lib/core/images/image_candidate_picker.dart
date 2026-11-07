@@ -21,6 +21,7 @@ class ImageCandidatePicker extends StatefulWidget {
     required this.placeholder,
     required this.builder,
     required this.onSelected,
+    this.onDecodedAspectRatio,
     this.preferredIndex,
     super.key,
   });
@@ -29,6 +30,7 @@ class ImageCandidatePicker extends StatefulWidget {
   final Widget placeholder;
   final Widget Function(ImageProvider image) builder;
   final ValueChanged<int?> onSelected;
+  final ValueChanged<double>? onDecodedAspectRatio;
   final int? preferredIndex;
 
   @override
@@ -104,6 +106,10 @@ class _ImageCandidatePickerState extends State<ImageCandidatePicker> {
         final stream = request.image.resolve(_configuration);
         final listener = ImageStreamListener(
           (image, _) {
+            final decoded = image.image;
+            final aspectRatio = decoded.width > 0 && decoded.height > 0
+                ? decoded.width / decoded.height
+                : null;
             image.dispose();
             if (!mounted || _complete) return;
             _complete = true;
@@ -119,6 +125,11 @@ class _ImageCandidatePickerState extends State<ImageCandidatePicker> {
               if (mounted) _requests[index]?.retainWithoutListening();
             });
             widget.onSelected(index);
+            if (aspectRatio != null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) widget.onDecodedAspectRatio?.call(aspectRatio);
+              });
+            }
             setState(() {});
           },
           onError: (error, stack) {
