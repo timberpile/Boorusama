@@ -300,7 +300,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
     viewer.snap_zoom_to_fit,
     description: viewer.snap_zoom_to_fit_description,
   );
-  add('viewer', 'double_tap_zoom', viewer.double_tap_zoom_behavior);
   add(
     'viewer',
     'auto_adjust_comic_strips',

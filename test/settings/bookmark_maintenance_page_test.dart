@@ -34,6 +34,7 @@ void main() {
         overrides: [
           currentEnvironmentProvider.overrideWithValue(environment),
           automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+          zoomStudyEnabledProvider.overrideWithValue(false),
           bookmarkProvider.overrideWith(() => _LibraryNotifier(empty)),
           bookmarkHydrationProvider.overrideWith(() => hydration),
         ],

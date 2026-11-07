@@ -36,6 +36,7 @@ Future<void> _pumpDeveloperOptions(
       overrides: [
         currentEnvironmentProvider.overrideWithValue(environment),
         automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+        zoomStudyEnabledProvider.overrideWithValue(false),
         appFilePickerProvider.overrideWithValue(picker),
       ],
       child: BooruLocalization(

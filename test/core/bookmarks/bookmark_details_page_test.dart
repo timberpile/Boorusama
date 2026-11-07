@@ -1317,6 +1317,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
       automaticMediaLoadingEnabledProvider.overrideWithValue(
         commonCache != null,
       ),
+      zoomStudyEnabledProvider.overrideWithValue(false),
       defaultImageCacheManagerProvider.overrideWithValue(
         commonCache ?? TestImageCache({}),
       ),

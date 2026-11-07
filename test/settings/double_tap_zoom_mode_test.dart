@@ -1,13 +1,12 @@
 // Package imports:
-import 'package:kurumi/kurumi.dart';
 import 'package:test/test.dart';
 
 // Project imports:
 import 'package:boorusama/core/settings/types.dart';
 
 void main() {
-  for (final storedValue in [null, 'unknown', 99]) {
-    test('uses Fit cycle when the stored mode is $storedValue', () {
+  for (final storedValue in [null, 0, 1, 'classic', 'fitCycle', 'unknown', 99]) {
+    test('ignores retired zoom behavior value $storedValue', () {
       final json = Settings.defaultSettings.toJson();
       if (storedValue == null) {
         json.remove('doubleTapZoomMode');
@@ -17,19 +16,20 @@ void main() {
 
       final settings = Settings.fromJson(json);
 
-      expect(settings.viewer.doubleTapZoomMode, DoubleTapZoomMode.fitCycle);
+      expect(settings.viewer.toJson(), isNot(contains('doubleTapZoomMode')));
+      expect(settings.toJson(), isNot(contains('doubleTapZoomMode')));
+      expect(settings.viewer.snapZoomToFit, isTrue);
     });
   }
 
-  test('restores an explicitly selected Classic mode', () {
-    final classic = Settings.defaultSettings.copyWith(
-      viewer: Settings.defaultSettings.viewer.copyWith(
-        doubleTapZoomMode: DoubleTapZoomMode.classic,
-      ),
-    );
+  test('legacy zoom choice cannot return through unrelated setting changes', () {
+    final json = Settings.defaultSettings.toJson()
+      ..['doubleTapZoomMode'] = 1;
 
-    final restored = Settings.fromJson(classic.toJson());
+    final settings = Settings.fromJson(json);
+    final updated = settings.viewer.copyWith(loadOriginalOnZoom: false);
 
-    expect(restored.viewer.doubleTapZoomMode, DoubleTapZoomMode.classic);
+    expect(updated.loadOriginalOnZoom, isFalse);
+    expect(updated.toJson(), isNot(contains('doubleTapZoomMode')));
   });
 }

@@ -25,6 +25,13 @@ final automaticMediaLoadingEnabledProvider = Provider<bool>(
   name: 'automaticMediaLoadingEnabledProvider',
 );
 
+final zoomStudyEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(
+    developerOptionsNotifierProvider.select((options) => options.zoomStudyEnabled),
+  ),
+  name: 'zoomStudyEnabledProvider',
+);
+
 class DeveloperOptionsNotifier extends Notifier<DeveloperOptions> {
   DeveloperOptionsNotifier(this.initialOptions);
 
@@ -32,6 +39,12 @@ class DeveloperOptionsNotifier extends Notifier<DeveloperOptions> {
 
   @override
   DeveloperOptions build() => initialOptions;
+
+  Future<void> setZoomStudyEnabled(bool enabled) async {
+    final options = state.copyWith(zoomStudyEnabled: enabled);
+    await ref.read(developerOptionsRepositoryProvider).save(options);
+    state = options;
+  }
 
   Future<void> setAutomaticMediaLoadingEnabled(bool enabled) async {
     final options = state.copyWith(

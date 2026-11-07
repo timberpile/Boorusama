@@ -5,6 +5,7 @@ import 'package:hive_ce/hive.dart';
 import '../types.dart';
 
 const _automaticMediaLoadingEnabledKey = 'automatic_media_loading_enabled';
+const _zoomStudyEnabledKey = 'zoom_study_enabled';
 
 abstract interface class DeveloperOptionsRepository {
   Future<DeveloperOptions> load();
@@ -28,6 +29,7 @@ class HiveDeveloperOptionsRepository implements DeveloperOptionsRepository {
             defaultValue: true,
           ) ??
           true,
+      zoomStudyEnabled: box.get(_zoomStudyEnabledKey) ?? false,
     );
   }
 
@@ -38,6 +40,7 @@ class HiveDeveloperOptionsRepository implements DeveloperOptionsRepository {
       _automaticMediaLoadingEnabledKey,
       options.automaticMediaLoadingEnabled,
     );
+    await box.put(_zoomStudyEnabledKey, options.zoomStudyEnabled);
   }
 }
 
