@@ -257,6 +257,7 @@ class BooruRawImage extends StatelessWidget {
 
     return _ImageRetryControllerScope(
       controller: controller,
+      onDecodedAspectRatio: onDecodedAspectRatio,
       beforeRetry: () async {
         await imageCacheManager?.clearCache(
           imageCacheManager!.generateCacheKey(imageUrl),
@@ -287,13 +288,6 @@ class BooruRawImage extends StatelessWidget {
             if (cachedImageBytes case final bytes?) {
               return ExtendedImage(
                 image: MemoryImage(bytes),
-                enableLoadState: onDecodedAspectRatio != null,
-                loadStateChanged: onDecodedAspectRatio == null
-                    ? null
-                    : (state) => reportDecodedAspectRatio(
-                        state,
-                        onDecodedAspectRatio!,
-                      ),
                 borderRadius: borderRadius,
                 width: width,
                 height: height,
@@ -307,12 +301,6 @@ class BooruRawImage extends StatelessWidget {
             return imageUrl.isNotEmpty
                 ? ExtendedImage.network(
                     imageUrl,
-                    loadStateChanged: onDecodedAspectRatio == null
-                        ? null
-                        : (state) => reportDecodedAspectRatio(
-                            state,
-                            onDecodedAspectRatio!,
-                          ),
                     dio: dio,
                     headers: headers,
                     borderRadius: borderRadius,
@@ -380,6 +368,7 @@ class BooruRawImage extends StatelessWidget {
                           final String url
                               when url.isNotEmpty && url != imageUrl =>
                             _ImageRetryControllerScope(
+                              onDecodedAspectRatio: onDecodedAspectRatio,
                               beforeRetry: () async {
                                 await imageCacheManager?.clearCache(
                                   imageCacheManager!.generateCacheKey(url),
@@ -388,12 +377,6 @@ class BooruRawImage extends StatelessWidget {
                               builder: (fallbackController, retryFallback) =>
                                   ExtendedImage.network(
                                     url,
-                                    loadStateChanged: onDecodedAspectRatio == null
-                                        ? null
-                                        : (state) => reportDecodedAspectRatio(
-                                            state,
-                                            onDecodedAspectRatio!,
-                                          ),
                                     dio: fallbackDio ?? dio,
                                     controller: fallbackController,
                                     headers: fallbackHeaders ?? headers,
@@ -439,23 +422,6 @@ class BooruRawImage extends StatelessWidget {
             ),
           );
   }
-}
-
-/// Reports the decoded rendition, rather than the source post's dimensions.
-/// Deferring the callback avoids updating grid layout during image build.
-Widget? reportDecodedAspectRatio(
-  ExtendedImageState state,
-  ValueChanged<double> onAspectRatio,
-) {
-  if (state.extendedImageLoadState != LoadState.completed) return null;
-  final image = state.extendedImageInfo?.image;
-  if (image == null || image.width <= 0 || image.height <= 0) return null;
-
-  final aspectRatio = image.width / image.height;
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    onAspectRatio(aspectRatio);
-  });
-  return null;
 }
 
 const _fetchStrategy = FetchStrategyBuilder(
@@ -552,10 +518,12 @@ class _ImageRetryControllerScope extends StatefulWidget {
     required this.builder,
     this.controller,
     this.beforeRetry,
+    this.onDecodedAspectRatio,
   });
   final Widget Function(ExtendedImageController, VoidCallback) builder;
   final Future<void> Function()? beforeRetry;
   final ExtendedImageController? controller;
+  final ValueChanged<double>? onDecodedAspectRatio;
 
   @override
   State<_ImageRetryControllerScope> createState() =>
@@ -582,8 +550,29 @@ class _ImageRetryControllerScopeState
   }
 
   @override
-  Widget build(BuildContext context) =>
-      widget.builder(widget.controller ?? _owned, _retry);
+  Widget build(BuildContext context) {
+    final controller = widget.controller ?? _owned;
+    final child = widget.builder(controller, _retry);
+    final onDecodedAspectRatio = widget.onDecodedAspectRatio;
+    if (onDecodedAspectRatio == null) return child;
+
+    return ValueListenableBuilder<ImageInfo?>(
+      valueListenable: controller.imageInfo,
+      builder: (context, info, child) {
+        final image = info?.image;
+        if (image != null && image.width > 0 && image.height > 0) {
+          final aspectRatio = image.width / image.height;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && identical(controller.imageInfo.value, info)) {
+              onDecodedAspectRatio(aspectRatio);
+            }
+          });
+        }
+        return child!;
+      },
+      child: child,
+    );
+  }
 
   @override
   void dispose() {
