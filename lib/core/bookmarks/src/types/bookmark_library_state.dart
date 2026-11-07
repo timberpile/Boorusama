@@ -618,9 +618,13 @@ class BookmarkLibraryState extends Equatable {
 
   /// Retained media without proven source facts can still use their exact
   /// displayed snapshot. This never authorizes associating another Post.
+  late final Map<Post, PostBookmark> _storedByPostObject =
+      Map<Post, PostBookmark>.identity()..addEntries(
+        items.map((bookmark) => MapEntry(bookmark.post, bookmark)),
+      );
+
   PostBookmark? storedBookmarkForPost(Post post) =>
-      bookmarkForPost(post) ??
-      items.where((bookmark) => identical(bookmark.post, post)).firstOrNull;
+      _storedByPostObject[post] ?? bookmarkForPost(post);
 
   @override
   List<Object?> get props => _canonical

@@ -74,8 +74,11 @@ class BookmarkGroupDeletionPreview extends Equatable {
     required Set<int> orphanBookmarkIds,
     this.poolIds = const {},
     this.orphanPoolIds = const {},
-  }) : orphanBookmarkIds = Set.unmodifiable(orphanBookmarkIds);
+    List<BookmarkGroup> promotedChildren = const [],
+  }) : promotedChildren = List.unmodifiable(promotedChildren),
+       orphanBookmarkIds = Set.unmodifiable(orphanBookmarkIds);
 
+  final List<BookmarkGroup> promotedChildren;
   final BookmarkGroup group;
   final Set<int> orphanBookmarkIds;
   final Set<String> poolIds;
@@ -84,5 +87,14 @@ class BookmarkGroupDeletionPreview extends Equatable {
   int get bookmarkCount => group.bookmarkIds.length + poolIds.length;
 
   @override
-  List<Object?> get props => [group, orphanBookmarkIds, poolIds, orphanPoolIds];
+  List<Object?> get props => [
+    group,
+    orphanBookmarkIds,
+    poolIds,
+    orphanPoolIds,
+    [
+      for (final child in promotedChildren)
+        (child.id, child.parentGroupId, child.position),
+    ],
+  ];
 }

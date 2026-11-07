@@ -8,6 +8,8 @@ import 'package:test/test.dart';
 
 const groupA = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
 const groupB = '20000000-0000-4000-8000-000000000002';
+const groupC = '30000000-0000-4000-8000-000000000003';
+const groupD = '40000000-0000-4000-8000-000000000004';
 const storageKey = 'bookmarkGroupViewModes';
 
 class _Store implements MiscDataStore {
@@ -213,6 +215,170 @@ void main() {
       expect(preferences.modeFor(groupA), BookmarkGroupViewMode.structure);
       expect(preferences.modeFor(groupB), BookmarkGroupViewMode.allBookmarks);
       expect(jsonDecode(store.values[storageKey]!), {groupB: 'allBookmarks'});
+    });
+
+    test(
+      'batch forget and retain preserve remaining group preferences',
+      () async {
+        final store = _Store();
+        final container = ProviderContainer(
+          overrides: [miscDataStoreProvider.overrideWithValue(store)],
+        );
+        addTearDown(container.dispose);
+        final preferences = container.read(
+          bookmarkGroupViewPreferencesProvider.notifier,
+        );
+        await preferences.setMode(groupA, BookmarkGroupViewMode.allBookmarks);
+        await preferences.setMode(groupB, BookmarkGroupViewMode.allBookmarks);
+        await preferences.setMode(groupC, BookmarkGroupViewMode.allBookmarks);
+
+        final writesBeforeBatchForget = store.writes;
+        await preferences.forgetGroups({groupA, groupB});
+        expect(store.writes, writesBeforeBatchForget + 1);
+        expect(container.read(bookmarkGroupViewPreferencesProvider), {
+          groupC: BookmarkGroupViewMode.allBookmarks,
+        });
+
+        await preferences.setMode(groupD, BookmarkGroupViewMode.allBookmarks);
+        final writesBeforePrune = store.writes;
+        await preferences.retainGroups({groupC});
+        expect(store.writes, writesBeforePrune + 1);
+        expect(container.read(bookmarkGroupViewPreferencesProvider), {
+          groupC: BookmarkGroupViewMode.allBookmarks,
+        });
+        expect(jsonDecode(store.values[storageKey]!), {groupC: 'allBookmarks'});
+      },
+    );
+
+    test('failed batch writes leave the published map unchanged', () async {
+      final store = _Store();
+      final container = ProviderContainer(
+        overrides: [miscDataStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      final preferences = container.read(
+        bookmarkGroupViewPreferencesProvider.notifier,
+      );
+      await preferences.setMode(groupA, BookmarkGroupViewMode.allBookmarks);
+      await preferences.setMode(groupB, BookmarkGroupViewMode.allBookmarks);
+      final original = container.read(bookmarkGroupViewPreferencesProvider);
+      final originalJson = store.values[storageKey];
+
+      store.failNext = true;
+      await expectLater(
+        preferences.forgetGroups({groupA, groupB}),
+        throwsStateError,
+      );
+      expect(container.read(bookmarkGroupViewPreferencesProvider), original);
+      expect(store.values[storageKey], originalJson);
+
+      store.failNext = true;
+      await expectLater(
+        preferences.restoreMissing({
+          groupC: BookmarkGroupViewMode.structure,
+        }),
+        throwsStateError,
+      );
+      expect(container.read(bookmarkGroupViewPreferencesProvider), original);
+      expect(store.values[storageKey], originalJson);
+
+      store.failNext = true;
+      await expectLater(preferences.retainGroups({groupA}), throwsStateError);
+      expect(container.read(bookmarkGroupViewPreferencesProvider), original);
+      expect(store.values[storageKey], originalJson);
+    });
+
+    test('restoreMissing fills only absent IDs in one write', () async {
+      final store = _Store();
+      final container = ProviderContainer(
+        overrides: [miscDataStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      final preferences = container.read(
+        bookmarkGroupViewPreferencesProvider.notifier,
+      );
+      await preferences.setMode(groupA, BookmarkGroupViewMode.allBookmarks);
+      final writesBeforeRestore = store.writes;
+
+      await preferences.restoreMissing({
+        groupA: BookmarkGroupViewMode.structure,
+        groupB: BookmarkGroupViewMode.structure,
+        groupC: BookmarkGroupViewMode.allBookmarks,
+      });
+
+      expect(store.writes, writesBeforeRestore + 1);
+      expect(preferences.modeFor(groupA), BookmarkGroupViewMode.allBookmarks);
+      expect(preferences.modeFor(groupB), BookmarkGroupViewMode.structure);
+      expect(preferences.modeFor(groupC), BookmarkGroupViewMode.allBookmarks);
+      expect(container.read(bookmarkGroupViewPreferencesProvider).keys, {
+        groupA,
+        groupB,
+        groupC,
+      });
+      final writesAfterRestore = store.writes;
+      await preferences.restoreMissing({
+        groupA: BookmarkGroupViewMode.structure,
+        groupB: BookmarkGroupViewMode.allBookmarks,
+      });
+      expect(store.writes, writesAfterRestore);
+      expect(preferences.modeFor(groupA), BookmarkGroupViewMode.allBookmarks);
+      expect(preferences.modeFor(groupB), BookmarkGroupViewMode.structure);
+    });
+
+    test('queued mode changes retain the result of a batch restore', () async {
+      final store = _Store()
+        ..started = Completer<void>()
+        ..release = Completer<void>();
+      final container = ProviderContainer(
+        overrides: [miscDataStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      final preferences = container.read(
+        bookmarkGroupViewPreferencesProvider.notifier,
+      );
+
+      final restore = preferences.restoreMissing({
+        groupA: BookmarkGroupViewMode.allBookmarks,
+      });
+      await store.started!.future;
+      final modeChange = preferences.setMode(
+        groupB,
+        BookmarkGroupViewMode.allBookmarks,
+      );
+      store.release!.complete();
+      await Future.wait([restore, modeChange]);
+
+      expect(preferences.modeFor(groupA), BookmarkGroupViewMode.allBookmarks);
+      expect(preferences.modeFor(groupB), BookmarkGroupViewMode.allBookmarks);
+      expect(jsonDecode(store.values[storageKey]!), {
+        groupA: 'allBookmarks',
+        groupB: 'allBookmarks',
+      });
+    });
+
+    test('batch helpers avoid writes when they make no changes', () async {
+      final store = _Store();
+      final container = ProviderContainer(
+        overrides: [miscDataStoreProvider.overrideWithValue(store)],
+      );
+      addTearDown(container.dispose);
+      final preferences = container.read(
+        bookmarkGroupViewPreferencesProvider.notifier,
+      );
+      await preferences.setMode(groupA, BookmarkGroupViewMode.allBookmarks);
+      final writes = store.writes;
+
+      await preferences.forgetGroups({});
+      await preferences.forgetGroups({groupB});
+      await preferences.retainGroups({groupA, groupB});
+      await preferences.restoreMissing({
+        groupA: BookmarkGroupViewMode.structure,
+      });
+
+      expect(store.writes, writes);
+      expect(container.read(bookmarkGroupViewPreferencesProvider), {
+        groupA: BookmarkGroupViewMode.allBookmarks,
+      });
     });
 
     test('ignores malformed JSON and invalid or unknown entries safely', () {

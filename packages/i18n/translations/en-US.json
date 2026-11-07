@@ -1987,6 +1987,10 @@
     "groups": {
       "recent": "Recent",
       "all": "All",
+      "deleted": {
+        "one": "1 group deleted",
+        "other": "$n groups deleted"
+      },
       "structure": "Structure",
       "all_bookmarks": "All Bookmarks",
       "search_direct": "Search bookmarks in this group",

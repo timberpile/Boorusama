@@ -2,6 +2,7 @@ import 'package:foundation/performance.dart';
 
 // Package imports:
 import 'package:equatable/equatable.dart';
+import 'package:collection/collection.dart' show SetEquality, MapEquality;
 import 'package:uuid/uuid.dart';
 
 // Project imports:
@@ -15,6 +16,7 @@ import '../types/pool_bookmark_repository.dart';
 import '../types/pool_bookmark.dart';
 import '../../../groups/folder_tree.dart';
 import '../types/bookmark_group.dart';
+import '../types/bookmark_group_tree.dart';
 import '../types/bookmark_group_repository.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
@@ -22,6 +24,7 @@ import '../types/bookmark_record_fields.dart';
 import '../types/unified_bookmark_store.dart';
 
 part 'bookmark_library_records.dart';
+part 'bookmark_hierarchy_undo.dart';
 
 class BookmarkGroupRemovalResult extends Equatable {
   const BookmarkGroupRemovalResult({
@@ -117,15 +120,22 @@ class BookmarkLibraryService {
     String name,
     Iterable<Bookmark> records, {
     String? folderId,
+    String? parentGroupId,
   }) => _scope(() async {
     final store =
         unifiedStore ??
         (throw StateError('Unified Bookmark storage unavailable'));
     final normalized = name.trim();
     if (normalized.isEmpty) throw const FormatException('Empty Group name');
-    final folders = await groupRepository.getFolders();
-    if (folderId != null && !FolderTree(folders).byId.containsKey(folderId))
-      throw const FormatException('Unknown folder');
+    if (folderId != null && parentGroupId != null) {
+      throw ArgumentError('Choose one parent Group');
+    }
+    final aliases = await groupRepository.getLegacyFolderGroupIds();
+    final parent = parentGroupId ?? aliases[folderId] ?? folderId;
+    final groups = await groupRepository.getGroups();
+    if (parent != null && !groups.any((group) => group.id == parent)) {
+      throw const FormatException('Unknown parent Group');
+    }
     final members = <int>{};
     for (final frozen in records) {
       final current = await store.read(frozen.id);
@@ -134,13 +144,12 @@ class BookmarkLibraryService {
       members.add(current.id);
     }
     final now = DateTime.now().toUtc();
-    final groups = await groupRepository.getGroups();
     final group = BookmarkGroup(
       id: const Uuid().v4().toLowerCase(),
       name: normalized,
-      folderId: folderId,
+      parentGroupId: parent,
       position: groups
-          .where((g) => g.folderId == folderId)
+          .where((g) => g.parentGroupId == parent)
           .fold(0, (n, g) => g.position >= n ? g.position + 1 : n),
       bookmarkIds: members,
       addedAt: {for (final id in members) id: now},
@@ -374,6 +383,19 @@ class BookmarkLibraryService {
     String name, {
     String? parentId,
   }) async {
+    if (unifiedStore != null) {
+      final aliases = await groupRepository.getLegacyFolderGroupIds();
+      final group = await createGroup(
+        name,
+        parentGroupId: aliases[parentId] ?? parentId,
+      );
+      return CollectionFolder(
+        id: group.id,
+        name: group.name,
+        parentId: group.parentGroupId,
+        position: group.position,
+      );
+    }
     final folders = await groupRepository.getFolders();
     final tree = FolderTree(folders);
     if (parentId != null && !tree.byId.containsKey(parentId)) {
@@ -393,6 +415,11 @@ class BookmarkLibraryService {
   }
 
   Future<void> _renameFolder(String id, String name) async {
+    if (unifiedStore != null) {
+      final aliases = await groupRepository.getLegacyFolderGroupIds();
+      await groupRepository.renameGroup(aliases[id] ?? id, name);
+      return;
+    }
     final folders = await groupRepository.getFolders();
     if (!folders.any((f) => f.id == id)) {
       throw const FormatException('Unknown folder');
@@ -407,6 +434,13 @@ class BookmarkLibraryService {
     Set<String> groupIds = const {},
     required String? destination,
   }) async {
+    if (unifiedStore != null) {
+      final aliases = await groupRepository.getLegacyFolderGroupIds();
+      return moveGroups(
+        {...groupIds, for (final id in folderIds) aliases[id] ?? id},
+        parentGroupId: aliases[destination] ?? destination,
+      );
+    }
     final folders = await groupRepository.getFolders();
     final tree = FolderTree(folders);
     final moved = tree.move(folderIds, destination);
@@ -487,6 +521,7 @@ class BookmarkLibraryService {
       await store.commitOrganization(
         removeIds: orphanIds,
         removeGroupIds: deletedGroups,
+        groups: old.groupTree.promotedChildrenFor(deletedGroups),
         folders: old.folders
             .where((folder) => !folderIds.contains(folder.id))
             .toList(),
@@ -726,19 +761,101 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<BookmarkGroup> createGroup(String name) async {
+  Future<BookmarkGroup> createGroup(
+    String name, {
+    String? parentGroupId,
+  }) => _scope(() async {
     final id = const Uuid().v4().toLowerCase();
+    final store = unifiedStore;
+    if (store != null) {
+      final normalized = name.trim();
+      if (normalized.isEmpty) throw const FormatException('Empty Group name');
+      final groups = await groupRepository.getGroups();
+      if (parentGroupId != null &&
+          !groups.any((group) => group.id == parentGroupId)) {
+        throw StateError('Parent Bookmark Group no longer exists');
+      }
+      final group = BookmarkGroup(
+        id: id,
+        name: normalized,
+        bookmarkIds: const {},
+        parentGroupId: parentGroupId,
+        position: groups
+            .where((group) => group.parentGroupId == parentGroupId)
+            .fold(
+              0,
+              (n, group) => group.position >= n ? group.position + 1 : n,
+            ),
+      );
+      BookmarkGroupTree([...groups, group]);
+      try {
+        await store.commitOrganization(groups: [group]);
+      } catch (error, stack) {
+        // Finish journal replay before deciding whether a committed-then-throw
+        // write created this exact group. Never allocate a replacement UUID.
+        try {
+          if (await groupRepository.getGroup(id) == group) return group;
+        } catch (_) {}
+        Error.throwWithStackTrace(error, stack);
+      }
+      return group;
+    }
+    if (parentGroupId != null)
+      throw StateError('Nested Groups require unified storage');
     try {
       return await groupRepository.createGroup(name, id: id);
-    } catch (error, stackTrace) {
+    } catch (error, stack) {
       try {
-        if (await groupRepository.getGroup(id) case final committed?) {
+        if (await groupRepository.getGroup(id) case final committed?)
           return committed;
-        }
       } catch (_) {}
-      Error.throwWithStackTrace(error, stackTrace);
+      Error.throwWithStackTrace(error, stack);
     }
-  }
+  });
+
+  Future<void> moveGroups(
+    Set<String> groupIds, {
+    required String? parentGroupId,
+  }) => _scope(() async {
+    final store =
+        unifiedStore ??
+        (throw StateError('Nested Groups require unified storage'));
+    final groups = await groupRepository.getGroups();
+    final tree = BookmarkGroupTree(groups);
+    if (!tree.groupsById.keys.toSet().containsAll(groupIds) ||
+        (parentGroupId != null &&
+            !tree.groupsById.containsKey(parentGroupId))) {
+      throw StateError('Bookmark Group no longer exists');
+    }
+    if (groupIds.contains(defaultBookmarkGroupId))
+      throw StateError('Default cannot be moved');
+    // One ancestor walk validates the destination against every selected group.
+    final destinationPath = parentGroupId == null
+        ? const <String>{}
+        : {
+            parentGroupId,
+            ...tree.ancestors(parentGroupId).map((group) => group.id),
+          };
+    if (groupIds.intersection(destinationPath).isNotEmpty)
+      throw ArgumentError('Cannot move a Group into its descendant');
+    final roots = tree.selectionRoots(groupIds);
+    var position = tree
+        .childrenOf(parentGroupId)
+        .fold(0, (n, group) => group.position >= n ? group.position + 1 : n);
+    final changed = <BookmarkGroup>[
+      for (final group in roots)
+        if (group.parentGroupId != parentGroupId)
+          group.copyWith(
+            parentGroupId: parentGroupId,
+            home: parentGroupId == null,
+            position: position++,
+          ),
+    ];
+    if (changed.isEmpty) return;
+    final changes = {for (final group in changed) group.id: group};
+    BookmarkGroupTree([for (final group in groups) changes[group.id] ?? group]);
+    await store.commitOrganization(groups: changed);
+  });
 
   Future<BookmarkGroupRemovalResult> removeBookmarksFromGroup(
     Iterable<Bookmark> bookmarks,
@@ -1139,11 +1256,21 @@ extension<T> on Iterable<T> {
 
 class BookmarkFolderDeletionPreview extends Equatable {
   BookmarkFolderDeletionPreview.from(this.snapshot, this.folderId) {
-    folderIds = FolderTree(snapshot.folders).subtree(folderId);
-    groupIds = {
-      for (final g in snapshot.groups)
-        if (folderIds.contains(g.folderId)) g.id,
-    };
+    if (snapshot.hasUnifiedRecords && snapshot.folders.isEmpty) {
+      final id = snapshot.legacyFolderGroupIds[folderId] ?? folderId;
+      if (!snapshot.groupsById.containsKey(id) ||
+          id == defaultBookmarkGroupId) {
+        throw const FormatException('Unknown local Group deletion');
+      }
+      folderIds = const {};
+      groupIds = {id};
+    } else {
+      folderIds = FolderTree(snapshot.folders).subtree(folderId);
+      groupIds = {
+        for (final group in snapshot.groups)
+          if (folderIds.contains(group.folderId)) group.id,
+      };
+    }
     final outside = {
       for (final g in snapshot.groups)
         if (!groupIds.contains(g.id)) ...g.bookmarkIds,
@@ -1188,21 +1315,38 @@ class BookmarkCollectionDeletionPreview extends Equatable {
     required Set<String> groupIds,
   }) : selectedFolderIds = Set.unmodifiable(folderIds),
        selectedGroupIds = Set.unmodifiable(groupIds) {
-    final tree = FolderTree(snapshot.folders);
-    if ((folderIds.isEmpty && groupIds.isEmpty) ||
-        !tree.byId.keys.toSet().containsAll(folderIds) ||
-        !snapshot.groupsById.keys.toSet().containsAll(groupIds)) {
-      throw const FormatException('Unknown or empty collection selection');
+    if (snapshot.hasUnifiedRecords && snapshot.folders.isEmpty) {
+      final selected = {
+        ...groupIds,
+        for (final id in folderIds) snapshot.legacyFolderGroupIds[id] ?? id,
+      };
+      if (selected.isEmpty ||
+          !snapshot.groupsById.keys.toSet().containsAll(selected)) {
+        throw const FormatException('Unknown or empty Group selection');
+      }
+      if (selected.contains(defaultBookmarkGroupId)) {
+        throw StateError('Default cannot be deleted');
+      }
+      this.folderIds = const {};
+      this.groupIds = Set.unmodifiable(selected);
+    } else {
+      final tree = FolderTree(snapshot.folders);
+      if ((folderIds.isEmpty && groupIds.isEmpty) ||
+          !tree.byId.keys.toSet().containsAll(folderIds) ||
+          !snapshot.groupsById.keys.toSet().containsAll(groupIds)) {
+        throw const FormatException('Unknown or empty collection selection');
+      }
+      if (groupIds.contains(defaultBookmarkGroupId)) {
+        throw StateError('Default cannot be deleted');
+      }
+      this.folderIds = {for (final id in folderIds) ...tree.subtree(id)};
+      this.groupIds = {
+        ...groupIds,
+        for (final group in snapshot.groups)
+          if (this.folderIds.contains(group.folderId) && !group.isDefault)
+            group.id,
+      };
     }
-    if (groupIds.contains(defaultBookmarkGroupId))
-      throw StateError('Default cannot be deleted');
-    this.folderIds = {for (final id in folderIds) ...tree.subtree(id)};
-    this.groupIds = {
-      ...groupIds,
-      for (final group in snapshot.groups)
-        if (this.folderIds.contains(group.folderId) && !group.isDefault)
-          group.id,
-    };
     final outside = {
       for (final group in snapshot.groups)
         if (!this.groupIds.contains(group.id)) ...group.bookmarkIds,

@@ -31,7 +31,7 @@ types:
         index: 3
   BookmarkHiveObject:
     typeId: 4
-    nextIndex: 17
+    nextIndex: 19
     fields:
       booruId:
         index: 0
@@ -67,6 +67,10 @@ types:
         index: 15
       postSnapshot:
         index: 16
+      createdAtMicros:
+        index: 17
+      updatedAtMicros:
+        index: 18
   BookmarkGroupHiveObject:
     typeId: 5
     nextIndex: 7

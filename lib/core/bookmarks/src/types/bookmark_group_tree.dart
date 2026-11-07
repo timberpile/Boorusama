@@ -80,4 +80,85 @@ final class BookmarkGroupTree {
     }
     return Set.unmodifiable(result);
   }
+
+  List<BookmarkGroup> selectionRoots(Set<String> selectedIds) {
+    if (!groupsById.keys.toSet().containsAll(selectedIds))
+      throw ArgumentError('Unknown Group selection');
+    final covered = <String, bool>{};
+    final result = <BookmarkGroup>[];
+    for (final id in selectedIds) {
+      final path = <String>[];
+      var parent = groupsById[id]!.parentGroupId;
+      while (parent != null &&
+          !selectedIds.contains(parent) &&
+          !covered.containsKey(parent)) {
+        path.add(parent);
+        parent = groupsById[parent]!.parentGroupId;
+      }
+      final hasSelectedAncestor =
+          parent != null && (selectedIds.contains(parent) || covered[parent]!);
+      for (final entry in path) covered[entry] = hasSelectedAncestor;
+      if (!hasSelectedAncestor) result.add(groupsById[id]!);
+    }
+    result.sort((a, b) {
+      final order = a.position.compareTo(b.position);
+      return order != 0 ? order : a.id.compareTo(b.id);
+    });
+    return List.unmodifiable(result);
+  }
+
+  /// Preserve surviving descendants when deleting local containers. Only
+  /// changed parent/order fields are returned; membership dates stay exact.
+  List<BookmarkGroup> promotedChildrenFor(Set<String> removedIds) {
+    if (!groupsById.keys.toSet().containsAll(removedIds) ||
+        removedIds.contains(defaultBookmarkGroupId)) {
+      throw ArgumentError('Invalid Bookmark Group deletion');
+    }
+    final affected =
+        groupsById.values
+            .where(
+              (group) =>
+                  !removedIds.contains(group.id) &&
+                  removedIds.contains(group.parentGroupId),
+            )
+            .toList()
+          ..sort((a, b) {
+            final order = a.position.compareTo(b.position);
+            return order != 0 ? order : a.id.compareTo(b.id);
+          });
+    final positions = <String?, int>{};
+    for (final group in groupsById.values) {
+      if (removedIds.contains(group.id) ||
+          removedIds.contains(group.parentGroupId))
+        continue;
+      final next = positions[group.parentGroupId] ?? 0;
+      if (group.position >= next)
+        positions[group.parentGroupId] = group.position + 1;
+    }
+    final result = <BookmarkGroup>[];
+    final survivingParents = <String, String?>{};
+    for (final group in affected) {
+      var parent = group.parentGroupId;
+      final path = <String>[];
+      while (parent != null &&
+          removedIds.contains(parent) &&
+          !survivingParents.containsKey(parent)) {
+        path.add(parent);
+        parent = groupsById[parent]!.parentGroupId;
+      }
+      if (parent != null && survivingParents.containsKey(parent))
+        parent = survivingParents[parent];
+      for (final id in path) survivingParents[id] = parent;
+      final position = positions[parent] ?? 0;
+      positions[parent] = position + 1;
+      result.add(
+        group.copyWith(
+          parentGroupId: parent,
+          home: parent == null,
+          position: position,
+        ),
+      );
+    }
+    return List.unmodifiable(result);
+  }
 }

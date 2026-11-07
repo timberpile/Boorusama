@@ -52,7 +52,13 @@ PostBookmark _mapBookmark(
   if (version != null && version != 1 && version != 2) {
     throw const FormatException('Unsupported bookmark row');
   }
-  if (row.createdAt == null || row.updatedAt == null) {
+  final createdAt = row.createdAtMicros == null
+      ? row.createdAt
+      : DateTime.fromMicrosecondsSinceEpoch(row.createdAtMicros!, isUtc: true);
+  final updatedAt = row.updatedAtMicros == null
+      ? row.updatedAt
+      : DateTime.fromMicrosecondsSinceEpoch(row.updatedAtMicros!, isUtc: true);
+  if (createdAt == null || updatedAt == null) {
     throw const FormatException('Missing bookmark dates');
   }
   if (row.postSnapshot == null) {
@@ -62,8 +68,8 @@ PostBookmark _mapBookmark(
     final view = PostBookmark(
       id: -1,
       booruId: row.booruId ?? BooruType.unknown.id,
-      createdAt: row.createdAt!,
-      updatedAt: row.updatedAt!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       thumbnailUrl: row.thumbnailUrl ?? '',
       sampleUrl: row.sampleUrl ?? '',
       originalUrl: row.originalUrl ?? '',
@@ -107,8 +113,8 @@ PostBookmark _mapBookmark(
     final identityProven = version == 2 && row.postId != null;
     return PostBookmark.fromSnapshot(
       id: row.key,
-      createdAt: row.createdAt!,
-      updatedAt: row.updatedAt!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       snapshot: snapshot,
       post: identityProven
           ? post
@@ -136,6 +142,8 @@ BookmarkHiveObject favoriteToHiveObject(
     booruId: bookmark.booruId,
     createdAt: bookmark.createdAt,
     updatedAt: bookmark.updatedAt,
+    createdAtMicros: bookmark.createdAt.microsecondsSinceEpoch,
+    updatedAtMicros: bookmark.updatedAt.microsecondsSinceEpoch,
     thumbnailUrl: bookmark.thumbnailUrl,
     sampleUrl: bookmark.sampleUrl,
     originalUrl: bookmark.originalUrl,

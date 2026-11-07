@@ -20,11 +20,17 @@ class BookmarkHiveObject extends HiveObject {
     required this.metadata,
     this.snapshotSchemaVersion,
     this.postSnapshot,
+    this.createdAtMicros,
+    this.updatedAtMicros,
   });
 
   int? booruId;
   DateTime? createdAt;
   DateTime? updatedAt;
+  // Hive's built-in DateTime adapter stores only milliseconds. Keep the old
+  // fields readable and retain exact timestamps for subsequent writes.
+  int? createdAtMicros;
+  int? updatedAtMicros;
   String? thumbnailUrl;
   String? sampleUrl;
   String? originalUrl;

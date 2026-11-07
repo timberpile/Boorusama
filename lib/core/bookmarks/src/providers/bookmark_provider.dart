@@ -43,6 +43,7 @@ import '../types/bookmark_repository.dart';
 import '../types/unified_bookmark_store.dart';
 import '../types/bookmark_target.dart';
 import '../types/bookmark_view.dart';
+import 'bookmark_group_view_preferences.dart';
 
 final bookmarkLibraryProvider =
     AsyncNotifierProvider<BookmarkLibraryNotifier, BookmarkLibraryState>(
@@ -54,6 +55,7 @@ final bookmarkLibraryProvider =
         bookmarkRepoProvider,
         bookmarkGroupRepoProvider,
         dataMutationCoordinatorProvider,
+        bookmarkGroupViewPreferencesProvider,
       ],
     );
 
@@ -121,6 +123,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
   final _poolRemovals = <Object, BookmarkGroupRemovalResult>{};
   final _recordRemovals = <int, BookmarkGroupRemovalResult>{};
+  BookmarkHierarchyDeletion? _hierarchyDeletion;
+  Map<String, BookmarkGroupViewMode> _hierarchyDeletedModes = const {};
+  BookmarkHierarchyDeletion? get lastHierarchyDeletion => _hierarchyDeletion;
   final _mutationSessionKey = Object();
   final _pendingHydration = <int, PostBookmark>{};
   int? _pendingHydrationRevision;
@@ -157,6 +162,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   void _recordRemoval(BookmarkGroupRemovalResult result) {
     if (result.removedCount == 0) return;
+    _hierarchyDeletion = null;
+    _hierarchyDeletedModes = const {};
     _removals.clear();
     _poolRemovals.clear();
     _recordRemovals.clear();
@@ -259,7 +266,94 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     _hydrationPublicationTimer?.cancel();
     _hydrationPublicationTimer = null;
     ref.onDispose(() => _hydrationPublicationTimer?.cancel());
-    return (await _service).load();
+    final next = await (await _service).load();
+    await _pruneGroupModes(next);
+    return next;
+  }
+
+  Future<void> _pruneGroupModes(BookmarkLibraryState next) async {
+    try {
+      await ref
+          .read(bookmarkGroupViewPreferencesProvider.notifier)
+          .retainGroups(next.groupsById.keys.toSet());
+    } catch (error) {
+      // UI preferences cannot turn a confirmed domain write into a reported
+      // deletion failure. A later successful load retries stale-key cleanup.
+      try {
+        ref
+            .read(loggerProvider)
+            .warn(
+              'Bookmarks',
+              'Could not prune local Group view preferences (${error.runtimeType}).',
+            );
+      } catch (_) {
+        // Reduced hosts and shutdown can have no logger or local UI store.
+      }
+    }
+  }
+
+  void _recordHierarchyDeletion(BookmarkHierarchyDeletion deletion) {
+    var modes = const <String, BookmarkGroupViewMode>{};
+    try {
+      modes = ref.read(bookmarkGroupViewPreferencesProvider);
+    } catch (_) {}
+    _hierarchyDeletedModes = Map.unmodifiable({
+      for (final group in deletion.deletedGroups)
+        if (modes[group.id] case final mode?) group.id: mode,
+    });
+    _hierarchyDeletion = deletion;
+    _removals.clear();
+    _poolRemovals.clear();
+    _recordRemovals.clear();
+  }
+
+  Future<void> undoHierarchyDeletion(
+    BookmarkHierarchyDeletion deletion,
+  ) => _serialize(() async {
+    if (!identical(_hierarchyDeletion, deletion))
+      throw StateError('A later action superseded this Undo');
+    await (await _service).undoHierarchyDeletion(deletion);
+    try {
+      await ref
+          .read(bookmarkGroupViewPreferencesProvider.notifier)
+          .restoreMissing(_hierarchyDeletedModes);
+    } catch (error) {
+      try {
+        ref
+            .read(loggerProvider)
+            .warn(
+              'Bookmarks',
+              'Could not restore local Group view preferences (${error.runtimeType}).',
+            );
+      } catch (_) {}
+    }
+    _hierarchyDeletion = null;
+    _hierarchyDeletedModes = const {};
+    await _publishCommittedMutation();
+  });
+
+  void showHierarchyUndo(
+    BuildContext context,
+    BookmarkHierarchyDeletion deletion,
+  ) {
+    final feedback =
+        ref.read(appNavigationProvider).feedbackKey.currentContext ?? context;
+    if (!feedback.mounted) return;
+    final strings = feedback.t.bookmark;
+    Kurumi.showSuccessToast(
+      feedback,
+      strings.groups.deleted(n: deletion.deletedGroups.length),
+      duration: const Duration(seconds: 5),
+      actionLabel: strings.undo,
+      onAction: () async {
+        try {
+          await undoHierarchyDeletion(deletion);
+        } catch (_) {
+          if (feedback.mounted)
+            Kurumi.showErrorToast(feedback, strings.undo_failed);
+        }
+      },
+    );
   }
 
   /// External callbacks (imports/restores) may write directly to repositories.
@@ -409,11 +503,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     String name,
     Iterable<Bookmark> records, {
     String? folderId,
+    String? parentGroupId,
   }) => _runTrackedMutation(() async {
     final result = await (await _service).createGroupWithSavedRecords(
       name,
       records,
       folderId: folderId,
+      parentGroupId: parentGroupId,
     );
     if (result.addedCount > 0) await _rememberManualGroup(result.group.id);
     return result;
@@ -560,6 +656,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     _mutation?.invalidate();
     try {
       final next = await (await _service).load();
+      await _pruneGroupModes(next);
       _discardRestoredRemovalUndo(next);
       state = AsyncValue.data(next);
       _pendingHydration.clear();
@@ -606,6 +703,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (mutation != null && mutation.isValid) {
       try {
         final next = await _readMutationState(mutation);
+        await _pruneGroupModes(next);
         _discardRestoredRemovalUndo(next);
         if (!identical(state.valueOrNull, next)) state = AsyncValue.data(next);
         _requiresRefresh = false;
@@ -920,9 +1018,20 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<BookmarkGroup> createGroup(
     String name, {
     String? folderId,
+    String? parentGroupId,
   }) => _serialize(() async {
-    var group = await (await _service).createGroup(name);
-    if (folderId != null) {
+    if (folderId != null && parentGroupId != null) {
+      throw ArgumentError('Choose one parent Group');
+    }
+    final service = await _service;
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final aliases = await repository.getLegacyFolderGroupIds();
+    final parent = parentGroupId ?? aliases[folderId] ?? folderId;
+    var group = await service.createGroup(
+      name,
+      parentGroupId: service.unifiedStore == null ? parentGroupId : parent,
+    );
+    if (service.unifiedStore == null && folderId != null) {
       try {
         await (await _service).moveFolderItems(
           groupIds: {group.id},
@@ -981,6 +1090,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       destination: destination,
     ),
   );
+  Future<void> moveGroups(
+    Set<String> groupIds, {
+    required String? parentGroupId,
+  }) => _runTrackedMutation(
+    () async => (await _service).moveGroups(
+      groupIds,
+      parentGroupId: parentGroupId,
+    ),
+  );
   Future<BookmarkFolderDeletionPreview> previewDeleteFolder(String id) =>
       _serialize(() async => (await _service).previewDeleteFolder(id));
   Future<void> deleteFolder(BookmarkFolderDeletionPreview expected) =>
@@ -1021,7 +1139,16 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       groupIds: expected.selectedGroupIds,
     );
     if (current != expected) throw BookmarkCollectionChangedException(current);
-    await service.deleteSelection(expected);
+    if (service.unifiedStore != null) {
+      _recordHierarchyDeletion(
+        await service.deleteHierarchy(
+          current.groupIds,
+          expectedPreview: current,
+        ),
+      );
+    } else {
+      await service.deleteSelection(expected);
+    }
     for (final id in current.orphanBookmarkIds) {
       _removals.remove(current.snapshot.bookmarksById[id]?.uniqueId);
     }
@@ -1044,7 +1171,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       throw BookmarkGroupChangedException(currentPreview);
     }
     final before = await future;
-    final preview = await (await _service).deleteGroup(groupId);
+    final service = await _service;
+    final BookmarkGroupDeletionPreview preview;
+    if (service.unifiedStore != null) {
+      final deletion = await service.deleteHierarchy({groupId});
+      _recordHierarchyDeletion(deletion);
+      preview = deletion.singlePreview;
+    } else {
+      preview = await service.deleteGroup(groupId);
+    }
     for (final id in preview.orphanBookmarkIds) {
       _removals.remove(before.bookmarksById[id]?.uniqueId);
     }
@@ -1347,6 +1482,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
+    String? parentGroupId,
     List<CollectionBookmark> pools = const [],
     RelatedPostsOrder? initialRelatedOrder,
   }) => _serialize(() async {
@@ -1358,9 +1494,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       }
     }
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
-    final group = await (await _service).createGroup(name);
+    if (folderId != null && parentGroupId != null) {
+      throw ArgumentError('Choose one parent Group');
+    }
+    final service = await _service;
+    final aliases = await repository.getLegacyFolderGroupIds();
+    final parent = parentGroupId ?? aliases[folderId] ?? folderId;
+    final group = await service.createGroup(
+      name,
+      parentGroupId: service.unifiedStore == null ? parentGroupId : parent,
+    );
     try {
-      if (folderId != null)
+      if (service.unifiedStore == null && folderId != null)
         await (await _service).moveFolderItems(
           groupIds: {group.id},
           destination: folderId,

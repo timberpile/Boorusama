@@ -5,6 +5,7 @@ import '../../../../groups/folder_tree.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_record_fields.dart';
 import '../../types/bookmark_group.dart';
+import '../../types/bookmark_group_tree.dart';
 import '../../types/bookmark_group_repository.dart';
 import '../../types/legacy_group_bookmark.dart';
 import '../../types/pool_bookmark.dart';
@@ -95,10 +96,14 @@ final class UnifiedBookmarkGroupRepository
           bookmarkIds: source.bookmarkIds,
           addedAt: source.addedAt,
           folderId: source.folderId,
-          position: groups.fold(
-            0,
-            (next, group) => group.position >= next ? group.position + 1 : next,
-          ),
+          parentGroupId: source.parentGroupId,
+          position: groups
+              .where((group) => group.parentGroupId == source.parentGroupId)
+              .fold(
+                0,
+                (next, group) =>
+                    group.position >= next ? group.position + 1 : next,
+              ),
         );
         await bookmarks.commitOrganization(groups: [duplicate]);
         return duplicate;
@@ -165,20 +170,26 @@ final class UnifiedBookmarkGroupRepository
   Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) =>
       _run(() async {
         final group = await _require(id);
+        final groups = await _reader.getGroups();
         final otherIds = {
-          for (final other in await _reader.getGroups())
+          for (final other in groups)
             if (other.id != group.id) ...other.bookmarkIds,
         };
         return BookmarkGroupDeletionPreview(
           group: group,
           orphanBookmarkIds: group.bookmarkIds.difference(otherIds),
+          promotedChildren: BookmarkGroupTree(groups).childrenOf(group.id),
         );
       });
   @override
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) => _run(() async {
     final preview = await previewDeleteGroup(id);
     if (preview.group.isDefault) throw StateError('Default cannot be deleted');
-    await bookmarks.commitOrganization(removeGroupIds: {preview.group.id});
+    await bookmarks.commitOrganization(
+      removeGroupIds: {preview.group.id},
+      groups: BookmarkGroupTree(await _reader.getGroups())
+          .promotedChildrenFor({preview.group.id}),
+    );
     return preview;
   });
   @override

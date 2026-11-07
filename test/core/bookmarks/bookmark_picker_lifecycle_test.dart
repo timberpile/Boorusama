@@ -328,7 +328,14 @@ class _Profiles extends BooruConfigNotifier {
 }
 
 class _Library extends BookmarkLibraryNotifier {
-  final creations = <({List<Post> posts, List<CollectionBookmark> pools})>[];
+  final creations =
+      <
+        ({
+          List<Post> posts,
+          List<CollectionBookmark> pools,
+          String? parentGroupId,
+        })
+      >[];
   final toggles = <CollectionBookmark>[];
   @override
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
@@ -354,12 +361,23 @@ class _Library extends BookmarkLibraryNotifier {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
+    String? parentGroupId,
     List<CollectionBookmark> pools = const [],
     RelatedPostsOrder? initialRelatedOrder,
   }) async {
-    creations.add((posts: posts.toList(), pools: pools));
+    final parent = parentGroupId ?? folderId;
+    creations.add((
+      posts: posts.toList(),
+      pools: pools,
+      parentGroupId: parent,
+    ));
     return (
-      group: BookmarkGroup(id: poolGroupB, name: name, bookmarkIds: {}),
+      group: BookmarkGroup(
+        id: poolGroupB,
+        name: name,
+        bookmarkIds: {},
+        parentGroupId: parent,
+      ),
       addedCount: posts.length + pools.length,
     );
   }

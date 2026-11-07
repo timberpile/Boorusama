@@ -269,6 +269,9 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
           ),
       ]);
     } else {
+      if (next.values.any((row) => row.parentGroupId != null)) {
+        throw const FormatException('Hierarchy parents require v3 activation');
+      }
       FolderTree(folders).validatePlacements(
         next.values.map(
           (row) => FolderPlacement(

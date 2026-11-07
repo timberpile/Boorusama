@@ -13,11 +13,7 @@ sealed class BookmarkGridEntry {
 }
 
 final class BookmarkPostEntry extends BookmarkGridEntry {
-  BookmarkPostEntry(this.bookmark)
-    : key = switch (BookmarkIdentity.tryFromPost(bookmark.post)) {
-        final identity? => (identity, 0),
-        null => ('legacy-post', bookmark.localId),
-      };
+  BookmarkPostEntry(this.bookmark) : key = ('post', bookmark.localId);
   final PostBookmark bookmark;
   @override
   final Object key;

@@ -86,23 +86,23 @@ extension on BookmarkLibraryService {
   ) => unifiedStore!.runReadWriteScope(() async {
     final positions = <String?, int>{};
     for (final group in snapshot.groups) {
-      final next = positions[group.folderId] ?? 0;
+      final next = positions[group.parentGroupId] ?? 0;
       if (group.position >= next)
-        positions[group.folderId] = group.position + 1;
+        positions[group.parentGroupId] = group.position + 1;
     }
     final created = <BookmarkGroup>[];
     for (final source in expected) {
       final name = names[source.id]!.trim();
       if (name.isEmpty) throw const FormatException('Empty Group name');
-      final position = positions[source.folderId] ?? 0;
-      positions[source.folderId] = position + 1;
+      final position = positions[source.parentGroupId] ?? 0;
+      positions[source.parentGroupId] = position + 1;
       created.add(
         BookmarkGroup(
           id: const Uuid().v4().toLowerCase(),
           name: name,
           bookmarkIds: source.bookmarkIds,
           addedAt: source.addedAt,
-          folderId: source.folderId,
+          parentGroupId: source.parentGroupId,
           position: position,
         ),
       );
@@ -298,17 +298,8 @@ extension on BookmarkLibraryService {
         );
       });
 
-  Future<BookmarkGroupDeletionPreview> _deleteUnifiedGroup(String id) =>
-      unifiedStore!.runReadWriteScope(() async {
-        final preview = await groupRepository.previewDeleteGroup(id);
-        if (preview.group.isDefault)
-          throw StateError('Default cannot be deleted');
-        await unifiedStore!.commitOrganization(
-          removeIds: preview.orphanBookmarkIds,
-          removeGroupIds: {preview.group.id},
-        );
-        return preview;
-      });
+  Future<BookmarkGroupDeletionPreview> _deleteUnifiedGroup(String id) async =>
+      (await deleteHierarchy({id})).singlePreview;
 }
 
 bool _sameTarget(Bookmark current, Bookmark frozen) =>

@@ -15,6 +15,7 @@ final bookmarkGroupViewPreferencesProvider =
       Map<String, BookmarkGroupViewMode>
     >(
       BookmarkGroupViewPreferences.new,
+      dependencies: [miscDataStoreProvider],
     );
 
 class BookmarkGroupViewPreferences
@@ -46,13 +47,59 @@ class BookmarkGroupViewPreferences
         await _persist(next);
       });
 
-  Future<void> forgetGroup(String id) => _enqueue(() async {
-    if (_disposed) return;
-    final key = _canonicalId(id);
-    if (!state.containsKey(key)) return;
-    final next = Map<String, BookmarkGroupViewMode>.of(state)..remove(key);
-    await _persist(next);
-  });
+  Future<void> forgetGroup(String id) => forgetGroups({id});
+
+  Future<void> forgetGroups(Set<String> ids) {
+    final requestedIds = Set<String>.of(ids);
+    return _enqueue(() async {
+      if (_disposed) return;
+      final keys = _canonicalIds(requestedIds);
+      final removed = keys.where(state.containsKey).toSet();
+      if (removed.isEmpty) return;
+      final next = Map<String, BookmarkGroupViewMode>.of(state)
+        ..removeWhere((key, _) => removed.contains(key));
+      await _persist(next);
+    });
+  }
+
+  Future<void> retainGroups(Set<String> validIds) {
+    final requestedIds = Set<String>.of(validIds);
+    return _enqueue(() async {
+      if (_disposed) return;
+      final valid = _canonicalIds(requestedIds);
+      if (state.keys.every(valid.contains)) return;
+      final next = Map<String, BookmarkGroupViewMode>.of(state)
+        ..removeWhere((key, _) => !valid.contains(key));
+      await _persist(next);
+    });
+  }
+
+  Future<void> restoreMissing(Map<String, BookmarkGroupViewMode> modes) {
+    final requestedModes = Map<String, BookmarkGroupViewMode>.of(modes);
+    return _enqueue(() async {
+      if (_disposed) return;
+      final normalized = <String, BookmarkGroupViewMode>{};
+      for (final entry in requestedModes.entries) {
+        final id = _canonicalId(entry.key);
+        final previous = normalized[id];
+        if (previous != null && previous != entry.value) {
+          throw ArgumentError.value(
+            requestedModes,
+            'modes',
+            'Duplicate canonical group ID',
+          );
+        }
+        normalized[id] = entry.value;
+      }
+      final missing = normalized.entries.where(
+        (entry) => !state.containsKey(entry.key),
+      );
+      if (missing.isEmpty) return;
+      final next = Map<String, BookmarkGroupViewMode>.of(state)
+        ..addEntries(missing);
+      await _persist(next);
+    });
+  }
 
   Future<void> _enqueue(Future<void> Function() operation) {
     final result = _writeQueue.then((_) => operation());
@@ -78,6 +125,10 @@ class BookmarkGroupViewPreferences
     }
     return id.toLowerCase();
   }
+
+  Set<String> _canonicalIds(Iterable<String> ids) => {
+    for (final id in ids) _canonicalId(id),
+  };
 
   Map<String, BookmarkGroupViewMode> _decode(String? encoded) {
     if (encoded == null) return {};

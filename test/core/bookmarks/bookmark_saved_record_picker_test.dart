@@ -225,11 +225,18 @@ class _Library extends BookmarkLibraryNotifier {
     String name,
     Iterable<Bookmark> records, {
     String? folderId,
+    String? parentGroupId,
   }) async {
     events.add('createGroup');
-    creations.add((records: records.toList(), folderId: folderId));
+    final parent = parentGroupId ?? folderId;
+    creations.add((records: records.toList(), folderId: parent));
     return (
-      group: BookmarkGroup(id: poolGroupA, name: name, bookmarkIds: {}),
+      group: BookmarkGroup(
+        id: poolGroupA,
+        name: name,
+        bookmarkIds: {},
+        parentGroupId: parent,
+      ),
       addedCount: creations.last.records.length,
     );
   }
