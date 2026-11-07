@@ -39,6 +39,7 @@ class BooruImage extends ConsumerWidget {
     this.aspectRatio = 1,
     this.imageWidth,
     this.imageHeight,
+    this.onDecodedAspectRatio,
     this.forceCover = false,
     this.forceFill = false,
     this.forceLoadPlaceholder = false,
@@ -64,6 +65,7 @@ class BooruImage extends ConsumerWidget {
   final double? aspectRatio;
   final double? imageWidth;
   final double? imageHeight;
+  final ValueChanged<double>? onDecodedAspectRatio;
   final bool forceCover;
   final bool forceFill;
   final bool forceLoadPlaceholder;
@@ -146,7 +148,8 @@ class BooruImage extends ConsumerWidget {
               aspectRatio: aspectRatio,
               imageWidth: imageWidth,
               imageHeight: imageHeight,
-              forceCover: forceCover,
+              onDecodedAspectRatio: onDecodedAspectRatio,
+              forceCover: forceCover;
               forceFill: forceFill,
               forceLoadPlaceholder: forceLoadPlaceholder,
               hideMismatchedPlaceholder: hideMismatchedPlaceholder,
@@ -161,7 +164,8 @@ class BooruImage extends ConsumerWidget {
       aspectRatio: aspectRatio ?? fallbackAspectRatio,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
-      forceCover: forceCover,
+      onDecodedAspectRatio: onDecodedAspectRatio,
+      forceCover: forceCover;
       forceFill: forceFill,
       isLargeImage: imageQualitySettings != ImageQuality.low,
       forceLoadPlaceholder: forceLoadPlaceholder,
@@ -196,6 +200,7 @@ class BooruRawImage extends StatelessWidget {
     this.aspectRatio = 1,
     this.imageWidth,
     this.imageHeight,
+    this.onDecodedAspectRatio,
     this.forceCover = false,
     this.forceFill = false,
     this.headers = const {},
@@ -229,6 +234,7 @@ class BooruRawImage extends StatelessWidget {
   final double? aspectRatio;
   final double? imageWidth;
   final double? imageHeight;
+  final ValueChanged<double>? onDecodedAspectRatio;
   final bool forceCover;
   final bool forceFill;
   final Map<String, String> headers;
@@ -281,6 +287,13 @@ class BooruRawImage extends StatelessWidget {
             if (cachedImageBytes case final bytes?) {
               return ExtendedImage(
                 image: MemoryImage(bytes),
+                enableLoadState: onDecodedAspectRatio != null,
+                loadStateChanged: onDecodedAspectRatio == null
+                    ? null
+                    : (state) => reportDecodedAspectRatio(
+                        state,
+                        onDecodedAspectRatio!,
+                      ),
                 borderRadius: borderRadius,
                 width: width,
                 height: height,
@@ -294,6 +307,12 @@ class BooruRawImage extends StatelessWidget {
             return imageUrl.isNotEmpty
                 ? ExtendedImage.network(
                     imageUrl,
+                    loadStateChanged: onDecodedAspectRatio == null
+                        ? null
+                        : (state) => reportDecodedAspectRatio(
+                            state,
+                            onDecodedAspectRatio!,
+                          ),
                     dio: dio,
                     headers: headers,
                     borderRadius: borderRadius,
@@ -369,6 +388,12 @@ class BooruRawImage extends StatelessWidget {
                               builder: (fallbackController, retryFallback) =>
                                   ExtendedImage.network(
                                     url,
+                                    loadStateChanged: onDecodedAspectRatio == null
+                                        ? null
+                                        : (state) => reportDecodedAspectRatio(
+                                            state,
+                                            onDecodedAspectRatio!,
+                                          ),
                                     dio: fallbackDio ?? dio,
                                     controller: fallbackController,
                                     headers: fallbackHeaders ?? headers,
@@ -414,6 +439,23 @@ class BooruRawImage extends StatelessWidget {
             ),
           );
   }
+}
+
+/// Reports the decoded rendition, rather than the source post's dimensions.
+/// Deferring the callback avoids updating grid layout during image build.
+Widget? reportDecodedAspectRatio(
+  ExtendedImageState state,
+  ValueChanged<double> onAspectRatio,
+) {
+  if (state.extendedImageLoadState != LoadState.completed) return null;
+  final image = state.extendedImageInfo?.image;
+  if (image == null || image.width <= 0 || image.height <= 0) return null;
+
+  final aspectRatio = image.width / image.height;
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    onAspectRatio(aspectRatio);
+  });
+  return null;
 }
 
 const _fetchStrategy = FetchStrategyBuilder(
