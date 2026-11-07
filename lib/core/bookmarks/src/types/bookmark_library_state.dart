@@ -676,6 +676,7 @@ bool _sameGroup(BookmarkGroup? before, BookmarkGroup after) =>
         before.id == after.id &&
         before.name == after.name &&
         before.folderId == after.folderId &&
+        before.parentGroupId == after.parentGroupId &&
         before.position == after.position &&
         const SetEquality<int>().equals(
           before.bookmarkIds,

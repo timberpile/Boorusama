@@ -15,10 +15,15 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     final generation = contentMap(active['generation']);
     final groupName = contentString(generation['groups']);
     final folderName = contentString(generation['organization']);
-    if (active['version'] != 2 ||
+    final suffix = switch (active['version']) {
+      2 => '_unified_v2',
+      3 => '_hierarchy_v3',
+      _ => null,
+    };
+    if (suffix == null ||
         groupName == folderName ||
-        !groupName.endsWith('_unified_v2') ||
-        !folderName.endsWith('_unified_v2')) {
+        !groupName.endsWith(suffix) ||
+        !folderName.endsWith(suffix)) {
       throw const FormatException('Unified Bookmark organization unavailable');
     }
     final cached = _organizationHandles;
@@ -47,6 +52,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         '${entry.key}': entry.value,
     },
     'folderId': row.folderId,
+    if (row.parentGroupId != null) 'parentGroupId': row.parentGroupId,
     'position': row.position,
   };
 
@@ -62,7 +68,8 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         rawIds is! List ||
         position is! int ||
         position < 0 ||
-        (map['folderId'] != null && map['folderId'] is! String)) {
+        (map['folderId'] != null && map['folderId'] is! String) ||
+        (map['parentGroupId'] != null && map['parentGroupId'] is! String)) {
       throw const FormatException('Invalid unified Bookmark Group');
     }
     final ids = <int>{};
@@ -85,7 +92,9 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     }
     if (parsed.length != ids.length ||
         (id == defaultBookmarkGroupId &&
-            (name != 'Default' || map['folderId'] != null))) {
+            (name != 'Default' ||
+                map['folderId'] != null ||
+                map['parentGroupId'] != null))) {
       throw const FormatException('Invalid Group membership authority');
     }
     return BookmarkGroupHiveObject(
@@ -94,6 +103,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
       bookmarkIds: ids.toList()..sort(),
       addedAt: parsed,
       folderId: map['folderId'] as String?,
+      parentGroupId: map['parentGroupId'] as String?,
       position: position,
     );
   }
@@ -130,6 +140,7 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
               entry.key: entry.value.toUtc().toIso8601String(),
           },
           folderId: group.folderId,
+          parentGroupId: group.parentGroupId,
           position: group.position,
         ),
       );
@@ -240,15 +251,34 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         if (!deletes.contains(row.id)) row.id: row,
       ...rows,
     };
-    FolderTree(folders).validatePlacements(
-      next.values.map(
-        (row) => FolderPlacement(
-          itemId: row.id,
-          folderId: row.folderId,
-          position: row.position,
+    if (contentMap(_metadata.get('activeOrganization'))['version'] == 3) {
+      if (folders.isNotEmpty ||
+          next.values.any((row) => row.folderId != null)) {
+        throw const FormatException(
+          'Legacy folders cannot mutate active hierarchy',
+        );
+      }
+      BookmarkGroupTree([
+        for (final row in next.values)
+          BookmarkGroup(
+            id: row.id,
+            name: row.name,
+            bookmarkIds: row.bookmarkIds.toSet(),
+            parentGroupId: row.parentGroupId,
+            position: row.position,
+          ),
+      ]);
+    } else {
+      FolderTree(folders).validatePlacements(
+        next.values.map(
+          (row) => FolderPlacement(
+            itemId: row.id,
+            folderId: row.folderId,
+            position: row.position,
+          ),
         ),
-      ),
-    );
+      );
+    }
     for (final row in removedIds.isEmpty ? rows.values : next.values) {
       for (final id in row.bookmarkIds) {
         final header = _storedHeader(id);
@@ -279,7 +309,8 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     await groups.putAll({
       for (final entry in writes.entries) entry.key: _groupRow(entry.value),
     });
-    if (plan.containsKey('folders')) {
+    if (plan.containsKey('folders') &&
+        contentMap(_metadata.get('activeOrganization'))['version'] == 2) {
       await folders.put('folders', plan['folders']);
     }
     return [groups, folders];

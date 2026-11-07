@@ -19,6 +19,7 @@ import '../../../../groups/folder_tree.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_group.dart';
+import '../../types/bookmark_group_tree.dart';
 import '../../types/bookmark_group_repository.dart';
 import '../../services/bookmark_storage_migration.dart';
 import 'unified_bookmark_group_repository.dart';
@@ -96,7 +97,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   Future<T> _ready<T>(Future<T> Function() action) =>
       coordinator.runExclusive(() async {
         if (_metadata.containsKey('organizationMigration') &&
-            _metadata.get('activeOrganization') == null &&
+            (_metadata.get('activeOrganization') == null ||
+                contentMap(_metadata.get('organizationMigration'))['version'] ==
+                    3) &&
             !identical(Zone.current[_migrationZone], this)) {
           throw StateError(
             'Bookmark organization migration requires recovery before library access',

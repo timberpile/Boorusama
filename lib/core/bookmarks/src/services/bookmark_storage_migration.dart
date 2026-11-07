@@ -16,6 +16,8 @@ import '../data/stored_bookmark_codec.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_repository.dart';
 import '../types/bookmark_group.dart';
+import '../types/bookmark_group_tree.dart';
+import 'bookmark_hierarchy_conversion.dart';
 import '../types/legacy_group_bookmark.dart';
 import '../types/pool_bookmark.dart';
 
@@ -99,6 +101,15 @@ final class BookmarkStorageMigration {
   };
 
   Future<BookmarkGroupRepositoryHive> open() =>
+      bookmarks.runStorageMigration(() async {
+        await bookmarks.reserveIds(0);
+        final active = contentMap(metadata.get(activeKey) ?? const {});
+        if (active['version'] == 3) return _openHierarchy(active);
+        final reader = await _openLegacy();
+        return _upgradeHierarchy(reader);
+      });
+
+  Future<BookmarkGroupRepositoryHive> _openLegacy() =>
       bookmarks.runStorageMigration(() async {
         // Replay the payload journal first, including a previous interrupted
         // migration payload batch, before validating its organization plan.
@@ -367,11 +378,211 @@ final class BookmarkStorageMigration {
       await repository.readFolders(),
       (await bookmarks.readAll()).map((record) => record.id).toSet(),
     );
-    if (metadata.containsKey(pendingKey)) {
+    if (metadata.containsKey(pendingKey) &&
+        contentMap(metadata.get(pendingKey))['version'] == 1) {
       await metadata.delete(pendingKey);
       await _sync([metadata], 'cleanup');
     }
     return repository;
+  }
+
+  Future<Map<String, Object?>> _hierarchySource(
+    BookmarkGroupRepositoryHive reader,
+  ) async => {
+    'active': metadata.get(activeKey),
+    'groups': (await reader.getGroups()).map(_encodeGroup).toList(),
+    'folders': (await reader.readFolders()).map((f) => f.toJson()).toList(),
+    'recentManualGroupIds': await reader.readRecentGroupIds(),
+    'records': (await bookmarks.readAll()).map(_codec.encode).toList(),
+    'reservation': metadata.get('idReservation'),
+    'recordRevision': metadata.get('recordRevision'),
+  };
+
+  static Map<String, Object?> _encodeHierarchyGroup(BookmarkGroup group) => {
+    ..._encodeGroup(group)..remove('folderId'),
+    'parentGroupId': group.parentGroupId,
+  };
+
+  static BookmarkGroup _decodeHierarchyGroup(Object? value) {
+    final map = contentMap(value);
+    if (map.containsKey('folderId') ||
+        (map['parentGroupId'] != null && map['parentGroupId'] is! String)) {
+      throw const FormatException('Invalid hierarchy Group');
+    }
+    final legacy = _decodeGroup({...map, 'folderId': null});
+    return legacy.copyWith(parentGroupId: map['parentGroupId'] as String?);
+  }
+
+  Future<BookmarkGroupRepositoryHive> _upgradeHierarchy(
+    BookmarkGroupRepositoryHive reader,
+  ) async {
+    final source = await _hierarchySource(reader);
+    final pending = metadata.get(pendingKey);
+    final Map<String, Object?> plan;
+    if (pending == null) {
+      final conversion = BookmarkHierarchyConversion.convert(
+        groups: await reader.getGroups(),
+        folders: await reader.readFolders(),
+      );
+      plan = {
+        'sourceRevision': _hash(source),
+        'folderIdMapping': conversion.folderIdMapping,
+        'groups': conversion.groups.map(_encodeHierarchyGroup).toList(),
+        'recentManualGroupIds': source['recentManualGroupIds'],
+        'generation': {
+          'groups': '${legacyGroups.name}_hierarchy_v3',
+          'organization': '${legacyOrganization.name}_hierarchy_v3',
+        },
+      };
+      await metadata.put(pendingKey, {
+        'version': 3,
+        'hash': _hash(plan),
+        'plan': plan,
+      });
+      await _sync([metadata], 'hierarchy-plan');
+    } else {
+      final envelope = contentMap(pending);
+      plan = contentMap(envelope['plan']);
+      if (envelope['version'] != 3 || envelope['hash'] != _hash(plan)) {
+        throw const FormatException('Invalid pending hierarchy migration');
+      }
+    }
+    if (plan['sourceRevision'] != _hash(source)) {
+      throw const FormatException('Hierarchy migration source changed');
+    }
+    final rawMap = contentMap(plan['folderIdMapping']);
+    final conversion = BookmarkHierarchyConversion.convert(
+      groups: await reader.getGroups(),
+      folders: await reader.readFolders(),
+      folderIdMapping: rawMap.map(
+        (key, value) => MapEntry(key, value as String),
+      ),
+    );
+    if (_hash(plan['groups']) !=
+            _hash(conversion.groups.map(_encodeHierarchyGroup).toList()) ||
+        _hash(plan['recentManualGroupIds']) !=
+            _hash(source['recentManualGroupIds'])) {
+      throw const FormatException('Hierarchy plan differs from its source');
+    }
+    final names = contentMap(plan['generation']);
+    if (names['groups'] != '${legacyGroups.name}_hierarchy_v3' ||
+        names['organization'] != '${legacyOrganization.name}_hierarchy_v3') {
+      throw const FormatException('Invalid hierarchy generation');
+    }
+    final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
+      names['groups']! as String,
+    );
+    final organization = await Hive.openBox<dynamic>(
+      names['organization']! as String,
+    );
+    await groupBox.clear();
+    await groupBox.putAll({
+      for (final group in conversion.groups) group.id: _groupRow(group),
+    });
+    await organization.clear();
+    await organization.putAll({
+      'version': 3,
+      'legacyFolderGroupIds': conversion.folderIdMapping,
+      'recentManualGroupIds': plan['recentManualGroupIds'],
+    });
+    await _sync([groupBox, organization], 'hierarchy-organization');
+    final staged = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: organization,
+    );
+    final stagedGroups = await staged.getGroups();
+    BookmarkGroupTree(stagedGroups);
+    if (_hash(
+              (stagedGroups..sort(_groupOrder))
+                  .map(_encodeHierarchyGroup)
+                  .toList(),
+            ) !=
+            _hash(
+              (conversion.groups.toList()..sort(_groupOrder))
+                  .map(_encodeHierarchyGroup)
+                  .toList(),
+            ) ||
+        plan['sourceRevision'] != _hash(await _hierarchySource(reader))) {
+      throw const FormatException('Staged hierarchy differs from source');
+    }
+    await bookmarks.durableSync();
+    final activation = <String, Object?>{
+      'version': 3,
+      'generation': names,
+      'hierarchyPlanHash': _hash(plan),
+      'sourceRevision': plan['sourceRevision'],
+      'legacyFolderGroupIds': conversion.folderIdMapping,
+    };
+    await metadata.put(activeKey, activation);
+    await _sync([metadata], 'hierarchy-activation');
+    await metadata.delete(pendingKey);
+    await _sync([metadata], 'hierarchy-cleanup');
+    return _openHierarchy(activation);
+  }
+
+  Future<BookmarkGroupRepositoryHive> _openHierarchy(
+    Map<String, Object?> active,
+  ) async {
+    final names = contentMap(active['generation']);
+    final groupName = '${legacyGroups.name}_hierarchy_v3';
+    final organizationName = '${legacyOrganization.name}_hierarchy_v3';
+    if (active['version'] != 3 ||
+        names['groups'] != groupName ||
+        names['organization'] != organizationName ||
+        !await Hive.boxExists(groupName) ||
+        !await Hive.boxExists(organizationName)) {
+      throw const FormatException('Active hierarchy generation is missing');
+    }
+    final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(groupName);
+    final organization = await Hive.openBox<dynamic>(organizationName);
+    if (organization.get('version') != 3 ||
+        organization.containsKey('folders') ||
+        groupBox.values.any((row) => row.folderId != null)) {
+      throw const FormatException('Mixed active hierarchy generation');
+    }
+    final reader = BookmarkGroupRepositoryHive(
+      groupBox,
+      organizationBox: organization,
+    );
+    final groups = await reader.getGroups();
+    BookmarkGroupTree(groups);
+    final ids = (await bookmarks.readAll()).map((record) => record.id).toSet();
+    if (groups.any(
+      (group) =>
+          !ids.containsAll(group.bookmarkIds) ||
+          !const SetEquality<int>().equals(
+            group.bookmarkIds,
+            group.addedAt.keys.toSet(),
+          ) ||
+          (group.isDefault && group.name != 'Default'),
+    )) {
+      throw const FormatException('Invalid hierarchy membership authority');
+    }
+    if (metadata.containsKey(pendingKey)) {
+      final envelope = contentMap(metadata.get(pendingKey));
+      final plan = contentMap(envelope['plan']);
+      if (envelope['version'] != 3 ||
+          envelope['hash'] != _hash(plan) ||
+          active['hierarchyPlanHash'] != _hash(plan) ||
+          _hash(
+                (groups.toList()..sort(_groupOrder))
+                    .map(_encodeHierarchyGroup)
+                    .toList(),
+              ) !=
+              _hash(
+                (_list(plan['groups']).map(_decodeHierarchyGroup).toList()
+                      ..sort(_groupOrder))
+                    .map(_encodeHierarchyGroup)
+                    .toList(),
+              )) {
+        throw const FormatException(
+          'Activated hierarchy differs from pending plan',
+        );
+      }
+      await metadata.delete(pendingKey);
+      await _sync([metadata], 'hierarchy-cleanup');
+    }
+    return reader;
   }
 
   static int _groupOrder(BookmarkGroup a, BookmarkGroup b) =>
@@ -467,6 +678,7 @@ final class BookmarkStorageMigration {
             entry.key: entry.value.toUtc().toIso8601String(),
         },
         folderId: group.folderId,
+        parentGroupId: group.parentGroupId,
         position: group.position,
       );
 }

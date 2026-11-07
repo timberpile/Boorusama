@@ -312,6 +312,7 @@ class BookmarkGroupRepositoryHive
       name: group.name,
       bookmarkIds: group.bookmarkIds.toList()..sort(),
       folderId: group.folderId,
+      parentGroupId: group.parentGroupId,
       position: group.position,
       addedAt: group.addedAt.map(
         (id, date) => MapEntry(id, date.toUtc().toIso8601String()),
@@ -336,6 +337,7 @@ class BookmarkGroupRepositoryHive
       name: _normalizeName(object.name),
       bookmarkIds: object.bookmarkIds.toSet(),
       folderId: object.folderId,
+      parentGroupId: object.parentGroupId,
       position: object.position,
       addedAt: {
         for (final entry in (object.addedAt ?? const {}).entries)
