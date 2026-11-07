@@ -328,6 +328,7 @@ class _PostGridImage extends ConsumerStatefulWidget {
 
 class _PostGridImageState extends ConsumerState<_PostGridImage> {
   double? _decodedAspectRatio;
+  bool _candidateDecoded = false;
 
   @override
   void didUpdateWidget(covariant _PostGridImage oldWidget) {
@@ -336,6 +337,7 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
         widget.config != oldWidget.config ||
         !identical(widget.cachedImageBytes, oldWidget.cachedImageBytes)) {
       _decodedAspectRatio = null;
+      _candidateDecoded = false;
     }
   }
 
@@ -373,10 +375,20 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
       setState(() => _decodedAspectRatio = value);
     }
 
-    Widget normal(String url, {bool fallback = false}) => BooruImage(
+    Widget normal(
+      String url, {
+      bool fallback = false,
+      bool probePlaceholder = false,
+    }) => BooruImage(
       config: config,
       aspectRatio: aspectRatio,
-      onDecodedAspectRatio: masonry ? onDecodedAspectRatio : null,
+      onDecodedAspectRatio: !masonry
+          ? null
+          : probePlaceholder
+          ? (value) {
+              if (!_candidateDecoded) onDecodedAspectRatio(value);
+            }
+          : onDecodedAspectRatio,
       imageUrl: url,
       fallbackUrl: fallback ? null : media.fallbackUrl,
       fallbackUrls: fallback ? const [] : media.fallbackUrls,
@@ -396,6 +408,7 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
     final placeholder = normal(
       media.fallbackUrl ?? media.placeholderUrl ?? '',
       fallback: true,
+      probePlaceholder: true,
     );
     final ratio =
         aspectRatio ??
@@ -406,7 +419,15 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
       config: config,
       urls: [media.url, ...media.fallbackUrls],
       imageCacheManager: imageCacheManager,
-      onDecodedAspectRatio: masonry ? onDecodedAspectRatio : null,
+      onDecodedAspectRatio: masonry
+          ? (value) {
+              if (!mounted || widget.media != media || widget.config != config) {
+                return;
+              }
+              _candidateDecoded = true;
+              onDecodedAspectRatio(value);
+            }
+          : null,
       placeholder: placeholder,
       builder: (provider) {
         // Preserve grid sizing while reusing the already decoded provider.
