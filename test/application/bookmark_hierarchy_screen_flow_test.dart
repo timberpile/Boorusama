@@ -16,6 +16,7 @@ import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart';
+import 'package:boorusama/core/search/suggestions/tag_suggestion_item.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -293,6 +294,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       final scenario = await _mount(
         tester,
+        pixelRatio: 2.25,
         phone: const TestPhone(
           name: '320x640 phone',
           size: Size(320, 640),
@@ -343,6 +345,90 @@ void main() {
         listen: false,
       ).read(bookmarkGroupViewPreferencesProvider);
       expect(preferences[_rootId], BookmarkGroupViewMode.allBookmarks);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'landscape IME autocomplete leaves group mode switch reachable',
+    (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final scenario = await _mount(
+        tester,
+        pixelRatio: 2.25,
+        phone: const TestPhone(
+          name: '320x640 portrait with IME',
+          size: Size(320, 640),
+          keyboardHeight: 260,
+        ),
+      );
+      await _openGroup(tester, scenario.harness, _rootId);
+
+      await tester.tap(find.byKey(const Key('bookmark-group-view-mode')));
+      await scenario.harness.settle(tester);
+      var view = tester.widget<BookmarkScrollView>(
+        find.byType(BookmarkScrollView),
+      );
+      expect(view.view, BookmarkView.subtree(_rootId));
+
+      final search = _searchField();
+      expect(search.hitTestable(), findsOneWidget);
+      await tester.tap(search);
+      await scenario.harness.settle(tester);
+      expect(scenario.harness.keyboard.isShown, isTrue);
+      final suggestions = find.byType(TagSuggestionItem);
+      final suggestion = suggestions.first;
+      await scenario.harness.pumpUntilFound(tester, suggestions);
+      expect(suggestion.hitTestable(), findsOneWidget);
+      view = tester.widget<BookmarkScrollView>(
+        find.byType(BookmarkScrollView),
+      );
+      expect(view.searchController.text, isEmpty);
+
+      scenario.harness.keyboard.phone = const TestPhone(
+        name: '711x320 landscape with compact IME',
+        size: Size(1600 / 2.25, 320),
+        keyboardHeight: 213.8,
+      );
+      scenario.harness.keyboard.apply();
+      await scenario.harness.settle(tester);
+      expect(scenario.harness.keyboard.isShown, isTrue);
+      expect(search, findsOneWidget);
+      expect(tester.widget<TextField>(search).focusNode!.hasFocus, isTrue);
+
+      final mode = find.byKey(const Key('bookmark-group-view-mode'));
+      final media = MediaQuery.of(tester.element(mode));
+      final diagnostic = [
+        'mode=${tester.getRect(mode)}',
+        'search=${search.evaluate().isEmpty ? 'unmounted' : tester.getRect(search)}',
+        'media=${media.size}/${media.viewInsets}',
+        'appBar=${tester.getRect(find.byType(KurumiAppBar))}',
+        'suggestion=${suggestions.evaluate().isEmpty ? 'suppressed' : tester.getRect(suggestion)}',
+        'visible=${scenario.harness.keyboard.visibleArea}',
+      ].join(' ');
+      expect(mode, findsOneWidget);
+      expect(
+        mode.hitTestable(),
+        findsOneWidget,
+        reason: diagnostic,
+      );
+      if (suggestions.evaluate().isNotEmpty) {
+        expect(
+          tester.getRect(suggestion).overlaps(tester.getRect(mode)),
+          isFalse,
+        );
+      }
+      await tester.tap(mode);
+      await scenario.harness.settle(tester);
+
+      final updated = tester.widget<BookmarkScrollView>(
+        find.byType(BookmarkScrollView),
+      );
+      expect(updated.view, BookmarkView.group(_rootId));
+      expect(updated.searchController.text, isEmpty);
+      expect(find.byType(SelectedTagChip), findsNothing);
+      expect(_groupCardTitles(tester), containsAll(['Child', 'Empty child']));
       expect(tester.takeException(), isNull);
     },
   );
@@ -468,6 +554,7 @@ Future<_Scenario> _mount(
   WidgetTester tester, {
   Size size = kMobileViewport,
   TestPhone? phone,
+  double pixelRatio = 1,
   bool rootHasDirectBookmark = true,
   bool keepControlsVisible = false,
   bool reduceMotion = false,
@@ -500,6 +587,10 @@ Future<_Scenario> _mount(
         ),
     ],
   );
+  if (phone != null && pixelRatio != 1) {
+    tester.view.devicePixelRatio = pixelRatio;
+    harness.keyboard.apply();
+  }
   return _Scenario(harness: harness, config: backend.config);
 }
 

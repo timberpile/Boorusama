@@ -66,6 +66,9 @@ Pinned controls retain their visibility setting when the measured header fits.
 If enlarged text, wrapped chips or a reduced viewport make the header taller
 than the usable viewport, it scrolls naturally so every control remains reachable.
 Pinning resumes as soon as the header fits again.
+Group search suggestions stay between the navigation Header and the keyboard.
+When that area cannot fit an interactive row, suggestions remain hidden until
+space is available; they never cover the mode or ancestor controls.
 
 The Header title opens a Kurumi ancestor menu; Back moves up one group level.
 The Header mode control preserves the committed query while changing scope,
