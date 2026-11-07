@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../../boorus/engine/providers.dart';
+import '../../../content/providers.dart';
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../types/bookmark_repository.dart';
 import '../types/bookmark_repository_factory.dart';
 import '../types/bookmark_group_repository.dart';
@@ -39,6 +41,10 @@ final bookmarkRepoProvider = FutureProvider<BookmarkRepository>(
     final registry = ref.watch(booruEngineRegistryProvider);
     final bookmarkRepo = await factory.create(
       postDataCodec: (type) => registry.getPostCapability(type)?.codec,
+      storage: BookmarkStorageContext(
+        coordinator: ref.watch(dataMutationCoordinatorProvider),
+        groupMetadataCodec: ref.watch(groupMetadataCodecProvider),
+      ),
     );
 
     ref.onDispose(() async {
@@ -48,4 +54,10 @@ final bookmarkRepoProvider = FutureProvider<BookmarkRepository>(
     return bookmarkRepo;
   },
   name: 'bookmarkRepoProvider',
+  dependencies: [
+    bookmarkRepositoryFactoryProvider,
+    booruEngineRegistryProvider,
+    dataMutationCoordinatorProvider,
+    groupMetadataCodecProvider,
+  ],
 );

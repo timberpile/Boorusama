@@ -8,6 +8,9 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_objec
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -32,7 +35,12 @@ class FailingGroups extends BookmarkGroupRepositoryHive {
 }
 
 class FailingBookmarks extends BookmarkHiveRepository {
-  FailingBookmarks(super.box);
+  FailingBookmarks(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
   bool failRemoval = false;
   @override
   Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
@@ -68,6 +76,7 @@ void main() {
   late Box<BookmarkGroupHiveObject> groupBox;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<dynamic> folderBox;
+  late BookmarkTestStorage bookmarkStorage;
   late BookmarkGroupRepositoryHive groups;
   late FailingBookmarks bookmarks;
   late BookmarkLibraryService service;
@@ -96,9 +105,10 @@ void main() {
       Hive.registerAdapter(FollowingTopicHiveObjectAdapter());
     groupBox = await Hive.openBox('groups');
     bookmarkBox = await Hive.openBox('bookmarks');
+    bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
     folderBox = await Hive.openBox('folders');
     groups = BookmarkGroupRepositoryHive(groupBox, organizationBox: folderBox);
-    bookmarks = FailingBookmarks(bookmarkBox);
+    bookmarks = FailingBookmarks(bookmarkBox, bookmarkStorage);
     service = BookmarkLibraryService(
       bookmarkRepository: bookmarks,
       groupRepository: groups,
@@ -106,6 +116,7 @@ void main() {
     );
   });
   tearDown(() async {
+    await bookmarkStorage.close();
     await Hive.close();
     await dir.delete(recursive: true);
   });
@@ -162,10 +173,15 @@ void main() {
       final child = await service.createFolder('Empty', parentId: root.id);
       await groups.createGroup('Literal//Name', id: id(1));
       await service.moveFolderItems(groupIds: {id(1)}, destination: child.id);
+      await bookmarkStorage.close();
       await groupBox.close();
       await folderBox.close();
+      await bookmarkBox.close();
       groupBox = await Hive.openBox('groups');
       folderBox = await Hive.openBox('folders');
+      bookmarkBox = await Hive.openBox('bookmarks');
+      bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
+      bookmarks = FailingBookmarks(bookmarkBox, bookmarkStorage);
       groups = BookmarkGroupRepositoryHive(
         groupBox,
         organizationBox: folderBox,
@@ -260,7 +276,25 @@ void main() {
         service.deleteFolder(await service.previewDeleteFolder(folder.id)),
         throwsStateError,
       );
-      expect(await service.load(), before);
+      final after = await service.load();
+      final restored = after.items.single;
+      expect(restored.id, greaterThan(b.id));
+      expect(restored.copyWith(id: b.id), b);
+      expect(after.folders, before.folders);
+      expect(after.pools, before.pools);
+      expect([
+        for (final group in after.groups)
+          group.copyWith(
+            bookmarkIds: {
+              for (final member in group.bookmarkIds)
+                member == restored.id ? b.id : member,
+            },
+            addedAt: {
+              for (final entry in group.addedAt.entries)
+                entry.key == restored.id ? b.id : entry.key: entry.value,
+            },
+          ),
+      ], before.groups);
     },
   );
   test(

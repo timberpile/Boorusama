@@ -17,9 +17,12 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
+import '../../support/fakes/bookmark_test_storage.dart';
+
 void main() {
   late Directory tempDirectory;
   late Box<BookmarkHiveObject> box;
+  late BookmarkTestStorage storage;
 
   setUp(() async {
     tempDirectory = await Directory.systemTemp.createTemp(
@@ -30,9 +33,11 @@ void main() {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
     }
     box = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    storage = await BookmarkTestStorage.open(box);
   });
 
   tearDown(() async {
+    await storage.close();
     await box.close();
     await tempDirectory.delete(recursive: true);
   });
@@ -54,12 +59,14 @@ void main() {
     final invalid = PostBookmark.empty.toPost();
 
     expect(
-      () => BookmarkHiveRepository(box).addBookmarks(
-        BooruType.gelbooruV2.id,
-        [valid, invalid],
-        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        postLinkGenerator: (_) => const _TestLinkGenerator(),
-      ),
+      () => storage
+          .repository(box)
+          .addBookmarks(
+            BooruType.gelbooruV2.id,
+            [valid, invalid],
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+            postLinkGenerator: (_) => const _TestLinkGenerator(),
+          ),
       throwsFormatException,
     );
     expect(box.isEmpty, isTrue);
@@ -86,9 +93,11 @@ void main() {
         metadata: const {},
       ),
     );
-    final read = await BookmarkHiveRepository(box).getAllBookmarksOrThrow(
-      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-    );
+    final read = await storage
+        .repository(box)
+        .getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
 
     expect(read, hasLength(1));
     expect(read.single.id, 17);
@@ -127,7 +136,7 @@ void main() {
             metaDetailsTags: [],
           ),
         );
-    BookmarkHiveRepository repository() => BookmarkHiveRepository(
+    BookmarkHiveRepository repository() => storage.repository(
       box,
       postDataCodec: (type) =>
           type == BooruType.sankaku ? const SankakuPostCodec() : null,
@@ -141,6 +150,8 @@ void main() {
     );
     await box.close();
     box = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    await storage.close();
+    storage = await BookmarkTestStorage.open(box);
 
     final loaded = await repository().getAllBookmarksOrThrow(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
@@ -177,9 +188,11 @@ void main() {
       await box.put(1, old);
       await box.put(2, favoriteToHiveObject(bookmark));
 
-      final read = await BookmarkHiveRepository(box).getAllBookmarksOrThrow(
-        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-      );
+      final read = await storage
+          .repository(box)
+          .getAllBookmarksOrThrow(
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+          );
 
       expect(read.map((entry) => entry.id), [1, 2]);
       expect(read.first.uniqueId, isA<UnbookmarkablePostIdentity>());
@@ -192,9 +205,11 @@ void main() {
       final future = favoriteToHiveObject(bookmark)..snapshotSchemaVersion = 99;
       await box.put(3, future);
       await expectLater(
-        BookmarkHiveRepository(box).getAllBookmarksOrThrow(
-          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        ),
+        storage
+            .repository(box)
+            .getAllBookmarksOrThrow(
+              imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+            ),
         throwsA(isA<BookmarkRepositoryReadException>()),
       );
       expect(box.get(3)!.snapshotSchemaVersion, 99);

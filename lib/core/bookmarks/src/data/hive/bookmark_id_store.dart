@@ -8,10 +8,15 @@ import '../bookmark_id_allocator.dart';
 /// One Hive frame stores both structural version and reservation bound. Payload
 /// kinds and the activation journal share the owning metadata box, not a counter.
 final class HiveBookmarkIdStore implements BookmarkIdStore {
-  const HiveBookmarkIdStore(this.box, {this.fs = const IoFileSystem()});
+  const HiveBookmarkIdStore(
+    this.box, {
+    this.fs = const IoFileSystem(),
+    this.sync,
+  });
 
   final Box<dynamic> box;
   final AppFileSystem fs;
+  final Future<void> Function()? sync;
   static const reservationKey = 'idReservation';
 
   @override
@@ -34,6 +39,10 @@ final class HiveBookmarkIdStore implements BookmarkIdStore {
 
   @override
   Future<void> durableSync() async {
+    if (sync case final sync?) {
+      await sync();
+      return;
+    }
     await box.flush();
     final path = box.path;
     if (path == null) {

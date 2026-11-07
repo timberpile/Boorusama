@@ -19,6 +19,9 @@ import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -34,6 +37,7 @@ void main() {
   late Directory directory;
   late Box<BookmarkHiveObject> postsBox;
   late Box<BookmarkGroupHiveObject> groupsBox;
+  late BookmarkTestStorage storage;
   late BookmarkHiveRepository posts;
   late _Groups groups;
   late BookmarkLibraryService service;
@@ -56,8 +60,9 @@ void main() {
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     postsBox = await Hive.openBox('membership_posts');
+    storage = await BookmarkTestStorage.open(postsBox);
     groupsBox = await Hive.openBox('membership_groups');
-    posts = BookmarkHiveRepository(postsBox);
+    posts = storage.repository(postsBox);
     now = first;
     groups = _Groups(
       groupsBox,
@@ -73,6 +78,7 @@ void main() {
     await groups.createGroup('B', id: poolGroupB);
   });
   tearDown(() async {
+    await storage.close();
     await postsBox.close();
     await groupsBox.close();
     await directory.delete(recursive: true);

@@ -320,17 +320,22 @@ class BookmarkLibraryService {
         old.groups.where((g) => !deletedGroups.contains(g.id)).toList(),
       );
     } catch (error, stack) {
-      final errors = await _restoreBookmarks(orphans);
+      final restored = await _restoreBookmarks(orphans);
+      final errors = restored.errors;
       try {
-        for (final g in old.groups) {
+        for (final g in _remapGroups(old.groups, restored.ids)) {
           if (await groupRepository.getGroup(g.id) == null) {
             await groupRepository.createGroup(g.name, id: g.id);
           }
-          await groupRepository.replaceMemberships(g.id, g.bookmarkIds);
+          await groupRepository.replaceMemberships(
+            g.id,
+            g.bookmarkIds,
+            addedAt: g.addedAt,
+          );
         }
         await groupRepository.replaceFolderOrganization(
           old.folders,
-          old.groups,
+          _remapGroups(old.groups, restored.ids).toList(),
         );
         await groupRepository.replacePoolBookmarks(old.pools);
       } catch (e) {
@@ -602,7 +607,8 @@ class BookmarkLibraryService {
         ]);
       }
     } catch (error, stackTrace) {
-      final rollbackErrors = await _restoreBookmarks(toDelete);
+      final restored = await _restoreBookmarks(toDelete);
+      final rollbackErrors = restored.errors;
       if (affectedPools.isNotEmpty) {
         try {
           await groupRepository.replacePoolBookmarks(pools);
@@ -610,7 +616,9 @@ class BookmarkLibraryService {
           rollbackErrors.add(e);
         }
       }
-      rollbackErrors.addAll(await _restoreMemberships([target]));
+      rollbackErrors.addAll(
+        await _restoreMemberships(_remapGroups([target], restored.ids)),
+      );
       _throwWithRollback(error, stackTrace, rollbackErrors);
     }
 
@@ -734,10 +742,14 @@ class BookmarkLibraryService {
       }
       await bookmarkRepository.removeBookmarks(bookmarkList);
     } catch (error, stackTrace) {
-      final rollbackErrors = await _restoreBookmarks(bookmarkList);
+      final restored = await _restoreBookmarks(bookmarkList);
+      final rollbackErrors = restored.errors;
       rollbackErrors.addAll(
         await _restoreMemberships(
-          groups.where((group) => affectedGroups.containsKey(group.id)),
+          _remapGroups(
+            groups.where((group) => affectedGroups.containsKey(group.id)),
+            restored.ids,
+          ),
         ),
       );
       _throwWithRollback(
@@ -771,7 +783,8 @@ class BookmarkLibraryService {
         await bookmarkRepository.removeBookmarks(orphanBookmarks);
       }
     } catch (error, stackTrace) {
-      final rollbackErrors = await _restoreBookmarks(orphanBookmarks);
+      final restored = await _restoreBookmarks(orphanBookmarks);
+      final rollbackErrors = restored.errors;
       try {
         await groupRepository.createGroup(
           preview.group.name,
@@ -783,7 +796,8 @@ class BookmarkLibraryService {
       try {
         await groupRepository.replaceMemberships(
           preview.group.id,
-          preview.group.bookmarkIds,
+          _remapGroups([preview.group], restored.ids).single.bookmarkIds,
+          addedAt: _remapGroups([preview.group], restored.ids).single.addedAt,
         );
       } catch (rollbackError) {
         rollbackErrors.add(rollbackError);
@@ -791,7 +805,7 @@ class BookmarkLibraryService {
       try {
         await groupRepository.replaceFolderOrganization(
           state.folders,
-          state.groups,
+          _remapGroups(state.groups, restored.ids).toList(),
         );
         await groupRepository.replacePoolBookmarks(state.pools);
       } catch (e) {
@@ -820,18 +834,47 @@ class BookmarkLibraryService {
     return errors;
   }
 
-  Future<List<Object>> _restoreBookmarks(
+  Iterable<BookmarkGroup> _remapGroups(
+    Iterable<BookmarkGroup> groups,
+    Map<int, int> ids,
+  ) => groups.map(
+    (group) => group.copyWith(
+      bookmarkIds: {for (final id in group.bookmarkIds) ids[id] ?? id},
+      addedAt: {
+        for (final entry in group.addedAt.entries)
+          ids[entry.key] ?? entry.key: entry.value,
+      },
+    ),
+  );
+
+  Future<({List<Object> errors, Map<int, int> ids})> _restoreBookmarks(
     Iterable<PostBookmark> bookmarks,
   ) async {
     final errors = <Object>[];
+    final ids = <int, int>{};
     for (final bookmark in bookmarks) {
       try {
-        await bookmarkRepository.updateBookmark(bookmark);
+        // A committed deletion consumes its ID permanently, including when the
+        // writer throws afterwards. Recreate content through the allocator and
+        // restore each membership/date under the returned ID.
+        final existing = await bookmarkRepository.readStoredBookmark(
+          bookmark.id,
+          imageUrlResolver: imageUrlResolver,
+        );
+        final restored = existing is PostBookmark
+            ? existing
+            : (await bookmarkRepository.addBookmarkWithBookmarks([bookmark]))
+                  .single;
+        ids[bookmark.id] = restored.id;
+        final original = bookmark.copyWith(id: restored.id);
+        if (restored != original) {
+          await bookmarkRepository.updateBookmark(original);
+        }
       } catch (error) {
         errors.add(error);
       }
     }
-    return errors;
+    return (errors: errors, ids: ids);
   }
 
   Future<({PostBookmark bookmark, bool created})> _resolveStoredBookmark(

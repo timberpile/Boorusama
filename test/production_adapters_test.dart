@@ -20,6 +20,7 @@ import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/tags/favorites/src/data/favorite_tag_repository_factory_hive.dart';
 import 'package:boorusama/core/tags/local/src/data/repo_io.dart';
 import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 
 void main() {
   late Directory root;
@@ -91,10 +92,13 @@ void main() {
     const bookmarkFactory = HiveBookmarkRepositoryFactory(
       boxName: 'bookmark_factory_test',
     );
-    final bookmarks = await bookmarkFactory.create();
+    final context = BookmarkStorageContext(
+      coordinator: DataMutationCoordinator(),
+    );
+    final bookmarks = await bookmarkFactory.create(storage: context);
     await bookmarks.addBookmarkWithBookmarks([_bookmark()]);
     await bookmarkFactory.dispose(bookmarks);
-    final reopenedBookmarks = await bookmarkFactory.create();
+    final reopenedBookmarks = await bookmarkFactory.create(storage: context);
     final values = await reopenedBookmarks.getAllBookmarksOrEmpty(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     );

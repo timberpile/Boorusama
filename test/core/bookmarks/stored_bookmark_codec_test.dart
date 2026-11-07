@@ -8,6 +8,8 @@ import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/posts/related/related_posts_order.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart:convert';
+
 import 'pool_bookmark_test_utils.dart';
 
 void main() {
@@ -86,6 +88,18 @@ void main() {
       expect(imported.copyWith(id: 0).reference, imported.reference);
     },
   );
+
+  test('transfers retain the existing Post source-URL privacy policy', () {
+    final post = testPoolPost(7).copyWith(
+      sourceUrl: 'https://user:fixture-secret@example.test/posts/7?api_key=fixture-token',
+    );
+    expect(codec.encode(post)['sourceUrl'], post.sourceUrl);
+    final transfer = codec.encodeForTransfer(post);
+    expect(transfer.containsKey('sourceUrl'), isFalse);
+    expect(jsonEncode(transfer), isNot(contains('fixture-secret')));
+    expect(jsonEncode(transfer), isNot(contains('fixture-token')));
+    expect((codec.decode(transfer) as PostBookmark).snapshot, post.snapshot);
+  });
 
   test(
     'readable unaddressable Post snapshots remain outside the identity index',

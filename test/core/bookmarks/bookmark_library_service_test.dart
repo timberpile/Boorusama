@@ -25,11 +25,14 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_repository.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
+import '../../support/fakes/bookmark_test_storage.dart';
+
 void main() {
   const firstGroupId = '550e8400-e29b-41d4-a716-446655440000';
   late Directory tempDirectory;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<BookmarkGroupHiveObject> groupBox;
+  late BookmarkTestStorage storage;
   late BookmarkHiveRepository bookmarkRepository;
   late BookmarkGroupRepositoryHive groupRepository;
   late BookmarkLibraryService service;
@@ -89,8 +92,9 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks_test');
+    storage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
-    bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
+    bookmarkRepository = storage.repository(bookmarkBox);
     groupRepository = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -107,6 +111,7 @@ void main() {
 
   tearDown(() async {
     await images.dispose();
+    await storage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await tempDirectory.delete(recursive: true);
@@ -177,12 +182,31 @@ void main() {
     final failing = BookmarkLibraryService(
       bookmarkRepository: _CommitsThenThrowsBookmarkRemovalRepository(
         bookmarkBox,
+        storage,
       ),
       groupRepository: groupRepository,
       imageUrlResolver: resolver,
     );
     await expectLater(failing.deleteSelection(preview), throwsStateError);
-    expect(await service.load(), before);
+    final after = await service.load();
+    final restored = after.items.single;
+    expect(restored.id, greaterThan(bookmark.id));
+    expect(restored.copyWith(id: bookmark.id), before.items.single);
+    expect(after.folders, before.folders);
+    expect(after.pools, before.pools);
+    expect([
+      for (final group in after.groups)
+        group.copyWith(
+          bookmarkIds: {
+            for (final id in group.bookmarkIds)
+              id == restored.id ? bookmark.id : id,
+          },
+          addedAt: {
+            for (final entry in group.addedAt.entries)
+              entry.key == restored.id ? bookmark.id : entry.key: entry.value,
+          },
+        ),
+    ], before.groups);
   });
 
   test(
@@ -405,7 +429,7 @@ void main() {
     await groupRepository.createGroup('First', id: firstGroupId);
     await groupRepository.addBookmarks(firstGroupId, {99});
     service = BookmarkLibraryService(
-      bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+      bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox, storage),
       groupRepository: groupRepository,
       imageUrlResolver: resolver,
     );
@@ -422,7 +446,7 @@ void main() {
     await groupRepository.createGroup('First', id: firstGroupId);
     await groupRepository.addBookmarks(firstGroupId, {99});
     service = BookmarkLibraryService(
-      bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+      bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox, storage),
       groupRepository: groupRepository,
       imageUrlResolver: resolver,
     );
@@ -702,6 +726,7 @@ void main() {
       service = BookmarkLibraryService(
         bookmarkRepository: _CommitsThenThrowsBookmarkRemovalRepository(
           bookmarkBox,
+          storage,
         ),
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
@@ -715,15 +740,14 @@ void main() {
         throwsStateError,
       );
 
+      final restored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: resolver,
+      )).single;
+      expect(restored.id, greaterThan(bookmark.id));
+      expect(restored.copyWith(id: bookmark.id), bookmark);
       expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
-        bookmark.id,
+        restored.id,
       });
-      expect(
-        await bookmarkRepository.getAllBookmarksOrEmpty(
-          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        ),
-        [bookmark],
-      );
     },
   );
 
@@ -767,6 +791,7 @@ void main() {
       service = BookmarkLibraryService(
         bookmarkRepository: _CommitsThenThrowsBookmarkRemovalRepository(
           bookmarkBox,
+          storage,
         ),
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
@@ -774,15 +799,14 @@ void main() {
 
       await expectLater(service.deleteBookmarks([bookmark]), throwsStateError);
 
+      final restored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: resolver,
+      )).single;
+      expect(restored.id, greaterThan(bookmark.id));
+      expect(restored.copyWith(id: bookmark.id), bookmark);
       expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
-        bookmark.id,
+        restored.id,
       });
-      expect(
-        await bookmarkRepository.getAllBookmarksOrEmpty(
-          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        ),
-        [bookmark],
-      );
     },
   );
 
@@ -795,6 +819,7 @@ void main() {
       service = BookmarkLibraryService(
         bookmarkRepository: _CommitsThenThrowsBookmarkRemovalRepository(
           bookmarkBox,
+          storage,
         ),
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
@@ -802,15 +827,14 @@ void main() {
 
       await expectLater(service.deleteGroup(firstGroupId), throwsStateError);
 
+      final restored = (await bookmarkRepository.getAllBookmarksOrThrow(
+        imageUrlResolver: resolver,
+      )).single;
+      expect(restored.id, greaterThan(bookmark.id));
+      expect(restored.copyWith(id: bookmark.id), bookmark);
       expect((await groupRepository.getGroup(firstGroupId))?.bookmarkIds, {
-        bookmark.id,
+        restored.id,
       });
-      expect(
-        await bookmarkRepository.getAllBookmarksOrEmpty(
-          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        ),
-        [bookmark],
-      );
     },
   );
 
@@ -865,7 +889,10 @@ void main() {
     await groupRepository.createGroup('First', id: firstGroupId);
     await groupRepository.addBookmarks(firstGroupId, {bookmark.id});
     service = BookmarkLibraryService(
-      bookmarkRepository: _FailingBookmarkRemovalRepository(bookmarkBox),
+      bookmarkRepository: _FailingBookmarkRemovalRepository(
+        bookmarkBox,
+        storage,
+      ),
       groupRepository: _FailingReplaceGroupRepository(groupRepository),
       imageUrlResolver: resolver,
     );
@@ -895,7 +922,15 @@ void main() {
 }
 
 class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
-  const _FailingReadBookmarkRepository(super._box);
+  _FailingReadBookmarkRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   BookmarksOrError getAllBookmarks({
@@ -904,7 +939,15 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _FailingBookmarkRemovalRepository extends BookmarkHiveRepository {
-  const _FailingBookmarkRemovalRepository(super._box);
+  _FailingBookmarkRemovalRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<void> removeBookmarks(Iterable<PostBookmark> favorites) =>
@@ -913,7 +956,15 @@ class _FailingBookmarkRemovalRepository extends BookmarkHiveRepository {
 
 class _CommitsThenThrowsBookmarkRemovalRepository
     extends BookmarkHiveRepository {
-  const _CommitsThenThrowsBookmarkRemovalRepository(super._box);
+  _CommitsThenThrowsBookmarkRemovalRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<void> removeBookmarks(Iterable<PostBookmark> favorites) async {

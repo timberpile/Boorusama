@@ -44,11 +44,14 @@ import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 
+import '../../support/fakes/bookmark_test_storage.dart';
+
 void main() {
   const groupId = '550e8400-e29b-41d4-a716-446655440000';
   late Directory tempDirectory;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<BookmarkGroupHiveObject> groupBox;
+  late BookmarkTestStorage storage;
   late BookmarkHiveRepository bookmarkRepository;
   late BookmarkGroupRepositoryHive groupRepository;
 
@@ -65,8 +68,9 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks_test');
+    storage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
-    bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
+    bookmarkRepository = storage.repository(bookmarkBox);
     groupRepository = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -74,6 +78,7 @@ void main() {
   });
 
   tearDown(() async {
+    await storage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await tempDirectory.delete(recursive: true);
@@ -87,6 +92,7 @@ void main() {
   }) {
     final container = ProviderContainer(
       overrides: [
+        ...storage.overrides,
         booruConfigProvider.overrideWith(
           () => BooruConfigNotifier(initialConfigs: profiles),
         ),
@@ -855,7 +861,7 @@ void main() {
             Settings.defaultSettings,
           ),
           bookmarkRepositoryOverride: failBookmarkWrite
-              ? _FailingAddBookmarkRepository(bookmarkBox)
+              ? _FailingAddBookmarkRepository(bookmarkBox, storage)
               : null,
         );
         final notifier = container.read(bookmarkProvider.notifier);
@@ -890,7 +896,10 @@ void main() {
     'creating a group rolls back when a new bookmark cannot be stored',
     () async {
       final container = createContainer(
-        bookmarkRepositoryOverride: _FailingAddBookmarkRepository(bookmarkBox),
+        bookmarkRepositoryOverride: _FailingAddBookmarkRepository(
+          bookmarkBox,
+          storage,
+        ),
       );
       final notifier = container.read(bookmarkProvider.notifier);
       await notifier.future;
@@ -1251,7 +1260,10 @@ void main() {
   test(
     'bulk creation rolls back earlier bookmarks after a later failure',
     () async {
-      final failingRepository = _FailsSecondAddBookmarkRepository(bookmarkBox);
+      final failingRepository = _FailsSecondAddBookmarkRepository(
+        bookmarkBox,
+        storage,
+      );
       final container = createContainer(
         bookmarkRepositoryOverride: failingRepository,
       );
@@ -1287,6 +1299,7 @@ void main() {
       final container = createContainer(
         bookmarkRepositoryOverride: _FailsSecondAddAndFirstCleanupRepository(
           bookmarkBox,
+          storage,
         ),
       );
       final notifier = container.read(bookmarkProvider.notifier);
@@ -1334,7 +1347,10 @@ void main() {
       )).single;
       final group = await groupRepository.createGroup('Target');
       final container = createContainer(
-        bookmarkRepositoryOverride: _BookmarkPostRepository(bookmarkBox),
+        bookmarkRepositoryOverride: _BookmarkPostRepository(
+          bookmarkBox,
+          storage,
+        ),
         groupRepositoryOverride: _CommitsThenThrowsAddGroupRepository(
           groupBox,
         ),
@@ -1514,6 +1530,7 @@ void main() {
       final container = createContainer(
         bookmarkRepositoryOverride: _CommitsThenThrowsAddBookmarkRepository(
           bookmarkBox,
+          storage,
         ),
         groupRepositoryOverride: _CommitsThenThrowsCreateGroupRepository(
           groupBox,
@@ -1706,6 +1723,7 @@ void main() {
       final container = createContainer(
         bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
           bookmarkBox,
+          storage,
         ),
       );
       final notifier = container.read(bookmarkProvider.notifier);
@@ -1723,6 +1741,7 @@ void main() {
     final container = createContainer(
       bookmarkRepositoryOverride: _CommitsThenThrowsAddBookmarkRepository(
         bookmarkBox,
+        storage,
       ),
     );
     final notifier = container.read(bookmarkProvider.notifier);
@@ -1756,6 +1775,7 @@ void main() {
       final container = createContainer(
         bookmarkRepositoryOverride: _FailingSecondReadBookmarkRepository(
           bookmarkBox,
+          storage,
         ),
       );
       final notifier = container.read(bookmarkProvider.notifier);
@@ -1789,7 +1809,15 @@ class _FailingSettingsNotifier extends SettingsNotifier {
 }
 
 class _FailingAddBookmarkRepository extends BookmarkHiveRepository {
-  const _FailingAddBookmarkRepository(super._box);
+  _FailingAddBookmarkRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<PostBookmark> addBookmark(
@@ -1920,7 +1948,15 @@ class _FailingAddedMembersPublicationGroupRepository
 }
 
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
-  _FailingSecondReadBookmarkRepository(super._box);
+  _FailingSecondReadBookmarkRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   var _readCount = 0;
 
@@ -1949,7 +1985,15 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
-  const _CommitsThenThrowsAddBookmarkRepository(super._box);
+  _CommitsThenThrowsAddBookmarkRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<PostBookmark> addBookmark(
@@ -1964,7 +2008,15 @@ class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _BookmarkPostRepository extends BookmarkHiveRepository {
-  const _BookmarkPostRepository(super._box);
+  _BookmarkPostRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<PostBookmark> addBookmark(
@@ -1978,7 +2030,15 @@ class _BookmarkPostRepository extends BookmarkHiveRepository {
 }
 
 class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
-  _FailsSecondAddBookmarkRepository(super._box);
+  _FailsSecondAddBookmarkRepository(
+    Box<BookmarkHiveObject> box,
+    BookmarkTestStorage storage,
+  ) : super(
+        box,
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   var _addCount = 0;
 
@@ -2013,7 +2073,7 @@ PostBookmark _bookmarkFromPost(Post post) {
 
 class _FailsSecondAddAndFirstCleanupRepository
     extends _FailsSecondAddBookmarkRepository {
-  _FailsSecondAddAndFirstCleanupRepository(super._box);
+  _FailsSecondAddAndFirstCleanupRepository(super.box, super.storage);
 
   var _removeCount = 0;
 

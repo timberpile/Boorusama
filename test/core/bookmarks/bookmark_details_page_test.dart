@@ -82,6 +82,9 @@ import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
@@ -1031,11 +1034,25 @@ void main() {
     (tester) async {
       await tester.runAsync(() async {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        Future<void> pumpUntilRecoveredPostIsVisible() async {
+          final deadline = DateTime.now().add(const Duration(seconds: 5));
+          while (find.text('post:91').evaluate().isEmpty &&
+              DateTime.now().isBefore(deadline)) {
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          expect(
+            find.text('post:91'),
+            findsOneWidget,
+            reason: 'recovered post did not render',
+          );
+        }
+
         late Directory directory;
         late Box<BookmarkHiveObject> bookmarkBox;
         late Box<BookmarkGroupHiveObject> groupBox;
         late BookmarkHiveRepository bookmarkRepository;
         late BookmarkGroupRepositoryHive groupRepository;
+        late BookmarkTestStorage storage;
         final legacy = _legacyBookmark();
         directory = await Directory.systemTemp.createTemp(
           'bookmark_silent_recovery_',
@@ -1051,7 +1068,8 @@ void main() {
           'silent_bookmarks',
         );
         groupBox = await Hive.openBox<BookmarkGroupHiveObject>('silent_groups');
-        bookmarkRepository = BookmarkHiveRepository(
+        storage = await BookmarkTestStorage.open(bookmarkBox);
+        bookmarkRepository = storage.repository(
           bookmarkBox,
           postDataCodec: (_) => const GelbooruV2PostCodec(),
         );
@@ -1079,25 +1097,40 @@ void main() {
             controller: controller,
             bookmarkRepository: bookmarkRepository,
             groupRepository: groupRepository,
+            bookmarkStorage: storage,
             recoveryRepository: repository,
           ),
         );
         expect(find.byType(PostPresentationFallbackWarning), findsNothing);
-        // Hive uses real IO; allow provider loading and recovery writes to settle.
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // Wait for the real repository write to finish before asserting the UI.
+        final recoveryDeadline = DateTime.now().add(const Duration(seconds: 5));
+        var recovered = false;
+        while (!recovered && DateTime.now().isBefore(recoveryDeadline)) {
+          final saved = await bookmarkRepository.getAllBookmarksOrEmpty(
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+          );
+          recovered = saved.any(
+            (bookmark) => bookmark.post.booruData is GelbooruV2PostData,
+          );
+          if (!recovered) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+        }
+        expect(recovered, isTrue, reason: 'recovery write did not complete');
+        await pumpUntilRecoveredPostIsVisible();
         await tester.pumpAndSettle();
         expect(find.text('post:91'), findsOneWidget);
         expect(find.byType(PostPresentationFallbackWarning), findsNothing);
         expect(repository.requests, hasLength(1));
         await tester.pumpWidget(const SizedBox.shrink());
+        await storage.close();
         late PostBookmark persisted;
         await bookmarkBox.close();
         bookmarkBox = await Hive.openBox<BookmarkHiveObject>(
           'silent_bookmarks',
         );
-        bookmarkRepository = BookmarkHiveRepository(
+        storage = await BookmarkTestStorage.open(bookmarkBox);
+        bookmarkRepository = storage.repository(
           bookmarkBox,
           postDataCodec: (_) => const GelbooruV2PostCodec(),
         );
@@ -1124,15 +1157,17 @@ void main() {
             controller: reopened,
             bookmarkRepository: bookmarkRepository,
             groupRepository: groupRepository,
+            bookmarkStorage: storage,
             recoveryRepository: repository,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await pumpUntilRecoveredPostIsVisible();
         await tester.pumpAndSettle();
         expect(find.text('post:91'), findsOneWidget);
         expect(repository.requests, hasLength(1));
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
+        await storage.close();
         await bookmarkBox.close();
         await groupBox.close();
         await directory.delete(recursive: true);
@@ -1240,6 +1275,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
     this.repositoryConfigs,
     this.bookmarkRepository,
     this.groupRepository,
+    this.bookmarkStorage,
     this.home,
     this.commonCache,
     this.imageDio,
@@ -1253,6 +1289,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
   final List<BooruConfig>? repositoryConfigs;
   final BookmarkHiveRepository? bookmarkRepository;
   final BookmarkGroupRepositoryHive? groupRepository;
+  final BookmarkTestStorage? bookmarkStorage;
   final Widget? home;
   final ImageCacheManager? commonCache;
   final Dio? imageDio;
@@ -1261,6 +1298,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
+      ...?bookmarkStorage?.overrides,
       settingsNotifierProvider.overrideWith(
         () =>
             previewSettingsNotifier ??

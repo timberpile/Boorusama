@@ -1,6 +1,7 @@
 // Project imports:
 import '../../../posts/post/types.dart';
 import 'bookmark.dart';
+import 'unified_bookmark_store.dart';
 
 abstract class BookmarkRepository<T extends Post> {
   Future<PostBookmark> addBookmark(
@@ -45,6 +46,22 @@ class BookmarkRepositoryReadException implements Exception {
 }
 
 extension BookmarkRepositoryExtensions on BookmarkRepository {
+  Future<Bookmark?> readStoredBookmark(
+    int id, {
+    required ImageUrlResolver Function(int? booruId) imageUrlResolver,
+  }) async {
+    final repository = this;
+    if (repository is UnifiedBookmarkStore) {
+      return (repository as UnifiedBookmarkStore).read(id);
+    }
+    for (final record in await getAllBookmarksOrThrow(
+      imageUrlResolver: imageUrlResolver,
+    )) {
+      if (record.id == id) return record;
+    }
+    return null;
+  }
+
   Future<Map<BookmarkUniqueId, PostBookmark>> getBookmarksByIdentityOrThrow(
     Iterable<BookmarkUniqueId> identities, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,

@@ -46,6 +46,9 @@ final bookmarkLibraryProvider =
         settingsProvider,
         booruConfigProvider,
         sourceDownloadNotifierParamsProvider,
+        bookmarkRepoProvider,
+        bookmarkGroupRepoProvider,
+        dataMutationCoordinatorProvider,
       ],
     );
 
@@ -347,11 +350,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<T> _serialize<T>(
     Future<T> Function() operation, {
     bool publishHydration = true,
-  }) => ref
-      .read(dataMutationCoordinatorProvider)
-      .runExclusive(
-        () => _serializeLocally(operation, publishHydration: publishHydration),
-      );
+  }) async {
+    // Provider initialization reads the durable repository in its own zone.
+    // Finish it before taking the same coordinator for a mutation, otherwise
+    // a cold first action can wait on a read queued behind its own lock.
+    if (state.isLoading && !state.hasValue) await future;
+    return ref
+        .read(dataMutationCoordinatorProvider)
+        .runExclusive(
+          () =>
+              _serializeLocally(operation, publishHydration: publishHydration),
+        );
+  }
 
   Future<T> _serializeLocally<T>(
     Future<T> Function() operation, {

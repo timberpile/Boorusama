@@ -25,6 +25,9 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+
+import '../../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 
@@ -45,6 +48,7 @@ void main() {
   late Box<BookmarkGroupHiveObject> groupBox;
   late BookmarkHiveRepository bookmarkRepository;
   late BookmarkGroupRepositoryHive groupRepository;
+  late BookmarkTestStorage bookmarkStorage;
 
   setUp(() async {
     tempDirectory = await Directory.systemTemp.createTemp(
@@ -58,8 +62,9 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks_test');
+    bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups_test');
-    bookmarkRepository = BookmarkHiveRepository(bookmarkBox);
+    bookmarkRepository = bookmarkStorage.repository(bookmarkBox);
     groupRepository = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -67,6 +72,7 @@ void main() {
   });
 
   tearDown(() async {
+    await bookmarkStorage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await tempDirectory.delete(recursive: true);
@@ -75,6 +81,7 @@ void main() {
   ProviderContainer createContainer() {
     final container = ProviderContainer(
       overrides: [
+        ...bookmarkStorage.overrides,
         loggerProvider.overrideWithValue(AppLogger()),
         bookmarkRepoProvider.overrideWith((ref) => bookmarkRepository),
         bookmarkGroupRepoProvider.overrideWith((ref) => groupRepository),
@@ -194,7 +201,10 @@ void main() {
   test(
     'a failed bookmark refresh does not report a committed import as failed',
     () async {
-      bookmarkRepository = _FailingSecondReadBookmarkRepository(bookmarkBox);
+      bookmarkRepository = _FailingSecondReadBookmarkRepository(
+        bookmarkBox,
+        bookmarkStorage,
+      );
       final container = createContainer();
       await container.read(bookmarkProvider.future);
 
@@ -217,7 +227,14 @@ class _TestSettingsNotifier extends SettingsNotifier {
 }
 
 class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
-  _FailingSecondReadBookmarkRepository(super._box);
+  _FailingSecondReadBookmarkRepository(
+    super.box,
+    BookmarkTestStorage storage,
+  ) : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   var _readCount = 0;
 

@@ -1,6 +1,5 @@
 import 'package:boorusama/core/bookmarks/server_favorites.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
-import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
@@ -86,8 +85,8 @@ void main() {
           addedAt: {a.id: firstAdded},
         ),
       ]);
-      // Seed a pre-existing unaddressable row directly. New-bookmark APIs
-      // correctly reject creating one without a stable upstream identity.
+      // Restore a validated unaddressable snapshot through the central allocator.
+      // Ordinary UI creation still requires a stable upstream identity.
       final legacy = PostBookmark.empty.copyWith(
         createdAt: created,
         updatedAt: created,
@@ -95,28 +94,8 @@ void main() {
         sourceUrl: '',
         postId: () => null,
       );
-      await h.bookmarkBox.put(
-        1,
-        BookmarkHiveObject(
-          booruId: legacy.booruId,
-          createdAt: legacy.createdAt,
-          updatedAt: legacy.updatedAt,
-          thumbnailUrl: legacy.thumbnailUrl,
-          sampleUrl: legacy.sampleUrl,
-          originalUrl: legacy.originalUrl,
-          sourceUrl: legacy.sourceUrl,
-          width: legacy.width,
-          height: legacy.height,
-          md5: legacy.md5,
-          tags: legacy.tags.toList(),
-          realSourceUrl: legacy.realSourceUrl,
-          format: legacy.format,
-          postId: null,
-          metadata: legacy.metadata,
-          snapshotSchemaVersion: 2,
-          postSnapshot: legacy.snapshot.toJson(),
-        ),
-      );
+      final legacyId = (await h.bookmarks.reserveIds(1)).single;
+      await h.bookmarks.upsert(legacy.copyWith(id: legacyId));
       await h.restart();
       library = h.container.read(bookmarkLibraryProvider.notifier);
       final before = await library.snapshotForExport();

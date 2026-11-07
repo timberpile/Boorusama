@@ -114,6 +114,7 @@ final class MemoryBookmarkRepositoryFactory
   @override
   Future<BookmarkRepository> create({
     BooruPostDataCodec? Function(BooruType)? postDataCodec,
+    BookmarkStorageContext? storage,
   }) async {
     if (repository case final MemoryBookmarkRepository memoryRepository) {
       memoryRepository.postDataCodec = postDataCodec;

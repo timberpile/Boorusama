@@ -19,6 +19,9 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
@@ -29,6 +32,7 @@ void main() {
   late Box<BookmarkGroupHiveObject> groupBox;
   late BookmarkHiveRepository bookmarks;
   late BookmarkGroupRepositoryHive groups;
+  late BookmarkTestStorage bookmarkStorage;
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('bookmark_import_test_');
@@ -40,8 +44,9 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox('bookmark_import_bookmarks');
+    bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox('bookmark_import_groups');
-    bookmarks = BookmarkHiveRepository(bookmarkBox);
+    bookmarks = bookmarkStorage.repository(bookmarkBox);
     groups = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -49,6 +54,7 @@ void main() {
   });
 
   tearDown(() async {
+    await bookmarkStorage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await directory.delete(recursive: true);
@@ -442,7 +448,10 @@ void main() {
       );
       await expectLater(
         BookmarkImportService(
-          bookmarkRepository: _ThrowingRemovalBookmarkRepository(bookmarkBox),
+          bookmarkRepository: _ThrowingRemovalBookmarkRepository(
+            bookmarkBox,
+            bookmarkStorage,
+          ),
           groupRepository: groups,
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
         ).apply(
@@ -480,7 +489,10 @@ void main() {
 
     await expectLater(
       BookmarkImportService(
-        bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+        bookmarkRepository: _FailingReadBookmarkRepository(
+          bookmarkBox,
+          bookmarkStorage,
+        ),
         groupRepository: groups,
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       ).apply(plan),
@@ -513,7 +525,10 @@ void main() {
 
     await expectLater(
       BookmarkImportService(
-        bookmarkRepository: _PartiallyThrowingBookmarkRepository(bookmarkBox),
+        bookmarkRepository: _PartiallyThrowingBookmarkRepository(
+          bookmarkBox,
+          bookmarkStorage,
+        ),
         groupRepository: groups,
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       ).apply(plan),
@@ -530,7 +545,12 @@ Future<List<PostBookmark>> _load(BookmarkHiveRepository repository) =>
     );
 
 class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
-  const _FailingReadBookmarkRepository(super._box);
+  _FailingReadBookmarkRepository(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   BookmarksOrError getAllBookmarks({
@@ -539,7 +559,12 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
-  const _PartiallyThrowingBookmarkRepository(super._box);
+  _PartiallyThrowingBookmarkRepository(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<List<PostBookmark>> addBookmarkWithBookmarks(
@@ -551,7 +576,12 @@ class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _ThrowingRemovalBookmarkRepository extends BookmarkHiveRepository {
-  const _ThrowingRemovalBookmarkRepository(super._box);
+  _ThrowingRemovalBookmarkRepository(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {

@@ -15,6 +15,8 @@ final class ImportSourceDurability {
     'blacklisted_tags': ['blacklisted_tags.hive'],
     'bookmarks': [
       'favorites.hive',
+      'favorites_content_groups.hive',
+      'favorites_content_metadata.hive',
       'bookmark_groups.hive',
       'bookmark_folders.hive',
     ],

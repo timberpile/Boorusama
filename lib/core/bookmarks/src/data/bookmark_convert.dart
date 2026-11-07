@@ -127,8 +127,11 @@ PostBookmark _mapBookmark(
   throw const FormatException('Invalid bookmark snapshot');
 }
 
-BookmarkHiveObject favoriteToHiveObject(PostBookmark bookmark) {
-  bookmark.transferIdentity;
+BookmarkHiveObject favoriteToHiveObject(
+  PostBookmark bookmark, {
+  bool requireStableIdentity = true,
+}) {
+  if (requireStableIdentity) bookmark.transferIdentity;
   return BookmarkHiveObject(
     booruId: bookmark.booruId,
     createdAt: bookmark.createdAt,

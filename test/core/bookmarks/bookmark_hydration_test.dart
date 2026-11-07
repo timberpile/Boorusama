@@ -24,6 +24,9 @@ import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -64,6 +67,7 @@ void main() {
   late Directory directory;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<BookmarkGroupHiveObject> groupBox;
+  late BookmarkTestStorage storage;
   late _CountingRepository repository;
   late BookmarkGroupRepositoryHive groups;
   late BookmarkLibraryService library;
@@ -78,8 +82,14 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    storage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups');
-    repository = _CountingRepository(bookmarkBox);
+    repository = _CountingRepository(
+      bookmarkBox,
+      groupPayloadBox: storage.groupPayloadBox,
+      metadataBox: storage.metadataBox,
+      coordinator: storage.coordinator,
+    );
     groups = BookmarkGroupRepositoryHive(groupBox);
     library = BookmarkLibraryService(
       bookmarkRepository: repository,
@@ -88,6 +98,7 @@ void main() {
     );
   });
   tearDown(() async {
+    await storage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await directory.delete(recursive: true);
@@ -189,7 +200,7 @@ void main() {
       expect((result.updated, result.skipped, result.failed), (2, 0, 1));
       final reloaded = await load();
       expect(reloaded.map((b) => b.id).toSet(), ids);
-      expect(reloaded.every((b) => b.createdAt == DateTime(2026)), isTrue);
+      expect(reloaded.map((b) => b.createdAt), everyElement(DateTime(2026)));
       expect(reloaded.where(needsBookmarkHydration).map((b) => b.postId), [2]);
       expect((await groups.getGroup(first.id))!.bookmarkIds, ids);
       expect((await groups.getGroup(second.id))!.bookmarkIds, ids);
@@ -375,12 +386,16 @@ void main() {
           now = now.add(duration);
         },
         recover: recovery(
-          fetch: (_, id) async {
+          fetch: (profile, id) async {
             calls[id] = (calls[id] ?? 0) + 1;
             if ((id == 1 && calls[id] == 1) || (id == 4 && calls[id]! <= 2)) {
               throw ServerError(httpStatusCode: 503, message: 'Unavailable');
             }
-            return id == 3 ? null : native(id);
+            return id == 3
+                ? null
+                : native(
+                    id,
+                  ).copyWith(origin: legacy(id, profile: profile).post.origin);
           },
         ),
       );
@@ -936,6 +951,7 @@ void main() {
       var cancelledOnce = false;
       container = ProviderContainer(
         overrides: [
+          ...storage.overrides,
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1149,6 +1165,7 @@ void main() {
       await repository.addBookmarkWithBookmarks([legacy(1)]);
       final container = ProviderContainer(
         overrides: [
+          ...storage.overrides,
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1241,6 +1258,7 @@ void main() {
       ]);
       final container = ProviderContainer(
         overrides: [
+          ...storage.overrides,
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1279,8 +1297,12 @@ void main() {
 }
 
 class _CountingRepository extends BookmarkHiveRepository {
-  _CountingRepository(super._box)
-    : super(postDataCodec: (_) => const GelbooruV2PostCodec());
+  _CountingRepository(
+    super._posts, {
+    required super.groupPayloadBox,
+    required super.metadataBox,
+    required super.coordinator,
+  }) : super(postDataCodec: (_) => const GelbooruV2PostCodec());
   var reads = 0;
   int? failPostId;
   @override

@@ -18,7 +18,6 @@ import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
-import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
@@ -27,6 +26,9 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+
+import '../../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 
@@ -124,11 +126,12 @@ void main() {
           final bookmarkBox = await Hive.openBox<BookmarkHiveObject>(
             'favorites',
           );
+          final bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
           final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
             'bookmark_groups',
           );
           final profileBox = await Hive.openBox<String>('booru_configs');
-          final bookmarks = BookmarkHiveRepository(bookmarkBox);
+          final bookmarks = bookmarkStorage.repository(bookmarkBox);
           final groups = BookmarkGroupRepositoryHive(
             groupBox,
             organizationBox: MemoryBox<dynamic>(),
@@ -173,6 +176,7 @@ void main() {
           final beforeSearches = (await searchRepository.getAll()).toList();
           final container = ProviderContainer(
             overrides: [
+              ...bookmarkStorage.overrides,
               loggerProvider.overrideWithValue(AppLogger()),
               booruEngineRegistryProvider.overrideWith(
                 (ref) => BooruEngineRegistry(),
@@ -236,6 +240,7 @@ void main() {
           addTearDown(() async {
             listener.close();
             container.dispose();
+            await bookmarkStorage.close();
             await bookmarkBox.close();
             await groupBox.close();
             await profileBox.close();

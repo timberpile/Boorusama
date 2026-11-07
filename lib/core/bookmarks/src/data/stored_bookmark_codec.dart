@@ -21,13 +21,21 @@ final class StoredBookmarkCodec {
   final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
   static const _legacy = LegacyGroupCodec();
 
+  /// Match the existing Post export policy: local source-page URLs are not
+  /// transferred. Their semantic namespace cannot reconstruct a transport URL.
+  Map<String, Object?> encodeForTransfer(Bookmark bookmark) {
+    final wire = encode(bookmark);
+    if (bookmark is PostBookmark) wire.remove('sourceUrl');
+    return wire;
+  }
+
   Map<String, Object?> encode(Bookmark bookmark) {
     final map = switch (bookmark) {
       PostBookmark() => {
         'kind': 'post',
         'id': bookmark.id,
-        'createdAt': bookmark.createdAt.toUtc().toIso8601String(),
-        'updatedAt': bookmark.updatedAt.toUtc().toIso8601String(),
+        'createdAt': bookmark.createdAt.toIso8601String(),
+        'updatedAt': bookmark.updatedAt.toIso8601String(),
         'postId': bookmark.postId,
         'sourceUrl': bookmark.sourceUrl,
         'snapshot': bookmark.snapshot.toJson(),
@@ -90,8 +98,8 @@ final class StoredBookmarkCodec {
         }
         return PostBookmark.fromSnapshot(
           id: id,
-          createdAt: created,
-          updatedAt: _date(map['updatedAt']),
+          createdAt: DateTime.parse(contentString(map['createdAt'])),
+          updatedAt: DateTime.parse(contentString(map['updatedAt'])),
           snapshot: snapshot,
           post: postId == null
               ? decoded.post.copyWith(
