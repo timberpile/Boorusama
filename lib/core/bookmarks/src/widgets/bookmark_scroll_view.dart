@@ -296,7 +296,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               bookmark: false,
               selectedPostsBuilder: (_) => [
                 for (final entry in _entries.whereType<BookmarkPostEntry>())
-                  if (_selectionModeController.selectedKeys.contains(entry.key))
+                  if (_entryAvailable(entry, ref.read(booruConfigProvider)) &&
+                      _selectionModeController.selectedKeys.contains(entry.key))
                     controller.items.toList()[_rawPostIndices[entry.key]!],
               ],
               // Shared actions resolve each post's source profile and use the
@@ -392,8 +393,21 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
 
   List<CollectionBookmark> _selectedPools() => [
     for (final entry in _entries.whereType<BookmarkPoolEntry>())
-      if (_selectionModeController.selectedKeys.contains(entry.key)) entry.pool,
+      if (_entryAvailable(entry, ref.read(booruConfigProvider)) &&
+          _selectionModeController.selectedKeys.contains(entry.key))
+        entry.pool,
   ];
+
+  bool _entryAvailable(BookmarkGridEntry entry, List<BooruConfig> profiles) =>
+      switch (entry) {
+        BookmarkPostEntry(:final bookmark) =>
+          resolveBookmarkOriginProfile(bookmark.post.origin, profiles) != null,
+        BookmarkPoolEntry(:final pool) =>
+          resolvePoolBookmarkProfile(pool, profiles) != null,
+      };
+
+  bool _hasUnavailableEntries(List<BooruConfig> profiles) =>
+      _entries.any((entry) => !_entryAvailable(entry, profiles));
 
   Widget _mixedGrid(PostGridController<Post> controller) => ListenableBuilder(
     listenable: _selectionModeController,
@@ -401,6 +415,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       valueListenable: controller.itemsNotifier,
       builder: (context, posts, _) {
         final settings = ref.watch(imageListingSettingsProvider);
+        final profiles = ref.watch(booruConfigProvider);
+        // Keep stale entries out of the grid and viewer until refresh catches up.
+        // Retaining their indices while hiding the sliver also prevents selection
+        // and viewer navigation from addressing a different record.
+        if (_hasUnavailableEntries(profiles)) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
         return SliverPostGrid<Post>(
           postController: controller,
           displayItemCount: _entries.length,
@@ -423,6 +444,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     pool: pool,
                     index: index,
                     onOpen: () {
+                      if (_hasUnavailableEntries(
+                        ref.read(booruConfigProvider),
+                      )) {
+                        return;
+                      }
                       _endLocalGroupSelection();
                       goToBookmarkDetailsPage(
                         ref,
@@ -503,17 +529,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
         final post = posts[index];
-        final config = switch (const PostOriginResolver().resolve(
+        final config = resolveBookmarkOriginProfile(
           post.origin,
           ref.watch(booruConfigProvider),
-        )) {
-          ResolvedPostOrigin(:final config) => config,
-          _ => null,
-        };
-        final presentation = config == null
-            ? const GenericPostPresentation()
-            : null;
-        final effectiveAuth = config?.auth ?? BooruConfig.empty.auth;
+        );
+        if (config == null) return const SizedBox.shrink();
+        final effectiveAuth = config.auth;
 
         return PostGridContextMenu(
           index: index,
@@ -526,25 +547,21 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             controller: controller,
             useHero: false,
             config: effectiveAuth,
-            imageConfig: config?.auth,
-            presentation: presentation,
+            imageConfig: config.auth,
             leadingIcons: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: config == null
-                    ? ConfigAwareWebsiteLogo.fromBooruType(
-                        post.origin.booruType,
-                        post.origin.sourceHost,
-                        fit: BoxFit.contain,
-                      )
-                    : ConfigAwareWebsiteLogo.fromConfig(
-                        config.auth,
-                        customIconUrl: config.profileIcon?.url,
-                        fit: BoxFit.contain,
-                      ),
+                child: ConfigAwareWebsiteLogo.fromConfig(
+                  config.auth,
+                  customIconUrl: config.profileIcon?.url,
+                  fit: BoxFit.contain,
+                ),
               ),
             ],
             onTap: () {
+              if (_hasUnavailableEntries(ref.read(booruConfigProvider))) {
+                return;
+              }
               _endLocalGroupSelection();
               goToBookmarkDetailsPage(
                 ref,

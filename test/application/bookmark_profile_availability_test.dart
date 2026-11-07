@@ -14,6 +14,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
@@ -191,6 +192,35 @@ void main() {
         if (hinted) {
           await setProfiles([backend.config]);
           media(visible: true);
+          final otherAccount = BooruConfig.fromJson({
+            ...backend.config.toJson(),
+            'id': '00000000-0000-4000-8000-000000000002',
+            'login': 'other-account',
+          });
+          await setProfiles([backend.config, otherAccount]);
+          media(visible: true);
+          configs.replace([otherAccount]);
+          await tester.pump();
+          expect(postTile(101), findsNothing);
+          expect(find.byType(BookmarkPoolCard), findsNothing);
+          final childAfterRevocation = tester.widget<BookmarkLocalGroupCard>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is BookmarkLocalGroupCard && widget.title == 'Child',
+            ),
+          );
+          expect(childAfterRevocation.previews, isEmpty);
+          expect(childAfterRevocation.pools, isEmpty);
+          expect(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is DefaultImageGridItem &&
+                  widget.config.login == 'other-account',
+            ),
+            findsNothing,
+          );
+          await harness.settle(tester);
+          media(visible: false);
           await setProfiles([]);
           media(visible: false);
           final wrongPath = BooruConfig.fromJson({
