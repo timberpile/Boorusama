@@ -33,16 +33,24 @@ final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
     final box = await Hive.openBox<BookmarkHiveObject>(boxName);
     final groups = await Hive.openBox<dynamic>('${boxName}_content_groups');
     final metadata = await Hive.openBox<dynamic>('${boxName}_content_metadata');
-    return BookmarkHiveRepository(
+    final repository = BookmarkHiveRepository(
       box,
       groupPayloadBox: groups,
       metadataBox: metadata,
       coordinator: storage.coordinator,
+      legacyGroupBoxName: boxName == 'favorites'
+          ? 'bookmark_groups'
+          : '${boxName}_bookmark_groups',
+      legacyOrganizationBoxName: boxName == 'favorites'
+          ? 'bookmark_folders'
+          : '${boxName}_bookmark_folders',
       groupMetadataCodec: storage.groupMetadataCodec,
       postDataCodec: postDataCodec,
       logger: logger,
       fs: fs,
     );
+    await repository.openOrganization();
+    return repository;
   }
 
   @override

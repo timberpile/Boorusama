@@ -19,6 +19,9 @@ import '../../../../groups/folder_tree.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_group.dart';
+import '../../types/bookmark_group_repository.dart';
+import '../../services/bookmark_storage_migration.dart';
+import 'unified_bookmark_group_repository.dart';
 import '../../types/unified_bookmark_store.dart';
 import '../../types/bookmark_repository.dart';
 import '../../types/content_group_bookmark.dart';
@@ -43,6 +46,8 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     required Box<dynamic> metadataBox,
     required this.coordinator,
     this.postDataCodec,
+    this.legacyGroupBoxName = 'bookmark_groups',
+    this.legacyOrganizationBoxName = 'bookmark_folders',
     GroupMetadataCodec groupMetadataCodec = const GroupMetadataCodec(),
     this.logger,
     this.fs = const IoFileSystem(),
@@ -55,6 +60,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
          groups: StoredGroupCodec(metadata: groupMetadataCodec),
        );
 
+  final String legacyGroupBoxName;
+  final String legacyOrganizationBoxName;
+  BookmarkGroupRepository? _organizationRepository;
   final Box<BookmarkHiveObject> _posts;
   final Box<dynamic> _groups;
   final Box<dynamic> _metadata;
@@ -117,6 +125,28 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
           zoneValues: {_migrationZone: this},
         ),
       );
+
+  /// This gate completes migration/recovery before production publishes either
+  /// repository. Original legacy boxes remain available for recovery.
+  Future<BookmarkGroupRepository> openOrganization() =>
+      coordinator.runExclusive(() async {
+        final cached = _organizationRepository;
+        if (cached != null) return cached;
+        final reader = await BookmarkStorageMigration(
+          bookmarks: this,
+          legacyGroups: await Hive.openBox<BookmarkGroupHiveObject>(
+            legacyGroupBoxName,
+          ),
+          legacyOrganization: await Hive.openBox<dynamic>(
+            legacyOrganizationBoxName,
+          ),
+          metadata: _metadata,
+        ).open();
+        return _organizationRepository = UnifiedBookmarkGroupRepository(
+          bookmarks: this,
+          reader: reader,
+        );
+      });
 
   Future<void> _sync(Iterable<BoxBase<dynamic>> boxes) async {
     if (_syncOverride case final sync?) return sync(boxes);

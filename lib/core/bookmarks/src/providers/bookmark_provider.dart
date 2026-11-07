@@ -116,6 +116,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   var _requiresRefresh = false;
   final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
   final _poolRemovals = <Object, BookmarkGroupRemovalResult>{};
+  final _recordRemovals = <int, BookmarkGroupRemovalResult>{};
   final _mutationSessionKey = Object();
   final _pendingHydration = <int, PostBookmark>{};
   int? _pendingHydrationRevision;
@@ -130,11 +131,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (result.removedCount == 0) return;
     _removals.clear();
     _poolRemovals.clear();
+    _recordRemovals.clear();
     for (final pool in result.removedPools) {
       _poolRemovals[pool.identity] = result;
     }
     for (final bookmark in result.removedBookmarks) {
       _removals[bookmark.uniqueId] = result;
+    }
+    for (final record in result.removedRecords) {
+      _recordRemovals[record.id] = result;
     }
   }
 
@@ -173,6 +178,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<void> undoRemoval(BookmarkGroupRemovalResult result) =>
       _runTrackedMutation(() async {
+        if (result.removedRecords.isNotEmpty) {
+          if (result.removedRecords.any(
+            (record) => !identical(_recordRemovals[record.id], result),
+          )) {
+            throw StateError('A later removal superseded this Undo.');
+          }
+          await (await _service).undoRemoval(result);
+          for (final record in result.removedRecords) {
+            _recordRemovals.remove(record.id);
+          }
+          return;
+        }
         final eligible = result.removedBookmarks
             .where((b) => identical(_removals[b.uniqueId], result))
             .toList();
@@ -240,6 +257,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       result = await operation();
       _removals.clear();
       _poolRemovals.clear();
+      _recordRemovals.clear();
     } catch (error, stackTrace) {
       _mutation?.invalidate();
       operationError = error;
@@ -508,8 +526,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       BookmarkIdentity.fromPost(post);
       final booruId = config.booruIdHint;
       final currentState = await future;
-      final existing = currentState
-          .bookmarksByUniqueId[BookmarkUniqueId.fromPost(post, booruId)];
+      final existing = currentState.bookmarkForPost(
+        post,
+        fallbackBooruId: booruId,
+      );
       const groupId = defaultBookmarkGroupId;
       await (await _service).addBookmarkToGroup(
         groupId: groupId,
@@ -545,10 +565,14 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         recovery: recovery,
         commitRecovered: (bookmark, post, codec) => _serialize(() async {
           if (cancellation.cancelled) return false;
-          final current = (await future).bookmarksByUniqueId[bookmark.uniqueId];
+          final currentState = await future;
+          final current = currentState.bookmarksById[bookmark.id];
           // A deletion, replacement, recovery reload or newer snapshot supersedes
           // this request. Do not resurrect a row or overwrite newer data.
-          if (!identical(current, bookmark) ||
+          if (current is! PostBookmark ||
+              current.uniqueId != bookmark.uniqueId ||
+              current.post.origin.booruType != bookmark.post.origin.booruType ||
+              !identical(current, bookmark) ||
               _pendingHydration.containsKey(bookmark.id)) {
             return false;
           }
@@ -610,8 +634,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     PostBookmark bookmark,
     Post post,
   ) => _serialize(() async {
-    final current = (await future).bookmarksByUniqueId[bookmark.uniqueId];
-    if (current == null || current.id != bookmark.id) return;
+    final snapshot = await future;
+    final current = snapshot.bookmarksById[bookmark.id];
+    if (current is! PostBookmark ||
+        current.uniqueId != bookmark.uniqueId ||
+        current.post.origin.booruType != bookmark.post.origin.booruType) {
+      return;
+    }
     final capability = ref
         .read(booruEngineRegistryProvider)
         .getPostCapability(post.origin.booruType);
@@ -660,7 +689,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final current = await future;
       final selectedTarget = target;
       final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-      final bookmark = current.bookmarksByUniqueId[uniqueId];
+      final bookmark = current.bookmarkForPost(
+        post,
+        fallbackBooruId: config.booruIdHint,
+      );
       final memberships = current.membershipsFor(uniqueId);
       final bookmarked =
           bookmark != null && memberships.contains(selectedTarget.groupId);
@@ -714,7 +746,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (uniqueId is UnbookmarkablePostIdentity) {
       return BookmarkToggleOutcome.missingPostIdentity;
     }
-    final bookmark = current.bookmarksByUniqueId[uniqueId];
+    final bookmark = current.bookmarkForPost(
+      post,
+      fallbackBooruId: config.booruIdHint,
+    );
     final memberships = current.membershipsFor(uniqueId);
     final groupId = target.groupId;
     final isMember = bookmark != null && memberships.contains(groupId);
@@ -933,8 +968,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     try {
       final current = await future;
       final booruId = config.booruIdHint;
-      final existing =
-          current.bookmarksByUniqueId[BookmarkUniqueId.fromPost(post, booruId)];
+      final existing = current.bookmarkForPost(
+        post,
+        fallbackBooruId: booruId,
+      );
       await (await _service).addBookmarkToGroup(
         groupId: groupId,
         existingBookmark: existing,
@@ -1250,7 +1287,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     for (final post in selected) {
       final identity = _bookmarkIdentity(post, config);
       if (!seen.add(identity)) continue;
-      final bookmark = current.bookmarksByUniqueId[identity];
+      final bookmark = current.bookmarkForPost(
+        post,
+        fallbackBooruId: config.booruIdHint,
+      );
       if (bookmark == null) {
         missing.add(post);
       } else {
@@ -1313,8 +1353,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final current = await future;
     final bookmarks = posts
         .map(
-          (post) =>
-              current.bookmarksByUniqueId[_bookmarkIdentity(post, config)],
+          (post) => current.bookmarkForPost(
+            post,
+            fallbackBooruId: config.booruIdHint,
+          ),
         )
         .whereType<PostBookmark>()
         .where(
@@ -1340,8 +1382,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final current = await future;
     final bookmarks = posts
         .map(
-          (post) =>
-              current.bookmarksByUniqueId[_bookmarkIdentity(post, config)],
+          (post) => current.bookmarkForPost(
+            post,
+            fallbackBooruId: config.booruIdHint,
+          ),
         )
         .whereType<PostBookmark>()
         .toSet()

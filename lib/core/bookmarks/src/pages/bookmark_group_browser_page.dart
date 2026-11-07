@@ -879,13 +879,15 @@ class _BookmarkGroupBrowserPageState
       group: group,
       orphanBookmarkIds: group.bookmarkIds.difference(otherIds),
       poolIds: {
-        for (final pool in pools)
-          if (pool.groupIds.contains(group.id)) pool.localId,
+        if (library?.hasUnifiedRecords != true)
+          for (final pool in pools)
+            if (pool.groupIds.contains(group.id)) pool.localId,
       },
       orphanPoolIds: {
-        for (final pool in pools)
-          if (pool.groupIds.length == 1 && pool.groupIds.contains(group.id))
-            pool.localId,
+        if (library?.hasUnifiedRecords != true)
+          for (final pool in pools)
+            if (pool.groupIds.length == 1 && pool.groupIds.contains(group.id))
+              pool.localId,
       },
     );
     while (true) {

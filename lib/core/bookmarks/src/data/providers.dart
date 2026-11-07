@@ -20,13 +20,20 @@ final bookmarkGroupRepositoryFactoryProvider =
 final bookmarkGroupRepoProvider = FutureProvider<BookmarkGroupRepository>(
   (ref) async {
     final factory = ref.watch(bookmarkGroupRepositoryFactoryProvider);
-    final repository = await factory.create();
+    final repository = switch (factory) {
+      final SharedBookmarkRepositoryGroupFactory shared =>
+        await shared.createWithBookmarkRepository(
+          await ref.watch(bookmarkRepoProvider.future),
+        ),
+      _ => await factory.create(),
+    };
     ref.onDispose(() async {
       await factory.dispose(repository);
     });
     return repository;
   },
   name: 'bookmarkGroupRepoProvider',
+  dependencies: [bookmarkGroupRepositoryFactoryProvider, bookmarkRepoProvider],
 );
 
 final bookmarkRepositoryFactoryProvider = Provider<BookmarkRepositoryFactory>(
