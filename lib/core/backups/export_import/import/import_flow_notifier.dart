@@ -254,6 +254,12 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           credentialsIncluded: package.manifest.containsCredentials ?? false,
         );
         await wrapper.prepare(null);
+        if (manifest.id == 'bookmarks') {
+          // Provider initialization can run in a different zone and acquire
+          // this same coordinator. Finish cold storage/library startup before
+          // holding the lock while snapshot getters await those providers.
+          await ref.read(bookmarkProvider.future);
+        }
         final actualCredentials = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => profiles.any(
             profileContainsCredentials,

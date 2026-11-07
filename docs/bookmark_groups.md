@@ -137,6 +137,10 @@ snapshots require neither a matching profile nor a successful remote request.
 Missing or ambiguous Bookmark profile mappings are optional access hints;
 Following Topic execution retains its required account dependencies. Optional
 Bookmark hints never choose an account for a required Topic.
+Cold Bookmark storage and library initialization finishes before the import
+preflight acquires its snapshot lock. Provider initialization runs in its own
+zone and may need that same coordinator; awaiting it inside the locked snapshot
+section can otherwise block a first import indefinitely.
 
 Ordinary timelines and local group covers omit media without a usable existing
 source/profile binding. The complete saved records and membership counts remain
