@@ -137,11 +137,7 @@ class PostBookmark extends Equatable
   final String? _sourceUrl;
 
   int get booruId => snapshot.origin.booruTypeId;
-  String get sourceUrl =>
-      _sourceUrl ??
-      (snapshot.origin.sourceHost.isEmpty
-          ? ''
-          : 'https://${snapshot.origin.sourceHost}');
+  String get sourceUrl => _sourceUrl ?? '';
   @override
   double get width => post.width;
   @override

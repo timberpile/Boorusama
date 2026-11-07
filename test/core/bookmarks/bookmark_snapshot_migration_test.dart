@@ -65,7 +65,7 @@ void main() {
     expect(box.isEmpty, isTrue);
   });
 
-  test('old URL-only rows stay unread without changing stored data', () async {
+  test('old URL-only rows remain readable without guessing identity or changing storage', () async {
     await box.put(
       17,
       BookmarkHiveObject(
@@ -90,7 +90,13 @@ void main() {
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     );
 
-    expect(read, isEmpty);
+    expect(read, hasLength(1));
+    expect(read.single.id, 17);
+    expect(read.single.originalUrl, 'https://img.example/original.jpg');
+    expect(read.single.sourceUrl, 'https://booru.example/posts/42');
+    expect(read.single.post.origin.sourceHost, isEmpty);
+    expect(read.single.uniqueId, isA<UnbookmarkablePostIdentity>());
+    expect(BookmarkIdentity.tryFromPost(read.single.post), isNull);
     expect(box.get(17)!.snapshotSchemaVersion, isNull);
     expect(box.get(17)!.postSnapshot, isNull);
   });
@@ -146,7 +152,7 @@ void main() {
   });
 
   test(
-    'old snapshot schema stays unread while the current row loads',
+    'old snapshot rows retain their IDs and payload without claiming identity',
     () async {
       final bookmark = PostBookmark(
         id: 42,
@@ -175,10 +181,23 @@ void main() {
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       );
 
-      expect(read, hasLength(1));
-      expect(read.single.id, 2);
-      expect(read.single.post.origin.sourceHost, 'booru.example/board');
-      expect(read.single.uniqueId, isA<BookmarkIdentity>());
+      expect(read.map((entry) => entry.id), [1, 2]);
+      expect(read.first.uniqueId, isA<UnbookmarkablePostIdentity>());
+      expect(read.first.post.origin.sourceHost, isEmpty);
+      expect(read.first.snapshot, bookmark.snapshot);
+      expect(read.last.post.origin.sourceHost, 'booru.example/board');
+      expect(read.last.uniqueId, isA<BookmarkIdentity>());
+      expect(box.get(1)!.snapshotSchemaVersion, 1);
+      expect(box.get(1)!.postSnapshot, bookmark.snapshot.toJson());
+      final future = favoriteToHiveObject(bookmark)..snapshotSchemaVersion = 99;
+      await box.put(3, future);
+      await expectLater(
+        BookmarkHiveRepository(box).getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        ),
+        throwsA(isA<BookmarkRepositoryReadException>()),
+      );
+      expect(box.get(3)!.snapshotSchemaVersion, 99);
     },
   );
 }

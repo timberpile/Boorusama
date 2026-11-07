@@ -17,7 +17,6 @@ class ContentGroupBookmark extends Equatable implements Bookmark {
   }) : createdAt = createdAt.toUtc(),
        observedAt = observedAt.toUtc() {
     if (id < 0 ||
-        id > maxBookmarkId ||
         (sourceProfileHint != null &&
             !isCanonicalProfileId(sourceProfileHint))) {
       throw const FormatException('Invalid saved Group');
