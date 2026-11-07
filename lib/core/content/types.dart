@@ -3,3 +3,7 @@ export 'groups/group_summary.dart';
 export 'groups/group_details.dart';
 export 'groups/group_metadata.dart';
 export 'groups/group_metadata_codec.dart';
+export 'content_entry.dart';
+export 'content_page.dart';
+export 'groups/group_member.dart';
+export 'content_access.dart';

@@ -69,8 +69,12 @@ final class BooruContentKeyCodec implements ContentKeyCodec {
   }
 
   @override
-  PostId postIdFor(String sourceKey) =>
-      BoorusamaPostLink.parsePostId(engine, sourceKey);
+  PostId postIdFor(String sourceKey) {
+    if (engine == BooruType.unknown) {
+      throw const FormatException('Unsupported content engine');
+    }
+    return BoorusamaPostLink.parsePostId(engine, sourceKey);
+  }
 }
 
 final class ContentReference extends Equatable {

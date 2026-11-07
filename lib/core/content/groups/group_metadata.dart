@@ -36,9 +36,7 @@ final class GroupCover extends Equatable {
     this.representedPost,
     Map<String, String> variants = const {},
   }) : variants = Map.unmodifiable(variants) {
-    for (final uri in [thumbnail, ?sample, ?original]) {
-      validateGroupMetadataUri(uri);
-    }
+    [thumbnail, ?sample, ?original].forEach(validateGroupMetadataUri);
     if ((width != null && width! <= 0) ||
         (height != null && height! <= 0) ||
         (representedPost != null &&
