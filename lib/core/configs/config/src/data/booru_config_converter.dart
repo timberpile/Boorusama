@@ -84,6 +84,9 @@ extension BooruConfigDataConverter on BooruConfigData? {
 
 extension BooruConfigConverter on BooruConfig {
   BooruConfigData toBooruConfigData() {
+    if (anonymousReadScope != null) {
+      throw StateError('Public read contexts cannot become saved profiles');
+    }
     return BooruConfigData(
       booruId: booruId,
       booruIdHint: booruIdHint,

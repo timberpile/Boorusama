@@ -192,9 +192,8 @@ BooruConfig? resolveBookmarkOriginProfile(
   List<BooruConfig> configs,
 ) => switch (const PostOriginResolver().resolve(
   origin,
-  origin.profileIdHint == null
-      ? configs
-      : configs.where((c) => c.id == origin.profileIdHint),
+  configs,
+  allowProfileHintFallback: false,
 )) {
   ResolvedPostOrigin(:final config) => config,
   _ => null,

@@ -9,9 +9,14 @@ final class PostOriginResolver {
 
   PostOriginResolution resolve(
     PostOrigin origin,
-    Iterable<BooruConfig> configs,
-  ) {
-    final candidates = configs.toList(growable: false);
+    Iterable<BooruConfig> configs, {
+    bool allowProfileHintFallback = true,
+  }) {
+    final candidates =
+        (allowProfileHintFallback || origin.profileIdHint == null
+                ? configs
+                : configs.where((config) => config.id == origin.profileIdHint))
+            .toList(growable: false);
     if (origin.profileIdHint case final profileId?) {
       final hinted = candidates
           .where((config) => config.id == profileId)

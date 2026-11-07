@@ -8,6 +8,7 @@ import 'package:equatable/equatable.dart';
 
 // Project imports:
 import '../../../../boorus/booru/types.dart';
+import '../../../../content/anonymous_read_scope.dart';
 import '../../../../home/types.dart';
 import '../../../../http/configs/types.dart';
 import '../../../../posts/details_manager/types.dart';
@@ -68,10 +69,14 @@ class BooruConfig extends Equatable {
     this.networkSettings,
     this.profileIcon,
     this.optionWarnings = const [],
+    this.anonymousReadScope,
   });
 
   /// Transient import diagnostics; not part of persisted profile identity.
   final List<String> optionWarnings;
+
+  /// Runtime-only public read permission; never decoded or serialized as a profile.
+  final AnonymousReadScope? anonymousReadScope;
 
   factory BooruConfig.fromJson(Map<String, dynamic> json) {
     return BooruConfig(
@@ -236,6 +241,7 @@ class BooruConfig extends Equatable {
   final ProfileIconConfigs? profileIcon;
 
   BooruConfig copyWith({
+    AnonymousReadScope? anonymousReadScope,
     ThumbnailActions? thumbnailActions,
     String? url,
     String? apiKey,
@@ -249,6 +255,7 @@ class BooruConfig extends Equatable {
   }) {
     return BooruConfig(
       id: id,
+      anonymousReadScope: anonymousReadScope ?? this.anonymousReadScope,
       optionWarnings: optionWarnings,
       booruId: booruId,
       booruIdHint: booruIdHint ?? this.booruIdHint,
@@ -317,6 +324,7 @@ class BooruConfig extends Equatable {
     tooltipDisplayMode,
     networkSettings,
     profileIcon,
+    anonymousReadScope?.key,
   ];
 
   @override
@@ -371,6 +379,7 @@ class BooruConfigAuth extends Equatable with BooruConfigAuthMixin {
     required String? passHash,
     required this.proxySettings,
     required this.networkSettings,
+    this.anonymousReadScope,
   }) : _apiKey = apiKey,
        _login = login,
        _passHash = passHash;
@@ -385,6 +394,7 @@ class BooruConfigAuth extends Equatable with BooruConfigAuthMixin {
       passHash: config.passHash,
       proxySettings: config.proxySettings,
       networkSettings: config.networkSettings,
+      anonymousReadScope: config.anonymousReadScope,
     );
   }
 
@@ -407,6 +417,7 @@ class BooruConfigAuth extends Equatable with BooruConfigAuthMixin {
   @override
   final ProxySettings? proxySettings;
   final NetworkSettings? networkSettings;
+  final AnonymousReadScope? anonymousReadScope;
 
   String? _emptyAsNull(String? value) {
     if (value == null) return null;
@@ -416,7 +427,10 @@ class BooruConfigAuth extends Equatable with BooruConfigAuthMixin {
   }
 
   String computeHash() {
-    final key = '$booruId$booruIdHint$url$apiKey$login$passHash';
+    final publicScope = anonymousReadScope;
+    final key = publicScope == null
+        ? '$booruId$booruIdHint$url$apiKey$login$passHash'
+        : publicScope.cacheNamespace;
 
     final bytes = utf8.encode(key);
     final digest = sha256.convert(bytes);
@@ -434,6 +448,7 @@ class BooruConfigAuth extends Equatable with BooruConfigAuthMixin {
     passHash,
     proxySettings,
     networkSettings,
+    anonymousReadScope?.key,
   ];
 }
 

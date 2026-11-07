@@ -9,6 +9,7 @@ import '../errors/types.dart';
 import '../posts/details/src/types/viewer_entry.dart';
 import '../posts/post/types.dart';
 import 'content_access.dart';
+import 'anonymous_access_provider.dart';
 
 /// Reuse the established non-secret visibility policy and effective blacklist.
 /// A loading/failed policy cannot authorize cached Group metadata or media.
@@ -148,7 +149,14 @@ final contentAccessContextProvider = Provider.autoDispose
     .family<ContentAccessContext?, ContentAccessKey>(
       (ref, key) {
         final id = key.profileId;
-        if (id == null) return null;
+        if (id == null) {
+          final source = ref
+              .watch(anonymousSourcePolicyProvider)
+              .forNamespace(key.engine, key.siteNamespace);
+          if (source == null) return null;
+          final context = ref.watch(anonymousContentAccessProvider(source));
+          return context?.key == key ? context : null;
+        }
         final scope = ref.watch(
           contentAccessScopesProvider.select((values) => values[id]),
         );
@@ -161,23 +169,75 @@ final contentAccessContextProvider = Provider.autoDispose
         final context = ref.watch(contentProfileAccessProvider(id));
         return context?.key == key ? context : null;
       },
-      dependencies: [contentAccessScopesProvider, contentProfileAccessProvider],
+      dependencies: [
+        contentAccessScopesProvider,
+        contentProfileAccessProvider,
+        anonymousSourcePolicyProvider,
+        anonymousContentAccessProvider,
+      ],
     );
 
 final contentAccessForReferenceProvider = Provider.autoDispose
-    .family<ContentAccessContext?, ContentAccessRequest>((ref, request) {
-      final profiles = ref.watch(booruConfigProvider);
-      final origin = PostOrigin.fromSource(
-        booruType: request.reference.engine,
-        booruId: 0,
-        source: request.reference.site.toString(),
-        profileIdHint: request.profileIdHint,
-      );
-      final resolved = const PostOriginResolver().resolve(origin, profiles);
-      return switch (resolved) {
-        ResolvedPostOrigin(:final config) => ref.watch(
-          contentProfileAccessProvider(config.id),
-        ),
-        _ => null,
-      };
-    }, dependencies: [booruConfigProvider, contentProfileAccessProvider]);
+    .family<ContentAccessContext?, ContentAccessRequest>(
+      (ref, request) {
+        final profiles = ref.watch(booruConfigProvider);
+        final origin = PostOrigin.fromSource(
+          booruType: request.reference.engine,
+          booruId: 0,
+          source: request.reference.site.toString(),
+          profileIdHint: request.profileIdHint,
+        );
+        final resolved = const PostOriginResolver().resolve(
+          origin,
+          profiles,
+          allowProfileHintFallback: request.allowProfileHintFallback,
+        );
+        return switch (resolved) {
+          ResolvedPostOrigin(:final config) => ref.watch(
+            contentProfileAccessProvider(config.id),
+          ),
+          AmbiguousPostOrigin() => null,
+          MissingPostOrigin() => switch (ref
+              .watch(anonymousSourcePolicyProvider)
+              .resolve(request.reference.engine, request.reference.site)) {
+            final source? => ref.watch(anonymousContentAccessProvider(source)),
+            _ => null,
+          },
+        };
+      },
+      dependencies: [
+        booruConfigProvider,
+        contentProfileAccessProvider,
+        anonymousSourcePolicyProvider,
+        anonymousContentAccessProvider,
+      ],
+    );
+
+final contentAccessForOriginProvider = Provider.autoDispose
+    .family<ContentAccessContext?, PostOrigin>(
+      (ref, origin) {
+        final resolution = const PostOriginResolver().resolve(
+          origin,
+          ref.watch(booruConfigProvider),
+          allowProfileHintFallback: false,
+        );
+        return switch (resolution) {
+          ResolvedPostOrigin(:final config) => ref.watch(
+            contentProfileAccessProvider(config.id),
+          ),
+          AmbiguousPostOrigin() => null,
+          MissingPostOrigin() => switch (ref
+              .watch(anonymousSourcePolicyProvider)
+              .forNamespace(origin.booruType, origin.sourceHost)) {
+            final source? => ref.watch(anonymousContentAccessProvider(source)),
+            _ => null,
+          },
+        };
+      },
+      dependencies: [
+        booruConfigProvider,
+        contentProfileAccessProvider,
+        anonymousSourcePolicyProvider,
+        anonymousContentAccessProvider,
+      ],
+    );

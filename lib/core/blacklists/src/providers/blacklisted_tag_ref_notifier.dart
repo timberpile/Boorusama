@@ -15,6 +15,9 @@ import 'global_blacklisted_tag_notifier.dart';
 final blacklistTagsRefRepoProvider =
     Provider.family<BlacklistTagRefRepository, BooruConfigAuth>(
       (ref, config) {
+        if (config.anonymousReadScope != null) {
+          return EmptyBooruSpecificBlacklistTagRefRepository(ref);
+        }
         final repo = ref
             .watch(booruEngineRegistryProvider)
             .getRepository(config.booruType);

@@ -77,7 +77,7 @@ PostOrigin postOriginFromConfig(BooruConfig config) => PostOrigin.fromSource(
   booruType: config.auth.booruType,
   booruId: config.booruId,
   source: config.url,
-  profileIdHint: config.id,
+  profileIdHint: config.anonymousReadScope == null ? config.id : null,
 );
 
 List<Post> bindPostsOrigin(
