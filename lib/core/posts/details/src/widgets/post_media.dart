@@ -15,16 +15,18 @@ import '../../../../ddos/handler/providers.dart';
 import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
+import '../../../../images/booru_image.dart' show ErrorPlaceholder;
 import '../../../../settings/providers.dart';
 import '../../../../settings/routes.dart';
 import '../../../../videos/cache/providers.dart';
+import '../../../../videos/cache/prepare_bound_video.dart';
 import '../../../../videos/player/providers.dart';
 import '../../../../videos/player/widgets.dart';
-import '../../../../videos/engines/types.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../providers/video_url_provider.dart';
 import '../types/post_details.dart';
+import '../types/post_presentation_fallback_reason.dart';
 import '../types/utils.dart';
 import 'post_details_image.dart';
 
@@ -113,14 +115,12 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                     if (publicScope != null) {
                       final uri = Uri.tryParse(request.url);
                       if (uri == null || !publicScope.source.allowsMedia(uri))
-                        return const BlockedMediaPlaceholder(isVideo: true);
+                        return const ErrorPlaceholder(
+                          borderRadius: BorderRadius.zero,
+                          reason:
+                              PostPresentationFallbackReason.unavailableEngine,
+                        );
                     }
-                    final guardedCache = access.key == null
-                        ? null
-                        : ref.watch(guardedPlaybackCacheManagerProvider);
-                    final retainGuarded =
-                        access.key != null &&
-                        ref.watch(videoCacheManagerProvider) != null;
                     final mediaDio = access.key == null
                         ? null
                         : ref.watch(contentMediaDioProvider(access.key!));
@@ -152,26 +152,17 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                                           )
                                           ?.key ==
                                       access.key;
-                              final lease = await guardedCache!
-                                  .acquireGuardedVideo(
-                                    request.url,
-                                    namespace: cacheNamespace!,
-                                    transport: mediaDio!,
-                                    headers: mediaHeaders,
-                                    isCurrent: current,
-                                    cancelToken: cancellation,
-                                    retain: retainGuarded,
-                                  );
-                              if (!current()) {
-                                await lease.release();
-                                throw StateError('Video access revoked');
-                              }
-                              return (
-                                source: CachedVideoSource(
-                                  filePath: lease.path,
-                                  originalUrl: request.url,
-                                ),
-                                lease: lease,
+                              return prepareBoundVideo(
+                                url: request.url,
+                                namespace: cacheNamespace!,
+                                transport: mediaDio!,
+                                headers: mediaHeaders,
+                                isCurrent: current,
+                                cancellation: cancellation,
+                                fileSize: post.fileSize > 0
+                                    ? post.fileSize
+                                    : null,
+                                cache: ref.read(videoCacheManagerProvider),
                               );
                             },
                       heroTag: heroTag,

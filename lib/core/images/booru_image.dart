@@ -21,6 +21,7 @@ import '../content/content_media_dio.dart';
 import '../developer_options/blocked_media_placeholder.dart';
 import '../developer_options/providers.dart';
 import '../http/client/providers.dart';
+import '../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../settings/providers.dart';
 import 'image_quality.dart';
 import 'providers.dart';
@@ -102,7 +103,7 @@ class BooruImage extends ConsumerWidget {
       return uri != null && publicSource.allowsMedia(uri);
     }
 
-    if (!access.allowed || !permitted(imageUrl)) {
+    if (!access.allowed) {
       return NullableAspectRatio(
         aspectRatio: forceCover || fit == BoxFit.contain ? null : aspectRatio,
         child:
@@ -110,6 +111,39 @@ class BooruImage extends ConsumerWidget {
             KurumiImagePlaceholder(
               borderRadius: borderRadius ?? _defaultRadius,
             ),
+      );
+    }
+    if (publicSource != null && !permitted(imageUrl)) {
+      final safeCandidates = <String>{
+        ...fallbackUrls,
+        if (fallbackUrl case final value?) value,
+        if (placeholderUrl case final value?) value,
+      }.where(permitted).toList();
+      if (safeCandidates.isEmpty) {
+        return ErrorPlaceholder(
+          borderRadius: borderRadius,
+          reason: PostPresentationFallbackReason.unavailableEngine,
+        );
+      }
+      return BooruImage(
+        config: config,
+        imageUrl: safeCandidates.first,
+        fallbackUrls: safeCandidates.skip(1).toList(),
+        placeholderAspectRatio: placeholderAspectRatio,
+        placeholderFit: placeholderFit,
+        borderRadius: borderRadius,
+        fit: fit,
+        aspectRatio: aspectRatio,
+        imageWidth: imageWidth,
+        imageHeight: imageHeight,
+        forceCover: forceCover,
+        forceFill: forceFill,
+        forceLoadPlaceholder: forceLoadPlaceholder,
+        hideMismatchedPlaceholder: hideMismatchedPlaceholder,
+        placeholderWidget: placeholderWidget,
+        errorWidget: errorWidget,
+        controller: controller,
+        imageCacheManager: imageCacheManager,
       );
     }
     final safePlaceholder = permitted(placeholderUrl) ? placeholderUrl : null;
@@ -531,14 +565,17 @@ class ErrorPlaceholder extends StatelessWidget {
     super.key,
     this.borderRadius,
     this.onRetry,
+    this.reason = PostPresentationFallbackReason.refreshFailed,
   });
 
   final VoidCallback? onRetry;
   final BorderRadiusGeometry? borderRadius;
+  final PostPresentationFallbackReason reason;
 
   @override
   Widget build(BuildContext context) => ContentMediaOutcome(
     failed: true,
+    reason: reason,
     child: KurumiImageErrorPlaceholder(
       borderRadius: borderRadius,
       child: Stack(

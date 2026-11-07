@@ -26,7 +26,7 @@ import 'video_player_error_container.dart';
 
 typedef PlayerDisposer = Future<void> Function(BooruPlayer player);
 typedef PreparedVideoSourceLoader =
-    Future<({VideoSource source, VideoCacheLease? lease})> Function(
+    Future<({VideoSource source, Future<void> Function()? release})> Function(
       CancelToken cancellation,
     );
 
@@ -102,7 +102,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   var _isPreparingSource = false;
   Timer? _cacheDelayTimer;
   String? _cachingUrl;
-  VideoCacheLease? _videoCacheLease;
+  Future<void> Function()? _releaseVideoSource;
   CancelToken? _sourceCancellation;
   var _sourceGeneration = 0;
 
@@ -197,7 +197,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         mounted && !_isDisposing && generation == _sourceGeneration;
 
     setState(() => _isPreparingSource = true);
-    VideoCacheLease? preparedLease;
+    Future<void> Function()? releasePrepared;
 
     try {
       _log(
@@ -209,11 +209,11 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
           ? await _createVideoSource()
           : await widget.sourceLoader!(cancellation);
       final source = prepared.source;
-      preparedLease = prepared.lease;
+      releasePrepared = prepared.release;
       if (!current()) {
         return;
       }
-      final previousLease = _videoCacheLease;
+      final releasePrevious = _releaseVideoSource;
 
       // If we already have a player, try fast URL switching first
       if (_player != null && !_isDisposing) {
@@ -229,7 +229,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
             await player.switchUrl(
               source,
               config: VideoConfig(
-                headers: widget.headers,
+                headers: source is GuardedStreamingVideoSource
+                    ? const {}
+                    : widget.headers,
               ),
             );
             if (!current()) return;
@@ -244,14 +246,14 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
           _updatePlayerSettings();
 
           if (current()) {
-            _videoCacheLease = preparedLease;
-            preparedLease = null;
+            _releaseVideoSource = releasePrepared;
+            releasePrepared = null;
             _isPreparingSource = false;
             setState(() {});
             if (_player case final player?) {
               widget.onVideoPlayerCreated?.call(player);
             }
-            await previousLease?.release();
+            await releasePrevious?.call();
           }
 
           _log(
@@ -292,7 +294,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       await player.initialize(
         source,
         config: VideoConfig(
-          headers: widget.headers,
+          headers: source is GuardedStreamingVideoSource
+              ? const {}
+              : widget.headers,
         ),
       );
       if (!current()) {
@@ -345,8 +349,8 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         );
 
         _player = player;
-        _videoCacheLease = preparedLease;
-        preparedLease = null;
+        _releaseVideoSource = releasePrepared;
+        releasePrepared = null;
         _isPreparingSource = false;
         setState(() {});
         widget.onVideoPlayerCreated?.call(player);
@@ -354,7 +358,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         if (oldPlayer != null) {
           await _disposePlayerSafely(oldPlayer);
         }
-        await previousLease?.release();
+        await releasePrevious?.call();
 
         _scheduleDelayedCaching();
       } else {
@@ -377,7 +381,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         });
       }
     } finally {
-      await preparedLease?.release();
+      await releasePrepared?.call();
     }
   }
 
@@ -400,9 +404,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     _positionSubscription = null;
     _bufferingSubscription = null;
     final player = _player;
-    final lease = _videoCacheLease;
+    final release = _releaseVideoSource;
     _player = null;
-    _videoCacheLease = null;
+    _releaseVideoSource = null;
 
     // Immediately mute and stop the player before disposal
     if (player != null) {
@@ -416,7 +420,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       player.dispose();
     }
 
-    await lease?.release();
+    await release?.call();
     await positionCancellation;
     await bufferingCancellation;
     _error = null;
@@ -447,11 +451,11 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   }
 
   /// Creates a VideoSource, preferring a valid cached file
-  Future<({VideoSource source, VideoCacheLease? lease})>
+  Future<({VideoSource source, Future<void> Function()? release})>
   _createVideoSource() async {
     final cacheManager = widget.cacheManager;
     if (cacheManager == null) {
-      return (source: StreamingVideoSource(widget.url), lease: null);
+      return (source: StreamingVideoSource(widget.url), release: null);
     }
 
     final lease = await cacheManager.acquireVideo(
@@ -460,13 +464,13 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     );
 
     return switch (lease) {
-      null => (source: StreamingVideoSource(widget.url), lease: null),
+      null => (source: StreamingVideoSource(widget.url), release: null),
       final lease => (
         source: CachedVideoSource(
           filePath: lease.path,
           originalUrl: widget.url,
         ),
-        lease: lease,
+        release: lease.release,
       ),
     };
   }

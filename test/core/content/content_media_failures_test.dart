@@ -78,6 +78,24 @@ void main() {
       notifier.record(request, failed: true);
       notifier.retry([request]);
       expect(container.read(contentMediaFailuresProvider), isEmpty);
+
+      notifier.record(
+        request,
+        failed: true,
+        reason: PostPresentationFallbackReason.unavailableEngine,
+      );
+      expect(
+        container.read(contentMediaFailuresProvider),
+        {request: PostPresentationFallbackReason.unavailableEngine},
+      );
+      notifier.retry([request]);
+      expect(
+        container.read(contentMediaFailuresProvider),
+        {request: PostPresentationFallbackReason.unavailableEngine},
+        reason: 'only temporary refresh failures may be retried',
+      );
+      notifier.record(request, failed: false);
+      expect(container.read(contentMediaFailuresProvider), isEmpty);
     },
   );
 
@@ -116,17 +134,20 @@ void main() {
       final context = _context();
       final container = _container(context);
       addTearDown(container.dispose);
-      Widget build(bool? failed) => UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          home: Scaffold(
-            body: ContentMediaOutcome(
-              failed: failed,
-              child: const Text('media'),
+      Widget build(bool? failed, {PostPresentationFallbackReason? reason}) =>
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              home: Scaffold(
+                body: ContentMediaOutcome(
+                  failed: failed,
+                  reason:
+                      reason ?? PostPresentationFallbackReason.refreshFailed,
+                  child: const Text('media'),
+                ),
+              ),
             ),
-          ),
-        ),
-      );
+          );
 
       await tester.pumpWidget(build(null));
       expect(container.read(contentMediaFailuresProvider), isEmpty);
@@ -134,6 +155,13 @@ void main() {
       expect(
         container.read(contentMediaFailuresProvider),
         {_request(context): PostPresentationFallbackReason.refreshFailed},
+      );
+      await tester.pumpWidget(
+        build(true, reason: PostPresentationFallbackReason.unavailableEngine),
+      );
+      expect(
+        container.read(contentMediaFailuresProvider),
+        {_request(context): PostPresentationFallbackReason.unavailableEngine},
       );
       await tester.pumpWidget(build(false));
       expect(container.read(contentMediaFailuresProvider), isEmpty);

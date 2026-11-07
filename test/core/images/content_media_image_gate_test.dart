@@ -8,6 +8,7 @@ import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/content/content_access.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/content_media_access.dart';
+import 'package:boorusama/core/content/content_media_failures.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/images/booru_image.dart';
@@ -16,6 +17,7 @@ import 'package:boorusama/core/images/image_candidate_picker.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/details/src/widgets/progressive_post_image.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/details/src/types/post_presentation_fallback_reason.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
@@ -28,6 +30,7 @@ import 'package:kurumi/material.dart';
 import '../posts/details/progressive_image_test_utils.dart' as helpers;
 
 class _Adapter implements HttpClientAdapter {
+  final requests = <String>[];
   @override
   void close({bool force = false}) {}
   @override
@@ -35,11 +38,16 @@ class _Adapter implements HttpClientAdapter {
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
-  ) async => ResponseBody.fromBytes(helpers.targetPng, 200);
+  ) async {
+    requests.add(options.uri.toString());
+    return ResponseBody.fromBytes(helpers.targetPng, 200);
+  }
 }
 
 class _Cache implements ImageCacheManager {
   var operations = 0;
+  final cacheReads = <String>[];
+  final cacheWrites = <String>[];
   @override
   String generateCacheKey(String url, {String? customKey}) {
     operations++;
@@ -49,24 +57,28 @@ class _Cache implements ImageCacheManager {
   @override
   FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) {
     operations++;
+    cacheReads.add(key);
     return null;
   }
 
   @override
   FutureOr<String?> getCachedFilePath(String key, {Duration? maxAge}) {
     operations++;
+    cacheReads.add(key);
     return null;
   }
 
   @override
   FutureOr<bool> hasValidCache(String key, {Duration? maxAge}) {
     operations++;
+    cacheReads.add(key);
     return false;
   }
 
   @override
   Future<void> saveFile(String key, Uint8List bytes) async {
     operations++;
+    cacheWrites.add(key);
   }
 
   @override
@@ -87,6 +99,8 @@ class _Cache implements ImageCacheManager {
   @override
   Future<void> dispose() async {}
 }
+
+final _activeFailureBookmarkId = StateProvider<int?>((ref) => null);
 
 void main() {
   const safe = 'https://safebooru.donmai.us/image.jpg';
@@ -211,6 +225,221 @@ void main() {
       expect(cache.operations, 0);
     }
   });
+
+  testWidgets(
+    'public image and viewer choose a safe rendition when their primary is forbidden',
+    (tester) async {
+      const safeImage = 'https://safebooru.donmai.us/images/safe.png';
+      final cache = _Cache();
+      final publicScope = scope(key(1));
+      addTearDown(publicScope.dispose);
+      final public = config(publicScope);
+      final access = ContentAccessContext.anonymous(
+        config: public,
+        scope: publicScope,
+      );
+      final adapter = _Adapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(() => dio.close(force: true));
+      final container = ProviderContainer(
+        overrides: [
+          automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+          contentAccessContextProvider.overrideWith(
+            (ref, request) => request == access.key ? access : null,
+          ),
+          dioForWidgetProvider.overrideWith((ref, auth) => dio),
+          httpHeadersProvider.overrideWith((ref, auth) => const {}),
+          defaultImageCacheManagerProvider.overrideWithValue(cache),
+          imageListingSettingsProvider.overrideWithValue(
+            Settings.defaultSettings.listing,
+          ),
+          deviceInfoProvider.overrideWithValue(const DeviceInfo()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: helpers.testApp(
+            BooruImage(
+              config: public.auth,
+              imageUrl: unsafe,
+              fallbackUrl: safeImage,
+              imageCacheManager: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => helpers.waitForPixel(tester, [0, 0, 255, 255]),
+      );
+      expect(
+        tester.widget<BooruRawImage>(find.byType(BooruRawImage)).imageUrl,
+        safeImage,
+      );
+      expect(adapter.requests, isNot(contains(unsafe)));
+      expect(cache.cacheReads.any((key) => key.contains(unsafe)), isFalse);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: helpers.testApp(
+            ProgressivePostImage(
+              mediaIdentity: 'unsafe-original-safe-thumbnail',
+              config: public.auth,
+              imageUrl: unsafe,
+              lowerMedia: const GridThumbnailMedia(
+                url: safeImage,
+                aspectRatio: 1,
+              ),
+              aspectRatio: 1,
+              geometryAspectRatio: 1,
+              imageCacheManager: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => helpers.waitForPixel(tester, [0, 0, 255, 255]),
+      );
+      final progressive = tester.widget<RawProgressivePostImage>(
+        find.byType(RawProgressivePostImage),
+      );
+      expect(progressive.imageUrl, safeImage);
+      expect(progressive.lowerMedia.url, safeImage);
+      expect(adapter.requests, isNot(contains(unsafe)));
+      expect(cache.cacheReads.any((key) => key.contains(unsafe)), isFalse);
+      expect(cache.cacheWrites.any((key) => key.contains(unsafe)), isFalse);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'all-forbidden primary and fallback renditions report unavailableEngine without probing',
+    (tester) async {
+      final cache = _Cache();
+      final publicScope = scope(key(1));
+      addTearDown(publicScope.dispose);
+      final public = config(publicScope);
+      final access = ContentAccessContext.anonymous(
+        config: public,
+        scope: publicScope,
+      );
+      final adapter = _Adapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(() => dio.close(force: true));
+      final container = ProviderContainer(
+        overrides: [
+          automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+          contentAccessContextProvider.overrideWith(
+            (ref, request) => request == access.key ? access : null,
+          ),
+          currentContentAccessKeyProvider.overrideWithValue(access.key),
+          contentAccessRequiredProvider.overrideWithValue(true),
+          _activeFailureBookmarkId.overrideWith((ref) => 94),
+          currentContentBookmarkIdProvider.overrideWith(
+            (ref) => ref.watch(_activeFailureBookmarkId),
+          ),
+          dioForWidgetProvider.overrideWith((ref, auth) => dio),
+          httpHeadersProvider.overrideWith((ref, auth) => const {}),
+          defaultImageCacheManagerProvider.overrideWithValue(cache),
+          imageListingSettingsProvider.overrideWithValue(
+            Settings.defaultSettings.listing,
+          ),
+          deviceInfoProvider.overrideWithValue(const DeviceInfo()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final failureKey = (access: access.key, bookmarkId: 94);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: helpers.testApp(
+            BooruImage(
+              config: public.auth,
+              imageUrl: unsafe,
+              fallbackUrl: 'https://foreign.example.test/fallback.png',
+              fallbackUrls: const [
+                'https://another.example.test/alternate.png',
+              ],
+              placeholderUrl: 'https://foreign.example.test/placeholder.png',
+              imageCacheManager: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(ErrorPlaceholder), findsOneWidget);
+      expect(
+        container.read(contentMediaFailuresProvider),
+        {failureKey: PostPresentationFallbackReason.unavailableEngine},
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: helpers.testApp(
+            ProgressivePostImage(
+              mediaIdentity: 'all-renditions-forbidden',
+              config: public.auth,
+              imageUrl: unsafe,
+              lowerMedia: const GridThumbnailMedia(
+                url: 'https://foreign.example.test/thumbnail.png',
+                aspectRatio: 1,
+                fallbackUrl: 'https://another.example.test/fallback.png',
+                fallbackUrls: ['https://foreign.example.test/low.png'],
+                placeholderUrl: 'https://another.example.test/placeholder.png',
+              ),
+              intermediateImageUrls: const [
+                'https://foreign.example.test/intermediate.png',
+              ],
+              aspectRatio: 1,
+              geometryAspectRatio: 1,
+              imageCacheManager: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(ErrorPlaceholder), findsOneWidget);
+      expect(
+        container.read(contentMediaFailuresProvider),
+        {failureKey: PostPresentationFallbackReason.unavailableEngine},
+      );
+      container
+          .read(contentMediaFailuresProvider.notifier)
+          .record(failureKey, failed: false);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: helpers.testApp(
+            BooruImageCandidates(
+              config: public.auth,
+              urls: const [
+                unsafe,
+                'https://foreign.example.test/candidate.png',
+              ],
+              placeholder: const SizedBox(),
+              builder: (_) => const SizedBox(),
+              imageCacheManager: cache,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(ErrorPlaceholder), findsOneWidget);
+      expect(container.read(contentMediaFailuresProvider), {
+        failureKey: PostPresentationFallbackReason.unavailableEngine,
+      });
+      expect(adapter.requests, isEmpty);
+      expect(cache.cacheReads, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('cached image bytes require their matching access key', (
     tester,

@@ -1,4 +1,5 @@
 import 'package:boorusama/core/posts/post/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
 
 import 'dart:async';
 
@@ -51,6 +52,88 @@ class _PendingExtractor implements DownloadFileUrlExtractor {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'native Bookmark downloads strip foreign and installation-external headers',
+    () async {
+      final backend = FakeBooruBackend();
+      final owner = BooruConfig.fromJson({
+        ...backend.config.toJson(),
+        'url': 'https://private.example/install/',
+      });
+      final downloads = MemoryDownloadService();
+      final runtime = backend.createRuntime(
+        configs: [owner],
+        downloadService: downloads,
+      );
+      final initial = runtime.initialState;
+      final container = ProviderContainer(
+        overrides: [
+          ...buildBoorusamaOverrides(
+            runtime,
+            RebootData(
+              config: initial.initialConfig,
+              configs: initial.configs,
+              settings: initial.settings,
+            ),
+          ),
+          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          httpHeadersProvider.overrideWith(
+            (_, _) => const {
+              'Authorization': 'source-secret',
+              'Cookie': 'source-cookie',
+              'X-Api-Key': 'source-key',
+              'Accept': 'image/*',
+            },
+          ),
+          downloadFileUrlExtractorProvider.overrideWith(
+            (_, _) => const UrlInsidePostExtractor(),
+          ),
+          bypassDdosHeadersProvider.overrideWith(
+            (_, _) => Future.value(<String, String>{}),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(bookmarkProvider.future);
+      for (final url in [
+        'https://cdn.example/file.jpg',
+        'https://private.example/other/file.jpg',
+        'https://private.example/install/file.jpg',
+      ]) {
+        final post = TestPost(
+          id: 42,
+          origin: postOriginFromConfig(owner),
+          originalImageUrl: url,
+        );
+        final saved = PostBookmark.fromSnapshot(
+          id: 1,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          postId: 42,
+          post: post,
+          snapshot: const StoredPostCodec().encode(
+            post,
+            dataCodec: const EmptyPostDataCodec('test'),
+          ),
+        );
+        await container.read(bookmarkProvider.notifier).downloadBookmarks(
+          owner.auth,
+          owner.download,
+          [saved],
+        );
+        final request = downloads.requests.last;
+        expect(request.url, url);
+        expect(request.headers?['Accept'], 'image/*');
+        final owned = url.contains('/install/');
+        expect(
+          request.headers?['Authorization'],
+          owned ? 'source-secret' : isNull,
+        );
+        expect(request.headers?['Cookie'], owned ? 'source-cookie' : isNull);
+        expect(request.headers?['X-Api-Key'], owned ? 'source-key' : isNull);
+      }
+    },
+  );
   for (final change in ['delete', 'credentials', 'policy']) {
     test('pending permission stops native scheduling after $change', () async {
       final backend = FakeBooruBackend();

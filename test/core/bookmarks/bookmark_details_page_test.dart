@@ -3,6 +3,8 @@ import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/content_access.dart';
+import 'package:boorusama/core/content/anonymous_read_scope.dart';
+import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/content/content_media_access.dart';
 import 'package:boorusama/core/images/scoped_image_cache_manager.dart';
 import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
@@ -93,6 +95,7 @@ import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
 import '../../support/fakes/bookmark_test_storage.dart';
+import '../../support/fakes/test_post.dart';
 
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
@@ -104,6 +107,108 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  testWidgets(
+    'bookmark grid scopes a retained null-postId row to its local record ID',
+    (tester) async {
+      const policy = AnonymousSourcePolicy();
+      final source = policy.resolve(
+        BooruType.danbooru,
+        Uri.parse('https://safebooru.donmai.us'),
+      )!;
+      final key = ContentAccessKey(
+        engine: source.engine,
+        siteNamespace: source.site.host,
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final scope = AnonymousReadScope(
+        source: source,
+        key: key,
+        createDio: () => throw StateError('The test does not load media'),
+        current: () => true,
+      );
+      addTearDown(scope.dispose);
+      final config = BooruConfig.fromJson({
+        ...BooruConfig.empty.toJson(),
+        'id': '11111111-1111-4111-8111-111111111111',
+        'booruId': BooruType.danbooru.id,
+        'booruIdHint': BooruType.danbooru.id,
+        'url': source.site.toString(),
+      }).copyWith(anonymousReadScope: scope);
+      final access = ContentAccessContext.anonymous(
+        config: config,
+        scope: scope,
+      );
+      final origin = PostOrigin.fromSource(
+        booruType: BooruType.danbooru,
+        booruId: BooruType.danbooru.id,
+        source: source.site.toString(),
+      );
+      Post rowPost() => TestPost(
+        id: 91,
+        origin: origin,
+        booruData: const LegacyPostData(
+          typeKey: 'legacy_danbooru',
+          custom: {},
+        ),
+        thumbnailImageUrl: 'https://cdn.donmai.us/sample/91.jpg',
+        sampleImageUrl: 'https://foreign.example.test/91-sample.jpg',
+        originalImageUrl: 'https://foreign.example.test/91-original.jpg',
+      );
+      PostBookmark record(int id, Post post, int? postId) =>
+          PostBookmark.fromSnapshot(
+            id: id,
+            createdAt: DateTime.utc(2024),
+            updatedAt: DateTime.utc(2024),
+            snapshot: const StoredPostCodec().encode(post),
+            post: post,
+            postId: postId,
+          );
+
+      final known = record(101, rowPost(), 91);
+      final retained = record(202, rowPost(), null);
+      final group = BookmarkGroup(
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Retained row',
+        bookmarkIds: {retained.id},
+      );
+      final library = BookmarkLibraryState(
+        bookmarks: [known, retained],
+        records: [known, retained],
+        groups: [
+          BookmarkGroup(
+            id: '33333333-3333-4333-8333-333333333333',
+            name: 'Known row',
+            bookmarkIds: {known.id},
+          ),
+          group,
+        ],
+      );
+      final controller = _controller([known.post, retained.post]);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          home: BookmarkGroupBrowserPage(groupId: group.id),
+          bookmarkNotifier: _CacheBookmarkNotifier(library),
+          fixedAccess: access,
+          fixedEpochs: ContentAccessEpochs(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final tileImage = find.byType(BooruImage);
+      expect(tileImage, findsOneWidget);
+      final tileContainer = ProviderScope.containerOf(
+        tester.element(tileImage),
+      );
+      expect(
+        tileContainer.read(currentContentBookmarkIdProvider),
+        retained.id,
+      );
+      expect(tester.takeException(), isNull);
+      controller.dispose();
+    },
+  );
+
   for (final folder in [false, true]) {
     for (final hasPoster in [false, true]) {
       testWidgets(

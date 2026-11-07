@@ -171,23 +171,7 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
       uri.userInfo.isEmpty;
 
   bool _withinSource(Uri uri) {
-    if (!_validUri(source) ||
-        uri.scheme != source.scheme ||
-        uri.host != source.host ||
-        uri.port != source.port) {
-      return false;
-    }
-    final path = uri.path;
-    if (path.contains(r'\') ||
-        RegExp(
-          '%(?:2f|5c|2e|25)',
-          caseSensitive: false,
-        ).hasMatch(uri.toString().split('?').first.split('#').first) ||
-        uri.pathSegments.any((segment) => segment == '.' || segment == '..')) {
-      return false;
-    }
-    final base = source.path.replaceFirst(RegExp(r'/+$'), '');
-    return base.isEmpty || path == base || path.startsWith('$base/');
+    return MediaRequest.permitsSourceHeaders(uri, source);
   }
 
   Map<String, dynamic> _safeHeaders(Map<String, dynamic> headers) {

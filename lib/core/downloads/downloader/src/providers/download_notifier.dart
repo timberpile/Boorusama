@@ -258,6 +258,9 @@ Future<DownloadTaskInfo?> _download(
     final network = ref.read(networkSettingsProvider(params.auth));
     final request = network.resolveMedia(
       urlData.url,
+      // Source-bound work carries an explicit actor guard. Ordinary extractor
+      // flows retain their existing destination-specific cookie contract.
+      sourceUrl: isCurrent == null ? null : params.auth.url,
       headers: {
         ...headers,
         if (urlData.cookie != null)

@@ -26,12 +26,14 @@ class _Lease implements VideoCacheLease {
 
 class _Player extends Fake implements BooruPlayer {
   VideoSource? source;
+  VideoConfig? config;
   var disposed = false;
   @override
   bool isPlatformSupported() => true;
   @override
   Future<void> initialize(VideoSource source, {VideoConfig? config}) async {
     this.source = source;
+    this.config = config;
   }
 
   @override
@@ -65,6 +67,38 @@ Widget _app(Widget child) => ProviderScope(
 
 void main() {
   const remote = 'https://safebooru.donmai.us/video.mp4';
+  testWidgets('guarded stream gives native player no upstream headers', (
+    tester,
+  ) async {
+    final player = _Player();
+    var releases = 0;
+    await tester.pumpWidget(
+      _app(
+        BooruVideo(
+          url: remote,
+          aspectRatio: 1,
+          headers: const {'Authorization': 'upstream-secret'},
+          sourceLoader: (_) async => (
+            source: const GuardedStreamingVideoSource(
+              playbackUrl: 'http://127.0.0.1:12345/capability/video',
+              originalUrl: remote,
+            ),
+            release: () async {
+              releases++;
+            },
+          ),
+          playerFactory: (_) => player,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(player.source, isA<GuardedStreamingVideoSource>());
+    expect(player.config?.headers, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    expect(releases, 1);
+    expect(player.disposed, isTrue);
+  });
   testWidgets(
     'guarded loader supplies only its local source and retains its lease',
     (tester) async {
@@ -80,7 +114,7 @@ void main() {
                 filePath: lease.path,
                 originalUrl: remote,
               ),
-              lease: lease,
+              release: lease.release,
             ),
             playerFactory: (_) => player,
           ),
@@ -106,7 +140,7 @@ void main() {
     'disposing during preparation cancels and releases a late source without creating a player',
     (tester) async {
       final pending =
-          Completer<({VideoSource source, VideoCacheLease? lease})>();
+          Completer<({VideoSource source, Future<void> Function()? release})>();
       CancelToken? cancellation;
       final lease = _Lease();
       var creates = 0;
@@ -131,7 +165,7 @@ void main() {
       expect(cancellation!.isCancelled, isTrue);
       pending.complete((
         source: CachedVideoSource(filePath: lease.path, originalUrl: remote),
-        lease: lease,
+        release: lease.release,
       ));
       await tester.pump();
       expect(creates, 0);

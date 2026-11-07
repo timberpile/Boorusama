@@ -625,7 +625,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           bookmarkId: ref
               .watch(bookmarkProvider)
               .valueOrNull
-              ?.bookmarkForPost(post)
+              ?.storedBookmarkForPost(post)
               ?.id,
           child: PostGridContextMenu(
             index: index,

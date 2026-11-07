@@ -29,6 +29,19 @@ class StreamingVideoSource extends VideoSource {
   String toString() => 'StreamingVideoSource(url: $url)';
 }
 
+/// A native player reads only a route-owned local stream. The upstream source
+/// remains metadata; credentials and redirects stay in the guarded Dart client.
+final class GuardedStreamingVideoSource extends StreamingVideoSource {
+  const GuardedStreamingVideoSource({
+    required this.playbackUrl,
+    required String originalUrl,
+  }) : super(originalUrl);
+
+  final String playbackUrl;
+  @override
+  String get url => playbackUrl;
+}
+
 /// Cached video file source
 class CachedVideoSource extends VideoSource {
   const CachedVideoSource({

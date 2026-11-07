@@ -12,8 +12,11 @@ import '../configs/config/types.dart';
 import '../configs/network/providers.dart';
 import '../content/content_media_access.dart';
 import '../content/content_media_dio.dart';
+import '../content/content_media_failures.dart';
 import '../developer_options/providers.dart';
 import '../http/client/providers.dart';
+import '../posts/details/src/types/post_presentation_fallback_reason.dart';
+import 'booru_image.dart' show ErrorPlaceholder;
 import 'image_candidate_picker.dart';
 import 'providers.dart';
 
@@ -49,7 +52,13 @@ class BooruImageCandidates extends ConsumerWidget {
             final uri = Uri.tryParse(url);
             return uri != null && publicSource.allowsMedia(uri);
           }).toList();
-    if (allowedUrls.isEmpty) return placeholder;
+    if (allowedUrls.isEmpty) {
+      return publicSource == null
+          ? placeholder
+          : const ErrorPlaceholder(
+              reason: PostPresentationFallbackReason.unavailableEngine,
+            );
+    }
     final network = ref.watch(networkSettingsProvider(config));
     final headers = ref.watch(httpHeadersProvider(config));
     final dio = access.key == null
@@ -95,6 +104,7 @@ class BooruImageCandidates extends ConsumerWidget {
       placeholder: placeholder,
       builder: builder,
       onSelected: (index) {
+        reportContentMediaOutcome(context, failed: index == null);
         history.remove(identity);
         if (index == null) return;
         if (history.length >= 256) history.remove(history.keys.first);

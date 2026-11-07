@@ -100,6 +100,7 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
       'user-agent',
       'content-type',
       'range',
+      'if-range',
       'if-none-match',
       'if-modified-since',
       'referer',

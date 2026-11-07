@@ -8,7 +8,13 @@ import 'content_media_access.dart';
 
 typedef ContentMediaFailureKey = ({ContentAccessKey access, int bookmarkId});
 
-void reportContentMediaOutcome(BuildContext context, {required bool failed}) {
+void reportContentMediaOutcome(
+  BuildContext context, {
+  required bool failed,
+  PostPresentationFallbackReason reason =
+      PostPresentationFallbackReason.refreshFailed,
+}) {
+  if (!context.mounted) return;
   final container = context
       .getInheritedWidgetOfExactType<UncontrolledProviderScope>()
       ?.container;
@@ -25,10 +31,13 @@ void reportContentMediaOutcome(BuildContext context, {required bool failed}) {
         container.read(currentContentAccessKeyProvider) != key ||
         container.read(currentContentBookmarkIdProvider) != id)
       return;
-    container.read(contentMediaFailuresProvider.notifier).record((
-      access: key,
-      bookmarkId: id,
-    ), failed: failed);
+    container
+        .read(contentMediaFailuresProvider.notifier)
+        .record(
+          (access: key, bookmarkId: id),
+          failed: failed,
+          reason: reason,
+        );
   });
 }
 
@@ -47,13 +56,20 @@ class ContentMediaFailures
   Map<ContentMediaFailureKey, PostPresentationFallbackReason> build() =>
       const {};
 
-  void record(ContentMediaFailureKey request, {required bool failed}) {
+  void record(
+    ContentMediaFailureKey request, {
+    required bool failed,
+    PostPresentationFallbackReason reason =
+        PostPresentationFallbackReason.refreshFailed,
+  }) {
     if (ref.read(contentAccessContextProvider(request.access)) == null) return;
-    if (failed == state.containsKey(request)) return;
     final next = Map.of(state)..remove(request);
     if (failed) {
+      if (state[request] == reason) return;
       if (next.length >= 512) next.remove(next.keys.first);
-      next[request] = PostPresentationFallbackReason.refreshFailed;
+      next[request] = reason;
+    } else if (!state.containsKey(request)) {
+      return;
     }
     state = Map.unmodifiable(next);
   }
@@ -61,7 +77,8 @@ class ContentMediaFailures
   void retry(Iterable<ContentMediaFailureKey> requests) {
     final next = Map.of(state);
     for (final request in requests) {
-      if (ref.read(contentAccessContextProvider(request.access)) != null)
+      if (ref.read(contentAccessContextProvider(request.access)) != null &&
+          state[request] == PostPresentationFallbackReason.refreshFailed)
         next.remove(request);
     }
     if (next.length != state.length) state = Map.unmodifiable(next);
@@ -74,10 +91,12 @@ class ContentMediaOutcome extends StatefulWidget {
   const ContentMediaOutcome({
     required this.failed,
     required this.child,
+    this.reason = PostPresentationFallbackReason.refreshFailed,
     super.key,
   });
   final bool? failed;
   final Widget child;
+  final PostPresentationFallbackReason reason;
   @override
   State<ContentMediaOutcome> createState() => _ContentMediaOutcomeState();
 }
@@ -92,12 +111,14 @@ class _ContentMediaOutcomeState extends State<ContentMediaOutcome> {
   @override
   void didUpdateWidget(ContentMediaOutcome oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.failed != widget.failed) _report();
+    if (oldWidget.failed != widget.failed || oldWidget.reason != widget.reason)
+      _report();
   }
 
   void _report() {
     final failed = widget.failed;
-    if (failed != null) reportContentMediaOutcome(context, failed: failed);
+    if (failed != null)
+      reportContentMediaOutcome(context, failed: failed, reason: widget.reason);
   }
 
   @override
