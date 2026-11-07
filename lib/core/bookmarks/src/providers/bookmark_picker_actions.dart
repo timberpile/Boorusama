@@ -92,7 +92,7 @@ class BookmarkPickerActions {
             await container.read(
               relatedBookmarkDraftProvider((source, family)).future,
             ),
-          PostBookmarkPickerRequest() => null,
+          PostBookmarkPickerRequest() || SavedBookmarkPickerRequest() => null,
         };
     _checkOwnership();
     return draft;
@@ -105,6 +105,16 @@ class BookmarkPickerActions {
     if (_pending) return null;
     _pending = true;
     try {
+      _checkOwnership();
+      if (request case SavedBookmarkPickerRequest(:final record)) {
+        return await container
+            .read(bookmarkProvider.notifier)
+            .toggleSavedBookmarkTarget(
+              record,
+              groupId: groupId,
+              onRemoved: onRemoved,
+            );
+      }
       final collection = await _resolveCollection();
       _checkOwnership();
       final notifier = container.read(bookmarkProvider.notifier);
@@ -141,6 +151,12 @@ class BookmarkPickerActions {
       final collection = await _resolveCollection();
       _checkOwnership();
       beforeCommit();
+      if (request case SavedBookmarkPickerRequest(:final record)) {
+        await container
+            .read(bookmarkProvider.notifier)
+            .createGroupWithSavedRecords(name, [record], folderId: folderId);
+        return;
+      }
       await container
           .read(bookmarkProvider.notifier)
           .createGroupWithPosts(

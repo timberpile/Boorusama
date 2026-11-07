@@ -237,19 +237,30 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     watchBookmarkPickerDraft(ref, request);
     final library = ref.watch(bookmarkProvider).valueOrNull;
     final identity = request.collectionIdentity;
-    final memberships = identity != null
-        ? library?.pools
-                  .where((p) => p.identity == identity)
-                  .firstOrNull
-                  ?.groupIds ??
-              const <String>{}
-        : library?.membershipsFor(
-                bookmarkIdentityForPost(
-                  (request as PostBookmarkPickerRequest).post,
-                  request.config.booruIdHint,
-                ),
-              ) ??
-              const <String>{};
+    final savedRecordId = request.savedRecordId;
+    final Set<String> memberships;
+    if (savedRecordId != null) {
+      memberships = library?.membershipsForId(savedRecordId) ?? const {};
+    } else if (identity != null) {
+      memberships =
+          library?.pools
+              .where((p) => p.identity == identity)
+              .firstOrNull
+              ?.groupIds ??
+          const {};
+    } else if (request case PostBookmarkPickerRequest(:final post)) {
+      final saved = library?.storedBookmarkForPost(post);
+      memberships = library?.hasUnifiedRecords == true
+          ? saved == null
+                ? const {}
+                : library!.membershipsForId(saved.id)
+          : library?.membershipsFor(
+                  bookmarkIdentityForPost(post, request.config.booruIdHint),
+                ) ??
+                const {};
+    } else {
+      memberships = const {};
+    }
     final folders = FolderTree(library?.folders ?? const []);
     final recentGroups =
         ref.watch(recentBookmarkGroupsProvider).valueOrNull ??

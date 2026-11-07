@@ -105,7 +105,14 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     required Set<int> recordIds,
     required Set<int> removedRecordIds,
   }) async {
-    if (groups.isEmpty && removeGroups.isEmpty && folders == null) return null;
+    final detachDeleted =
+        removedRecordIds.isNotEmpty &&
+        _metadata.get('activeOrganization') != null;
+    if (groups.isEmpty &&
+        removeGroups.isEmpty &&
+        folders == null &&
+        !detachDeleted)
+      return null;
     final (groupBox, folderBox) = await _organizationBoxes();
     final updates = <String, Map<String, Object?>>{};
     final previous = <String, Object?>{};
@@ -128,6 +135,26 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
       );
       updates[group.id] = _groupWire(_groupRow(wire));
     }
+    if (detachDeleted) {
+      // The facade's direct delete API must leave a restartable generation too.
+      // Preserve caller-supplied changes; other affected memberships and dates
+      // join this same journal, rather than relying on a later library repair.
+      for (final row in groupBox.values) {
+        if (updates.containsKey(row.id) ||
+            removeGroups.contains(row.id) ||
+            !row.bookmarkIds.any(removedRecordIds.contains))
+          continue;
+        final wire = _groupWire(row);
+        wire['bookmarkIds'] = [
+          for (final id in row.bookmarkIds)
+            if (!removedRecordIds.contains(id)) id,
+        ];
+        wire['addedAt'] = contentMap(wire['addedAt'])
+          ..removeWhere((id, _) => removedRecordIds.contains(int.tryParse(id)));
+        updates[row.id] = _groupWire(_groupRow(wire));
+      }
+    }
+    if (updates.isEmpty && removeGroups.isEmpty && folders == null) return null;
     for (final id in {...updates.keys, ...removeGroups}) {
       if (!Uuid.isValidUUID(fromString: id) ||
           id != id.toLowerCase() ||

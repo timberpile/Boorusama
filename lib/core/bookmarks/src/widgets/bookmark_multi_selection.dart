@@ -180,9 +180,12 @@ class BookmarkGroupSelectionSummary {
     final counts = <String, int>{};
     for (final post in posts) {
       final id = bookmarkIdentityForPost(post, booruId);
-      if (state?.bookmarksByUniqueId[id] == null) continue;
+      final record = state?.storedBookmarkForPost(post);
+      if (record == null) continue;
       bookmarked++;
-      final memberships = state?.membershipsFor(id) ?? const <String>{};
+      final memberships = state!.hasUnifiedRecords
+          ? state.membershipsForId(record.id)
+          : state.membershipsFor(id);
       for (final groupId in memberships) {
         counts.update(groupId, (value) => value + 1, ifAbsent: () => 1);
       }

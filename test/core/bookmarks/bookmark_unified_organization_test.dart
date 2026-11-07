@@ -7,8 +7,12 @@ import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_reposito
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/content/content_map.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:boorusama/foundation/filesystem.dart';
@@ -29,6 +33,7 @@ void main() {
   late Box<BookmarkGroupHiveObject> activeGroups;
   String? failAfter;
   int? interruptedId;
+  var deletionMode = false;
 
   Future<void> sync(Iterable<BoxBase<dynamic>> boxes) async {
     final list = boxes.toList();
@@ -42,11 +47,15 @@ void main() {
     final phase = switch (true) {
       _
           when list.any((box) => identical(box, payloads)) ||
+              list.any((box) => identical(box, posts)) ||
               list.any((box) => identical(box, activeGroups)) =>
         'payload',
       _
           when metadata.containsKey('pendingMutation') &&
-              metadata.get('record:$interruptedId') == null =>
+              (deletionMode
+                  ? contentMap(metadata.get('record:$interruptedId'))['kind'] !=
+                        'deleted'
+                  : metadata.get('record:$interruptedId') == null) =>
         'journal',
       _ when metadata.containsKey('pendingMutation') => 'index',
       _ => 'cleanup',
@@ -83,6 +92,7 @@ void main() {
     }
     failAfter = null;
     interruptedId = null;
+    deletionMode = false;
     await openBoxes();
     await posts.put(0, favoriteToHiveObject(testPoolPost(7).copyWith(id: 0)));
     final sourceGroup = DateTime.utc(2024, 2, 3, 4, 5);
@@ -144,6 +154,99 @@ void main() {
         bookmarkIds: {...current.bookmarkIds, id},
         addedAt: {...current.addedAt, id: date},
       );
+
+  ContentGroupBookmark nativeGroup(int id) {
+    final reference = const ContentReferenceCodec().parse(
+      engine: BooruType.danbooru,
+      site: Uri.parse('https://danbooru.donmai.us/install'),
+      kind: ContentKind.group,
+      sourceKey: 'pool:42',
+    );
+    return ContentGroupBookmark(
+      id: id,
+      snapshot: StoredGroupSnapshot(
+        summary: ContentGroupSummary(reference: reference, title: 'Pool 42'),
+      ),
+      createdAt: DateTime.utc(2020, 1, 2),
+      observedAt: DateTime.utc(2025, 3, 4),
+    );
+  }
+
+  Future<
+    ({
+      int targetId,
+      int retainedId,
+      DateTime targetDateA,
+      DateTime targetDateB,
+      DateTime retainedDateA,
+      DateTime retainedDateB,
+    })
+  >
+  prepareDirectDelete({required bool deleteGroupRecord}) async {
+    final reader = await BookmarkStorageMigration(
+      bookmarks: repository,
+      legacyGroups: legacyGroups,
+      legacyOrganization: legacyOrganization,
+      metadata: metadata,
+    ).open();
+    final groupA = (await reader.getGroup(poolGroupA))!;
+    final nextPosition = (await reader.getGroups())
+        .where((group) => group.folderId == null)
+        .fold(
+          0,
+          (next, group) => group.position >= next ? group.position + 1 : next,
+        );
+    final groupDateA = DateTime.utc(2024, 4, 5, 6, 7, 8);
+    final groupDateB = DateTime.utc(2025, 6, 7, 8, 9, 10);
+    final postDateB = DateTime.utc(2025, 1, 2, 3, 4, 5);
+    final groupId = (await repository.reserveIds(1)).single;
+    final savedGroup = nativeGroup(groupId);
+    final (
+      targetId,
+      retainedId,
+      targetDateA,
+      targetDateB,
+      retainedDateA,
+      retainedDateB,
+    ) = deleteGroupRecord
+        ? (
+            groupId,
+            0,
+            groupDateA,
+            groupDateB,
+            groupA.addedAt[0]!,
+            postDateB,
+          )
+        : (
+            0,
+            groupId,
+            groupA.addedAt[0]!,
+            postDateB,
+            groupDateA,
+            groupDateB,
+          );
+    await repository.commitOrganization(
+      records: [savedGroup],
+      groups: [
+        updatedGroup(groupA, groupId, groupDateA),
+        BookmarkGroup(
+          id: poolGroupB,
+          name: 'B',
+          position: nextPosition,
+          bookmarkIds: {0, groupId},
+          addedAt: {0: postDateB, groupId: groupDateB},
+        ),
+      ],
+    );
+    return (
+      targetId: targetId,
+      retainedId: retainedId,
+      targetDateA: targetDateA,
+      targetDateB: targetDateB,
+      retainedDateA: retainedDateA,
+      retainedDateB: retainedDateB,
+    );
+  }
 
   test('organization commit recovers its record and dated membership at every sync boundary', () async {
     const boundaries = ['journal', 'payload', 'index', 'cleanup'];
@@ -242,6 +345,102 @@ void main() {
       );
       expect(metadata.get('record:$id'), {'kind': 'deleted'});
       expect(metadata.containsKey('pendingMutation'), isFalse);
+    },
+  );
+
+  test(
+    'direct Group and Post deletions recover memberships at every sync boundary',
+    () async {
+      const boundaries = ['journal', 'payload', 'index', 'cleanup'];
+      final scenarios = [
+        for (final deleteGroupRecord in [true, false])
+          for (final boundary in boundaries)
+            (deleteGroupRecord: deleteGroupRecord, boundary: boundary),
+      ];
+      for (final (index, scenario) in scenarios.indexed) {
+        final fixture = await prepareDirectDelete(
+          deleteGroupRecord: scenario.deleteGroupRecord,
+        );
+        expect(
+          DateTime.parse(
+            activeGroups.get(poolGroupA)!.addedAt![fixture.targetId] as String,
+          ),
+          fixture.targetDateA,
+        );
+        expect(
+          DateTime.parse(
+            activeGroups.get(poolGroupB)!.addedAt![fixture.targetId] as String,
+          ),
+          fixture.targetDateB,
+        );
+        interruptedId = fixture.targetId;
+        deletionMode = true;
+        failAfter = scenario.boundary;
+        final deletion = scenario.deleteGroupRecord
+            ? repository.delete(fixture.targetId)
+            : repository.removeBookmark(
+                (await repository.read(fixture.targetId))! as PostBookmark,
+              );
+        await expectLater(
+          deletion,
+          throwsA(isA<StateError>()),
+          reason:
+              '${scenario.deleteGroupRecord ? 'Group' : 'Post'} ${scenario.boundary}',
+        );
+
+        await restart();
+        expect(await repository.read(fixture.targetId), isNull);
+        expect(
+          metadata.get('record:${fixture.targetId}'),
+          {'kind': 'deleted'},
+          reason:
+              '${scenario.deleteGroupRecord ? 'Group' : 'Post'} ${scenario.boundary}',
+        );
+        expect(metadata.containsKey('pendingMutation'), isFalse);
+        expect(payloads.containsKey(fixture.targetId), isFalse);
+        expect(posts.containsKey(fixture.targetId), isFalse);
+        expect(activeGroups.get(poolGroupA)!.bookmarkIds, {fixture.retainedId});
+        expect(activeGroups.get(poolGroupB)!.bookmarkIds, {fixture.retainedId});
+        expect(
+          DateTime.parse(
+            activeGroups.get(poolGroupA)!.addedAt![fixture.retainedId]
+                as String,
+          ),
+          fixture.retainedDateA,
+        );
+        expect(
+          DateTime.parse(
+            activeGroups.get(poolGroupB)!.addedAt![fixture.retainedId]
+                as String,
+          ),
+          fixture.retainedDateB,
+        );
+        expect(
+          activeGroups.get(poolGroupA)!.addedAt!.containsKey(fixture.targetId),
+          isFalse,
+        );
+        expect(
+          activeGroups.get(poolGroupB)!.addedAt!.containsKey(fixture.targetId),
+          isFalse,
+        );
+        expect(legacyGroups.get(poolGroupA)!.bookmarkIds, [0]);
+        expect(legacyOrganization.toMap(), {'version': 1});
+
+        final bound =
+            contentMap(
+                  metadata.get('idReservation'),
+                )['nextId']!
+                as int;
+        final nextId = (await repository.reserveIds(1)).single;
+        expect(nextId, greaterThan(fixture.targetId));
+        expect(nextId, greaterThanOrEqualTo(bound));
+
+        if (index < scenarios.length - 1) {
+          await Hive.close();
+          await directory.delete(recursive: true);
+          await initializeActiveGeneration();
+        }
+      }
     },
   );
 

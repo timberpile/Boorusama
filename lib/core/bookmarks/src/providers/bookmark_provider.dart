@@ -349,6 +349,51 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return added;
   }
 
+  Future<BookmarkToggleOutcome> toggleSavedBookmarkTarget(
+    Bookmark record, {
+    required String groupId,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
+  }) => _serialize(() async {
+    try {
+      final current = await future;
+      if (!current.hasUnifiedRecords || !current.byId.containsKey(record.id))
+        return BookmarkToggleOutcome.failed;
+      final service = await _service;
+      if (current.membershipsForId(record.id).contains(groupId)) {
+        final result = await service.removeBookmarksFromGroup([
+          record,
+        ], groupId);
+        if (result.removedCount > 0) await _rememberManualGroup(groupId);
+        await _publishCommittedMutation();
+        _recordRemoval(result);
+        onRemoved?.call(result);
+        return BookmarkToggleOutcome.removed;
+      }
+      await service.addBookmarksToGroup([record], groupId);
+      await _rememberManualGroup(groupId);
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.added;
+    } catch (_) {
+      _mutation?.invalidate();
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.failed;
+    }
+  });
+
+  Future<({BookmarkGroup group, int addedCount})> createGroupWithSavedRecords(
+    String name,
+    Iterable<Bookmark> records, {
+    String? folderId,
+  }) => _runTrackedMutation(() async {
+    final result = await (await _service).createGroupWithSavedRecords(
+      name,
+      records,
+      folderId: folderId,
+    );
+    if (result.addedCount > 0) await _rememberManualGroup(result.group.id);
+    return result;
+  });
+
   Future<BookmarkToggleOutcome> togglePoolTarget(
     CollectionBookmark draft, {
     required String groupId,
@@ -362,6 +407,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final current = (await repository.getPoolBookmarks())
           .where((p) => p.identity == draft.identity)
           .firstOrNull;
+      if ((await future).hasUnifiedRecords &&
+          draft.bookmarkId != null &&
+          current?.bookmarkId != draft.bookmarkId)
+        return BookmarkToggleOutcome.failed;
       if (current?.groupIds.contains(groupId) ?? false) {
         final result = await (await _service).removeBookmarksFromGroup(
           [],
@@ -1026,10 +1075,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     try {
       final current = await future;
       final booruId = config.booruIdHint;
-      final existing = current.bookmarkForPost(
-        post,
-        fallbackBooruId: booruId,
-      );
+      final existing = current.hasUnifiedRecords
+          ? current.storedBookmarkForPost(post)
+          : current.bookmarkForPost(post, fallbackBooruId: booruId);
       await (await _service).addBookmarkToGroup(
         groupId: groupId,
         existingBookmark: existing,
@@ -1272,8 +1320,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     List<CollectionBookmark> pools = const [],
     RelatedPostsOrder? initialRelatedOrder,
   }) => _serialize(() async {
+    final current = await future;
     for (final post in posts) {
-      BookmarkIdentity.fromPost(post);
+      if (!current.hasUnifiedRecords ||
+          current.storedBookmarkForPost(post) == null) {
+        BookmarkIdentity.fromPost(post);
+      }
     }
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
     final group = await (await _service).createGroup(name);
@@ -1345,18 +1397,25 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final current = await future;
     final selected = posts.toList();
     for (final post in selected) {
-      BookmarkIdentity.fromPost(post);
+      if (!current.hasUnifiedRecords ||
+          current.storedBookmarkForPost(post) == null) {
+        BookmarkIdentity.fromPost(post);
+      }
     }
     final existing = <PostBookmark>[];
     final missing = <Post>[];
-    final seen = <BookmarkUniqueId>{};
+    final seen = <Object>{};
     for (final post in selected) {
       final identity = _bookmarkIdentity(post, config);
-      if (!seen.add(identity)) continue;
-      final bookmark = current.bookmarkForPost(
-        post,
-        fallbackBooruId: config.booruIdHint,
-      );
+      final bookmark = current.hasUnifiedRecords
+          ? current.storedBookmarkForPost(post)
+          : current.bookmarkForPost(post, fallbackBooruId: config.booruIdHint);
+      final Object selectionKey = current.hasUnifiedRecords
+          ? bookmark == null
+                ? (identity, post.origin.booruType)
+                : ('saved', bookmark.id)
+          : identity;
+      if (!seen.add(selectionKey)) continue;
       if (bookmark == null) {
         missing.add(post);
       } else {
@@ -1370,11 +1429,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     final service = await _service;
     if (service.unifiedStore != null) {
-      final drafts = <Bookmark>[...existing];
+      final drafts = <Bookmark>[];
       for (final post in missing) {
         drafts.add(await _prepareBookmark(config, post));
       }
-      final result = await service.saveDraftsToGroup(drafts, groupId);
+      final result = await service.saveDraftsToGroup(
+        drafts,
+        groupId,
+        savedRecords: existing,
+      );
       return (
         changedCount: result.addedCount,
         createdBookmarks: result.createdRecords
@@ -1433,15 +1496,15 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final current = await future;
     final bookmarks = posts
         .map(
-          (post) => current.bookmarkForPost(
-            post,
-            fallbackBooruId: config.booruIdHint,
-          ),
+          (post) => current.storedBookmarkForPost(post),
         )
         .whereType<PostBookmark>()
         .where(
           (bookmark) =>
-              current.membershipsFor(bookmark.uniqueId).contains(groupId),
+              (current.hasUnifiedRecords
+                      ? current.membershipsForId(bookmark.id)
+                      : current.membershipsFor(bookmark.uniqueId))
+                  .contains(groupId),
         )
         .toList();
     final result = await (await _service).removeBookmarksFromGroup(
@@ -1462,10 +1525,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final current = await future;
     final bookmarks = posts
         .map(
-          (post) => current.bookmarkForPost(
-            post,
-            fallbackBooruId: config.booruIdHint,
-          ),
+          (post) => current.storedBookmarkForPost(post),
         )
         .whereType<PostBookmark>()
         .toSet()

@@ -113,6 +113,42 @@ class BookmarkLibraryService {
     return _saveUnifiedDrafts(drafts, groupId, savedRecords);
   }
 
+  Future<({BookmarkGroup group, int addedCount})> createGroupWithSavedRecords(
+    String name,
+    Iterable<Bookmark> records, {
+    String? folderId,
+  }) => _scope(() async {
+    final store =
+        unifiedStore ??
+        (throw StateError('Unified Bookmark storage unavailable'));
+    final normalized = name.trim();
+    if (normalized.isEmpty) throw const FormatException('Empty Group name');
+    final folders = await groupRepository.getFolders();
+    if (folderId != null && !FolderTree(folders).byId.containsKey(folderId))
+      throw const FormatException('Unknown folder');
+    final members = <int>{};
+    for (final frozen in records) {
+      final current = await store.read(frozen.id);
+      if (current == null || !_sameTarget(current, frozen))
+        throw StateError('Saved Bookmark changed before the action completed');
+      members.add(current.id);
+    }
+    final now = DateTime.now().toUtc();
+    final groups = await groupRepository.getGroups();
+    final group = BookmarkGroup(
+      id: const Uuid().v4().toLowerCase(),
+      name: normalized,
+      folderId: folderId,
+      position: groups
+          .where((g) => g.folderId == folderId)
+          .fold(0, (n, g) => g.position >= n ? g.position + 1 : n),
+      bookmarkIds: members,
+      addedAt: {for (final id in members) id: now},
+    );
+    await store.commitOrganization(groups: [group]);
+    return (group: group, addedCount: members.length);
+  });
+
   Future<void> setRelatedOrder(int bookmarkId, RelatedPostsOrder order) =>
       _scope(() async {
         final store =

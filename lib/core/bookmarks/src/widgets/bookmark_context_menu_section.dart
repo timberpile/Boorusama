@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import 'bookmark_group_picker.dart';
+import '../providers/bookmark_provider.dart';
 
 class BookmarkContextMenuSection extends ConsumerWidget {
   const BookmarkContextMenuSection({
@@ -18,6 +19,11 @@ class BookmarkContextMenuSection extends ConsumerWidget {
   final BooruConfigAuth config;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final library = ref.watch(bookmarkProvider).valueOrNull;
+    final saved = library?.storedBookmarkForPost(post);
+    final request = library?.hasUnifiedRecords == true && saved != null
+        ? SavedBookmarkPickerRequest(config: config, record: saved)
+        : PostBookmarkPickerRequest(config: config, post: post);
     final container = ProviderScope.containerOf(context, listen: false);
     final anchor = AnchorData.maybeOf(context)?.controller;
     final pages = KurumiContextMenuPageController.maybeOf(context);
@@ -33,7 +39,7 @@ class BookmarkContextMenuSection extends ConsumerWidget {
               maxHeight: MediaQuery.heightOf(pageContext) * .6,
             ),
             child: BookmarkGroupPicker(
-              request: PostBookmarkPickerRequest(config: config, post: post),
+              request: request,
               onRootBack: pages.reset,
               isActive: () => anchor?.isShowing ?? false,
               onDismiss: () => anchor?.hide(),

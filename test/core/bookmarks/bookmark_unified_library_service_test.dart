@@ -822,4 +822,207 @@ void main() {
     expect(after.groupsById[poolGroupA]!.addedAt, groupADates);
     expect(after.groupsById[poolGroupB]!.addedAt, groupBDates);
   });
+
+  test(
+    'saved local records create a Group and remove Undo by ID without rekeying',
+    () async {
+      final before = await service.load();
+      final post = before.byId[4]!;
+      final native = before.records
+          .whereType<ContentGroupBookmark>()
+          .where((record) => record is! RelatedBookmark)
+          .single;
+      final originalDates = {
+        poolGroupA: before.groupsById[poolGroupA]!.addedAt,
+        poolGroupB: before.groupsById[poolGroupB]!.addedAt,
+        defaultBookmarkGroupId:
+            before.groupsById[defaultBookmarkGroupId]!.addedAt,
+      };
+      final folder = await service.createFolder('Saved records');
+      final counterBefore = contentMap(
+        storage.metadataBox.get('idReservation'),
+      )['nextId'];
+      final revisionBefore = await bookmarks.readRevision();
+
+      final result = await service.createGroupWithSavedRecords(
+        'Saved records copy',
+        [post, native],
+        folderId: folder.id,
+      );
+
+      expect(result.addedCount, 2);
+      expect(result.group.folderId, folder.id);
+      expect(result.group.bookmarkIds, {post.id, native.id});
+      expect(result.group.addedAt.keys, {post.id, native.id});
+      expect(result.group.addedAt.values.every((date) => date.isUtc), isTrue);
+      expect(await bookmarks.readRevision(), revisionBefore + 1);
+      expect(
+        contentMap(storage.metadataBox.get('idReservation'))['nextId'],
+        counterBefore,
+      );
+      var after = await service.load();
+      expect(after.byId[post.id], post);
+      expect(after.byId[native.id], native);
+      expect(after.groupsById[poolGroupA]!.addedAt, originalDates[poolGroupA]);
+      expect(after.groupsById[poolGroupB]!.addedAt, originalDates[poolGroupB]);
+      expect(
+        after.groupsById[defaultBookmarkGroupId]!.addedAt,
+        originalDates[defaultBookmarkGroupId],
+      );
+
+      final removal = await service.removeBookmarksFromGroup(
+        [post],
+        result.group.id,
+      );
+      expect(removal.removedCount, 1);
+      expect(removal.deletedRecords, isEmpty);
+      final removedState = await service.load();
+      expect(removedState.byId[post.id], post);
+      expect(
+        removedState.groupsById[defaultBookmarkGroupId]!.bookmarkIds,
+        contains(post.id),
+      );
+      expect(removedState.groupsById[result.group.id]!.bookmarkIds, {
+        native.id,
+      });
+
+      await service.undoRemoval(removal);
+      after = await service.load();
+      expect(after.byId[post.id], post);
+      expect(after.groupsById[result.group.id]!.bookmarkIds, {
+        post.id,
+        native.id,
+      });
+      expect(
+        after.groupsById[result.group.id]!.addedAt[post.id],
+        result.group.addedAt[post.id],
+      );
+      expect(after.groupsById[poolGroupA]!.addedAt, originalDates[poolGroupA]);
+      expect(after.groupsById[poolGroupB]!.addedAt, originalDates[poolGroupB]);
+      expect(
+        after.groupsById[defaultBookmarkGroupId]!.addedAt,
+        originalDates[defaultBookmarkGroupId],
+      );
+
+      final stableCounter = contentMap(
+        storage.metadataBox.get('idReservation'),
+      )['nextId'];
+      final stableRevision = await bookmarks.readRevision();
+      await expectLater(
+        service.createGroupWithSavedRecords(
+          'Invalid folder',
+          [post, native],
+          folderId: 'missing-folder',
+        ),
+        throwsFormatException,
+      );
+      expect(await bookmarks.readRevision(), stableRevision);
+      expect(
+        contentMap(storage.metadataBox.get('idReservation'))['nextId'],
+        stableCounter,
+      );
+
+      final groupsBeforeDelete = await groups.getGroups();
+      await bookmarks.commitOrganization(
+        removeIds: {post.id},
+        groups: [
+          for (final group in groupsBeforeDelete)
+            if (group.bookmarkIds.contains(post.id))
+              group.copyWith(
+                bookmarkIds: group.bookmarkIds.difference({post.id}),
+                addedAt: {
+                  for (final entry in group.addedAt.entries)
+                    if (entry.key != post.id) entry.key: entry.value,
+                },
+              ),
+        ],
+      );
+      final staleRevision = await bookmarks.readRevision();
+      final staleCounter = contentMap(
+        storage.metadataBox.get('idReservation'),
+      )['nextId'];
+      await expectLater(
+        service.createGroupWithSavedRecords(
+          'Stale Post',
+          [post, native],
+        ),
+        throwsStateError,
+      );
+      expect(await bookmarks.readRevision(), staleRevision);
+      expect(
+        contentMap(storage.metadataBox.get('idReservation'))['nextId'],
+        staleCounter,
+      );
+    },
+  );
+
+  test(
+    'direct facade deletions detach memberships and survive a cold restart',
+    () async {
+      final before = await service.load();
+      final post = before.byId[0]! as PostBookmark;
+      final native = before.records
+          .whereType<ContentGroupBookmark>()
+          .where((record) => record is! RelatedBookmark)
+          .single;
+      final related = before.records.whereType<RelatedBookmark>().single;
+      final opaque = before.records.whereType<LegacyGroupBookmark>().single;
+      final firstPostDate = before.groupsById[poolGroupA]!.addedAt[post.id];
+      final secondPostDate = before.groupsById[poolGroupB]!.addedAt[post.id];
+      final firstRelatedDate =
+          before.groupsById[poolGroupA]!.addedAt[related.id];
+      final secondRelatedDate =
+          before.groupsById[poolGroupB]!.addedAt[related.id];
+      final opaqueDate = before.groupsById[poolGroupA]!.addedAt[opaque.id];
+
+      await bookmarks.delete(native.id);
+
+      expect(await bookmarks.read(native.id), isNull);
+      var first = await groups.getGroup(poolGroupA);
+      var second = await groups.getGroup(poolGroupB);
+      expect(first!.bookmarkIds, {post.id, related.id, opaque.id});
+      expect(second!.bookmarkIds, {post.id, related.id});
+      expect(first.addedAt.containsKey(native.id), isFalse);
+      expect(second.addedAt.containsKey(native.id), isFalse);
+      expect(first.addedAt[post.id], firstPostDate);
+      expect(second.addedAt[post.id], secondPostDate);
+      expect(first.addedAt[related.id], firstRelatedDate);
+      expect(second.addedAt[related.id], secondRelatedDate);
+      expect(first.addedAt[opaque.id], opaqueDate);
+
+      await bookmarks.removeBookmark(post);
+
+      expect(await bookmarks.read(post.id), isNull);
+      first = await groups.getGroup(poolGroupA);
+      second = await groups.getGroup(poolGroupB);
+      expect(first!.bookmarkIds, {related.id, opaque.id});
+      expect(second!.bookmarkIds, {related.id});
+      expect(first.addedAt.containsKey(post.id), isFalse);
+      expect(second.addedAt.containsKey(post.id), isFalse);
+      expect(first.addedAt[related.id], firstRelatedDate);
+      expect(second.addedAt[related.id], secondRelatedDate);
+      expect(first.addedAt[opaque.id], opaqueDate);
+
+      await restart();
+      final reopened = await service.load();
+      expect(reopened.byId.containsKey(native.id), isFalse);
+      expect(reopened.byId.containsKey(post.id), isFalse);
+      expect(reopened.byId[related.id], related);
+      expect(reopened.byId[opaque.id], opaque);
+      expect(reopened.groupsById[poolGroupA]!.bookmarkIds, {
+        related.id,
+        opaque.id,
+      });
+      expect(reopened.groupsById[poolGroupB]!.bookmarkIds, {related.id});
+      expect(
+        reopened.groupsById[poolGroupA]!.addedAt[related.id],
+        firstRelatedDate,
+      );
+      expect(
+        reopened.groupsById[poolGroupB]!.addedAt[related.id],
+        secondRelatedDate,
+      );
+      expect(reopened.groupsById[poolGroupA]!.addedAt[opaque.id], opaqueDate);
+    },
+  );
 }
