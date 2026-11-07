@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../bookmarks/types.dart';
+import '../../bookmarks/src/types/bookmark_record_fields.dart';
 import 'bookmark_backup_data.dart';
 import 'bookmark_import_plan.dart';
 
@@ -13,28 +14,26 @@ class BookmarkImportPlanner {
 
   BookmarkImportPlan plan({
     required BookmarkBackupData data,
-    required List<PostBookmark> currentBookmarks,
+    required List<Bookmark> currentBookmarks,
     required List<BookmarkGroup> currentGroups,
   }) {
-    final currentBookmarkIds = currentBookmarks
-        .map((bookmark) => bookmark.transferIdentity)
-        .toSet();
-    final importedByLocalId = {
-      for (final bookmark in data.bookmarks)
-        bookmark.id: bookmark.transferIdentity,
+    final currentIdentities = {
+      for (final bookmark in currentBookmarks)
+        if (bookmarkContentIdentity(bookmark) case final identity?) identity,
     };
-    final importedBookmarks = {for (final b in data.bookmarks) b.id: b};
+    final importedBookmarks = {for (final b in data.records) b.id: b};
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
     return BookmarkImportPlan(
-      bookmarks: List.unmodifiable(data.bookmarks),
-      pools: data.pools,
+      records: data.records,
       folders: data.folders,
-      missingBookmarks: data.bookmarks
+      alreadyExistedCount: data.records
           .where(
-            (bookmark) =>
-                !currentBookmarkIds.contains(bookmark.transferIdentity),
+            (b) => switch (bookmarkContentIdentity(b)) {
+              final identity? => currentIdentities.contains(identity),
+              _ => false,
+            },
           )
-          .toList(),
+          .length,
       groups: [
         for (final group in data.groups)
           BookmarkGroupImport(
@@ -42,14 +41,17 @@ class BookmarkImportPlanner {
             name: group.name,
             folderId: group.folderId,
             position: group.position,
-            bookmarkIds: {
-              for (final exportedId in group.bookmarkIds)
-                ?importedByLocalId[exportedId],
-            },
+            bookmarkIds: group.bookmarkIds.toSet(),
             addedAt: {
               for (final id in group.bookmarkIds)
-                if (importedBookmarks[id] case final b?)
-                  b.transferIdentity: group.addedAt[id] ?? b.createdAt,
+                id:
+                    group.addedAt[id] ??
+                    bookmarkCreatedAt(
+                      importedBookmarks[id] ??
+                          (throw const FormatException(
+                            'Absent Bookmark reference',
+                          )),
+                    ),
             },
             conflicts:
                 !group.isDefault &&

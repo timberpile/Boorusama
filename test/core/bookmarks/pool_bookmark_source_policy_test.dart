@@ -4,8 +4,11 @@ import 'package:boorusama/core/backups/export_import/import/bookmark_profile_dep
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
-import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_record_fields.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/content/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_tag_index.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -83,7 +86,13 @@ void main() {
     final pool = testPool();
     final data = BookmarkBackupData(
       bookmarks: const [],
-      groups: const [],
+      groups: const [
+        BookmarkGroupBackup(
+          id: poolGroupA,
+          name: 'Pool only',
+          bookmarkIds: [],
+        ),
+      ],
       pools: [pool],
     );
     ResolvedImportSource resolution(ImportAction action) =>
@@ -97,18 +106,84 @@ void main() {
             ),
           ],
         );
-    expect(selectedProfilePools(data, resolution(ImportAction.skip)), isEmpty);
     expect(
-      selectedProfilePools(data, resolution(ImportAction.configureItems)),
-      [pool],
+      selectedProfileRecords(data, resolution(ImportAction.skip)),
+      isEmpty,
     );
-    final mapped = poolBookmarkWithProfileHint(pool, poolGroupB);
-    expect(mapped.origin.profileIdHint, poolGroupB);
-    expect(mapped.identity, pool.identity);
-    expect(mapped.localId, pool.localId);
-    expect(mapped.groupIds, pool.groupIds);
-    expect(poolBookmarkProfileReference(mapped).id, poolGroupB);
+    final record = data.records.single;
+    expect(
+      selectedProfileRecords(data, resolution(ImportAction.configureItems)),
+      [record],
+    );
+    final mapped = bookmarkRecordWithProfileHint(record, poolGroupB);
+    expect(bookmarkRecordProfileHint(mapped), poolGroupB);
+    expect(bookmarkContentIdentity(mapped), bookmarkContentIdentity(record));
+    expect(mapped.id, record.id);
+    expect(bookmarkCreatedAt(mapped), bookmarkCreatedAt(record));
+    expect(bookmarkRecordProfileReference(mapped).id, poolGroupB);
+    expect(data.groups.single.bookmarkIds, [record.id]);
+    expect(data.groups.single.addedAt[record.id], pool.addedAt[poolGroupA]);
   });
+
+  test(
+    'a native Work without a legacy Pool view contributes its own profile hint',
+    () {
+      final snapshot = StoredGroupSnapshot(
+        summary: ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: BooruType.pixiv,
+            site: Uri.parse('https://www.pixiv.net'),
+            kind: ContentKind.group,
+            sourceKey: 'work:120',
+          ),
+          title: 'Saved Work',
+        ),
+      );
+      final record = ContentGroupBookmark(
+        id: 10,
+        snapshot: snapshot,
+        createdAt: DateTime.utc(2020),
+        observedAt: DateTime.utc(2026),
+      );
+      final data = BookmarkBackupData.unified(
+        records: [record],
+        groups: [
+          BookmarkGroupBackup(
+            id: poolGroupA,
+            name: 'Work',
+            bookmarkIds: [10],
+            addedAt: {10: DateTime.utc(2021)},
+          ),
+        ],
+      );
+      final selected = selectedProfileRecords(
+        data,
+        ResolvedImportSource(
+          id: 'bookmarks',
+          action: ImportAction.configureItems,
+          items: [
+            ResolvedImportItem(
+              id: 'group:$poolGroupA',
+              action: ImportAction.merge,
+            ),
+          ],
+        ),
+      );
+      expect(data.pools, isEmpty);
+      expect(selected, [record]);
+      final reference = bookmarkRecordProfileReference(selected.single);
+      expect(reference.booruType, BooruType.pixiv.name);
+      expect(reference.url, 'www.pixiv.net');
+      final mapped = bookmarkRecordWithProfileHint(
+        record,
+        poolGroupB,
+      ) as ContentGroupBookmark;
+      expect(mapped.snapshot, same(snapshot));
+      expect(mapped.reference, record.reference);
+      expect(mapped.sourceProfileHint, poolGroupB);
+      expect(data.groups.single.addedAt[10], DateTime.utc(2021));
+    },
+  );
 
   test(
     'Pool tag overlay counts a reference once and retains the Post base index',

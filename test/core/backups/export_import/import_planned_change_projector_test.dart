@@ -29,7 +29,7 @@ void main() {
           bookmarks: [bookmark],
           groups: [
             BookmarkGroup(
-              id: 'g',
+              id: '550e8400-e29b-41d4-a716-446655440001',
               name: 'A',
               bookmarkIds: {1},
               addedAt: {1: before},
@@ -40,7 +40,7 @@ void main() {
           bookmarks: [bookmark],
           groups: [
             BookmarkGroupBackup(
-              id: 'g',
+              id: '550e8400-e29b-41d4-a716-446655440001',
               name: 'A',
               bookmarkIds: [1],
               addedAt: {1: incoming},
@@ -50,7 +50,12 @@ void main() {
         resolution: ResolvedImportSource(
           id: 'bookmarks',
           action: ImportAction.configureItems,
-          items: [ResolvedImportItem(id: 'group:g', action: action)],
+          items: [
+            ResolvedImportItem(
+              id: 'group:550e8400-e29b-41d4-a716-446655440001',
+              action: action,
+            ),
+          ],
         ),
       )!;
       expect(
@@ -68,20 +73,31 @@ void main() {
       local: BookmarkImportLocalSnapshot(
         bookmarks: [a, b],
         groups: [
-          BookmarkGroup(id: 'g', name: 'Local', bookmarkIds: const {1, 2}),
+          BookmarkGroup(
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            name: 'Local',
+            bookmarkIds: const {1, 2},
+          ),
         ],
       ),
       incoming: BookmarkBackupData(
         bookmarks: [a, c],
         groups: const [
-          BookmarkGroupBackup(id: 'g', name: 'Imported', bookmarkIds: [1, 3]),
+          BookmarkGroupBackup(
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            name: 'Imported',
+            bookmarkIds: [1, 3],
+          ),
         ],
       ),
       resolution: ResolvedImportSource(
         id: 'bookmarks',
         action: ImportAction.configureItems,
         items: const [
-          ResolvedImportItem(id: 'group:g', action: ImportAction.update),
+          ResolvedImportItem(
+            id: 'group:550e8400-e29b-41d4-a716-446655440001',
+            action: ImportAction.update,
+          ),
         ],
       ),
     )!;
@@ -138,12 +154,12 @@ void main() {
               bookmarks: [a, b],
               groups: [
                 BookmarkGroup(
-                  id: 'rename',
+                  id: '550e8400-e29b-41d4-a716-446655440002',
                   name: 'Old',
                   bookmarkIds: const {1},
                 ),
                 BookmarkGroup(
-                  id: 'removed',
+                  id: '550e8400-e29b-41d4-a716-446655440009',
                   name: 'Removed',
                   bookmarkIds: const {2},
                 ),
@@ -153,12 +169,12 @@ void main() {
               bookmarks: [a, c],
               groups: const [
                 BookmarkGroupBackup(
-                  id: 'rename',
+                  id: '550e8400-e29b-41d4-a716-446655440002',
                   name: 'New',
                   bookmarkIds: [1, 3],
                 ),
                 BookmarkGroupBackup(
-                  id: 'added',
+                  id: '550e8400-e29b-41d4-a716-446655440008',
                   name: 'Added',
                   bookmarkIds: [],
                 ),
@@ -173,7 +189,11 @@ void main() {
       );
       expect(total, const ImportChangeCounts(added: 2, removed: 2, changed: 1));
       expect(
-        rows.singleWhere((row) => row.id == 'rename').previousLabel,
+        rows
+            .singleWhere(
+              (row) => row.id == '550e8400-e29b-41d4-a716-446655440002',
+            )
+            .previousLabel,
         'Old',
       );
     },
@@ -189,15 +209,31 @@ void main() {
             local: BookmarkImportLocalSnapshot(
               bookmarks: [a, b],
               groups: [
-                BookmarkGroup(id: 'one', name: 'One', bookmarkIds: const {1}),
-                BookmarkGroup(id: 'two', name: 'Two', bookmarkIds: const {1}),
+                BookmarkGroup(
+                  id: '550e8400-e29b-41d4-a716-446655440004',
+                  name: 'One',
+                  bookmarkIds: const {1},
+                ),
+                BookmarkGroup(
+                  id: '550e8400-e29b-41d4-a716-446655440005',
+                  name: 'Two',
+                  bookmarkIds: const {1},
+                ),
               ],
             ),
             incoming: BookmarkBackupData(
               bookmarks: [a, updated],
               groups: const [
-                BookmarkGroupBackup(id: 'one', name: 'One', bookmarkIds: []),
-                BookmarkGroupBackup(id: 'two', name: 'Two', bookmarkIds: [1]),
+                BookmarkGroupBackup(
+                  id: '550e8400-e29b-41d4-a716-446655440004',
+                  name: 'One',
+                  bookmarkIds: [],
+                ),
+                BookmarkGroupBackup(
+                  id: '550e8400-e29b-41d4-a716-446655440005',
+                  name: 'Two',
+                  bookmarkIds: [1],
+                ),
               ],
             ),
             resolution: _source('bookmarks', ImportAction.replace),
@@ -356,20 +392,31 @@ void main() {
           local: BookmarkImportLocalSnapshot(
             bookmarks: [bookmark],
             groups: [
-              BookmarkGroup(id: 'g', name: 'Group', bookmarkIds: const {1}),
+              BookmarkGroup(
+                id: '550e8400-e29b-41d4-a716-446655440001',
+                name: 'Group',
+                bookmarkIds: const {1},
+              ),
             ],
           ),
           incoming: BookmarkBackupData(
             bookmarks: [bookmark],
             groups: const [
-              BookmarkGroupBackup(id: 'g', name: 'Group', bookmarkIds: [1]),
+              BookmarkGroupBackup(
+                id: '550e8400-e29b-41d4-a716-446655440001',
+                name: 'Group',
+                bookmarkIds: [1],
+              ),
             ],
           ),
           resolution: ResolvedImportSource(
             id: 'bookmarks',
             action: ImportAction.configureItems,
             items: const [
-              ResolvedImportItem(id: 'group:g', action: ImportAction.update),
+              ResolvedImportItem(
+                id: 'group:550e8400-e29b-41d4-a716-446655440001',
+                action: ImportAction.update,
+              ),
             ],
           ),
           profileMappings: {
@@ -531,7 +578,7 @@ void main() {
           bookmarks: [first, orphan],
           groups: [
             BookmarkGroup(
-              id: 'group',
+              id: '550e8400-e29b-41d4-a716-446655440003',
               name: 'Old',
               bookmarkIds: const {1, 2},
             ),
@@ -541,7 +588,7 @@ void main() {
           bookmarks: [incomingFirst, created],
           groups: const [
             BookmarkGroupBackup(
-              id: 'group',
+              id: '550e8400-e29b-41d4-a716-446655440003',
               name: 'Updated',
               bookmarkIds: [20, 30],
             ),
@@ -552,7 +599,7 @@ void main() {
           action: ImportAction.configureItems,
           items: const [
             ResolvedImportItem(
-              id: 'group:group',
+              id: 'group:550e8400-e29b-41d4-a716-446655440003',
               action: ImportAction.update,
             ),
           ],
@@ -582,7 +629,7 @@ void main() {
             bookmarks: [local],
             groups: [
               BookmarkGroup(
-                id: 'group',
+                id: '550e8400-e29b-41d4-a716-446655440003',
                 name: 'Cookie//Artists',
                 bookmarkIds: const {1},
               ),
@@ -592,7 +639,7 @@ void main() {
             bookmarks: [incoming],
             groups: const [
               BookmarkGroupBackup(
-                id: 'group',
+                id: '550e8400-e29b-41d4-a716-446655440003',
                 name: 'Artists',
                 bookmarkIds: [20],
               ),
@@ -605,7 +652,7 @@ void main() {
                   action: ImportAction.configureItems,
                   items: const [
                     ResolvedImportItem(
-                      id: 'group:group',
+                      id: 'group:550e8400-e29b-41d4-a716-446655440003',
                       action: ImportAction.update,
                     ),
                   ],
@@ -625,7 +672,7 @@ void main() {
     );
   }
 
-  for (final targetId in [null, 'group:missing']) {
+  for (final targetId in [null, 'group:550e8400-e29b-41d4-a716-446655440007']) {
     test('bookmark merge preview waits for a valid target: $targetId', () {
       expect(
         projector.bookmarks(
@@ -633,11 +680,11 @@ void main() {
             bookmarks: const [],
             groups: const [],
           ),
-          incoming: const BookmarkBackupData(
+          incoming: BookmarkBackupData(
             bookmarks: [],
             groups: [
               BookmarkGroupBackup(
-                id: 'incoming',
+                id: '550e8400-e29b-41d4-a716-446655440006',
                 name: 'AnimeBoxes',
                 bookmarkIds: [],
               ),
@@ -648,7 +695,7 @@ void main() {
             action: ImportAction.configureItems,
             items: [
               ResolvedImportItem(
-                id: 'group:incoming',
+                id: 'group:550e8400-e29b-41d4-a716-446655440006',
                 action: ImportAction.mergeIntoTarget,
                 targetId: targetId,
               ),
@@ -671,7 +718,7 @@ void main() {
         bookmarks: bookmarks,
         groups: [
           BookmarkGroupBackup(
-            id: 'group',
+            id: '550e8400-e29b-41d4-a716-446655440003',
             name: 'Ten posts',
             bookmarkIds: [for (var index = 0; index < 10; index++) index],
           ),
@@ -681,7 +728,10 @@ void main() {
         id: 'bookmarks',
         action: ImportAction.configureItems,
         items: const [
-          ResolvedImportItem(id: 'group:group', action: ImportAction.copy),
+          ResolvedImportItem(
+            id: 'group:550e8400-e29b-41d4-a716-446655440003',
+            action: ImportAction.copy,
+          ),
         ],
       ),
     );

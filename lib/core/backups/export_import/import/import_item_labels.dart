@@ -1,4 +1,5 @@
 import 'package:i18n/i18n.dart';
+
 import '../../../configs/config/types.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../../groups/folder_tree.dart';
@@ -174,7 +175,7 @@ bool _hasUngroupedBookmarks(BookmarkBackupData data) {
   final groupedIds = {
     for (final group in data.groups) ...group.bookmarkIds,
   };
-  return data.bookmarks.any((bookmark) => !groupedIds.contains(bookmark.id));
+  return data.records.any((record) => !groupedIds.contains(record.id));
 }
 
 List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) => [

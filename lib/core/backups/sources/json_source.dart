@@ -123,6 +123,10 @@ abstract class JsonBackupSource<T>
     );
   }
 
+  /// Local transaction rollback may retain fields intentionally absent from a
+  /// portable export. Such snapshots never reach file/clipboard/nearby export.
+  Future<String> encodeRollbackSnapshot() => encodeForExport();
+
   Future<String> encodeRevisionSnapshot() async {
     final data = await dataGetter();
     return jsonEncode({

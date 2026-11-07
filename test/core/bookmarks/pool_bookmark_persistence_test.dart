@@ -255,23 +255,36 @@ void main() {
           ],
           scope: BookmarkExportScope.selected(groupIds: {poolGroupA}),
         );
+        final legacyReference = reference(groups: {poolGroupA})
+            .copyWith(cover: cover);
+        final legacyGroups = [
+          for (final group in data.groups)
+            BookmarkGroupBackup(
+              id: group.id,
+              name: group.name,
+              bookmarkIds: [],
+            ).toJson(),
+        ];
         final codec = BookmarkBackupCodec();
         ExportDataPayload payload(Map<String, dynamic> extra) =>
             ExportDataPayload(
               version: related ? 7 : 6,
               exportDate: null,
               exportVersion: null,
-              data: codec.encode(data),
+              data: [],
               extraFields: extra,
             );
+        Map<String, dynamic> legacyExtra(CollectionBookmark value) => {
+          'groups': legacyGroups,
+          'folders': data.folders.map((folder) => folder.toJson()).toList(),
+          'collectionBookmarks': [
+            value.toJson()..remove('addedAt'),
+          ],
+        };
         final parsed = codec.parse(
-          payload({
-            ...data.extraFields,
-            'collectionBookmarks': data.pools
-                .map((pool) => pool.toJson())
-                .toList(),
-          }),
+          payload(legacyExtra(legacyReference)),
         );
+        expect(int.tryParse(parsed.pools.single.localId), isNotNull);
         expect(parsed.pools.single.groupIds, {poolGroupA});
         expect(parsed.bookmarks, isEmpty);
         expect(parsed.pools.single.total, 20);
@@ -279,9 +292,12 @@ void main() {
         expect(
           () => codec.parse(
             payload({
-              ...data.extraFields,
+              ...legacyExtra(legacyReference),
               'collectionBookmarks': [
-                {...data.pools.single.toJson(), 'kind': 'future'},
+                {
+                  ...(legacyReference.toJson()..remove('addedAt')),
+                  'kind': 'future',
+                },
               ],
             }),
           ),
@@ -289,12 +305,9 @@ void main() {
         );
         expect(
           () => codec.parse(
-            payload({
-              ...data.extraFields,
-              'collectionBookmarks': [
-                data.pools.single.withGroups({poolGroupB}).toJson(),
-              ],
-            }),
+            payload(
+              legacyExtra(legacyReference.withGroups({poolGroupB})),
+            ),
           ),
           throwsA(isA<InvalidBackupFormatException>()),
         );

@@ -19,6 +19,8 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/content/types.dart';
 
 import '../../support/fakes/bookmark_test_storage.dart';
 
@@ -59,6 +61,87 @@ void main() {
     await groupBox.close();
     await directory.delete(recursive: true);
   });
+
+  for (final replace in [false, true]) {
+    test(
+      'legacy organization rejects a lossy native Group import (replace=$replace)',
+      () async {
+        final local = (await bookmarks.addBookmarkWithBookmarks([
+          PostBookmark.empty.copyWith(
+            postId: () => 99,
+            sourceUrl: 'https://example.com',
+            originalUrl: 'https://example.com/99.jpg',
+          ),
+        ])).single;
+        await groups.createGroup('Local', id: groupId);
+        await groups.addBookmarks(groupId, {local.id});
+        final originalGroups = await groups.getGroups();
+        final revision = await bookmarks.readRevision();
+        final reservation = bookmarkStorage.metadataBox.get('idReservation');
+        final summary = ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: BooruType.danbooru,
+            site: Uri.parse('https://danbooru.donmai.us'),
+            kind: ContentKind.group,
+            sourceKey: 'pool:42',
+          ),
+          title: 'Native Pool',
+        );
+        final data = BookmarkBackupData.unified(
+          records: [
+            ContentGroupBookmark(
+              id: 99,
+              snapshot: StoredGroupSnapshot(
+                summary: summary,
+                details: ContentGroupDetails(
+                  summary: summary,
+                  description: const GroupDescription(
+                    text: 'Preserve these details',
+                    format: GroupTextFormat.plainText,
+                  ),
+                ),
+              ),
+              createdAt: DateTime.utc(2020),
+              observedAt: DateTime.utc(2026),
+            ),
+          ],
+          groups: [
+            const BookmarkGroupBackup(
+              id: groupId,
+              name: 'Incoming',
+              bookmarkIds: [99],
+            ),
+          ],
+        );
+        final service = BookmarkImportService(
+          bookmarkRepository: bookmarks,
+          groupRepository: groups,
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
+        final plan = const BookmarkImportPlanner().plan(
+          data: data,
+          currentBookmarks: [local],
+          currentGroups: originalGroups,
+        );
+        await expectLater(
+          replace
+              ? service.replace(data)
+              : service.apply(
+                  plan.resolveActions({
+                    groupId: plan.groups.single.resolveAction(
+                      ImportAction.merge,
+                    ),
+                  }),
+                ),
+          throwsStateError,
+        );
+        expect(await bookmarks.readAll(), [local]);
+        expect(await groups.getGroups(), originalGroups);
+        expect(await bookmarks.readRevision(), revision);
+        expect(bookmarkStorage.metadataBox.get('idReservation'), reservation);
+      },
+    );
+  }
 
   test(
     'full Replace restores Default and legacy ungrouped imports preserve metadata',
@@ -305,7 +388,7 @@ void main() {
     await groups.createGroup('Artists', id: groupId);
     const newId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     final plan = const BookmarkImportPlanner().plan(
-      data: const BookmarkBackupData(
+      data: BookmarkBackupData(
         bookmarks: [],
         groups: [
           BookmarkGroupBackup(id: newId, name: 'Artists', bookmarkIds: []),
@@ -398,7 +481,7 @@ void main() {
       await groups.addBookmarks(otherGroupId, {stored.id});
       final plan = const BookmarkImportPlanner()
           .plan(
-            data: const BookmarkBackupData(
+            data: BookmarkBackupData(
               bookmarks: [],
               groups: [
                 BookmarkGroupBackup(
@@ -437,7 +520,7 @@ void main() {
       await groups.createGroup('Cookie//Artists', id: groupId);
       await groups.addBookmarks(groupId, {stored.id});
       final planned = const BookmarkImportPlanner().plan(
-        data: const BookmarkBackupData(
+        data: BookmarkBackupData(
           bookmarks: [],
           groups: [
             BookmarkGroupBackup(id: groupId, name: 'Artists', bookmarkIds: []),
@@ -473,9 +556,9 @@ void main() {
 
   test('a bookmark read failure leaves every group unchanged', () async {
     await groups.createGroup('Existing', id: groupId);
-    const plan = BookmarkImportPlan(
-      bookmarks: [],
-      missingBookmarks: [],
+    final plan = BookmarkImportPlan(
+      records: [],
+      alreadyExistedCount: 0,
       groups: [
         BookmarkGroupImport(
           id: groupId,
@@ -518,8 +601,8 @@ void main() {
       ),
     ];
     final plan = BookmarkImportPlan(
-      bookmarks: imported,
-      missingBookmarks: imported,
+      records: imported,
+      alreadyExistedCount: 0,
       groups: const [],
     );
 

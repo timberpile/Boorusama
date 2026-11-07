@@ -1,5 +1,6 @@
 import '../../../boorus/booru/types.dart';
 import '../../../content/content_map.dart';
+import '../../../configs/config/src/types/profile_id.dart';
 import '../../../content/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/related/related_posts_order_value.dart';
@@ -26,7 +27,25 @@ final class StoredBookmarkCodec {
   /// transferred. Their semantic namespace cannot reconstruct a transport URL.
   Map<String, Object?> encodeForTransfer(Bookmark bookmark) {
     final wire = encode(bookmark);
-    if (bookmark is PostBookmark) wire.remove('sourceUrl');
+    if (bookmark is PostBookmark) {
+      wire.remove('sourceUrl');
+      // A local ISO string carries no offset. Transfers must identify instants
+      // independently of the exporting device's time zone.
+      wire['createdAt'] = bookmark.createdAt.toUtc().toIso8601String();
+      wire['updatedAt'] = bookmark.updatedAt.toUtc().toIso8601String();
+    }
+    // Only canonical UUIDs are portable profile hints. Legacy constructors can
+    // retain arbitrary local values, but those values are not exportable hints.
+    final origin = switch (bookmark) {
+      PostBookmark() => (wire['snapshot'] as Map)['origin'] as Map,
+      LegacyGroupBookmark() =>
+        ((wire['legacy'] as Map)['metadata'] as Map)['origin'] as Map,
+      _ => null,
+    };
+    final hint = origin?['profileIdHint'];
+    if (hint != null && (hint is! String || !isCanonicalProfileId(hint))) {
+      origin!.remove('profileIdHint');
+    }
     return wire;
   }
 

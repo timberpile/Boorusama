@@ -53,6 +53,34 @@ void main() {
     ],
   );
   Map<String, dynamic> wire(BookmarkBackupData data) => {
+    'version': 9,
+    'data': [
+      {
+        'localId': post.id,
+        'updatedAt': post.updatedAt.toIso8601String(),
+        'snapshot': post.snapshot.toJson(),
+        'postId': post.postId,
+        'identity': BookmarkIdentity.tryFromPost(post.post)!.toJson(),
+      },
+    ],
+    'groups': [
+      for (final group in data.groups)
+        if (group.bookmarkIds.contains(post.id))
+          BookmarkGroupBackup(
+            id: group.id,
+            name: group.name,
+            bookmarkIds: [post.id],
+            addedAt: {post.id: group.addedAt[post.id]!},
+          ).toJson(),
+    ],
+    'folders': const [],
+    if (data.pools.isNotEmpty)
+      'collectionBookmarks': [
+        pool.toJson()..remove('createdAt'),
+        related.toJson()..remove('createdAt'),
+      ],
+  };
+  Map<String, dynamic> currentWire(BookmarkBackupData data) => {
     'version': kBookmarksBackupVersion,
     'data': codec.encode(data),
     ...data.extraFields,
@@ -60,6 +88,7 @@ void main() {
   BookmarkBackupData read(Map<String, dynamic> data) =>
       codec.parse(decodeData(data: jsonEncode(data)));
   BookmarkLibraryState library(BookmarkBackupData data) => BookmarkLibraryState(
+    records: data.records,
     bookmarks: data.bookmarks,
     pools: data.pools,
     groups: [
@@ -74,9 +103,10 @@ void main() {
   );
 
   test(
-    'v9 writes only membership dates for Posts and collection references',
+    'v9 input stores only membership dates for Posts and collection references',
     () {
-      expect(kBookmarksBackupVersion, 9);
+      expect(kBookmarksBackupVersion, 10);
+      expect(wire(data)['version'], 9);
       final json = wire(data);
       for (final row in [
         ...json['data'] as List,
@@ -119,6 +149,7 @@ void main() {
     final state = library(data);
     final summary = const ImportPlannedChangeProjector().bookmarks(
       local: BookmarkImportLocalSnapshot(
+        records: state.records,
         bookmarks: state.items,
         groups: state.groups,
         pools: state.pools,
@@ -169,7 +200,7 @@ void main() {
     're-export of legacy ungrouped data assigns a dated Default membership',
     () {
       final legacy = BookmarkBackupData(bookmarks: [post], groups: const []);
-      final decoded = read(wire(legacy));
+      final decoded = read(currentWire(legacy));
       expect(legacy.groups, isEmpty);
       expect(decoded.groups.single.id, defaultBookmarkGroupId);
       expect(decoded.groups.single.addedAt[post.id], post.createdAt);
@@ -191,12 +222,24 @@ void main() {
           'data': [
             for (final bookmark in data.bookmarks)
               {
-                ...codec.encode(data).single as Map,
+                'localId': bookmark.id,
                 'createdAt': bookmark.createdAt.toIso8601String(),
+                'updatedAt': bookmark.updatedAt.toIso8601String(),
+                'snapshot': bookmark.snapshot.toJson(),
+                'postId': bookmark.postId,
+                'identity': BookmarkIdentity.tryFromPost(
+                  bookmark.post,
+                )!.toJson(),
               },
           ],
           'groups': [
-            for (final group in data.groups) group.toJson()..remove('addedAt'),
+            for (final group in data.groups)
+              if (group.bookmarkIds.contains(post.id))
+                BookmarkGroupBackup(
+                  id: group.id,
+                  name: group.name,
+                  bookmarkIds: [post.id],
+                ).toJson()..remove('addedAt'),
           ],
           if (legacyPools.isNotEmpty)
             'collectionBookmarks': [
@@ -211,15 +254,20 @@ void main() {
           currentGroups: [],
         );
         for (final group in plan.groups) {
-          expect(group.addedAt[post.transferIdentity], post.createdAt);
+          if (group.bookmarkIds.contains(post.id)) {
+            expect(group.addedAt[post.id], post.createdAt);
+          }
         }
         for (final pool in decoded.pools) {
           expect(pool.addedAt.values, everyElement(pool.createdAt));
         }
-        final rewritten = wire(decoded);
+        final rewritten = currentWire(decoded);
+        expect(rewritten['version'], 10);
         expect(
-          (rewritten['data'] as List).single.containsKey('createdAt'),
-          isFalse,
+          (rewritten['data'] as List).every(
+            (row) => (row as Map).containsKey('createdAt'),
+          ),
+          isTrue,
         );
         expect(read(rewritten).groups.first.addedAt[post.id], post.createdAt);
       },

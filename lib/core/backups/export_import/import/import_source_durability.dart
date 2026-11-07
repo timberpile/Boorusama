@@ -19,6 +19,8 @@ final class ImportSourceDurability {
       'favorites_content_metadata.hive',
       'bookmark_groups.hive',
       'bookmark_folders.hive',
+      'bookmark_groups_unified_v2.hive',
+      'bookmark_folders_unified_v2.hive',
     ],
     followingTopicsBackupSourceId: [
       followingTopicsHiveFileName,

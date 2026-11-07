@@ -24,6 +24,7 @@ import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/backups/utils/json_handler.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/data/hive/tag_repository.dart';
 import 'package:boorusama/core/blacklists/src/data/hive/tag_hive_object.dart';
@@ -393,11 +394,7 @@ void main() {
           id: 'a0000000-0000-4000-8000-000000000004',
         );
         await harness.bookmarks.addBookmarkWithBookmarks([
-          PostBookmark.empty.copyWith(
-            originalUrl: 'https://local.example/duplicate.jpg',
-            sourceUrl: 'https://danbooru.donmai.us',
-            postId: () => 42,
-          ),
+          _danbooruDuplicateBookmark(),
         ]);
         await harness.container.read(bookmarkProvider.notifier).refresh();
         final notifier = harness.container.read(importFlowProvider.notifier);
@@ -1124,6 +1121,40 @@ class _Harness {
     }
     await directory.delete(recursive: true);
   }
+}
+
+PostBookmark _danbooruDuplicateBookmark() {
+  final legacy = PostBookmark.empty.copyWith(
+    originalUrl: 'https://local.example/duplicate.jpg',
+    sourceUrl: 'https://danbooru.donmai.us',
+    postId: () => 42,
+  );
+  final origin = PostOrigin.fromSource(
+    booruType: BooruType.danbooru,
+    booruId: BooruType.danbooru.id,
+    source: 'https://danbooru.donmai.us',
+  );
+  final snapshot = const StoredPostCodec().encode(
+    legacy.post.copyWith(origin: origin),
+  );
+  final decodedPost = switch (const StoredPostCodec().decode(snapshot)) {
+    StoredPostDecodeSuccess(:final post) => post,
+    StoredPostDecodeFailure() => throw StateError(
+      'Could not decode the Danbooru duplicate fixture',
+    ),
+  };
+  if (decodedPost.origin != origin || decodedPost.id != legacy.postId) {
+    throw StateError('Danbooru duplicate fixture did not round-trip');
+  }
+  return PostBookmark.fromSnapshot(
+    id: legacy.id,
+    createdAt: legacy.createdAt,
+    updatedAt: legacy.updatedAt,
+    snapshot: snapshot,
+    post: decodedPost,
+    postId: legacy.postId,
+    sourceUrl: legacy.sourceUrl,
+  );
 }
 
 class _FileSystem extends IoFileSystem {

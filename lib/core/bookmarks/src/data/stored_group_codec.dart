@@ -3,9 +3,14 @@ import '../../../content/types.dart';
 import '../types/stored_group_snapshot.dart';
 
 final class StoredGroupCodec {
-  const StoredGroupCodec({this.metadata = const GroupMetadataCodec()});
+  const StoredGroupCodec({
+    GroupMetadataCodec metadata = const GroupMetadataCodec(),
+    this.metadataResolver,
+  }) : _metadata = metadata;
 
-  final GroupMetadataCodec metadata;
+  final GroupMetadataCodec _metadata;
+  final GroupMetadataCodec Function()? metadataResolver;
+  GroupMetadataCodec get metadata => metadataResolver?.call() ?? _metadata;
 
   Map<String, Object?> encode(StoredGroupSnapshot snapshot) => {
     'schemaVersion': snapshot.schemaVersion,

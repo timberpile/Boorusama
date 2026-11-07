@@ -570,8 +570,17 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   Future<void> delete(int id) =>
       _ready(() => _mutate(const [], {_localId(id)}));
   @override
-  Future<void> durableSync() =>
-      _ready(() => _sync([_posts, _groups, _metadata]));
+  Future<void> durableSync() => _ready(() async {
+    final organization = _metadata.get('activeOrganization') == null
+        ? null
+        : await _organizationBoxes();
+    await _sync([
+      _posts,
+      _groups,
+      _metadata,
+      if (organization != null) ...[organization.$1, organization.$2],
+    ]);
+  });
 
   Future<void> _mutate(
     List<Bookmark> records,

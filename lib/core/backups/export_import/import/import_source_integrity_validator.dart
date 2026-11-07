@@ -136,20 +136,7 @@ final class ImportSourceIntegrityValidator {
       }
     }
     if (data case final BookmarkBackupData bookmarks) {
-      final bookmarkIds = bookmarks.bookmarks
-          .map((bookmark) => bookmark.id)
-          .toSet();
-      final groupIds = bookmarks.groups.map((g) => g.id).toSet();
-      for (final pool in bookmarks.pools) {
-        if (pool.groupIds.isEmpty || !groupIds.containsAll(pool.groupIds)) {
-          issues.add(
-            ImportPlanIssue(
-              code: 'missing_pool_group_reference',
-              sourceId: sourceId,
-            ),
-          );
-        }
-      }
+      final bookmarkIds = bookmarks.records.map((record) => record.id).toSet();
       for (final group in bookmarks.groups) {
         if (!bookmarkIds.containsAll(group.bookmarkIds)) {
           issues.add(
@@ -171,7 +158,7 @@ Set<String> importedItemIds(Object? data) => switch (data) {
     for (final profile in profiles) 'profile:${profile.id}',
   },
   final BookmarkBackupData bookmarks => {
-    if (bookmarks.bookmarks.any(
+    if (bookmarks.records.any(
       (bookmark) => !bookmarks.groups.any(
         (group) => group.bookmarkIds.contains(bookmark.id),
       ),

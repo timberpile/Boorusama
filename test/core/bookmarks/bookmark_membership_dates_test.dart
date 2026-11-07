@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
+import 'package:boorusama/core/backups/sources/bookmarks_source.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_planner.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_plan.dart';
@@ -266,7 +267,7 @@ void main() {
   });
 
   test(
-    'version 9 export/restore remaps local IDs and preserves membership dates',
+    'version 10 export/restore remaps local IDs and preserves membership dates',
     () async {
       final post = await seed(1);
       await service.addBookmarkToGroup(
@@ -293,7 +294,7 @@ void main() {
       final restored = codec.parse(
         decodeData(
           data: jsonEncode({
-            'version': 9,
+            'version': kBookmarksBackupVersion,
             'data': codec.encode(data),
             ...data.extraFields,
           }),
@@ -308,7 +309,7 @@ void main() {
         poolGroupA: first,
         poolGroupB: second,
       });
-      expect(saved.createdAt, first);
+      expect(saved.createdAt, post.createdAt);
     },
   );
 
