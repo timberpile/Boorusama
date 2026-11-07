@@ -48,9 +48,9 @@ final class BoorusamaPostLink extends Equatable {
     if (type == null || type == BooruType.unknown) {
       throw const FormatException('Unsupported post engine');
     }
-    final site = _parseSite(parameters['site']!.single);
+    final site = parseSourceSite(parameters['site']!.single);
     final key = parameters['key']!.single;
-    final postId = _parsePostId(type, key);
+    final postId = parsePostId(type, key);
     return BoorusamaPostLink._(
       booruType: type,
       site: site,
@@ -92,7 +92,7 @@ final class BoorusamaPostLink extends Equatable {
 
   static BoorusamaPostLink? fromPost(Post post, {BooruConfigAuth? auth}) {
     final origin = post.origin;
-    final key = _stableKey(post);
+    final key = stableKeyForPost(post);
     if (key == null || origin.sourceHost.isEmpty) return null;
     // The active profile may only be a fallback in a mixed/cached viewer. It
     // must never change the source address of the post being shared.
@@ -129,9 +129,9 @@ final class BoorusamaPostLink extends Equatable {
   bool matches(Post post) =>
       post.origin.booruType == booruType &&
       post.origin.sourceHost == normalizePostSourceHost(site.toString()) &&
-      _stableKey(post) == key;
+      stableKeyForPost(post) == key;
 
-  static String? _stableKey(Post post) =>
+  static String? stableKeyForPost(Post post) =>
       switch ((post.origin.booruType, post.booruData)) {
         (_, final StableBookmarkPostKeyData data) => data.stableBookmarkPostKey,
         (BooruType.sankaku || BooruType.pixiv || BooruType.unknown, _) => null,
@@ -144,7 +144,7 @@ final class BoorusamaPostLink extends Equatable {
   static final _positiveInteger = RegExp(r'^[1-9][0-9]*$');
   static final _sankakuId = RegExp(r'^[a-zA-Z0-9_-]{1,128}$');
 
-  static Uri _parseSite(String value) {
+  static Uri parseSourceSite(String value) {
     if (value.length > 2048 ||
         _unsafeText.hasMatch(value) ||
         _invalidEscape.hasMatch(value)) {
@@ -173,7 +173,7 @@ final class BoorusamaPostLink extends Equatable {
     return id;
   }
 
-  static PostId _parsePostId(BooruType type, String key) {
+  static PostId parsePostId(BooruType type, String key) {
     if (key.length > 160 || _unsafeText.hasMatch(key)) {
       throw const FormatException('Invalid post reference');
     }
