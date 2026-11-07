@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/related/related_family.dart';
+import '../../../posts/related/related_posts_order_value.dart';
 import 'pool_bookmark.dart';
 import 'pool_bookmark_capability.dart';
 
@@ -77,14 +78,16 @@ final class RelatedBookmarkPickerRequest extends BookmarkPickerRequest {
   const RelatedBookmarkPickerRequest({
     required BooruConfig config,
     required this.family,
+    this.visibleOrder,
   }) : source = config;
   @override
   final BooruConfig source;
   @override
   BooruConfigAuth get config => source.auth;
   final RelatedFamilyReference family;
+  final RelatedPostsOrder? visibleOrder;
   @override
   Object get collectionIdentity => family.identity;
   @override
-  List<Object?> get props => [source, family];
+  List<Object?> get props => [source, family, visibleOrder];
 }

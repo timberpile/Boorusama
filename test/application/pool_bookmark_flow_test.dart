@@ -41,8 +41,11 @@ import 'package:boorusama/boorus/danbooru/pools/pool/types.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
-import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_picker_actions.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/providers/related_bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/data/bookmark_collection_projection.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_pool_card.dart';
@@ -79,98 +82,178 @@ import 'support/fake_image_dio.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
-  for (final failSave in [false, true]) {
-    testWidgets(
-      'Related order persists separately and retains content when save fails=$failSave',
-      (tester) async {
-        final repository = MemorySettingsRepository();
-        final setup = await _mount(
-          tester,
-          seedRelated: true,
-          settingsRepository: failSave
-              ? _FailedRelatedSettingsRepository(repository)
-              : repository,
+  testWidgets(
+    'unsaved Related order stays with its occurrence and preserves global fallback',
+    (tester) async {
+      final repository = MemorySettingsRepository();
+      final setup = await _mount(
+        tester,
+        seedRelated: true,
+        settingsRepository: repository,
+      );
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      final card = find.byType(BookmarkPoolCard);
+      expect(
+        find.byTooltip(tester.element(card).t.bookmark.pool_filter_help),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<PoolGridItem>(
+              find.descendant(of: card, matching: find.byType(PoolGridItem)),
+            )
+            .name,
+        isNull,
+      );
+      tester.widget<BookmarkPoolCard>(card).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.settle(tester);
+      Finder familyGallery() => find.byWidgetPredicate(
+        (widget) =>
+            widget is RelatedGallery && widget.entry.family.anchorId == 10,
+      );
+      PostGrid<Post>? maybeGallery() {
+        if (familyGallery().evaluate().isEmpty) return null;
+        final grids = find.descendant(
+          of: familyGallery().last,
+          matching: find.byType(PostGrid<Post>),
         );
-        final harness = setup.harness;
-        await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
-        await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
-        await harness.settle(tester);
-        final card = find.byType(BookmarkPoolCard);
-        expect(
-          find.byTooltip(tester.element(card).t.bookmark.pool_filter_help),
-          findsNothing,
+        if (grids.evaluate().isEmpty) return null;
+        return tester.widget<PostGrid<Post>>(grids.last);
+      }
+
+      PostGrid<Post> gallery() => maybeGallery()!;
+      await harness.pumpUntil(
+        tester,
+        () => maybeGallery()?.controller.items.isNotEmpty ?? false,
+      );
+      final original = gallery().controller;
+      expect(original.items.first.id, 10);
+      gallery().selectionModeController!.enable(initialSelected: [0]);
+      await harness.settle(tester);
+      await tester.ensureVisible(find.text('Oldest').last);
+      await tester.tap(find.text('Oldest').last);
+      await harness.settle(tester);
+      await tester.tap(find.text('Newest').last);
+      await harness.settle(tester);
+      await harness.pumpUntil(
+        tester,
+        () => gallery().controller.items.firstOrNull?.id == 129,
+      );
+      expect(gallery().selectionModeController!.isActive, isFalse);
+      expect(
+        repository.settings.relatedPostsOrder,
+        RelatedPostsOrder.oldest,
+      );
+      expect(repository.settings.listing, Settings.defaultSettings.listing);
+      await harness.pumpUntilComplete(
+        tester,
+        gallery().controller.fetchMore(),
+      );
+      expect(gallery().controller.items.map((p) => p.id).toList(), [
+        for (var id = 129; id >= 10; id--) id,
+      ]);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.pumpUntil(tester, () {
+        final grid = maybeGallery();
+        return grid?.controller.items.firstOrNull?.id == 10;
+      });
+      expect(repository.settings.relatedPostsOrder, RelatedPostsOrder.oldest);
+      await _drainNotifications(tester);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'saved Related order is per family and picker carries the visible order',
+    (tester) async {
+      final repository = MemorySettingsRepository(
+        Settings.defaultSettings.copyWith(
+          relatedPostsOrder: RelatedPostsOrder.newest,
+        ),
+      );
+      late _SavedRelatedOrderNotifier notifier;
+      final setup = await _mount(
+        tester,
+        seedRelated: true,
+        settingsRepository: repository,
+        bookmarkNotifierFactory: (config) =>
+            notifier = _SavedRelatedOrderNotifier(
+              _savedRelatedState(
+                config: config,
+                firstOrder: RelatedPostsOrder.oldest,
+                secondOrder: RelatedPostsOrder.oldest,
+              ),
+            ),
+      );
+      final harness = setup.harness;
+      await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await harness.settle(tester);
+      final card = find.byWidgetPredicate(
+        (widget) =>
+            widget is BookmarkPoolCard &&
+            widget.pool.isRelated &&
+            widget.pool.referenceId == 10,
+      );
+      tester.widget<BookmarkPoolCard>(card).onOpen!();
+      await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await harness.settle(tester);
+      Finder familyGallery() => find.byWidgetPredicate(
+        (widget) =>
+            widget is RelatedGallery && widget.entry.family.anchorId == 10,
+      );
+      PostGrid<Post>? maybeGallery() {
+        if (familyGallery().evaluate().isEmpty) return null;
+        final grids = find.descendant(
+          of: familyGallery().last,
+          matching: find.byType(PostGrid<Post>),
         );
-        expect(
-          tester
-              .widget<PoolGridItem>(
-                find.descendant(of: card, matching: find.byType(PoolGridItem)),
-              )
-              .name,
-          isNull,
-        );
-        tester.widget<BookmarkPoolCard>(card).onOpen!();
-        await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
-        await harness.settle(tester);
-        PostGrid<Post> gallery() => tester.widget<PostGrid<Post>>(
-          find.descendant(
-            of: find.byType(RelatedGallery),
-            matching: find.byType(PostGrid<Post>),
+        if (grids.evaluate().isEmpty) return null;
+        return tester.widget<PostGrid<Post>>(grids.last);
+      }
+
+      PostGrid<Post> gallery() => maybeGallery()!;
+      await harness.pumpUntil(
+        tester,
+        () => maybeGallery()?.controller.items.isNotEmpty ?? false,
+      );
+      expect(gallery().controller.items.first.id, 10);
+      await tester.ensureVisible(find.text('Oldest').last);
+      await tester.tap(find.text('Oldest').last);
+      await harness.settle(tester);
+      await tester.tap(find.text('Newest').last);
+      await harness.pumpUntil(
+        tester,
+        () => gallery().controller.items.firstOrNull?.id == 129,
+      );
+      expect(notifier.orderUpdates, [(901, RelatedPostsOrder.newest)]);
+      expect(repository.settings.relatedPostsOrder, RelatedPostsOrder.newest);
+      expect(repository.savedSettings, isEmpty);
+
+      final actions = BookmarkPickerActions(
+        container: setup.container,
+        request: RelatedBookmarkPickerRequest(
+          config: harness.booruBackend.config,
+          family: RelatedFamilyReference(
+            origin: postOriginFromConfig(harness.booruBackend.config),
+            anchorId: 10,
           ),
-        );
-        await harness.pumpUntil(
-          tester,
-          () => gallery().controller.items.isNotEmpty,
-        );
-        final original = gallery().controller;
-        expect(original.items.first.id, 10);
-        gallery().selectionModeController!.enable(initialSelected: [0]);
-        await harness.settle(tester);
-        await tester.ensureVisible(find.text('Oldest').last);
-        await tester.tap(find.text('Oldest').last);
-        await harness.settle(tester);
-        await tester.tap(find.text('Newest').last);
-        await harness.settle(tester);
-        if (failSave) {
-          expect(gallery().controller, same(original));
-          expect(original.items.first.id, 10);
-          expect(
-            repository.settings.relatedPostsOrder,
-            RelatedPostsOrder.oldest,
-          );
-        } else {
-          await harness.pumpUntil(
-            tester,
-            () => gallery().controller.items.firstOrNull?.id == 129,
-          );
-          expect(gallery().selectionModeController!.isActive, isFalse);
-          expect(
-            repository.settings.relatedPostsOrder,
-            RelatedPostsOrder.newest,
-          );
-          expect(repository.settings.listing, Settings.defaultSettings.listing);
-          await harness.pumpUntilComplete(
-            tester,
-            gallery().controller.fetchMore(),
-          );
-          expect(gallery().controller.items.map((p) => p.id).toList(), [
-            for (var id = 129; id >= 10; id--) id,
-          ]);
-          await tester.tap(find.byIcon(Symbols.arrow_back_ios));
-          await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
-          tester
-              .widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard))
-              .onOpen!();
-          await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
-          await harness.pumpUntil(
-            tester,
-            () => gallery().controller.items.firstOrNull?.id == 129,
-          );
-        }
-        await _drainNotifications(tester);
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
+          visibleOrder: RelatedPostsOrder.newest,
+        ),
+        isActive: () => true,
+      );
+      await actions.toggle(poolGroupA, onRemoved: (_) {});
+      expect(notifier.pickerOrder, RelatedPostsOrder.newest);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'Related order rejects an old page completing after the order changes',
@@ -450,7 +533,13 @@ void main() {
     testWidgets('pending Related picker rejects writes after $exit', (
       tester,
     ) async {
-      final setup = await _mount(tester, seedRelated: true, relatedVisits: 1);
+      final draftGate = Completer<CollectionBookmark>();
+      final setup = await _mount(
+        tester,
+        seedRelated: true,
+        relatedVisits: 1,
+        relatedDraftGate: draftGate,
+      );
       final harness = setup.harness;
       final backend = harness.booruBackend;
       final groupRepo = await setup.container.read(
@@ -473,15 +562,10 @@ void main() {
               poolLocalIds: {poolGroupB},
             ),
       );
-      final gate = backend.enqueuePostGate(
-        siteUrl: backend.config.url,
-        query: 'parent:10',
-        page: 1,
-      );
       await tester.tap(find.byTooltip('Bookmark Related'));
       await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
       await harness.settle(tester);
-      expect(gate.isCompleted, isFalse);
+      expect(draftGate.isCompleted, isFalse);
       await tester.tap(find.text('Pool target').hitTestable().first);
       await tester.pump();
       if (exit == 'cancel') {
@@ -491,9 +575,7 @@ void main() {
             .read(booruConfigProvider.notifier)
             .delete(backend.config);
       }
-      gate.completeSuccess(
-        PostResult(posts: [testRelatedPost(10)], total: 1, hasMore: false),
-      );
+      draftGate.complete(_summaryRelatedDraft(backend.config));
       await harness.settle(tester);
       expect(await groupRepo.getPoolBookmarks(), isEmpty);
       expect(setup.posts.bookmarks, isEmpty);
@@ -2080,7 +2162,7 @@ void main() {
   });
 
   testWidgets(
-    'Pool picker opens before indexing and keeps its icon while metadata is pending',
+    'Pool picker saves its summary without indexing members',
     (tester) async {
       final setup = await _mount(tester, holdIndex: true);
       final harness = setup.harness;
@@ -2095,14 +2177,7 @@ void main() {
       await harness.pumpUntilFound(tester, find.byType(PoolBookmarkButton));
       await harness.settle(tester);
       await tester.tap(find.byType(PoolBookmarkButton));
-      await harness.pumpUntil(
-        tester,
-        () => harness.booruBackend.requests
-            .whereType<FakeBooruPostRequest>()
-            .any((r) => r.query == 'pool:10' && r.pending),
-      );
-      await tester.pump();
-      await tester.pump();
+      await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
       expect(find.byType(BookmarkGroupPicker), findsOneWidget);
       expect(
         find.descendant(
@@ -2117,22 +2192,26 @@ void main() {
       );
       await harness.settle(tester);
       await tester.tap(find.text('Pool target'));
-      await tester.pump();
-      await tester.tap(find.text('Pool target'));
-      await tester.pump();
-      expect(
-        setup.container.read(bookmarkProvider).requireValue.pools,
-        isEmpty,
-      );
-      setup.indexGate!.completeSuccess(
-        PostResult(posts: harness.booruBackend.posts, total: 2),
-      );
       await harness.pumpUntil(
         tester,
         () =>
             setup.container.read(bookmarkProvider).valueOrNull?.pools.length ==
             1,
         description: 'completed asynchronous Pool bookmark',
+      );
+      final saved = setup.container
+          .read(bookmarkProvider)
+          .requireValue
+          .pools
+          .single;
+      expect(saved.total, 20);
+      expect(saved.coverage, PoolTagCoverage.unknown);
+      expect(saved.tags, isEmpty);
+      expect(
+        harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
+          (request) => request.query == 'pool:10',
+        ),
+        isEmpty,
       );
       expect(setup.posts.bookmarks, isEmpty);
       await _drainNotifications(tester);
@@ -2148,7 +2227,8 @@ void main() {
     testWidgets('pending Pool metadata does not save after $exit', (
       tester,
     ) async {
-      final setup = await _mount(tester, holdIndex: true);
+      final draftGate = Completer<CollectionBookmark>();
+      final setup = await _mount(tester, poolDraftGate: draftGate);
       final harness = setup.harness;
       final groupRepository = (await setup.container.read(
         bookmarkGroupRepoProvider.future,
@@ -2166,6 +2246,7 @@ void main() {
       await tester.tap(find.byType(PoolBookmarkButton));
       await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
       await harness.settle(tester);
+      expect(draftGate.isCompleted, isFalse);
       if (exit != 'cancel') {
         await tester.tap(find.text('Pool target'));
         await tester.pump();
@@ -2179,9 +2260,7 @@ void main() {
       }
       // Complete while the anchor's reverse transition still owns its widget.
       await tester.pump();
-      setup.indexGate!.completeSuccess(
-        PostResult(posts: harness.booruBackend.posts, total: 2),
-      );
+      draftGate.complete(_summaryPoolDraft(harness.booruBackend.config));
       await harness.settle(tester);
       expect(await groupRepository.readPoolBookmarks(), isEmpty);
       expect(setup.posts.bookmarks, isEmpty);
@@ -2290,8 +2369,8 @@ void main() {
             .single;
         expect(saved.groupIds, {poolGroupA});
         expect(saved.total, 20);
-        expect(saved.coverage, PoolTagCoverage.partial);
-        expect(saved.tags, containsAll(['cat', 'landscape']));
+        expect(saved.coverage, PoolTagCoverage.unknown);
+        expect(saved.tags, isEmpty);
         await AppFlowDriver(tester: tester, harness: harness).goBack();
         await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
         await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
@@ -2502,6 +2581,9 @@ _mount(
   List<int>? seriesMembers,
   List<Map<String, Object?>>? seriesPools,
   SettingsRepository? settingsRepository,
+  BookmarkLibraryNotifier Function(BooruConfig)? bookmarkNotifierFactory,
+  Completer<CollectionBookmark>? poolDraftGate,
+  Completer<CollectionBookmark>? relatedDraftGate,
 }) async {
   final backend = FakeBooruBackend();
   if (seedRelated) {
@@ -2714,6 +2796,18 @@ _mount(
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),
       bookmarkGroupRepoProvider.overrideWith((_) async => groups),
+      if (bookmarkNotifierFactory != null)
+        bookmarkProvider.overrideWith(
+          () => bookmarkNotifierFactory(backend.config),
+        ),
+      if (poolDraftGate != null)
+        poolBookmarkDraftProvider.overrideWith(
+          (ref, request) => poolDraftGate.future,
+        ),
+      if (relatedDraftGate != null)
+        relatedBookmarkDraftProvider.overrideWith(
+          (ref, request) => relatedDraftGate.future,
+        ),
       blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
       poolBookmarkCapabilityProvider.overrideWith(
         (ref, _) => DanbooruPoolBookmarks(ref),
@@ -2741,6 +2835,119 @@ _mount(
     adapter: adapter,
     indexGate: indexGate,
   );
+}
+
+BookmarkLibraryState _savedRelatedState({
+  required BooruConfig config,
+  required RelatedPostsOrder firstOrder,
+  required RelatedPostsOrder secondOrder,
+}) {
+  final first = _nativeRelatedRecord(
+    config: config,
+    id: 901,
+    anchorId: 10,
+    order: firstOrder,
+  );
+  final second = _nativeRelatedRecord(
+    config: config,
+    id: 902,
+    anchorId: 11,
+    order: secondOrder,
+  );
+  return BookmarkLibraryState(
+    bookmarks: const [],
+    groups: [
+      BookmarkGroup(
+        id: poolGroupA,
+        name: 'Pool target',
+        bookmarkIds: {first.id, second.id},
+      ),
+    ],
+    records: [first, second],
+  );
+}
+
+PoolBookmark _summaryPoolDraft(BooruConfig config) {
+  final now = DateTime.utc(2026);
+  return PoolBookmark(
+    localId: 'pending-pool-draft',
+    sourceSite: Uri.parse(config.url),
+    origin: postOriginFromConfig(config),
+    poolId: 10,
+    category: BookmarkedPoolCategory.series,
+    title: 'Series_10',
+    createdAt: now,
+    observedAt: now,
+    groupIds: const {},
+    tags: const {},
+    coverage: PoolTagCoverage.unknown,
+    total: 20,
+  );
+}
+
+RelatedCollectionBookmark _summaryRelatedDraft(BooruConfig config) {
+  final now = DateTime.utc(2026);
+  return RelatedCollectionBookmark(
+    family: RelatedFamilyReference(
+      origin: postOriginFromConfig(config),
+      anchorId: 10,
+    ),
+    localId: 'pending-related-draft',
+    sourceSite: Uri.parse(config.url),
+    createdAt: now,
+    observedAt: now,
+    groupIds: const {},
+  );
+}
+
+RelatedBookmark _nativeRelatedRecord({
+  required BooruConfig config,
+  required int id,
+  required int anchorId,
+  required RelatedPostsOrder order,
+}) {
+  final origin = postOriginFromConfig(config);
+  final family = RelatedFamilyReference(origin: origin, anchorId: anchorId);
+  final metadata = RelatedCollectionBookmark(
+    family: family,
+    localId: '$id',
+    sourceSite: Uri.parse(config.url),
+    createdAt: DateTime.utc(2024),
+    observedAt: DateTime.utc(2026),
+    groupIds: const {poolGroupA},
+  );
+  return collectionRecordForSave(
+    metadata,
+    id: id,
+    initialRelatedOrder: order,
+  ) as RelatedBookmark;
+}
+
+final class _SavedRelatedOrderNotifier extends BookmarkLibraryNotifier {
+  _SavedRelatedOrderNotifier(this.library);
+
+  final BookmarkLibraryState library;
+  final orderUpdates = <(int, RelatedPostsOrder)>[];
+  RelatedPostsOrder? pickerOrder;
+
+  @override
+  FutureOr<BookmarkLibraryState> build() => library;
+
+  @override
+  Future<void> setRelatedOrder(int bookmarkId, RelatedPostsOrder order) async {
+    orderUpdates.add((bookmarkId, order));
+  }
+
+  @override
+  Future<BookmarkToggleOutcome> togglePoolTarget(
+    CollectionBookmark draft, {
+    required String groupId,
+    RelatedPostsOrder? initialRelatedOrder,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
+  }) async {
+    pickerOrder = initialRelatedOrder;
+    return BookmarkToggleOutcome.added;
+  }
 }
 
 class _PoolAdapter implements HttpClientAdapter {
@@ -2853,13 +3060,4 @@ class _SeriesSearchBuilder extends BaseBooruBuilder {
   @override
   SearchPageBuilder get searchPageBuilder =>
       (context, params) => DanbooruSearchPage(params: params);
-}
-
-class _FailedRelatedSettingsRepository implements SettingsRepository {
-  _FailedRelatedSettingsRepository(this.delegate);
-  final SettingsRepository delegate;
-  @override
-  SettingsOrError load() => delegate.load();
-  @override
-  Future<bool> save(Settings settings) async => false;
 }

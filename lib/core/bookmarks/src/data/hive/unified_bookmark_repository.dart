@@ -554,8 +554,12 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   /// Validate preparation with registered payload codecs before allocating an
   /// ID. This performs no storage write, source lookup or network request.
   @override
-  Bookmark normalizeRecord(Bookmark record) =>
-      _codec.decode(_codec.encode(record));
+  Bookmark normalizeRecord(Bookmark record, {Bookmark? previous}) {
+    final normalized = _codec.decode(_codec.encode(record));
+    if (previous != null)
+      _compatible(_header(previous), _header(normalized), normalized);
+    return normalized;
+  }
 
   @override
   Future<void> upsert(Bookmark record) => upsertAll([record]);

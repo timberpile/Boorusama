@@ -6,6 +6,10 @@ import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../../posts/post/types.dart';
+import '../../../posts/related/related_posts_order_value.dart';
+import '../types/content_group_bookmark.dart';
+import '../types/legacy_group_bookmark.dart';
+import '../types/stored_group_snapshot.dart';
 import '../types/bookmark.dart';
 import '../types/pool_bookmark_repository.dart';
 import '../types/pool_bookmark.dart';
@@ -68,6 +72,11 @@ class BookmarkLibraryRollbackException implements Exception {
   final List<Object> rollbackErrors;
 }
 
+typedef BookmarkDraftSaveResult = ({
+  int addedCount,
+  List<Bookmark> createdRecords,
+});
+
 class BookmarkLibraryService {
   const BookmarkLibraryService({
     required this.bookmarkRepository,
@@ -91,6 +100,62 @@ class BookmarkLibraryService {
       groupRepository is UnifiedBookmarkOrganization
       ? unifiedBookmarkStorage(bookmarkRepository)
       : null;
+
+  /// Draft/file IDs never select a local slot. Saving performs no metadata or
+  /// member requests and keeps a previously saved observation unchanged.
+  Future<BookmarkDraftSaveResult> saveDraftsToGroup(
+    Iterable<Bookmark> drafts,
+    String groupId, {
+    Iterable<Bookmark> savedRecords = const [],
+  }) {
+    if (unifiedStore == null)
+      throw StateError('Unified Bookmark storage unavailable');
+    return _saveUnifiedDrafts(drafts, groupId, savedRecords);
+  }
+
+  Future<void> setRelatedOrder(int bookmarkId, RelatedPostsOrder order) =>
+      _scope(() async {
+        final store =
+            unifiedStore ??
+            (throw StateError('Unified Bookmark storage unavailable'));
+        final record = await store.read(bookmarkId);
+        final Bookmark updated = switch (record) {
+          RelatedBookmark() => record.copyWith(preferredOrder: () => order),
+          LegacyRelatedGroupBookmark() => record.copyWith(
+            preferredOrder: () => order,
+          ),
+          _ => throw StateError('The saved Related family no longer exists'),
+        };
+        if (updated == record) return;
+        await store.upsert(updated);
+      });
+
+  Future<void> updateGroupSnapshot(
+    int bookmarkId,
+    StoredGroupSnapshot snapshot, {
+    DateTime? observedAt,
+    bool authoritative = false,
+  }) => _scope(() async {
+    final store =
+        unifiedStore ??
+        (throw StateError('Unified Bookmark storage unavailable'));
+    final record = await store.read(bookmarkId);
+    if (record is! ContentGroupBookmark)
+      throw StateError('Saved Group is unavailable');
+    final merged = authoritative
+        ? snapshot
+        : StoredGroupSnapshot(
+            summary: snapshot.summary,
+            details: snapshot.details ?? record.snapshot.details,
+            index: snapshot.index ?? record.snapshot.index,
+          );
+    final updated = record.copyWith(
+      snapshot: merged,
+      observedAt: observedAt ?? DateTime.now(),
+    );
+    store.normalizeRecord(updated, previous: record);
+    await store.upsert(updated);
+  });
 
   Future<T> _scope<T>(Future<T> Function() operation) =>
       unifiedStore?.runReadWriteScope(operation) ?? operation();
@@ -488,7 +553,18 @@ class BookmarkLibraryService {
     PostBookmark? existingBookmark,
     BookmarkUniqueId? createBookmarkIdentity,
     Future<PostBookmark> Function()? createBookmark,
+    Future<PostBookmark> Function()? prepareBookmark,
   }) async {
+    if (unifiedStore != null) {
+      if (existingBookmark != null)
+        return await _addUnifiedMembers([existingBookmark], groupId) > 0;
+      if (prepareBookmark == null)
+        throw ArgumentError('A prepared Post draft is required');
+      final draft = await prepareBookmark();
+      if (draft.uniqueId != createBookmarkIdentity)
+        throw const FormatException('Prepared Post identity changed');
+      return (await saveDraftsToGroup([draft], groupId)).addedCount > 0;
+    }
     final group = await groupRepository.getGroup(groupId);
     if (group == null) {
       throw StateError('Bookmark group $groupId does not exist.');

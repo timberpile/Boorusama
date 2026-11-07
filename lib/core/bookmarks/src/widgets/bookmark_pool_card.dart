@@ -179,7 +179,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   Future<void> _refresh() => _perform((profile, capability) async {
     if (widget.pool.family case final family?) {
       final summary = await ref.read(
-        relatedBookmarkDraftProvider((profile, family)).future,
+        relatedBookmarkRefreshProvider((profile, family)).future,
       );
       if (!mounted ||
           resolvePoolBookmarkProfile(
@@ -197,7 +197,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     );
     if (remote == null || !mounted) throw StateError('Pool unavailable');
     final summary = await ref.read(
-      poolBookmarkDraftProvider((profile, remote)).future,
+      poolBookmarkRefreshProvider((profile, remote)).future,
     );
     if (!mounted) return;
     if (resolvePoolBookmarkProfile(

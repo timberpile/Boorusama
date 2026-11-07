@@ -16,6 +16,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
 import 'package:flutter/material.dart' as legacy;
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
@@ -340,6 +341,7 @@ class _Library extends BookmarkLibraryNotifier {
   Future<BookmarkToggleOutcome> togglePoolTarget(
     CollectionBookmark draft, {
     required String groupId,
+    RelatedPostsOrder? initialRelatedOrder,
     void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) async {
     toggles.add(draft);
@@ -353,6 +355,7 @@ class _Library extends BookmarkLibraryNotifier {
     Iterable<Post> posts, {
     String? folderId,
     List<CollectionBookmark> pools = const [],
+    RelatedPostsOrder? initialRelatedOrder,
   }) async {
     creations.add((posts: posts.toList(), pools: pools));
     return (

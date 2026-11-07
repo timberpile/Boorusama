@@ -1,6 +1,7 @@
 import '../../../content/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/related/related_family.dart';
+import '../../../posts/related/related_posts_order_value.dart';
 import '../types/bookmark.dart';
 import '../types/content_group_bookmark.dart' as saved;
 import '../types/legacy_group_bookmark.dart';
@@ -106,6 +107,7 @@ Bookmark collectionRecordForSave(
   CollectionBookmark metadata, {
   required int id,
   Bookmark? previous,
+  RelatedPostsOrder? initialRelatedOrder,
 }) {
   ContentReference? reference;
   if (metadata.sourceSite case final site?) {
@@ -146,6 +148,8 @@ Bookmark collectionRecordForSave(
           : metadata,
       preferredOrder: previous is LegacyRelatedGroupBookmark
           ? previous.preferredOrder
+          : previous == null && metadata.isRelated
+          ? initialRelatedOrder
           : null,
     );
   }
@@ -202,7 +206,7 @@ Bookmark collectionRecordForSave(
           preferredOrder: switch (previous) {
             saved.RelatedBookmark() => previous.preferredOrder,
             LegacyRelatedGroupBookmark() => previous.preferredOrder,
-            _ => null,
+            _ => previous == null ? initialRelatedOrder : null,
           },
         )
       : saved.ContentGroupBookmark(

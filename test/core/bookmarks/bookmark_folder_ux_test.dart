@@ -30,6 +30,7 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:material_ui/material_ui.dart';
@@ -2193,6 +2194,7 @@ class _Library extends BookmarkLibraryNotifier {
     Iterable<Post> posts, {
     String? folderId,
     List<CollectionBookmark> pools = const [],
+    RelatedPostsOrder? initialRelatedOrder,
   }) async {
     final group = await createGroup(name, folderId: folderId);
     return (group: group, addedCount: posts.length);

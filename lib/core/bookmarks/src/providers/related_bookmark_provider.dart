@@ -15,9 +15,43 @@ import '../types/pool_bookmark_cover.dart';
 import 'bookmark_provider.dart';
 import 'pool_bookmark_provider.dart';
 
+/// Resolves local membership first and otherwise creates a summary-only draft.
+final relatedBookmarkDraftProvider = FutureProvider.autoDispose
+    .family<CollectionBookmark, (BooruConfig, RelatedFamilyReference)>((
+      ref,
+      request,
+    ) async {
+      final (config, family) = request;
+      final origin = postOriginFromConfig(config);
+      if (origin.sourceHost != family.origin.sourceHost ||
+          config.auth.booruType != family.origin.booruType) {
+        throw StateError('Related source mismatch');
+      }
+      final library = await ref.read(bookmarkProvider.future);
+      final existing = library.pools
+          .where((saved) => saved.identity == family.identity)
+          .firstOrNull;
+      if (existing != null) return existing;
+
+      final now = DateTime.now().toUtc();
+      return RelatedCollectionBookmark(
+        family: RelatedFamilyReference(
+          origin: origin,
+          anchorId: family.anchorId,
+        ),
+        localId: const Uuid().v4(),
+        sourceSite: Uri.parse(config.url),
+        createdAt: now,
+        observedAt: now,
+        groupIds: const {},
+        tags: const {},
+        coverage: PoolTagCoverage.unknown,
+      );
+    });
+
 /// One bounded producer request (plus its existing exact-count request). The
 /// provider coalesces requests for the same family and authorization context.
-final relatedBookmarkDraftProvider = FutureProvider.autoDispose
+final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
     .family<CollectionBookmark, (BooruConfig, RelatedFamilyReference)>((
       ref,
       request,
@@ -73,6 +107,7 @@ final relatedBookmarkDraftProvider = FutureProvider.autoDispose
           anchorId: family.anchorId,
         ),
         localId: existing?.localId ?? const Uuid().v4(),
+        sourceSite: Uri.parse(config.url),
         createdAt: existing?.createdAt ?? now,
         observedAt: now,
         groupIds: existing?.groupIds ?? {defaultBookmarkGroupId},

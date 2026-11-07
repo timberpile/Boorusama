@@ -97,8 +97,8 @@ class BookmarkMutationRepository
   Future<T> runReadWriteScope<T>(Future<T> Function() operation) =>
       _requiredStore.runReadWriteScope(operation);
   @override
-  Bookmark normalizeRecord(Bookmark record) =>
-      _requiredStore.normalizeRecord(record);
+  Bookmark normalizeRecord(Bookmark record, {Bookmark? previous}) =>
+      _requiredStore.normalizeRecord(record, previous: previous);
   @override
   Future<List<int>> reserveIds(int count) =>
       _write(() => _requiredStore.reserveIds(count));

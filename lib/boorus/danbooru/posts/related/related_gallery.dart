@@ -10,7 +10,13 @@ import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../../core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import '../../../../../core/bookmarks/src/providers/bookmark_provider.dart';
+import '../../../../../core/bookmarks/src/types/content_group_bookmark.dart'
+    as native_bookmarks;
+import '../../../../../core/bookmarks/src/types/legacy_group_bookmark.dart'
+    as legacy_bookmarks;
+import '../../../../../core/bookmarks/src/types/bookmark_library_state.dart';
 import '../../../../../core/configs/config/providers.dart';
+import '../../../../../core/content/content_reference.dart';
 import '../../../../../core/http/client/coordination.dart';
 import '../../../../../core/posts/details/routes.dart';
 import '../../../../../core/posts/details/src/widgets/post_details_page_view_scope.dart';
@@ -73,17 +79,46 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _pager = PostDetailsPageViewScope.maybeOf(context);
-    _order ??=
-        PageStorage.maybeOf(context)?.readState(
-          context,
-          identifier: (widget.entry.occurrenceId, 'related-order'),
-        ) as RelatedPostsOrder? ??
+  }
+
+  Object? _savedRelatedRecord(BookmarkLibraryState library) {
+    final id =
+        library.idByContent[(
+          siteNamespace: widget.entry.family.origin.sourceHost,
+          kind: ContentKind.group,
+          sourceKey: 'related:${widget.entry.family.anchorId}',
+        )];
+    final record = id == null ? null : library.byId[id];
+    return switch (record) {
+      native_bookmarks.RelatedBookmark() => record,
+      legacy_bookmarks.LegacyRelatedGroupBookmark() => record,
+      _ => null,
+    };
+  }
+
+  RelatedPostsOrder? _savedRelatedOrder(BookmarkLibraryState library) =>
+      switch (_savedRelatedRecord(library)) {
+        native_bookmarks.RelatedBookmark(:final preferredOrder?) =>
+          preferredOrder,
+        legacy_bookmarks.LegacyRelatedGroupBookmark(:final preferredOrder?) =>
+          preferredOrder,
+        _ => null,
+      };
+
+  void _initializeOrder(BookmarkLibraryState? library) {
+    if (_order != null) return;
+    final pageOrder = PageStorage.maybeOf(context)?.readState(
+      context,
+      identifier: (widget.entry.occurrenceId, 'related-order'),
+    ) as RelatedPostsOrder?;
+    final initial =
+        pageOrder ??
+        (library == null ? null : _savedRelatedOrder(library)) ??
         ref.read(settingsProvider).relatedPostsOrder;
-    // Freeze the occurrence's initial order as well as explicit changes. Other
-    // galleries can change the preference while this page is evicted.
+    _order = initial;
     PageStorage.maybeOf(context)?.writeState(
       context,
-      _order,
+      initial,
       identifier: (widget.entry.occurrenceId, 'related-order'),
     );
   }
@@ -117,13 +152,19 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
     if (order == _order || _savingOrder) return;
     setState(() => _savingOrder = true);
     try {
-      final saved = await ref
-          .read(settingsNotifierProvider.notifier)
-          .updateWith(
-            (settings) => settings.copyWith(relatedPostsOrder: order),
-          );
+      final library = ref.read(bookmarkProvider).valueOrNull;
+      final record = library == null ? null : _savedRelatedRecord(library);
+      final savedId = switch (record) {
+        native_bookmarks.RelatedBookmark(:final id) => id,
+        legacy_bookmarks.LegacyRelatedGroupBookmark(:final id) => id,
+        _ => null,
+      };
+      if (savedId != null) {
+        await ref
+            .read(bookmarkProvider.notifier)
+            .setRelatedOrder(savedId, order);
+      }
       if (!mounted) return;
-      if (!saved) throw StateError('Related order could not be saved');
       _selection.disable();
       PageStorage.maybeOf(context)?.writeState(
         context,
@@ -151,11 +192,16 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   @override
   Widget build(BuildContext context) {
     final config = ref.watchConfig;
+    final libraryState = ref.watch(bookmarkProvider);
+    final library = libraryState.valueOrNull;
+    if (_order == null) {
+      if (library == null && libraryState.isLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      _initializeOrder(library);
+    }
     final order = _order!;
-    final saved = ref
-        .watch(bookmarkProvider)
-        .valueOrNull
-        ?.pools
+    final saved = library?.pools
         .where((p) => p.identity == widget.entry.family.identity)
         .firstOrNull;
     final repo = ref.watch(originAwarePostRepoProvider(config));
@@ -249,6 +295,7 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
                       request: RelatedBookmarkPickerRequest(
                         config: config,
                         family: widget.entry.family,
+                        visibleOrder: order,
                       ),
                       builder: (context, show) => IconButton(
                         tooltip: context.t.bookmark.bookmark_related,

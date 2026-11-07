@@ -112,6 +112,11 @@ class BookmarkPickerActions {
           ? await notifier.togglePoolTarget(
               collection,
               groupId: groupId,
+              initialRelatedOrder: switch (request) {
+                RelatedBookmarkPickerRequest(:final visibleOrder) =>
+                  visibleOrder,
+                _ => null,
+              },
               onRemoved: onRemoved,
             )
           : await notifier.togglePostTarget(
@@ -147,6 +152,10 @@ class BookmarkPickerActions {
             },
             folderId: folderId,
             pools: [?collection],
+            initialRelatedOrder: switch (request) {
+              RelatedBookmarkPickerRequest(:final visibleOrder) => visibleOrder,
+              _ => null,
+            },
           );
     } finally {
       _pending = false;

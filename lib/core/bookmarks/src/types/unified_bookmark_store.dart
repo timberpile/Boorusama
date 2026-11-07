@@ -23,7 +23,7 @@ abstract interface class UnifiedBookmarkStore {
     Set<String> removeGroupIds = const {},
     List<CollectionFolder>? folders,
   });
-  Bookmark normalizeRecord(Bookmark record);
+  Bookmark normalizeRecord(Bookmark record, {Bookmark? previous});
 
   Future<List<int>> reserveIds(int count);
   Future<List<Bookmark>> readAll();

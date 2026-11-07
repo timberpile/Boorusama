@@ -3,6 +3,78 @@ part of 'bookmark_library_service.dart';
 /// Common membership operations commit payloads and organization together. The
 /// legacy branch in the service is retained for standalone Post-only adapters.
 extension on BookmarkLibraryService {
+  Future<BookmarkDraftSaveResult> _saveUnifiedDrafts(
+    Iterable<Bookmark> drafts,
+    String groupId,
+    Iterable<Bookmark> savedRecords,
+  ) => unifiedStore!.runReadWriteScope(() async {
+    final store = unifiedStore!;
+    final target = await _requireUnifiedGroup(groupId);
+    // All structures and source interpretations are validated before the
+    // durable counter advances. Only proven identities deduplicate.
+    final normalized = [
+      for (final draft in drafts)
+        store.normalizeRecord(bookmarkWithId(draft, 0)),
+    ];
+    final known = <Object, Bookmark>{};
+    final resolved = <Bookmark>[];
+    for (final frozen in savedRecords) {
+      final current = await store.read(frozen.id);
+      if (current == null || !_sameTarget(current, frozen))
+        throw StateError('Saved Bookmark changed before the action completed');
+      resolved.add(current);
+    }
+    final pending = <Bookmark>[];
+    for (final candidate in normalized) {
+      final identity = bookmarkContentIdentity(candidate);
+      if (identity == null) {
+        pending.add(candidate);
+        continue;
+      }
+      final previous =
+          known[identity] ??
+          await store.lookupContent(
+            identity,
+            engine: bookmarkEngine(candidate),
+          );
+      if (previous != null) {
+        store.normalizeRecord(candidate, previous: previous);
+        if (!known.containsKey(identity)) resolved.add(previous);
+        known[identity] = previous;
+      } else {
+        known[identity] = candidate;
+        pending.add(candidate);
+      }
+    }
+    final ids = await store.reserveIds(pending.length);
+    final created = <Bookmark>[
+      for (final (index, draft) in pending.indexed)
+        bookmarkWithId(draft, ids[index]),
+    ];
+    // Pending known records appear exactly once. Resolved existing records
+    // are selected by their authoritative IDs rather than draft IDs.
+    final selected = <int>{
+      for (final record in [...resolved, ...created]) record.id,
+    };
+    final added = selected.difference(target.bookmarkIds);
+    if (added.isNotEmpty || created.isNotEmpty) {
+      final now = DateTime.now().toUtc();
+      await store.commitOrganization(
+        records: created,
+        groups: [
+          target.copyWith(
+            bookmarkIds: {...target.bookmarkIds, ...added},
+            addedAt: {...target.addedAt, for (final id in added) id: now},
+          ),
+        ],
+      );
+    }
+    return (
+      addedCount: added.length,
+      createdRecords: List<Bookmark>.unmodifiable(created),
+    );
+  });
+
   Future<BookmarkGroup> _requireUnifiedGroup(String id) async =>
       await groupRepository.getGroup(id) ??
       (throw StateError('Bookmark Group no longer exists'));

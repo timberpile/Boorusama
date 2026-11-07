@@ -24,6 +24,9 @@ import '../../../posts/post/types.dart';
 import '../../../router.dart';
 import '../../../settings/providers.dart';
 import '../data/bookmark_convert.dart';
+import '../data/bookmark_collection_projection.dart';
+import '../types/legacy_group_bookmark.dart';
+import '../../../posts/related/related_posts_order_value.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
@@ -279,9 +282,48 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<int> _addPoolsToGroup(
     List<CollectionBookmark> drafts,
-    String groupId,
-  ) async {
+    String groupId, {
+    RelatedPostsOrder? initialRelatedOrder,
+  }) async {
     if (drafts.isEmpty) return 0;
+    final service = await _service;
+    if (service.unifiedStore != null) {
+      final current = await future;
+      final records = <Bookmark>[];
+      final savedRecords = <Bookmark>[];
+      for (final draft in drafts) {
+        final identity = LegacyGroupBookmark.fromMetadata(
+          id: 0,
+          metadata: draft,
+        ).identity;
+        final id =
+            draft.bookmarkId ??
+            (identity == null ? null : current.idByContent[identity]);
+        final previous = id == null ? null : current.byId[id];
+        if (draft.bookmarkId != null && previous == null)
+          throw StateError('Saved Group changed before the action completed');
+        final candidate = collectionRecordForSave(
+          draft,
+          id: 0,
+          previous: previous,
+          initialRelatedOrder: draft.isRelated
+              ? initialRelatedOrder ??
+                    ref.read(settingsProvider).relatedPostsOrder
+              : null,
+        );
+        if (previous != null) {
+          service.unifiedStore!.normalizeRecord(candidate, previous: previous);
+          savedRecords.add(previous);
+        } else {
+          records.add(candidate);
+        }
+      }
+      return (await service.saveDraftsToGroup(
+        records,
+        groupId,
+        savedRecords: savedRecords,
+      )).addedCount;
+    }
     final repository = await ref.read(bookmarkGroupRepoProvider.future);
     if (await repository.getGroup(groupId) == null)
       throw StateError('Bookmark group unavailable');
@@ -310,6 +352,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<BookmarkToggleOutcome> togglePoolTarget(
     CollectionBookmark draft, {
     required String groupId,
+    RelatedPostsOrder? initialRelatedOrder,
     void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) => _serialize(() async {
     try {
@@ -331,7 +374,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         onRemoved?.call(result);
         return BookmarkToggleOutcome.removed;
       }
-      await _addPoolsToGroup([draft], groupId);
+      await _addPoolsToGroup(
+        [draft],
+        groupId,
+        initialRelatedOrder: initialRelatedOrder,
+      );
       await _rememberManualGroup(groupId);
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.added;
@@ -341,6 +388,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       return BookmarkToggleOutcome.failed;
     }
   });
+
+  Future<void> setRelatedOrder(int bookmarkId, RelatedPostsOrder order) =>
+      _runTrackedMutation(
+        () async => (await _service).setRelatedOrder(bookmarkId, order),
+      );
 
   Future<void> refreshPoolBookmark(CollectionBookmark summary) =>
       runSerializedMutation(() async {
@@ -537,6 +589,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         createBookmarkIdentity: BookmarkUniqueId.fromPost(post, booruId),
         createBookmark: existing == null
             ? () => _createBookmark(config, post)
+            : null,
+        prepareBookmark: existing == null
+            ? () => _prepareBookmark(config, post)
             : null,
       );
 
@@ -766,6 +821,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         createBookmark: bookmark == null
             ? () => _createBookmark(config, post)
             : null,
+        prepareBookmark: bookmark == null
+            ? () => _prepareBookmark(config, post)
+            : null,
       );
       await _rememberManualGroup(groupId);
       await _publishCommittedMutation();
@@ -978,6 +1036,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         createBookmarkIdentity: BookmarkUniqueId.fromPost(post, booruId),
         createBookmark: existing == null
             ? () => _createBookmark(config, post)
+            : null,
+        prepareBookmark: existing == null
+            ? () => _prepareBookmark(config, post)
             : null,
       );
       if (existing == null ||
@@ -1209,6 +1270,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Iterable<Post> posts, {
     String? folderId,
     List<CollectionBookmark> pools = const [],
+    RelatedPostsOrder? initialRelatedOrder,
   }) => _serialize(() async {
     for (final post in posts) {
       BookmarkIdentity.fromPost(post);
@@ -1233,7 +1295,11 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     try {
       result = await _addPostsToGroup(config, posts, group.id);
       createdBookmarks = result.createdBookmarks;
-      addedPools = await _addPoolsToGroup(pools, group.id);
+      addedPools = await _addPoolsToGroup(
+        pools,
+        group.id,
+        initialRelatedOrder: initialRelatedOrder,
+      );
     } catch (error, stackTrace) {
       if (error case BookmarkPostBatchRollbackException(
         createdBookmarks: final leakedBookmarks,
@@ -1301,6 +1367,20 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final target = await repository.getGroup(groupId);
     if (target == null) {
       throw StateError('Bookmark group $groupId does not exist.');
+    }
+    final service = await _service;
+    if (service.unifiedStore != null) {
+      final drafts = <Bookmark>[...existing];
+      for (final post in missing) {
+        drafts.add(await _prepareBookmark(config, post));
+      }
+      final result = await service.saveDraftsToGroup(drafts, groupId);
+      return (
+        changedCount: result.addedCount,
+        createdBookmarks: result.createdRecords
+            .whereType<PostBookmark>()
+            .toList(),
+      );
     }
     final before = target.bookmarkIds;
     final created = <PostBookmark>[];
@@ -1585,6 +1665,44 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       } catch (_) {}
       Error.throwWithStackTrace(error, stackTrace);
     }
+  }
+
+  Future<PostBookmark> _prepareBookmark(
+    BooruConfigAuth config,
+    Post post,
+  ) async {
+    BookmarkIdentity.fromPost(post);
+    // Mixed selections carry independent origins. Generate each source link
+    // with that post's profile instead of the grid's surrounding profile.
+    final sourceConfig = switch (const PostOriginResolver().resolve(
+      post.origin,
+      ref.read(booruConfigProvider),
+    )) {
+      ResolvedPostOrigin(:final config) => config.auth,
+      _
+          when config.booruType == post.origin.booruType &&
+              normalizePostSourceHost(config.url) == post.origin.sourceHost =>
+        config,
+      _ => null,
+    };
+    final capability = ref
+        .read(booruEngineRegistryProvider)
+        .getPostCapability(post.origin.booruType);
+    final now = DateTime.now();
+    return PostBookmark.fromSnapshot(
+      id: 0,
+      createdAt: now,
+      updatedAt: now,
+      snapshot: const StoredPostCodec().encode(
+        post,
+        dataCodec: capability?.codec,
+      ),
+      post: post,
+      postId: post.id,
+      sourceUrl: sourceConfig == null
+          ? ''
+          : ref.read(postLinkGeneratorProvider(sourceConfig)).getLink(post),
+    );
   }
 
   BookmarkUniqueId _bookmarkIdentity(Post post, BooruConfigAuth config) =>

@@ -18,6 +18,7 @@ import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/content/content_map.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -62,12 +63,12 @@ void main() {
     );
   }
 
-  ContentGroupBookmark nativeGroup(int id) {
+  ContentGroupBookmark nativeGroup(int id, {String sourceKey = 'pool:42'}) {
     final reference = const ContentReferenceCodec().parse(
       engine: BooruType.danbooru,
       site: Uri.parse('https://danbooru.donmai.us/install'),
       kind: ContentKind.group,
-      sourceKey: 'pool:42',
+      sourceKey: sourceKey,
     );
     return ContentGroupBookmark(
       id: id,
@@ -454,5 +455,371 @@ void main() {
       after.groupsById[defaultBookmarkGroupId]!.addedAt[4],
       DateTime.utc(2012, 8, 9),
     );
+  });
+
+  test(
+    'saving drafts remaps incoming ids and keeps known records on repeat',
+    () async {
+      final before = await service.load();
+      final originalPost = testPoolPost(91).copyWith(id: 0);
+      final originalPool = nativeGroup(1, sourceKey: 'pool:43');
+      final opaque = opaqueGroup(2);
+      final revisionBefore = await bookmarks.readRevision();
+
+      final saved = await service.saveDraftsToGroup(
+        [originalPost, originalPool, opaque],
+        poolGroupA,
+      );
+
+      expect(saved.addedCount, 3);
+      expect(saved.createdRecords, hasLength(3));
+      expect(
+        saved.createdRecords.map((record) => record.id).toSet(),
+        hasLength(3),
+      );
+      expect(saved.createdRecords.every((record) => record.id > 7), isTrue);
+      final savedPost = saved.createdRecords.whereType<PostBookmark>().single;
+      final savedPool = saved.createdRecords
+          .whereType<ContentGroupBookmark>()
+          .single;
+      final savedOpaque = saved.createdRecords
+          .whereType<LegacyGroupBookmark>()
+          .single;
+      expect(savedPost.id, isNot(originalPost.id));
+      expect(savedPool.id, isNot(originalPool.id));
+      expect(savedOpaque.id, isNot(opaque.id));
+      expect(await bookmarks.readRevision(), revisionBefore + 1);
+
+      final savedState = await service.load();
+      final savedDates = {
+        for (final record in saved.createdRecords)
+          record.id: savedState.groupsById[poolGroupA]!.addedAt[record.id],
+      };
+      expect(
+        savedState.groupsById[poolGroupA]!.bookmarkIds,
+        containsAll(savedDates.keys),
+      );
+      expect(savedDates.values.every((date) => date != null), isTrue);
+
+      final repeated = await service.saveDraftsToGroup(
+        [originalPost, originalPool],
+        poolGroupA,
+      );
+      expect(repeated.addedCount, 0);
+      expect(repeated.createdRecords, isEmpty);
+      expect(await bookmarks.readRevision(), revisionBefore + 1);
+      final repeatedState = await service.load();
+      expect(repeatedState.groupsById[poolGroupA]!.addedAt, {
+        ...savedState.groupsById[poolGroupA]!.addedAt,
+      });
+      expect(repeatedState.byId[savedPost.id], savedPost);
+      expect(repeatedState.byId[savedPool.id], savedPool);
+      expect(repeatedState.byId[savedOpaque.id], savedOpaque);
+      expect(before.byId.containsKey(savedPost.id), isFalse);
+    },
+  );
+
+  test('saving a known content identity with another engine fails before allocation', () async {
+    final before = await service.load();
+    final revisionBefore = await bookmarks.readRevision();
+    final counterBefore = contentMap(
+      storage.metadataBox.get('idReservation'),
+    )['nextId'];
+    final reference = const ContentReferenceCodec().parse(
+      engine: BooruType.szurubooru,
+      site: Uri.parse('https://danbooru.donmai.us/install'),
+      kind: ContentKind.group,
+      sourceKey: 'pool:42',
+    );
+    final otherEngineDraft = ContentGroupBookmark(
+      id: 500,
+      snapshot: StoredGroupSnapshot(
+        summary: ContentGroupSummary(reference: reference, title: 'Pool 42'),
+        index: GroupBookmarkIndex(
+          tags: const {'source-group-tag'},
+          basis: GroupTagIndexBasis.sourceGroup,
+          coverage: MetadataCoverage.complete,
+        ),
+      ),
+      createdAt: DateTime.utc(2020, 1, 2),
+      observedAt: DateTime.utc(2025, 3, 4),
+    );
+    expect(
+      before.records
+          .whereType<ContentGroupBookmark>()
+          .where((record) => record is! RelatedBookmark)
+          .single
+          .snapshot
+          .summary
+          .reference
+          .engine,
+      BooruType.danbooru,
+    );
+
+    await expectLater(
+      service.saveDraftsToGroup([otherEngineDraft], poolGroupA),
+      throwsFormatException,
+    );
+
+    expect(
+      contentMap(storage.metadataBox.get('idReservation'))['nextId'],
+      counterBefore,
+    );
+    expect(await bookmarks.readRevision(), revisionBefore);
+    expect(await service.load(), before);
+  });
+
+  test(
+    'identical opaque drafts remain distinct and do not gain a source site',
+    () async {
+      await service.load();
+      final revisionBefore = await bookmarks.readRevision();
+      final firstDraft = opaqueGroup(3);
+      final secondDraft = opaqueGroup(3);
+
+      final saved = await service.saveDraftsToGroup(
+        [firstDraft, secondDraft],
+        poolGroupA,
+      );
+
+      expect(saved.addedCount, 2);
+      expect(saved.createdRecords, hasLength(2));
+      expect(
+        saved.createdRecords.map((record) => record.id).toSet(),
+        hasLength(2),
+      );
+      expect(saved.createdRecords.every((record) => record.id > 7), isTrue);
+      expect(await bookmarks.readRevision(), revisionBefore + 1);
+      final state = await service.load();
+      expect(
+        saved.createdRecords.every((record) => record is LegacyGroupBookmark),
+        isTrue,
+      );
+      expect(
+        saved.createdRecords.every(
+          (record) =>
+              (record as LegacyGroupBookmark).metadata.origin.sourceHost ==
+              'legacy.example',
+        ),
+        isTrue,
+      );
+      expect(
+        state.pools
+            .where(
+              (pool) =>
+                  saved.createdRecords.any((r) => r.id == pool.bookmarkId),
+            )
+            .every((pool) => pool.sourceSite == null),
+        isTrue,
+      );
+      expect(
+        state.groupsById[poolGroupA]!.bookmarkIds,
+        containsAll(saved.createdRecords.map((record) => record.id)),
+      );
+    },
+  );
+
+  test(
+    'saved opaque records attach by frozen local ID without allocation',
+    () async {
+      final state = await service.load();
+      final opaque = state.records.whereType<LegacyGroupBookmark>().single;
+      final counterBefore = contentMap(
+        storage.metadataBox.get('idReservation'),
+      )['nextId'];
+      final firstGroupDate = state.groupsById[poolGroupA]!.addedAt[opaque.id];
+      expect(
+        state.groupsById[poolGroupB]!.bookmarkIds,
+        isNot(contains(opaque.id)),
+      );
+
+      final result = await service.saveDraftsToGroup(
+        const [],
+        poolGroupB,
+        savedRecords: [opaque],
+      );
+
+      expect(result.addedCount, 1);
+      expect(result.createdRecords, isEmpty);
+      expect(
+        contentMap(storage.metadataBox.get('idReservation'))['nextId'],
+        counterBefore,
+      );
+      final after = await service.load();
+      expect(after.byId[opaque.id], opaque);
+      expect(after.groupsById[poolGroupA]!.addedAt[opaque.id], firstGroupDate);
+      expect(after.groupsById[poolGroupB]!.bookmarkIds, contains(opaque.id));
+      expect(after.groupsById[poolGroupB]!.addedAt[opaque.id], isNotNull);
+    },
+  );
+
+  test(
+    'Related order changes preserve snapshots and membership dates',
+    () async {
+      final before = await service.load();
+      final related = before.records.whereType<RelatedBookmark>().single;
+      final groupADates = before.groupsById[poolGroupA]!.addedAt;
+      final groupBDates = before.groupsById[poolGroupB]!.addedAt;
+
+      await service.setRelatedOrder(related.id, RelatedPostsOrder.oldest);
+      final updated = (await bookmarks.read(related.id))! as RelatedBookmark;
+      expect(updated.preferredOrder, RelatedPostsOrder.oldest);
+      expect(updated.snapshot, related.snapshot);
+      expect(updated.observedAt, related.observedAt);
+      var after = await service.load();
+      expect(after.groupsById[poolGroupA]!.addedAt, groupADates);
+      expect(after.groupsById[poolGroupB]!.addedAt, groupBDates);
+
+      final revision = await bookmarks.readRevision();
+      await service.setRelatedOrder(related.id, RelatedPostsOrder.oldest);
+      expect(await bookmarks.readRevision(), revision);
+      await expectLater(
+        service.setRelatedOrder(0, RelatedPostsOrder.oldest),
+        throwsStateError,
+      );
+      final native = before.records
+          .whereType<ContentGroupBookmark>()
+          .where((record) => record is! RelatedBookmark)
+          .single;
+      await expectLater(
+        service.setRelatedOrder(native.id, RelatedPostsOrder.oldest),
+        throwsStateError,
+      );
+      expect(await bookmarks.readRevision(), revision);
+      after = await service.load();
+      expect(
+        (after.byId[related.id]! as RelatedBookmark).preferredOrder,
+        RelatedPostsOrder.oldest,
+      );
+      expect(after.groupsById[poolGroupA]!.addedAt, groupADates);
+      expect(after.groupsById[poolGroupB]!.addedAt, groupBDates);
+    },
+  );
+
+  test('native Group snapshot refresh preserves cached data and rejects identity changes', () async {
+    final before = await service.load();
+    final native = before.records
+        .whereType<ContentGroupBookmark>()
+        .where((record) => record is! RelatedBookmark)
+        .single;
+    final groupADates = before.groupsById[poolGroupA]!.addedAt;
+    final groupBDates = before.groupsById[poolGroupB]!.addedAt;
+    final description = const GroupDescription(
+      text: 'Cached details',
+      format: GroupTextFormat.plainText,
+    );
+    final details = ContentGroupDetails(
+      summary: native.summary,
+      description: description,
+      creators: [CreatorRef(displayName: 'Saved creator')],
+    );
+    final index = GroupBookmarkIndex(
+      tags: const {'saved-index-tag'},
+      basis: GroupTagIndexBasis.sourceGroup,
+      coverage: MetadataCoverage.complete,
+    );
+    final hydratedAt = DateTime.utc(2026, 2, 3);
+    await service.updateGroupSnapshot(
+      native.id,
+      StoredGroupSnapshot(
+        summary: native.summary,
+        details: details,
+        index: index,
+      ),
+      observedAt: hydratedAt,
+    );
+    final refreshedSummary = ContentGroupSummary(
+      reference: native.reference,
+      title: 'Refreshed pool title',
+    );
+    final refreshedAt = DateTime.utc(2026, 4, 5);
+    await service.updateGroupSnapshot(
+      native.id,
+      StoredGroupSnapshot(summary: refreshedSummary),
+      observedAt: refreshedAt,
+    );
+    final refreshed =
+        (await bookmarks.read(native.id))! as ContentGroupBookmark;
+    expect(refreshed.summary.title, 'Refreshed pool title');
+    expect(refreshed.snapshot.details!.description, description);
+    expect(refreshed.snapshot.details!.creators, details.creators);
+    expect(refreshed.snapshot.details!.summary, refreshed.summary);
+    expect(refreshed.snapshot.index, index);
+    expect(refreshed.observedAt, refreshedAt);
+    final revisionBeforeRejectedSnapshots = await bookmarks.readRevision();
+
+    final wrongKey = const ContentReferenceCodec().parse(
+      engine: BooruType.danbooru,
+      site: native.reference.site,
+      kind: ContentKind.group,
+      sourceKey: 'pool:44',
+    );
+    await expectLater(
+      service.updateGroupSnapshot(
+        native.id,
+        StoredGroupSnapshot(summary: ContentGroupSummary(reference: wrongKey)),
+        observedAt: DateTime.utc(2030),
+      ),
+      throwsFormatException,
+    );
+    final wrongEngine = const ContentReferenceCodec().parse(
+      engine: BooruType.szurubooru,
+      site: native.reference.site,
+      kind: ContentKind.group,
+      sourceKey: 'pool:42',
+    );
+    await expectLater(
+      service.updateGroupSnapshot(
+        native.id,
+        StoredGroupSnapshot(
+          summary: ContentGroupSummary(reference: wrongEngine),
+        ),
+        observedAt: DateTime.utc(2031),
+      ),
+      throwsFormatException,
+    );
+    expect(await bookmarks.readRevision(), revisionBeforeRejectedSnapshots);
+    final unchanged =
+        (await bookmarks.read(native.id))! as ContentGroupBookmark;
+    expect(unchanged, refreshed);
+    final authoritativeAt = DateTime.utc(2026, 6, 7);
+    await service.updateGroupSnapshot(
+      native.id,
+      StoredGroupSnapshot(summary: refreshedSummary),
+      observedAt: authoritativeAt,
+      authoritative: true,
+    );
+    final authoritative =
+        (await bookmarks.read(native.id))! as ContentGroupBookmark;
+    expect(authoritative.snapshot.details, isNull);
+    expect(authoritative.snapshot.index, isNull);
+    expect(authoritative.observedAt, authoritativeAt);
+
+    final related = before.records.whereType<RelatedBookmark>().single;
+    await service.setRelatedOrder(related.id, RelatedPostsOrder.newest);
+    final relatedBeforeSummaryUpdate =
+        (await bookmarks.read(related.id))! as RelatedBookmark;
+    final revisionBeforeRelatedSummary = await bookmarks.readRevision();
+    final relatedSummary = ContentGroupSummary(
+      reference: related.reference,
+      title: 'Updated Related summary',
+    );
+    await service.updateGroupSnapshot(
+      related.id,
+      StoredGroupSnapshot(summary: relatedSummary),
+    );
+    final relatedAfter = (await bookmarks.read(related.id))! as RelatedBookmark;
+    expect(relatedAfter.preferredOrder, RelatedPostsOrder.newest);
+    expect(
+      relatedAfter.observedAt,
+      isNot(relatedBeforeSummaryUpdate.observedAt),
+    );
+    expect(
+      await bookmarks.readRevision(),
+      revisionBeforeRelatedSummary + 1,
+    );
+    final after = await service.load();
+    expect(after.groupsById[poolGroupA]!.addedAt, groupADates);
+    expect(after.groupsById[poolGroupB]!.addedAt, groupBDates);
   });
 }
