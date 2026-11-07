@@ -26,7 +26,7 @@ import 'bookmark_folder_picker_contents.dart';
 Future<bool> showBookmarkMultiSelectionActions(
   BuildContext context, {
   required WidgetRef ref,
-  required List<Bookmark> bookmarks,
+  required List<PostBookmark> bookmarks,
 }) async {
   final container = ProviderScope.containerOf(context, listen: false);
   final action = await Kurumi.showAppModalBottomSheet<String>(
@@ -62,7 +62,7 @@ Future<bool> showBookmarkMultiSelectionActions(
 Future<bool> _add(
   BuildContext context,
   ProviderContainer container,
-  List<Bookmark> bookmarks,
+  List<PostBookmark> bookmarks,
 ) async {
   final groupId = await _selectGroup(context, bookmarks, allowCreate: true);
   if (groupId == null) return false;
@@ -75,7 +75,7 @@ Future<bool> _add(
 Future<bool> _remove(
   BuildContext context,
   ProviderContainer container,
-  List<Bookmark> bookmarks,
+  List<PostBookmark> bookmarks,
 ) async {
   final groupId = await _selectGroup(context, bookmarks);
   if (groupId == null) return false;
@@ -96,7 +96,7 @@ Future<bool> _remove(
 
 Future<String?> _selectGroup(
   BuildContext context,
-  List<Bookmark> bookmarks, {
+  List<PostBookmark> bookmarks, {
   bool allowCreate = false,
 }) {
   return showDialog<String>(
@@ -114,7 +114,7 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
     required this.bookmarks,
   });
   final bool allowCreate;
-  final List<Bookmark> bookmarks;
+  final List<PostBookmark> bookmarks;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;

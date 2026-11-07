@@ -3,26 +3,26 @@ import '../../../posts/post/types.dart';
 import 'bookmark.dart';
 
 abstract class BookmarkRepository<T extends Post> {
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     T post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator<T> Function(int? booruId) postLinkGenerator,
   });
-  Future<List<Bookmark>> addBookmarks(
+  Future<List<PostBookmark>> addBookmarks(
     int booruId,
     Iterable<T> posts, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator<T> Function(int? booruId) postLinkGenerator,
   });
 
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   );
 
-  Future<void> removeBookmark(Bookmark favorite);
-  Future<void> removeBookmarks(Iterable<Bookmark> favorites);
-  Future<void> updateBookmark(Bookmark favorite);
+  Future<void> removeBookmark(PostBookmark favorite);
+  Future<void> removeBookmarks(Iterable<PostBookmark> favorites);
+  Future<void> updateBookmark(PostBookmark favorite);
   BookmarksOrError getAllBookmarks({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   });
@@ -32,7 +32,7 @@ abstract class BookmarkRepository<T extends Post> {
 /// Standalone services and older repository implementations retain the full-read
 /// fallback; a serialized mutation can resolve only the affected identities.
 abstract interface class BookmarkIdentityLookup {
-  Future<Map<BookmarkUniqueId, Bookmark>> lookupBookmarks(
+  Future<Map<BookmarkUniqueId, PostBookmark>> lookupBookmarks(
     Set<BookmarkUniqueId> identities, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   });
@@ -45,7 +45,7 @@ class BookmarkRepositoryReadException implements Exception {
 }
 
 extension BookmarkRepositoryExtensions on BookmarkRepository {
-  Future<Map<BookmarkUniqueId, Bookmark>> getBookmarksByIdentityOrThrow(
+  Future<Map<BookmarkUniqueId, PostBookmark>> getBookmarksByIdentityOrThrow(
     Iterable<BookmarkUniqueId> identities, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {
@@ -66,7 +66,7 @@ extension BookmarkRepositoryExtensions on BookmarkRepository {
     };
   }
 
-  Future<List<Bookmark>> getAllBookmarksOrThrow({
+  Future<List<PostBookmark>> getAllBookmarksOrThrow({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {
     final bookmarks = await getAllBookmarks(
@@ -78,14 +78,14 @@ extension BookmarkRepositoryExtensions on BookmarkRepository {
     );
   }
 
-  Future<List<Bookmark>> getAllBookmarksOrEmpty({
+  Future<List<PostBookmark>> getAllBookmarksOrEmpty({
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {
     final bookmarks = await getAllBookmarks(
       imageUrlResolver: imageUrlResolver,
     ).run();
     return bookmarks.fold(
-      (error) => <Bookmark>[],
+      (error) => <PostBookmark>[],
       (bookmarks) => bookmarks,
     );
   }

@@ -418,7 +418,7 @@ class _Bookmarks extends BookmarkHiveRepository {
     }
   });
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int?) imageUrlResolver,
@@ -432,16 +432,17 @@ class _Bookmarks extends BookmarkHiveRepository {
     ),
   );
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(List<Bookmark> bookmarks) =>
-      metrics.write(() => super.addBookmarkWithBookmarks(bookmarks));
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
+  ) => metrics.write(() => super.addBookmarkWithBookmarks(bookmarks));
   @override
-  Future<void> removeBookmark(Bookmark bookmark) =>
+  Future<void> removeBookmark(PostBookmark bookmark) =>
       metrics.write(() => super.removeBookmark(bookmark));
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) =>
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) =>
       metrics.write(() => super.removeBookmarks(bookmarks));
   @override
-  Future<void> updateBookmark(Bookmark bookmark) =>
+  Future<void> updateBookmark(PostBookmark bookmark) =>
       metrics.write(() => super.updateBookmark(bookmark));
 }
 
@@ -456,8 +457,12 @@ class _Groups extends BookmarkGroupRepositoryHive {
   Future<BookmarkGroup> removeBookmarks(String id, Set<int> ids) =>
       metrics.write(() => super.removeBookmarks(id, ids));
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> ids) =>
-      metrics.write(() => super.replaceMemberships(id, ids));
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> ids, {
+    Map<int, DateTime>? addedAt,
+  }) =>
+      metrics.write(() => super.replaceMemberships(id, ids, addedAt: addedAt));
   @override
   Future<bool> repair({required Set<int> validBookmarkIds}) {
     metrics.repairs++;

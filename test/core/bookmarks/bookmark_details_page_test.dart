@@ -106,7 +106,7 @@ void main() {
             );
             final adapter = ControlledImageAdapter();
             final dio = Dio()..httpClientAdapter = adapter;
-            final bookmark = Bookmark(
+            final bookmark = PostBookmark(
               id: 42,
               postId: 42,
               createdAt: DateTime(2026),
@@ -373,7 +373,7 @@ void main() {
 
       final bookmarks = List.generate(
         8,
-        (index) => Bookmark.empty.copyWith(
+        (index) => PostBookmark.empty.copyWith(
           id: index + 1,
           postId: () => index + 1,
           sourceUrl: _config.url,
@@ -559,7 +559,7 @@ void main() {
         final cache = DefaultImageCacheManager(
           cacheRootPathProvider: () => root.path,
         );
-        final bookmark = Bookmark(
+        final bookmark = PostBookmark(
           id: 42,
           postId: 42,
           createdAt: DateTime(2026),
@@ -1092,7 +1092,7 @@ void main() {
         expect(find.byType(PostPresentationFallbackWarning), findsNothing);
         expect(repository.requests, hasLength(1));
         await tester.pumpWidget(const SizedBox.shrink());
-        late Bookmark persisted;
+        late PostBookmark persisted;
         await bookmarkBox.close();
         bookmarkBox = await Hive.openBox<BookmarkHiveObject>(
           'silent_bookmarks',
@@ -1434,7 +1434,7 @@ PostGridController<Post> _controller(List<Post> posts) {
   return controller;
 }
 
-Bookmark _legacyBookmark({int? postId = 91}) => Bookmark(
+PostBookmark _legacyBookmark({int? postId = 91}) => PostBookmark(
   id: 501,
   booruId: BooruType.gelbooruV2.id,
   createdAt: DateTime.utc(2025),
@@ -1454,7 +1454,7 @@ Bookmark _legacyBookmark({int? postId = 91}) => Bookmark(
   metadata: const {},
 );
 
-Bookmark _malformedBookmark() {
+PostBookmark _malformedBookmark() {
   final legacy = _legacyBookmark();
   final post = _post(
     id: 91,
@@ -1466,7 +1466,7 @@ Bookmark _malformedBookmark() {
       reason: UnknownPostDataReason.malformedData,
     ),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: legacy.id,
     createdAt: legacy.createdAt,
     updatedAt: legacy.updatedAt,
@@ -1480,7 +1480,7 @@ Bookmark _malformedBookmark() {
 final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   _RecoveryBookmarkNotifier(this.bookmark, this.group);
 
-  final Bookmark bookmark;
+  final PostBookmark bookmark;
   final BookmarkGroup group;
   var upgrades = 0;
 
@@ -1491,13 +1491,13 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   );
 
   @override
-  Future<void> upgradeBookmarkSnapshot(Bookmark bookmark, Post post) async {
+  Future<void> upgradeBookmarkSnapshot(PostBookmark bookmark, Post post) async {
     upgrades++;
     final snapshot = const StoredPostCodec().encode(
       post,
       dataCodec: const GelbooruV2PostCodec(),
     );
-    final upgraded = Bookmark.fromSnapshot(
+    final upgraded = PostBookmark.fromSnapshot(
       id: bookmark.id,
       createdAt: bookmark.createdAt,
       updatedAt: DateTime.utc(2026),

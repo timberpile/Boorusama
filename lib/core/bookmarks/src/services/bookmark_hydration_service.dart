@@ -7,7 +7,7 @@ import '../types/bookmark.dart';
 import '../types/bookmark_hydration_log.dart';
 import 'bookmark_library_service.dart';
 
-bool needsBookmarkHydration(Bookmark bookmark) =>
+bool needsBookmarkHydration(PostBookmark bookmark) =>
     switch (bookmark.post.booruData) {
       LegacyPostData() || UnknownPostData() => true,
       _ => false,
@@ -75,7 +75,7 @@ class BookmarkRecoveryService {
   final BooruPostDataCodec? Function(Post post) codecFor;
 
   Future<BookmarkRecovery> recover(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     BooruConfig config,
   ) async {
     final id = bookmark.postId;
@@ -218,13 +218,13 @@ class BookmarkHydrationService {
   /// The application supplies a short serialized compare-and-commit. False
   /// means that cancellation or a newer library state superseded this request.
   /// Standalone callers keep the existing direct-persistence behavior.
-  final Future<bool> Function(Bookmark, Post, BooruPostDataCodec)?
+  final Future<bool> Function(PostBookmark, Post, BooruPostDataCodec)?
   commitRecovered;
   final DateTime Function() _now;
   final Future<void> Function(Duration, BookmarkHydrationCancellation) _wait;
 
   Future<bool> _commit(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     Post post,
     BooruPostDataCodec codec,
   ) async {
@@ -239,7 +239,7 @@ class BookmarkHydrationService {
   }
 
   Future<BookmarkHydrationProgress> run({
-    required Iterable<Bookmark> bookmarks,
+    required Iterable<PostBookmark> bookmarks,
     required Iterable<BooruConfig> configs,
     required BookmarkHydrationCancellation cancellation,
     required void Function(BookmarkHydrationProgress) onProgress,
@@ -254,7 +254,7 @@ class BookmarkHydrationService {
     final rateLimitedSites = <String>{};
     final logEntries = <BookmarkHydrationLogEntry>[];
     void log(
-      Bookmark bookmark,
+      PostBookmark bookmark,
       BookmarkHydrationLogReason reason, {
       int? httpStatusCode,
       DateTime? retryAt,
@@ -293,7 +293,8 @@ class BookmarkHydrationService {
           retryAt: retryAt,
         );
     onProgress(progress(true));
-    final sites = <String, List<({Bookmark bookmark, BooruConfig config})>>{};
+    final sites =
+        <String, List<({PostBookmark bookmark, BooruConfig config})>>{};
     for (final bookmark in candidates) {
       if (cancellation.cancelled) break;
       switch (const PostOriginResolver().resolve(
@@ -321,7 +322,7 @@ class BookmarkHydrationService {
         _BookmarkHydrationQueue(entry.key, entry.value),
     ];
     final failures =
-        <String, List<({Bookmark bookmark, BooruConfig config})>>{};
+        <String, List<({PostBookmark bookmark, BooruConfig config})>>{};
     Future<void> processSites() async {
       while (!cancellation.cancelled && pending.isNotEmpty) {
         final now = _now();
@@ -462,7 +463,7 @@ class BookmarkHydrationService {
 class _BookmarkHydrationQueue {
   _BookmarkHydrationQueue(this.host, this.bookmarks);
   final String host;
-  final List<({Bookmark bookmark, BooruConfig config})> bookmarks;
+  final List<({PostBookmark bookmark, BooruConfig config})> bookmarks;
   var index = 0;
   var rateLimits = 0;
   DateTime? retryAt;

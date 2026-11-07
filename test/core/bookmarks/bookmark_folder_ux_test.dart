@@ -1884,7 +1884,7 @@ final _config = BooruConfig.fromJson({
   ).toJson(),
   'id': '00000000-0000-4000-8000-00000000000c',
 });
-final _bookmark = Bookmark.empty.copyWith(
+final _bookmark = PostBookmark.empty.copyWith(
   id: 1,
   postId: () => 42,
   sourceUrl: 'https://gelbooru.example',
@@ -1904,7 +1904,7 @@ BookmarkGroup _group(
 BookmarkLibraryState _state({
   List<CollectionFolder> folders = const [],
   List<BookmarkGroup> groups = const [],
-  List<Bookmark> bookmarks = const [],
+  List<PostBookmark> bookmarks = const [],
 }) => BookmarkLibraryState(
   bookmarks: bookmarks,
   groups: groups,
@@ -2167,7 +2167,7 @@ class _Library extends BookmarkLibraryNotifier {
 
   @override
   Future<void> addExistingBookmarksToGroup(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
     String groupId, {
     void Function()? onSuccess,
     void Function()? onError,
@@ -2177,7 +2177,7 @@ class _Library extends BookmarkLibraryNotifier {
 
   @override
   Future<void> removeFromGroup(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
     String groupId, {
     void Function(BookmarkGroupRemovalResult)? onRemoved,
     void Function()? onSuccess,

@@ -29,7 +29,7 @@ void main() {
       (tester) async {
         final rows = [
           for (var id = 1; id <= 2; id++)
-            Bookmark.empty.copyWith(
+            PostBookmark.empty.copyWith(
               id: id,
               sourceUrl: 'https://source.test',
               postId: () => 100 + id,

@@ -111,8 +111,8 @@ class BookmarkImportPlan extends Equatable {
   });
 
   final List<CollectionBookmark> pools;
-  final List<Bookmark> bookmarks;
-  final List<Bookmark> missingBookmarks;
+  final List<PostBookmark> bookmarks;
+  final List<PostBookmark> missingBookmarks;
   final List<BookmarkGroupImport> groups;
   final List<CollectionFolder> folders;
 

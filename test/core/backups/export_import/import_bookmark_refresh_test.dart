@@ -206,7 +206,7 @@ void main() {
   );
 }
 
-Bookmark _bookmark(int id) => Bookmark.empty.copyWith(
+PostBookmark _bookmark(int id) => PostBookmark.empty.copyWith(
   originalUrl: 'https://example.com/post/$id',
   sourceUrl: 'https://example.com',
   postId: () => id,

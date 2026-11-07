@@ -27,8 +27,8 @@ class BookmarkGroupRemovalResult extends Equatable {
 
   final List<CollectionBookmark> removedPools;
   final Map<BookmarkUniqueId, DateTime> addedAt;
-  final List<Bookmark> deletedBookmarks;
-  final List<Bookmark> removedBookmarks;
+  final List<PostBookmark> deletedBookmarks;
+  final List<PostBookmark> removedBookmarks;
   final String? groupId;
   int get deletedCount => deletedBookmarks.length;
   final int removedCount;
@@ -114,7 +114,7 @@ class BookmarkLibraryService {
   }
 
   /// Idempotent repair is also used after legacy import and full replacement.
-  Future<void> ensureDefaultMemberships(List<Bookmark> bookmarks) async {
+  Future<void> ensureDefaultMemberships(List<PostBookmark> bookmarks) async {
     var groups = await groupRepository.getGroups();
     if (!groups.any((g) => g.isDefault)) {
       try {
@@ -152,7 +152,7 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<void> _initializeMembershipDates(List<Bookmark> bookmarks) async {
+  Future<void> _initializeMembershipDates(List<PostBookmark> bookmarks) async {
     final pending = (await groupRepository.getGroups())
         .where(
           (g) => g.addedAt.length != g.bookmarkIds.length,
@@ -373,8 +373,8 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<Bookmark> upgradeBookmarkSnapshot({
-    required Bookmark bookmark,
+  Future<PostBookmark> upgradeBookmarkSnapshot({
+    required PostBookmark bookmark,
     required Post post,
     required BooruPostDataCodec? dataCodec,
     DateTime? updatedAt,
@@ -383,7 +383,7 @@ class BookmarkLibraryService {
       post,
       dataCodec: dataCodec,
     );
-    final upgraded = Bookmark.fromSnapshot(
+    final upgraded = PostBookmark.fromSnapshot(
       id: bookmark.id,
       createdAt: bookmark.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
@@ -398,9 +398,9 @@ class BookmarkLibraryService {
 
   Future<bool> addBookmarkToGroup({
     required String groupId,
-    Bookmark? existingBookmark,
+    PostBookmark? existingBookmark,
     BookmarkUniqueId? createBookmarkIdentity,
-    Future<Bookmark> Function()? createBookmark,
+    Future<PostBookmark> Function()? createBookmark,
   }) async {
     final group = await groupRepository.getGroup(groupId);
     if (group == null) {
@@ -475,7 +475,7 @@ class BookmarkLibraryService {
   }
 
   Future<int> addBookmarksToGroup(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
     String groupId,
   ) async {
     final group = await groupRepository.getGroup(groupId);
@@ -487,7 +487,7 @@ class BookmarkLibraryService {
       selected.map((b) => b.uniqueId),
       imageUrlResolver: imageUrlResolver,
     );
-    final created = <Bookmark>[];
+    final created = <PostBookmark>[];
     try {
       final ids = <int>{};
       for (final snapshot in selected) {
@@ -536,7 +536,7 @@ class BookmarkLibraryService {
   }
 
   Future<BookmarkGroupRemovalResult> removeBookmarksFromGroup(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
     String groupId, {
     Set<String> poolLocalIds = const {},
   }) async {
@@ -643,7 +643,7 @@ class BookmarkLibraryService {
     final oldPools = removal.removedPools.isEmpty
         ? const <CollectionBookmark>[]
         : await groupRepository.getPoolBookmarks();
-    final created = <Bookmark>[];
+    final created = <PostBookmark>[];
     final members = <int>{};
     try {
       for (final old in removal.removedBookmarks) {
@@ -714,7 +714,7 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<void> deleteBookmarks(Iterable<Bookmark> bookmarks) async {
+  Future<void> deleteBookmarks(Iterable<PostBookmark> bookmarks) async {
     final stored = await bookmarkRepository.getBookmarksByIdentityOrThrow(
       bookmarks.map((b) => b.uniqueId),
       imageUrlResolver: imageUrlResolver,
@@ -821,7 +821,7 @@ class BookmarkLibraryService {
   }
 
   Future<List<Object>> _restoreBookmarks(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
   ) async {
     final errors = <Object>[];
     for (final bookmark in bookmarks) {
@@ -834,8 +834,8 @@ class BookmarkLibraryService {
     return errors;
   }
 
-  Future<({Bookmark bookmark, bool created})> _resolveStoredBookmark(
-    Bookmark snapshot,
+  Future<({PostBookmark bookmark, bool created})> _resolveStoredBookmark(
+    PostBookmark snapshot,
   ) async {
     final stored = await _findBookmark(snapshot.uniqueId);
     if (stored != null) return (bookmark: stored, created: false);
@@ -847,9 +847,9 @@ class BookmarkLibraryService {
     );
   }
 
-  Future<({Bookmark bookmark, bool created})> _createBookmark(
+  Future<({PostBookmark bookmark, bool created})> _createBookmark(
     BookmarkUniqueId identity,
-    Future<Bookmark> Function() creator,
+    Future<PostBookmark> Function() creator,
   ) async {
     try {
       return (bookmark: await creator(), created: true);
@@ -863,7 +863,7 @@ class BookmarkLibraryService {
     }
   }
 
-  Future<Bookmark?> _findBookmark(BookmarkUniqueId identity) async =>
+  Future<PostBookmark?> _findBookmark(BookmarkUniqueId identity) async =>
       (await bookmarkRepository.getBookmarksByIdentityOrThrow(
         [identity],
         imageUrlResolver: imageUrlResolver,

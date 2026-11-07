@@ -10,7 +10,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 
 void main() {
   testWidgets('preview grid leaves missing cells transparent', (tester) async {
-    final previews = [Bookmark.empty.copyWith(id: 1)];
+    final previews = [PostBookmark.empty.copyWith(id: 1)];
 
     await tester.pumpWidget(
       MaterialApp(
@@ -38,7 +38,7 @@ void main() {
         home: SizedBox.square(
           dimension: 200,
           child: BookmarkGroupPreviewGrid(
-            previews: [Bookmark.empty],
+            previews: [PostBookmark.empty],
             itemBuilder: (_, _) => const ColoredBox(color: Colors.red),
           ),
         ),
@@ -64,7 +64,7 @@ void main() {
             height: 200,
             child: BookmarkGroupPreviewGrid(
               previews: [
-                for (var i = 0; i < 4; i++) Bookmark.empty.copyWith(id: i),
+                for (var i = 0; i < 4; i++) PostBookmark.empty.copyWith(id: i),
               ],
               itemBuilder: (_, bookmark) =>
                   ColoredBox(key: ValueKey(bookmark.id), color: Colors.red),
@@ -84,12 +84,12 @@ void main() {
   });
 
   test('still previews use samples while video previews use thumbnails', () {
-    final still = Bookmark.empty.copyWith(
+    final still = PostBookmark.empty.copyWith(
       originalUrl: 'https://example.com/image.jpg',
       sampleUrl: 'https://example.com/sample.jpg',
       thumbnailUrl: 'https://example.com/thumb.jpg',
     );
-    final video = Bookmark.empty.copyWith(
+    final video = PostBookmark.empty.copyWith(
       originalUrl: 'https://example.com/video.mp4',
       sampleUrl: 'https://example.com/video-sample.jpg',
       thumbnailUrl: 'https://example.com/video-thumb.jpg',

@@ -15,12 +15,12 @@ void main() {
     final notifier = _Library(
       BookmarkLibraryState(
         bookmarks: [
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             id: 1,
             sourceUrl: 'https://a.test',
             tags: {'a'},
           ),
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             id: 2,
             sourceUrl: 'https://b.test',
             tags: {'b'},
@@ -68,7 +68,7 @@ void main() {
     notifier.publish(
       BookmarkLibraryState(
         bookmarks: [
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             id: 2,
             sourceUrl: 'https://b.test',
             tags: {'restored'},
@@ -83,7 +83,7 @@ void main() {
   test('unchanged All reopens retain one builder and do no repeated tag work', () async {
     final rows = [
       for (var id = 1; id <= 100; id++)
-        Bookmark.empty.copyWith(id: id, tags: {'shared', 'tag_$id'}),
+        PostBookmark.empty.copyWith(id: id, tags: {'shared', 'tag_$id'}),
     ];
     final notifier = _Library(
       BookmarkLibraryState(

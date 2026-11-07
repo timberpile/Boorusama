@@ -88,7 +88,7 @@ class BookmarkPostBatchRollbackException implements Exception {
 
   final Object operationError;
   final List<Object> rollbackErrors;
-  final List<Bookmark> createdBookmarks;
+  final List<PostBookmark> createdBookmarks;
 }
 
 enum BookmarkToggleOutcome {
@@ -113,7 +113,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   final _removals = <BookmarkUniqueId, BookmarkGroupRemovalResult>{};
   final _poolRemovals = <Object, BookmarkGroupRemovalResult>{};
   final _mutationSessionKey = Object();
-  final _pendingHydration = <int, Bookmark>{};
+  final _pendingHydration = <int, PostBookmark>{};
   Timer? _hydrationPublicationTimer;
 
   // Zone-local rather than a notifier field: unrelated async readers must never
@@ -576,7 +576,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }
 
   Future<void> upgradeBookmarkSnapshot(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     Post post,
   ) => _serialize(() async {
     final current = (await future).bookmarksByUniqueId[bookmark.uniqueId];
@@ -852,7 +852,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   });
 
   Future<void> addExistingBookmarkToGroup(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     String groupId, {
     void Function()? onSuccess,
     void Function()? onError,
@@ -872,7 +872,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   });
 
   Future<void> addExistingBookmarksToGroup(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
     String groupId, {
     void Function()? onSuccess,
     void Function()? onError,
@@ -926,7 +926,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   });
 
   Future<void> removeFromGroup(
-    Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks,
     String groupId, {
     void Function(BookmarkGroupRemovalResult)? onRemoved,
     void Function()? onSuccess,
@@ -1005,7 +1005,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   });
 
   Future<void> removeBookmark(
-    Bookmark bookmark, {
+    PostBookmark bookmark, {
     void Function()? onSuccess,
     void Function()? onError,
   }) => removeBookmarks(
@@ -1015,7 +1015,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   );
 
   Future<void> removeBookmarkFromView(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     BookmarkView view, {
     void Function()? onSuccess,
     void Function()? onError,
@@ -1030,7 +1030,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   };
 
   Future<void> removeBookmarks(
-    Iterable<Bookmark> bookmarks, {
+    Iterable<PostBookmark> bookmarks, {
     void Function()? onSuccess,
     void Function()? onError,
   }) => _serialize(() async {
@@ -1106,7 +1106,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   });
 
   Future<void> _publishAddedGroupMembers(
-    List<Bookmark> createdBookmarks,
+    List<PostBookmark> createdBookmarks,
     String? groupId,
   ) async {
     if (!(_mutation?.isValid ?? false)) {
@@ -1158,8 +1158,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       )).deleteGroup(group.id);
       rethrow;
     }
-    var createdBookmarks = const <Bookmark>[];
-    late final ({int changedCount, List<Bookmark> createdBookmarks}) result;
+    var createdBookmarks = const <PostBookmark>[];
+    late final ({int changedCount, List<PostBookmark> createdBookmarks}) result;
     var addedPools = 0;
     try {
       result = await _addPostsToGroup(config, posts, group.id);
@@ -1200,7 +1200,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return (group: group, addedCount: result.changedCount + addedPools);
   });
 
-  Future<({int changedCount, List<Bookmark> createdBookmarks})>
+  Future<({int changedCount, List<PostBookmark> createdBookmarks})>
   _addPostsToGroup(
     BooruConfigAuth config,
     Iterable<Post> posts,
@@ -1212,7 +1212,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     for (final post in selected) {
       BookmarkIdentity.fromPost(post);
     }
-    final existing = <Bookmark>[];
+    final existing = <PostBookmark>[];
     final missing = <Post>[];
     final seen = <BookmarkUniqueId>{};
     for (final post in selected) {
@@ -1231,7 +1231,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       throw StateError('Bookmark group $groupId does not exist.');
     }
     final before = target.bookmarkIds;
-    final created = <Bookmark>[];
+    final created = <PostBookmark>[];
     try {
       for (final post in missing) {
         created.add(await _createBookmark(config, post));
@@ -1261,7 +1261,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   }
 
   Future<List<Object>> _deleteCreatedBookmarks(
-    List<Bookmark> bookmarks,
+    List<PostBookmark> bookmarks,
   ) async {
     if (bookmarks.isEmpty) return const [];
     try {
@@ -1284,7 +1284,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           (post) =>
               current.bookmarksByUniqueId[_bookmarkIdentity(post, config)],
         )
-        .whereType<Bookmark>()
+        .whereType<PostBookmark>()
         .where(
           (bookmark) =>
               current.membershipsFor(bookmark.uniqueId).contains(groupId),
@@ -1311,7 +1311,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           (post) =>
               current.bookmarksByUniqueId[_bookmarkIdentity(post, config)],
         )
-        .whereType<Bookmark>()
+        .whereType<PostBookmark>()
         .toSet()
         .toList();
     await (await _service).deleteBookmarks(bookmarks);
@@ -1325,13 +1325,13 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> downloadBookmarks(
     BooruConfigAuth auth,
     BooruConfigDownload download,
-    List<Bookmark> bookmarks,
+    List<PostBookmark> bookmarks,
   ) async {
     final configs = ref.read(booruConfigProvider);
     final settings = ref.read(settingsProvider);
     final downloader = ref.read(downloadServiceProvider);
     final logger = ref.read(loggerProvider);
-    final groups = <(BooruConfig?, int, String, bool), List<Bookmark>>{};
+    final groups = <(BooruConfig?, int, String, bool), List<PostBookmark>>{};
     final sourceCounts = <(BooruConfig?, int, String), int>{};
     final sourceIndices = <Post, int>{};
     final engines = ref.read(booruEngineRegistryProvider);
@@ -1434,7 +1434,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           }
           return (
             notifier: ref.read(downloadNotifierProvider(params).notifier),
-            bookmarks: List<Bookmark>.unmodifiable(entry.value),
+            bookmarks: List<PostBookmark>.unmodifiable(entry.value),
             // Partitioning payloads must retain the original source group's
             // bulk filename template and bulk permission check.
             totalCount: sourceCounts[(source, entry.key.$2, host)]!,
@@ -1466,7 +1466,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   static bool _snapshotBulkAllowed() => true;
   static bool _snapshotBulkDenied() => false;
 
-  Future<Bookmark> _createBookmark(
+  Future<PostBookmark> _createBookmark(
     BooruConfigAuth config,
     Post post,
   ) async {
@@ -1486,7 +1486,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     };
     final repository = _mutation ?? await bookmarkRepository;
 
-    Future<Bookmark?> findStored() async =>
+    Future<PostBookmark?> findStored() async =>
         (await repository.getBookmarksByIdentityOrThrow(
           [identity],
           imageUrlResolver: (booruId) =>

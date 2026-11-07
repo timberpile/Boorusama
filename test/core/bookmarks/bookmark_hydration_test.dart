@@ -37,7 +37,7 @@ final config = BooruConfig.fromJson({
   'id': '00000000-0000-4000-8000-000000000001',
 });
 
-Bookmark legacy(int id, {BooruConfig? profile}) => Bookmark(
+PostBookmark legacy(int id, {BooruConfig? profile}) => PostBookmark(
   id: id,
   booruId: (profile ?? config).booruId,
   createdAt: DateTime(2026),
@@ -93,7 +93,7 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  Future<List<Bookmark>> load() async => (await library.load()).items;
+  Future<List<PostBookmark>> load() async => (await library.load()).items;
   BookmarkRecoveryService recovery({
     Future<Post?> Function(BooruConfig, int)? fetch,
     bool codecAvailable = true,
@@ -103,7 +103,7 @@ void main() {
   );
   Future<BookmarkHydrationProgress> run({
     List<BooruConfig>? profiles,
-    List<Bookmark>? bookmarks,
+    List<PostBookmark>? bookmarks,
     BookmarkRecoveryService? recover,
     BookmarkHydrationCancellation? cancellation,
     void Function(BookmarkHydrationProgress)? onProgress,
@@ -128,7 +128,7 @@ void main() {
       final original = legacy(1);
       expect(needsBookmarkHydration(original), isTrue);
       final post = native(1);
-      final complete = Bookmark.fromSnapshot(
+      final complete = PostBookmark.fromSnapshot(
         id: 1,
         createdAt: original.createdAt,
         updatedAt: original.updatedAt,
@@ -150,7 +150,7 @@ void main() {
       );
       expect(
         needsBookmarkHydration(
-          Bookmark.fromSnapshot(
+          PostBookmark.fromSnapshot(
             id: 1,
             createdAt: original.createdAt,
             updatedAt: original.updatedAt,
@@ -235,7 +235,7 @@ void main() {
           }),
         ];
       }
-      List<Bookmark>? candidates;
+      List<PostBookmark>? candidates;
       if (scenario == 'missing ID') {
         final bookmarks = await load();
         candidates = [
@@ -653,7 +653,7 @@ void main() {
         ),
       );
       await repository.addBookmarkWithBookmarks([
-        Bookmark.fromSnapshot(
+        PostBookmark.fromSnapshot(
           id: original.id,
           createdAt: original.createdAt,
           updatedAt: original.updatedAt,
@@ -1284,7 +1284,7 @@ class _CountingRepository extends BookmarkHiveRepository {
   var reads = 0;
   int? failPostId;
   @override
-  Future<void> updateBookmark(Bookmark bookmark) {
+  Future<void> updateBookmark(PostBookmark bookmark) {
     if (bookmark.postId == failPostId) throw StateError('write failed');
     return super.updateBookmark(bookmark);
   }

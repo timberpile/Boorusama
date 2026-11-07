@@ -27,7 +27,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         'Unsupported bookmark backup version ${metadata.version}',
       );
     }
-    final bookmarks = <Bookmark>[];
+    final bookmarks = <PostBookmark>[];
     final fileBookmarkIds = <int>{};
     final bookmarkIdentities = <Object>{};
     // Group dates must be validated before v9 Post rows can be reconstructed.
@@ -235,7 +235,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
   List<dynamic> encode(BookmarkBackupData data) =>
       data.bookmarks.map(_encodeBookmark).toList();
 
-  Map<String, Object?> _encodeBookmark(Bookmark bookmark) {
+  Map<String, Object?> _encodeBookmark(PostBookmark bookmark) {
     final identity = BookmarkIdentity.tryFromPost(bookmark.post);
     if (bookmark.postId == null ||
         bookmark.postId != bookmark.post.id ||
@@ -253,7 +253,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     };
   }
 
-  Bookmark _parseSnapshotBookmark(
+  PostBookmark _parseSnapshotBookmark(
     Map<String, dynamic> value,
     int index, {
     DateTime? membershipDate,
@@ -278,7 +278,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       dataCodec: postDataCodec?.call(type),
     );
     return switch (decoded) {
-      StoredPostDecodeSuccess(:final post) => Bookmark.fromSnapshot(
+      StoredPostDecodeSuccess(:final post) => PostBookmark.fromSnapshot(
         id: localId,
         // Compatibility projection for local models; v9 stores only group dates.
         createdAt: membershipDate ?? DateTime.parse(createdAt as String),
@@ -293,7 +293,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
     };
   }
 
-  Bookmark _parseVersion4Bookmark(
+  PostBookmark _parseVersion4Bookmark(
     Map<String, dynamic> value,
     int index, {
     DateTime? membershipDate,

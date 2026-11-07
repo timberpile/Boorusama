@@ -17,7 +17,8 @@ BookmarkGetError mapBoxErrorToBookmarkGetError(BoxError error) =>
       BoxError.unknown => BookmarkGetError.unknown,
     };
 
-Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
+Either<BookmarkGetError, List<PostBookmark>>
+tryMapBookmarkHiveObjectsToBookmarks(
   Iterable<BookmarkHiveObject> hiveObjects,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
@@ -33,7 +34,7 @@ Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
   (_, _) => BookmarkGetError.nullField,
 );
 
-Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
+Either<BookmarkGetError, PostBookmark> tryMapBookmarkHiveObjectToBookmark(
   BookmarkHiveObject hiveObject,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
@@ -43,7 +44,7 @@ Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
   (_, _) => BookmarkGetError.nullField,
 );
 
-Bookmark _mapBookmark(
+PostBookmark _mapBookmark(
   BookmarkHiveObject row,
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
   Logger? logger,
@@ -67,7 +68,7 @@ Bookmark _mapBookmark(
         row.updatedAt == null) {
       throw const FormatException('Invalid bookmark snapshot identity');
     }
-    return Bookmark.fromSnapshot(
+    return PostBookmark.fromSnapshot(
       id: row.key,
       createdAt: row.createdAt!,
       updatedAt: row.updatedAt!,
@@ -80,7 +81,7 @@ Bookmark _mapBookmark(
   throw const FormatException('Invalid bookmark snapshot');
 }
 
-BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
+BookmarkHiveObject favoriteToHiveObject(PostBookmark bookmark) {
   bookmark.transferIdentity;
   return BookmarkHiveObject(
     booruId: bookmark.booruId,
@@ -106,7 +107,7 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
 BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
     BookmarkUniqueId.fromPost(post);
 
-extension BookmarkToPost on Bookmark {
+extension BookmarkToPost on PostBookmark {
   Post toPost() => post;
 
   PaginationSnapshot? toPaginationSnapshot() => switch (postId) {

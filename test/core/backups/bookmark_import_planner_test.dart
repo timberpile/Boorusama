@@ -14,13 +14,13 @@ import 'package:boorusama/core/posts/sources/types.dart';
 
 void main() {
   const groupId = '550e8400-e29b-41d4-a716-446655440000';
-  final first = Bookmark.empty.copyWith(
+  final first = PostBookmark.empty.copyWith(
     id: 10,
     sourceUrl: 'https://example.com',
     postId: () => 10,
     originalUrl: 'https://example.com/first.jpg',
   );
-  final second = Bookmark.empty.copyWith(
+  final second = PostBookmark.empty.copyWith(
     id: 20,
     sourceUrl: 'https://example.com',
     postId: () => 20,
@@ -28,7 +28,7 @@ void main() {
   );
 
   test('rejects an unkeyable incoming bookmark before group planning', () {
-    final invalid = Bookmark.empty.copyWith(
+    final invalid = PostBookmark.empty.copyWith(
       id: 0,
       sourceUrl: 'https://example.com',
     );
@@ -139,7 +139,7 @@ void main() {
   });
 }
 
-Bookmark _nativeBookmark({
+PostBookmark _nativeBookmark({
   required int id,
   required String originalUrl,
   String site = 'https://gelbooru.example',
@@ -173,7 +173,7 @@ Bookmark _nativeBookmark({
     ),
     booruData: const LegacyPostData(typeKey: 'test', custom: {}),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: id,
     createdAt: DateTime.utc(2026),
     updatedAt: DateTime.utc(2026),

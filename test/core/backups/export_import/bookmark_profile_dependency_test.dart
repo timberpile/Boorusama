@@ -207,7 +207,7 @@ void main() {
   );
 }
 
-Bookmark _bookmark([int id = 1]) => Bookmark(
+PostBookmark _bookmark([int id = 1]) => PostBookmark(
   id: id,
   createdAt: DateTime.utc(2026),
   updatedAt: DateTime.utc(2026),

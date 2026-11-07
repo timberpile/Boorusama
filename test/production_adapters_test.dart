@@ -154,7 +154,7 @@ void main() {
   });
 }
 
-Bookmark _bookmark() => Bookmark(
+PostBookmark _bookmark() => PostBookmark(
   id: 1,
   booruId: 1,
   createdAt: DateTime.utc(2020),

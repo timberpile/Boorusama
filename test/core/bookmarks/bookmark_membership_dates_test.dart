@@ -43,9 +43,10 @@ void main() {
     groupRepository: groups,
     imageUrlResolver: resolver,
   );
-  Future<Bookmark> seed(int id) async => (await posts.addBookmarkWithBookmarks([
-    testPoolPost(id).copyWith(createdAt: old),
-  ])).single;
+  Future<PostBookmark> seed(int id) async =>
+      (await posts.addBookmarkWithBookmarks([
+        testPoolPost(id).copyWith(createdAt: old),
+      ])).single;
   Future<BookmarkGroup> group(String id) async => (await groups.getGroup(id))!;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('membership_dates_');

@@ -18,18 +18,18 @@ class BookmarkMutationRepository
 
   final BookmarkRepository delegate;
   final BookmarkLibraryState base;
-  final _upserts = <int, Bookmark>{};
-  final _upsertsByIdentity = <BookmarkUniqueId, Bookmark>{};
+  final _upserts = <int, PostBookmark>{};
+  final _upsertsByIdentity = <BookmarkUniqueId, PostBookmark>{};
   final _removedIds = <int>{};
   var _valid = true;
 
   bool get isValid => _valid;
-  Iterable<Bookmark> get upserts => _upserts.values;
+  Iterable<PostBookmark> get upserts => _upserts.values;
   Set<int> get removedIds => Set.unmodifiable(_removedIds);
 
   void invalidate() => _valid = false;
 
-  void _record(Bookmark bookmark) {
+  void _record(PostBookmark bookmark) {
     final previous = _upserts[bookmark.id];
     if (previous != null) _upsertsByIdentity.remove(previous.uniqueId);
     _removedIds.remove(bookmark.id);
@@ -37,7 +37,7 @@ class BookmarkMutationRepository
     _upsertsByIdentity[bookmark.uniqueId] = bookmark;
   }
 
-  void _recordRemoval(Bookmark bookmark) {
+  void _recordRemoval(PostBookmark bookmark) {
     final previous = _upserts.remove(bookmark.id);
     if (previous != null) _upsertsByIdentity.remove(previous.uniqueId);
     _removedIds.add(bookmark.id);
@@ -52,7 +52,7 @@ class BookmarkMutationRepository
     }
   }
 
-  Bookmark? _lookup(BookmarkUniqueId identity) {
+  PostBookmark? _lookup(BookmarkUniqueId identity) {
     final updated = _upsertsByIdentity[identity];
     if (updated != null) return updated;
     final original = base.bookmarksByUniqueId[identity];
@@ -65,7 +65,7 @@ class BookmarkMutationRepository
   }
 
   @override
-  Future<Map<BookmarkUniqueId, Bookmark>> lookupBookmarks(
+  Future<Map<BookmarkUniqueId, PostBookmark>> lookupBookmarks(
     Set<BookmarkUniqueId> identities, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
   }) async {
@@ -81,9 +81,9 @@ class BookmarkMutationRepository
     };
   }
 
-  List<Bookmark> _items() {
+  List<PostBookmark> _items() {
     if (_upserts.isEmpty && _removedIds.isEmpty) return base.items;
-    final remaining = Map<int, Bookmark>.of(_upserts);
+    final remaining = Map<int, PostBookmark>.of(_upserts);
     return List.unmodifiable([
       for (final original in base.items)
         if (remaining.remove(original.id) case final updated?)
@@ -102,7 +102,7 @@ class BookmarkMutationRepository
       : TaskEither.right(_items());
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -121,7 +121,7 @@ class BookmarkMutationRepository
   }
 
   @override
-  Future<List<Bookmark>> addBookmarks(
+  Future<List<PostBookmark>> addBookmarks(
     int booruId,
     Iterable<Post> posts, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -142,8 +142,8 @@ class BookmarkMutationRepository
   }
 
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   ) async {
     final saved = await _write(
       () => delegate.addBookmarkWithBookmarks(bookmarks),
@@ -155,19 +155,19 @@ class BookmarkMutationRepository
   }
 
   @override
-  Future<void> updateBookmark(Bookmark bookmark) async {
+  Future<void> updateBookmark(PostBookmark bookmark) async {
     await _write(() => delegate.updateBookmark(bookmark));
     _record(bookmark);
   }
 
   @override
-  Future<void> removeBookmark(Bookmark bookmark) async {
+  Future<void> removeBookmark(PostBookmark bookmark) async {
     await _write(() => delegate.removeBookmark(bookmark));
     _recordRemoval(bookmark);
   }
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
     final selected = bookmarks.toList();
     if (selected.isEmpty) return;
     await _write(() => delegate.removeBookmarks(selected));

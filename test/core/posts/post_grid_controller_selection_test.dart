@@ -23,7 +23,7 @@ void main() {
       final controller = PostGridController<Post>(
         fetcher: (page) => page == 1
             ? TaskEither.right(
-                PostResult(posts: [Bookmark.empty.toPost()], total: 2),
+                PostResult(posts: [PostBookmark.empty.toPost()], total: 2),
               )
             : TaskEither.tryCatch(
                 () => pending.future,
@@ -47,7 +47,9 @@ void main() {
       } finally {
         pending.complete(
           PostResult(
-            posts: [Bookmark.empty.copyWith(id: 2, postId: () => 2).toPost()],
+            posts: [
+              PostBookmark.empty.copyWith(id: 2, postId: () => 2).toPost(),
+            ],
             total: 2,
           ),
         );
@@ -67,7 +69,7 @@ void main() {
         fetcher: (page) {
           if (page == 1) {
             return TaskEither.right(
-              PostResult(posts: [Bookmark.empty.toPost()], total: 2),
+              PostResult(posts: [PostBookmark.empty.toPost()], total: 2),
             );
           }
           requestedPages.add(page);
@@ -75,7 +77,9 @@ void main() {
           if (attempts == 1) throw StateError('offline');
           return TaskEither.right(
             PostResult(
-              posts: [Bookmark.empty.copyWith(id: 2, postId: () => 2).toPost()],
+              posts: [
+                PostBookmark.empty.copyWith(id: 2, postId: () => 2).toPost(),
+              ],
               total: 2,
             ),
           );
@@ -110,7 +114,7 @@ void main() {
           preservedDuringFetch = controller.preserveSelectionOnRefresh;
           return TaskEither.right(
             PostResult(
-              posts: [Bookmark.empty.toPost()],
+              posts: [PostBookmark.empty.toPost()],
               total: 1,
             ),
           );
@@ -131,7 +135,7 @@ void main() {
   );
 
   test('surviving bookmark selections are remapped by identity', () {
-    final first = Bookmark.empty
+    final first = PostBookmark.empty
         .copyWith(
           id: 1,
           originalUrl: 'https://example.com/first.jpg',
@@ -139,7 +143,7 @@ void main() {
           postId: () => 1,
         )
         .toPost();
-    final second = Bookmark.empty
+    final second = PostBookmark.empty
         .copyWith(
           id: 2,
           originalUrl: 'https://example.com/second.jpg',
@@ -147,7 +151,7 @@ void main() {
           postId: () => 2,
         )
         .toPost();
-    final third = Bookmark.empty
+    final third = PostBookmark.empty
         .copyWith(
           id: 3,
           originalUrl: 'https://example.com/third.jpg',
@@ -169,8 +173,8 @@ void main() {
   });
 
   test('posts without upstream IDs never share a preserved selection', () {
-    final first = Bookmark.empty.toPost();
-    final second = Bookmark.empty.copyWith(id: -2).toPost();
+    final first = PostBookmark.empty.toPost();
+    final second = PostBookmark.empty.copyWith(id: -2).toPost();
 
     final identities = selectedBookmarkIdentities([first, second], {0});
 
@@ -218,7 +222,7 @@ void main() {
       fetcher: (_) {
         fetchCount++;
         return TaskEither.right(
-          PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+          PostResult(posts: [PostBookmark.empty.toPost()], total: 1),
         );
       },
       blacklistedTagsFetcher: () async => const {},
@@ -259,7 +263,7 @@ void main() {
               throw StateError('first refresh failed');
             }
             return Either.of(
-              PostResult(posts: [Bookmark.empty.toPost()], total: 1),
+              PostResult(posts: [PostBookmark.empty.toPost()], total: 1),
             );
           });
         },

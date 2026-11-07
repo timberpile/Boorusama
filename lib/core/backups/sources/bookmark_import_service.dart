@@ -150,7 +150,7 @@ class BookmarkImportService {
     final oldBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: imageUrlResolver,
     );
-    var addedBookmarks = const <Bookmark>[];
+    var addedBookmarks = const <PostBookmark>[];
     final orphanCandidates = <int>{};
     final oldDates = {for (final b in oldBookmarks) b.id: b.createdAt.toUtc()};
     Map<int, DateTime> preservedDates(BookmarkGroup group) => {
@@ -429,7 +429,7 @@ class BookmarkImportService {
     required List<CollectionBookmark> oldPools,
     required List<CollectionFolder> oldFolders,
     required Set<String> oldGroupIds,
-    required List<Bookmark> oldBookmarks,
+    required List<PostBookmark> oldBookmarks,
   }) async {
     final errors = <Object>[];
     try {
@@ -447,7 +447,7 @@ class BookmarkImportService {
       errors.add(error);
     }
 
-    final currentByIdentity = <BookmarkUniqueId, Bookmark>{};
+    final currentByIdentity = <BookmarkUniqueId, PostBookmark>{};
     try {
       final oldIdentities = oldBookmarks
           .map((bookmark) => bookmark.uniqueId)

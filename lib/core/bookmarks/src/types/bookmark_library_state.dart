@@ -15,7 +15,7 @@ import 'bookmark_group.dart';
 
 class BookmarkLibraryState extends Equatable {
   BookmarkLibraryState({
-    required List<Bookmark> bookmarks,
+    required List<PostBookmark> bookmarks,
     required List<BookmarkGroup> groups,
     List<CollectionFolder> folders = const [],
     List<CollectionBookmark> pools = const [],
@@ -57,11 +57,11 @@ class BookmarkLibraryState extends Equatable {
 
   final List<CollectionBookmark> pools;
   final List<CollectionFolder> folders;
-  final List<Bookmark> items;
+  final List<PostBookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
   final List<BookmarkGroup> groups;
-  final Map<int, Bookmark> bookmarksById;
-  final Map<BookmarkUniqueId, Bookmark> bookmarksByUniqueId;
+  final Map<int, PostBookmark> bookmarksById;
+  final Map<BookmarkUniqueId, PostBookmark> bookmarksByUniqueId;
   final Map<String, BookmarkGroup> groupsById;
   final Map<BookmarkUniqueId, Set<String>> membershipsByBookmark;
 
@@ -70,7 +70,7 @@ class BookmarkLibraryState extends Equatable {
   /// decoded here. Only affected membership entries are reconstructed.
   BookmarkLibraryState applyCommittedChanges({
     List<CollectionBookmark>? pools,
-    Iterable<Bookmark> upserts = const [],
+    Iterable<PostBookmark> upserts = const [],
     Set<int> removedIds = const {},
     required List<BookmarkGroup> groups,
     required List<CollectionFolder> folders,
@@ -83,8 +83,8 @@ class BookmarkLibraryState extends Equatable {
     var nextIdentities = bookmarks;
 
     if (affectedIds.isNotEmpty) {
-      final byId = Map<int, Bookmark>.of(bookmarksById);
-      final byIdentity = Map<BookmarkUniqueId, Bookmark>.of(
+      final byId = Map<int, PostBookmark>.of(bookmarksById);
+      final byIdentity = Map<BookmarkUniqueId, PostBookmark>.of(
         bookmarksByUniqueId,
       );
       for (final id in affectedIds) {
@@ -104,7 +104,7 @@ class BookmarkLibraryState extends Equatable {
           nextIdentities = nextIdentities.add(bookmark.uniqueId);
         }
       }
-      final remaining = Map<int, Bookmark>.of(changed);
+      final remaining = Map<int, PostBookmark>.of(changed);
       nextItems = List.unmodifiable([
         for (final original in items)
           if (remaining.remove(original.id) case final updated?)
@@ -213,7 +213,7 @@ class BookmarkLibraryState extends Equatable {
   /// Publish a successful serialized addition without decoding existing rows or
   /// recomputing their identities. Ambiguous writes use the authoritative recovery path.
   BookmarkLibraryState withAddedGroupMembers({
-    required List<Bookmark> createdBookmarks,
+    required List<PostBookmark> createdBookmarks,
     required BookmarkGroup group,
   }) {
     final previousGroup = groupsById[group.id];
@@ -233,10 +233,10 @@ class BookmarkLibraryState extends Equatable {
 
     final byId = createdBookmarks.isEmpty
         ? bookmarksById
-        : <int, Bookmark>{...bookmarksById};
+        : <int, PostBookmark>{...bookmarksById};
     final byIdentity = createdBookmarks.isEmpty
         ? bookmarksByUniqueId
-        : <BookmarkUniqueId, Bookmark>{...bookmarksByUniqueId};
+        : <BookmarkUniqueId, PostBookmark>{...bookmarksByUniqueId};
     var identities = bookmarks;
     for (final bookmark in createdBookmarks) {
       final identity = bookmark.uniqueId;
@@ -286,7 +286,7 @@ class BookmarkLibraryState extends Equatable {
   bool isBookmarked(Post post, int booruId) =>
       bookmarks.contains(BookmarkUniqueId.fromPost(post, booruId));
 
-  Bookmark? bookmarkForPost(Post post, {int fallbackBooruId = -1}) =>
+  PostBookmark? bookmarkForPost(Post post, {int fallbackBooruId = -1}) =>
       bookmarksByUniqueId[BookmarkUniqueId.fromPost(
         post,
         post.origin.booruType.id,
@@ -295,7 +295,7 @@ class BookmarkLibraryState extends Equatable {
   /// Legacy rows without an upstream identity can still download their exact
   /// displayed snapshot. Never use this fallback to authorize bookmark writes
   /// or to associate a different Post merely because its numeric ID matches.
-  Bookmark? storedBookmarkForPost(Post post) =>
+  PostBookmark? storedBookmarkForPost(Post post) =>
       bookmarkForPost(post) ??
       (BookmarkIdentity.tryFromPost(post) == null
           ? items
@@ -326,7 +326,7 @@ bool _sameGroup(BookmarkGroup? before, BookmarkGroup after) =>
         );
 
 Map<BookmarkUniqueId, Set<String>> _buildMemberships(
-  List<Bookmark> bookmarks,
+  List<PostBookmark> bookmarks,
   List<BookmarkGroup> groups,
 ) {
   final byBookmarkKey = <int, Set<String>>{};

@@ -70,7 +70,7 @@ void main() {
         imageUrlResolver: resolver,
       );
 
-      Future<List<Bookmark>> allPosts() =>
+      Future<List<PostBookmark>> allPosts() =>
           posts.getAllBookmarksOrThrow(imageUrlResolver: resolver);
       setUp(() async {
         testDirectory = await Directory.systemTemp.createTemp(

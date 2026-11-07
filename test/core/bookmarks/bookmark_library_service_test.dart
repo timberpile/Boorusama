@@ -36,12 +36,12 @@ void main() {
   late ManagedImageCacheManager images;
   final fixturePostIds = <String, int>{};
 
-  Bookmark fixtureBookmark(String path) {
+  PostBookmark fixtureBookmark(String path) {
     final postId = fixturePostIds.putIfAbsent(
       path,
       () => fixturePostIds.length + 1,
     );
-    return Bookmark.empty.copyWith(
+    return PostBookmark.empty.copyWith(
       originalUrl: 'https://example.com/$path.jpg',
       sourceUrl: 'https://example.com',
       postId: () => postId,
@@ -50,7 +50,7 @@ void main() {
 
   ImageUrlResolver resolver(int? _) => const DefaultImageUrlResolver();
 
-  Future<Bookmark> storeBookmark(String path) async {
+  Future<PostBookmark> storeBookmark(String path) async {
     await bookmarkRepository.addBookmarkWithBookmarks([
       fixtureBookmark(path),
     ]);
@@ -907,7 +907,7 @@ class _FailingBookmarkRemovalRepository extends BookmarkHiveRepository {
   const _FailingBookmarkRemovalRepository(super._box);
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> favorites) =>
+  Future<void> removeBookmarks(Iterable<PostBookmark> favorites) =>
       throw StateError('bookmark removal failed');
 }
 
@@ -916,7 +916,7 @@ class _CommitsThenThrowsBookmarkRemovalRepository
   const _CommitsThenThrowsBookmarkRemovalRepository(super._box);
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> favorites) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> favorites) async {
     await super.removeBookmarks(favorites);
     throw StateError('bookmark removal reported failure after committing');
   }

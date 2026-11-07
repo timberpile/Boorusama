@@ -61,7 +61,7 @@ Map<int, DateTime>? bookmarkMembershipDates({
   return dates;
 }
 
-List<Bookmark> selectBookmarks({
+List<PostBookmark> selectBookmarks({
   required BookmarkLibraryState state,
   required BookmarkView view,
   required List<String> selectedTags,
@@ -103,7 +103,7 @@ List<Bookmark> selectBookmarks({
   }, items: state.items.length);
 }
 
-List<Bookmark> selectBookmarkPreviews({
+List<PostBookmark> selectBookmarkPreviews({
   required BookmarkLibraryState state,
   required BookmarkView view,
   required BookmarkSortType sortType,
@@ -127,7 +127,7 @@ List<Bookmark> selectBookmarkPreviews({
   final candidates = switch (view.kind) {
     BookmarkViewKind.all => state.items,
     BookmarkViewKind.group =>
-      groupIds.map((id) => state.bookmarksById[id]).whereType<Bookmark>(),
+      groupIds.map((id) => state.bookmarksById[id]).whereType<PostBookmark>(),
   };
   return performanceRecorder.measureSync(
     PerfOperation.bookmarkSelect,
@@ -146,7 +146,7 @@ List<Bookmark> selectBookmarkPreviews({
           sortType: sortType,
         ),
       );
-      final best = <Bookmark>[];
+      final best = <PostBookmark>[];
       for (final candidate in candidates) {
         var index = 0;
         while (index < best.length && compare(best[index], candidate) <= 0) {
@@ -168,8 +168,11 @@ List<Bookmark> selectBookmarkPreviews({
 // library publications. An explicit Shuffle supplies a new seed.
 final _defaultPreviewShuffle = const BookmarkShuffleState().withNewShuffle();
 
-List<Bookmark> _sampleGroupPreviews(Iterable<Bookmark> candidates, int seed) {
-  final best = <({int rank, int id, Bookmark bookmark})>[];
+List<PostBookmark> _sampleGroupPreviews(
+  Iterable<PostBookmark> candidates,
+  int seed,
+) {
+  final best = <({int rank, int id, PostBookmark bookmark})>[];
   for (final bookmark in candidates) {
     final id = bookmark.id;
     final rank = _previewRank(id, seed);
@@ -204,8 +207,8 @@ int _previewRank(int id, int seed) {
   return (hash + ((hash & 0x00003fff) << 15)) & 0x1fffffff;
 }
 
-List<Bookmark> filterBookmarks({
-  required List<Bookmark> bookmarks,
+List<PostBookmark> filterBookmarks({
+  required List<PostBookmark> bookmarks,
   required List<String> selectedTags,
   required BookmarkSortType sortType,
   String? selectedBooruUrl,
@@ -216,7 +219,7 @@ List<Bookmark> filterBookmarks({
       .map(BookmarkSearchToken.parse)
       .where((token) => token.tag.isNotEmpty)
       .toList();
-  bool matchesTags(Bookmark bookmark) {
+  bool matchesTags(PostBookmark bookmark) {
     final tags = bookmark.tags.map(canonicalBookmarkTag).toSet();
     return filters.every(
       (token) => tags.contains(token.tag) != token.isNegative,
@@ -247,7 +250,7 @@ List<Bookmark> filterBookmarks({
   return activeShuffleState.applyShuffleToList(sorted);
 }
 
-Comparator<Bookmark> _bookmarkComparator(
+Comparator<PostBookmark> _bookmarkComparator(
   BookmarkSortType sortType, {
   Map<int, DateTime>? addedAt,
 }) =>
@@ -269,7 +272,7 @@ Comparator<Bookmark> _bookmarkComparator(
       BookmarkSortType.scoreAscending => _compareScore(a, b, descending: false),
     };
 
-int _compareScore(Bookmark a, Bookmark b, {required bool descending}) {
+int _compareScore(PostBookmark a, PostBookmark b, {required bool descending}) {
   // Legacy bookmarks without score metadata already decode to zero. Do not
   // fetch posts to improve local sorting or rewrite their stored snapshots.
   final score = a.post.score.compareTo(b.post.score);
@@ -277,7 +280,11 @@ int _compareScore(Bookmark a, Bookmark b, {required bool descending}) {
   return a.id.compareTo(b.id);
 }
 
-int _compareBookmarkDate(Bookmark a, Bookmark b, Map<int, DateTime>? addedAt) {
+int _compareBookmarkDate(
+  PostBookmark a,
+  PostBookmark b,
+  Map<int, DateTime>? addedAt,
+) {
   final byDate = (addedAt?[a.id] ?? a.createdAt).compareTo(
     addedAt?[b.id] ?? b.createdAt,
   );
@@ -288,7 +295,11 @@ int _compareBookmarkDate(Bookmark a, Bookmark b, Map<int, DateTime>? addedAt) {
 
 // Known upload dates always precede missing dates in both directions. A
 // stable site+post-ID fallback avoids comparing unrelated sites' ID sequences.
-int _compareUploadDate(Bookmark a, Bookmark b, {required bool newestFirst}) {
+int _compareUploadDate(
+  PostBookmark a,
+  PostBookmark b, {
+  required bool newestFirst,
+}) {
   final aDate = a.post.createdAt;
   final bDate = b.post.createdAt;
   if (aDate == null && bDate != null) return 1;

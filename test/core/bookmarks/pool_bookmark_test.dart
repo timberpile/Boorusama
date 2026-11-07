@@ -80,7 +80,7 @@ void main() {
 
   BookmarkLibraryState library(
     List<PoolBookmark> pools, {
-    List<Bookmark> posts = const [],
+    List<PostBookmark> posts = const [],
   }) => BookmarkLibraryState(
     bookmarks: posts,
     pools: pools,

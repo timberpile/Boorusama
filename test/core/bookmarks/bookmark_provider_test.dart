@@ -677,7 +677,7 @@ void main() {
   test(
     'a post without upstream identity cannot be added as a bookmark',
     () async {
-      final invalidPost = Bookmark.empty
+      final invalidPost = PostBookmark.empty
           .copyWith(
             sourceUrl: 'https://booru.example',
             postId: () => 0,
@@ -1792,7 +1792,7 @@ class _FailingAddBookmarkRepository extends BookmarkHiveRepository {
   const _FailingAddBookmarkRepository(super._box);
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -1925,7 +1925,7 @@ class _FailingSecondReadBookmarkRepository extends BookmarkHiveRepository {
   var _readCount = 0;
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -1952,7 +1952,7 @@ class _CommitsThenThrowsAddBookmarkRepository extends BookmarkHiveRepository {
   const _CommitsThenThrowsAddBookmarkRepository(super._box);
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -1967,7 +1967,7 @@ class _BookmarkPostRepository extends BookmarkHiveRepository {
   const _BookmarkPostRepository(super._box);
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -1983,7 +1983,7 @@ class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
   var _addCount = 0;
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -1997,8 +1997,8 @@ class _FailsSecondAddBookmarkRepository extends BookmarkHiveRepository {
   }
 }
 
-Bookmark _bookmarkFromPost(Post post) {
-  return Bookmark.fromSnapshot(
+PostBookmark _bookmarkFromPost(Post post) {
+  return PostBookmark.fromSnapshot(
     id: -1,
     createdAt: DateTime(1),
     updatedAt: DateTime(1),
@@ -2018,7 +2018,7 @@ class _FailsSecondAddAndFirstCleanupRepository
   var _removeCount = 0;
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> favorites) {
+  Future<void> removeBookmarks(Iterable<PostBookmark> favorites) {
     _removeCount++;
     if (_removeCount == 1) throw StateError('first cleanup failed');
     return super.removeBookmarks(favorites);
@@ -2027,9 +2027,9 @@ class _FailsSecondAddAndFirstCleanupRepository
 
 var _nextFixturePostId = 100;
 
-Bookmark get _validBookmark {
+PostBookmark get _validBookmark {
   final postId = _nextFixturePostId++;
-  return Bookmark.empty.copyWith(
+  return PostBookmark.empty.copyWith(
     id: postId,
     sourceUrl: 'https://example.com',
     postId: () => postId,

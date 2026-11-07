@@ -19,7 +19,7 @@ import '../search/following_topics/topic_test_utils.dart';
 
 void main() {
   test('late callbacks cannot recover through an expired mutation snapshot', () async {
-    Bookmark row(int id) => Bookmark.empty.copyWith(
+    PostBookmark row(int id) => PostBookmark.empty.copyWith(
       id: id,
       sourceUrl: 'https://example.com',
       postId: () => id,
@@ -88,7 +88,7 @@ class _CapturingGroups extends BookmarkGroupRepositoryHive {
 
 class _Rows implements BookmarkRepository<Post> {
   _Rows(this.rows);
-  final List<Bookmark> rows;
+  final List<PostBookmark> rows;
   int reads = 0;
 
   @override

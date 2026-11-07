@@ -1692,25 +1692,26 @@ BooruConfig _profile({
   'apiKey': apiKey,
 });
 
-Bookmark _bookmark({required int localId, required int postId}) => Bookmark(
-  id: localId,
-  booruId: 1,
-  createdAt: DateTime.utc(2026),
-  updatedAt: DateTime.utc(2026),
-  thumbnailUrl: 'https://example.com/$postId-thumb.jpg',
-  sampleUrl: 'https://example.com/$postId-sample.jpg',
-  originalUrl: 'https://example.com/$postId.jpg',
-  sourceUrl: 'https://example.com',
-  width: 100,
-  height: 100,
-  md5: 'md5-$postId',
-  tags: {'tag-$postId'},
-  realSourceUrl: null,
-  format: 'jpg',
-  imageUrlResolver: const DefaultImageUrlResolver(),
-  postId: postId,
-  metadata: const {},
-);
+PostBookmark _bookmark({required int localId, required int postId}) =>
+    PostBookmark(
+      id: localId,
+      booruId: 1,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      thumbnailUrl: 'https://example.com/$postId-thumb.jpg',
+      sampleUrl: 'https://example.com/$postId-sample.jpg',
+      originalUrl: 'https://example.com/$postId.jpg',
+      sourceUrl: 'https://example.com',
+      width: 100,
+      height: 100,
+      md5: 'md5-$postId',
+      tags: {'tag-$postId'},
+      realSourceUrl: null,
+      format: 'jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: postId,
+      metadata: const {},
+    );
 
 FollowingTopic _search({
   required String id,

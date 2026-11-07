@@ -7,7 +7,7 @@ import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
 
-BackupProfileReference bookmarkProfileReference(Bookmark bookmark) =>
+BackupProfileReference bookmarkProfileReference(PostBookmark bookmark) =>
     bookmarkOriginProfileReference(bookmark.post.origin);
 
 BackupProfileReference poolBookmarkProfileReference(CollectionBookmark pool) =>
@@ -27,7 +27,7 @@ BackupProfileReference bookmarkOriginProfileReference(PostOrigin origin) {
   );
 }
 
-List<Bookmark> selectedProfileBookmarks(
+List<PostBookmark> selectedProfileBookmarks(
   BookmarkBackupData data,
   ResolvedImportSource resolution,
 ) {
@@ -48,7 +48,7 @@ List<Bookmark> selectedProfileBookmarks(
   return data.bookmarks.where((b) => selectedIds.contains(b.id)).toList();
 }
 
-Bookmark bookmarkWithProfileHint(Bookmark bookmark, String profileId) {
+PostBookmark bookmarkWithProfileHint(PostBookmark bookmark, String profileId) {
   final snapshot = bookmark.snapshot;
   final origin = snapshot.origin;
   final mappedOrigin = PostOriginSnapshot(

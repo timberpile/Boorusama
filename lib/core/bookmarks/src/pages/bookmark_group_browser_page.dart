@@ -95,7 +95,7 @@ class _BookmarkGroupBrowserPageState
 
   (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
   _previewInputs;
-  final _previews = <BookmarkView, List<Bookmark>>{};
+  final _previews = <BookmarkView, List<PostBookmark>>{};
   final _poolPreviews = <BookmarkView, List<CollectionBookmark>>{};
   AsyncValue<BookmarkLibraryState>? _visibleLibrary;
   Set<String> get _selectedGroups => {
@@ -303,7 +303,7 @@ class _BookmarkGroupBrowserPageState
                     _previews.clear();
                     _poolPreviews.clear();
                   }
-                  List<Bookmark> previews(BookmarkView view) =>
+                  List<PostBookmark> previews(BookmarkView view) =>
                       _previews.putIfAbsent(
                         view,
                         () => selectBookmarkPreviews(
@@ -984,7 +984,7 @@ class _GroupCard extends StatelessWidget {
   final VoidCallback? onSelect;
   final VoidCallback? onMove;
   final String title;
-  final List<Bookmark> previews;
+  final List<PostBookmark> previews;
   final List<CollectionBookmark> pools;
   final BookmarkGroup? group;
   final VoidCallback? onTap;
@@ -1140,9 +1140,10 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
     super.key,
   });
 
-  final List<Bookmark> previews;
+  final List<PostBookmark> previews;
   final List<Widget> additionalPreviews;
-  final Widget Function(BuildContext context, Bookmark bookmark) itemBuilder;
+  final Widget Function(BuildContext context, PostBookmark bookmark)
+  itemBuilder;
 
   @override
   Widget build(BuildContext context) => GridView.builder(
@@ -1163,7 +1164,7 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
 }
 
 String bookmarkGroupPreviewUrl(
-  Bookmark bookmark, {
+  PostBookmark bookmark, {
   bool autoplayGif = true,
 }) {
   if (bookmark.isVideo) return bookmark.thumbnailUrl;
@@ -1189,7 +1190,7 @@ String bookmarkGroupPreviewUrl(
 class _BookmarkGroupPreviewImage extends ConsumerWidget {
   const _BookmarkGroupPreviewImage({required this.bookmark});
 
-  final Bookmark bookmark;
+  final PostBookmark bookmark;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

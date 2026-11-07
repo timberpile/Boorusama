@@ -88,7 +88,7 @@ void main() {
       ]);
       // Seed a pre-existing unaddressable row directly. New-bookmark APIs
       // correctly reject creating one without a stable upstream identity.
-      final legacy = Bookmark.empty.copyWith(
+      final legacy = PostBookmark.empty.copyWith(
         createdAt: created,
         updatedAt: created,
         originalUrl: 'https://fixture.test/legacy.jpg',

@@ -35,7 +35,7 @@ class FailingBookmarks extends BookmarkHiveRepository {
   FailingBookmarks(super.box);
   bool failRemoval = false;
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
     await super.removeBookmarks(bookmarks);
     if (failRemoval) {
       failRemoval = false;
@@ -77,9 +77,9 @@ void main() {
         groupRepository: repository ?? groups,
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       );
-  Future<Bookmark> add(int n) async =>
+  Future<PostBookmark> add(int n) async =>
       (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: n,
           postId: () => n,
           sourceUrl: 'https://example.com',

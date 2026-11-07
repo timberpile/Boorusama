@@ -18,7 +18,7 @@ final class BookmarkPostEntry extends BookmarkGridEntry {
         final identity? => (identity, 0),
         null => ('legacy-post', bookmark.localId),
       };
-  final Bookmark bookmark;
+  final PostBookmark bookmark;
   @override
   final Object key;
   @override

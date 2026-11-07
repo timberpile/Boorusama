@@ -24,7 +24,7 @@ import '../../../search/following_topics/src/compatibility/topic_storage_contrac
 
 final class BookmarkImportLocalSnapshot {
   BookmarkImportLocalSnapshot({
-    required Iterable<Bookmark> bookmarks,
+    required Iterable<PostBookmark> bookmarks,
     required Iterable<BookmarkGroup> groups,
     this.folders = const [],
     this.pools = const [],
@@ -32,7 +32,7 @@ final class BookmarkImportLocalSnapshot {
        groups = List.unmodifiable(groups);
 
   final List<CollectionBookmark> pools;
-  final List<Bookmark> bookmarks;
+  final List<PostBookmark> bookmarks;
   final List<BookmarkGroup> groups;
   final List<CollectionFolder> folders;
 }
@@ -251,7 +251,7 @@ final class ImportPlannedChangeProjector {
     required ResolvedImportSource resolution,
     Map<ProfileReferenceKey, String> profileMappings = const {},
   }) {
-    final mappedBookmarks = <int, Bookmark>{};
+    final mappedBookmarks = <int, PostBookmark>{};
     for (final bookmark in selectedProfileBookmarks(incoming, resolution)) {
       final profileId =
           profileMappings[ProfileReferenceKey.fromReference(
@@ -1646,7 +1646,7 @@ final class _BookmarkValue extends Equatable {
     required this.postId,
   });
 
-  factory _BookmarkValue.from(Bookmark bookmark) => _BookmarkValue(
+  factory _BookmarkValue.from(PostBookmark bookmark) => _BookmarkValue(
     updatedAt: bookmark.updatedAt,
     snapshot: bookmark.snapshot,
     postId: bookmark.postId,

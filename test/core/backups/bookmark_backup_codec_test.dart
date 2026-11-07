@@ -202,7 +202,7 @@ void main() {
   });
 
   test('rejects an export row without a trusted upstream post ID', () {
-    final legacy = Bookmark(
+    final legacy = PostBookmark(
       id: 501,
       booruId: BooruType.gelbooruV2.id,
       createdAt: DateTime.utc(2025),
@@ -268,7 +268,7 @@ void main() {
 }
 
 // Historical fixtures use the legacy global date; the current encoder writes v9.
-Map<String, dynamic> _row(BookmarkBackupCodec codec, Bookmark bookmark) => {
+Map<String, dynamic> _row(BookmarkBackupCodec codec, PostBookmark bookmark) => {
   ...codec
           .encode(BookmarkBackupData(bookmarks: [bookmark], groups: const []))
           .single
@@ -286,7 +286,7 @@ Map<String, dynamic> _legacyExtra(BookmarkBackupData data) => {
 ExportDataPayload _payload(List<Map<String, dynamic>> rows) =>
     decodeData(data: jsonEncode({'version': 4, 'data': rows}));
 
-Bookmark _nativeBookmark({required int localId, int postId = 42}) {
+PostBookmark _nativeBookmark({required int localId, int postId = 42}) {
   final post = Post(
     origin: PostOrigin.fromSource(
       booruType: BooruType.gelbooruV2,
@@ -320,7 +320,7 @@ Bookmark _nativeBookmark({required int localId, int postId = 42}) {
     ),
     booruData: const GelbooruV2PostData(hasNotes: true),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: localId,
     createdAt: DateTime.utc(2026, 1, 2),
     updatedAt: DateTime.utc(2026, 2, 3),

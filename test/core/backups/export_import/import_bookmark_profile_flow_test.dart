@@ -610,25 +610,26 @@ void main() {
   }
 }
 
-Bookmark _bookmark(int id, [String url = 'https://site.example']) => Bookmark(
-  id: id,
-  createdAt: DateTime.utc(2026),
-  updatedAt: DateTime.utc(2026),
-  thumbnailUrl: 'https://media.example/$id.jpg',
-  sampleUrl: 'https://media.example/$id.jpg',
-  originalUrl: 'https://media.example/$id.jpg',
-  sourceUrl: url,
-  booruId: BooruType.gelbooruV2.id,
-  width: 100,
-  height: 100,
-  md5: '',
-  tags: const {},
-  realSourceUrl: null,
-  format: 'jpg',
-  imageUrlResolver: const DefaultImageUrlResolver(),
-  postId: id,
-  metadata: const {},
-);
+PostBookmark _bookmark(int id, [String url = 'https://site.example']) =>
+    PostBookmark(
+      id: id,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      thumbnailUrl: 'https://media.example/$id.jpg',
+      sampleUrl: 'https://media.example/$id.jpg',
+      originalUrl: 'https://media.example/$id.jpg',
+      sourceUrl: url,
+      booruId: BooruType.gelbooruV2.id,
+      width: 100,
+      height: 100,
+      md5: '',
+      tags: const {},
+      realSourceUrl: null,
+      format: 'jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: id,
+      metadata: const {},
+    );
 BooruConfig _profile(String id, [String url = 'https://site.example']) =>
     BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),

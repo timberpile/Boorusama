@@ -390,7 +390,7 @@ void main() {
           id: 'a0000000-0000-4000-8000-000000000004',
         );
         await harness.bookmarks.addBookmarkWithBookmarks([
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             originalUrl: 'https://local.example/duplicate.jpg',
             sourceUrl: 'https://danbooru.donmai.us',
             postId: () => 42,
@@ -1032,7 +1032,7 @@ class _Harness {
     await blacklist.addTag('local_rule');
     if (populated) {
       final bookmark = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           originalUrl: 'https://local.example/99.jpg',
           sourceUrl: 'https://local.example',
           postId: () => 99,

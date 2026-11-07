@@ -1,4 +1,5 @@
 import '../search/following_topics/topic_test_utils.dart';
+
 // Dart imports:
 import 'dart:io';
 
@@ -57,7 +58,7 @@ void main() {
     'full Replace restores Default and legacy ungrouped imports preserve metadata',
     () async {
       final local = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           postId: () => 99,
           sourceUrl: 'https://example.com',
           originalUrl: 'https://example.com/99.jpg',
@@ -65,7 +66,7 @@ void main() {
       ])).single;
       await groups.createGroup('Default', id: defaultBookmarkGroupId);
       await groups.addBookmarks(defaultBookmarkGroupId, {local.id});
-      final incoming = Bookmark.empty.copyWith(
+      final incoming = PostBookmark.empty.copyWith(
         id: 40,
         postId: () => 40,
         sourceUrl: 'https://example.com',
@@ -104,7 +105,7 @@ void main() {
       'custom Default import with $action merges members without creating folders or a second system group',
       () async {
         final local = (await bookmarks.addBookmarkWithBookmarks([
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             postId: () => 99,
             sourceUrl: 'https://example.com',
             originalUrl: 'https://example.com/99.jpg',
@@ -113,7 +114,7 @@ void main() {
         await groups.createGroup('Default', id: defaultBookmarkGroupId);
         await groups.addBookmarks(defaultBookmarkGroupId, {local.id});
         final ordinary = await groups.createGroup('Default', id: groupId);
-        final incoming = Bookmark.empty.copyWith(
+        final incoming = PostBookmark.empty.copyWith(
           id: 40,
           postId: () => 40,
           sourceUrl: 'https://example.com',
@@ -181,7 +182,7 @@ void main() {
     test(
       '${testCase.choice.name} preserves the local name and applies expected memberships',
       () async {
-        final local = Bookmark.empty.copyWith(
+        final local = PostBookmark.empty.copyWith(
           id: 1,
           originalUrl: 'https://example.com/local.jpg',
           sourceUrl: 'https://example.com',
@@ -191,7 +192,7 @@ void main() {
         final storedLocal = (await _load(bookmarks)).single;
         await groups.createGroup('Cookie//Artists', id: groupId);
         await groups.addBookmarks(groupId, {storedLocal.id});
-        final imported = Bookmark.empty.copyWith(
+        final imported = PostBookmark.empty.copyWith(
           id: 200,
           originalUrl: 'https://example.com/imported.jpg',
           sourceUrl: 'https://example.com',
@@ -244,7 +245,7 @@ void main() {
         const copyId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
         await groups.createGroup('Cookie//Artists', id: groupId);
         await groups.createGroup('Target//Artists', id: otherId);
-        final imported = Bookmark.empty.copyWith(
+        final imported = PostBookmark.empty.copyWith(
           id: 200,
           sourceUrl: 'https://example.com',
           postId: () => 200,
@@ -322,13 +323,13 @@ void main() {
   });
 
   test('updating a group deletes bookmarks that become orphaned', () async {
-    final removed = Bookmark.empty.copyWith(
+    final removed = PostBookmark.empty.copyWith(
       id: 1,
       originalUrl: 'https://example.com/removed.jpg',
       sourceUrl: 'https://example.com',
       postId: () => 1,
     );
-    final kept = Bookmark.empty.copyWith(
+    final kept = PostBookmark.empty.copyWith(
       id: 2,
       originalUrl: 'https://example.com/kept.jpg',
       sourceUrl: 'https://example.com',
@@ -376,7 +377,7 @@ void main() {
   test(
     'updating a group retains removed bookmarks used by another group',
     () async {
-      final shared = Bookmark.empty.copyWith(
+      final shared = PostBookmark.empty.copyWith(
         id: 1,
         originalUrl: 'https://example.com/shared.jpg',
         sourceUrl: 'https://example.com',
@@ -421,7 +422,7 @@ void main() {
     'a failed update restores the local group and removed bookmark',
     () async {
       final stored = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: 1,
           sourceUrl: 'https://example.com',
           postId: () => 1,
@@ -491,13 +492,13 @@ void main() {
 
   test('a partially throwing bookmark write is fully rolled back', () async {
     final imported = [
-      Bookmark.empty.copyWith(
+      PostBookmark.empty.copyWith(
         id: 100,
         originalUrl: 'https://example.com/first.jpg',
         sourceUrl: 'https://example.com',
         postId: () => 100,
       ),
-      Bookmark.empty.copyWith(
+      PostBookmark.empty.copyWith(
         id: 101,
         originalUrl: 'https://example.com/second.jpg',
         sourceUrl: 'https://example.com',
@@ -523,7 +524,7 @@ void main() {
   });
 }
 
-Future<List<Bookmark>> _load(BookmarkHiveRepository repository) =>
+Future<List<PostBookmark>> _load(BookmarkHiveRepository repository) =>
     repository.getAllBookmarksOrEmpty(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     );
@@ -541,8 +542,8 @@ class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
   const _PartiallyThrowingBookmarkRepository(super._box);
 
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   ) async {
     await super.addBookmarkWithBookmarks([bookmarks.first]);
     throw StateError('bookmark batch failed after a partial write');
@@ -553,7 +554,7 @@ class _ThrowingRemovalBookmarkRepository extends BookmarkHiveRepository {
   const _ThrowingRemovalBookmarkRepository(super._box);
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
     await super.removeBookmarks(bookmarks);
     throw StateError('bookmark cleanup failed after removing the orphan');
   }

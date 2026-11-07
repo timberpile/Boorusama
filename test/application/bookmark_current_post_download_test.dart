@@ -52,7 +52,7 @@ void main() {
       );
       final old = post('https://gelbooru.com/old.png');
       final current = post('https://gelbooru.com/current.png');
-      final stored = Bookmark.fromSnapshot(
+      final stored = PostBookmark.fromSnapshot(
         id: 1,
         createdAt: DateTime.utc(2026),
         updatedAt: DateTime.utc(2026),

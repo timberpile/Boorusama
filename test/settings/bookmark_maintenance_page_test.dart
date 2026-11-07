@@ -395,7 +395,7 @@ class _LibraryNotifier extends BookmarkLibraryNotifier {
   final bool empty;
   @override
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
-    bookmarks: empty ? [] : [Bookmark.empty],
+    bookmarks: empty ? [] : [PostBookmark.empty],
     groups: const [],
   );
 }

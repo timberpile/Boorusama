@@ -329,7 +329,7 @@ Future<_Library> _pump(
   int memberships = 1,
   double textScale = 1,
 }) async {
-  final bookmark = Bookmark.empty.copyWith(
+  final bookmark = PostBookmark.empty.copyWith(
     sourceUrl: 'https://example.com',
     originalUrl: 'https://example.com/1.jpg',
     postId: () => 1,

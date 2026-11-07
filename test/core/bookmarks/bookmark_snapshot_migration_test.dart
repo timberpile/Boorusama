@@ -39,19 +39,19 @@ void main() {
 
   test('unkeyable bookmarks cannot become current Hive rows', () {
     expect(
-      () => favoriteToHiveObject(Bookmark.empty),
+      () => favoriteToHiveObject(PostBookmark.empty),
       throwsFormatException,
     );
   });
 
   test('a batch with one missing upstream ID makes no writes', () {
-    final valid = Bookmark.empty
+    final valid = PostBookmark.empty
         .copyWith(
           sourceUrl: 'https://booru.example',
           postId: () => 42,
         )
         .toPost();
-    final invalid = Bookmark.empty.toPost();
+    final invalid = PostBookmark.empty.toPost();
 
     expect(
       () => BookmarkHiveRepository(box).addBookmarks(
@@ -96,7 +96,7 @@ void main() {
   });
 
   test('native Sankaku string identity survives a Hive reload', () async {
-    final post = Bookmark.empty
+    final post = PostBookmark.empty
         .copyWith(
           id: 88,
           sourceUrl: 'https://sankaku.example/board',
@@ -148,7 +148,7 @@ void main() {
   test(
     'old snapshot schema stays unread while the current row loads',
     () async {
-      final bookmark = Bookmark(
+      final bookmark = PostBookmark(
         id: 42,
         booruId: BooruType.gelbooruV2.id,
         createdAt: DateTime.utc(2026),

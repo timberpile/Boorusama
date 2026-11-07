@@ -25,7 +25,7 @@ class BookmarkHiveRepository implements BookmarkRepository {
   Future<void> close() => _box.close();
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -39,7 +39,7 @@ class BookmarkHiveRepository implements BookmarkRepository {
       storedPost,
       dataCodec: postDataCodec?.call(storedPost.origin.booruType),
     );
-    final bookmark = Bookmark.fromSnapshot(
+    final bookmark = PostBookmark.fromSnapshot(
       id: -1,
       createdAt: now,
       updatedAt: now,
@@ -55,17 +55,17 @@ class BookmarkHiveRepository implements BookmarkRepository {
   }
 
   @override
-  Future<void> removeBookmark(Bookmark favorite) async {
+  Future<void> removeBookmark(PostBookmark favorite) async {
     await _box.delete(favorite.id);
   }
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> favorites) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> favorites) async {
     await _box.deleteAll(favorites.map((favorite) => favorite.id));
   }
 
   @override
-  Future<void> updateBookmark(Bookmark favorite) async {
+  Future<void> updateBookmark(PostBookmark favorite) async {
     await _box.put(favorite.id, favoriteToHiveObject(favorite));
   }
 
@@ -87,7 +87,7 @@ class BookmarkHiveRepository implements BookmarkRepository {
       );
 
   @override
-  Future<List<Bookmark>> addBookmarks(
+  Future<List<PostBookmark>> addBookmarks(
     int booruId,
     Iterable<Post> posts, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -110,8 +110,8 @@ class BookmarkHiveRepository implements BookmarkRepository {
   }
 
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   ) async {
     final hiveObjects = bookmarks.map(favoriteToHiveObject).toList();
     final ids = (await _box.addAll(hiveObjects)).toList();

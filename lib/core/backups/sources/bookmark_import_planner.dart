@@ -13,7 +13,7 @@ class BookmarkImportPlanner {
 
   BookmarkImportPlan plan({
     required BookmarkBackupData data,
-    required List<Bookmark> currentBookmarks,
+    required List<PostBookmark> currentBookmarks,
     required List<BookmarkGroup> currentGroups,
   }) {
     final currentBookmarkIds = currentBookmarks

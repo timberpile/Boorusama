@@ -81,7 +81,7 @@ class BookmarkBackupData extends Equatable {
   });
 
   final List<CollectionBookmark> pools;
-  final List<Bookmark> bookmarks;
+  final List<PostBookmark> bookmarks;
   final List<BookmarkGroupBackup> groups;
   final List<CollectionFolder> folders;
 
@@ -150,7 +150,7 @@ class BookmarkBackupData extends Equatable {
 }
 
 BookmarkBackupData buildBookmarkBackupData({
-  required List<Bookmark> bookmarks,
+  required List<PostBookmark> bookmarks,
   required List<BookmarkGroup> groups,
   required BookmarkExportScope scope,
   List<CollectionFolder> folders = const [],
