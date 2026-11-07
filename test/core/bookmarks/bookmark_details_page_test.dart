@@ -1,4 +1,11 @@
 import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/content/content_access.dart';
+import 'package:boorusama/core/content/content_media_access.dart';
+import 'package:boorusama/core/images/scoped_image_cache_manager.dart';
+import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_hierarchy_conversion.dart';
 import 'package:uuid/uuid.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
@@ -580,7 +587,7 @@ void main() {
   }
 
   testWidgets(
-    'bookmark grid group previews and viewer decode from the same ordinary cache without a download',
+    'bookmark grid group previews and viewer decode from the same scoped cache without a download',
     (tester) async {
       await tester.runAsync(() async {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
@@ -609,12 +616,26 @@ void main() {
           sampleUrl: 'https://bookmark-cache.test/sample.png',
           originalUrl: 'https://bookmark-cache.test/original.png',
         );
+        final epochs = ContentAccessEpochs();
+        final fixedAccess = ContentAccessContext.profile(
+          config: _config,
+          authEpoch: 1,
+          policyEpoch: 2,
+        );
+        final scopedCache = ScopedImageCacheManager(
+          delegate: cache,
+          namespace:
+              '${epochs.sessionId}/${contentMediaCacheNamespace(fixedAccess.key)}',
+          current: () => true,
+        );
         for (final url in [
           bookmark.thumbnailUrl,
           bookmark.sampleUrl,
           bookmark.originalUrl,
         ]) {
-          await cache.saveFile(cache.generateCacheKey(url), lowerPng);
+          final key = scopedCache.generateCacheKey(url);
+          await cache.saveFile(key, lowerPng);
+          expect(await cache.getCachedFileBytes(key), lowerPng);
         }
         final favicon = PostSource.from(
           _config.url,
@@ -652,6 +673,8 @@ void main() {
                 bookmarkNotifier: _CacheBookmarkNotifier(state),
                 commonCache: cache,
                 imageDio: dio,
+                fixedAccess: fixedAccess,
+                fixedEpochs: epochs,
               ),
             );
             final deadline = DateTime.now().add(const Duration(seconds: 10));
@@ -687,13 +710,16 @@ void main() {
             expect(
               adapter.requests,
               isEmpty,
-              reason:
-                  'all bookmark surfaces reuse ordinary URL-keyed cache files',
+              reason: 'all bookmark surfaces reuse the current access-scoped cache files',
             );
             for (final image in tester.widgetList<BooruRawImage>(
               find.byType(BooruRawImage),
             )) {
-              expect(image.imageCacheManager, same(cache));
+              expect(image.imageCacheManager, isA<ScopedImageCacheManager>());
+              expect(
+                (image.imageCacheManager! as ScopedImageCacheManager).delegate,
+                same(cache),
+              );
             }
             await tester.pumpWidget(const SizedBox());
           }
@@ -701,6 +727,7 @@ void main() {
           await tester.pumpWidget(const SizedBox());
           controller.dispose();
           dio.close(force: true);
+          await scopedCache.dispose();
           await cache.dispose();
           await root.delete(recursive: true);
         }
@@ -1308,6 +1335,8 @@ class _BookmarkViewerHarness extends StatelessWidget {
     this.commonCache,
     this.imageDio,
     this.previewSettingsNotifier,
+    this.fixedAccess,
+    this.fixedEpochs,
   });
 
   final PostGridController<Post> controller;
@@ -1322,6 +1351,8 @@ class _BookmarkViewerHarness extends StatelessWidget {
   final ImageCacheManager? commonCache;
   final Dio? imageDio;
   final SettingsNotifier? previewSettingsNotifier;
+  final ContentAccessContext? fixedAccess;
+  final ContentAccessEpochs? fixedEpochs;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -1350,6 +1381,21 @@ class _BookmarkViewerHarness extends StatelessWidget {
       initialSettingsBooruConfigProvider.overrideWithValue(_config),
       booruConfigProvider.overrideWith(
         () => BooruConfigNotifier(initialConfigs: [_config]),
+      ),
+      if (fixedAccess case final access?) ...[
+        contentAccessEpochsProvider.overrideWithValue(fixedEpochs!),
+        contentAccessForOriginProvider.overrideWith((ref, origin) => access),
+        contentAccessContextProvider.overrideWith(
+          (ref, key) => key == access.key ? access : null,
+        ),
+        viewerSourceAccessProvider.overrideWith((ref, binding) => access),
+        contentProfileAccessProvider.overrideWith(
+          () => _FixedProfileAccess(access),
+        ),
+      ],
+      globalBlacklistedTagsProvider.overrideWith(_EmptyBlacklist.new),
+      contentEffectivePolicyProvider.overrideWith(
+        (ref, profileId) => const AsyncData('test-empty-policy'),
       ),
       booruEngineRegistryProvider.overrideWithValue(_CodecRegistry()),
       if (bookmarkRepository == null)
@@ -1393,8 +1439,10 @@ class _BookmarkViewerHarness extends StatelessWidget {
       externalUrlLauncherProvider.overrideWithValue(
         RecordingExternalUrlLauncher(),
       ),
-      if (imageDio case final dio?)
+      if (imageDio case final dio?) ...[
         dioForWidgetProvider.overrideWith((ref, config) => dio),
+        mediaOverrideDioProvider.overrideWith((ref, config) => dio),
+      ],
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
       hasPremiumLayoutProvider.overrideWithValue(false),
       showPremiumFeatsProvider.overrideWithValue(false),
@@ -1558,7 +1606,12 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   );
 
   @override
-  Future<void> upgradeBookmarkSnapshot(PostBookmark bookmark, Post post) async {
+  Future<void> upgradeBookmarkSnapshot(
+    PostBookmark bookmark,
+    Post post, {
+    bool Function()? canUpgrade,
+  }) async {
+    if (canUpgrade?.call() == false) return;
     upgrades++;
     final snapshot = const StoredPostCodec().encode(
       post,
@@ -1760,4 +1813,17 @@ BookmarkLibraryState _hierarchyFixture(BookmarkLibraryState input) {
         entry.key: converted.folderIdMapping[entry.value]!,
     },
   );
+}
+
+class _EmptyBlacklist extends GlobalBlacklistedTagsNotifier {
+  @override
+  IList<BlacklistedTag> build() => <BlacklistedTag>[].lock;
+}
+
+class _FixedProfileAccess extends ContentProfileAccess {
+  _FixedProfileAccess(this.access);
+  final ContentAccessContext access;
+  @override
+  ContentAccessContext? build(String profileId) =>
+      profileId == access.key.profileId ? access : null;
 }

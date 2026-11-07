@@ -664,10 +664,12 @@ class NetworkSettings extends Equatable {
   MediaRequest resolveMedia(
     String url, {
     Map<String, String> headers = const {},
+    String? sourceUrl,
   }) => MediaRequest.resolve(
     url,
     overrides: activeMediaHostOverrides,
     headers: headers,
+    sourceUrl: sourceUrl,
   );
 
   NetworkSettings copyWith({

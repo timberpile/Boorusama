@@ -14,6 +14,8 @@ import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import '../../../configs/manage/providers.dart';
+import '../../../configs/manage/widgets.dart';
+import '../../../content/content_access_provider.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
 import '../../../posts/pools/pool_grid_item.dart';
@@ -304,13 +306,21 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
                     gridThumbnailSettingsProvider(profile.auth),
                   ),
                 );
-      return BooruImage(
-        config: profile.auth,
-        imageUrl: media?.url ?? pool.coverUrl!,
-        placeholderUrl: pool.coverUrl,
-        aspectRatio: .6,
-        fit: BoxFit.cover,
-        borderRadius: BorderRadius.circular(radius),
+      final access = ref.watch(contentProfileAccessProvider(profile.id));
+      if (access == null) return const SizedBox.expand();
+      return CurrentBooruConfigScope(
+        config: profile,
+        accessKey: access.key,
+        requireAccess: true,
+        bookmarkId: pool.bookmarkId,
+        child: BooruImage(
+          config: profile.auth,
+          imageUrl: media?.url ?? pool.coverUrl!,
+          placeholderUrl: pool.coverUrl,
+          aspectRatio: .6,
+          fit: BoxFit.cover,
+          borderRadius: BorderRadius.circular(radius),
+        ),
       );
     }
     return ColoredBox(

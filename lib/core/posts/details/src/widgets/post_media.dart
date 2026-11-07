@@ -8,6 +8,9 @@ import 'package:kurumi/material.dart';
 import '../../../../../foundation/loggers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/network/providers.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_media_dio.dart';
+import '../../../../content/content_access_provider.dart';
 import '../../../../ddos/handler/providers.dart';
 import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
@@ -17,6 +20,7 @@ import '../../../../settings/routes.dart';
 import '../../../../videos/cache/providers.dart';
 import '../../../../videos/player/providers.dart';
 import '../../../../videos/player/widgets.dart';
+import '../../../../videos/engines/types.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../providers/video_url_provider.dart';
@@ -60,6 +64,9 @@ class PostMedia<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = watchContentMediaAccess(ref, config);
+    if (!access.allowed)
+      return const BlockedMediaPlaceholder(borderRadius: BorderRadius.zero);
     final details = PostDetails.of(context);
     final heroTag = postHeroTag(post);
     final automaticMediaLoadingEnabled = ref.watch(
@@ -97,8 +104,76 @@ class PostMedia<T extends Post> extends ConsumerWidget {
 
                     final request = ref
                         .watch(networkSettingsProvider(config))
-                        .resolveMedia(videoUrl, headers: headers);
+                        .resolveMedia(
+                          videoUrl,
+                          headers: headers,
+                          sourceUrl: config.url,
+                        );
+                    final publicScope = config.anonymousReadScope;
+                    if (publicScope != null) {
+                      final uri = Uri.tryParse(request.url);
+                      if (uri == null || !publicScope.source.allowsMedia(uri))
+                        return const BlockedMediaPlaceholder(isVideo: true);
+                    }
+                    final guardedCache = access.key == null
+                        ? null
+                        : ref.watch(guardedPlaybackCacheManagerProvider);
+                    final retainGuarded =
+                        access.key != null &&
+                        ref.watch(videoCacheManagerProvider) != null;
+                    final mediaDio = access.key == null
+                        ? null
+                        : ref.watch(contentMediaDioProvider(access.key!));
+                    final mediaHeaders = {
+                      ...request.headers,
+                      if (publicScope == null && request.overridden)
+                        ...ref.watch(
+                          cachedBypassDdosHeadersProvider(request.url),
+                        ),
+                    };
+                    final cacheNamespace = access.key == null
+                        ? null
+                        : ref.watch(
+                            contentMediaCacheNamespaceProvider(access.key!),
+                          );
                     return BooruVideo(
+                      key: ValueKey((access.key, request.url)),
+                      sourceLoader: access.key == null
+                          ? null
+                          : (cancellation) async {
+                              bool current() =>
+                                  (publicScope?.isCurrent ?? true) &&
+                                  ref.context.mounted &&
+                                  ref
+                                          .read(
+                                            contentAccessContextProvider(
+                                              access.key!,
+                                            ),
+                                          )
+                                          ?.key ==
+                                      access.key;
+                              final lease = await guardedCache!
+                                  .acquireGuardedVideo(
+                                    request.url,
+                                    namespace: cacheNamespace!,
+                                    transport: mediaDio!,
+                                    headers: mediaHeaders,
+                                    isCurrent: current,
+                                    cancelToken: cancellation,
+                                    retain: retainGuarded,
+                                  );
+                              if (!current()) {
+                                await lease.release();
+                                throw StateError('Video access revoked');
+                              }
+                              return (
+                                source: CachedVideoSource(
+                                  filePath: lease.path,
+                                  originalUrl: request.url,
+                                ),
+                                lease: lease,
+                              );
+                            },
                       heroTag: heroTag,
                       url: request.url,
                       aspectRatio:
@@ -118,13 +193,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                       speed: ref.watch(playbackSpeedProvider(videoUrl)),
                       thumbnailUrl: post.videoThumbnailUrl,
                       onOpenSettings: () => _openSettings(ref),
-                      headers: {
-                        ...request.headers,
-                        if (request.overridden)
-                          ...ref.watch(
-                            cachedBypassDdosHeadersProvider(request.url),
-                          ),
-                      },
+                      headers: mediaHeaders,
                       videoPlayerEngine: ref.watch(
                         imageViewerSettingsProvider.select(
                           (value) => value.videoPlayerEngine,

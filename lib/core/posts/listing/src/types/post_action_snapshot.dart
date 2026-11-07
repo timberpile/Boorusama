@@ -13,6 +13,7 @@ class PostActionSnapshot {
           config: switch (const PostOriginResolver().resolve(
             post.origin,
             profiles,
+            allowProfileHintFallback: false,
           )) {
             ResolvedPostOrigin(:final config) => config,
             _ => null,
@@ -38,6 +39,7 @@ class PostActionSnapshot {
     final resolved = const PostOriginResolver().resolve(
       target.post.origin,
       profiles,
+      allowProfileHintFallback: false,
     );
     return switch (resolved) {
       ResolvedPostOrigin(:final config) => config == target.config,

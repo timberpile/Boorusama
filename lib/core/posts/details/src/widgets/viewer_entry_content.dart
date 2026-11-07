@@ -5,11 +5,11 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../../boorus/engine/providers.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../types/viewer_entry.dart';
+import '../providers/viewer_source_access_provider.dart';
 import 'post_details_page_view_scope.dart';
 import 'viewer_entry_navigation_header.dart';
 
@@ -47,8 +47,11 @@ class _ViewerEntryContentState extends ConsumerState<ViewerEntryContent> {
   @override
   Widget build(BuildContext context) {
     final pager = PostDetailsPageViewScope.of(context);
-    final profiles = ref.watch(booruConfigProvider);
-    final config = widget.entry.source?.resolve(profiles);
+    final binding = widget.entry.source;
+    final access = binding == null
+        ? null
+        : ref.watch(viewerSourceAccessProvider(binding));
+    final config = access?.config;
     final repo = config == null
         ? null
         : ref.watch(viewerEntryContentCapabilityProvider(config));
@@ -69,6 +72,9 @@ class _ViewerEntryContentState extends ConsumerState<ViewerEntryContent> {
         if (!_visited) return const SizedBox.expand();
         return CurrentBooruConfigScope(
           config: config,
+          accessKey: access?.key,
+          requireAccess: true,
+          bookmarkId: binding?.bookmarkId,
           child: NavigationActivity(
             active: page == widget.index && NavigationActivity.of(context),
             child: repo.buildViewerEntry(

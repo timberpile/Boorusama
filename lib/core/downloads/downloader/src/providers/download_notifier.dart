@@ -68,6 +68,8 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? quality,
     String? postUrl,
   }) async {
+    if (arg.auth.anonymousReadScope != null) return null;
+
     final perm = await _getPermissionStatus();
     final observer = arg.observer;
 
@@ -95,6 +97,8 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     int? totalCount,
     int Function(Post)? indexOf,
   }) async {
+    if (arg.auth.anonymousReadScope != null) return;
+
     // ensure that the booru supports bulk download
     if (!arg.canDownloadMultipleFiles()) {
       final context = ref

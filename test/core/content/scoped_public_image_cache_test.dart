@@ -195,6 +195,190 @@ void main() {
     });
   });
 
+  group('managed cache lifecycle', () {
+    test(
+      'keeps cache domains unique and denies unknown or revoked operations',
+      () async {
+        final delegate = _FakeManagedImageCacheManager();
+        var current = true;
+        final first = _scope(
+          delegate,
+          'public:safebooru',
+          current: () => current,
+        );
+        final second = _scope(delegate, 'public:safebooru:other');
+        final managedFirst = first as ManagedImageCacheManager;
+        final managedSecond = second as ManagedImageCacheManager;
+        final key = first.generateCacheKey('image');
+
+        expect(
+          identical(managedFirst.cacheDomain, delegate.cacheDomain),
+          isFalse,
+        );
+        expect(
+          identical(managedFirst.cacheDomain, managedSecond.cacheDomain),
+          isFalse,
+        );
+        await managedFirst.touch(key);
+        expect(delegate.touchKeys, [key]);
+        await managedFirst.touch('unknown');
+        expect(delegate.touchKeys, [key]);
+        await expectLater(
+          managedFirst.beginFileWrite('unknown'),
+          throwsArgumentError,
+        );
+
+        current = false;
+        await managedFirst.touch(key);
+        expect(await managedFirst.acquireFile(key), isNull);
+        await expectLater(managedFirst.beginFileWrite(key), throwsStateError);
+        expect(delegate.touchKeys, [key]);
+        expect(delegate.acquireKeys, isEmpty);
+        expect(delegate.beginKeys, isEmpty);
+        await first.dispose();
+        await second.dispose();
+      },
+    );
+
+    test('releases a file lease acquired after scope revocation', () async {
+      var current = true;
+      final delegate = _FakeManagedImageCacheManager();
+      final acquireGate = Completer<ImageCacheFileLease?>();
+      delegate.acquireGate = acquireGate;
+      final manager = _scope(
+        delegate,
+        'public:safebooru',
+        current: () => current,
+      );
+      final managed = manager as ManagedImageCacheManager;
+      final key = manager.generateCacheKey('image');
+
+      final acquisition = managed.acquireFile(key);
+      expect(delegate.acquireKeys, [key]);
+      current = false;
+      final lease = _FakeImageCacheFileLease();
+      acquireGate.complete(lease);
+
+      expect(await acquisition.timeout(const Duration(seconds: 5)), isNull);
+      expect(lease.releaseCalls, 1);
+    });
+
+    test(
+      'dispose releases the callback and leaves the shared cache alive',
+      () async {
+        var currentCalls = 0;
+        final delegate = _FakeManagedImageCacheManager();
+        final manager = _scope(
+          delegate,
+          'public:safebooru',
+          current: () {
+            currentCalls++;
+            return true;
+          },
+        );
+        final key = manager.generateCacheKey('image');
+        final callsBeforeDispose = currentCalls;
+
+        await manager.dispose();
+        expect(await manager.getCachedFileBytes(key), isNull);
+
+        expect(currentCalls, callsBeforeDispose);
+        expect(delegate.byteReadKeys, isEmpty);
+        expect(delegate.disposeCalls, 0);
+      },
+    );
+
+    test('aborts a staged session returned after revocation', () async {
+      var current = true;
+      final delegate = _FakeManagedImageCacheManager();
+      final beginGate = Completer<ImageCacheWriteSession>();
+      delegate.beginGate = beginGate;
+      final manager = _scope(
+        delegate,
+        'public:safebooru',
+        current: () => current,
+      );
+      final managed = manager as ManagedImageCacheManager;
+      final key = manager.generateCacheKey('image');
+
+      final admission = managed.beginFileWrite(key);
+      expect(delegate.beginKeys, [key]);
+      current = false;
+      final session = _FakeImageCacheWriteSession();
+      beginGate.complete(session);
+
+      await expectLater(
+        admission.timeout(const Duration(seconds: 5)),
+        throwsStateError,
+      );
+      expect(session.abortCalls, 1);
+    });
+
+    test('aborts staging that completes after revocation', () async {
+      var current = true;
+      final delegate = _FakeManagedImageCacheManager();
+      final session = _FakeImageCacheWriteSession();
+      final saveGate = Completer<void>();
+      session.saveGate = saveGate;
+      delegate.nextSession = session;
+      final manager = _scope(
+        delegate,
+        'public:safebooru',
+        current: () => current,
+      );
+      final managed = manager as ManagedImageCacheManager;
+      final key = manager.generateCacheKey('image');
+      final write = await managed.beginFileWrite(key);
+
+      final save = write.saveBytes(Uint8List.fromList([1]));
+      expect(session.saveCalls, 1);
+      current = false;
+      saveGate.complete();
+
+      await expectLater(
+        save.timeout(const Duration(seconds: 5)),
+        throwsStateError,
+      );
+      expect(session.abortCalls, 1);
+      expect(session.commitCalls, 0);
+    });
+
+    test(
+      'releases late committed lease and clears only its issued key',
+      () async {
+        var current = true;
+        final delegate = _FakeManagedImageCacheManager();
+        final session = _FakeImageCacheWriteSession();
+        final commitGate = Completer<ImageCacheFileLease>();
+        session.commitGate = commitGate;
+        delegate.nextSession = session;
+        final manager = _scope(
+          delegate,
+          'public:safebooru',
+          current: () => current,
+        );
+        final managed = manager as ManagedImageCacheManager;
+        final privateKey = delegate.generateCacheKey('private');
+        final ownKey = manager.generateCacheKey('image');
+
+        final write = await managed.beginFileWrite(ownKey);
+        final commit = write.commit();
+        expect(session.commitCalls, 1);
+        current = false;
+        final lease = _FakeImageCacheFileLease();
+        commitGate.complete(lease);
+
+        await expectLater(
+          commit.timeout(const Duration(seconds: 5)),
+          throwsStateError,
+        );
+        expect(lease.releaseCalls, 1);
+        expect(delegate.clearKeys, [ownKey]);
+        expect(delegate.clearKeys, isNot(contains(privateKey)));
+      },
+    );
+  });
+
   test(
     'image providers distinguish identical URLs in separate cache scopes',
     () {
@@ -251,7 +435,7 @@ ScopedImageCacheManager _scope(
   maxKnownKeys: maxKnownKeys,
 );
 
-final class _FakeImageCacheManager implements ImageCacheManager {
+class _FakeImageCacheManager implements ImageCacheManager {
   final bytesByKey = <String, Uint8List>{};
   final byteReadKeys = <String>[];
   final pathReadKeys = <String>[];
@@ -312,5 +496,94 @@ final class _FakeImageCacheManager implements ImageCacheManager {
   @override
   Future<void> dispose() async {
     disposeCalls++;
+  }
+}
+
+final class _FakeManagedImageCacheManager extends _FakeImageCacheManager
+    implements ManagedImageCacheManager {
+  @override
+  final cacheDomain = Object();
+  final touchKeys = <String>[];
+  final acquireKeys = <String>[];
+  final beginKeys = <String>[];
+  Completer<ImageCacheFileLease?>? acquireGate;
+  Completer<ImageCacheWriteSession>? beginGate;
+  ImageCacheWriteSession? nextSession;
+  var setMaxBytesCalls = 0;
+
+  @override
+  Future<void> touch(String key) async {
+    touchKeys.add(key);
+  }
+
+  @override
+  Future<ImageCacheFileLease?> acquireFile(String key, {Duration? maxAge}) {
+    acquireKeys.add(key);
+    if (acquireGate case final gate?) return gate.future;
+    return Future.value(_FakeImageCacheFileLease());
+  }
+
+  @override
+  Future<ImageCacheWriteSession> beginFileWrite(String key) {
+    beginKeys.add(key);
+    if (beginGate case final gate?) return gate.future;
+    return Future.value(nextSession ?? _FakeImageCacheWriteSession());
+  }
+
+  @override
+  Future<void> setMaxBytes(int bytes) async {
+    setMaxBytesCalls++;
+  }
+
+  @override
+  Future<ImageCacheStats> getStats() async => const ImageCacheStats(
+    retainedBytes: 0,
+    retainedFileCount: 0,
+  );
+}
+
+final class _FakeImageCacheFileLease implements ImageCacheFileLease {
+  var releaseCalls = 0;
+
+  @override
+  bool get isRetained => true;
+
+  @override
+  String get path => 'fake://leased-image';
+
+  @override
+  Future<void> release() async {
+    releaseCalls++;
+  }
+}
+
+final class _FakeImageCacheWriteSession implements ImageCacheWriteSession {
+  Completer<void>? saveGate;
+  Completer<ImageCacheFileLease>? commitGate;
+  Uint8List? stagedBytes;
+  var saveCalls = 0;
+  var commitCalls = 0;
+  var abortCalls = 0;
+
+  @override
+  String get stagedPath => 'fake://staged-image';
+
+  @override
+  Future<void> saveBytes(Uint8List bytes) async {
+    saveCalls++;
+    await saveGate?.future;
+    stagedBytes = Uint8List.fromList(bytes);
+  }
+
+  @override
+  Future<ImageCacheFileLease> commit() async {
+    commitCalls++;
+    return await commitGate?.future ?? _FakeImageCacheFileLease();
+  }
+
+  @override
+  Future<void> abort() async {
+    abortCalls++;
+    stagedBytes = null;
   }
 }

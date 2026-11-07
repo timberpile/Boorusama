@@ -4,6 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = AnonymousSourcePolicy();
+  test('Sakuga post endpoint mapping does not merge source identities', () {
+    final root = policy.forNamespace(BooruType.moebooru, 'sakugabooru.com')!;
+    final www = policy.forNamespace(BooruType.moebooru, 'www.sakugabooru.com')!;
+    expect(root, isNot(www));
+    expect(root.site.host, 'sakugabooru.com');
+    expect(
+      root.allowsApi(
+        Uri.parse('https://www.sakugabooru.com/post.json?tags=cat'),
+      ),
+      isTrue,
+    );
+    expect(
+      root.allowsApi(Uri.parse('https://elsewhere.sakugabooru.com/post.json')),
+      isFalse,
+    );
+  });
   final sources = <(BooruType, String, List<String>)>[
     (BooruType.danbooru, 'danbooru.donmai.us', ['cdn.donmai.us']),
     (BooruType.danbooru, 'safebooru.donmai.us', ['cdn.donmai.us']),

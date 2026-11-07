@@ -8,6 +8,7 @@ import 'package:kurumi/material.dart';
 import '../../../../foundation/display.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../content/content_media_access.dart';
 import '../../../settings/providers.dart';
 import '../../../downloads/filename/types.dart';
 import '../../post/types.dart';
@@ -66,9 +67,30 @@ class ShareService {
     required DownloadFilenameGenerator? filenameBuilder,
     required ImageCacheManager imageCacheManager,
   }) {
-    final profiles = ref.read(booruConfigProvider);
-    final profileIconUrl = profileIconUrlForAuth(profiles, config);
-    final profileName = postShareProfileName(profiles, post, config);
+    final caller = ProviderScope.containerOf(context, listen: false);
+    final accessKey =
+        config.anonymousReadScope?.key ??
+        caller.read(currentContentAccessKeyProvider);
+    final requireAccess =
+        config.anonymousReadScope != null ||
+        caller.read(contentAccessRequiredProvider);
+    final public = config.anonymousReadScope != null;
+    final profiles = public
+        ? const <BooruConfig>[]
+        : ref
+              .read(booruConfigProvider)
+              .where(
+                (profile) =>
+                    accessKey?.profileId == null ||
+                    profile.id == accessKey!.profileId,
+              )
+              .toList();
+    final profileIconUrl = public
+        ? null
+        : profileIconUrlForAuth(profiles, config);
+    final profileName = public
+        ? post.origin.sourceHost
+        : postShareProfileName(profiles, post, config);
     final modal = UnifiedPostShareSheet(
       post: post,
       auth: config,
@@ -77,6 +99,8 @@ class ShareService {
       viewer: configViewer,
       postQuality: ref.read(postQualityProvider(config)),
       imageCacheManager: imageCacheManager,
+      accessKey: accessKey,
+      requireAccess: requireAccess,
     );
 
     const routeSettings = RouteSettings(name: 'post_share');

@@ -40,11 +40,17 @@ final class AnonymousSourcePolicy {
 }
 
 final class AnonymousSource extends Equatable {
-  const AnonymousSource._(this.engine, this._site, this._mediaHosts);
+  const AnonymousSource._(
+    this.engine,
+    this._site,
+    this._mediaHosts, {
+    Set<String> apiHosts = const {},
+  }) : _apiHosts = apiHosts;
 
   final BooruType engine;
   final String _site;
   final Set<String> _mediaHosts;
+  final Set<String> _apiHosts;
   Uri get site => Uri.parse(_site);
 
   bool allowsMedia(Uri target) =>
@@ -59,7 +65,7 @@ final class AnonymousSource extends Equatable {
 
   bool allowsApi(Uri target) {
     if (!_safeHttps(target) ||
-        target.host != site.host ||
+        (target.host != site.host && !_apiHosts.contains(target.host)) ||
         !_safePath(target) ||
         target.queryParametersAll.keys.any(_credentialParameter)) {
       return false;
@@ -149,8 +155,13 @@ const _sources = [
   AnonymousSource._(BooruType.moebooru, 'https://www.sakugabooru.com', {
     'www.sakugabooru.com',
   }),
-  AnonymousSource._(BooruType.moebooru, 'https://sakugabooru.com', {
-    'sakugabooru.com',
-    'www.sakugabooru.com',
-  }),
+  AnonymousSource._(
+    BooruType.moebooru,
+    'https://sakugabooru.com',
+    {
+      'sakugabooru.com',
+      'www.sakugabooru.com',
+    },
+    apiHosts: {'www.sakugabooru.com'},
+  ),
 ];

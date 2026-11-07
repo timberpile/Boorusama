@@ -862,9 +862,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<void> upgradeBookmarkSnapshot(
     PostBookmark bookmark,
-    Post post,
-  ) => _serialize(() async {
+    Post post, {
+    bool Function()? canUpgrade,
+  }) => _serialize(() async {
+    if (canUpgrade?.call() == false) return;
     final snapshot = await future;
+    if (canUpgrade?.call() == false) return;
     final current = snapshot.bookmarksById[bookmark.id];
     if (current is! PostBookmark ||
         current.uniqueId != bookmark.uniqueId ||
@@ -878,7 +881,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (codec == null) {
       throw StateError('No compatible post codec is available.');
     }
-    await (await _service).upgradeBookmarkSnapshot(
+    final service = await _service;
+    if (canUpgrade?.call() == false) return;
+    await service.upgradeBookmarkSnapshot(
       bookmark: current,
       post: post,
       dataCodec: codec,

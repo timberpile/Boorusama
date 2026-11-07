@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../blacklists/providers.dart';
 import '../bookmarks/src/providers/pool_bookmark_provider.dart'
@@ -41,6 +42,9 @@ final contentEffectivePolicyProvider = Provider.autoDispose
 final contentAccessEpochsProvider = Provider((ref) => ContentAccessEpochs());
 
 class ContentAccessEpochs {
+  /// Epoch counters restart with the application; disk cache namespaces must
+  /// not collide with another process's different credentials or policy.
+  final sessionId = const Uuid().v4();
   var _value = 0;
   int next() => ++_value;
 }

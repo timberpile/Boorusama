@@ -16,12 +16,12 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../notes/note/widgets.dart';
 import '../../../details_parts/types.dart';
 import '../../../details_parts/widgets.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
+import '../providers/viewer_source_access_provider.dart';
 import '../routes/post_details_live_source.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
@@ -561,6 +561,11 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     required PostRecoveryCallback recovery,
   }) async {
     if (!mounted || _recovering.contains(index)) return;
+    final binding = widget.sequence?.entries[index].source;
+    final startedAccess = binding == null
+        ? null
+        : ref.read(viewerSourceAccessProvider(binding))?.key;
+    if (binding != null && startedAccess == null) return;
     final originalIdentity = postViewerIdentity(
       details.controller.postAtPage(index)!,
     );
@@ -581,9 +586,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       return;
     }
 
-    final binding = widget.sequence?.entries[index].source;
     if (binding != null &&
-        binding.resolve(ref.read(booruConfigProvider)) == null) {
+        ref.read(viewerSourceAccessProvider(binding))?.key != startedAccess) {
       setState(() {
         _recovering.remove(index);
         _fallbackReasons[index] = PostPresentationFallbackReason.missingProfile;

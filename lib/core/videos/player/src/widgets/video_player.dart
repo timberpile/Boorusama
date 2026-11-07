@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -17,12 +18,17 @@ import '../../../../../foundation/loggers.dart';
 import '../../../../../foundation/platform.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../content/content_media_failures.dart';
 import '../../../engines/providers.dart';
 import '../../../engines/types.dart';
 import '../types/video_player_state.dart';
 import 'video_player_error_container.dart';
 
 typedef PlayerDisposer = Future<void> Function(BooruPlayer player);
+typedef PreparedVideoSourceLoader =
+    Future<({VideoSource source, VideoCacheLease? lease})> Function(
+      CancelToken cancellation,
+    );
 
 Future<void> defaultPlayerDisposer(BooruPlayer player) async {
   try {
@@ -55,7 +61,9 @@ class BooruVideo extends ConsumerStatefulWidget {
     this.cacheDelay,
     this.fileSize,
     this.shouldInitialize = true,
+    this.sourceLoader,
     @visibleForTesting this.playerDisposer,
+    @visibleForTesting this.playerFactory,
   });
 
   final String url;
@@ -76,7 +84,9 @@ class BooruVideo extends ConsumerStatefulWidget {
   final Logger? logger;
   final CacheDelayCallback? cacheDelay;
   final bool shouldInitialize;
+  final PreparedVideoSourceLoader? sourceLoader;
   final PlayerDisposer? playerDisposer;
+  final BooruPlayer Function(VideoPlayerEngine engine)? playerFactory;
 
   @override
   ConsumerState<BooruVideo> createState() => _BooruVideoState();
@@ -93,6 +103,8 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   Timer? _cacheDelayTimer;
   String? _cachingUrl;
   VideoCacheLease? _videoCacheLease;
+  CancelToken? _sourceCancellation;
+  var _sourceGeneration = 0;
 
   VideoPlayerEngine get _resolvedEngine => VideoPlayerState.resolveVideoEngine(
     engine: widget.videoPlayerEngine,
@@ -178,6 +190,11 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
   Future<void> _initializePlayer() async {
     if (!mounted || _isDisposing) return;
+    final generation = ++_sourceGeneration;
+    _sourceCancellation?.cancel('Video source replaced');
+    final cancellation = _sourceCancellation = CancelToken();
+    bool current() =>
+        mounted && !_isDisposing && generation == _sourceGeneration;
 
     setState(() => _isPreparingSource = true);
     VideoCacheLease? preparedLease;
@@ -188,9 +205,14 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         'Initializing $_resolvedEngine player for ${widget.url}',
       );
 
-      final prepared = await _createVideoSource();
+      final prepared = widget.sourceLoader == null
+          ? await _createVideoSource()
+          : await widget.sourceLoader!(cancellation);
       final source = prepared.source;
       preparedLease = prepared.lease;
+      if (!current()) {
+        return;
+      }
       final previousLease = _videoCacheLease;
 
       // If we already have a player, try fast URL switching first
@@ -210,18 +232,18 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
                 headers: widget.headers,
               ),
             );
+            if (!current()) return;
 
             if (previouslyPlaying && mounted && !_isDisposing) {
               await player.play();
             }
           } else {
-            await preparedLease?.release();
             return;
           }
 
           _updatePlayerSettings();
 
-          if (mounted && !_isDisposing) {
+          if (current()) {
             _videoCacheLease = preparedLease;
             preparedLease = null;
             _isPreparingSource = false;
@@ -248,15 +270,17 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
       // First initialization or no existing player, create new one
       final oldPlayer = _player;
-      final player = createBooruPlayer(
-        engine: _resolvedEngine,
-        platform: ref.read(appPlatformProvider),
-        fileSystem: ref.read(appFileSystemProvider),
-        userAgent: widget.userAgent,
-      );
+      final player =
+          widget.playerFactory?.call(_resolvedEngine) ??
+          createBooruPlayer(
+            engine: _resolvedEngine,
+            platform: ref.read(appPlatformProvider),
+            fileSystem: ref.read(appFileSystemProvider),
+            userAgent: widget.userAgent,
+          );
 
       if (!player.isPlatformSupported()) {
-        await preparedLease?.release();
+        player.dispose();
         return;
       }
 
@@ -271,6 +295,10 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
           headers: widget.headers,
         ),
       );
+      if (!current()) {
+        player.dispose();
+        return;
+      }
 
       _log(
         widget.logger?.debug,
@@ -279,6 +307,10 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       await player.setVolume(widget.sound ? 1.0 : 0.0);
       await player.setPlaybackSpeed(widget.speed);
       await player.setLooping(true);
+      if (!current()) {
+        player.dispose();
+        return;
+      }
 
       _log(
         widget.logger?.debug,
@@ -306,7 +338,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         }
       });
 
-      if (mounted && !_isDisposing) {
+      if (current()) {
         _log(
           widget.logger?.verbose,
           'Player successfully initialized for URL: ${widget.url}',
@@ -332,21 +364,20 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
           'Player initialized but widget is disposing, cleaning up',
         );
         player.dispose();
-        await preparedLease?.release();
-        preparedLease = null;
       }
     } catch (error) {
-      await preparedLease?.release();
       _log(
         widget.logger?.error,
         'Failed to initialize player for URL: ${widget.url}. Error: $error',
       );
-      if (mounted) {
+      if (current()) {
         setState(() {
           _error = error.toString();
           _isPreparingSource = false;
         });
       }
+    } finally {
+      await preparedLease?.release();
     }
   }
 
@@ -362,14 +393,19 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     _cacheDelayTimer?.cancel();
     _cacheDelayTimer = null;
 
-    // Cancel subscriptions first to stop audio callbacks
-    await _positionSubscription?.cancel();
+    // Capture ownership before yielding. Stream cancellation must not postpone
+    // muting the native player or releasing its local-file lease.
+    final positionCancellation = _positionSubscription?.cancel();
+    final bufferingCancellation = _bufferingSubscription?.cancel();
     _positionSubscription = null;
-    await _bufferingSubscription?.cancel();
     _bufferingSubscription = null;
+    final player = _player;
+    final lease = _videoCacheLease;
+    _player = null;
+    _videoCacheLease = null;
 
     // Immediately mute and stop the player before disposal
-    if (_player case final player?) {
+    if (player != null) {
       try {
         await player.setVolume(0);
         await player.pause();
@@ -380,11 +416,9 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       player.dispose();
     }
 
-    final lease = _videoCacheLease;
-    _videoCacheLease = null;
     await lease?.release();
-
-    _player = null;
+    await positionCancellation;
+    await bufferingCancellation;
     _error = null;
     _isBuffering = false;
   }
@@ -401,6 +435,8 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
   @override
   void dispose() {
+    _sourceGeneration++;
+    _sourceCancellation?.cancel('Video route disposed');
     _log(
       widget.logger?.debug,
       'Disposing BooruVideo widget',
@@ -436,6 +472,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   }
 
   void _scheduleDelayedCaching() {
+    if (widget.sourceLoader != null) return;
     final cacheManager = widget.cacheManager;
     if (cacheManager == null || _cachingUrl == widget.url) return;
 
@@ -527,48 +564,55 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: switch (_currentState) {
-        VideoPlayerReady(
-          :final player,
-          :final thumbnailUrl,
-          :final isBuffering,
-          :final aspectRatio,
-        ) =>
-          _buildMedia(
-            player: player,
-            thumbnailUrl: thumbnailUrl,
-            aspectRatio: aspectRatio,
-            isBuffering: isBuffering,
-          ),
-        VideoPlayerUnsupported() => VideoPlayerErrorContainer(
-          title: context.t.video_player.engine_not_supported,
-          subtitle: context.t.video_player.change_video_player_engine_request,
-          onOpenSettings: widget.onOpenSettings,
-        ),
-        VideoPlayerError(:final error) => VideoPlayerErrorContainer(
-          title: error,
-          subtitle: context.t.video_player.change_video_player_engine_suggest,
-          onOpenSettings: widget.onOpenSettings,
-        ),
-        VideoPlayerLoadingWithThumbnail(
-          :final thumbnailUrl,
-          :final aspectRatio,
-        ) =>
-          _buildMedia(
-            player: null,
-            thumbnailUrl: thumbnailUrl,
-            aspectRatio: aspectRatio,
-          ),
-        VideoPlayerLoading() => const KurumiHero(
-          tag: null,
-          child: SizedBox(
-            height: 24,
-            width: 24,
-            child: CircularProgressIndicator(),
-          ),
-        ),
+    return ContentMediaOutcome(
+      failed: switch (_currentState) {
+        VideoPlayerError() || VideoPlayerUnsupported() => true,
+        VideoPlayerReady() => false,
+        _ => null,
       },
+      child: Center(
+        child: switch (_currentState) {
+          VideoPlayerReady(
+            :final player,
+            :final thumbnailUrl,
+            :final isBuffering,
+            :final aspectRatio,
+          ) =>
+            _buildMedia(
+              player: player,
+              thumbnailUrl: thumbnailUrl,
+              aspectRatio: aspectRatio,
+              isBuffering: isBuffering,
+            ),
+          VideoPlayerUnsupported() => VideoPlayerErrorContainer(
+            title: context.t.video_player.engine_not_supported,
+            subtitle: context.t.video_player.change_video_player_engine_request,
+            onOpenSettings: widget.onOpenSettings,
+          ),
+          VideoPlayerError(:final error) => VideoPlayerErrorContainer(
+            title: error,
+            subtitle: context.t.video_player.change_video_player_engine_suggest,
+            onOpenSettings: widget.onOpenSettings,
+          ),
+          VideoPlayerLoadingWithThumbnail(
+            :final thumbnailUrl,
+            :final aspectRatio,
+          ) =>
+            _buildMedia(
+              player: null,
+              thumbnailUrl: thumbnailUrl,
+              aspectRatio: aspectRatio,
+            ),
+          VideoPlayerLoading() => const KurumiHero(
+            tag: null,
+            child: SizedBox(
+              height: 24,
+              width: 24,
+              child: CircularProgressIndicator(),
+            ),
+          ),
+        },
+      ),
     );
   }
 }

@@ -78,6 +78,7 @@ final genericDioProvider = Provider<Dio>(
 // interceptors, cookies or default credentials.
 final mediaOverrideDioProvider = Provider.autoDispose
     .family<Dio, BooruConfigAuth>((ref, config) {
+      if (config.anonymousReadScope case final scope?) return scope.dio;
       final dio = newDio(
         options: DioOptions(
           ddosProtectionHandler: ref.watch(httpDdosProtectionBypassProvider),

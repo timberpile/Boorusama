@@ -11,10 +11,16 @@ import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
 
 class BookmarkListControls extends ConsumerWidget {
-  const BookmarkListControls({required this.count, this.gridConfig, super.key});
+  const BookmarkListControls({
+    required this.count,
+    this.gridConfig,
+    this.unavailableIndicator,
+    super.key,
+  });
 
   final int count;
   final Widget? gridConfig;
+  final Widget? unavailableIndicator;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -70,6 +76,7 @@ class BookmarkListControls extends ConsumerWidget {
               ),
             ),
           ),
+          ?unavailableIndicator,
           ?gridConfig,
         ],
       ),

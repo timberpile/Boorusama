@@ -3,7 +3,8 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
-import '../../../configs/manage/providers.dart';
+import '../../../configs/manage/widgets.dart';
+import '../../../content/content_access_provider.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
 import '../../../posts/listing/types.dart';
@@ -11,7 +12,6 @@ import '../../../settings/providers.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/pool_bookmark.dart';
-import '../providers/pool_bookmark_provider.dart';
 import 'bookmark_pool_card.dart';
 
 /// A locally saved Group with its own direct Bookmark members.
@@ -250,16 +250,22 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
       autoplayGif: autoplayGif,
     );
     if (imageUrl.isEmpty) return const SizedBox.expand();
-    final imageConfig = resolveBookmarkOriginProfile(
-      bookmark.post.origin,
-      ref.watch(booruConfigProvider),
+    final access = ref.watch(
+      contentAccessForOriginProvider(bookmark.post.origin),
     );
+    final imageConfig = access?.config;
     if (imageConfig == null) return const SizedBox.expand();
-    return BooruImage(
-      imageUrl: imageUrl,
-      config: imageConfig.auth,
-      fit: BoxFit.cover,
-      placeholderWidget: const SizedBox.expand(),
+    return CurrentBooruConfigScope(
+      config: imageConfig,
+      accessKey: access!.key,
+      requireAccess: true,
+      bookmarkId: bookmark.id,
+      child: BooruImage(
+        imageUrl: imageUrl,
+        config: imageConfig.auth,
+        fit: BoxFit.cover,
+        placeholderWidget: const SizedBox.expand(),
+      ),
     );
   }
 }

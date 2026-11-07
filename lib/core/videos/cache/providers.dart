@@ -46,3 +46,26 @@ final videoCacheManagerProvider = Provider<VideoCacheManager?>(
     return manager;
   },
 );
+
+/// Public playback must materialize through the guarded HTTP adapter before a
+/// native player can open it. With retention disabled, its last lease deletes
+/// the payload; this does not enable the user's optional background cache.
+final guardedPlaybackCacheManagerProvider =
+    Provider.autoDispose<VideoCacheManager>((ref) {
+      final configured = ref.watch(videoCacheManagerProvider);
+      if (configured != null) return configured;
+      final fs = ref.watch(appFileSystemProvider);
+      final manager = VideoCacheManager(
+        maxTotalCacheSize: 100 * 1024 * 1024,
+        fileDownloader: FileDownloader(),
+        dio: ref.watch(genericDioProvider),
+        cacheDirName: 'guarded-playback',
+        cacheRootPathProvider: () async {
+          final path = await fs.getTemporaryPath();
+          if (path == null) throw StateError('Playback directory unavailable');
+          return path;
+        },
+      );
+      ref.onDispose(manager.dispose);
+      return manager;
+    });

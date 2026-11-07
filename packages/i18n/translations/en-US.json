@@ -1927,6 +1927,16 @@
     "related": "Related",
     "bookmark_related": "Bookmark Related",
     "related_unavailable": "Related family unavailable",
+    "unavailable_count": {
+      "one": "Unavailable: $n",
+      "other": "Unavailable: $n"
+    },
+    "unavailable_title": "Unavailable bookmarks",
+    "unavailable_account": "A matching profile is required.",
+    "unavailable_ambiguous": "Choose an originating account.",
+    "unavailable_reader": "No supported public reader.",
+    "unavailable_temporary": "Access is temporarily unavailable.",
+    "unavailable_notice": "These bookmarks are still saved and included in exports.",
     "pool_filter_help": "Pool filters use indexed member tags. Large or partially indexed Pools may not reflect every member. Required tags can come from different members; an absent excluded tag does not prove it is absent from the whole Pool.",
     "pool_refresh": "Refresh metadata",
     "pool_unavailable": "This Pool is unavailable under its originating profile. Its bookmark has been kept.",
