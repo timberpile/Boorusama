@@ -140,6 +140,9 @@ class BookmarkImportService {
       return;
     }
     _requireLegacyFixtureRecords(data.records);
+    if (data.groups.any((group) => group.parentGroupId != null)) {
+      throw StateError('Nested Bookmark imports require unified storage');
+    }
     _validateReferences(
       _legacyPools(data.pools),
       data.groups.map((g) => g.id).nonNulls.toSet(),
@@ -230,6 +233,9 @@ class BookmarkImportService {
   }) async {
     if (_unified != null) return _commitUnified(plan, removeIds: removeIds);
     _requireLegacyFixtureRecords(plan.records);
+    if (plan.groups.any((group) => group.parentGroupId != null)) {
+      throw StateError('Nested Bookmark imports require unified storage');
+    }
     if (!plan.isResolved) throw StateError('Import conflicts are unresolved.');
     _validateReferences(
       _legacyPools(plan.pools),

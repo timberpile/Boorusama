@@ -20,16 +20,19 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_target.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
-import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/posts/details_parts/src/toolbars/bookmark_post_button.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 const _groupId = '550e8400-e29b-41d4-a716-446655440000';
-const _folderId = '550e8400-e29b-41d4-a716-446655440001';
+const _otherGroupId = '550e8400-e29b-41d4-a716-446655440002';
+
+String _recentPathGroupId(int index) =>
+    '550e8400-e29b-41d4-a716-4466554400${(index + 3).toString().padLeft(2, '0')}';
 
 void main() {
   for (final likeButton in [false, true]) {
@@ -200,7 +203,7 @@ void main() {
     await tester.pumpAndSettle();
     final hierarchy = find.byKey(const ValueKey('bookmark-picker-hierarchy'));
     final recent = find.byKey(const ValueKey('bookmark-picker-recent'));
-    final create = find.text(
+    final create = find.byTooltip(
       tester
           .element(find.byType(BookmarkGroupPicker))
           .t
@@ -249,14 +252,45 @@ void main() {
         await tester.pumpAndSettle();
         final recent = find.byKey(const ValueKey('bookmark-picker-recent'));
         final name = find.descendant(of: recent, matching: find.text('Saved'));
+        final secondName = find.descendant(
+          of: recent,
+          matching: find.text('A longer recent group name'),
+        );
         final detail = find.descendant(of: recent, matching: find.text(path));
         final row = find.ancestor(
           of: name,
           matching: find.byType(KurumiPopupMenuItem),
         );
+        final splitRow = find.ancestor(
+          of: name,
+          matching: find.byType(BookmarkPickerSplitRow),
+        );
+        expect(
+          tester.getTopLeft(name).dy,
+          lessThan(tester.getTopLeft(secondName).dy),
+          reason: 'Recent rows keep the provider order',
+        );
         final rect = tester.getRect(detail);
-        expect(rect.right, tester.getRect(row).right - 8);
-        expect(rect.width, greaterThan(100));
+        final nameRect = tester.getRect(name);
+        final rowRect = tester.getRect(row);
+        final splitRowRect = tester.getRect(splitRow);
+        // At the popup's 280dp cap the body reserves 80dp for navigation.
+        // Check the actual independent regions instead of a folder-era
+        // absolute text-width budget.
+        expect(nameRect.left, greaterThanOrEqualTo(rowRect.left));
+        expect(nameRect.right, lessThanOrEqualTo(rowRect.right));
+        expect(rect.left, greaterThanOrEqualTo(rowRect.left));
+        expect(rect.right, rowRect.right - 8);
+        expect(rowRect.right, closeTo(splitRowRect.right - 80, .001));
+        expect(rect.width, greaterThan(0));
+        expect(
+          find.byTooltip(path),
+          findsOneWidget,
+          reason: 'The complete path remains available when text is ellipsized',
+        );
+        final detailText = tester.widget<legacy.Text>(detail);
+        expect(detailText.maxLines, 1);
+        expect(detailText.overflow, legacy.TextOverflow.ellipsis);
         double baseline(Finder finder) {
           final box = tester.renderObject<RenderBox>(finder);
           return tester.getTopLeft(finder).dy +
@@ -330,6 +364,7 @@ Future<_Library> _pump(
   double textScale = 1,
 }) async {
   final bookmark = PostBookmark.empty.copyWith(
+    id: 1,
     sourceUrl: 'https://example.com',
     originalUrl: 'https://example.com/1.jpg',
     postId: () => 1,
@@ -337,11 +372,13 @@ Future<_Library> _pump(
   final saved = BookmarkGroup(
     id: _groupId,
     name: 'Saved',
-    folderId: recent ? _folderId : null,
+    parentGroupId: recent
+        ? _recentPathGroupId(recentFolderName.split(' / ').length - 1)
+        : null,
     bookmarkIds: memberships > 0 ? {bookmark.id} : const {},
   );
   final other = BookmarkGroup(
-    id: '550e8400-e29b-41d4-a716-446655440002',
+    id: _otherGroupId,
     name: twoRecentGroups ? 'A longer recent group name' : 'Other',
     bookmarkIds: memberships > 1 ? {bookmark.id} : const {},
   );
@@ -349,18 +386,23 @@ Future<_Library> _pump(
     BookmarkLibraryState(
       bookmarks: memberships > 0 ? [bookmark] : [],
       groups: [
+        if (recent)
+          for (final (index, name) in recentFolderName.split(' / ').indexed)
+            BookmarkGroup(
+              id: _recentPathGroupId(index),
+              name: name,
+              parentGroupId: index == 0 ? null : _recentPathGroupId(index - 1),
+              bookmarkIds: const {},
+            ),
         saved,
         if (includeEmptyGroup || memberships > 1) other,
         if (manyGroups)
           for (var i = 10; i < 30; i++)
             BookmarkGroup(
-              id: '550e8400-e29b-41d4-a716-4466554400$i',
+              id: _recentPathGroupId(i + 20),
               name: 'Group $i',
               bookmarkIds: const {},
             ),
-      ],
-      folders: [
-        if (recent) CollectionFolder(id: _folderId, name: recentFolderName),
       ],
     ),
   );
@@ -457,7 +499,6 @@ class _Library extends BookmarkLibraryNotifier {
               bookmark,
         ],
         groups: groups,
-        folders: current.folders,
       ),
     );
     return added ? BookmarkToggleOutcome.added : BookmarkToggleOutcome.removed;

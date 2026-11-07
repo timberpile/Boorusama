@@ -1,4 +1,6 @@
-import 'package:boorusama/core/bookmarks/src/widgets/bookmark_appbar.dart';
+import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_hierarchy_conversion.dart';
+import 'package:uuid/uuid.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 
@@ -244,7 +246,7 @@ void main() {
   }
 
   testWidgets(
-    'nested bookmark groups render literal leaf names and restore breadcrumb history',
+    'nested bookmark groups render literal leaf names and restore ancestor navigation',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 700));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -292,6 +294,14 @@ void main() {
         findsNothing,
       );
       expect(tester.takeException(), isNull);
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is KurumiPopupMenuButton &&
+              widget.semanticLabel == 'Go to ancestor',
+        ),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Home'));
       await tester.pumpAndSettle();
       expect(find.text('Bookmark Groups'), findsOneWidget);
@@ -316,9 +326,17 @@ void main() {
             controller: controller,
             bookmarkNotifier: _CacheBookmarkNotifier(
               BookmarkLibraryState(
-                bookmarks: const [],
+                bookmarks: [
+                  PostBookmark.empty.copyWith(
+                    id: 1,
+                    postId: () => 42,
+                    sourceUrl: _config.url,
+                    width: 1200,
+                    height: 1200,
+                  ),
+                ],
                 groups: [
-                  BookmarkGroup(id: id, name: title, bookmarkIds: const {}),
+                  BookmarkGroup(id: id, name: title, bookmarkIds: const {1}),
                 ],
               ),
             ),
@@ -348,7 +366,7 @@ void main() {
         expect(titleRect.bottom, lessThanOrEqualTo(24 + kToolbarHeight));
         expect(searchRect.top, 24 + kToolbarHeight);
         expect(titleRect.overlaps(searchRect), isFalse);
-        final appBar = find.byType(BookmarkAppBar);
+        final appBar = find.byType(KurumiAppBar);
         expect(tester.getSize(appBar).height, 24 + kToolbarHeight);
         expect(tester.getRect(appBar).bottom, searchRect.top);
         expect(tester.takeException(), isNull);
@@ -419,7 +437,17 @@ void main() {
       expect(search, findsOneWidget);
       expect(find.text('Source: All'), findsOneWidget);
       expect(find.text('Newest'), findsOneWidget);
-      expect(tester.widget<AppBar>(find.byType(AppBar).first).actions, isNull);
+      if (view.kind == BookmarkViewKind.all) {
+        expect(
+          tester.widget<AppBar>(find.byType(AppBar).first).actions,
+          isNull,
+        );
+      } else {
+        expect(
+          tester.widget<AppBar>(find.byType(AppBar).first).actions,
+          isNotEmpty,
+        );
+      }
       final pageContext = tester.element(find.byType(BookmarkSearchBar));
       final container = ProviderScope.containerOf(pageContext);
       final controller = PostScope.of<Post>(pageContext);
@@ -1298,6 +1326,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
+      miscDataStoreProvider.overrideWith((ref) => _ViewModeStore()),
       ...?bookmarkStorage?.overrides,
       settingsNotifierProvider.overrideWith(
         () =>
@@ -1645,7 +1674,8 @@ final class _CodecRegistry extends BooruEngineRegistry {
 }
 
 class _CacheBookmarkNotifier extends BookmarkLibraryNotifier {
-  _CacheBookmarkNotifier(this.library);
+  _CacheBookmarkNotifier(BookmarkLibraryState input)
+    : library = _hierarchyFixture(input);
   final BookmarkLibraryState library;
   @override
   FutureOr<BookmarkLibraryState> build() => library;
@@ -1675,4 +1705,59 @@ class _PreviewSettingsNotifier extends SettingsNotifier {
     state = selector(state);
     return true;
   }
+}
+
+class _ViewModeStore implements MiscDataStore {
+  final _values = <String, String>{};
+  @override
+  String? get(String key) => _values[key];
+  @override
+  Future<void> put(String key, String value) async {
+    _values[key] = value;
+  }
+}
+
+BookmarkLibraryState _hierarchyFixture(BookmarkLibraryState input) {
+  if (input.folders.isEmpty) return input;
+  final ids = {
+    for (final folder in input.folders)
+      folder.id: Uuid.isValidUUID(fromString: folder.id)
+          ? folder.id
+          : const Uuid().v5(
+              Namespace.url.value,
+              'details-hierarchy-fixture/${folder.id}',
+            ),
+  };
+  final converted = BookmarkHierarchyConversion.convert(
+    folders: [
+      for (final folder in input.folders)
+        CollectionFolder(
+          id: ids[folder.id]!,
+          name: folder.name,
+          parentId: ids[folder.parentId],
+          position: folder.position,
+        ),
+    ],
+    groups: [
+      for (final group in input.groups)
+        BookmarkGroup(
+          id: group.id,
+          name: group.name,
+          bookmarkIds: group.bookmarkIds,
+          addedAt: group.addedAt,
+          folderId: ids[group.folderId],
+          position: group.position,
+        ),
+    ],
+  );
+  return BookmarkLibraryState(
+    bookmarks: input.items,
+    records: input.hasUnifiedRecords ? input.records : null,
+    groups: converted.groups,
+    pools: input.pools,
+    legacyFolderGroupIds: {
+      for (final entry in ids.entries)
+        entry.key: converted.folderIdMapping[entry.value]!,
+    },
+  );
 }

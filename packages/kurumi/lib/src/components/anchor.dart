@@ -18,6 +18,7 @@ class KurumiAnchor extends StatefulWidget {
     this.backgroundColor,
     this.onShow,
     this.onHide,
+    this.onBack,
     this.spacing,
     this.backdropColor,
     this.reduceAnimation,
@@ -31,6 +32,9 @@ class KurumiAnchor extends StatefulWidget {
   final Color? backgroundColor;
   final VoidCallback? onShow;
   final VoidCallback? onHide;
+
+  /// Optional nested navigation owned by the visible popup.
+  final VoidCallback? onBack;
   final double? spacing;
   final Color? backdropColor;
   final bool? reduceAnimation;
@@ -99,7 +103,7 @@ class _KurumiAnchorState extends State<KurumiAnchor>
       listenable: widget.controller,
       builder: (context, child) => KurumiBackHandler(
         enabled: widget.controller.isShowing,
-        onBack: widget.controller.hide,
+        onBack: widget.onBack ?? widget.controller.hide,
         child: child!,
       ),
       child: RawAnchor(

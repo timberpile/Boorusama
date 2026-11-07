@@ -101,6 +101,14 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
     _focusNode.unfocus();
   }
 
+  double _navigationHeaderBottom() {
+    if (widget.view.kind == BookmarkViewKind.all) return 0;
+    final scaffold = Scaffold.maybeOf(context);
+    final box = scaffold?.context.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return 0;
+    return box.localToGlobal(Offset.zero).dy + (scaffold?.appBarMaxHeight ?? 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Retain the scoped index while the bar is mounted, not only while an
@@ -138,6 +146,7 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                           ? ClipPath(
                               clipper: _SearchBackdropClipper(
                                 AnchorData.of(context).geometry.childBounds,
+                                headerBottom: _navigationHeaderBottom(),
                               ),
                               child: const ColoredBox(color: Colors.black54),
                             )
@@ -180,6 +189,13 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
                         ),
                       ),
                       child: BooruSearchBar(
+                        hintText: switch (widget.view.kind) {
+                          BookmarkViewKind.all => context.t.search.hint,
+                          BookmarkViewKind.group =>
+                            context.t.bookmark.groups.search_direct,
+                          BookmarkViewKind.subtree =>
+                            context.t.bookmark.groups.search_subtree,
+                        },
                         focus: _focusNode,
                         controller: _search.draft,
                         // The popover handles outside taps, including keeping
@@ -266,26 +282,33 @@ class _BookmarkSearchBarState extends ConsumerState<BookmarkSearchBar> {
 }
 
 class _SearchBackdropClipper extends CustomClipper<Path> {
-  const _SearchBackdropClipper(this.fieldBounds);
+  const _SearchBackdropClipper(this.fieldBounds, {this.headerBottom = 0});
 
   final Rect? fieldBounds;
+  final double headerBottom;
 
   @override
   Path getClip(Size size) {
-    final path = Path()..addRect(Offset.zero & size);
+    final top = headerBottom.clamp(0.0, size.height);
+    final area = Rect.fromLTWH(0, top, size.width, size.height - top);
+    final path = Path()..addRect(area);
     if (fieldBounds case final bounds?) {
       // The popover covers the screen, but the field's controls must remain
       // reachable while autocomplete is open.
-      path
-        ..fillType = PathFillType.evenOdd
-        ..addRect(bounds);
+      final field = bounds.intersect(area);
+      if (!field.isEmpty) {
+        path
+          ..fillType = PathFillType.evenOdd
+          ..addRect(field);
+      }
     }
     return path;
   }
 
   @override
   bool shouldReclip(_SearchBackdropClipper oldClipper) =>
-      fieldBounds != oldClipper.fieldBounds;
+      fieldBounds != oldClipper.fieldBounds ||
+      headerBottom != oldClipper.headerBottom;
 }
 
 class _BookmarkSuggestions extends StatelessWidget {

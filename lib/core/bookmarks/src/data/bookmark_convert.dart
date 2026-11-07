@@ -54,10 +54,16 @@ PostBookmark _mapBookmark(
   }
   final createdAt = row.createdAtMicros == null
       ? row.createdAt
-      : DateTime.fromMicrosecondsSinceEpoch(row.createdAtMicros!, isUtc: true);
+      : DateTime.fromMicrosecondsSinceEpoch(
+          row.createdAtMicros!,
+          isUtc: row.createdAt?.isUtc ?? true,
+        );
   final updatedAt = row.updatedAtMicros == null
       ? row.updatedAt
-      : DateTime.fromMicrosecondsSinceEpoch(row.updatedAtMicros!, isUtc: true);
+      : DateTime.fromMicrosecondsSinceEpoch(
+          row.updatedAtMicros!,
+          isUtc: row.updatedAt?.isUtc ?? true,
+        );
   if (createdAt == null || updatedAt == null) {
     throw const FormatException('Missing bookmark dates');
   }

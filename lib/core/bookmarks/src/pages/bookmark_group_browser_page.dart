@@ -1,60 +1,47 @@
-import '../widgets/bookmark_pool_card.dart';
-import '../types/pool_bookmark.dart';
-import '../../../selection/collection_selection_bar.dart';
-import '../../../widgets/multi_select_button.dart';
-import '../../../widgets/popup_menu_action_label.dart';
-import '../types/bookmark_library_state.dart';
-import '../../../selection/ordered_selection_canvas.dart';
-
 import 'package:flutter/services.dart';
-
-import '../../../selection/collection_selection.dart';
-import '../../../selection/ordered_selection_controller.dart';
-import '../../../selection/selection_input.dart';
-import '../../../navigation/navigation_interaction_scopes.dart';
-
-import 'package:foundation/performance.dart';
-
-import '../../../../foundation/performance/performance_navigation.dart';
-
-// Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
 
-// Project imports:
-import '../data/bookmark_group_name_filter.dart';
-import '../widgets/bookmark_overview_filter.dart';
-import '../widgets/bookmark_group_label.dart';
-import '../widgets/bookmark_collection_deletion_summary.dart';
-import '../../../configs/config/providers.dart';
-import '../../../configs/config/types.dart';
-import '../../../images/booru_image.dart';
-import '../../../posts/listing/types.dart';
-import '../../../settings/providers.dart';
+import '../../../../foundation/performance/performance_navigation.dart';
+import '../../../navigation/navigation_interaction_scopes.dart';
+import '../../../selection/collection_selection.dart';
+import '../../../selection/collection_selection_bar.dart';
+import '../../../selection/ordered_selection_canvas.dart';
+import '../../../selection/ordered_selection_controller.dart';
+import '../../../selection/selection_input.dart';
+import '../../../widgets/multi_select_button.dart';
+import '../../../widgets/widgets.dart';
 import '../providers/bookmark_group_selectors.dart';
+import '../providers/bookmark_group_view_preferences.dart';
 import '../providers/bookmark_provider.dart';
-import '../../../groups/folder_tree.dart';
-import '../../../groups/folder_navigation.dart';
-import '../services/bookmark_library_service.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
+import '../services/bookmark_library_service.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
+import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
+import '../types/pool_bookmark.dart';
+import '../widgets/bookmark_collection_deletion_summary.dart';
+import '../widgets/bookmark_group_destination_picker.dart';
+import '../widgets/bookmark_group_label.dart';
 import '../widgets/bookmark_group_name_dialog.dart';
-import '../widgets/bookmark_collection_order.dart';
+import '../widgets/bookmark_local_group_card.dart';
+import '../widgets/bookmark_scroll_view.dart';
 
+export '../widgets/bookmark_local_group_card.dart'
+    show BookmarkGroupPreviewGrid, bookmarkGroupPreviewUrl;
+
+/// Home and ordinary groups share navigation and the same timeline surface.
 class BookmarkGroupBrowserPage extends ConsumerStatefulWidget {
-  const BookmarkGroupBrowserPage({this.folderId, super.key})
-    : _ancestorRoutes = const {};
-  const BookmarkGroupBrowserPage._nested({
-    required this.folderId,
-    required Map<String?, Route<dynamic>> ancestorRoutes,
-  }) : _ancestorRoutes = ancestorRoutes;
-  final Map<String?, Route<dynamic>> _ancestorRoutes;
+  const BookmarkGroupBrowserPage({this.groupId, this.folderId, super.key});
+  final String? groupId;
+  // Transitional route input; resolved through the persisted conversion alias.
   final String? folderId;
   @override
   ConsumerState<BookmarkGroupBrowserPage> createState() =>
@@ -63,64 +50,21 @@ class BookmarkGroupBrowserPage extends ConsumerStatefulWidget {
 
 class _BookmarkGroupBrowserPageState
     extends ConsumerState<BookmarkGroupBrowserPage> {
-  // Imports or another browser can remove the open folder. Fall back to Home.
-  String? get _folderId {
-    final id = widget.folderId;
-    final folders = ref.read(bookmarkProvider).valueOrNull?.folders;
-    return folders?.any((f) => f.id == id) == true ? id : null;
-  }
-
+  late String? _requestedId = widget.groupId ?? widget.folderId;
+  List<String> _lastPath = const [];
+  AsyncValue<BookmarkLibraryState>? _visibleLibrary;
+  final _search = TextEditingController();
   final _selection = OrderedSelectionController<CollectionSelectionKey>();
-  final _scroll = ScrollController();
-  final _filter = TextEditingController();
-  var _filterVisible = false;
-  String _lastFilter = '';
-  bool _matches(String name) => bookmarkGroupNameMatches(name, _filter.text);
-  Set<String> _matchingFolders(BookmarkLibraryState state) =>
-      bookmarkMatchingFolderIds(
-        folders: state.folders,
-        matchingGroupFolderIds: state.groups
-            .where((group) => _matches(group.displayName(context)))
-            .map((group) => group.folderId),
-        query: _filter.text,
-      );
-
-  void _toggleFilter() {
-    setState(() => _filterVisible = !_filterVisible);
-    if (!_filterVisible) {
-      _filter.clear();
-      FocusScope.of(context).unfocus();
-    }
-  }
-
+  final _scrolls = <Object, AutoScrollController>{};
+  final _previews = <String, List<PostBookmark>>{};
+  final _poolPreviews = <String, List<CollectionBookmark>>{};
   (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
   _previewInputs;
-  final _previews = <BookmarkView, List<PostBookmark>>{};
-  final _poolPreviews = <BookmarkView, List<CollectionBookmark>>{};
-  AsyncValue<BookmarkLibraryState>? _visibleLibrary;
-  Set<String> get _selectedGroups => {
-    for (final (kind, id) in _selection.selectedKeys)
-      if (kind == CollectionSelectionKind.group) id,
-  };
-  Set<String> get _selectedFolders => {
-    for (final (kind, id) in _selection.selectedKeys)
-      if (kind == CollectionSelectionKind.folder) id,
-  };
-  bool get _selecting => _selection.isActive;
+
   @override
   void initState() {
     super.initState();
     _selection.addListener(_selectionChanged);
-    _filter.addListener(_filterChanged);
-  }
-
-  void _filterChanged() {
-    if (_lastFilter == _filter.text) return;
-    _lastFilter = _filter.text;
-    // Hidden cards must never remain selected for a destructive bulk action.
-    _selection.disable();
-    setState(() {});
-    if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
   void _selectionChanged() {
@@ -129,19 +73,36 @@ class _BookmarkGroupBrowserPageState
 
   @override
   void dispose() {
-    _filter.removeListener(_filterChanged);
-    _filter.dispose();
     _selection.removeListener(_selectionChanged);
     _selection.dispose();
-    _scroll.dispose();
+    _search.dispose();
+    for (final scroll in _scrolls.values) {
+      scroll.dispose();
+    }
     super.dispose();
   }
 
-  void _select(String id, {bool folder = false}) {
-    final index = _selection.indexOf((
-      folder ? CollectionSelectionKind.folder : CollectionSelectionKind.group,
-      id,
-    ));
+  String? _currentId(BookmarkLibraryState? state) {
+    if (state == null) return _requestedId;
+    final resolved = state.legacyFolderGroupIds[_requestedId] ?? _requestedId;
+    if (state.groupsById.containsKey(resolved)) return resolved;
+    // A removed open node returns to its nearest surviving ancestor.
+    return _lastPath.reversed.where(state.groupsById.containsKey).firstOrNull;
+  }
+
+  void _open(String? id) {
+    if (id == _currentId(ref.read(bookmarkProvider).valueOrNull)) return;
+    _selection.disable();
+    FocusScope.of(context).unfocus();
+    _search.clear();
+    setState(() {
+      _requestedId = id;
+      _lastPath = const [];
+    });
+  }
+
+  void _select(String id) {
+    final index = _selection.indexOf((CollectionSelectionKind.group, id));
     if (index == null) return;
     _selection.click(
       index,
@@ -150,541 +111,530 @@ class _BookmarkGroupBrowserPageState
     );
   }
 
-  void _openFolder(String? id) {
-    if (id == _folderId) return;
-    final navigator = Navigator.of(context);
-    final previous = widget._ancestorRoutes[id];
-    if (previous != null) {
-      navigator.popUntil((route) => route == previous);
-      return;
+  @override
+  Widget build(BuildContext context) {
+    final visible = TickerMode.of(context);
+    final AsyncValue<BookmarkLibraryState> library = visible
+        ? ref.watch(bookmarkProvider)
+        : (_visibleLibrary ?? ref.read(bookmarkProvider));
+    if (visible || _visibleLibrary == null) _visibleLibrary = library;
+    final state = library.valueOrNull;
+    final id = _currentId(state);
+    final group = state?.groupsById[id];
+    final children = state?.groupTree.childrenOf(id) ?? const <BookmarkGroup>[];
+    final ordinaryChildren = children
+        .where((child) => !child.isDefault)
+        .toList();
+    if (id != null && state != null) {
+      _lastPath = [
+        for (final ancestor in state.groupTree.ancestors(id)) ancestor.id,
+      ];
     }
-    final currentRoute = ModalRoute.of(context);
-    navigator.push(
-      MaterialPageRoute<void>(
-        builder: (_) => BookmarkGroupBrowserPage._nested(
-          folderId: id,
-          ancestorRoutes: {
-            ...widget._ancestorRoutes,
-            _folderId: ?currentRoute,
+    final storedMode =
+        ref.watch(bookmarkGroupViewPreferencesProvider)[id] ??
+        BookmarkGroupViewMode.structure;
+    final mode = ordinaryChildren.isEmpty
+        ? BookmarkGroupViewMode.structure
+        : storedMode;
+    final view = id == null
+        ? null
+        : mode == BookmarkGroupViewMode.allBookmarks
+        ? BookmarkView.subtree(id)
+        : BookmarkView.group(id);
+    final scope = (id, mode);
+    final scroll = _scrolls.putIfAbsent(scope, AutoScrollController.new);
+    _selection.reconcileDuringBuild([
+      for (final child in ordinaryChildren)
+        (CollectionSelectionKind.group, child.id),
+    ], scope: scope);
+    final selected = {
+      for (final (_, selectedId) in _selection.selectedKeys) selectedId,
+    };
+    final title =
+        group?.displayName(context) ?? context.t.bookmark.groups.selector;
+    void up() => _open(group?.parentGroupId);
+
+    return PopScope(
+      canPop: id == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_selection.isActive) up();
+      },
+      child: CollectionSelection(
+        controller: _selection,
+        scrollController: scroll,
+        child: NavigationSelectionBridge(
+          controller: _selection,
+          selected: _selection.isActive,
+          child: PerformanceScreenScope(
+            screen: PerfScreen.bookmarkGroups,
+            priority: 2,
+            child: CustomContextMenuOverlay(
+              child: Scaffold(
+                appBar: KurumiAppBar(
+                  leading: id == null ? null : BackButton(onPressed: up),
+                  title: id == null || state == null
+                      ? Text(title)
+                      : KurumiPopupMenuButton(
+                          semanticLabel:
+                              context.t.bookmark.groups.choose_ancestor,
+                          maxWidth: 280,
+                          items: [_ancestorMenu(state, id, title)],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(child: KurumiFittedText(Text(title))),
+                              const Icon(Icons.arrow_drop_down),
+                            ],
+                          ),
+                        ),
+                  actions: [
+                    if (id != null && ordinaryChildren.isNotEmpty)
+                      IconButton(
+                        key: const Key('bookmark-group-view-mode'),
+                        tooltip: mode == BookmarkGroupViewMode.structure
+                            ? context.t.bookmark.groups.structure
+                            : context.t.bookmark.groups.all_bookmarks,
+                        isSelected: mode == BookmarkGroupViewMode.allBookmarks,
+                        icon: Icon(
+                          mode == BookmarkGroupViewMode.structure
+                              ? Icons.account_tree_outlined
+                              : Icons.view_module_outlined,
+                        ),
+                        onPressed: () => _setMode(
+                          id,
+                          mode == BookmarkGroupViewMode.structure
+                              ? BookmarkGroupViewMode.allBookmarks
+                              : BookmarkGroupViewMode.structure,
+                        ),
+                      ),
+                    KurumiPopupMenuButton(
+                      enabled: state != null,
+                      semanticLabel: context.t.generic.action.more,
+                      items: [
+                        KurumiPopupMenuItem(
+                          title: Text(context.t.bookmark.groups.add),
+                          icon: const Icon(Icons.add),
+                          onTap: () => _create(id),
+                        ),
+                        if (group != null && !group.isDefault) ...[
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.bookmark.groups.rename),
+                            onTap: () => _rename(group),
+                          ),
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.folders.move),
+                            onTap: () => _move({group.id}, id),
+                          ),
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.bookmark.groups.duplicate),
+                            onTap: () => _duplicate([group]),
+                          ),
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.generic.action.delete),
+                            onTap: () => _delete({group.id}),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: !_selection.isActive
+                    ? null
+                    : CollectionSelectionBar(
+                        controller: _selection,
+                        actions: [
+                          MultiSelectButton(
+                            name: context.t.folders.move,
+                            icon: const Icon(Icons.drive_file_move_outline),
+                            onPressed: () => _move(selected, id),
+                          ),
+                          if (selected.length == 1)
+                            MultiSelectButton(
+                              name: context.t.bookmark.groups.rename,
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () =>
+                                  _rename(state!.groupsById[selected.single]!),
+                            ),
+                          MultiSelectButton(
+                            name: context.t.bookmark.groups.duplicate,
+                            icon: const Icon(Icons.copy),
+                            onPressed: () => _duplicate([
+                              for (final selectedId in selected)
+                                state!.groupsById[selectedId]!,
+                            ]),
+                          ),
+                          MultiSelectButton(
+                            primary: true,
+                            name: context.t.generic.action.delete,
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: () => _delete(selected),
+                          ),
+                        ],
+                      ),
+                body: SafeArea(
+                  top: false,
+                  child: library.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (_, _) =>
+                        const Center(child: Icon(Icons.error_outline)),
+                    data: (state) {
+                      _updatePreviewInputs(state);
+                      final cards = _cards(
+                        state,
+                        id,
+                        ordinaryChildren,
+                        selected,
+                      );
+                      final slivers = <Widget>[
+                        if (mode == BookmarkGroupViewMode.structure &&
+                            (id == null || ordinaryChildren.isNotEmpty))
+                          cards,
+                        if (id != null &&
+                            mode == BookmarkGroupViewMode.structure &&
+                            ordinaryChildren.isNotEmpty)
+                          const SliverToBoxAdapter(
+                            child: Divider(
+                              indent: 12,
+                              endIndent: 12,
+                              height: 1,
+                            ),
+                          ),
+                      ];
+                      final genuinelyEmpty =
+                          view != null &&
+                          state.bookmarkIdsForView(view).isEmpty &&
+                          (state.hasUnifiedRecords ||
+                              !state.pools.any(
+                                (pool) => pool.groupIds.contains(id),
+                              ));
+                      if (id == null || genuinelyEmpty) {
+                        return OrderedSelectionCanvas(
+                          controller: _selection,
+                          child: CustomScrollView(
+                            key: PageStorageKey(scope),
+                            controller: scroll,
+                            slivers: [
+                              ...slivers,
+                              if (genuinelyEmpty)
+                                SliverToBoxAdapter(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Text(context.t.bookmark.none),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      }
+                      return BookmarkScrollView(
+                        key: ValueKey(scope),
+                        scrollController: scroll,
+                        searchController: _search,
+                        view: view!,
+                        title: title,
+                        leadingSlivers: slivers,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _ancestorMenu(BookmarkLibraryState state, String id, String title) {
+    final ancestors = state.groupTree.ancestors(id);
+    final media = MediaQuery.of(context);
+    return ConstrainedBox(
+      constraints: BoxConstraints(
+        maxHeight:
+            (media.size.height -
+                    media.viewInsets.bottom -
+                    media.padding.vertical)
+                .clamp(0.0, double.infinity) *
+            .6,
+      ),
+      child: SizedBox(
+        width: 280,
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: ancestors.length + 2,
+          itemBuilder: (context, index) {
+            if (index == 0)
+              return KurumiPopupMenuItem(
+                title: Text(context.t.sideMenu.home),
+                icon: const Icon(Icons.home_outlined),
+                onTap: () => _open(null),
+              );
+            if (index == ancestors.length + 1)
+              return KurumiPopupMenuItem(
+                title: Text(title),
+                trailing: const Icon(Icons.check),
+                onTap: null,
+              );
+            final ancestor = ancestors[index - 1];
+            return KurumiPopupMenuItem(
+              title: Text(ancestor.displayName(context)),
+              onTap: () => _open(ancestor.id),
+            );
           },
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final visible = TickerMode.of(context);
-    final AsyncValue<BookmarkLibraryState> library = visible
-        ? ref.watch(bookmarkProvider)
-        : _visibleLibrary ?? ref.read(bookmarkProvider);
-    // Covered routes retain their previews until visible again. Refiltering
-    // every group here would otherwise run during grid and viewer mutations.
-    if (visible || _visibleLibrary == null) _visibleLibrary = library;
-    if (library.valueOrNull case final state?) {
-      final matchingFolders = _matchingFolders(state);
-      final folders = bookmarkFoldersByName(
-        FolderTree(state.folders)
-            .children(_folderId)
-            .where(
-              (folder) => matchingFolders.contains(folder.id),
-            ),
-      );
-      final groups = bookmarkGroupsByName(
-        state.groups.where(
-          (g) =>
-              !g.isDefault &&
-              g.folderId == _folderId &&
-              _matches(g.displayName(context)),
-        ),
-      );
-      _selection.reconcileDuringBuild([
-        for (final folder in folders)
-          (CollectionSelectionKind.folder, folder.id),
-        for (final group in groups) (CollectionSelectionKind.group, group.id),
-      ], scope: _folderId);
+  void _updatePreviewInputs(BookmarkLibraryState state) {
+    final inputs = (
+      state,
+      ref.watch(selectedBookmarkSortTypeProvider),
+      ref.watch(bookmarkShuffleProvider),
+    );
+    final old = _previewInputs;
+    if (old == null ||
+        !identical(old.$1, state) ||
+        old.$2 != inputs.$2 ||
+        old.$3 != inputs.$3) {
+      _previewInputs = inputs;
+      _previews.clear();
+      _poolPreviews.clear();
     }
-    return CollectionSelection(
-      controller: _selection,
-      scrollController: _scroll,
-      child: NavigationSelectionBridge(
-        controller: _selection,
-        selected: _selecting,
-        child: PerformanceScreenScope(
-          screen: PerfScreen.bookmarkGroups,
-          priority: 2,
-          child: Scaffold(
-            appBar: KurumiAppBar(
-              title: Text(
-                library.valueOrNull?.folders
-                        .where((f) => f.id == _folderId)
-                        .firstOrNull
-                        ?.name ??
-                    context.t.bookmark.groups.selector,
-              ),
-              actions: [
-                if (!_selecting)
-                  IconButton(
-                    key: const Key('bookmark-group-filter-toggle'),
-                    tooltip: _filterVisible
-                        ? context.t.generic.action.cancel
-                        : context.t.generic.action.search,
-                    onPressed: _toggleFilter,
-                    icon: Icon(
-                      _filterVisible ? Icons.search_off : Icons.search,
-                    ),
-                  ),
-                if (!_selecting)
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert),
-                    tooltip: context.t.generic.action.more,
-                    onSelected: (action) => switch (action) {
-                      'folder' => _createFolder(),
-                      'group' => _create(context, ref),
-                      _ => null,
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: 'folder',
-                        child: PopupMenuActionLabel(
-                          icon: Icons.create_new_folder_outlined,
-                          label: context.t.bookmark.groups.add_folder,
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'group',
-                        child: PopupMenuActionLabel(
-                          icon: Icons.bookmark_add_outlined,
-                          label: context.t.bookmark.groups.add,
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
-            ),
-            bottomNavigationBar: _selecting && library.valueOrNull != null
-                ? CollectionSelectionBar(
-                    controller: _selection,
-                    actions: _selectionActions(library.requireValue),
-                  )
-                : null,
-            body: SafeArea(
-              top: false,
-              child: library.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, _) => const Center(child: Icon(Icons.error_outline)),
-                data: (state) {
-                  final sort = ref.watch(selectedBookmarkSortTypeProvider);
-                  final shuffle = ref.watch(bookmarkShuffleProvider);
-                  final tree = FolderTree(state.folders);
-                  final matchingFolders = _matchingFolders(state);
-                  final folders = bookmarkFoldersByName(
-                    tree
-                        .children(_folderId)
-                        .where(
-                          (folder) => matchingFolders.contains(folder.id),
-                        ),
-                  );
-                  final groups = bookmarkGroupsByName(
-                    state.groups.where(
-                      (g) =>
-                          !g.isDefault &&
-                          g.folderId == _folderId &&
-                          _matches(g.displayName(context)),
-                    ),
-                  );
-                  final inputs = (state, sort, shuffle);
-                  final previous = _previewInputs;
-                  if (previous == null ||
-                      !identical(previous.$1, state) ||
-                      previous.$2 != sort ||
-                      previous.$3 != shuffle) {
-                    _previewInputs = inputs;
-                    _previews.clear();
-                    _poolPreviews.clear();
-                  }
-                  List<PostBookmark> previews(BookmarkView view) =>
-                      _previews.putIfAbsent(
-                        view,
-                        () => selectBookmarkPreviews(
-                          state: state,
-                          view: view,
-                          sortType: sort,
-                          shuffleState: shuffle,
-                        ),
-                      );
-                  List<CollectionBookmark> poolPreviews(BookmarkView view) =>
-                      _poolPreviews.putIfAbsent(
-                        view,
-                        () => state.pools
-                            .where(
-                              (pool) =>
-                                  view.kind == BookmarkViewKind.all ||
-                                  pool.groupIds.contains(view.groupId),
-                            )
-                            .take(4)
-                            .toList(),
-                      );
-                  Widget specialView(
-                    String title,
-                    BookmarkView view, {
-                    BookmarkGroup? group,
-                  }) => _GroupCard(
-                    title: title,
-                    previews: previews(view),
-                    pools: poolPreviews(view),
-                    group: group,
-                    onTap: (_selecting || selectionModifierPressed)
-                        ? null
-                        : () => goToBookmarkGroupPage(ref, view, title: title),
-                    onRename: null,
-                    onDuplicate: null,
-                    onDelete: null,
-                  );
-                  final defaultGroup = state.groupsById[defaultBookmarkGroupId];
-                  final specialCards = <Widget>[
-                    if (_folderId == null) ...[
-                      if (_matches(context.t.bookmark.groups.all))
-                        specialView(
-                          context.t.bookmark.groups.all,
-                          const BookmarkView.all(),
-                        ),
-                      if (defaultGroup != null &&
-                          _matches(defaultGroup.displayName(context)))
-                        specialView(
-                          defaultGroup.displayName(context),
-                          const BookmarkView.defaultGroup(),
-                          group: defaultGroup,
-                        ),
-                    ],
-                  ];
-                  final noMatches =
-                      _filter.text.trim().isNotEmpty &&
-                      specialCards.isEmpty &&
-                      folders.isEmpty &&
-                      groups.isEmpty;
-                  return Column(
-                    children: [
-                      if (_filterVisible)
-                        BookmarkOverviewFilter(controller: _filter),
-                      if (_folderId != null)
-                        FolderBreadcrumbs(
-                          tree: tree,
-                          currentId: _folderId,
-                          onOpen: _openFolder,
-                        ),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final delegate =
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount:
-                                      switch (constraints.maxWidth) {
-                                        < 500 => 2,
-                                        < 850 => 3,
-                                        _ => 4,
-                                      },
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 12,
-                                );
-                            return OrderedSelectionCanvas(
-                              controller: _selection,
-                              child: CustomScrollView(
-                                controller: _scroll,
-                                keyboardDismissBehavior:
-                                    ScrollViewKeyboardDismissBehavior.onDrag,
-                                slivers: [
-                                  if (noMatches)
-                                    SliverFillRemaining(
-                                      hasScrollBody: false,
-                                      child: BookmarkOverviewNoMatches(
-                                        onClear: _filter.clear,
-                                      ),
-                                    ),
-                                  if (specialCards.isNotEmpty) ...[
-                                    SliverPadding(
-                                      padding: const EdgeInsets.all(12),
-                                      sliver: SliverGrid(
-                                        gridDelegate: delegate,
-                                        delegate: SliverChildListDelegate(
-                                          specialCards,
-                                        ),
-                                      ),
-                                    ),
-                                    const SliverToBoxAdapter(
-                                      child: Divider(
-                                        indent: 12,
-                                        endIndent: 12,
-                                        height: 1,
-                                      ),
-                                    ),
-                                  ],
-                                  if (!noMatches)
-                                    SliverPadding(
-                                      padding: const EdgeInsets.all(12),
-                                      sliver: SliverGrid(
-                                        gridDelegate: delegate,
-                                        delegate: SliverChildBuilderDelegate(
-                                          (context, index) {
-                                            if (index < folders.length) {
-                                              final folder = folders[index];
-                                              final descendants = tree.subtree(
-                                                folder.id,
-                                              );
-                                              final descendantsGroups =
-                                                  bookmarkGroupsByName(
-                                                    state.groups.where(
-                                                      (g) =>
-                                                          descendants.contains(
-                                                            g.folderId,
-                                                          ),
-                                                    ),
-                                                  );
-                                              return CollectionSelectable(
-                                                key: ValueKey((
-                                                  'folder',
-                                                  folder.id,
-                                                )),
-                                                controller: _selection,
-                                                itemKey: (
-                                                  CollectionSelectionKind
-                                                      .folder,
-                                                  folder.id,
-                                                ),
-                                                child: _GroupCard(
-                                                  title: folder.name,
-                                                  previews: [
-                                                    for (final group
-                                                        in descendantsGroups
-                                                            .take(
-                                                              4,
-                                                            ))
-                                                      ...previews(
-                                                        BookmarkView.group(
-                                                          group.id,
-                                                        ),
-                                                      ).take(1),
-                                                  ],
-                                                  group: null,
-                                                  pools: [
-                                                    for (final group
-                                                        in descendantsGroups
-                                                            .take(4))
-                                                      ...poolPreviews(
-                                                        BookmarkView.group(
-                                                          group.id,
-                                                        ),
-                                                      ).take(1),
-                                                  ].toSet().take(4).toList(),
-                                                  isFolder: true,
-                                                  selected: _selectedFolders
-                                                      .contains(
-                                                        folder.id,
-                                                      ),
-                                                  onSelect: _selecting
-                                                      ? null
-                                                      : () => _select(
-                                                          folder.id,
-                                                          folder: true,
-                                                        ),
-                                                  onTap: () =>
-                                                      (_selecting ||
-                                                          selectionModifierPressed)
-                                                      ? _select(
-                                                          folder.id,
-                                                          folder: true,
-                                                        )
-                                                      : _openFolder(folder.id),
-                                                  onRename: () =>
-                                                      _renameFolder(folder),
-                                                  onDuplicate: null,
-                                                  onDelete: () =>
-                                                      _deleteFolder(folder),
-                                                  onMove: () => _move(
-                                                    folderIds: {folder.id},
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                            final group =
-                                                groups[index - folders.length];
-                                            return CollectionSelectable(
-                                              key: ValueKey((
-                                                'group',
-                                                group.id,
-                                              )),
-                                              controller: _selection,
-                                              itemKey: (
-                                                CollectionSelectionKind.group,
-                                                group.id,
-                                              ),
-                                              child: _GroupCard(
-                                                title: group.displayName(
-                                                  context,
-                                                ),
-                                                previews: previews(
-                                                  BookmarkView.group(group.id),
-                                                ),
-                                                group: group,
-                                                pools: poolPreviews(
-                                                  BookmarkView.group(group.id),
-                                                ),
-                                                selected: _selectedGroups
-                                                    .contains(
-                                                      group.id,
-                                                    ),
-                                                onSelect:
-                                                    group.isDefault ||
-                                                        _selecting
-                                                    ? null
-                                                    : () => _select(group.id),
-                                                onMove: group.isDefault
-                                                    ? null
-                                                    : () => _move(
-                                                        groupIds: {group.id},
-                                                      ),
-                                                onTap:
-                                                    (_selecting ||
-                                                        selectionModifierPressed)
-                                                    ? (group.isDefault
-                                                          ? null
-                                                          : () => _select(
-                                                              group.id,
-                                                            ))
-                                                    : () =>
-                                                          goToBookmarkGroupPage(
-                                                            ref,
-                                                            BookmarkView.group(
-                                                              group.id,
-                                                            ),
-                                                            title: group
-                                                                .displayName(
-                                                                  context,
-                                                                ),
-                                                          ),
-                                                onRename:
-                                                    group.isDefault ||
-                                                        _selecting
-                                                    ? null
-                                                    : () => _rename(
-                                                        context,
-                                                        ref,
-                                                        group,
-                                                      ),
-                                                onDuplicate: () =>
-                                                    _duplicateSelected([group]),
-                                                onDelete: group.isDefault
-                                                    ? null
-                                                    : () => _delete(
-                                                        context,
-                                                        ref,
-                                                        group,
-                                                      ),
-                                              ),
-                                            );
-                                          },
-                                          childCount:
-                                              folders.length + groups.length,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+  }
+
+  Widget _cards(
+    BookmarkLibraryState state,
+    String? id,
+    List<BookmarkGroup> children,
+    Set<String> selected,
+  ) {
+    final cards = <(String, BookmarkView, BookmarkGroup?)>[
+      if (id == null) ...[
+        (context.t.bookmark.groups.all, const BookmarkView.all(), null),
+        if (state.groupsById[defaultBookmarkGroupId] case final defaultGroup?)
+          (
+            defaultGroup.displayName(context),
+            const BookmarkView.defaultGroup(),
+            defaultGroup,
           ),
+      ],
+      for (final group in children)
+        (group.displayName(context), BookmarkView.group(group.id), group),
+    ];
+    return SliverLayoutBuilder(
+      builder: (context, constraints) => SliverPadding(
+        padding: const EdgeInsets.all(12),
+        sliver: SliverGrid.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: switch (constraints.crossAxisExtent) {
+              < 500 => 2,
+              < 850 => 3,
+              _ => 4,
+            },
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: cards.length,
+          itemBuilder: (context, index) {
+            final (title, view, group) = cards[index];
+            final previewView =
+                group != null &&
+                    group.bookmarkIds.isEmpty &&
+                    state.groupTree.childrenOf(group.id).isNotEmpty
+                ? BookmarkView.subtree(group.id)
+                : view;
+            final previewGroups = previewView.kind == BookmarkViewKind.all
+                ? null
+                : state.groupIdsForView(previewView);
+            final key = view.groupId ?? 'all';
+            final preview = _previews.putIfAbsent(
+              key,
+              () => selectBookmarkPreviews(
+                state: state,
+                view: previewView,
+                sortType: _previewInputs!.$2,
+                shuffleState: _previewInputs!.$3,
+              ),
+            );
+            final pools = _poolPreviews.putIfAbsent(
+              key,
+              () => state.pools
+                  .where(
+                    (pool) =>
+                        previewGroups == null ||
+                        pool.groupIds.any(previewGroups.contains),
+                  )
+                  .take(4)
+                  .toList(),
+            );
+            final editable = group != null && !group.isDefault;
+            final card = BookmarkLocalGroupCard(
+              title: title,
+              previews: preview,
+              pools: pools,
+              group: group,
+              selected: group != null && selected.contains(group.id),
+              onTap:
+                  !editable && (_selection.isActive || selectionModifierPressed)
+                  ? null
+                  : () {
+                      if (editable &&
+                          (_selection.isActive || selectionModifierPressed)) {
+                        _select(group.id);
+                        return;
+                      }
+                      if (group == null) {
+                        goToBookmarkGroupPage(ref, view, title: title);
+                      } else {
+                        _open(group.id);
+                      }
+                    },
+              onSelect: editable ? () => _select(group.id) : null,
+              onRename: editable ? () => _rename(group) : null,
+              onMove: editable ? () => _move({group.id}, id) : null,
+              onDuplicate: editable ? () => _duplicate([group]) : null,
+              onDelete: editable ? () => _delete({group.id}) : null,
+            );
+            return !editable
+                ? card
+                : CollectionSelectable(
+                    key: ValueKey(group.id),
+                    controller: _selection,
+                    itemKey: (CollectionSelectionKind.group, group.id),
+                    child: card,
+                  );
+          },
         ),
       ),
     );
   }
 
-  List<Widget> _selectionActions(BookmarkLibraryState state) {
-    final groups = [
-      for (final group in state.groups)
-        if (_selectedGroups.contains(group.id)) group,
-    ];
-    final folders = [
-      for (final folder in state.folders)
-        if (_selectedFolders.contains(folder.id)) folder,
-    ];
-    if (groups.isEmpty && folders.isEmpty) return const [];
-    return [
-      MultiSelectButton(
-        primary: true,
-        name: context.t.folders.move,
-        icon: const Icon(Icons.drive_file_move_outline),
-        onPressed: () => _move(),
-      ),
-      if (groups.length + folders.length == 1)
-        MultiSelectButton(
-          name: groups.isNotEmpty
-              ? context.t.bookmark.groups.rename
-              : context.t.folders.rename,
-          icon: const Icon(Icons.edit),
-          onPressed: () => groups.isNotEmpty
-              ? _rename(context, ref, groups.single)
-              : _renameFolder(folders.single),
-        ),
-      if (folders.isEmpty)
-        MultiSelectButton(
-          name: context.t.bookmark.groups.duplicate,
-          icon: const Icon(Icons.copy),
-          onPressed: () => _duplicateSelected(groups),
-        ),
-      MultiSelectButton(
-        primary: true,
-        name: context.t.generic.action.delete,
-        icon: const Icon(Icons.delete_outline),
-        onPressed: () => _deleteSelected(),
-      ),
-    ];
+  Future<void> _setMode(String id, BookmarkGroupViewMode mode) async {
+    _selection.disable();
+    await _run(
+      () => ref
+          .read(bookmarkGroupViewPreferencesProvider.notifier)
+          .setMode(id, mode),
+    );
   }
 
-  Future<void> _deleteSelected() async {
-    final folders = _selectedFolders;
-    final groups = _selectedGroups;
+  Future<void> _create(String? parent) async {
+    final name = await showBookmarkGroupNameDialog(
+      context,
+      title: context.t.bookmark.groups.create,
+    );
+    if (name == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(bookmarkProvider.notifier)
+          .createGroup(name, parentGroupId: parent),
+    );
+  }
+
+  Future<void> _rename(BookmarkGroup group) async {
+    final name = await showBookmarkGroupNameDialog(
+      context,
+      title: context.t.bookmark.groups.rename,
+      initialName: group.name,
+    );
+    if (name == null || !mounted) return;
+    await _run(
+      () => ref.read(bookmarkProvider.notifier).renameGroup(group.id, name),
+    );
+  }
+
+  Future<void> _duplicate(List<BookmarkGroup> groups) => _run(
+    () => ref.read(bookmarkProvider.notifier).duplicateGroups({
+      for (final group in groups)
+        group.id: context.t.bookmark.groups.copy_name.replaceAll(
+          '{name}',
+          group.displayName(context),
+        ),
+    }, expectedGroups: groups),
+  );
+  Future<void> _move(Set<String> ids, String? current) async {
+    final destination = await showBookmarkGroupDestinationPicker(
+      context,
+      groups: ref.read(bookmarkProvider).requireValue.groups,
+      movingGroupIds: ids,
+      initialParentGroupId: current,
+    );
+    if (destination == null || !mounted) return;
+    await _run(
+      () => ref
+          .read(bookmarkProvider.notifier)
+          .moveGroups(ids, parentGroupId: destination.parentGroupId),
+    );
+  }
+
+  Future<void> _delete(Set<String> ids) async {
     final notifier = ref.read(bookmarkProvider.notifier);
     try {
       var preview = await notifier.previewDeleteSelection(
-        folderIds: folders,
-        groupIds: groups,
+        folderIds: const {},
+        groupIds: ids,
       );
       while (mounted) {
         final confirmed = await showDialog<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            scrollable: true,
-            title: Text(context.t.generic.action.delete),
-            content: BookmarkCollectionDeletionSummary(
-              folders: preview.folderIds.length,
-              groups: preview.groupIds.length,
-              uniqueBookmarks:
-                  preview.orphanBookmarkIds.length +
-                  preview.orphanPoolIds.length,
+          builder: (context) => KurumiDialog(
+            semanticLabel: context.t.generic.action.delete,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    context.t.generic.action.delete,
+                    style: Kurumi.themeOf(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  BookmarkCollectionDeletionSummary(
+                    folders: 0,
+                    groups: preview.groupIds.length,
+                    uniqueBookmarks:
+                        preview.orphanBookmarkIds.length +
+                        preview.orphanPoolIds.length,
+                  ),
+                  if (preview.snapshot.groups.any(
+                    (group) =>
+                        ids.contains(group.parentGroupId) &&
+                        !ids.contains(group.id),
+                  )) ...[
+                    const SizedBox(height: 8),
+                    Text(context.t.bookmark.groups.promoted_children),
+                  ],
+                  const SizedBox(height: 16),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text(context.t.generic.action.cancel),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: Text(context.t.generic.action.delete),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(context.t.generic.action.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(context.t.generic.action.delete),
-              ),
-            ],
           ),
         );
         if (confirmed != true || !mounted) return;
         try {
           await notifier.deleteSelection(preview);
-          if (mounted) _selection.disable();
+          if (!mounted) return;
+          _selection.disable();
+          if (notifier.lastHierarchyDeletion case final receipt?)
+            notifier.showHierarchyUndo(context, receipt);
           return;
         } on BookmarkCollectionChangedException catch (error) {
           preview = error.preview;
@@ -699,525 +649,16 @@ class _BookmarkGroupBrowserPageState
     }
   }
 
-  Future<void> _duplicateSelected(List<BookmarkGroup> groups) async {
-    final names = {
-      for (final group in groups)
-        group.id: context.t.bookmark.groups.copy_name.replaceAll(
-          '{name}',
-          group.displayName(context),
-        ),
-    };
-    await _runGroupAction(
-      context,
-      () => ref
-          .read(bookmarkProvider.notifier)
-          .duplicateGroups(names, expectedGroups: groups),
-      clearSelection: true,
-    );
-  }
-
-  Future<void> _move({Set<String>? folderIds, Set<String>? groupIds}) async {
-    final library = ref.read(bookmarkProvider).requireValue;
-    final foldersToMove = folderIds ?? _selectedFolders;
-    final groupsToMove = groupIds ?? _selectedGroups;
-    final choice = await showFolderDestinationPicker(
-      context,
-      folders: library.folders,
-      initialFolderId: _folderId,
-      movingFolderIds: foldersToMove,
-      sortByName: true,
-      confirmationLabel: context.t.bookmark.groups.move_here,
-      canMoveTo: (destination) =>
-          library.folders.any(
-            (f) => foldersToMove.contains(f.id) && f.parentId != destination,
-          ) ||
-          library.groups.any(
-            (g) => groupsToMove.contains(g.id) && g.folderId != destination,
-          ),
-    );
-    if (choice == null || !mounted) return;
-    final moved = await _runGroupAction(
-      context,
-      () => ref
-          .read(bookmarkProvider.notifier)
-          .moveFolderItems(
-            folderIds: foldersToMove,
-            groupIds: groupsToMove,
-            destination: choice.folderId,
-          ),
-    );
-    if (mounted && moved) {
-      _selection.disable();
-    }
-  }
-
-  Future<void> _createFolder() async {
-    final name = await showBookmarkGroupNameDialog(
-      context,
-      title: context.t.folders.create,
-      hint: context.t.folders.name,
-    );
-    if (name == null || !mounted) return;
-    await _runGroupAction(
-      context,
-      () => ref
-          .read(bookmarkProvider.notifier)
-          .createFolder(name, parentId: _folderId),
-    );
-  }
-
-  Future<void> _renameFolder(CollectionFolder folder) async {
-    final name = await showBookmarkGroupNameDialog(
-      context,
-      title: context.t.folders.rename,
-      hint: context.t.folders.name,
-      initialName: folder.name,
-    );
-    if (name == null || !mounted) return;
-    await _runGroupAction(
-      context,
-      () => ref.read(bookmarkProvider.notifier).renameFolder(folder.id, name),
-      clearSelection: true,
-    );
-  }
-
-  Future<void> _deleteFolder(CollectionFolder folder) async {
-    var preview = await ref
-        .read(bookmarkProvider.notifier)
-        .previewDeleteFolder(folder.id);
-    while (mounted) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          scrollable: true,
-          title: Text(
-            context.t.folders.delete_title.replaceAll('{name}', folder.name),
-          ),
-          content: BookmarkCollectionDeletionSummary(
-            folders: preview.folderIds.length,
-            groups: preview.groupIds.length,
-            uniqueBookmarks:
-                preview.orphanBookmarkIds.length + preview.orphanPoolIds.length,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(context.t.generic.action.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(context.t.generic.action.delete),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-      try {
-        await ref.read(bookmarkProvider.notifier).deleteFolder(preview);
-        return;
-      } on BookmarkFolderChangedException catch (e) {
-        preview = e.preview;
-      } catch (_) {
-        if (mounted) {
-          Kurumi.showErrorToast(
-            context,
-            context.t.bookmark.groups.operation_failed,
-          );
-        }
-        return;
-      }
-    }
-  }
-
-  Future<void> _create(BuildContext context, WidgetRef ref) async {
-    final name = await showBookmarkGroupNameDialog(
-      context,
-      title: context.t.bookmark.groups.create,
-    );
-    if (name == null) return;
-    if (!context.mounted) return;
-    await _runGroupAction(
-      context,
-      () => ref
-          .read(bookmarkProvider.notifier)
-          .createGroup(name, folderId: _folderId),
-    );
-  }
-
-  Future<void> _rename(
-    BuildContext context,
-    WidgetRef ref,
-    BookmarkGroup group,
-  ) async {
-    final name = await showBookmarkGroupNameDialog(
-      context,
-      title: context.t.bookmark.groups.rename,
-      initialName: group.name,
-    );
-    if (name == null) return;
-    if (!context.mounted) return;
-    await _runGroupAction(
-      context,
-      () => ref.read(bookmarkProvider.notifier).renameGroup(group.id, name),
-      clearSelection: true,
-    );
-  }
-
-  Future<void> _delete(
-    BuildContext context,
-    WidgetRef ref,
-    BookmarkGroup group,
-  ) async {
-    final library = ref.read(bookmarkProvider).valueOrNull;
-    final groups = library?.groups ?? [group];
-    final pools = library?.pools ?? <CollectionBookmark>[];
-    final otherIds = {
-      for (final other in groups)
-        if (other.id != group.id) ...other.bookmarkIds,
-    };
-    var current = BookmarkGroupDeletionPreview(
-      group: group,
-      orphanBookmarkIds: group.bookmarkIds.difference(otherIds),
-      poolIds: {
-        if (library?.hasUnifiedRecords != true)
-          for (final pool in pools)
-            if (pool.groupIds.contains(group.id)) pool.localId,
-      },
-      orphanPoolIds: {
-        if (library?.hasUnifiedRecords != true)
-          for (final pool in pools)
-            if (pool.groupIds.length == 1 && pool.groupIds.contains(group.id))
-              pool.localId,
-      },
-    );
-    while (true) {
-      if (current.bookmarkCount > 0) {
-        if (!context.mounted) return;
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(
-              context.t.bookmark.groups.delete_group_title.replaceAll(
-                '{name}',
-                current.group.name,
-              ),
-            ),
-            content: Text(
-              context.t.bookmark.groups.delete_group_message.replaceAll(
-                '{bookmarks}',
-                '${current.bookmarkCount}',
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(context.t.generic.action.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(context.t.generic.action.delete),
-              ),
-            ],
-          ),
-        );
-        if (confirmed != true || !context.mounted) return;
-      }
-      try {
-        await ref
-            .read(bookmarkProvider.notifier)
-            .deleteGroup(
-              current.group.id,
-              expectedPreview: current,
-            );
-        return;
-      } on BookmarkGroupChangedException catch (error) {
-        current = error.preview;
-      } catch (_) {
-        if (context.mounted) {
-          Kurumi.showErrorToast(
-            context,
-            context.t.bookmark.groups.operation_failed,
-          );
-        }
-        return;
-      }
-    }
-  }
-
-  Future<bool> _runGroupAction(
-    BuildContext context,
-    Future<Object?> Function() action, {
-    bool clearSelection = false,
-  }) async {
+  Future<void> _run(Future<Object?> Function() action) async {
     try {
       await action();
-      if (mounted && clearSelection) _selection.disable();
-      return true;
+      if (mounted) _selection.disable();
     } catch (_) {
-      if (context.mounted) {
+      if (mounted)
         Kurumi.showErrorToast(
           context,
           context.t.bookmark.groups.operation_failed,
         );
-      }
-      return false;
     }
-  }
-}
-
-class _GroupCard extends StatelessWidget {
-  const _GroupCard({
-    required this.title,
-    required this.previews,
-    required this.group,
-    required this.onTap,
-    required this.onRename,
-    required this.onDuplicate,
-    required this.onDelete,
-    this.isFolder = false,
-    this.pools = const [],
-    this.selected = false,
-    this.onSelect,
-    this.onMove,
-  });
-
-  final bool isFolder;
-  final bool selected;
-  final VoidCallback? onSelect;
-  final VoidCallback? onMove;
-  final String title;
-  final List<PostBookmark> previews;
-  final List<CollectionBookmark> pools;
-  final BookmarkGroup? group;
-  final VoidCallback? onTap;
-  final VoidCallback? onRename;
-  final VoidCallback? onDuplicate;
-  final VoidCallback? onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final borderRadius = BorderRadius.circular(12);
-    return Semantics(
-      enabled: onTap != null,
-      child: Opacity(
-        opacity: onTap == null ? .38 : 1,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: Kurumi.themeOf(context).colorScheme.outlineVariant,
-            ),
-            borderRadius: borderRadius,
-          ),
-          child: ClipRRect(
-            borderRadius: borderRadius,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                onLongPress: onSelect,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: BookmarkGroupPreviewGrid(
-                        previews: previews,
-                        additionalPreviews: [
-                          for (final pool in pools)
-                            BookmarkPoolCoverImage(pool: pool),
-                        ],
-                        itemBuilder: (_, bookmark) =>
-                            _BookmarkGroupPreviewImage(bookmark: bookmark),
-                      ),
-                    ),
-                    const Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Color(0x99000000), Color(0x66000000)],
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      right: onRename == null ? 8 : 52,
-                      // Reserve the bottom indicators only when present.
-                      bottom: selected || isFolder ? 40 : 8,
-                      child: DefaultTextStyle(
-                        style: Kurumi.themeOf(context).textTheme.titleMedium!
-                            .copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              shadows: const [Shadow(blurRadius: 4)],
-                            ),
-                        child: KurumiFittedText(
-                          Text(title),
-                          alignment: AlignmentDirectional.topStart,
-                        ),
-                      ),
-                    ),
-                    if (selected)
-                      const Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Icon(
-                          Icons.check_circle,
-                          color: Colors.white,
-                        ),
-                      ),
-                    if (isFolder)
-                      const Positioned(
-                        bottom: 8,
-                        left: 8,
-                        child: Icon(Icons.folder, color: Colors.white),
-                      ),
-                    if (onRename != null)
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: PopupMenuButton<String>(
-                          icon: const Icon(
-                            Icons.more_vert,
-                            color: Colors.white,
-                          ),
-                          tooltip: context.t.generic.action.more,
-                          onSelected: (action) => switch (action) {
-                            'rename' => onRename?.call(),
-                            'duplicate' => onDuplicate?.call(),
-                            'delete' => onDelete?.call(),
-                            'move' => onMove?.call(),
-                            _ => null,
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'move',
-                              child: PopupMenuActionLabel(
-                                icon: Icons.drive_file_move_outline,
-                                label: context.t.folders.move,
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'rename',
-                              child: PopupMenuActionLabel(
-                                icon: Icons.edit_outlined,
-                                label: context.t.bookmark.groups.rename,
-                              ),
-                            ),
-                            if (onDuplicate != null)
-                              PopupMenuItem(
-                                value: 'duplicate',
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.copy,
-                                  label: context.t.bookmark.groups.duplicate,
-                                ),
-                              ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: PopupMenuActionLabel(
-                                icon: Icons.delete_outline,
-                                label: context.t.bookmark.groups.delete,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class BookmarkGroupPreviewGrid extends StatelessWidget {
-  const BookmarkGroupPreviewGrid({
-    required this.previews,
-    required this.itemBuilder,
-    this.additionalPreviews = const [],
-    super.key,
-  });
-
-  final List<PostBookmark> previews;
-  final List<Widget> additionalPreviews;
-  final Widget Function(BuildContext context, PostBookmark bookmark)
-  itemBuilder;
-
-  @override
-  Widget build(BuildContext context) => GridView.builder(
-    physics: const NeverScrollableScrollPhysics(),
-    padding: const EdgeInsets.all(2),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      crossAxisSpacing: 2,
-      mainAxisSpacing: 2,
-    ),
-    itemCount: 4,
-    itemBuilder: (context, index) => index < previews.length
-        ? itemBuilder(context, previews[index])
-        : index - previews.length < additionalPreviews.length
-        ? additionalPreviews[index - previews.length]
-        : const SizedBox.shrink(),
-  );
-}
-
-String bookmarkGroupPreviewUrl(
-  PostBookmark bookmark, {
-  bool autoplayGif = true,
-}) {
-  if (bookmark.isVideo) return bookmark.thumbnailUrl;
-  final isGif =
-      bookmark.post.isGif ||
-      (bookmark.format ?? '').toLowerCase().replaceFirst('.', '') == 'gif' ||
-      [bookmark.sampleUrl, bookmark.originalUrl].any(
-        (url) =>
-            Uri.tryParse(url)?.path.toLowerCase().endsWith('.gif') ?? false,
-      );
-  if (autoplayGif || !isGif) return bookmark.sampleUrl;
-
-  // Never fetch an animation just to display its first frame. Extensionless
-  // and potentially animated WebP/AVIF variants are not proven static posters.
-  for (final url in [bookmark.thumbnailUrl, bookmark.sampleUrl]) {
-    if (url.isEmpty || url == bookmark.originalUrl) continue;
-    final path = Uri.tryParse(url)?.path.toLowerCase() ?? '';
-    if (['.jpg', '.jpeg', '.png', '.bmp'].any(path.endsWith)) return url;
-  }
-  return '';
-}
-
-class _BookmarkGroupPreviewImage extends ConsumerWidget {
-  const _BookmarkGroupPreviewImage({required this.bookmark});
-
-  final PostBookmark bookmark;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final autoplayGif = ref.watch(
-      settingsProvider.select(
-        (settings) =>
-            settings.listing.animatedPostsDefaultState ==
-            AnimatedPostsDefaultState.autoplay,
-      ),
-    );
-    final imageUrl = bookmarkGroupPreviewUrl(
-      bookmark,
-      autoplayGif: autoplayGif,
-    );
-    if (imageUrl.isEmpty) return const SizedBox.expand();
-    final host = Uri.tryParse(bookmark.sourceUrl)?.host ?? '';
-    final imageConfig = ref.watch(
-      firstMatchingConfigByBooruTypeProvider((bookmark.booruId, host)),
-    );
-    return BooruImage(
-      imageUrl: imageUrl,
-      config: imageConfig?.auth ?? ref.watchConfigAuth,
-
-      fit: BoxFit.cover,
-      placeholderWidget: const SizedBox.expand(),
-    );
   }
 }

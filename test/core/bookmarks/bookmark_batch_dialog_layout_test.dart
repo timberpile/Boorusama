@@ -1,7 +1,6 @@
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_batch_dialog.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
-import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -9,6 +8,10 @@ import 'package:kurumi/material.dart';
 
 void main() {
   setUpAll(() => ensureI18nInitialized('en-US'));
+
+  const folderGroupId = '11111111-1111-4111-8111-111111111111';
+  String groupId(int index) =>
+      '22222222-2222-4222-8222-${index.toString().padLeft(12, '0')}';
 
   Future<void> open(
     WidgetTester tester, {
@@ -40,18 +43,20 @@ void main() {
                     builder: (context) => BookmarkBatchDialog(
                       title: title,
                       child: BookmarkFolderPickerContents(
-                        folders: nested
-                            ? const [
-                                CollectionFolder(id: 'folder', name: 'Folder'),
-                              ]
-                            : const [],
+                        folders: const [],
                         groups: [
+                          if (nested)
+                            BookmarkGroup(
+                              id: folderGroupId,
+                              name: 'Folder',
+                              bookmarkIds: {},
+                            ),
                           for (var i = 0; i < count; i++)
                             BookmarkGroup(
-                              id: '$i',
+                              id: groupId(i),
                               name: 'Group $i',
                               bookmarkIds: {},
-                              folderId: nested ? 'folder' : null,
+                              parentGroupId: nested ? folderGroupId : null,
                             ),
                         ],
                         onCreateGroup: (_) {},
@@ -107,12 +112,24 @@ void main() {
         nested: true,
         selected: (value) => result = value,
       );
-      await tester.tap(find.text('Folder'));
+      final folderRow = find.byKey(
+        const ValueKey(('bookmark-picker-group', folderGroupId)),
+      );
+      final folderBounds = tester.getRect(folderRow);
+      await tester.tapAt(
+        Offset(folderBounds.right - 40, folderBounds.center.dy),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('1 / 2'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(ValueKey(('bookmark-picker-group', groupId(0)))),
+          matching: find.text('1 / 2'),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Group 0'));
       await tester.pumpAndSettle();
-      expect(result, '0');
+      expect(result, groupId(0));
       expect(tester.takeException(), isNull);
     },
   );

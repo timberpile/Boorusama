@@ -10,11 +10,11 @@ import 'bookmark_group_name_dialog.dart';
 class BookmarkPickerGroupCreation extends ConsumerStatefulWidget {
   const BookmarkPickerGroupCreation({
     required this.request,
-    this.folderId,
+    this.parentGroupId,
     super.key,
   });
   final BookmarkPickerRequest request;
-  final String? folderId;
+  final String? parentGroupId;
   @override
   ConsumerState<BookmarkPickerGroupCreation> createState() =>
       _BookmarkPickerGroupCreationState();
@@ -50,7 +50,7 @@ class _BookmarkPickerGroupCreationState
         try {
           await _actions.createGroup(
             name,
-            widget.folderId,
+            widget.parentGroupId,
             beforeCommit: () => setState(() => _committing = true),
           );
         } finally {

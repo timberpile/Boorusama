@@ -53,6 +53,7 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
     required this.searchController,
     required this.view,
     this.title,
+    this.leadingSlivers = const [],
     super.key,
   });
 
@@ -60,6 +61,7 @@ class BookmarkScrollView extends ConsumerStatefulWidget {
   final TextEditingController searchController;
   final BookmarkView view;
   final String? title;
+  final List<Widget> leadingSlivers;
 
   @override
   ConsumerState<BookmarkScrollView> createState() => _BookmarkScrollViewState();
@@ -130,7 +132,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   @override
   Widget build(BuildContext context) {
     return RawPostScope<Post>(
-      duplicateIdentity: BookmarkIdentity.tryFromPost,
+      // Canonical entries already deduplicate local record IDs. A retained
+      // snapshot may share inferred source facts with a different saved Post.
+      duplicateIdentity: (_) => null,
       onError: (message) {
         ref.read(loggerProvider).error('Bookmark Listing', message);
       },
@@ -258,7 +262,17 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       posts: selectedPosts,
                       pools: _selectedPools(),
                       config: auth,
-                      currentGroupId: widget.view.groupId,
+                      currentGroupId: widget.view.kind == BookmarkViewKind.group
+                          ? widget.view.groupId
+                          : null,
+                      sourceGroupIds:
+                          widget.view.kind == BookmarkViewKind.subtree
+                          ? (ref
+                                    .read(bookmarkProvider)
+                                    .valueOrNull
+                                    ?.groupIdsForView(widget.view) ??
+                                const <String>{})
+                          : null,
                       onCompleted: () async {},
                     ),
                   ],
@@ -272,7 +286,18 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   controller,
                 ),
             sliverHeaders: [
+              ...widget.leadingSlivers,
               TimelineHeaderSliver(
+                keepVisible: ref.watch(
+                  imageListingSettingsProvider.select(
+                    (settings) => settings.keepTimelineToolbarVisible,
+                  ),
+                ),
+                reduceMotion: ref.watch(
+                  settingsProvider.select(
+                    (settings) => settings.reduceAnimations,
+                  ),
+                ),
                 backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -354,7 +379,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       sourceView: widget.view,
                       entries: _viewerEntries(),
                     ),
-                    groupId: widget.view.groupId,
+                    groupId: widget.view.kind == BookmarkViewKind.group
+                        ? widget.view.groupId
+                        : null,
                   )
                 : _buildItem(
                     _rawPostIndices[item.key]!,

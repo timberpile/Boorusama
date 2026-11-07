@@ -9,7 +9,6 @@ import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../navigation/app_navigation.dart';
 import '../../../configs/config/types.dart';
-import '../../../groups/folder_tree.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
@@ -85,6 +84,7 @@ class BookmarkGroupPickerAnchor extends StatefulWidget {
 
 class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
   final _controller = AnchorController();
+  final _navigation = BookmarkPickerNavigation();
   @override
   void didUpdateWidget(BookmarkGroupPickerAnchor oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -94,6 +94,7 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
   @override
   void dispose() {
     _controller.dispose();
+    _navigation.dispose();
     super.dispose();
   }
 
@@ -102,6 +103,9 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
     final request = widget.request;
     return KurumiAnchor(
       controller: _controller,
+      onBack: () {
+        if (!_navigation.back()) _controller.hide();
+      },
       overlayBuilder: (context) => Padding(
         padding: const EdgeInsets.all(8),
         child: ConstrainedBox(
@@ -112,6 +116,8 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
           child: BookmarkGroupPicker(
             key: ValueKey(request),
             request: request,
+            navigation: _navigation,
+            ownsBack: false,
             onDismiss: _controller.hide,
             // hide() revokes writes synchronously, before the fade completes.
             isActive: () => _controller.isShowing && widget.request == request,
@@ -199,18 +205,25 @@ class BookmarkGroupPicker extends ConsumerStatefulWidget {
     required this.onDismiss,
     required this.isActive,
     this.onRootBack,
+    this.navigation,
+    this.ownsBack = true,
     super.key,
   });
   final BookmarkPickerRequest request;
   final VoidCallback onDismiss;
   final bool Function() isActive;
   final VoidCallback? onRootBack;
+  final BookmarkPickerNavigation? navigation;
+  final bool ownsBack;
   @override
   ConsumerState<BookmarkGroupPicker> createState() =>
       _BookmarkGroupPickerState();
 }
 
 class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
+  final _localNavigation = BookmarkPickerNavigation();
+  BookmarkPickerNavigation get _navigation =>
+      widget.navigation ?? _localNavigation;
   var _dismissed = false;
   var _creating = false;
   bool get _active => mounted && !_dismissed && widget.isActive();
@@ -228,6 +241,7 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
   @override
   void dispose() {
     _actions.dispose();
+    _localNavigation.dispose();
     super.dispose();
   }
 
@@ -261,19 +275,26 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     } else {
       memberships = const {};
     }
-    final folders = FolderTree(library?.folders ?? const []);
+    final tree = library?.groupTree;
     final recentGroups =
         ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
         const <BookmarkGroup>[];
-    Widget row(BookmarkGroup group, {bool recent = false}) =>
+    Widget row(BookmarkGroup group, {bool recent = false, bool here = false}) =>
         BookmarkPickerMenuItem(
           icon: Icon(
             Symbols.bookmarks,
             fill: memberships.contains(group.id) ? 1 : 0,
           ),
-          title: group.displayName(context),
-          detail: recent && group.folderId != null
-              ? folders.path(group.folderId)
+          title: here
+              ? memberships.contains(group.id)
+                    ? context.t.bookmark.groups.remove_here
+                    : context.t.bookmark.groups.save_here
+              : group.displayName(context),
+          detail: recent
+              ? tree
+                    ?.ancestors(group.id)
+                    .map((g) => g.displayName(context))
+                    .join(' / ')
               : null,
           hideOnTap: false,
           onTap: () => _toggle(group.id),
@@ -282,7 +303,10 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       folders: library?.folders ?? const [],
       groups: library?.groups ?? const [],
       membershipGroupIds: memberships,
-      onRootBack: widget.onRootBack,
+      onRootBack: widget.onRootBack ?? _dismiss,
+      navigation: _navigation,
+      ownsBack: widget.ownsBack,
+      currentGroupBuilder: (context, group) => row(group, here: true),
       groupBuilder: (context, group) => row(group),
       pinnedFooter: recentGroups.isEmpty
           ? null
@@ -293,7 +317,13 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
                 KurumiContextMenuDivider(
                   title: context.t.bookmark.groups.recent,
                 ),
-                for (final group in recentGroups) row(group, recent: true),
+                for (final group in recentGroups)
+                  BookmarkPickerSplitRow(
+                    navigationLabel:
+                        '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
+                    onOpen: () => _navigation.open(group.id),
+                    child: row(group, recent: true),
+                  ),
               ],
             ),
       onCreateGroup: _create,
@@ -330,8 +360,10 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     // immutable request and ProviderContainer survive the old widget's disposal.
     final result = showDialog<String>(
       context: navigator.context,
-      builder: (_) =>
-          BookmarkPickerGroupCreation(request: request, folderId: folderId),
+      builder: (_) => BookmarkPickerGroupCreation(
+        request: request,
+        parentGroupId: folderId,
+      ),
     );
     _dismiss();
     result.then((name) {

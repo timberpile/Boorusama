@@ -9,7 +9,6 @@ import 'package:kurumi/material.dart';
 
 import '../../../config_widgets/website_logo.dart';
 import '../../../configs/config/types.dart';
-import '../../../groups/folder_tree.dart';
 import '../../../navigation/navigation_catalog_provider.dart';
 import '../providers/bookmark_provider.dart';
 import '../widgets/bookmark_group_label.dart';
@@ -59,10 +58,12 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
     final library = ref.read(bookmarkLibraryProvider).valueOrNull;
     final group = library?.groupsById[id];
     if (group == null) return t.targetMissing;
-    final path = FolderTree(library!.folders).path(group.folderId);
-    return path.isEmpty
-        ? group.displayName(context)
-        : '$path / ${group.displayName(context)}';
+    return [
+      ...library!.groupTree
+          .ancestors(group.id)
+          .map((ancestor) => ancestor.displayName(context)),
+      group.displayName(context),
+    ].join(' / ');
   }
 
   @override

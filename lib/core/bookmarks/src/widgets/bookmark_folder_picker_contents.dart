@@ -3,10 +3,49 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 
 import '../../../groups/folder_tree.dart';
+import '../services/bookmark_hierarchy_conversion.dart';
 import '../types/bookmark_group.dart';
-import 'bookmark_collection_order.dart';
+import '../types/bookmark_group_tree.dart';
+import 'bookmark_group_label.dart';
 
-/// Shared navigation for dialog, anchored, context-menu, and bulk pickers.
+/// Presenter-owned navigation lets an anchored overlay consume its own Back.
+class BookmarkPickerNavigation extends ChangeNotifier {
+  String? _currentId;
+  List<String> _path = const [];
+  BookmarkGroupTree _tree = BookmarkGroupTree(const []);
+  String? get currentId => _currentId;
+  void update(BookmarkGroupTree tree) {
+    _tree = tree;
+    if (_currentId != null && !tree.groupsById.containsKey(_currentId)) {
+      _currentId = _path.reversed
+          .where(tree.groupsById.containsKey)
+          .firstOrNull;
+    }
+    _path = _currentId == null
+        ? const []
+        : [
+            for (final ancestor in tree.ancestors(_currentId!)) ancestor.id,
+          ];
+  }
+
+  void open(String? id) {
+    if (id == _currentId || (id != null && !_tree.groupsById.containsKey(id)))
+      return;
+    _currentId = id;
+    _path = id == null
+        ? const []
+        : [for (final group in _tree.ancestors(id)) group.id];
+    notifyListeners();
+  }
+
+  bool back() {
+    if (_currentId == null) return false;
+    open(_tree.groupsById[_currentId]?.parentGroupId);
+    return true;
+  }
+}
+
+/// Shared direct-membership targets and hierarchy for every presenter.
 class BookmarkFolderPickerContents extends StatefulWidget {
   const BookmarkFolderPickerContents({
     required this.folders,
@@ -19,9 +58,12 @@ class BookmarkFolderPickerContents extends StatefulWidget {
     this.pinnedFooter,
     this.membershipGroupIds,
     this.onRootBack,
+    this.navigation,
+    this.ownsBack = true,
+    this.selectableGroupIds,
+    this.currentGroupBuilder,
     super.key,
   });
-
   final List<CollectionFolder> folders;
   final List<BookmarkGroup> groups;
   final Widget Function(BuildContext, BookmarkGroup) groupBuilder;
@@ -30,10 +72,13 @@ class BookmarkFolderPickerContents extends StatefulWidget {
   final ValueChanged<String?>? onCreateGroup;
   final bool createGroupEnabled;
   final Widget? pinnedFooter;
-  // Null means bulk mode: a single-bookmark badge would be ambiguous.
   final Set<String>? membershipGroupIds;
   final VoidCallback? onRootBack;
-
+  final BookmarkPickerNavigation? navigation;
+  final bool ownsBack;
+  // Ancestor rows remain navigable even when not applicable direct targets.
+  final Set<String>? selectableGroupIds;
+  final Widget Function(BuildContext, BookmarkGroup)? currentGroupBuilder;
   @override
   State<BookmarkFolderPickerContents> createState() =>
       _BookmarkFolderPickerContentsState();
@@ -41,183 +86,170 @@ class BookmarkFolderPickerContents extends StatefulWidget {
 
 class _BookmarkFolderPickerContentsState
     extends State<BookmarkFolderPickerContents> {
-  String? _requestedFolderId;
+  late final _localNavigation = BookmarkPickerNavigation();
+  BookmarkPickerNavigation get _navigation =>
+      widget.navigation ?? _localNavigation;
   final _scrollController = ScrollController();
-  late FolderTree _tree;
-  late List<BookmarkGroup> _groups;
-  late Map<String, int> _membershipCounts;
-
-  String? get _folderId =>
-      widget.folders.any((folder) => folder.id == _requestedFolderId)
-      ? _requestedFolderId
-      : null;
-
+  late BookmarkGroupTree _tree;
   @override
   void initState() {
     super.initState();
     _updateSnapshot();
+    _navigation.addListener(_navigated);
   }
 
   @override
   void didUpdateWidget(BookmarkFolderPickerContents oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.folders, widget.folders) ||
-        !identical(oldWidget.groups, widget.groups) ||
-        !identical(oldWidget.membershipGroupIds, widget.membershipGroupIds)) {
-      _updateSnapshot();
+    if (oldWidget.navigation != widget.navigation) {
+      (oldWidget.navigation ?? _localNavigation).removeListener(_navigated);
+      _navigation.addListener(_navigated);
     }
+    if (!identical(oldWidget.folders, widget.folders) ||
+        !identical(oldWidget.groups, widget.groups))
+      _updateSnapshot();
   }
 
   void _updateSnapshot() {
-    _tree = FolderTree(widget.folders);
-    _groups = bookmarkGroupsByName(widget.groups);
-    _membershipCounts = bookmarkFolderMembershipCounts(
-      folders: widget.folders,
-      groups: widget.groups,
-      membershipGroupIds: widget.membershipGroupIds ?? const {},
+    _tree = BookmarkGroupTree(
+      widget.folders.isEmpty
+          ? widget.groups
+          : BookmarkHierarchyConversion.convert(
+              groups: widget.groups,
+              folders: widget.folders,
+            ).groups,
     );
+    _navigation.update(_tree);
+  }
+
+  void _navigated() {
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _navigation.removeListener(_navigated);
+    _localNavigation.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _openFolder(String? id) {
-    setState(() => _requestedFolderId = id);
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final currentId = _folderId;
-    final current = widget.folders.where((f) => f.id == currentId).firstOrNull;
-    final onBack = current == null
-        ? widget.onRootBack
-        : () => _openFolder(current.parentId);
-    final hasNavigation = onBack != null || widget.onCreateGroup != null;
-    final navigation = <Widget>[
-      if (hasNavigation) ...[
-        LayoutBuilder(
-          builder: (context, constraints) => IntrinsicHeight(
-            child: Row(
-              key: const ValueKey('bookmark-picker-navigation'),
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: onBack == null
-                      ? const SizedBox.shrink()
-                      : Tooltip(
-                          message: context.t.generic.action.back,
-                          child: KurumiPopupMenuItem(
-                            key: const ValueKey('bookmark-picker-back'),
-                            icon: const Icon(Icons.arrow_back, size: 20),
-                            title: current == null
-                                ? const SizedBox.shrink()
-                                : Tooltip(
-                                    message: _tree.path(currentId),
-                                    child: Text(
-                                      _tree.path(currentId),
-                                      key: const ValueKey(
-                                        'bookmark-picker-path',
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ),
-                            hideOnTap: false,
-                            onTap: onBack,
-                          ),
-                        ),
-                ),
-                if (widget.onCreateGroup case final create?)
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth:
-                          (constraints.maxWidth - (onBack == null ? 0 : 44))
-                              .clamp(0, double.infinity),
-                    ),
-                    child: IntrinsicWidth(
-                      child: BookmarkPickerMenuItem(
-                        key: const ValueKey('bookmark-picker-create-group'),
-                        icon: const Icon(Icons.add),
-                        title: context.t.bookmark.groups.create_new,
-                        hideOnTap: false,
-                        onTap: widget.createGroupEnabled
-                            ? () => create(currentId)
-                            : null,
-                      ),
+    final id = _navigation.currentId;
+    final current = _tree.groupsById[id];
+    final path = id == null
+        ? context.t.sideMenu.home
+        : [
+            for (final group in _tree.ancestors(id)) group.displayName(context),
+            current!.displayName(context),
+          ].join(' / ');
+    void back() {
+      if (!_navigation.back()) widget.onRootBack?.call();
+    }
+
+    Widget target(BookmarkGroup group, {bool here = false}) {
+      final enabled = widget.selectableGroupIds?.contains(group.id) ?? true;
+      final body = enabled
+          ? (here
+                ? widget.currentGroupBuilder ?? widget.groupBuilder
+                : widget.groupBuilder)(context, group)
+          : BookmarkPickerMenuItem(
+              title: group.displayName(context),
+              icon: const Icon(Icons.bookmarks_outlined),
+              onTap: null,
+            );
+      return here
+          ? ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 60),
+              child: body,
+            )
+          : BookmarkPickerSplitRow(
+              key: ValueKey(('bookmark-picker-group', group.id)),
+              onOpen: () => _navigation.open(group.id),
+              navigationLabel:
+                  '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
+              child: body,
+            );
+    }
+
+    final navigation = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        IntrinsicHeight(
+          child: Row(
+            key: const ValueKey('bookmark-picker-navigation'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: KurumiPopupMenuItem(
+                  key: const ValueKey('bookmark-picker-back'),
+                  hideOnTap: false,
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  title: Tooltip(
+                    message: path,
+                    child: Text(
+                      path,
+                      key: const ValueKey('bookmark-picker-path'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-              ],
-            ),
+                  onTap: current == null && widget.onRootBack == null
+                      ? null
+                      : back,
+                ),
+              ),
+              if (widget.onCreateGroup case final create?)
+                Tooltip(
+                  message: context.t.bookmark.groups.create_new,
+                  child: SizedBox(
+                    width: 64,
+                    child: BookmarkPickerMenuItem(
+                      key: const ValueKey('bookmark-picker-create-group'),
+                      title: '',
+                      icon: const Icon(Icons.add),
+                      hideOnTap: false,
+                      onTap: widget.createGroupEnabled
+                          ? () => create(id)
+                          : null,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
         const KurumiContextMenuDivider(),
       ],
-    ];
+    );
     final entries = <Widget>[
-      for (final folder in bookmarkFoldersByName(_tree.children(currentId)))
-        MergeSemantics(
-          child: BookmarkPickerMenuItem(
-            icon: BookmarkFolderMembershipIcon(
-              count: _membershipCounts[folder.id] ?? 0,
-            ),
-            title: folder.name,
-            trailing: const ExcludeSemantics(
-              child: Icon(Icons.chevron_right),
-            ),
-            hideOnTap: false,
-            onTap: () => _openFolder(folder.id),
-          ),
-        ),
-      if (currentId == null) ...widget.homeChildren,
-      for (final group in _groups.where((g) => g.folderId == currentId))
-        widget.groupBuilder(context, group),
+      if (current != null) ...[
+        target(current, here: true),
+        const KurumiContextMenuDivider(),
+      ],
+      if (id == null) ...widget.homeChildren,
+      for (final group in _tree.childrenOf(id)) target(group),
       if (widget.footerBuilder case final footer?) ...[
         const KurumiContextMenuDivider(),
-        footer(context, currentId),
+        footer(context, id),
       ],
     ];
-    if (widget.onCreateGroup == null && widget.pinnedFooter == null) {
-      return Material(
-        type: MaterialType.transparency,
-        child: ListView(
-          controller: _scrollController,
-          shrinkWrap: true,
-          padding: EdgeInsets.zero,
-          children: [...navigation, ...entries],
-        ),
-      );
-    }
-    return Material(
+    final contents = Material(
       type: MaterialType.transparency,
       child: LayoutBuilder(
         builder: (context, constraints) => Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Each region stays reachable even with enlarged text in a short window.
             ConstrainedBox(
               constraints: BoxConstraints(
-                maxHeight: constraints.maxHeight * .4,
+                maxHeight: constraints.maxHeight.isFinite
+                    ? constraints.maxHeight * .4
+                    : double.infinity,
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: navigation,
-                ),
-              ),
+              child: SingleChildScrollView(child: navigation),
             ),
             Flexible(
               flex: 3,
@@ -241,7 +273,70 @@ class _BookmarkFolderPickerContentsState
         ),
       ),
     );
+    return KurumiBackHandler(
+      enabled:
+          widget.ownsBack &&
+          current != null &&
+          (ModalRoute.of(context)?.isCurrent ?? true),
+      onBack: back,
+      child: Focus(autofocus: true, skipTraversal: true, child: contents),
+    );
   }
+}
+
+/// Independent direct action and a full-height 80dp trailing navigation target.
+class BookmarkPickerSplitRow extends StatelessWidget {
+  const BookmarkPickerSplitRow({
+    required this.child,
+    required this.onOpen,
+    required this.navigationLabel,
+    super.key,
+  });
+  final Widget child;
+  final VoidCallback? onOpen;
+  final String navigationLabel;
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Padding(
+        padding: const EdgeInsetsDirectional.only(end: 80),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 60),
+          child: child,
+        ),
+      ),
+      PositionedDirectional(
+        end: 0,
+        top: 0,
+        bottom: 0,
+        width: 80,
+        child: Semantics(
+          button: true,
+          label: navigationLabel,
+          enabled: onOpen != null,
+          child: Tooltip(
+            message: navigationLabel,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onOpen,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: BorderDirectional(
+                      start: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                  ),
+                  child: const Center(child: Icon(Icons.chevron_right)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Aggregate direct memberships from leaves to parents once per snapshot.

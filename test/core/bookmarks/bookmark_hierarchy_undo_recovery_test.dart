@@ -24,210 +24,227 @@ import 'package:path/path.dart' as p;
 import 'pool_bookmark_test_utils.dart';
 
 void main() {
-  test(
-    'hierarchy Undo recovers after every durable sync using cold checkpoint reopen',
-    () async {
-      for (var boundary = 1; boundary <= 5; boundary++) {
-        final fixtureDirectory = await Directory.systemTemp.createTemp(
-          'bookmark-hierarchy-undo-$boundary-',
-        );
-        final powerCut = _PowerCutCapture(fixtureDirectory);
-        Directory? checkpointDirectory;
-        var hiveOpen = false;
-        try {
-          var workspace = await _openWorkspace(
-            fixtureDirectory,
-            powerCut.sync,
+  for (final isUtc in [false, true]) {
+    for (var boundary = 1; boundary <= 5; boundary++) {
+      test(
+        'hierarchy Undo cold checkpoint $boundary preserves exact dates (UTC=$isUtc)',
+        () async {
+          final fixtureDirectory = await Directory.systemTemp.createTemp(
+            'bookmark-hierarchy-undo-$boundary-',
           );
-          hiveOpen = true;
-          expect(_activeOrganizationVersion(workspace), 3);
-
-          final parent = await workspace.service.createGroup('Parent');
-          final child = await workspace.service.createGroup(
-            'Empty child',
-            parentGroupId: parent.id,
-          );
-          final initialParent = (await workspace.groupRepository.getGroup(
-            parent.id,
-          ))!;
-          final initialChild = (await workspace.groupRepository.getGroup(
-            child.id,
-          ))!;
-
-          final reserved = await workspace.repository.reserveIds(2);
-          final postCreated = DateTime.utc(2022, 3, 4, 5, 6, 7, 123, 456);
-          final postUpdated = DateTime.utc(2023, 4, 5, 6, 7, 8, 234, 567);
-          final orphanPost = testPoolPost(77).copyWith(
-            id: reserved[0],
-            postId: () => null,
-            createdAt: postCreated,
-            updatedAt: postUpdated,
-          );
-          final related = _relatedBookmark(reserved[1]);
-          await workspace.repository.upsertAll([orphanPost, related]);
-
-          final postMembershipDate = DateTime.utc(
-            2024,
-            5,
-            6,
-            7,
-            8,
-            9,
-            345,
-            678,
-          );
-          final relatedMembershipDate = DateTime.utc(
-            2025,
-            6,
-            7,
-            8,
-            9,
-            10,
-            456,
-            789,
-          );
-          final parentWithRecords = await workspace.groupRepository
-              .replaceMemberships(
-                parent.id,
-                {orphanPost.id, related.id},
-                addedAt: {
-                  orphanPost.id: postMembershipDate,
-                  related.id: relatedMembershipDate,
-                },
-              );
-          expect(parentWithRecords.bookmarkIds, {orphanPost.id, related.id});
-          expect(initialParent.bookmarkIds, isEmpty);
-          expect(initialChild.bookmarkIds, isEmpty);
-
-          final receipt = await workspace.service.deleteHierarchy({parent.id});
-          expect(await workspace.groupRepository.getGroup(parent.id), isNull);
-          expect(
-            (await workspace.groupRepository.getGroup(child.id))!.parentGroupId,
-            isNull,
-          );
-          expect(await workspace.repository.readAll(), isEmpty);
-
-          powerCut.arm(boundary);
+          final powerCut = _PowerCutCapture(fixtureDirectory);
+          Directory? checkpointDirectory;
+          var hiveOpen = false;
           try {
-            await workspace.service.undoHierarchyDeletion(receipt);
-          } catch (_) {
-            // The injected failure may be recovered by the mutation's own
-            // confirmation read, or escape before the caller can confirm it.
-          }
-
-          expect(powerCut.captured, isTrue, reason: 'sync boundary $boundary');
-          checkpointDirectory = powerCut.checkpointDirectory;
-          expect(checkpointDirectory, isNotNull);
-          expect(powerCut.copiedHiveFiles, greaterThan(0));
-
-          await Hive.close();
-          hiveOpen = false;
-
-          // Reopen the exact post-fsync checkpoint. Never inspect the live
-          // directory that the interrupted helper may have further changed.
-          workspace = await _openWorkspace(
-            checkpointDirectory!,
-            _syncDurably,
-          );
-          hiveOpen = true;
-          var restoredParent = await workspace.groupRepository.getGroup(
-            parent.id,
-          );
-          if (restoredParent == null) {
-            expect(
-              boundary,
-              1,
-              reason: 'Only the reservation boundary may need Undo retry',
+            var workspace = await _openWorkspace(
+              fixtureDirectory,
+              powerCut.sync,
             );
-            await workspace.service.undoHierarchyDeletion(receipt);
-            restoredParent = await workspace.groupRepository.getGroup(
+            hiveOpen = true;
+            expect(_activeOrganizationVersion(workspace), 3);
+
+            final parent = await workspace.service.createGroup('Parent');
+            final child = await workspace.service.createGroup(
+              'Empty child',
+              parentGroupId: parent.id,
+            );
+            final initialParent = (await workspace.groupRepository.getGroup(
+              parent.id,
+            ))!;
+            final initialChild = (await workspace.groupRepository.getGroup(
+              child.id,
+            ))!;
+
+            final reserved = await workspace.repository.reserveIds(2);
+            final created = DateTime.utc(2022, 3, 4, 5, 6, 7, 123, 456);
+            final updated = DateTime.utc(2023, 4, 5, 6, 7, 8, 234, 567);
+            final postCreated = isUtc ? created : created.toLocal();
+            final postUpdated = isUtc ? updated : updated.toLocal();
+            final orphanPost = testPoolPost(77).copyWith(
+              id: reserved[0],
+              postId: () => null,
+              createdAt: postCreated,
+              updatedAt: postUpdated,
+            );
+            final related = _relatedBookmark(reserved[1]);
+            await workspace.repository.upsertAll([orphanPost, related]);
+
+            final postMembershipDate = DateTime.utc(
+              2024,
+              5,
+              6,
+              7,
+              8,
+              9,
+              345,
+              678,
+            );
+            final relatedMembershipDate = DateTime.utc(
+              2025,
+              6,
+              7,
+              8,
+              9,
+              10,
+              456,
+              789,
+            );
+            final parentWithRecords = await workspace.groupRepository
+                .replaceMemberships(
+                  parent.id,
+                  {orphanPost.id, related.id},
+                  addedAt: {
+                    orphanPost.id: postMembershipDate,
+                    related.id: relatedMembershipDate,
+                  },
+                );
+            expect(parentWithRecords.bookmarkIds, {orphanPost.id, related.id});
+            expect(initialParent.bookmarkIds, isEmpty);
+            expect(initialChild.bookmarkIds, isEmpty);
+
+            final receipt = await workspace.service.deleteHierarchy({
+              parent.id,
+            });
+            expect(await workspace.groupRepository.getGroup(parent.id), isNull);
+            expect(
+              (await workspace.groupRepository.getGroup(child.id))!
+                  .parentGroupId,
+              isNull,
+            );
+            expect(await workspace.repository.readAll(), isEmpty);
+
+            powerCut.arm(boundary);
+            try {
+              await workspace.service.undoHierarchyDeletion(receipt);
+            } catch (_) {
+              // The injected failure may be recovered by the mutation's own
+              // confirmation read, or escape before the caller can confirm it.
+            }
+
+            expect(
+              powerCut.captured,
+              isTrue,
+              reason: 'sync boundary $boundary',
+            );
+            checkpointDirectory = powerCut.checkpointDirectory;
+            expect(checkpointDirectory, isNotNull);
+            expect(powerCut.copiedHiveFiles, greaterThan(0));
+
+            await Hive.close();
+            hiveOpen = false;
+
+            // Reopen the exact post-fsync checkpoint. Never inspect the live
+            // directory that the interrupted helper may have further changed.
+            workspace = await _openWorkspace(
+              checkpointDirectory!,
+              _syncDurably,
+            );
+            hiveOpen = true;
+            var restoredParent = await workspace.groupRepository.getGroup(
               parent.id,
             );
-          }
-          expect(restoredParent, isNotNull, reason: 'sync boundary $boundary');
+            if (restoredParent == null) {
+              expect(
+                boundary,
+                1,
+                reason: 'Only the reservation boundary may need Undo retry',
+              );
+              await workspace.service.undoHierarchyDeletion(receipt);
+              restoredParent = await workspace.groupRepository.getGroup(
+                parent.id,
+              );
+            }
+            expect(
+              restoredParent,
+              isNotNull,
+              reason: 'sync boundary $boundary',
+            );
 
-          final first = await _verifyRestored(
-            workspace,
-            parentId: parent.id,
-            childId: child.id,
-            originalRecordIds: {orphanPost.id, related.id},
-            parentPosition: initialParent.position,
-            childPosition: initialChild.position,
-            postCreated: postCreated,
-            postUpdated: postUpdated,
-            postMembershipDate: postMembershipDate,
-            related: related,
-            originalPost: orphanPost,
-            relatedMembershipDate: relatedMembershipDate,
-            reason: 'sync boundary $boundary',
-          );
-          final firstNextId = (await workspace.repository.reserveIds(1)).single;
-          expect(
-            firstNextId,
-            greaterThan(
-              [
-                orphanPost.id,
-                related.id,
-                ...first.records.map((r) => r.id),
-              ].reduce((a, b) => a > b ? a : b),
-            ),
-            reason: 'sync boundary $boundary',
-          );
+            final first = await _verifyRestored(
+              workspace,
+              parentId: parent.id,
+              childId: child.id,
+              originalRecordIds: {orphanPost.id, related.id},
+              parentPosition: initialParent.position,
+              childPosition: initialChild.position,
+              postCreated: postCreated,
+              postUpdated: postUpdated,
+              postMembershipDate: postMembershipDate,
+              related: related,
+              originalPost: orphanPost,
+              relatedMembershipDate: relatedMembershipDate,
+              reason: 'sync boundary $boundary',
+            );
+            final firstNextId = (await workspace.repository.reserveIds(1))
+                .single;
+            expect(
+              firstNextId,
+              greaterThan(
+                [
+                  orphanPost.id,
+                  related.id,
+                  ...first.records.map((r) => r.id),
+                ].reduce((a, b) => a > b ? a : b),
+              ),
+              reason: 'sync boundary $boundary',
+            );
 
-          await Hive.close();
-          hiveOpen = false;
-          workspace = await _openWorkspace(
-            checkpointDirectory,
-            _syncDurably,
-          );
-          hiveOpen = true;
-          final second = await _verifyRestored(
-            workspace,
-            parentId: parent.id,
-            childId: child.id,
-            originalRecordIds: {orphanPost.id, related.id},
-            parentPosition: initialParent.position,
-            childPosition: initialChild.position,
-            postCreated: postCreated,
-            postUpdated: postUpdated,
-            postMembershipDate: postMembershipDate,
-            related: related,
-            originalPost: orphanPost,
-            relatedMembershipDate: relatedMembershipDate,
-            reason: 'second cold reopen at boundary $boundary',
-          );
-          expect(
-            second.records,
-            first.records,
-            reason: 'sync boundary $boundary',
-          );
-          expect(
-            second.parent,
-            first.parent,
-            reason: 'sync boundary $boundary',
-          );
-          expect(
-            second.child,
-            first.child,
-            reason: 'sync boundary $boundary',
-          );
-          expect(
-            (await workspace.repository.reserveIds(1)).single,
-            greaterThan(firstNextId),
-            reason: 'sync boundary $boundary',
-          );
-        } finally {
-          if (hiveOpen) await Hive.close();
-          if (checkpointDirectory != null && checkpointDirectory.existsSync()) {
-            await checkpointDirectory.delete(recursive: true);
+            await Hive.close();
+            hiveOpen = false;
+            workspace = await _openWorkspace(
+              checkpointDirectory,
+              _syncDurably,
+            );
+            hiveOpen = true;
+            final second = await _verifyRestored(
+              workspace,
+              parentId: parent.id,
+              childId: child.id,
+              originalRecordIds: {orphanPost.id, related.id},
+              parentPosition: initialParent.position,
+              childPosition: initialChild.position,
+              postCreated: postCreated,
+              postUpdated: postUpdated,
+              postMembershipDate: postMembershipDate,
+              related: related,
+              originalPost: orphanPost,
+              relatedMembershipDate: relatedMembershipDate,
+              reason: 'second cold reopen at boundary $boundary',
+            );
+            expect(
+              second.records,
+              first.records,
+              reason: 'sync boundary $boundary',
+            );
+            expect(
+              second.parent,
+              first.parent,
+              reason: 'sync boundary $boundary',
+            );
+            expect(
+              second.child,
+              first.child,
+              reason: 'sync boundary $boundary',
+            );
+            expect(
+              (await workspace.repository.reserveIds(1)).single,
+              greaterThan(firstNextId),
+              reason: 'sync boundary $boundary',
+            );
+          } finally {
+            if (hiveOpen) await Hive.close();
+            if (checkpointDirectory != null &&
+                checkpointDirectory.existsSync()) {
+              await checkpointDirectory.delete(recursive: true);
+            }
+            if (fixtureDirectory.existsSync()) {
+              await fixtureDirectory.delete(recursive: true);
+            }
           }
-          if (fixtureDirectory.existsSync()) {
-            await fixtureDirectory.delete(recursive: true);
-          }
-        }
-      }
-    },
-  );
+        },
+      );
+    }
+  }
 }
 
 final class _PowerCutCapture {

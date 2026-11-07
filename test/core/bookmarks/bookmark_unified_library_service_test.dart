@@ -851,7 +851,8 @@ void main() {
       );
 
       expect(result.addedCount, 2);
-      expect(result.group.folderId, folder.id);
+      expect(result.group.parentGroupId, folder.id);
+      expect(result.group.folderId, isNull);
       expect(result.group.bookmarkIds, {post.id, native.id});
       expect(result.group.addedAt.keys, {post.id, native.id});
       expect(result.group.addedAt.values.every((date) => date.isUtc), isTrue);

@@ -25,9 +25,12 @@ enum BookmarkSortType {
 /// The source picker supplies hosts, independent of URL paths and ports.
 bool bookmarkSourceMatchesHost(String source, String selectedHost) {
   final uri = Uri.tryParse(source.contains('://') ? source : 'https://$source');
+  final target = selectedHost.contains('://')
+      ? Uri.tryParse(selectedHost)?.host
+      : selectedHost;
   return uri != null &&
       uri.host.isNotEmpty &&
-      uri.host.toLowerCase() == selectedHost.toLowerCase();
+      uri.host.toLowerCase() == target?.toLowerCase();
 }
 
 /// Resolve dates once before sorting, rather than scanning groups in every

@@ -128,6 +128,125 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets(
+    'oversized pinned controls scroll fully into view and repin when they fit',
+    (tester) async {
+      final controller = ScrollController();
+      final headerExtent = ValueNotifier(400.0);
+      addTearDown(controller.dispose);
+      addTearDown(headerExtent.dispose);
+
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 320);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      Widget controls() => ValueListenableBuilder<double>(
+        valueListenable: headerExtent,
+        builder: (context, extent, _) => SizedBox(
+          height: extent,
+          child: Column(
+            children: [
+              const TextField(
+                key: ValueKey('timeline-search'),
+                decoration: InputDecoration(labelText: 'Search posts'),
+              ),
+              const Expanded(child: SizedBox.expand()),
+              SizedBox(
+                height: 56,
+                child: Center(
+                  child: FilledButton(
+                    key: const ValueKey('timeline-bottom-action'),
+                    onPressed: () {},
+                    child: const Text('Bottom action'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(
+              controller: controller,
+              slivers: [
+                TimelineHeaderSliver(
+                  keepVisible: true,
+                  child: controls(),
+                ),
+                SliverList.builder(
+                  itemCount: 40,
+                  itemBuilder: (_, index) => SizedBox(
+                    height: 100,
+                    child: Text('Post $index'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(
+        MediaQuery.sizeOf(tester.element(find.byType(CustomScrollView))),
+        const Size(640, 320),
+      );
+      expect(find.byKey(const ValueKey('timeline-search')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('timeline-bottom-action')).hitTestable(),
+        findsNothing,
+      );
+
+      // The oversized header must leave its natural scroll extent available.
+      controller.jumpTo(120);
+      await tester.pumpAndSettle();
+      final bottomAction = tester.getRect(
+        find.byKey(const ValueKey('timeline-bottom-action')),
+      );
+      expect(bottomAction.top, greaterThanOrEqualTo(0));
+      expect(bottomAction.bottom, lessThanOrEqualTo(320));
+      expect(
+        find.byKey(const ValueKey('timeline-bottom-action')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(controller.offset, 120);
+
+      // A rotation and content reflow bring the full header below the usable
+      // viewport extent. It should regain pinned behavior without replacing
+      // the controls or leaving the previous natural-scroll translation.
+      headerExtent.value = 220;
+      tester.view.physicalSize = const Size(640, 800);
+      await tester.pumpAndSettle();
+      expect(
+        MediaQuery.sizeOf(tester.element(find.byType(CustomScrollView))),
+        const Size(640, 800),
+      );
+      controller.jumpTo(600);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('timeline-search'))).dy,
+        0,
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('timeline-bottom-action')))
+            .bottom,
+        lessThanOrEqualTo(220),
+      );
+      expect(
+        find.byKey(const ValueKey('timeline-bottom-action')).hitTestable(),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('timeline-search')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('floating toolbar survives empty-to-content error recovery', (
     tester,
   ) async {

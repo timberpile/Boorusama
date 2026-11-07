@@ -27,9 +27,14 @@ String id(int n) => '00000000-0000-4000-8000-${n.toString().padLeft(12, '0')}';
 
 class FailingGroups extends BookmarkGroupRepositoryHive {
   FailingGroups(super.box, {required super.organizationBox});
+  var failAttempts = 0;
+
   @override
   Future<BookmarkGroup> createGroup(String name, {String? id}) {
-    if (name == 'Fail') throw StateError('Simulated group write failure');
+    if (name == 'Fail') {
+      failAttempts++;
+      throw StateError('Simulated group write failure');
+    }
     return super.createGroup(name, id: id);
   }
 }
@@ -86,6 +91,34 @@ void main() {
         groupRepository: repository ?? groups,
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       );
+  Future<
+    ({
+      BookmarkHiveRepository bookmarks,
+      BookmarkGroupRepository groups,
+      BookmarkImportService importer,
+    })
+  >
+  openCanonicalBookmarkImport() async {
+    final repository = BookmarkHiveRepository(
+      bookmarkBox,
+      groupPayloadBox: bookmarkStorage.groupPayloadBox,
+      metadataBox: bookmarkStorage.metadataBox,
+      coordinator: bookmarkStorage.coordinator,
+      legacyGroupBoxName: groupBox.name,
+      legacyOrganizationBoxName: folderBox.name,
+    );
+    final organization = await repository.openOrganization();
+    return (
+      bookmarks: repository,
+      groups: organization,
+      importer: BookmarkImportService(
+        bookmarkRepository: repository,
+        groupRepository: organization,
+        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+      ),
+    );
+  }
+
   Future<PostBookmark> add(int n) async =>
       (await bookmarks.addBookmarkWithBookmarks([
         PostBookmark.empty.copyWith(
@@ -305,6 +338,7 @@ void main() {
         await groups.createGroup('Local $n', id: id(n));
         await service.moveFolderItems(groupIds: {id(n)}, destination: local.id);
       }
+      final canonical = await openCanonicalBookmarkImport();
       final data = BookmarkBackupData(
         bookmarks: [],
         folders: [
@@ -344,12 +378,16 @@ void main() {
       final plan = const BookmarkImportPlanner().plan(
         data: data,
         currentBookmarks: [],
-        currentGroups: await groups.getGroups(),
+        currentGroups: await canonical.groups.getGroups(),
       );
       final actions = {
         for (final g in plan.groups)
           g.id: g.resolveAction(
-            g.id == id(1) || g.id == id(4)
+            g.id == id(10) ||
+                    g.id == id(11) ||
+                    g.id == id(13) ||
+                    g.id == id(1) ||
+                    g.id == id(4)
                 ? ImportAction.copy
                 : g.id == id(2)
                 ? ImportAction.update
@@ -360,23 +398,25 @@ void main() {
             destinationId: g.id == id(1) ? id(20) : g.id,
           ),
       };
-      await importer().apply(plan.resolveActions(actions));
-      final tree = FolderTree(await groups.getFolders());
+      await canonical.importer.apply(plan.resolveActions(actions));
+      final tree = BookmarkGroupTree(await canonical.groups.getGroups());
       expect(
-        tree.path((await groups.getGroup(id(20)))!.folderId),
-        'Imported Groups / Cookie / Anime',
+        tree.ancestors(id(20)).map((group) => group.name),
+        ['Imported Groups', 'Cookie', 'Anime'],
       );
       expect(
-        tree.path((await groups.getGroup(id(4)))!.folderId),
-        'Imported Groups / Another',
+        tree.ancestors(id(4)).map((group) => group.name),
+        ['Imported Groups', 'Another'],
       );
-      expect(tree.folders.any((f) => f.name == 'Manga'), isFalse);
-      expect((await groups.getGroup(id(2)))!.folderId, local.id);
-      expect((await groups.getGroup(id(2)))!.name, 'Local 2');
-      expect((await groups.getGroup(id(3)))!.folderId, local.id);
-      expect(await groups.getGroup(id(5)), isNull);
+      expect(tree.groupsById.values.any((g) => g.name == 'Manga'), isFalse);
+      expect((await canonical.groups.getGroup(id(20)))!.bookmarkIds, isEmpty);
+      expect((await canonical.groups.getGroup(id(4)))!.bookmarkIds, isEmpty);
+      expect((await canonical.groups.getGroup(id(2)))!.parentGroupId, local.id);
+      expect((await canonical.groups.getGroup(id(2)))!.name, 'Local 2');
+      expect((await canonical.groups.getGroup(id(3)))!.parentGroupId, local.id);
+      expect(await canonical.groups.getGroup(id(5)), isNull);
       expect(
-        tree.children(null).where((f) => f.name.startsWith('Imported')),
+        tree.childrenOf(null).where((g) => g.name.startsWith('Imported')),
         hasLength(1),
       );
     },
@@ -387,6 +427,7 @@ void main() {
       final folder = await service.createFolder('Local');
       await groups.createGroup('Keep', id: id(1));
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
+      final canonical = await openCanonicalBookmarkImport();
       final data = BookmarkBackupData(
         bookmarks: [],
         folders: [CollectionFolder(id: id(10), name: 'Remote')],
@@ -403,41 +444,41 @@ void main() {
         final plan = const BookmarkImportPlanner().plan(
           data: data,
           currentBookmarks: [],
-          currentGroups: await groups.getGroups(),
+          currentGroups: await canonical.groups.getGroups(),
         );
-        await importer().apply(
+        await canonical.importer.apply(
           plan.resolveActions({
-            id(1): plan.groups.single.resolveAction(action),
+            for (final group in plan.groups)
+              group.id: group.resolveAction(
+                group.id == id(1) ? action : ImportAction.skip,
+              ),
           }),
         );
       }
-      expect(await groups.getFolders(), [folder]);
-      expect((await groups.getGroup(id(1)))!.folderId, folder.id);
-      expect((await groups.getGroup(id(1)))!.name, 'Keep');
+      final tree = BookmarkGroupTree(await canonical.groups.getGroups());
+      expect(tree.groupsById[id(1)]!.parentGroupId, folder.id);
+      expect(
+        tree.ancestors(id(1)).map((group) => group.name),
+        ['Local'],
+      );
+      expect(
+        tree.groupsById.values.any((group) => group.name == 'Remote'),
+        isFalse,
+      );
+      expect((await canonical.groups.getGroup(id(1)))!.name, 'Keep');
     },
   );
   test(
-    'failed copies remove the wrapper and restore the previous hierarchy',
+    'failed flat legacy copies restore the previous hierarchy after the injected group failure',
     () async {
       final folder = await service.createFolder('Existing');
       await groups.createGroup('Keep', id: id(1));
       await service.moveFolderItems(groupIds: {id(1)}, destination: folder.id);
       final data = BookmarkBackupData(
         bookmarks: [],
-        folders: [CollectionFolder(id: id(10), name: 'Remote')],
         groups: [
-          BookmarkGroupBackup(
-            id: id(2),
-            name: 'First',
-            bookmarkIds: [],
-            folderId: id(10),
-          ),
-          BookmarkGroupBackup(
-            id: id(3),
-            name: 'Fail',
-            bookmarkIds: [],
-            folderId: id(10),
-          ),
+          BookmarkGroupBackup(id: id(2), name: 'First', bookmarkIds: []),
+          BookmarkGroupBackup(id: id(3), name: 'Fail', bookmarkIds: []),
         ],
       );
       final plan = const BookmarkImportPlanner().plan(
@@ -445,13 +486,25 @@ void main() {
         currentBookmarks: [],
         currentGroups: await groups.getGroups(),
       );
-      await expectLater(
-        importer(
-          FailingGroups(groupBox, organizationBox: folderBox),
-        ).apply(plan),
-        throwsStateError,
+      final failingGroups = FailingGroups(
+        groupBox,
+        organizationBox: folderBox,
       );
-      expect(await groups.getFolders(), [folder]);
+      final groupsBefore = await groups.getGroups();
+      final foldersBefore = await groups.getFolders();
+      await expectLater(
+        importer(failingGroups).apply(plan),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'Simulated group write failure',
+          ),
+        ),
+      );
+      expect(failingGroups.failAttempts, 1);
+      expect(await groups.getFolders(), foldersBefore);
+      expect(await groups.getGroups(), groupsBefore);
       expect((await groups.getGroups()).map((g) => g.id), [id(1)]);
       expect((await groups.getGroup(id(1)))!.folderId, folder.id);
     },
@@ -511,12 +564,21 @@ void main() {
         bookmarks: [],
         groups: [BookmarkGroupBackup(id: id(2), name: 'Fail', bookmarkIds: [])],
       );
-      await expectLater(
-        importer(
-          FailingGroups(groupBox, organizationBox: folderBox),
-        ).replace(data),
-        throwsStateError,
+      final failingGroups = FailingGroups(
+        groupBox,
+        organizationBox: folderBox,
       );
+      await expectLater(
+        importer(failingGroups).replace(data),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'Simulated group write failure',
+          ),
+        ),
+      );
+      expect(failingGroups.failAttempts, 1);
       final state = await service.load();
       expect(state.folders, [folder]);
       expect(
@@ -540,25 +602,51 @@ void main() {
       await groups.createGroup('Excluded', id: id(2));
       await service.moveFolderItems(groupIds: {id(1)}, destination: child.id);
       await service.moveFolderItems(groupIds: {id(2)}, destination: root.id);
+      final canonical = await openCanonicalBookmarkImport();
       final data = buildBookmarkBackupData(
         bookmarks: [],
-        groups: await groups.getGroups(),
-        folders: await groups.getFolders(),
+        groups: await canonical.groups.getGroups(),
         scope: BookmarkExportScope.selected(groupIds: {id(1)}),
       );
-      expect(data.groups.map((g) => g.id), [id(1)]);
-      expect(data.folders.map((f) => f.id).toSet(), {root.id, child.id});
+      expect(data.folders, isEmpty);
+      expect(data.groups.map((g) => g.id).toSet(), {
+        id(1),
+        root.id,
+        child.id,
+      });
+      final exportedTree = BookmarkGroupTree([
+        for (final group in data.groups)
+          BookmarkGroup(
+            id: group.id!,
+            name: group.name,
+            bookmarkIds: group.bookmarkIds.toSet(),
+            parentGroupId: group.parentGroupId,
+            position: group.position,
+          ),
+      ]);
+      expect(exportedTree.ancestors(id(1)).map((group) => group.id), [
+        root.id,
+        child.id,
+      ]);
+      expect(
+        data.groups.where((group) => group.id == id(1)).single.bookmarkIds,
+        isEmpty,
+      );
+      expect(
+        data.groups.where((group) => group.id == child.id).single.bookmarkIds,
+        isEmpty,
+      );
       final empty = buildBookmarkBackupData(
         bookmarks: [],
-        groups: await groups.getGroups(),
-        folders: await groups.getFolders(),
+        groups: await canonical.groups.getGroups(),
         scope: BookmarkExportScope.selected(
           groupIds: {},
           folderIds: {other.id},
         ),
       );
-      expect(empty.folders, [other]);
-      expect(empty.groups, isEmpty);
+      expect(empty.folders, isEmpty);
+      expect(empty.groups.map((group) => group.id), [other.id]);
+      expect(empty.groups.single.bookmarkIds, isEmpty);
     },
   );
   test(

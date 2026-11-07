@@ -142,7 +142,7 @@ class BookmarkPickerActions {
 
   Future<void> createGroup(
     String name,
-    String? folderId, {
+    String? parentGroupId, {
     required void Function() beforeCommit,
   }) async {
     if (_pending) return;
@@ -154,7 +154,9 @@ class BookmarkPickerActions {
       if (request case SavedBookmarkPickerRequest(:final record)) {
         await container
             .read(bookmarkProvider.notifier)
-            .createGroupWithSavedRecords(name, [record], folderId: folderId);
+            .createGroupWithSavedRecords(name, [
+              record,
+            ], parentGroupId: parentGroupId);
         return;
       }
       await container
@@ -166,7 +168,7 @@ class BookmarkPickerActions {
               PostBookmarkPickerRequest(:final post) => [post],
               _ => [],
             },
-            folderId: folderId,
+            parentGroupId: parentGroupId,
             pools: [?collection],
             initialRelatedOrder: switch (request) {
               RelatedBookmarkPickerRequest(:final visibleOrder) => visibleOrder,

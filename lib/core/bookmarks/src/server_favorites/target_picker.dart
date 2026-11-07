@@ -64,7 +64,7 @@ class _ServerFavoriteTargetPickerState
         onCreateGroup: _create,
         createGroupEnabled: !_creating,
         footerBuilder: _failed
-            ? (context, folderId) => Padding(
+            ? (context, parentGroupId) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text(context.t.bookmark.groups.operation_failed),
               )
@@ -78,7 +78,7 @@ class _ServerFavoriteTargetPickerState
     );
   }
 
-  Future<void> _create(String? folderId) async {
+  Future<void> _create(String? parentGroupId) async {
     if (_creating) return;
     setState(() {
       _creating = true;
@@ -99,7 +99,7 @@ class _ServerFavoriteTargetPickerState
     try {
       final group = await ref
           .read(bookmarkLibraryProvider.notifier)
-          .createGroup(name, folderId: folderId);
+          .createGroup(name, parentGroupId: parentGroupId);
       if (mounted && (ModalRoute.of(context)?.isCurrent ?? false))
         Navigator.pop(context, ServerFavoriteTarget.group(group.id));
     } catch (_) {
