@@ -309,7 +309,7 @@ class PostGridItem extends ConsumerWidget {
   }
 }
 
-class _PostGridImage extends ConsumerWidget {
+class _PostGridImage extends ConsumerStatefulWidget {
   const _PostGridImage({
     required this.media,
     required this.config,
@@ -323,7 +323,28 @@ class _PostGridImage extends ConsumerWidget {
   final BooruConfigAuth config;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PostGridImage> createState() => _PostGridImageState();
+}
+
+class _PostGridImageState extends ConsumerState<_PostGridImage> {
+  double? _decodedAspectRatio;
+
+  @override
+  void didUpdateWidget(covariant _PostGridImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.media != oldWidget.media ||
+        widget.config != oldWidget.config ||
+        !identical(widget.cachedImageBytes, oldWidget.cachedImageBytes)) {
+      _decodedAspectRatio = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = widget.media;
+    final config = widget.config;
+    final imageCacheManager = widget.imageCacheManager;
+    final cachedImageBytes = widget.cachedImageBytes;
     final imageBorderRadius = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageBorderRadius),
     );
@@ -333,9 +354,29 @@ class _PostGridImage extends ConsumerWidget {
     final borderRadius = BorderRadius.circular(imageBorderRadius);
     final cover = imageListType == ImageListType.standard;
     final fit = imageListType == ImageListType.classic ? BoxFit.contain : null;
+    final masonry = imageListType == ImageListType.masonry;
+    final aspectRatio = masonry
+        ? _decodedAspectRatio ?? media.aspectRatio
+        : media.aspectRatio;
+
+    void onDecodedAspectRatio(double value) {
+      if (!mounted ||
+          !masonry ||
+          widget.media != media ||
+          widget.config != config ||
+          !value.isFinite ||
+          value <= 0 ||
+          _decodedAspectRatio == value) {
+        return;
+      }
+
+      setState(() => _decodedAspectRatio = value);
+    }
+
     Widget normal(String url, {bool fallback = false}) => BooruImage(
       config: config,
-      aspectRatio: media.aspectRatio,
+      aspectRatio: aspectRatio,
+      onDecodedAspectRatio: masonry ? onDecodedAspectRatio : null,
       imageUrl: url,
       fallbackUrl: fallback ? null : media.fallbackUrl,
       fallbackUrls: fallback ? const [] : media.fallbackUrls,
@@ -357,7 +398,7 @@ class _PostGridImage extends ConsumerWidget {
       fallback: true,
     );
     final ratio =
-        media.aspectRatio ??
+        aspectRatio ??
         ref.watch(
           imageListingSettingsProvider.select((v) => v.imageGridAspectRatio),
         );
@@ -372,6 +413,13 @@ class _PostGridImage extends ConsumerWidget {
         final image = LayoutBuilder(
           builder: (context, constraints) => ExtendedImage(
             image: provider,
+            enableLoadState: masonry,
+            loadStateChanged: masonry
+                ? (state) => reportDecodedAspectRatio(
+                    state,
+                    onDecodedAspectRatio,
+                  )
+                : null,
             width: constraints.maxWidth.roundToDouble(),
             height: constraints.maxHeight.roundToDouble(),
             fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
