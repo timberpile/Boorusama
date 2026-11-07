@@ -314,6 +314,9 @@ class FollowingTopicHarness {
               ),
             ),
         ),
+        mediaOverrideDioProvider.overrideWith(
+          (ref, config) => ref.watch(dioForWidgetProvider(config)),
+        ),
         httpHeadersProvider.overrideWith((ref, config) => {}),
         routerProvider.overrideWith((_) => router),
         ...overrides,
