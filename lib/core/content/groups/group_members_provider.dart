@@ -79,6 +79,7 @@ class GroupMembersController
   Future<void>? _nextPending;
   final _seenCursors = <String>{};
   final _memberIndex = <String, int>{};
+  final _references = <ContentIdentity, ContentReference>{};
   final _readableOccurrences = <ContentIdentity, int>{};
 
   @override
@@ -92,7 +93,13 @@ class GroupMembersController
       cancel.cancel('Group members disposed');
     });
     _source = null;
-    final source = ref.watch(contentGroupSourceProvider(key.access));
+    final ContentGroupSource source;
+    try {
+      source = ref.watch(contentGroupSourceProvider(key.access));
+    } catch (error, stack) {
+      state = groupSourceFailureState(error, stack);
+      rethrow;
+    }
     _source = source;
     return _initial(source, generation);
   }
@@ -109,6 +116,7 @@ class GroupMembersController
     _nextPending = null;
     _seenCursors.clear();
     _memberIndex.clear();
+    _references.clear();
     _readableOccurrences.clear();
     return _generation;
   }
@@ -241,6 +249,7 @@ class GroupMembersController
     }
     final members = [...before.members];
     final newIndices = <String, int>{};
+    final newReferences = <ContentIdentity, ContentReference>{};
     final visibilityDelta = <ContentIdentity, int>{};
     void adjust(GroupMember member, int delta) {
       if (member.availability == MemberAvailability.unavailable) return;
@@ -252,6 +261,16 @@ class GroupMembersController
     }
 
     for (final member in batch.page.items) {
+      final previousReference =
+          _references[member.reference.identity] ??
+          newReferences[member.reference.identity];
+      if (previousReference != null) {
+        const ContentReferenceCodec().requireCompatible(
+          previousReference,
+          member.reference,
+        );
+      }
+      newReferences[member.reference.identity] = member.reference;
       final index = _memberIndex[member.memberKey];
       if (index == null) {
         newIndices[member.memberKey] = members.length;
@@ -304,6 +323,7 @@ class GroupMembersController
     }
     // Publish indexes only after the whole page has passed validation.
     _memberIndex.addAll(newIndices);
+    _references.addAll(newReferences);
     for (final entry in visibilityDelta.entries) {
       final count = (_readableOccurrences[entry.key] ?? 0) + entry.value;
       if (count == 0) {

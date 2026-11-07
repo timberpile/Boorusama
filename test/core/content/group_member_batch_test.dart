@@ -119,6 +119,42 @@ void main() {
   });
 
   test(
+    'unhydrated occurrences reject incompatible semantic interpretations',
+    () {
+      final local = reference('id:7');
+      final incompatible = codec.parse(
+        engine: BooruType.e621,
+        site: site,
+        kind: ContentKind.post,
+        sourceKey: 'id:7',
+      );
+      expect(local.identity, incompatible.identity);
+      for (final pair in [
+        [local, incompatible],
+        [incompatible, local],
+      ]) {
+        expect(
+          () => validateGroupMemberBatch(
+            GroupMemberQuery(
+              reference: reference('pool:42', ContentKind.group),
+            ),
+            (
+              page: ContentPage(
+                items: [
+                  GroupMember(reference: pair.first, memberKey: 'first'),
+                  GroupMember(reference: pair.last, memberKey: 'second'),
+                ],
+              ),
+              resolved: <ContentEntry>[],
+            ),
+          ),
+          throwsFormatException,
+        );
+      }
+    },
+  );
+
+  test(
     'invalid hydration and conflicting occurrence keys fail before publication',
     () {
       final group = reference('pool:42', ContentKind.group);

@@ -63,7 +63,13 @@ final contentGroupSourceProvider = Provider.autoDispose
 
 final groupSummaryProvider = FutureProvider.autoDispose
     .family<ContentGroupSummary, GroupMetadataKey>((ref, key) {
-      final source = ref.watch(contentGroupSourceProvider(key.access));
+      final ContentGroupSource source;
+      try {
+        source = ref.watch(contentGroupSourceProvider(key.access));
+      } catch (error, stack) {
+        ref.state = groupSourceFailureState(error, stack);
+        rethrow;
+      }
       return readGroupSource(
         ref,
         key.access,
@@ -80,7 +86,13 @@ final groupSummaryProvider = FutureProvider.autoDispose
 
 final groupDetailsProvider = FutureProvider.autoDispose
     .family<ContentGroupDetails, GroupMetadataKey>((ref, key) {
-      final source = ref.watch(contentGroupSourceProvider(key.access));
+      final ContentGroupSource source;
+      try {
+        source = ref.watch(contentGroupSourceProvider(key.access));
+      } catch (error, stack) {
+        ref.state = groupSourceFailureState(error, stack);
+        rethrow;
+      }
       return readGroupSource(
         ref,
         key.access,
@@ -94,6 +106,27 @@ final groupDetailsProvider = FutureProvider.autoDispose
         return details;
       });
     }, dependencies: [contentGroupSourceProvider]);
+
+/// Riverpod 2.6 retains previous data even when assigning an AsyncError. Losing
+/// the authorized source must erase that data before its failure is published.
+/// Ordinary request/page errors keep the normal previous-data behavior.
+AsyncError<T> groupSourceFailureState<T>(Object error, StackTrace stack) =>
+    _GroupSourceFailure<T>(error, stack);
+
+// The pinned Riverpod 2.6 API has no setter which clears previous AsyncValue
+// data: both FutureProvider.ref.state and AsyncNotifier.state call
+// copyWithPrevious. Keep this compatibility override local to source loss,
+// covered by member/metadata revocation tests, until Riverpod offers that API.
+// ignore: subtype_of_sealed_class
+final class _GroupSourceFailure<T> extends AsyncError<T> {
+  const _GroupSourceFailure(super.error, super.stackTrace);
+
+  @override
+  AsyncError<T> copyWithPrevious(
+    AsyncValue<T> previous, {
+    bool isRefresh = true,
+  }) => this;
+}
 
 /// Each observer owns admission/cancellation. Shared-envelope adapters merge
 /// those observers through GroupEnvelopeCache rather than borrowing a token.

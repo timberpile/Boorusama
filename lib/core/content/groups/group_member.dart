@@ -72,12 +72,17 @@ GroupMemberBatch validateGroupMemberBatch(
       throw const FormatException('Duplicate Group member occurrence');
     }
     members[member.memberKey] = member;
+    final matches = references.putIfAbsent(member.reference.identity, () => []);
+    if (matches.isNotEmpty) {
+      const ContentReferenceCodec().requireCompatible(
+        matches.first,
+        member.reference,
+      );
+    }
+    matches.add(member.reference);
     if (member.availability != MemberAvailability.unavailable) {
       readable.add(member.reference.identity);
     }
-    references
-        .putIfAbsent(member.reference.identity, () => [])
-        .add(member.reference);
   }
   final hydrated = <ContentIdentity, ContentEntry>{};
   for (final entry in batch.resolved) {

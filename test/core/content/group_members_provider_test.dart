@@ -70,6 +70,219 @@ void main() {
     addTearDown(subscription.close);
   }
 
+  for (final hydration in ['first', 'none', 'last']) {
+    test(
+      'incompatible unhydrated identity across pages is rejected ($hydration)',
+      () async {
+        listen(key);
+        final initial = container.read(groupMembersProvider(key).future);
+        await source.requested(0);
+        final incompatible = const ContentReferenceCodec().parse(
+          engine: BooruType.e621,
+          site: group.site,
+          kind: ContentKind.post,
+          sourceKey: 'id:7',
+        );
+        final realPost = testSearchPost(7, null).copyWith(
+          origin: PostOrigin.fromSource(
+            booruType: group.engine,
+            booruId: 1,
+            source: group.site.toString(),
+          ),
+        );
+        final firstReference = hydration == 'last' ? incompatible : post(7);
+        source.complete(0, (
+          page: ContentPage(
+            items: [
+              GroupMember(
+                reference: firstReference,
+                memberKey: 'first',
+                sourcePosition: 0,
+              ),
+            ],
+            next: ContentCursor('next'),
+          ),
+          resolved: hydration == 'first'
+              ? [PostContentEntry(reference: post(7), post: realPost)]
+              : <ContentEntry>[],
+        ));
+        final before = await initial;
+        final controller = container.read(groupMembersProvider(key).notifier);
+        final next = controller.loadNext();
+        await source.requested(1);
+        source.complete(1, (
+          page: ContentPage(
+            items: [
+              GroupMember(
+                reference: hydration == 'last' ? post(7) : incompatible,
+                memberKey: 'second',
+                sourcePosition: 1,
+              ),
+            ],
+          ),
+          resolved: hydration == 'last'
+              ? [PostContentEntry(reference: post(7), post: realPost)]
+              : <ContentEntry>[],
+        ));
+        await next;
+        final rejected = container.read(groupMembersProvider(key)).requireValue;
+        expect(rejected.nextPageError, isNotNull);
+        expect(rejected.members, before.members);
+        expect(rejected.resolved, before.resolved);
+        expect(rejected.next, before.next);
+        final retry = controller.retryNext();
+        await source.requested(2);
+        expect(source.queries[2].cursor, before.next);
+        source.complete(
+          2,
+          batch([
+            GroupMember(
+              reference: firstReference,
+              memberKey: 'second',
+              sourcePosition: 1,
+            ),
+          ]),
+        );
+        await retry;
+        final accepted = container.read(groupMembersProvider(key)).requireValue;
+        expect(accepted.members.map((m) => m.memberKey), ['first', 'second']);
+        expect(accepted.nextPageError, isNull);
+        expect(accepted.resolved, before.resolved);
+      },
+    );
+  }
+
+  for (final change in ['account', 'removal', 'policy', 'loading', 'error']) {
+    test(
+      '$change revocation erases already published members and metadata',
+      () async {
+        container.dispose();
+        final sources = <ContentAccessKey, _Source>{};
+        final visibility = StateProvider<AsyncValue<String>>(
+          (ref) => const AsyncData('one'),
+        );
+        container = ProviderContainer(
+          overrides: [
+            booruConfigProvider.overrideWith(_Configs.new),
+            contentEffectivePolicyProvider.overrideWith(
+              (ref, id) => ref.watch(visibility),
+            ),
+            contentGroupSourceProvider.overrideWith((ref, access) {
+              final context = ref.watch(contentAccessContextProvider(access));
+              if (context == null) {
+                throw AppError(
+                  type: AppErrorType.loadDataFromServerFailed,
+                  message: 'Scope revoked',
+                );
+              }
+              return sources.putIfAbsent(
+                access,
+                () => _Source(context: context),
+              );
+            }),
+          ],
+        );
+        final request = ContentAccessRequest(reference: group);
+        final access = container.read(
+          contentAccessForReferenceProvider(request),
+        )!;
+        final oldKey = GroupLoadKey(reference: group, access: access.key);
+        listen(oldKey);
+        final summaries = container.listen(
+          groupSummaryProvider(oldKey.metadata),
+          (_, _) {},
+        );
+        final details = container.listen(
+          groupDetailsProvider(oldKey.metadata),
+          (_, _) {},
+        );
+        addTearDown(summaries.close);
+        addTearDown(details.close);
+        final initial = container.read(groupMembersProvider(oldKey).future);
+        final oldSource = sources[access.key]!;
+        await oldSource.requested(0);
+        final realPost = testSearchPost(7, null).copyWith(
+          origin: PostOrigin.fromSource(
+            booruType: group.engine,
+            booruId: 1,
+            source: group.site.toString(),
+          ),
+        );
+        oldSource.complete(0, (
+          page: ContentPage(
+            items: [member(7, 'private', 0)],
+            next: ContentCursor('next'),
+          ),
+          resolved: [PostContentEntry(reference: post(7), post: realPost)],
+        ));
+        expect((await initial).resolved, hasLength(1));
+        await container.read(groupSummaryProvider(oldKey.metadata).future);
+        await container.read(groupDetailsProvider(oldKey.metadata).future);
+        final calls = (
+          oldSource.queries.length,
+          oldSource.summaryCalls,
+          oldSource.detailsCalls,
+        );
+        switch (change) {
+          case 'account':
+            (container.read(booruConfigProvider.notifier) as _Configs)
+                .replaceAccount();
+          case 'removal':
+            (container.read(booruConfigProvider.notifier) as _Configs).remove();
+          case 'policy':
+            container.read(visibility.notifier).state = const AsyncData('two');
+          case 'loading':
+            container.read(visibility.notifier).state = const AsyncLoading();
+          case 'error':
+            container.read(visibility.notifier).state = AsyncError(
+              Exception('Fixture policy'),
+              StackTrace.current,
+            );
+        }
+        await container.pump();
+        final revoked = container.read(groupMembersProvider(oldKey));
+        expect(revoked.hasError, isTrue);
+        expect(revoked.hasValue, isFalse);
+        expect(revoked.valueOrNull, isNull);
+        for (final metadata in [
+          container.read(groupSummaryProvider(oldKey.metadata)),
+          container.read(groupDetailsProvider(oldKey.metadata)),
+        ]) {
+          expect(metadata.hasError, isTrue);
+          expect(metadata.hasValue, isFalse);
+          expect(metadata.valueOrNull, isNull);
+        }
+        final oldController = container.read(
+          groupMembersProvider(oldKey).notifier,
+        );
+        await oldController.loadNext();
+        await oldController.refresh();
+        expect((
+          oldSource.queries.length,
+          oldSource.summaryCalls,
+          oldSource.detailsCalls,
+        ), calls);
+        final newAccess = container.read(
+          contentAccessForReferenceProvider(request),
+        );
+        if (newAccess != null) {
+          expect(newAccess.key, isNot(access.key));
+          final newKey = GroupLoadKey(reference: group, access: newAccess.key);
+          listen(newKey);
+          final fresh = container.read(groupMembersProvider(newKey).future);
+          final newSource = sources[newAccess.key]!;
+          await newSource.requested(0);
+          expect(
+            container.read(groupMembersProvider(newKey)).hasValue,
+            isFalse,
+          );
+          newSource.complete(0, batch([]));
+          expect((await fresh).resolved, isEmpty);
+        }
+      },
+    );
+  }
+
   test('pages preserve occurrence order, gaps and raw continuation; concurrent next joins', () async {
     listen(key);
     final initial = container.read(groupMembersProvider(key).future);
@@ -487,6 +700,8 @@ class _Source extends ContentGroupSource {
   final responses = <Completer<Either<BooruError, GroupMemberBatch>>>[];
   final signals = <int, Completer<void>>{};
   var invalidations = 0;
+  var summaryCalls = 0;
+  var detailsCalls = 0;
   Future<void> requested(int index) => queries.length > index
       ? Future.value()
       : signals.putIfAbsent(index, Completer<void>.new).future;
@@ -509,13 +724,21 @@ class _Source extends ContentGroupSource {
   @override
   TaskEither<BooruError, ContentGroupSummary> loadSummary(
     ContentReference reference,
-  ) => TaskEither.right(ContentGroupSummary(reference: reference));
+  ) {
+    summaryCalls++;
+    return TaskEither.right(ContentGroupSummary(reference: reference));
+  }
+
   @override
   TaskEither<BooruError, ContentGroupDetails> loadDetails(
     ContentReference reference,
-  ) => TaskEither.right(
-    ContentGroupDetails(summary: ContentGroupSummary(reference: reference)),
-  );
+  ) {
+    detailsCalls++;
+    return TaskEither.right(
+      ContentGroupDetails(summary: ContentGroupSummary(reference: reference)),
+    );
+  }
+
   @override
   void invalidate(ContentReference reference) {
     invalidations++;
@@ -536,6 +759,7 @@ ContentAccessContext _context() => ContentAccessContext.profile(
 
 class _Configs extends BooruConfigNotifier {
   _Configs() : super(initialConfigs: [_context().config!]);
+  void remove() => state = [];
   void replaceAccount() => state = [
     BooruConfig.fromJson({
       ...state.single.toJson(),
