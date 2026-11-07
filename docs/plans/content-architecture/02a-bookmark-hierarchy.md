@@ -56,7 +56,7 @@ Handle both entry paths:
 
 Resolve pending journals before planning the next generation. Persist collision maps before use. Inject interruption after each durable boundary, reopen and compare semantic state. Do not allocate new Bookmark IDs just to convert folders; only local group UUID collisions need remapping. Never lower or reconstruct the allocator from imported IDs.
 
-Add hierarchy backup writer v11 and keep v4-v10 readers plus v11. This is intentional: v10 already exists on #155 and cannot silently acquire parent semantics an older reader ignores. Adapt source version metadata, previews, custom scope/tree selection, templates, dependency checks, conflict normalization, merge/update/copy/full replace, cancellation, durability and restart recovery. Validated parent graphs must be identical in preview and apply. Keep normal per-group update direct rather than recursive. Explicit subtree export retains separate group definitions and empty structural nodes.
+Finalize the unreleased backup writer as v10 with nested group parents; do not bump to v11 solely for the unmerged #155 draft. Preserve v4-v9 readers and explicit, unambiguous recognition of any existing #155-only v10 folder-format fixtures. Reject malformed or mixed organization shapes rather than silently flattening parents. If a draft v10 backup was distributed externally, escalate that verified compatibility requirement before finalizing. Adapt source version metadata, previews, custom scope/tree selection, templates, dependency checks, conflict normalization, merge/update/copy/full replace, cancellation, durability and restart recovery. Validated parent graphs must be identical in preview and apply. Keep normal per-group update direct rather than recursive. Explicit subtree export retains separate group definitions and empty structural nodes.
 
 Test duplicate names, cross-namespace UUID collisions, Default, legacy folder selection aliases, a selected child without its full parent selection, external transfer-ID remapping, unknown formats, and profile-hint neutrality. Preserve unaddressable Posts and opaque legacy Collections; the exact identity-collapse fix in #155 must remain covered. The profile-independent-import feature itself remains stage #142.
 
@@ -72,7 +72,7 @@ Observed predecessor suites to retain include:
 - `test/core/backups/bookmark_unified_import_recovery_test.dart`
 - `test/core/backups/export_import/bookmark_profile_hint_identity_test.dart`
 
-Do not delete v10 fixtures or change them all to v11: they are compatibility evidence. Add distinct v11 hierarchy fixtures and cold-reopen tests.
+Preserve representative #155-only v10 folder fixtures as transitional regression evidence. Add finalized nested-v10 hierarchy fixtures and cold-reopen tests; both shapes must be validated without conflating organization semantics.
 
 Gate: deterministic preflight, migration/recovery and transfer tests pass before production UI consumes the new store. No partially migrated writable state is allowed.
 
@@ -123,7 +123,7 @@ New tests may be split along these suggested responsibilities (new filenames, no
 - `test/core/bookmarks/bookmark_subtree_view_test.dart`
 - `test/core/bookmarks/bookmark_hierarchy_mutations_test.dart`
 - `test/core/bookmarks/bookmark_group_view_preferences_test.dart`
-- `test/core/backups/bookmark_backup_v11_hierarchy_test.dart`
+- `test/core/backups/bookmark_backup_v10_hierarchy_test.dart`
 - `test/core/bookmarks/bookmark_hierarchy_scroll_test.dart`
 - `test/core/bookmarks/bookmark_hierarchy_picker_test.dart`
 
@@ -167,6 +167,6 @@ Fix findings in scope, rerun required checks and obtain independent re-review of
 
 Update durable Bookmark/backup/UI documentation for the actual implementation and write an English #158 completion handoff with base/head, migration paths, checks, review evidence and pending limits. Preserve #155's historical evidence. Commit coherent work with `Refs #158`; do not wait until the end to save all progress.
 
-After the required #158 gates pass, continue the existing rollout at #142 on a dependent issue branch carrying the verified #158 candidate, then #143, #156, #140, #141 and #157. Never restart those stages from an old #155-only or develop base and thereby lose the new hierarchy. Adapt their obsolete folder/v10 assumptions, without adding their implementation to #158. Do not ask again for permission to continue an already authorized stage; stop only for a real blocker, new material product decision or a missing separate authorization.
+After the required #158 gates pass, continue the existing rollout at #142 on a dependent issue branch carrying the verified #158 candidate, then #143, #156, #140, #141 and #157. Never restart those stages from an old #155-only or develop base and thereby lose the new hierarchy. Adapt their obsolete folder/pre-hierarchy-v10 assumptions, without adding their implementation to #158. Do not ask again for permission to continue an already authorized stage; stop only for a real blocker, new material product decision or a missing separate authorization.
 
 No PR, develop integration/push, runtime publication, issue closure or release is authorized by publishing these plans. The local agent must respect any additional explicit authorization already received, but not infer it from this documentation branch. The later final combined candidate still needs full regression and independent Astra High cross-stage review.
