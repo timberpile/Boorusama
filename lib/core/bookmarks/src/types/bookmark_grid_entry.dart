@@ -47,9 +47,11 @@ List<CollectionBookmark> selectPoolBookmarks({
       .map(BookmarkSearchToken.parse)
       .where((t) => t.tag.isNotEmpty)
       .toList();
+  final groupsInView = view.kind == BookmarkViewKind.all
+      ? null
+      : state.groupIdsForView(view);
   return state.pools.where((pool) {
-    if (view.kind == BookmarkViewKind.group &&
-        !pool.groupIds.contains(view.groupId))
+    if (groupsInView != null && !pool.groupIds.any(groupsInView.contains))
       return false;
     if (selectedBooruUrl != null &&
         !bookmarkSourceMatchesHost(pool.origin.sourceHost, selectedBooruUrl))
@@ -119,6 +121,12 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
     for (final pool in pools) {
       final dates = view.kind == BookmarkViewKind.group
           ? [pool.addedAt[view.groupId] ?? pool.createdAt]
+          : view.kind == BookmarkViewKind.subtree
+          ? pool.addedAt.entries
+                .where(
+                  (entry) => state.groupIdsForView(view).contains(entry.key),
+                )
+                .map((entry) => entry.value)
           : pool.addedAt.values;
       poolDates[pool.localId] = dates.isEmpty
           ? pool.createdAt

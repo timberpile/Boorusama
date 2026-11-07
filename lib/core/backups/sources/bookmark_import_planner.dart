@@ -23,9 +23,21 @@ class BookmarkImportPlanner {
     };
     final importedBookmarks = {for (final b in data.records) b.id: b};
     final currentGroupIds = currentGroups.map((group) => group.id).toSet();
+    final normalized = normalizeBookmarkBackupGroups([
+      for (final group in data.groups)
+        BookmarkGroupBackup(
+          id: group.id ?? uuid.v4().toLowerCase(),
+          name: group.name,
+          bookmarkIds: group.bookmarkIds,
+          addedAt: group.addedAt,
+          folderId: group.folderId,
+          parentGroupId: group.parentGroupId,
+          position: group.position,
+        ),
+    ], data.folders);
     return BookmarkImportPlan(
       records: data.records,
-      folders: data.folders,
+      folders: const [],
       alreadyExistedCount: data.records
           .where(
             (b) => switch (bookmarkContentIdentity(b)) {
@@ -35,11 +47,12 @@ class BookmarkImportPlanner {
           )
           .length,
       groups: [
-        for (final group in data.groups)
+        for (final group in normalized)
           BookmarkGroupImport(
             id: group.id ?? uuid.v4().toLowerCase(),
             name: group.name,
             folderId: group.folderId,
+            parentGroupId: group.parentGroupId,
             position: group.position,
             bookmarkIds: group.bookmarkIds.toSet(),
             addedAt: {

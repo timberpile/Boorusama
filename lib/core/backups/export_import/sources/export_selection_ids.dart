@@ -6,6 +6,10 @@ final class ExportSelectionIds {
 
   static String bookmarkGroup(String id) => 'group:$id';
 
+  static String bookmarkGroupDirect(String id) => 'group-direct:$id';
+  static String? bookmarkGroupDirectId(String childId) =>
+      _value(childId, 'group-direct:');
+
   static String followingTopic(String id) => 'search:$id';
 
   static String followingTopicFolder(String id) => 'folder:$id';
@@ -15,6 +19,10 @@ final class ExportSelectionIds {
   static String profile(String id) => 'profile:$id';
 
   static String? bookmarkGroupId(String childId) => _value(childId, 'group:');
+
+  /// Reads the pre-hierarchy folder selector identity for compatibility.
+  static String? bookmarkFolderId(String childId) =>
+      _value(childId, 'group-folder:');
 
   static String? followingTopicId(String childId) => _value(childId, 'search:');
 

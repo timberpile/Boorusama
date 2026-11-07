@@ -21,6 +21,7 @@ final class UnifiedBookmarkGroupRepository
         BookmarkGroupRepository,
         BookmarkFolderRepository,
         BookmarkRecentGroupRepository,
+        BookmarkHierarchyAliasRepository,
         PoolBookmarkRepository,
         UnifiedBookmarkOrganization {
   UnifiedBookmarkGroupRepository({
@@ -200,6 +201,9 @@ final class UnifiedBookmarkGroupRepository
   ) => _run(
     () => bookmarks.commitOrganization(groups: groups, folders: folders),
   );
+  @override
+  Future<Map<String, String>> readLegacyFolderGroupIds() =>
+      _run(_reader.readLegacyFolderGroupIds);
   @override
   Future<List<String>> readRecentGroupIds() => _run(_reader.readRecentGroupIds);
   @override

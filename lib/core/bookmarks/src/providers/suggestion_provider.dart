@@ -27,6 +27,7 @@ import '../types/bookmark_tag_index.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_details_mutation_notifier.dart';
 import 'bookmark_provider.dart';
+import 'bookmark_group_selectors.dart';
 import 'local_providers.dart';
 
 // One library-wide builder survives route disposal. Profile replacement destroys
@@ -93,9 +94,8 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
       // Autocomplete counts do not depend on the grid's date/shuffle ordering.
       final bookmarks = switch (view.kind) {
         BookmarkViewKind.all => library.items,
-        BookmarkViewKind.group => [
-          for (final id
-              in library.groupsById[view.groupId]?.bookmarkIds ?? const <int>{})
+        BookmarkViewKind.group || BookmarkViewKind.subtree => [
+          for (final id in library.bookmarkIdsForView(view))
             ?library.bookmarksById[id],
         ],
       };
@@ -104,7 +104,8 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
             source == null
                 ? bookmarks
                 : bookmarks.where(
-                    (bookmark) => bookmark.sourceUrl.contains(source),
+                    (bookmark) =>
+                        bookmarkSourceMatchesHost(bookmark.sourceUrl, source),
                   ),
             isCurrent: () => !obsolete,
             revision: view.kind == BookmarkViewKind.all && source == null
@@ -120,7 +121,11 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
           selectedTags: const [],
           selectedBooruUrl: source,
         ),
-        (library.pools, source),
+        (
+          library.pools,
+          source,
+          view.kind == BookmarkViewKind.subtree ? library.groupTree : null,
+        ),
       );
     });
 

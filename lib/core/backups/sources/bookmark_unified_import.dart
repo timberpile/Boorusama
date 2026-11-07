@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 
 import '../../bookmarks/types.dart';
+import '../../bookmarks/src/services/bookmark_hierarchy_conversion.dart';
 import '../../bookmarks/src/types/bookmark_record_fields.dart';
 import '../../bookmarks/src/types/legacy_group_bookmark.dart';
 import '../../groups/folder_tree.dart';
@@ -40,15 +41,68 @@ final class BookmarkImportPreparation {
     String importFolderName = 'Imported Groups',
     String Function()? newId,
   }) {
-    if (!plan.isResolved) throw StateError('Import conflicts are unresolved');
+    var incomingPlan = plan;
+    var localGroups = currentGroups;
+    if (!incomingPlan.isResolved)
+      throw StateError('Import conflicts are unresolved');
     final uuid = newId ?? () => const Uuid().v4().toLowerCase();
-    final sourceTree = FolderTree(plan.folders);
-    sourceTree.validatePlacements([
-      for (final g in plan.groups)
-        FolderPlacement(
-          itemId: g.id,
-          folderId: g.folderId,
-          position: g.position,
+    if (currentFolders.isNotEmpty ||
+        localGroups.any((g) => g.folderId != null)) {
+      localGroups = BookmarkHierarchyConversion.convert(
+        groups: localGroups,
+        folders: currentFolders,
+      ).groups;
+    }
+    if (incomingPlan.folders.isNotEmpty ||
+        incomingPlan.groups.any((g) => g.folderId != null)) {
+      final originals = {
+        for (final group in incomingPlan.groups) group.id: group,
+      };
+      final converted = BookmarkHierarchyConversion.convert(
+        groups: [
+          for (final group in incomingPlan.groups)
+            BookmarkGroup(
+              id: group.id,
+              name: group.name,
+              bookmarkIds: group.bookmarkIds,
+              addedAt: group.addedAt,
+              folderId: group.folderId,
+              position: group.position,
+            ),
+        ],
+        folders: incomingPlan.folders,
+      );
+      incomingPlan = BookmarkImportPlan(
+        records: incomingPlan.records,
+        alreadyExistedCount: incomingPlan.alreadyExistedCount,
+        groups: [
+          for (final group in converted.groups)
+            if (originals[group.id] case final original?)
+              original
+                  .copyWith(parentGroupId: group.parentGroupId, home: true)
+                  .copyWith(parentGroupId: group.parentGroupId)
+            else
+              BookmarkGroupImport(
+                id: group.id,
+                name: group.name,
+                bookmarkIds: group.bookmarkIds,
+                addedAt: group.addedAt,
+                parentGroupId: group.parentGroupId,
+                position: group.position,
+                conflicts: false,
+              ),
+        ],
+      );
+    }
+    BookmarkGroupTree([
+      for (final group in incomingPlan.groups)
+        BookmarkGroup(
+          id: group.id,
+          name: group.name,
+          bookmarkIds: group.bookmarkIds,
+          addedAt: group.addedAt,
+          parentGroupId: group.parentGroupId,
+          position: group.position,
         ),
     ]);
     final byIdentity = {
@@ -57,7 +111,7 @@ final class BookmarkImportPreparation {
     };
     final source = <int, Bookmark>{};
     final identities = <Object>{};
-    for (final candidate in plan.records) {
+    for (final candidate in incomingPlan.records) {
       final identity = bookmarkContentIdentity(candidate);
       if (source.containsKey(candidate.id) ||
           (identity != null && !identities.add(identity))) {
@@ -74,7 +128,7 @@ final class BookmarkImportPreparation {
     }
     final sourceIds = source.keys.toSet();
     final groupIds = <String>{};
-    for (final g in plan.groups) {
+    for (final g in incomingPlan.groups) {
       if (!Uuid.isValidUUID(fromString: g.id) ||
           g.id != g.id.toLowerCase() ||
           !groupIds.add(g.id) ||
@@ -83,15 +137,15 @@ final class BookmarkImportPreparation {
           g.position < 0 ||
           !sourceIds.containsAll(g.bookmarkIds) ||
           g.addedAt.keys.toSet().difference(g.bookmarkIds).isNotEmpty ||
-          (g.isDefault && g.folderId != null) ||
+          (g.isDefault && (g.folderId != null || g.parentGroupId != null)) ||
           g.resolvedAction == ImportAction.configureItems) {
         throw const FormatException('Invalid imported Bookmark group');
       }
     }
-    final chosen = plan.groups
+    final chosen = incomingPlan.groups
         .where((g) => replace || g.resolvedAction != ImportAction.skip)
         .toList();
-    final grouped = {for (final g in plan.groups) ...g.bookmarkIds};
+    final grouped = {for (final g in incomingPlan.groups) ...g.bookmarkIds};
     final selected = {
       for (final g in chosen) ...g.bookmarkIds,
       ...source.keys.toSet().difference(grouped),
@@ -128,37 +182,46 @@ final class BookmarkImportPreparation {
     }
     final resultGroups = <String, BookmarkGroup>{
       if (!replace)
-        for (final g in currentGroups) g.id: g,
+        for (final g in localGroups) g.id: g,
     };
-    var folders = replace ? plan.folders : currentFolders;
+    final targets = <String, String>{};
+    final occupied = resultGroups.keys.toSet();
     final copies = chosen
         .where((g) => !g.isDefault && g.resolvedAction == ImportAction.copy)
         .toList();
-    final placements = <String, FolderPlacement>{};
+    String? wrapper;
     if (!replace && copies.isNotEmpty) {
-      final hierarchy = planFolderHierarchyCopy(
-        current: currentFolders,
-        incoming: plan.folders,
-        itemFolders: copies.map((g) => g.folderId),
-        wrapperName: importFolderName,
-        newId: uuid,
-      );
-      folders = hierarchy.folders;
-      for (final g in copies) {
-        final destination =
-            g.destinationId ?? (resultGroups.containsKey(g.id) ? uuid() : g.id);
-        if (resultGroups.containsKey(destination) ||
-            placements.values.any((p) => p.itemId == destination)) {
-          throw const FormatException('Copy destination is already occupied');
-        }
-        placements[g.id] = FolderPlacement(
-          itemId: destination,
-          folderId: g.folderId == null
-              ? hierarchy.wrapperId
-              : hierarchy.folderIds[g.folderId],
-          position: g.position,
-        );
+      wrapper = uuid();
+      if (!Uuid.isValidUUID(fromString: wrapper) || !occupied.add(wrapper)) {
+        throw const FormatException('Invalid import hierarchy wrapper');
       }
+      final position = resultGroups.values
+          .where((g) => g.parentGroupId == null)
+          .fold(0, (n, g) => g.position >= n ? g.position + 1 : n);
+      resultGroups[wrapper] = BookmarkGroup(
+        id: wrapper,
+        name: importFolderName.trim(),
+        bookmarkIds: const {},
+        position: position,
+      );
+    }
+    for (final group in chosen) {
+      final action = replace ? ImportAction.replace : group.resolvedAction!;
+      final target = group.isDefault
+          ? defaultBookmarkGroupId
+          : action == ImportAction.mergeIntoTarget
+          ? group.targetId
+          : action == ImportAction.copy
+          ? group.destinationId ??
+                (occupied.contains(group.id) ? uuid() : group.id)
+          : group.id;
+      if (target == null ||
+          !Uuid.isValidUUID(fromString: target) ||
+          (action == ImportAction.copy && occupied.contains(target))) {
+        throw const FormatException('Invalid import destination');
+      }
+      targets[group.id] = target;
+      occupied.add(target);
     }
     final orphanCandidates = <int>{};
     final oldDates = {
@@ -166,14 +229,8 @@ final class BookmarkImportPreparation {
     };
     for (final g in chosen) {
       final action = replace ? ImportAction.replace : g.resolvedAction!;
-      final target = g.isDefault
-          ? defaultBookmarkGroupId
-          : action == ImportAction.mergeIntoTarget
-          ? g.targetId
-          : action == ImportAction.copy
-          ? placements[g.id]?.itemId ?? g.destinationId ?? g.id
-          : g.id;
-      if (target == null || !Uuid.isValidUUID(fromString: target)) {
+      final target = targets[g.id]!;
+      if (!Uuid.isValidUUID(fromString: target)) {
         throw const FormatException('Import target is unresolved');
       }
       final existing = resultGroups[target];
@@ -193,7 +250,13 @@ final class BookmarkImportPreparation {
       if (!merge && existing != null) {
         orphanCandidates.addAll(existing.bookmarkIds.difference(ids));
       }
-      final placement = placements[g.id];
+      final parent = replace
+          ? g.parentGroupId
+          : action == ImportAction.copy
+          ? targets[g.parentGroupId] ?? wrapper
+          : (existing != null
+                ? existing.parentGroupId
+                : targets[g.parentGroupId]);
       resultGroups[target] = BookmarkGroup(
         id: target,
         name: g.isDefault
@@ -213,12 +276,12 @@ final class BookmarkImportPreparation {
                     'Local membership has no record',
                   )),
         },
-        folderId: g.isDefault
-            ? null
+        parentGroupId: g.isDefault ? null : parent,
+        position: g.isDefault
+            ? existing?.position ?? g.position
             : replace
-            ? g.folderId
-            : placement?.folderId ?? existing?.folderId,
-        position: placement?.position ?? existing?.position ?? g.position,
+            ? g.position
+            : existing?.position ?? g.position,
       );
     }
     final memberships = {for (final g in resultGroups.values) ...g.bookmarkIds};
@@ -247,14 +310,7 @@ final class BookmarkImportPreparation {
       },
       position: defaultGroup?.position ?? 0,
     );
-    FolderTree(folders).validatePlacements([
-      for (final g in resultGroups.values)
-        FolderPlacement(
-          itemId: g.id,
-          folderId: g.folderId,
-          position: g.position,
-        ),
-    ]);
+    BookmarkGroupTree(resultGroups.values);
     final validIds = retained.keys.toSet();
     if (resultGroups.values.any((g) => !validIds.containsAll(g.bookmarkIds))) {
       throw const FormatException('Import leaves an absent Bookmark reference');
@@ -263,9 +319,9 @@ final class BookmarkImportPreparation {
       records: writes,
       newIds: added,
       groups: resultGroups.values.toList(),
-      folders: folders,
+      folders: const [],
       removeIds: removals,
-      removeGroupIds: currentGroups
+      removeGroupIds: localGroups
           .map((g) => g.id)
           .toSet()
           .difference(resultGroups.keys.toSet()),

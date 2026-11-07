@@ -741,7 +741,7 @@ void main() {
       const PlannedChangeSummary(created: 12, unchanged: 1),
     );
     expect(summary!.entitySummaries['bookmark']?.created, 10);
-    expect(summary.entitySummaries['bookmark-group']?.created, 1);
+    expect(summary.entitySummaries['bookmark-group']?.created, 2);
     expect(
       summary.previewRows
           .singleWhere((row) => row.label != 'Imported Groups')

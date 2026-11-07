@@ -1,5 +1,7 @@
 import '../../../configs/config/types.dart';
 import '../../../groups/folder_tree.dart';
+import '../../../bookmarks/types.dart';
+import '../sources/export_selection_ids.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/topic_feed_backup_data.dart';
 import '../../sources/following_topic_backup_data.dart';
@@ -18,6 +20,9 @@ final class ImportSourceIntegrityValidator {
     required Map<String, ImportAction> itemRecommendations,
     required Object? data,
   }) {
+    final validatedData = data is BookmarkBackupData
+        ? data.asHierarchy()
+        : data;
     final issues = <ImportPlanIssue>[];
     if (packageSchemaVersion > supportedSchemaVersion) {
       issues.add(
@@ -28,14 +33,18 @@ final class ImportSourceIntegrityValidator {
       );
     }
 
-    final itemIds = importedItemIds(data);
+    final itemIds = importedItemIds(validatedData);
     final selectableItemIds = {
       ...itemIds,
-      if (data is BookmarkBackupData) ...[
+      if (validatedData is BookmarkBackupData) ...[
         'ungrouped',
-        for (final f in data.folders) 'group-folder:${f.id}',
+        for (final group in validatedData.groups)
+          if (group.id != null) 'group-direct:${group.id}',
+        for (final id in validatedData.legacyFolderGroupIds.keys)
+          'group-folder:$id',
+        for (final f in validatedData.folders) 'group-folder:${f.id}',
       ],
-      if (data is FollowingTopicBackupData) 'home',
+      if (validatedData is FollowingTopicBackupData) 'home',
     };
     if (selection.kind == ExportNodeSelectionKind.explicit) {
       for (final id in selection.childIds.difference(selectableItemIds)) {
@@ -48,19 +57,43 @@ final class ImportSourceIntegrityValidator {
         );
       }
       final allowedIds = {...selection.childIds};
-      if (data case final BookmarkBackupData bookmarks) {
-        final tree = FolderTree(bookmarks.folders);
-        final ids = {
-          for (final id in selection.childIds)
-            if (id.startsWith('group-folder:'))
-              ...tree.subtree(id.substring(13)),
-        };
-        allowedIds.addAll([
-          for (final g in bookmarks.groups)
-            if (ids.contains(g.folderId) && g.id != null) 'group:${g.id}',
-        ]);
+      if (validatedData case final BookmarkBackupData bookmarks) {
+        if (bookmarks.groups.every((group) => group.id != null)) {
+          final tree = BookmarkGroupTree([
+            for (final group in bookmarks.groups)
+              BookmarkGroup(
+                id: group.id!,
+                name: group.name,
+                bookmarkIds: group.bookmarkIds.toSet(),
+                parentGroupId: group.parentGroupId,
+                position: group.position,
+              ),
+          ]);
+          final selected = <String>{};
+          for (final key in selection.childIds) {
+            final direct = ExportSelectionIds.bookmarkGroupDirectId(key);
+            if (direct != null) {
+              selected.add(direct);
+              continue;
+            }
+            final id =
+                ExportSelectionIds.bookmarkGroupId(key) ??
+                bookmarks
+                    .legacyFolderGroupIds[ExportSelectionIds.bookmarkFolderId(
+                  key,
+                )];
+            if (id != null) selected.addAll(tree.subtreeIds(id));
+          }
+          allowedIds.addAll(selected.map((id) => 'group:$id'));
+          for (final id in selected) {
+            for (final ancestor in tree.ancestors(id)) {
+              if (ancestor.bookmarkIds.isEmpty)
+                allowedIds.add('group:${ancestor.id}');
+            }
+          }
+        }
       }
-      if (data case final FollowingTopicBackupData searches) {
+      if (validatedData case final FollowingTopicBackupData searches) {
         final selectedFolderIds = selection.childIds
             .where((id) => id.startsWith('folder:'))
             .map((id) => id.substring(7))
@@ -119,7 +152,7 @@ final class ImportSourceIntegrityValidator {
       );
     }
 
-    if (data case final List<BooruConfig> profiles) {
+    if (validatedData case final List<BooruConfig> profiles) {
       final seenIds = <String>{};
       final duplicateIds = <String>{};
       for (final profile in profiles) {
@@ -135,7 +168,7 @@ final class ImportSourceIntegrityValidator {
         );
       }
     }
-    if (data case final BookmarkBackupData bookmarks) {
+    if (validatedData case final BookmarkBackupData bookmarks) {
       final bookmarkIds = bookmarks.records.map((record) => record.id).toSet();
       for (final group in bookmarks.groups) {
         if (!bookmarkIds.containsAll(group.bookmarkIds)) {

@@ -12,27 +12,45 @@ final class ExportSelectionNode extends Equatable {
     required this.id,
     this.children = const [],
     this.canHaveChildren = false,
+    this.directSelectionId,
+    this.selectionValueId,
   });
 
   final String id;
   final List<ExportSelectionNode> children;
   final bool canHaveChildren;
 
+  /// A container can own an item too. This token retains just that item when a
+  /// selected descendant is excluded, without reselecting the whole subtree.
+  final String? directSelectionId;
+  final String? selectionValueId;
+
   bool get isCollection => canHaveChildren || children.isNotEmpty;
 
-  Set<String> get allIds => {
-    id,
-    for (final child in children) ...child.allIds,
-  };
+  Set<String> get allIds {
+    final result = <String>{};
+    final pending = [this];
+    while (pending.isNotEmpty) {
+      final node = pending.removeLast();
+      result.add(node.selectionValueId ?? node.id);
+      pending.addAll(node.children);
+    }
+    return result;
+  }
 
   Set<String> get descendantIds => {
     for (final child in children) ...child.allIds,
   };
 
   ExportSelectionNode? find(String nodeId) {
-    if (id == nodeId) return this;
-    for (final child in children) {
-      if (child.find(nodeId) case final match?) return match;
+    final pending = [this];
+    while (pending.isNotEmpty) {
+      final node = pending.removeLast();
+      if (node.id == nodeId) return node;
+      if (node.directSelectionId == nodeId) {
+        return ExportSelectionNode(id: nodeId, selectionValueId: node.id);
+      }
+      pending.addAll(node.children.reversed);
     }
     return null;
   }
@@ -40,7 +58,51 @@ final class ExportSelectionNode extends Equatable {
   bool contains(String nodeId) => find(nodeId) != null;
 
   @override
-  List<Object?> get props => [id, children, canHaveChildren];
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! ExportSelectionNode) return false;
+    final pending = <(ExportSelectionNode, ExportSelectionNode)>[(this, other)];
+    while (pending.isNotEmpty) {
+      final (a, b) = pending.removeLast();
+      if (identical(a, b)) continue;
+      if (a.id != b.id ||
+          a.canHaveChildren != b.canHaveChildren ||
+          a.directSelectionId != b.directSelectionId ||
+          a.selectionValueId != b.selectionValueId ||
+          a.children.length != b.children.length)
+        return false;
+      for (var i = 0; i < a.children.length; i++)
+        pending.add((a.children[i], b.children[i]));
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode {
+    final values = <Object?>[];
+    final pending = [this];
+    while (pending.isNotEmpty) {
+      final node = pending.removeLast();
+      values.addAll([
+        node.id,
+        node.canHaveChildren,
+        node.directSelectionId,
+        node.selectionValueId,
+        node.children.length,
+      ]);
+      pending.addAll(node.children.reversed);
+    }
+    return Object.hashAll(values);
+  }
+
+  @override
+  List<Object?> get props => [
+    id,
+    children,
+    canHaveChildren,
+    directSelectionId,
+    selectionValueId,
+  ];
 }
 
 final class ExportSelectionDescriptor extends Equatable {

@@ -345,9 +345,17 @@ class _ItemLabel extends StatelessWidget {
 EdgeInsetsDirectional _treeTilePadding(int depth) =>
     EdgeInsetsDirectional.only(start: 8.0 * (depth + 1), end: 8);
 
-Set<String> _leafIds(ExportSelectionNode node) => node.children.isEmpty
-    ? {node.id}
-    : {for (final child in node.children) ..._leafIds(child)};
+Set<String> _leafIds(ExportSelectionNode node) {
+  final ids = <String>{};
+  final pending = [node];
+  while (pending.isNotEmpty) {
+    final current = pending.removeLast();
+    if (current.children.isEmpty || current.directSelectionId != null)
+      ids.add(current.id);
+    pending.addAll(current.children);
+  }
+  return ids;
+}
 
 String _selectedCountLabel(BuildContext context, int selected, int total) =>
     context.t.settings.backup_and_restore.export_import.selected_count

@@ -16,12 +16,16 @@ import '../../../content/types.dart';
 import '../data/bookmark_collection_projection.dart';
 import '../../../groups/folder_tree.dart';
 import 'bookmark_group.dart';
+import 'bookmark_group_tree.dart';
+import 'bookmark_view.dart';
+import 'bookmark_subtree_projection.dart';
 
 class BookmarkLibraryState extends Equatable {
   factory BookmarkLibraryState({
     required List<PostBookmark> bookmarks,
     required List<BookmarkGroup> groups,
     List<CollectionFolder> folders = const [],
+    Map<String, String> legacyFolderGroupIds = const {},
     List<CollectionBookmark> pools = const [],
     List<Bookmark>? records,
     int revision = 0,
@@ -39,6 +43,7 @@ class BookmarkLibraryState extends Equatable {
       media: media,
       groups: groups,
       folders: folders,
+      legacyFolderGroupIds: legacyFolderGroupIds,
       pools: records == null ? pools : _projectAllPools(index, groups),
     );
   }
@@ -49,12 +54,14 @@ class BookmarkLibraryState extends Equatable {
     required List<PostBookmark> media,
     required List<BookmarkGroup> groups,
     required List<CollectionFolder> folders,
+    required Map<String, String> legacyFolderGroupIds,
     required List<CollectionBookmark> pools,
   }) : _canonical = canonical,
        _recordIndex = index,
        revision = index.revision,
        pools = List.unmodifiable(pools),
        folders = List.unmodifiable(folders),
+       legacyFolderGroupIds = Map.unmodifiable(legacyFolderGroupIds),
        items = List.unmodifiable(media),
        bookmarks = media
            .where(
@@ -90,8 +97,9 @@ class BookmarkLibraryState extends Equatable {
          ),
        );
 
-  const BookmarkLibraryState._derived({
+  BookmarkLibraryState._derived({
     required this.folders,
+    required this.legacyFolderGroupIds,
     required this.pools,
     required this.items,
     required this.bookmarks,
@@ -118,6 +126,7 @@ class BookmarkLibraryState extends Equatable {
 
   final List<CollectionBookmark> pools;
   final List<CollectionFolder> folders;
+  final Map<String, String> legacyFolderGroupIds;
   final List<PostBookmark> items;
   final ISet<BookmarkUniqueId> bookmarks;
   final List<BookmarkGroup> groups;
@@ -125,6 +134,41 @@ class BookmarkLibraryState extends Equatable {
   final Map<BookmarkUniqueId, PostBookmark> bookmarksByUniqueId;
   final Map<String, BookmarkGroup> groupsById;
   final Map<BookmarkUniqueId, Set<String>> membershipsByBookmark;
+
+  late final BookmarkGroupTree groupTree = BookmarkGroupTree(groups);
+  final _subtreeProjections =
+      LinkedHashMap<String, BookmarkSubtreeProjection>();
+
+  BookmarkSubtreeProjection subtreeProjection(String groupId) {
+    final cached = _subtreeProjections.remove(groupId);
+    final projection =
+        cached ??
+        BookmarkSubtreeProjection(
+          groupId: groupId,
+          tree: groupTree,
+          byId: byId,
+        );
+    _subtreeProjections[groupId] = projection;
+    // Only recently visited views are retained, within this immutable snapshot.
+    if (_subtreeProjections.length > 8)
+      _subtreeProjections.remove(_subtreeProjections.keys.first);
+    return projection;
+  }
+
+  Set<int> bookmarkIdsForView(BookmarkView view) => switch (view.kind) {
+    BookmarkViewKind.all => Set.unmodifiable(byId.keys),
+    BookmarkViewKind.group => groupsById[view.groupId]?.bookmarkIds ?? const {},
+    BookmarkViewKind.subtree => subtreeProjection(view.groupId!).bookmarkIds,
+  };
+
+  Set<String> groupIdsForView(BookmarkView view) => switch (view.kind) {
+    BookmarkViewKind.all => Set.unmodifiable(groupsById.keys),
+    BookmarkViewKind.group =>
+      groupsById.containsKey(view.groupId) ? {view.groupId!} : const {},
+    BookmarkViewKind.subtree => subtreeProjection(
+      view.groupId!,
+    ).includedGroupIds,
+  };
 
   /// Apply confirmed writes, preserving unchanged rows and indexes. Maps and
   /// lists are shallow-copied only when needed; stored post snapshots are never
@@ -273,6 +317,7 @@ class BookmarkLibraryState extends Equatable {
       return this;
     }
     return BookmarkLibraryState._derived(
+      legacyFolderGroupIds: legacyFolderGroupIds,
       pools: nextPools,
       folders: nextFolders,
       items: nextItems,
@@ -416,6 +461,7 @@ class BookmarkLibraryState extends Equatable {
       return this;
     }
     return BookmarkLibraryState._derived(
+      legacyFolderGroupIds: legacyFolderGroupIds,
       pools: nextPools,
       folders: nextFolders,
       items: nextItems,
@@ -515,6 +561,7 @@ class BookmarkLibraryState extends Equatable {
       });
     }
     return BookmarkLibraryState._derived(
+      legacyFolderGroupIds: legacyFolderGroupIds,
       pools: pools,
       folders: folders,
       items: createdBookmarks.isEmpty

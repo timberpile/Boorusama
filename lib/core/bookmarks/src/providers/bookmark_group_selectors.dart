@@ -46,6 +46,10 @@ Map<int, DateTime>? bookmarkMembershipDates({
     return state.groupsById[view.groupId]?.addedAt;
   }
   final oldest = sortType == BookmarkSortType.oldest;
+  if (view.kind == BookmarkViewKind.subtree) {
+    final projection = state.subtreeProjection(view.groupId!);
+    return oldest ? projection.earliestAddedAt : projection.latestAddedAt;
+  }
   final dates = <int, DateTime>{};
   for (final group in state.groups) {
     for (final id in group.bookmarkIds) {
@@ -71,16 +75,18 @@ List<PostBookmark> selectBookmarks({
   Map<int, DateTime>? addedAt,
 }) {
   return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
-    final groupIds = state.groupsById[view.groupId]?.bookmarkIds;
+    final groupIds = view.kind == BookmarkViewKind.all
+        ? const <int>{}
+        : state.bookmarkIdsForView(view);
     final inView = switch (view.kind) {
       BookmarkViewKind.all => state.items,
-      BookmarkViewKind.group =>
+      BookmarkViewKind.group || BookmarkViewKind.subtree =>
         state.items
             .where(
               // Keep library order (including seeded shuffle input) without
               // normalizing every post's already indexed bookmark identity.
               (bookmark) =>
-                  (groupIds?.contains(bookmark.id) ?? false) &&
+                  groupIds.contains(bookmark.id) &&
                   state.bookmarksById.containsKey(bookmark.id),
             )
             .toList(),
@@ -123,10 +129,12 @@ List<PostBookmark> selectBookmarkPreviews({
     ).take(4).toList();
   }
 
-  final groupIds = state.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
+  final groupIds = view.kind == BookmarkViewKind.all
+      ? const <int>{}
+      : state.bookmarkIdsForView(view);
   final candidates = switch (view.kind) {
     BookmarkViewKind.all => state.items,
-    BookmarkViewKind.group =>
+    BookmarkViewKind.group || BookmarkViewKind.subtree =>
       groupIds.map((id) => state.bookmarksById[id]).whereType<PostBookmark>(),
   };
   return performanceRecorder.measureSync(

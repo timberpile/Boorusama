@@ -88,7 +88,7 @@ class BookmarkImportService {
         folders: write.folders,
       );
       return BookmarkImportResult(
-        totalCount: plan.records.length,
+        totalCount: prepared.newIds.length + prepared.alreadyExistedCount,
         alreadyExistedCount: prepared.alreadyExistedCount,
         groupCount: plan.groups.length,
       );
@@ -197,7 +197,11 @@ class BookmarkImportService {
           },
         );
         restored.add(
-          members.copyWith(folderId: g.folderId, position: g.position),
+          members.copyWith(
+            folderId: g.folderId,
+            parentGroupId: g.parentGroupId,
+            position: g.position,
+          ),
         );
       }
       await groupRepository.replaceFolderOrganization(data.folders, restored);

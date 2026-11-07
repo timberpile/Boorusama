@@ -94,3 +94,15 @@ extension BookmarkRecentGroupStorage on BookmarkGroupRepository {
 abstract interface class UnifiedBookmarkOrganization {
   UnifiedBookmarkStore get bookmarks;
 }
+
+/// Read-only legacy selector aliases retained by hierarchy migration.
+abstract interface class BookmarkHierarchyAliasRepository {
+  Future<Map<String, String>> readLegacyFolderGroupIds();
+}
+
+extension BookmarkHierarchyAliases on BookmarkGroupRepository {
+  Future<Map<String, String>> getLegacyFolderGroupIds() =>
+      this is BookmarkHierarchyAliasRepository
+      ? (this as BookmarkHierarchyAliasRepository).readLegacyFolderGroupIds()
+      : Future.value(const {});
+}

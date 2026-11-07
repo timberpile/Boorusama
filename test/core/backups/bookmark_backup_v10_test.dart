@@ -198,8 +198,11 @@ void main() {
           else
             record,
       ]);
-      expect(restored.groups, input.groups);
-      expect(restored.folders, input.folders);
+      expect(
+        restored.groups,
+        normalizeBookmarkBackupGroups(input.groups, input.folders),
+      );
+      expect(restored.folders, isEmpty);
       expect(restored.records.map((record) => record.id), [0, 1, 2, 3, 4]);
       expect(restored.groups[0].addedAt[0], earlyA);
       expect(restored.groups[1].addedAt[0], lateB);
@@ -330,15 +333,31 @@ void main() {
         ContentGroupBookmark,
         PostBookmark,
       ]);
-      expect(restored.groups.map((group) => group.id), [groupB]);
-      expect(restored.groups.single.bookmarkIds, [0, 1, 4]);
-      expect(restored.groups.single.addedAt[0], lateB);
-      expect(restored.groups.single.addedAt[1], lateB);
-      expect(restored.groups.single.folderId, folderChild);
-      expect(restored.folders.map((folder) => folder.id), [
+      expect(restored.groups.map((group) => group.id), [
+        groupB,
         folderRoot,
         folderChild,
       ]);
+      final selected = restored.groups.singleWhere(
+        (group) => group.id == groupB,
+      );
+      expect(selected.bookmarkIds, [0, 1, 4]);
+      expect(selected.addedAt[0], lateB);
+      expect(selected.addedAt[1], lateB);
+      expect(selected.parentGroupId, folderChild);
+      expect(
+        restored.groups
+            .where((group) => group.id != groupB)
+            .every((group) => group.bookmarkIds.isEmpty),
+        isTrue,
+      );
+      expect(
+        restored.groups
+            .singleWhere((group) => group.id == folderChild)
+            .parentGroupId,
+        folderRoot,
+      );
+      expect(restored.folders, isEmpty);
     },
   );
 

@@ -22,6 +22,7 @@ import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_reposito
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_tree.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
@@ -535,12 +536,14 @@ void main() {
 
       final copied = (await groups.getGroup(_copyGroupId))!;
       expect(copied.bookmarkIds, hasLength(1));
-      expect(copied.folderId, isNot(_folderChildId));
+      expect(copied.folderId, isNull);
+      expect(copied.parentGroupId, _folderChildId);
       expect(copied.addedAt.values.single, copyDate);
       final folders = await groups.getFolders();
-      expect(folders.map((folder) => folder.name), contains('Nested'));
-      final copiedAncestors = FolderTree(folders).ancestors(copied.folderId);
-      expect(copiedAncestors.map((folder) => folder.name).last, 'Nested');
+      expect(folders, isEmpty);
+      final copiedAncestors = BookmarkGroupTree(await groups.getGroups())
+          .ancestors(copied.id);
+      expect(copiedAncestors.map((group) => group.name).last, 'Nested');
       final groupB = (await groups.getGroup(poolGroupB))!;
       expect(groupB.name, 'B');
       expect(groupB.bookmarkIds, {0, localPool.id, localRelated.id});

@@ -87,6 +87,29 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       throw const InvalidBackupFormatException('groups must be a list');
     }
 
+    final schema = metadata.extraFields['organizationSchema'];
+    final nested = metadata.version == 10 && schema == 'nestedGroups';
+    if (metadata.version == 10) {
+      final transitional =
+          schema == null &&
+          metadata.extraFields.containsKey('folders') &&
+          rawGroups.every(
+            (row) => row is Map && !row.containsKey('parentGroupId'),
+          );
+      if ((!nested && !transitional) ||
+          (nested &&
+              (metadata.extraFields.containsKey('folders') ||
+                  rawGroups.any(
+                    (row) =>
+                        row is! Map ||
+                        row.containsKey('folderId') ||
+                        !row.containsKey('parentGroupId'),
+                  )))) {
+        throw const InvalidBackupFormatException(
+          'Ambiguous Bookmark organization schema',
+        );
+      }
+    }
     final groups = <BookmarkGroupBackup>[];
     final suppliedIds = <String>{};
     for (final (index, value) in rawGroups.indexed) {
@@ -103,6 +126,12 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           bookmarkIds.any((id) => id is! int)) {
         throw InvalidBackupFormatException(
           'groups[$index].bookmarkIds is invalid',
+        );
+      }
+      if (metadata.version == 10 &&
+          bookmarkIds.toSet().length != bookmarkIds.length) {
+        throw InvalidBackupFormatException(
+          'groups[$index] repeats a membership',
         );
       }
       if (bookmarkIds.any((id) => !fileBookmarkIds.contains(id))) {
@@ -125,12 +154,16 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
         throw InvalidBackupFormatException('groups[$index].id is repeated');
       }
       final folderId = metadata.version >= 5 ? value['folderId'] : null;
+      final parentId = nested ? value['parentGroupId'] : null;
       final position = metadata.version >= 5
           ? value['position'] ?? index
           : index;
       if ((folderId != null &&
               (folderId is! String ||
                   !Uuid.isValidUUID(fromString: folderId))) ||
+          (parentId != null &&
+              (parentId is! String ||
+                  !Uuid.isValidUUID(fromString: parentId))) ||
           position is! int ||
           position < 0) {
         throw InvalidBackupFormatException(
@@ -143,7 +176,8 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           'groups[$index].systemRole is invalid',
         );
       }
-      if (id == defaultBookmarkGroupId && folderId != null) {
+      if (id == defaultBookmarkGroupId &&
+          (folderId != null || parentId != null)) {
         throw const InvalidBackupFormatException('Default must be at Home');
       }
       final dates = _groupDates(
@@ -162,6 +196,7 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           bookmarkIds: bookmarkIds.cast<int>().toSet().toList(),
           addedAt: dates,
           folderId: (folderId as String?)?.toLowerCase(),
+          parentGroupId: (parentId as String?)?.toLowerCase(),
           position: position,
         ),
       );
@@ -230,6 +265,19 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
       )) {
         throw const FormatException('Invalid folder UUID');
       }
+      if (nested) {
+        BookmarkGroupTree([
+          for (final group in groups)
+            BookmarkGroup(
+              id: group.id!,
+              name: group.name,
+              bookmarkIds: group.bookmarkIds.toSet(),
+              addedAt: group.addedAt,
+              parentGroupId: group.parentGroupId,
+              position: group.position,
+            ),
+        ]);
+      }
       final tree = FolderTree(folders);
       tree.validatePlacements([
         for (final (i, g) in groups.indexed)
@@ -274,14 +322,14 @@ class BookmarkBackupCodec extends JsonHandler<BookmarkBackupData> {
           records: unifiedRecords,
           groups: groups,
           folders: folders,
-        );
+        ).asHierarchy();
       }
       return BookmarkBackupData(
         pools: pools,
         bookmarks: bookmarks,
         groups: groups,
         folders: folders,
-      );
+      ).asHierarchy();
     } catch (_) {
       throw const InvalidBackupFormatException(
         'Invalid bookmark organization or collection references',

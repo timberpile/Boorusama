@@ -272,6 +272,7 @@ class BookmarkLibraryService {
             : const [],
         groups: groups,
         folders: folders,
+        legacyFolderGroupIds: await groupRepository.getLegacyFolderGroupIds(),
       );
     } catch (_) {
       performanceFailed = true;

@@ -255,10 +255,12 @@ void main() {
               ),
             ),
             extraFields: {
+              'organizationSchema': 'nestedGroups',
               'groups': [
                 {
                   'id': groupId,
                   'name': 'Imported',
+                  'parentGroupId': null,
                   'bookmarkIds': [1, 2],
                   'addedAt': {
                     '1': _bookmark(1, sourceUrl).createdAt.toIso8601String(),

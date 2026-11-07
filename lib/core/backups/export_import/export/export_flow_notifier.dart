@@ -16,6 +16,7 @@ import '../../../configs/manage/providers.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../sources/providers.dart';
 import '../models/export_selection.dart';
+import '../sources/export_selection_ids.dart';
 import '../models/export_item_presentation.dart';
 import '../models/export_template.dart';
 import '../models/import_action.dart';
@@ -258,6 +259,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       yield node.id;
       return;
     }
+    if (node.directSelectionId case final direct?) yield direct;
     for (final child in node.children) {
       yield* _selectedRootsWithout(child, excludedId);
     }
@@ -295,6 +297,15 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   }
 
   void applyTemplate(ExportTemplate template) {
+    final aliases =
+        ref.read(bookmarkProvider).valueOrNull?.legacyFolderGroupIds ??
+        const <String, String>{};
+    String bookmarkKey(String key) {
+      if (key == 'ungrouped') return 'group:$defaultBookmarkGroupId';
+      final folder = ExportSelectionIds.bookmarkFolderId(key);
+      return folder == null ? key : 'group:${aliases[folder] ?? folder}';
+    }
+
     state = state.copyWith(
       isFull: false,
       nodes: {
@@ -303,8 +314,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
               entry.key == 'bookmarks' &&
                   entry.value.kind == ExportNodeSelectionKind.explicit
               ? ExportNodeSelection.explicit('bookmarks', {
-                  for (final id in entry.value.childIds)
-                    id == 'ungrouped' ? 'group:$defaultBookmarkGroupId' : id,
+                  for (final id in entry.value.childIds) bookmarkKey(id),
                 })
               : entry.value,
       },
@@ -319,7 +329,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
                     if (action.key == 'ungrouped')
                       'group:$defaultBookmarkGroupId': ImportAction.merge
                     else
-                      action.key: action.value,
+                      bookmarkKey(action.key): action.value,
                 }
               : entry.value,
       },

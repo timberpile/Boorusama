@@ -15,6 +15,7 @@ class BookmarkGroupRepositoryHive
         BookmarkGroupRepository,
         BookmarkFolderRepository,
         BookmarkRecentGroupRepository,
+        BookmarkHierarchyAliasRepository,
         PoolBookmarkRepository {
   BookmarkGroupRepositoryHive(
     this._box, {
@@ -76,6 +77,17 @@ class BookmarkGroupRepositoryHive
       bookmarks.map((b) => b.toJson()).toList(),
     );
   }
+
+  @override
+  Future<Map<String, String>> readLegacyFolderGroupIds() async =>
+      Map.unmodifiable({
+        for (final entry
+            in (_organizationBox?.get('legacyFolderGroupIds') as Map? ??
+                    const {})
+                .entries)
+          if (entry.key is String && entry.value is String)
+            entry.key as String: entry.value as String,
+      });
 
   @override
   Future<List<String>> readRecentGroupIds() async {

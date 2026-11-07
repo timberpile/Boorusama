@@ -35,13 +35,7 @@ ImportItemPresentationResult importItemPresentation(
         ExportSelectionNode(id: ExportSelectionIds.profile(profile.id)),
     ],
     final BookmarkBackupData bookmarks => [
-      for (final group in bookmarks.groups)
-        if (group.id case final id?)
-          ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(id)),
-      if (_hasUngroupedBookmarks(bookmarks))
-        const ExportSelectionNode(
-          id: ExportSelectionIds.ungroupedBookmarks,
-        ),
+      ...bookmarkExportNodes(bookmarks),
     ],
     final FollowingTopicBackupData searches => followingTopicExportNodes(
       searches,
@@ -61,20 +55,7 @@ ImportItemPresentationResult importItemPresentation(
         );
       }
     case final BookmarkBackupData bookmarks:
-      for (final f in bookmarks.folders) {
-        items['group-folder:${f.id}'] = ExportItemPresentation(label: f.name);
-      }
-      for (final group in bookmarks.groups) {
-        if (group.id case final id?) {
-          items[ExportSelectionIds.bookmarkGroup(id)] = ExportItemPresentation(
-            label: group.isDefault
-                ? Translations().bookmark.groups.default_group
-                : group.folderId == null
-                ? group.name
-                : '${FolderTree(bookmarks.folders).path(group.folderId)} / ${group.name}',
-          );
-        }
-      }
+      _addBookmarkPresentations(bookmarks, items);
     case final FollowingTopicBackupData searches:
       for (final folder in searches.folders) {
         items[ExportSelectionIds.followingTopicFolder(folder.id)] =
@@ -178,25 +159,123 @@ bool _hasUngroupedBookmarks(BookmarkBackupData data) {
   return data.records.any((record) => !groupedIds.contains(record.id));
 }
 
-List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) => [
+List<ExportSelectionNode> bookmarkExportNodes(BookmarkBackupData data) {
+  if (_hasLegacyGroupIds(data)) return _legacyBookmarkExportNodes(data);
+
+  final groups = normalizeBookmarkBackupGroups(data.groups, data.folders);
+  final childrenByParentId = <String?, List<BookmarkGroupBackup>>{};
+  for (final group in groups) {
+    childrenByParentId.putIfAbsent(group.parentGroupId, () => []).add(group);
+  }
+  for (final siblings in childrenByParentId.values) {
+    siblings.sort((a, b) {
+      final positionOrder = a.position.compareTo(b.position);
+      return positionOrder != 0 ? positionOrder : a.id!.compareTo(b.id!);
+    });
+  }
+
+  // Build in preorder, then construct bottom-up so deeply nested hierarchies
+  // do not consume the Dart call stack.
+  final ordered = <BookmarkGroupBackup>[];
+  final pending = (childrenByParentId[null] ?? const <BookmarkGroupBackup>[])
+      .reversed
+      .toList();
+  while (pending.isNotEmpty) {
+    final group = pending.removeLast();
+    ordered.add(group);
+    pending.addAll(
+      (childrenByParentId[group.id] ?? const <BookmarkGroupBackup>[]).reversed,
+    );
+  }
+
+  final nodesById = <String, ExportSelectionNode>{};
+  for (final group in ordered.reversed) {
+    final children = [
+      for (final child in childrenByParentId[group.id] ?? const [])
+        nodesById[child.id!]!,
+    ];
+    nodesById[group.id!] = ExportSelectionNode(
+      id: ExportSelectionIds.bookmarkGroup(group.id!),
+      directSelectionId: ExportSelectionIds.bookmarkGroupDirect(group.id!),
+      children: children,
+    );
+  }
+
+  return [
+    for (final group
+        in childrenByParentId[null] ?? const <BookmarkGroupBackup>[])
+      nodesById[group.id!]!,
+    if (_hasUngroupedBookmarks(data))
+      const ExportSelectionNode(id: ExportSelectionIds.ungroupedBookmarks),
+  ];
+}
+
+bool _hasLegacyGroupIds(BookmarkBackupData data) =>
+    data.groups.any((group) => group.id == null);
+
+List<ExportSelectionNode> _legacyBookmarkExportNodes(
+  BookmarkBackupData data,
+) => [
   ...buildFolderSelectionNodes(
     folders: data.folders,
     folderPrefix: 'group-folder:',
     items: {
-      for (final f in data.folders)
-        f.id: [
-          for (final g in data.groups)
-            if (g.folderId == f.id && g.id != null)
-              ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(g.id!)),
+      for (final folder in data.folders)
+        folder.id: [
+          for (final group in data.groups)
+            if (group.folderId == folder.id && group.id != null)
+              ExportSelectionNode(
+                id: ExportSelectionIds.bookmarkGroup(group.id!),
+              ),
         ],
     },
   ),
-  for (final g in data.groups)
-    if (g.folderId == null && g.id != null)
-      ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(g.id!)),
+  for (final group in data.groups)
+    if (group.folderId == null && group.id != null)
+      ExportSelectionNode(id: ExportSelectionIds.bookmarkGroup(group.id!)),
   if (_hasUngroupedBookmarks(data))
     const ExportSelectionNode(id: ExportSelectionIds.ungroupedBookmarks),
 ];
+
+void _addBookmarkPresentations(
+  BookmarkBackupData data,
+  Map<String, ExportItemPresentation> items,
+) {
+  if (_hasLegacyGroupIds(data)) {
+    for (final folder in data.folders) {
+      items['group-folder:${folder.id}'] = ExportItemPresentation(
+        label: folder.name,
+      );
+    }
+    final tree = FolderTree(data.folders);
+    for (final group in data.groups) {
+      if (group.id == null) continue;
+      items[ExportSelectionIds.bookmarkGroup(
+        group.id!,
+      )] = ExportItemPresentation(
+        label: group.isDefault
+            ? Translations().bookmark.groups.default_group
+            : group.folderId == null
+            ? group.name
+            : '${tree.path(group.folderId)} / ${group.name}',
+      );
+    }
+    return;
+  }
+
+  for (final group in normalizeBookmarkBackupGroups(
+    data.groups,
+    data.folders,
+  )) {
+    final id = group.id!;
+    items[ExportSelectionIds.bookmarkGroup(id)] = ExportItemPresentation(
+      label: group.isDefault
+          ? Translations().bookmark.groups.default_group
+          : group.name,
+    );
+  }
+}
+
 List<ExportSelectionNode> buildFolderSelectionNodes({
   required List<CollectionFolder> folders,
   required String folderPrefix,

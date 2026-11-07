@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../bookmarks/types.dart';
+import '../../bookmarks/src/services/bookmark_hierarchy_conversion.dart';
 import '../../bookmarks/src/data/bookmark_collection_projection.dart';
 import '../../bookmarks/src/types/bookmark_record_fields.dart';
 import '../../bookmarks/src/types/legacy_group_bookmark.dart';
@@ -15,23 +16,32 @@ class BookmarkExportScope extends Equatable implements BackupExportScope {
   const BookmarkExportScope.all()
     : groupIds = null,
       folderIds = const {},
-      includeUngrouped = false;
+      includeUngrouped = false,
+      directGroupIds = const {};
 
   BookmarkExportScope.selected({
     required Iterable<String> groupIds,
     this.includeUngrouped = false,
     Iterable<String> folderIds = const [],
-  }) : groupIds = Set.unmodifiable(groupIds),
+    Iterable<String> directGroupIds = const [],
+  }) : directGroupIds = Set.unmodifiable(directGroupIds),
+       groupIds = Set.unmodifiable(groupIds),
        folderIds = Set.unmodifiable(folderIds);
 
   final Set<String>? groupIds;
+  final Set<String> directGroupIds;
   final Set<String> folderIds;
   final bool includeUngrouped;
 
   bool get isAll => groupIds == null;
 
   @override
-  List<Object?> get props => [groupIds, includeUngrouped, folderIds];
+  List<Object?> get props => [
+    groupIds,
+    directGroupIds,
+    includeUngrouped,
+    folderIds,
+  ];
 }
 
 class BookmarkGroupBackup extends Equatable {
@@ -40,6 +50,7 @@ class BookmarkGroupBackup extends Equatable {
     required this.name,
     required this.bookmarkIds,
     this.folderId,
+    this.parentGroupId,
     this.position = 0,
     this.addedAt = const {},
   });
@@ -51,9 +62,10 @@ class BookmarkGroupBackup extends Equatable {
   final List<int> bookmarkIds;
   final Map<int, DateTime> addedAt;
   final String? folderId;
+  final String? parentGroupId;
   final int position;
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson({bool hierarchy = false}) => {
     'id': ?id,
     if (isDefault) 'systemRole': 'default',
     'name': name,
@@ -61,7 +73,7 @@ class BookmarkGroupBackup extends Equatable {
     'addedAt': addedAt.map(
       (id, date) => MapEntry('$id', date.toUtc().toIso8601String()),
     ),
-    'folderId': folderId,
+    if (hierarchy) 'parentGroupId': parentGroupId else 'folderId': folderId,
     'position': position,
   };
 
@@ -72,6 +84,7 @@ class BookmarkGroupBackup extends Equatable {
     bookmarkIds,
     addedAt,
     folderId,
+    parentGroupId,
     position,
   ];
 }
@@ -121,6 +134,7 @@ class BookmarkBackupData extends Equatable {
             id: group.id,
             name: group.name,
             folderId: group.folderId,
+            parentGroupId: group.parentGroupId,
             position: group.position,
             bookmarkIds: [
               ...group.bookmarkIds,
@@ -143,13 +157,61 @@ class BookmarkBackupData extends Equatable {
     required Iterable<Bookmark> records,
     required Iterable<BookmarkGroupBackup> groups,
     Iterable<CollectionFolder> folders = const [],
-  }) : records = List.unmodifiable(records),
+    Map<String, String> legacyFolderGroupIds = const {},
+  }) : legacyFolderGroupIds = Map.unmodifiable(legacyFolderGroupIds),
+       records = List.unmodifiable(records),
        groups = List.unmodifiable(groups),
        folders = List.unmodifiable(folders);
 
+  final Map<String, String> legacyFolderGroupIds;
   final List<Bookmark> records;
   final List<BookmarkGroupBackup> groups;
   final List<CollectionFolder> folders;
+
+  BookmarkBackupData asHierarchy() {
+    if (groups.any((group) => group.id == null)) return this;
+    final definitions = [
+      for (final group in groups)
+        BookmarkGroup(
+          id: group.id!,
+          name: group.isDefault ? 'Default' : group.name,
+          bookmarkIds: group.bookmarkIds.toSet(),
+          addedAt: group.addedAt,
+          folderId: group.folderId,
+          parentGroupId: group.parentGroupId,
+          position: group.position,
+        ),
+    ];
+    final legacy =
+        folders.isNotEmpty ||
+        definitions.any((group) => group.folderId != null);
+    final conversion = legacy
+        ? BookmarkHierarchyConversion.convert(
+            groups: definitions,
+            folders: folders,
+          )
+        : null;
+    final result = conversion?.groups ?? definitions;
+    BookmarkGroupTree(result);
+    return BookmarkBackupData.unified(
+      records: records,
+      legacyFolderGroupIds: {
+        ...legacyFolderGroupIds,
+        ...?conversion?.folderIdMapping,
+      },
+      groups: [
+        for (final group in result)
+          BookmarkGroupBackup(
+            id: group.id,
+            name: group.name,
+            bookmarkIds: group.bookmarkIds.toList(),
+            addedAt: group.addedAt,
+            parentGroupId: group.parentGroupId,
+            position: group.position,
+          ),
+      ],
+    );
+  }
 
   List<PostBookmark> get bookmarks =>
       records.whereType<PostBookmark>().toList();
@@ -185,6 +247,7 @@ class BookmarkBackupData extends Equatable {
           id: group.id,
           name: group.name,
           folderId: group.folderId,
+          parentGroupId: group.parentGroupId,
           position: group.position,
           bookmarkIds: group.bookmarkIds,
           addedAt: {
@@ -220,14 +283,61 @@ class BookmarkBackupData extends Equatable {
         exportGroups[index] = defaultGroup;
       }
     }
+    final hierarchy = normalizeBookmarkBackupGroups(exportGroups, folders);
     return {
-      'groups': exportGroups.map((group) => group.toJson()).toList(),
-      'folders': folders.map((folder) => folder.toJson()).toList(),
+      'organizationSchema': 'nestedGroups',
+      'groups': hierarchy
+          .map((group) => group.toJson(hierarchy: true))
+          .toList(),
     };
   }
 
   @override
   List<Object?> get props => [records, groups, folders];
+}
+
+/// Compatibility rows are converted once before writing/previewing; a valid
+/// parent hierarchy never shares authority with a separate folders array.
+List<BookmarkGroupBackup> normalizeBookmarkBackupGroups(
+  List<BookmarkGroupBackup> groups,
+  List<CollectionFolder> folders,
+) {
+  final definitions = [
+    for (final group in groups)
+      BookmarkGroup(
+        id:
+            group.id ??
+            (throw const InvalidBackupFormatException(
+              'Missing group identity',
+            )),
+        name: group.isDefault ? 'Default' : group.name,
+        bookmarkIds: group.bookmarkIds.toSet(),
+        addedAt: group.addedAt,
+        folderId: group.folderId,
+        parentGroupId: group.parentGroupId,
+        position: group.position,
+      ),
+  ];
+  final legacy =
+      folders.isNotEmpty || definitions.any((g) => g.folderId != null);
+  final result = legacy
+      ? BookmarkHierarchyConversion.convert(
+          groups: definitions,
+          folders: folders,
+        ).groups
+      : definitions;
+  BookmarkGroupTree(result);
+  return [
+    for (final group in result)
+      BookmarkGroupBackup(
+        id: group.id,
+        name: group.name,
+        bookmarkIds: group.bookmarkIds.toList(),
+        addedAt: group.addedAt,
+        parentGroupId: group.parentGroupId,
+        position: group.position,
+      ),
+  ];
 }
 
 BookmarkBackupData buildBookmarkBackupData({
@@ -238,103 +348,105 @@ BookmarkBackupData buildBookmarkBackupData({
   List<CollectionFolder> folders = const [],
   List<CollectionBookmark> pools = const [],
 }) {
-  final data = records == null
+  final legacyData = records == null
       ? BookmarkBackupData(
           bookmarks: bookmarks,
           pools: pools,
           folders: folders,
           groups: [
-            for (final g in groups)
+            for (final group in groups)
               BookmarkGroupBackup(
-                id: g.id,
-                name: g.name,
-                bookmarkIds: g.bookmarkIds.toList(),
-                addedAt: g.addedAt,
-                folderId: g.folderId,
-                position: g.position,
+                id: group.id,
+                name: group.name,
+                bookmarkIds: group.bookmarkIds.toList(),
+                addedAt: group.addedAt,
+                folderId: group.folderId,
+                parentGroupId: group.parentGroupId,
+                position: group.position,
               ),
           ],
         )
-      : BookmarkBackupData.unified(
-          records: records,
-          groups: [],
-          folders: folders,
-        );
-  final allRecords = data.records;
-  final allGroups = records == null
-      ? [
-          for (final g in data.groups)
-            BookmarkGroup(
-              id: g.id!,
-              name: g.name,
-              bookmarkIds: g.bookmarkIds.toSet(),
-              addedAt: g.addedAt,
-              folderId: g.folderId,
-              position: g.position,
+      : null;
+  final allRecords = records ?? legacyData!.records;
+  final inputGroups = records == null
+      ? legacyData!.groups
+      : [
+          for (final group in groups)
+            BookmarkGroupBackup(
+              id: group.id,
+              name: group.name,
+              bookmarkIds: group.bookmarkIds.toList(),
+              addedAt: group.addedAt,
+              folderId: group.folderId,
+              parentGroupId: group.parentGroupId,
+              position: group.position,
             ),
-        ]
-      : groups;
-  final tree = FolderTree(folders);
-  final byId = {for (final bookmark in allRecords) bookmark.id: bookmark};
-  final selectedFolders = {
-    for (final id in scope.folderIds)
-      if (tree.byId.containsKey(id)) ...tree.subtree(id),
+        ];
+  final normalized = normalizeBookmarkBackupGroups(inputGroups, folders);
+  final tree = BookmarkGroupTree([
+    for (final group in normalized)
+      BookmarkGroup(
+        id: group.id!,
+        name: group.name,
+        bookmarkIds: group.bookmarkIds.toSet(),
+        addedAt: group.addedAt,
+        parentGroupId: group.parentGroupId,
+        position: group.position,
+      ),
+  ]);
+  final folderAliases = folders.isEmpty
+      ? const <String, String>{}
+      : BookmarkHierarchyConversion.convert(
+          groups: groups,
+          folders: folders,
+        ).folderIdMapping;
+  final selected = scope.isAll
+      ? tree.groupsById.keys.toSet()
+      : <String>{
+          for (final id in {
+            ...?scope.groupIds,
+            for (final id in scope.folderIds) folderAliases[id] ?? id,
+          })
+            ...tree.subtreeIds(id),
+          ...scope.directGroupIds.where(tree.groupsById.containsKey),
+          if (scope.includeUngrouped) defaultBookmarkGroupId,
+        };
+  final definitions = <String>{
+    ...selected,
+    for (final id in selected) ...tree.ancestors(id).map((g) => g.id),
   };
-  final selectedGroups = {
-    if (scope.includeUngrouped) defaultBookmarkGroupId,
-    ...?scope.groupIds,
-    for (final g in allGroups)
-      if (selectedFolders.contains(g.folderId)) g.id,
+  final selectedIds = {
+    for (final id in selected) ...?tree.groupsById[id]?.bookmarkIds,
   };
-  final membershipsByBookmark = <int, Set<String>>{};
-  for (final group in allGroups) {
-    for (final bookmarkId in group.bookmarkIds) {
-      membershipsByBookmark.putIfAbsent(bookmarkId, () => {}).add(group.id);
-    }
-  }
-  final exportedBookmarks = scope.isAll
+  final assigned = {for (final group in normalized) ...group.bookmarkIds};
+  if (scope.includeUngrouped)
+    selectedIds.addAll(
+      allRecords.map((r) => r.id).toSet().difference(assigned),
+    );
+  final exported = scope.isAll
       ? allRecords
-      : allRecords.where((bookmark) {
-          final memberships = membershipsByBookmark[bookmark.id] ?? const {};
-          return (scope.includeUngrouped && memberships.isEmpty) ||
-              memberships.any(selectedGroups.contains);
-        }).toList();
-  final exportedIds = exportedBookmarks.map((bookmark) => bookmark.id).toSet();
-  final exportedGroups = allGroups
-      .where((group) => scope.isAll || selectedGroups.contains(group.id))
-      .map(
-        (group) => BookmarkGroupBackup(
-          id: group.id,
-          name: group.name,
-          folderId: group.folderId,
-          position: group.position,
-          bookmarkIds: group.bookmarkIds.intersection(exportedIds).toList(),
-          addedAt: {
-            for (final id in group.bookmarkIds.intersection(exportedIds))
-              id: group.addedAt[id] ?? bookmarkCreatedAt(byId[id]!),
-          },
-        ),
-      )
-      .toList();
+      : allRecords.where((r) => selectedIds.contains(r.id)).toList();
+  final exportedIds = exported.map((r) => r.id).toSet();
+  final byId = {for (final record in allRecords) record.id: record};
   return BookmarkBackupData.unified(
-    records: exportedBookmarks,
-    groups: exportedGroups,
-    folders: scope.isAll
-        ? folders
-        : folders
-              .where(
-                (f) =>
-                    selectedFolders.contains(f.id) ||
-                    scope.folderIds.any(
-                      (id) =>
-                          tree.byId.containsKey(id) &&
-                          tree.ancestors(id).any((a) => a.id == f.id),
-                    ) ||
-                    exportedGroups.any(
-                      (g) =>
-                          tree.ancestors(g.folderId).any((a) => a.id == f.id),
-                    ),
-              )
-              .toList(),
+    records: exported,
+    groups: [
+      for (final group in normalized)
+        if (definitions.contains(group.id))
+          BookmarkGroupBackup(
+            id: group.id,
+            name: group.name,
+            parentGroupId: group.parentGroupId,
+            position: group.position,
+            bookmarkIds: selected.contains(group.id)
+                ? group.bookmarkIds.where(exportedIds.contains).toList()
+                : const [],
+            addedAt: {
+              if (selected.contains(group.id))
+                for (final id in group.bookmarkIds.where(exportedIds.contains))
+                  id: group.addedAt[id] ?? bookmarkCreatedAt(byId[id]!),
+            },
+          ),
+    ],
   );
 }

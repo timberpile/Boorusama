@@ -259,38 +259,42 @@ final class ImportPlannedChangeProjector {
     Map<ProfileReferenceKey, String> profileMappings = const {},
     StoredBookmarkCodec recordCodec = const StoredBookmarkCodec(),
   }) {
-    final localData = local.records == null
-        ? BookmarkBackupData(
-            bookmarks: local.bookmarks,
-            pools: local.pools,
-            folders: local.folders,
-            groups: [
-              for (final g in local.groups)
-                BookmarkGroupBackup(
-                  id: g.id,
-                  name: g.name,
-                  bookmarkIds: g.bookmarkIds.toList(),
-                  addedAt: g.addedAt,
-                  folderId: g.folderId,
-                  position: g.position,
-                ),
-            ],
-          )
-        : BookmarkBackupData.unified(
-            records: local.records!,
-            folders: local.folders,
-            groups: [
-              for (final g in local.groups)
-                BookmarkGroupBackup(
-                  id: g.id,
-                  name: g.name,
-                  bookmarkIds: g.bookmarkIds.toList(),
-                  addedAt: g.addedAt,
-                  folderId: g.folderId,
-                  position: g.position,
-                ),
-            ],
-          );
+    final localData =
+        (local.records == null
+                ? BookmarkBackupData(
+                    bookmarks: local.bookmarks,
+                    pools: local.pools,
+                    folders: local.folders,
+                    groups: [
+                      for (final g in local.groups)
+                        BookmarkGroupBackup(
+                          id: g.id,
+                          name: g.name,
+                          bookmarkIds: g.bookmarkIds.toList(),
+                          addedAt: g.addedAt,
+                          folderId: g.folderId,
+                          parentGroupId: g.parentGroupId,
+                          position: g.position,
+                        ),
+                    ],
+                  )
+                : BookmarkBackupData.unified(
+                    records: local.records!,
+                    folders: local.folders,
+                    groups: [
+                      for (final g in local.groups)
+                        BookmarkGroupBackup(
+                          id: g.id,
+                          name: g.name,
+                          bookmarkIds: g.bookmarkIds.toList(),
+                          addedAt: g.addedAt,
+                          folderId: g.folderId,
+                          parentGroupId: g.parentGroupId,
+                          position: g.position,
+                        ),
+                    ],
+                  ))
+            .asHierarchy();
     final localGroups = [
       for (final g in localData.groups)
         BookmarkGroup(
@@ -299,6 +303,7 @@ final class ImportPlannedChangeProjector {
           bookmarkIds: g.bookmarkIds.toSet(),
           addedAt: g.addedAt,
           folderId: g.folderId,
+          parentGroupId: g.parentGroupId,
           position: g.position,
         ),
     ];
@@ -352,6 +357,7 @@ final class ImportPlannedChangeProjector {
                 keys[id]!: g.addedAt[id] ?? bookmarkCreatedAt(recordsById[id]!),
             },
             folderId: g.folderId,
+            parentGroupId: g.parentGroupId,
             position: g.position,
           ),
       };
@@ -360,7 +366,7 @@ final class ImportPlannedChangeProjector {
     final localEntities = entities(
       localData.records,
       localGroups,
-      local.folders,
+      localData.folders,
     );
     if (resolution.action == ImportAction.skip)
       return PlannedChangeSummary(preserved: localEntities.length);
@@ -393,8 +399,10 @@ final class ImportPlannedChangeProjector {
         ...data.records.map((r) => r.id).toSet().difference(allGrouped),
     };
     final selected = BookmarkBackupData.unified(
-      records: data.records.where((r) => chosenIds.contains(r.id)),
-      groups: chosenGroups,
+      records: data.records.where(
+        (r) => allGrouped.contains(r.id) || chosenIds.contains(r.id),
+      ),
+      groups: data.groups,
       folders: data.folders,
     );
     final plan = const BookmarkImportPlanner().plan(
@@ -452,7 +460,7 @@ final class ImportPlannedChangeProjector {
       plan: resolved,
       currentRecords: localData.records,
       currentGroups: localGroups,
-      currentFolders: local.folders,
+      currentFolders: localData.folders,
       normalize: (r, {previous}) => r,
       replace: resolution.action == ImportAction.replace,
       removeIds: removeIds,
@@ -1508,6 +1516,7 @@ final class _BookmarkGroupValue extends Equatable {
     this.poolIds = const {},
     Map<Object, DateTime> addedAt = const {},
     this.folderId,
+    this.parentGroupId,
     this.position = 0,
   }) : bookmarkIds = Set.unmodifiable(bookmarkIds),
        addedAt = Map.unmodifiable({
@@ -1525,9 +1534,11 @@ final class _BookmarkGroupValue extends Equatable {
     addedAt: addedAt,
     poolIds: ids,
     folderId: folderId,
+    parentGroupId: parentGroupId,
     position: position,
   );
   final String? folderId;
+  final String? parentGroupId;
   final int position;
 
   @override
@@ -1536,6 +1547,7 @@ final class _BookmarkGroupValue extends Equatable {
     bookmarkIds,
     addedAt,
     folderId,
+    parentGroupId,
     position,
     poolIds,
   ];

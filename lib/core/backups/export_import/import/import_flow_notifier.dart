@@ -1367,8 +1367,10 @@ final class PackageTransactionSource implements ImportTransactionSource {
           if (!allGroupedIds.contains(bookmark.id)) bookmark.id,
     };
     final selected = BookmarkBackupData.unified(
-      records: data.records.where((r) => chosenBookmarkIds.contains(r.id)),
-      groups: chosenGroups,
+      records: data.records.where(
+        (r) => allGroupedIds.contains(r.id) || chosenBookmarkIds.contains(r.id),
+      ),
+      groups: data.groups,
       folders: data.folders,
     );
     final store = unifiedBookmarkStorage(bookmarkRepository);

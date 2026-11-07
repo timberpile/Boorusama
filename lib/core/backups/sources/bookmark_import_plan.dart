@@ -20,6 +20,7 @@ class BookmarkGroupImport extends Equatable {
     this.targetId,
     this.destinationId,
     this.folderId,
+    this.parentGroupId,
     this.position = 0,
     this.addedAt = const {},
   });
@@ -34,6 +35,7 @@ class BookmarkGroupImport extends Equatable {
   final String? targetId;
   final String? destinationId;
   final String? folderId;
+  final String? parentGroupId;
   final int position;
 
   bool get isDefault => id == defaultBookmarkGroupId;
@@ -65,6 +67,7 @@ class BookmarkGroupImport extends Equatable {
         targetId: targetId,
         destinationId: destinationId,
         folderId: folderId,
+        parentGroupId: parentGroupId,
         position: position,
       );
 
@@ -83,7 +86,36 @@ class BookmarkGroupImport extends Equatable {
     targetId: targetId,
     destinationId: destinationId,
     folderId: folderId,
+    parentGroupId: parentGroupId,
     position: position,
+  );
+
+  BookmarkGroupImport copyWith({
+    String? name,
+    Set<int>? bookmarkIds,
+    Map<int, DateTime>? addedAt,
+    bool? conflicts,
+    BookmarkGroupConflictChoice? choice,
+    ImportAction? action,
+    String? targetId,
+    String? destinationId,
+    String? folderId,
+    String? parentGroupId,
+    bool home = false,
+    int? position,
+  }) => BookmarkGroupImport(
+    id: id,
+    name: name ?? this.name,
+    bookmarkIds: bookmarkIds ?? this.bookmarkIds,
+    addedAt: addedAt ?? this.addedAt,
+    conflicts: conflicts ?? this.conflicts,
+    choice: choice ?? this.choice,
+    action: action ?? this.action,
+    targetId: targetId ?? this.targetId,
+    destinationId: destinationId ?? this.destinationId,
+    folderId: home ? null : folderId ?? this.folderId,
+    parentGroupId: home ? null : parentGroupId ?? this.parentGroupId,
+    position: position ?? this.position,
   );
 
   @override
@@ -98,6 +130,7 @@ class BookmarkGroupImport extends Equatable {
     targetId,
     destinationId,
     folderId,
+    parentGroupId,
     position,
   ];
 }

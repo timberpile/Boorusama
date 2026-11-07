@@ -1231,7 +1231,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       onSuccess: onSuccess,
       onError: onError,
     ),
-    BookmarkViewKind.all => Future.error(StateError('Select a source group.')),
+    BookmarkViewKind.all || BookmarkViewKind.subtree => Future.error(
+      StateError('Select a source group.'),
+    ),
   };
 
   Future<void> removeBookmarks(

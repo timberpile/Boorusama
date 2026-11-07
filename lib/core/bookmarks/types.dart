@@ -17,3 +17,4 @@ export 'src/types/stored_group_snapshot.dart';
 export 'src/types/unified_bookmark_store.dart';
 
 export 'src/types/bookmark_group_tree.dart';
+export 'src/types/bookmark_subtree_projection.dart';

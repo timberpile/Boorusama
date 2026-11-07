@@ -14,6 +14,29 @@ bool bookmarkViewContentsChanged(
 ) {
   if (before == null || after == null) return true;
   if (identical(before, after)) return false;
+  if (view.kind == BookmarkViewKind.subtree) {
+    final previous = before.subtreeProjection(view.groupId!);
+    final next = after.subtreeProjection(view.groupId!);
+    return !const SetEquality<String>().equals(
+          previous.includedGroupIds,
+          next.includedGroupIds,
+        ) ||
+        !const SetEquality<int>().equals(
+          previous.bookmarkIds,
+          next.bookmarkIds,
+        ) ||
+        !const MapEquality<int, DateTime>().equals(
+          previous.earliestAddedAt,
+          next.earliestAddedAt,
+        ) ||
+        !const MapEquality<int, DateTime>().equals(
+          previous.latestAddedAt,
+          next.latestAddedAt,
+        ) ||
+        next.bookmarkIds.any(
+          (id) => !identical(before.byId[id], after.byId[id]),
+        );
+  }
   if (!identical(before.pools, after.pools)) {
     Iterable<CollectionBookmark> visible(BookmarkLibraryState state) =>
         view.kind == BookmarkViewKind.all
