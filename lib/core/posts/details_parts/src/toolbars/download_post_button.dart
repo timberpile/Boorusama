@@ -10,6 +10,9 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
+import '../../../../content/content_access_provider.dart';
+import '../../../../content/content_media_access.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../../downloads/urls/providers.dart';
 import '../../../../downloads/urls/types.dart';
@@ -40,9 +43,18 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
 
   @override
   Widget build(BuildContext context) {
-    if (ref.watchConfigAuth.anonymousReadScope != null) {
+    final auth = ref.watchConfigAuth;
+    if (auth.anonymousReadScope != null) {
       return const SizedBox.shrink();
     }
+    final access = watchContentMediaAccess(ref, auth);
+    if (!access.allowed) return const SizedBox.shrink();
+    final key = access.key;
+    bool current() =>
+        key == null ||
+        (mounted &&
+            ref.read(currentContentAccessKeyProvider) == key &&
+            ref.read(contentAccessContextProvider(key))?.config?.auth == auth);
 
     final notifier = ref.watch(
       downloadNotifierProvider(
@@ -75,6 +87,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
                 widget.post,
                 quality: e.quality,
                 overrideUrl: e.url,
+                isCurrent: current,
               );
             },
           ),
@@ -86,7 +99,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
             ? IconButton(
                 splashRadius: 16,
                 onPressed: () {
-                  notifier.download(widget.post);
+                  notifier.download(widget.post, isCurrent: current);
                 },
                 onLongPress: () {
                   _controller.show();
@@ -100,7 +113,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    notifier.download(widget.post);
+                    notifier.download(widget.post, isCurrent: current);
                   },
                   onLongPress: () {},
                   child: Padding(

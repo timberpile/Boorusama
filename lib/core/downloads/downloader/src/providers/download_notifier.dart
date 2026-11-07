@@ -67,10 +67,13 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? overrideUrl,
     String? quality,
     String? postUrl,
+    bool Function()? isCurrent,
   }) async {
-    if (arg.auth.anonymousReadScope != null) return null;
+    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true))
+      return null;
 
     final perm = await _getPermissionStatus();
+    if (!(isCurrent?.call() ?? true)) return null;
     final observer = arg.observer;
 
     final info = await _download(
@@ -81,6 +84,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
       overrideUrl: overrideUrl,
       quality: quality,
       postUrl: postUrl,
+      isCurrent: isCurrent,
       onStarted: () {
         observer?.onSingleDownloadStart();
       },
@@ -96,8 +100,10 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? Function(Post)? postUrlBuilder,
     int? totalCount,
     int Function(Post)? indexOf,
+    bool Function()? isCurrent,
   }) async {
-    if (arg.auth.anonymousReadScope != null) return;
+    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true))
+      return;
 
     // ensure that the booru supports bulk download
     if (!arg.canDownloadMultipleFiles()) {
@@ -112,17 +118,19 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     }
 
     final perm = await _getPermissionStatus();
+    if (!(isCurrent?.call() ?? true)) return;
     final networkConstraint = await resolveDownloadNetworkConstraint(
       ref,
       arg.settings.downloadNetworkPolicy,
     );
-    if (networkConstraint == null) return;
+    if (networkConstraint == null || !(isCurrent?.call() ?? true)) return;
 
     arg.observer?.onBulkDownloadStart(
       total: posts.length,
     );
 
     for (var i = 0; i < posts.length; i++) {
+      if (!(isCurrent?.call() ?? true)) return;
       final post = posts[i];
       await _download(
         ref,
@@ -137,6 +145,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
           'index': (indexOf?.call(post) ?? i).toString(),
         },
         networkConstraint: networkConstraint,
+        isCurrent: isCurrent,
       );
     }
   }
@@ -156,7 +165,9 @@ Future<DownloadTaskInfo?> _download(
   String? quality,
   String? postUrl,
   DownloadNetworkConstraint? networkConstraint,
+  bool Function()? isCurrent,
 }) async {
+  if (!(isCurrent?.call() ?? true)) return null;
   final downloadConfig = params.download;
   final service = params.downloader;
   final fileNameBuilder = params.filenameBuilder;
@@ -178,6 +189,7 @@ Future<DownloadTaskInfo?> _download(
           quality: effectiveQuality,
         );
 
+  if (!(isCurrent?.call() ?? true)) return null;
   if (fileNameBuilder == null) {
     logger.error('Single Download', 'No file name builder found, aborting...');
     // if (ref.context.mounted) {
@@ -216,9 +228,11 @@ Future<DownloadTaskInfo?> _download(
         ref,
         params.settings.downloadNetworkPolicy,
       );
-  if (resolvedNetworkConstraint == null) return null;
+  if (resolvedNetworkConstraint == null || !(isCurrent?.call() ?? true))
+    return null;
 
   Future<DownloadTaskInfo?> download() async {
+    if (!(isCurrent?.call() ?? true)) return null;
     final fileNameFuture = bulkMetadata != null
         ? fileNameBuilder.generateForBulkDownload(
             params.settings,
@@ -239,6 +253,7 @@ Future<DownloadTaskInfo?> _download(
       quality: urlData.resolvedQuality,
       downloadUrl: urlData.url,
     );
+    if (!(isCurrent?.call() ?? true)) return null;
 
     final network = ref.read(networkSettingsProvider(params.auth));
     final request = network.resolveMedia(
@@ -252,6 +267,7 @@ Future<DownloadTaskInfo?> _download(
     final bypassHeaders = await ref.read(
       bypassDdosHeadersProvider(request.url).future,
     );
+    if (!(isCurrent?.call() ?? true)) return null;
 
     final result = await service.download(
       DownloadOptions.fromSettings(

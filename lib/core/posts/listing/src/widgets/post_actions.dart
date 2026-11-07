@@ -112,7 +112,7 @@ List<PostActionDefinition> postActionDefinitions(
     for (final post in snapshot.posts) library?.storedBookmarkForPost(post),
   ];
   final canUseStoredDownload =
-      snapshot.hasTargets && stored.every((p) => p != null);
+      snapshot.allResolved && stored.every((p) => p != null);
   final fallbackAuth = ref.watchConfigAuth;
   final fallbackDownload = ref.watchConfigDownload;
   final groups = <BooruConfig, List<Post>>{};
@@ -172,7 +172,7 @@ List<PostActionDefinition> postActionDefinitions(
         icon: Icons.travel_explore,
         execute: () => run(() async => findOnOtherProfiles(ref, post)),
       ),
-    if (snapshot.hasTargets &&
+    if (snapshot.allResolved &&
         (downloadOverride != null ||
             canDownloadResolved ||
             canUseStoredDownload))

@@ -16,6 +16,10 @@ import '../../../boorus/booru/types.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../blacklists/providers.dart';
+import '../../../content/content_access.dart';
+import '../../../content/content_access_provider.dart';
+import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../downloads/downloader/providers.dart';
 import '../../../downloads/filename/types.dart';
 import '../../../downloads/urls/providers.dart';
@@ -52,6 +56,8 @@ final bookmarkLibraryProvider =
         settingsProvider,
         booruConfigProvider,
         sourceDownloadNotifierParamsProvider,
+        blacklistTagsProvider,
+        contentProfileAccessProvider,
         bookmarkRepoProvider,
         bookmarkGroupRepoProvider,
         dataMutationCoordinatorProvider,
@@ -1723,12 +1729,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     BooruConfigDownload download,
     List<PostBookmark> bookmarks,
   ) async {
+    // Native background jobs cannot enforce an anonymous scope's redirect and
+    // revocation boundary. Never reconstruct an ordinary auth for that actor.
+    if (auth.anonymousReadScope != null) return;
     final configs = ref.read(booruConfigProvider);
-    final settings = ref.read(settingsProvider);
-    final downloader = ref.read(downloadServiceProvider);
-    final logger = ref.read(loggerProvider);
-    final groups = <(BooruConfig?, int, String, bool), List<PostBookmark>>{};
-    final sourceCounts = <(BooruConfig?, int, String), int>{};
+    final groups = <(BooruConfig, int, String, bool), List<PostBookmark>>{};
+    final sourceCounts = <(BooruConfig, int, String), int>{};
     final sourceIndices = <Post, int>{};
     final engines = ref.read(booruEngineRegistryProvider);
     for (final bookmark in bookmarks) {
@@ -1736,10 +1742,14 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final source = switch (const PostOriginResolver().resolve(
         origin,
         configs,
+        allowProfileHintFallback: false,
       )) {
         ResolvedPostOrigin(:final config) => config,
         _ => null,
       };
+      // A stored URL grants no native download permission. In particular, a
+      // removed originating account must not borrow a compatible replacement.
+      if (source == null || source.anonymousReadScope != null) continue;
       final sourceKey = (source, origin.booruType.id, origin.sourceHost);
       sourceIndices[bookmark.post] =
           sourceCounts.update(
@@ -1749,11 +1759,10 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           ) -
           1;
       final nativePayload =
-          source != null &&
           engines
-                  .getPostCapability(origin.booruType)
-                  ?.codecFor(origin, bookmark.post.booruData) !=
-              null;
+              .getPostCapability(origin.booruType)
+              ?.codecFor(origin, bookmark.post.booruData) !=
+          null;
       groups
           .putIfAbsent((
             source,
@@ -1763,104 +1772,98 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           ), () => [])
           .add(bookmark);
     }
-    // Capture source services before awaiting. The surrounding profile is never
-    // authority for an orphan's credentials, filename template or destination.
-    final operations = [
-      for (final entry in groups.entries)
-        () {
-          final (source, _, host, nativePayload) = entry.key;
-          final origin = entry.value.first.post.origin;
-          final DownloadNotifierParams params;
-          if (source != null) {
-            final ordinary = ref.read(
-              sourceDownloadNotifierParamsProvider((
-                source.auth,
-                source.download,
-              )),
-            );
-            params = (
-              auth: ordinary.auth,
-              download: ordinary.download,
-              profileIconUrl: source.profileIcon?.url,
-              downloadFileUrlExtractor: nativePayload
-                  ? ordinary.downloadFileUrlExtractor
-                  : const UrlInsidePostExtractor(),
-              filenameBuilder: nativePayload && ordinary.filenameBuilder != null
-                  ? ordinary.filenameBuilder
-                  : snapshotFileNameBuilderFor(entry.value.first.post),
-              observer: ordinary.observer,
-              canDownloadMultipleFiles: ordinary.canDownloadMultipleFiles,
-              headers: ordinary.headers,
-              settings: ordinary.settings,
-              downloader: ordinary.downloader,
-              logger: ordinary.logger,
-            );
-          } else {
-            params = (
-              auth: BooruConfigAuth(
-                booruId: origin.booruId,
-                booruIdHint: origin.booruId,
-                url: host.isEmpty ? '' : 'https://$host',
-                apiKey: null,
-                login: null,
-                passHash: null,
-                proxySettings: null,
-                networkSettings: null,
-              ),
-              download: const BooruConfigDownload(
-                fileNameFormat: null,
-                bulkFileNameFormat: null,
-                location: null,
-              ),
-              profileIconUrl: null,
-              downloadFileUrlExtractor: const UrlInsidePostExtractor(),
-              filenameBuilder: snapshotFileNameBuilderFor(
-                entry.value.first.post,
-              ),
-              observer: null,
-              canDownloadMultipleFiles:
-                  origin.booruType.canDownloadMultipleFiles
-                  ? _snapshotBulkAllowed
-                  : _snapshotBulkDenied,
-              headers: const <String, String>{},
-              settings: settings,
-              downloader: downloader,
-              logger: logger,
-            );
+    final subscriptions = <ProviderSubscription<ContentAccessContext?>>[];
+    final operations =
+        <
+          ({
+            DownloadNotifier notifier,
+            List<PostBookmark> bookmarks,
+            int totalCount,
+            bool Function() isCurrent,
+          })
+        >[];
+    try {
+      for (final entry in groups.entries) {
+        final (source, _, host, nativePayload) = entry.key;
+        final binding = ViewerSourceBinding(source);
+        final subscription = ref.listen(
+          contentProfileAccessProvider(source.id),
+          (_, _) {},
+        );
+        subscriptions.add(subscription);
+        // Resolve the established visibility policy before capturing its key,
+        // and retain the context only for this operation's preparation lifetime.
+        await ref.read(blacklistTagsProvider(source.filter).future);
+        final access = subscription.read();
+        if (access == null) continue;
+        bool current() {
+          try {
+            return binding.resolve(ref.read(booruConfigProvider)) != null &&
+                subscription.read()?.key == access.key;
+          } catch (_) {
+            // Container/provider disposal revokes pending work too.
+            return false;
           }
-          return (
-            notifier: ref.read(downloadNotifierProvider(params).notifier),
-            bookmarks: List<PostBookmark>.unmodifiable(entry.value),
-            // Partitioning payloads must retain the original source group's
-            // bulk filename template and bulk permission check.
-            totalCount: sourceCounts[(source, entry.key.$2, host)]!,
-          );
-        }(),
-    ];
-    for (final operation in operations) {
-      final links = {
-        for (final bookmark in operation.bookmarks)
-          bookmark.post: bookmark.sourceUrl,
-      };
-      if (operation.totalCount == 1) {
-        final bookmark = operation.bookmarks.single;
-        await operation.notifier.download(
-          bookmark.post,
-          postUrl: bookmark.sourceUrl,
+        }
+
+        if (!current()) continue;
+        final ordinary = ref.read(
+          sourceDownloadNotifierParamsProvider((
+            source.auth,
+            source.download,
+          )),
         );
-      } else {
-        await operation.notifier.bulkDownload(
-          [for (final bookmark in operation.bookmarks) bookmark.post],
-          postUrlBuilder: (post) => links[post],
-          totalCount: operation.totalCount,
-          indexOf: (post) => sourceIndices[post]!,
+        final params = (
+          auth: ordinary.auth,
+          download: ordinary.download,
+          profileIconUrl: source.profileIcon?.url,
+          downloadFileUrlExtractor: nativePayload
+              ? ordinary.downloadFileUrlExtractor
+              : const UrlInsidePostExtractor(),
+          filenameBuilder: nativePayload && ordinary.filenameBuilder != null
+              ? ordinary.filenameBuilder
+              : snapshotFileNameBuilderFor(entry.value.first.post),
+          observer: ordinary.observer,
+          canDownloadMultipleFiles: ordinary.canDownloadMultipleFiles,
+          headers: ordinary.headers,
+          settings: ordinary.settings,
+          downloader: ordinary.downloader,
+          logger: ordinary.logger,
         );
+        operations.add((
+          notifier: ref.read(downloadNotifierProvider(params).notifier),
+          bookmarks: List<PostBookmark>.unmodifiable(entry.value),
+          totalCount: sourceCounts[(source, entry.key.$2, host)]!,
+          isCurrent: current,
+        ));
       }
+      for (final operation in operations) {
+        if (!operation.isCurrent()) continue;
+        final links = {
+          for (final bookmark in operation.bookmarks)
+            bookmark.post: bookmark.sourceUrl,
+        };
+        if (operation.totalCount == 1) {
+          final bookmark = operation.bookmarks.single;
+          await operation.notifier.download(
+            bookmark.post,
+            postUrl: bookmark.sourceUrl,
+            isCurrent: operation.isCurrent,
+          );
+        } else {
+          await operation.notifier.bulkDownload(
+            [for (final bookmark in operation.bookmarks) bookmark.post],
+            postUrlBuilder: (post) => links[post],
+            totalCount: operation.totalCount,
+            indexOf: (post) => sourceIndices[post]!,
+            isCurrent: operation.isCurrent,
+          );
+        }
+      }
+    } finally {
+      for (final subscription in subscriptions) subscription.close();
     }
   }
-
-  static bool _snapshotBulkAllowed() => true;
-  static bool _snapshotBulkDenied() => false;
 
   Future<PostBookmark> _createBookmark(
     BooruConfigAuth config,
