@@ -25,6 +25,7 @@ class BooruImageCandidates extends ConsumerWidget {
     required this.urls,
     required this.placeholder,
     required this.builder,
+    this.onDecodedAspectRatio,
     this.imageCacheManager,
     super.key,
   });
@@ -33,6 +34,7 @@ class BooruImageCandidates extends ConsumerWidget {
   final List<String> urls;
   final Widget placeholder;
   final Widget Function(ImageProvider image) builder;
+  final ValueChanged<double>? onDecodedAspectRatio;
   final ImageCacheManager? imageCacheManager;
 
   @override
@@ -65,6 +67,7 @@ class BooruImageCandidates extends ConsumerWidget {
       preferredIndex: history[identity],
       placeholder: placeholder,
       builder: builder,
+      onDecodedAspectRatio: onDecodedAspectRatio,
       onSelected: (index) {
         history.remove(identity);
         if (index == null) return;
