@@ -40,6 +40,10 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watchConfigAuth.anonymousReadScope != null) {
+      return const SizedBox.shrink();
+    }
+
     final notifier = ref.watch(
       downloadNotifierProvider(
         ref.watch(
