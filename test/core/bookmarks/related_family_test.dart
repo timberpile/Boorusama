@@ -101,7 +101,7 @@ void main() {
       'id': poolGroupB,
     });
     final pool = testPool();
-    final related = RelatedBookmark(
+    final related = RelatedCollectionBookmark(
       family: RelatedFamilyReference(origin: pool.origin, anchorId: 10),
       localId: pool.localId,
       createdAt: pool.createdAt,
@@ -134,7 +134,7 @@ void main() {
 
   test('v7 preserves Related identity and rejects malformed, duplicate and older envelopes', () {
     final pool = testPool();
-    final reference = RelatedBookmark(
+    final reference = RelatedCollectionBookmark(
       family: RelatedFamilyReference.fromPost(testRelatedPost(10)),
       localId: pool.localId,
       createdAt: pool.createdAt,

@@ -15,6 +15,8 @@ class CollectionBookmark extends Equatable {
   CollectionBookmark._({
     required this.localId,
     required this.origin,
+    this.bookmarkId,
+    this.sourceSite,
     required this.referenceId,
     this.family,
     int? sourceTypeId,
@@ -38,7 +40,8 @@ class CollectionBookmark extends Equatable {
          for (final id in groupIds) id: (addedAt[id] ?? createdAt).toUtc(),
        }),
        tags = Set.unmodifiable(tags) {
-    if (localId.isEmpty ||
+    if ((bookmarkId != null && bookmarkId! < 0) ||
+        localId.isEmpty ||
         referenceId <= 0 ||
         origin.sourceHost.isEmpty ||
         (total != null && total! < 0) ||
@@ -50,6 +53,11 @@ class CollectionBookmark extends Equatable {
   }
 
   final String localId;
+  // Transient presentation inputs, never serialized into legacy metadata.
+  // Local record identity and a proven locator come from the owning repository
+  // or an explicit current-source draft, never from imported numeric IDs.
+  final int? bookmarkId;
+  final Uri? sourceSite;
   final PostOrigin origin;
   final int referenceId;
   final RelatedFamilyReference? family;
@@ -93,11 +101,15 @@ class CollectionBookmark extends Equatable {
   CollectionBookmark copyWith({
     PostOrigin? origin,
     String? localId,
+    int? Function()? bookmarkId,
+    Uri? Function()? sourceSite,
     Set<String>? groupIds,
     Map<String, DateTime>? addedAt,
     PoolBookmarkCover? cover,
   }) => CollectionBookmark._(
     localId: localId ?? this.localId,
+    bookmarkId: bookmarkId == null ? this.bookmarkId : bookmarkId(),
+    sourceSite: sourceSite == null ? this.sourceSite : sourceSite(),
     origin: origin ?? this.origin,
     referenceId: referenceId,
     family: family == null
@@ -222,6 +234,8 @@ class CollectionBookmark extends Equatable {
       ? PoolBookmark(
           poolId: referenceId,
           localId: localId,
+          bookmarkId: bookmarkId,
+          sourceSite: sourceSite,
           origin: origin,
           sourceTypeId: sourceTypeId,
           category: category,
@@ -239,9 +253,11 @@ class CollectionBookmark extends Equatable {
           newestUpload: newestUpload,
           oldestUpload: oldestUpload,
         )
-      : RelatedBookmark(
+      : RelatedCollectionBookmark(
           family: family!,
           localId: localId,
+          bookmarkId: bookmarkId,
+          sourceSite: sourceSite,
           createdAt: createdAt,
           observedAt: observedAt,
           groupIds: groupIds,
@@ -258,6 +274,8 @@ class CollectionBookmark extends Equatable {
   @override
   List<Object?> get props => [
     localId,
+    bookmarkId,
+    sourceSite,
     origin,
     sourceTypeId,
     referenceId,
@@ -284,6 +302,8 @@ final class PoolBookmark extends CollectionBookmark {
     required int poolId,
     required super.localId,
     required super.origin,
+    super.bookmarkId,
+    super.sourceSite,
     int? sourceTypeId,
     required super.category,
     required super.title,
@@ -310,10 +330,12 @@ final class PoolBookmark extends CollectionBookmark {
   }
 }
 
-final class RelatedBookmark extends CollectionBookmark {
-  RelatedBookmark({
+final class RelatedCollectionBookmark extends CollectionBookmark {
+  RelatedCollectionBookmark({
     required RelatedFamilyReference family,
     required String localId,
+    int? bookmarkId,
+    Uri? sourceSite,
     required DateTime createdAt,
     required DateTime observedAt,
     required Set<String> groupIds,
@@ -327,6 +349,8 @@ final class RelatedBookmark extends CollectionBookmark {
     DateTime? oldestUpload,
   }) : super._(
          localId: localId,
+         bookmarkId: bookmarkId,
+         sourceSite: sourceSite,
          origin: family.origin,
          referenceId: family.anchorId,
          family: family,

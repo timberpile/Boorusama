@@ -22,6 +22,8 @@ sealed class LegacyGroupBookmark extends Equatable implements Bookmark {
     }
     final detached = metadata.copyWith(
       localId: '$id',
+      bookmarkId: () => null,
+      sourceSite: () => null,
       groupIds: const {},
       addedAt: const {},
     );

@@ -43,7 +43,7 @@ void main() {
           host: host,
         );
         return related
-            ? RelatedBookmark(
+            ? RelatedCollectionBookmark(
                 family: RelatedFamilyReference(
                   origin: pool.origin,
                   anchorId: id,

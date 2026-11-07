@@ -26,7 +26,7 @@ void main() {
   final pool = testPool(groups: {poolGroupA, poolGroupB}).copyWith(
     addedAt: {poolGroupA: DateTime.utc(2022), poolGroupB: DateTime.utc(2023)},
   );
-  final related = RelatedBookmark(
+  final related = RelatedCollectionBookmark(
     family: RelatedFamilyReference(origin: poolOrigin(), anchorId: 42),
     localId: poolProfile,
     createdAt: DateTime.utc(2027),

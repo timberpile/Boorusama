@@ -130,7 +130,7 @@ void main() {
         await notifier.future;
         final pool = testPool(groups: {defaultBookmarkGroupId});
         final draft = related
-            ? RelatedBookmark(
+            ? RelatedCollectionBookmark(
                 family: RelatedFamilyReference(
                   origin: pool.origin,
                   anchorId: 42,

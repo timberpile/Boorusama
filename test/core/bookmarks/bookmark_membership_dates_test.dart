@@ -162,7 +162,7 @@ void main() {
       final b = testPoolPost(2).copyWith(createdAt: first);
       final pool = testPool(groups: {poolGroupA})
           .copyWith(addedAt: {poolGroupA: second});
-      final related = RelatedBookmark(
+      final related = RelatedCollectionBookmark(
         family: RelatedFamilyReference(origin: poolOrigin(), anchorId: 42),
         localId: poolGroupB,
         createdAt: old,

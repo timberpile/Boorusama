@@ -2587,7 +2587,7 @@ _mount(
   if (seedReference || seedRelated)
     await groups.writePoolBookmarks([
       if (seedRelated)
-        RelatedBookmark(
+        RelatedCollectionBookmark(
           family: RelatedFamilyReference(
             origin: postOriginFromConfig(backend.config),
             anchorId: 10,

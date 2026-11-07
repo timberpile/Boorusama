@@ -34,7 +34,7 @@ final _config = BooruConfig.defaultConfig(
   customDownloadFileNameFormat: null,
 );
 final _family = RelatedFamilyReference.fromPost(testRelatedPost(10));
-final _related = RelatedBookmark(
+final _related = RelatedCollectionBookmark(
   family: _family,
   localId: poolGroupB,
   createdAt: DateTime.utc(2026),

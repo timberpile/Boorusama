@@ -11,3 +11,7 @@ export 'src/types/bookmark_view.dart';
 
 export 'src/types/pool_bookmark.dart';
 export 'src/types/pool_bookmark_repository.dart';
+
+export 'src/types/content_group_bookmark.dart';
+export 'src/types/stored_group_snapshot.dart';
+export 'src/types/unified_bookmark_store.dart';

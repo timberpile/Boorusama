@@ -4,6 +4,7 @@ import '../../../content/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../posts/related/related_posts_order_value.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_record_fields.dart';
 import '../types/content_group_bookmark.dart';
 import '../types/legacy_group_bookmark.dart';
 import 'legacy_group_codec.dart';
@@ -179,23 +180,8 @@ final class StoredBookmarkCodec {
   static DateTime _date(Object? value) =>
       DateTime.parse(contentString(value)).toUtc();
 
-  ContentIdentity? identityOf(Bookmark bookmark) => switch (bookmark) {
-    PostBookmark(uniqueId: final BookmarkIdentity identity)
-        when bookmark.post.origin.booruType != BooruType.unknown =>
-      (
-        siteNamespace: identity.site,
-        kind: ContentKind.post,
-        sourceKey: identity.postKey,
-      ),
-    ContentGroupBookmark() => bookmark.reference.identity,
-    LegacyGroupBookmark() => bookmark.identity,
-    _ => null,
-  };
+  ContentIdentity? identityOf(Bookmark bookmark) =>
+      bookmarkContentIdentity(bookmark);
 
-  BooruType engineOf(Bookmark bookmark) => switch (bookmark) {
-    PostBookmark() => bookmark.post.origin.booruType,
-    ContentGroupBookmark() => bookmark.reference.engine,
-    LegacyGroupBookmark() => bookmark.metadata.origin.booruType,
-    _ => throw const FormatException('Unsupported Bookmark record'),
-  };
+  BooruType engineOf(Bookmark bookmark) => bookmarkEngine(bookmark);
 }

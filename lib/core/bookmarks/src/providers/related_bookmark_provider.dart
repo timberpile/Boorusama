@@ -67,7 +67,7 @@ final relatedBookmarkDraftProvider = FutureProvider.autoDispose
           .where((p) => PoolBookmarkCover.isStatic(p.thumbnailImageUrl))
           .firstOrNull;
       final dates = visible.map((p) => p.createdAt).nonNulls.toList()..sort();
-      return RelatedBookmark(
+      return RelatedCollectionBookmark(
         family: RelatedFamilyReference(
           origin: postOriginFromConfig(config),
           anchorId: family.anchorId,

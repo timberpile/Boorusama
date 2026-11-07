@@ -332,7 +332,15 @@ void main() {
       await expectLater(migration().open(), throwsFormatException);
       expect(organization.toMap(), source);
       expect(groups.values.map(rawGroup).toList(), groupRows);
-      expect(await storage.repository(posts).readAll(), [originalPost]);
+      await expectLater(storage.repository(posts).readAll(), throwsStateError);
+      final bound = storage.metadataBox.get('idReservation');
+      await expectLater(
+        storage.repository(posts).reserveIds(1),
+        throwsStateError,
+      );
+      expect(storage.metadataBox.get('idReservation'), bound);
+      expect(posts.length, 1);
+      expect(posts.get(0)!.postSnapshot, originalPost.snapshot.toJson());
       expect(
         storage.metadataBox.containsKey(BookmarkStorageMigration.activeKey),
         isFalse,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:collection/collection.dart';
@@ -6,6 +7,7 @@ import 'package:foundation/foundation.dart';
 import 'package:foundation/performance.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
+import 'package:uuid/uuid.dart';
 
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../../foundation/filesystem.dart';
@@ -13,8 +15,10 @@ import '../../../../../foundation/loggers/logger.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../content/content_map.dart';
 import '../../../../content/types.dart';
+import '../../../../groups/folder_tree.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/bookmark.dart';
+import '../../types/bookmark_group.dart';
 import '../../types/unified_bookmark_store.dart';
 import '../../types/bookmark_repository.dart';
 import '../../types/content_group_bookmark.dart';
@@ -25,6 +29,9 @@ import '../stored_bookmark_codec.dart';
 import '../stored_group_codec.dart';
 import 'bookmark_hive_object.dart';
 import 'bookmark_id_store.dart';
+import 'bookmark_group_hive_object.dart';
+
+part 'unified_bookmark_organization.dart';
 
 /// One payload/kind/ID authority. The old Post box is retained unchanged; Group
 /// payloads are private and no numeric range is used to determine record kind.
@@ -58,10 +65,15 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   final StoredBookmarkCodec _codec;
   final Future<void> Function(Iterable<BoxBase<dynamic>> boxes)? _syncOverride;
   var _initialized = false;
+  // Hive replaces raw maps on writes. Weak keys reuse immutable Group decoding
+  // without retaining another library cache or keeping deleted payloads alive.
+  final _decodedGroups = Expando<Bookmark>();
+  (Box<BookmarkGroupHiveObject>, Box<dynamic>)? _organizationHandles;
   static const _journal = 'pendingMutation';
   static const _schema = 'repositorySchema';
   static const _revision = 'recordRevision';
   static const _floor = 'allocationFloor';
+  static final _migrationZone = Object();
   late final _ids = HiveBookmarkIdStore(
     _metadata,
     fs: fs,
@@ -75,6 +87,16 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
 
   Future<T> _ready<T>(Future<T> Function() action) =>
       coordinator.runExclusive(() async {
+        if (_metadata.containsKey('organizationMigration') &&
+            _metadata.get('activeOrganization') == null &&
+            !identical(Zone.current[_migrationZone], this)) {
+          throw StateError(
+            'Bookmark organization migration requires recovery before library access',
+          );
+        }
+        if (_metadata.get('activeOrganization') != null) {
+          await _organizationBoxes();
+        }
         if (!_initialized) {
           await _initialize();
           await _recover();
@@ -85,6 +107,16 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         }
         return action();
       });
+
+  /// The migration service is the only reader/writer of an unactivated staged
+  /// generation. Ordinary facade callers remain blocked until recovery ends.
+  Future<T> runStorageMigration<T>(Future<T> Function() operation) =>
+      coordinator.runExclusive(
+        () => runZoned(
+          operation,
+          zoneValues: {_migrationZone: this},
+        ),
+      );
 
   Future<void> _sync(Iterable<BoxBase<dynamic>> boxes) async {
     if (_syncOverride case final sync?) return sync(boxes);
@@ -239,12 +271,39 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       },
       'engine': _codec.engineOf(record).id,
       if (identity != null) 'identity': _identityWire(identity),
+      if (identity == null) 'unresolved': _sourceEvidence(record),
       if (record is ContentGroupBookmark) ...{
         'summaryType': ?record.summary.sourceData?.typeKey,
         'detailsType': ?record.snapshot.details?.sourceData?.typeKey,
       },
     };
   }
+
+  // Opaque records do not enter semantic deduplication. Their known source
+  // facts still bind the existing ID, so unknown engine IDs cannot collapse
+  // into engine 0 and authorize retargeting a retained record during an update.
+  static Map<String, Object?> _sourceEvidence(Bookmark record) =>
+      switch (record) {
+        PostBookmark() => {
+          'kind': 'post',
+          'engine': record.snapshot.origin.booruTypeId,
+          'site': normalizePostSourceHost(record.snapshot.origin.sourceHost),
+          'sourceId': record.snapshot.common['id'],
+        },
+        LegacyGroupBookmark() => {
+          'kind': record.metadata.isRelated ? 'related' : 'pool',
+          'engine': record.metadata.sourceTypeId,
+          'site': record.metadata.origin.sourceHost,
+          'sourceId': record.metadata.referenceId,
+        },
+        ContentGroupBookmark() => {
+          'kind': 'group',
+          'engine': record.reference.engine.id,
+          'site': record.reference.siteNamespace,
+          'sourceKey': record.reference.sourceKey,
+        },
+        _ => throw const FormatException('Unsupported Bookmark record'),
+      };
 
   Map<String, Object?>? _storedHeader(int id) {
     final raw = _metadata.get(_recordKey(id));
@@ -279,11 +338,19 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     return entry;
   }
 
-  void _compatible(Map<String, Object?> before, Map<String, Object?> after) {
+  void _compatible(
+    Map<String, Object?> before,
+    Map<String, Object?> after,
+    Bookmark candidate,
+  ) {
     if (before['kind'] != after['kind'] ||
         before['engine'] != after['engine'] ||
         (_identity(before) != null && _identity(before) != _identity(after))) {
       throw const FormatException('Incompatible Bookmark interpretation');
+    }
+    if (before['unresolved'] != null &&
+        !_same(before['unresolved'], _sourceEvidence(candidate))) {
+      throw const FormatException('Retained source evidence changed');
     }
     for (final field in ['summaryType', 'detailsType']) {
       if (before[field] != null &&
@@ -313,9 +380,14 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   Bookmark? _read(int id) {
     final header = _storedHeader(id);
     if (header == null || header['kind'] == 'deleted') return null;
-    final record = header['kind'] == 'post'
-        ? _readPost(id)
-        : _codec.decode(_groups.get(id));
+    final Bookmark record;
+    if (header['kind'] == 'post') {
+      record = _readPost(id);
+    } else {
+      final raw = _groups.get(id);
+      if (raw is! Map) throw const FormatException('Invalid Group payload');
+      record = _decodedGroups[raw] ??= _codec.decode(raw);
+    }
     if (record.id != id || !_same(_header(record), header)) {
       throw const FormatException(
         'Bookmark payload disagrees with its kind index',
@@ -399,6 +471,20 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   });
   @override
   Future<Bookmark?> read(int id) => _ready(() async => _read(_localId(id)));
+
+  /// Legacy Pool/Related presentation reads only Group payloads. The loaded
+  /// library remains the common index; no Post snapshots are decoded here.
+  Future<List<Bookmark>> readGroupBookmarks() => _ready(
+    () async => [
+      for (final key in _groups.keys) ?_read(_localId(key)),
+    ],
+  );
+
+  /// Validate preparation with registered payload codecs before allocating an
+  /// ID. This performs no storage write, source lookup or network request.
+  Bookmark normalizeRecord(Bookmark record) =>
+      _codec.decode(_codec.encode(record));
+
   @override
   Future<void> upsert(Bookmark record) => upsertAll([record]);
   @override
@@ -411,7 +497,13 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   Future<void> durableSync() =>
       _ready(() => _sync([_posts, _groups, _metadata]));
 
-  Future<void> _mutate(List<Bookmark> records, Set<int> removeIds) async {
+  Future<void> _mutate(
+    List<Bookmark> records,
+    Set<int> removeIds, {
+    List<BookmarkGroup> organizationGroups = const [],
+    Set<String> removedOrganizationGroups = const {},
+    List<CollectionFolder>? organizationFolders,
+  }) async {
     final deletes = <Map<String, Object?>>[];
     final previous = <String, Object?>{};
     for (final id in removeIds) {
@@ -445,7 +537,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
           throw const FormatException('Deleted Bookmark IDs cannot be reused');
         }
         _read(id);
-        _compatible(before, header);
+        _compatible(before, header, record);
       }
       final identity = _identity(header);
       if (identity != null) {
@@ -467,7 +559,14 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       headers['$id'] = header;
       upserts.add(wire);
     }
-    if (upserts.isEmpty && deletes.isEmpty) return;
+    final organization = await _prepareOrganization(
+      groups: organizationGroups,
+      removeGroups: removedOrganizationGroups,
+      folders: organizationFolders,
+      recordIds: records.map((record) => record.id).toSet(),
+      removedRecordIds: deleting,
+    );
+    if (upserts.isEmpty && deletes.isEmpty && organization == null) return;
     final revision = _metadata.get(_revision) as int;
     final plan = <String, Object?>{
       'upserts': upserts,
@@ -476,8 +575,13 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       'headers': headers,
       'expectedRevision': revision,
       'targetRevision': revision + 1,
+      'organization': ?organization,
     };
-    final journal = {'version': 1, 'hash': _hash(plan), 'plan': plan};
+    final journal = {
+      'version': organization == null ? 1 : 2,
+      'hash': _hash(plan),
+      'plan': plan,
+    };
     await _metadata.put(_journal, journal);
     await _sync([_metadata]);
     await _apply(plan);
@@ -491,7 +595,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       if (raw == null) return;
       final journal = contentMap(raw);
       final plan = contentMap(journal['plan']);
-      if (journal['version'] != 1 || journal['hash'] != _hash(plan)) {
+      if (!const {1, 2}.contains(journal['version']) ||
+          (journal['version'] == 2) != plan.containsKey('organization') ||
+          journal['hash'] != _hash(plan)) {
         throw const FormatException('Invalid Bookmark mutation journal');
       }
       await _apply(plan);
@@ -520,6 +626,18 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         .map((value) => _codec.decode(value))
         .toList();
     final deletes = (plan['deletes']! as List).map(contentMap).toList();
+    final bound = await _ids.readNextId();
+    final floor = _metadata.get(_floor);
+    if (bound == null ||
+        bound < 0 ||
+        bound > maxBookmarkId + 1 ||
+        floor is! int ||
+        floor < 0 ||
+        floor > bound) {
+      throw const FormatException('Invalid journal reservation bound');
+    }
+    final deleting = deletes.map((entry) => _localId(entry['id'])).toSet();
+    final desiredIdentities = <ContentIdentity, int>{};
     final seen = <int>{};
     final postWrites = <int, BookmarkHiveObject>{};
     final groupWrites = <int, dynamic>{};
@@ -550,6 +668,30 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         throw const FormatException('Journal payload/header mismatch');
       }
       check(id, header);
+      final old = previous['$id'];
+      if (old == null) {
+        if (id < floor || id >= bound) {
+          throw const FormatException('Journal ID was not reserved');
+        }
+      } else {
+        final before = contentMap(old);
+        if (before['kind'] == 'deleted') {
+          throw const FormatException('Journal reused a deleted ID');
+        }
+        _compatible(before, header, record);
+      }
+      if (_identity(header) case final identity?) {
+        final owner = _content(identity);
+        if ((desiredIdentities[identity] != null &&
+                desiredIdentities[identity] != id) ||
+            (owner != null &&
+                owner['id'] != id &&
+                !deleting.contains(owner['id'])) ||
+            (owner != null && owner['engine'] != header['engine'])) {
+          throw const FormatException('Conflicting journal content identity');
+        }
+        desiredIdentities[identity] = id;
+      }
       if (record is PostBookmark) {
         postWrites[id] = favoriteToHiveObject(
           record,
@@ -569,6 +711,12 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         throw const FormatException('Invalid journal deletion');
       }
       check(id, const {'kind': 'deleted'});
+      final before = previous['$id'];
+      if (before == null || contentMap(before)['kind'] != item['kind']) {
+        throw const FormatException(
+          'Journal deletion kind disagrees with its index',
+        );
+      }
       if (item['kind'] == 'post') {
         postDeletes.add(id);
       } else {
@@ -579,13 +727,27 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       throw const FormatException('Incomplete mutation journal');
     }
     // Everything is decoded and bound to its intended index before any write.
+    final organization = plan.containsKey('organization')
+        ? contentMap(plan['organization'])
+        : null;
+    if (organization != null) {
+      await _validateOrganization(
+        organization,
+        records.map((record) => record.id).toSet(),
+        deletes.map((entry) => _localId(entry['id'])).toSet(),
+      );
+    }
     if (postWrites.isNotEmpty) await _posts.putAll(postWrites);
     if (groupWrites.isNotEmpty) await _groups.putAll(groupWrites);
     if (postDeletes.isNotEmpty) await _posts.deleteAll(postDeletes);
     if (groupDeletes.isNotEmpty) await _groups.deleteAll(groupDeletes);
+    final organizationBoxes = organization == null
+        ? <BoxBase<dynamic>>[]
+        : await _applyOrganization(organization);
     await _sync([
       if (postWrites.isNotEmpty || postDeletes.isNotEmpty) _posts,
       if (groupWrites.isNotEmpty || groupDeletes.isNotEmpty) _groups,
+      ...organizationBoxes,
     ]);
     await _metadata.deleteAll(oldContentKeys);
     await _metadata.putAll({...indexWrites, _revision: target});

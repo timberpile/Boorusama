@@ -76,7 +76,7 @@ void main() {
           oldestUpload: created,
           newestUpload: secondAdded,
         ),
-        RelatedBookmark(
+        RelatedCollectionBookmark(
           localId: '00000000-0000-4000-8000-000000000099',
           family: RelatedFamilyReference(origin: origin, anchorId: 99),
           createdAt: created,

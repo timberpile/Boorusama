@@ -45,7 +45,7 @@ void main() {
   });
 
   test('only retained Related records carry their nullable order', () {
-    final raw = RelatedBookmark(
+    final raw = RelatedCollectionBookmark(
       family: RelatedFamilyReference(origin: poolOrigin(), anchorId: 99),
       localId: 'old',
       createdAt: DateTime.utc(2025),

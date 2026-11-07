@@ -47,7 +47,7 @@ void main() {
             tags: const {},
             coverage: PoolTagCoverage.unknown,
           ),
-          RelatedBookmark(
+          RelatedCollectionBookmark(
             family: RelatedFamilyReference(origin: origin, anchorId: 99),
             localId: '00000000-0000-4000-8000-000000000099',
             createdAt: created,

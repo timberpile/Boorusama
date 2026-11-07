@@ -99,7 +99,7 @@ final class BookmarkStorageMigration {
   };
 
   Future<BookmarkGroupRepositoryHive> open() =>
-      bookmarks.coordinator.runExclusive(() async {
+      bookmarks.runStorageMigration(() async {
         // Replay the payload journal first, including a previous interrupted
         // migration payload batch, before validating its organization plan.
         await bookmarks.reserveIds(0);

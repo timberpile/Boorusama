@@ -36,7 +36,7 @@ void main() {
     origin: postOriginFromConfig(config),
     anchorId: 10,
   );
-  final reference = RelatedBookmark(
+  final reference = RelatedCollectionBookmark(
     family: family,
     localId: testPool().localId,
     createdAt: DateTime.utc(2025),

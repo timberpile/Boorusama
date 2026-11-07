@@ -5,6 +5,8 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/content/types.dart';
@@ -265,4 +267,46 @@ void main() {
     await restart();
     await expectLater(repository.readAll(), throwsFormatException);
   });
+  for (final field in ['engine', 'site', 'resource']) {
+    test(
+      'unresolved source evidence cannot change $field under an existing ID',
+      () async {
+        final wire = testPool().toJson();
+        wire['origin'] = {
+          ...Map<String, Object?>.from(wire['origin']! as Map),
+          'booruTypeId': 777,
+        };
+        final id = (await repository.reserveIds(1)).single;
+        final original = LegacyGroupBookmark.fromMetadata(
+          id: id,
+          metadata: CollectionBookmark.fromJson(wire),
+        );
+        await repository.upsert(original);
+        final changed = Map<String, Object?>.of(wire);
+        if (field == 'engine') {
+          changed['origin'] = {
+            ...Map<String, Object?>.from(wire['origin']! as Map),
+            'booruTypeId': 888,
+          };
+        } else if (field == 'site') {
+          changed['origin'] = {
+            ...Map<String, Object?>.from(wire['origin']! as Map),
+            'sourceHost': 'other.invalid',
+          };
+        } else {
+          changed['poolId'] = 99;
+        }
+        final replacement = LegacyGroupBookmark.fromMetadata(
+          id: id,
+          metadata: CollectionBookmark.fromJson(changed),
+        );
+        expect(replacement, isNot(original));
+        await expectLater(
+          repository.upsert(replacement),
+          throwsFormatException,
+        );
+        expect(await repository.read(id), original);
+      },
+    );
+  }
 }
