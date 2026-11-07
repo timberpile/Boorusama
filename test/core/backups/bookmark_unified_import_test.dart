@@ -545,6 +545,39 @@ void main() {
     },
   );
 
+  for (final replace in [false, true]) {
+    test('Default placement survives import (replace=$replace)', () async {
+      final current = (await groups.getGroup(defaultBookmarkGroupId))!;
+      await bookmarks.commitOrganization(
+        groups: [current.copyWith(position: 13)],
+      );
+      final imported = testPoolPost(7).copyWith(id: 50);
+      final date = DateTime.utc(2026, 8, 9);
+      final data = BookmarkBackupData.unified(
+        records: [imported],
+        groups: [
+          BookmarkGroupBackup(
+            id: defaultBookmarkGroupId,
+            name: 'Default',
+            position: 23,
+            bookmarkIds: [50],
+            addedAt: {50: date},
+          ),
+        ],
+      );
+      if (replace) {
+        await service().replace(data);
+      } else {
+        await service().apply(await plan(data));
+      }
+      final saved = (await groups.getGroup(defaultBookmarkGroupId))!;
+      expect(saved.position, replace ? 23 : 13);
+      expect(saved.folderId, isNull);
+      expect(saved.bookmarkIds, {localPost.id});
+      expect(saved.addedAt[localPost.id], date);
+    });
+  }
+
   test(
     'known content engine conflict fails before import allocation or mutation',
     () async {

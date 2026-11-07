@@ -218,9 +218,7 @@ final class BookmarkImportPreparation {
             : replace
             ? g.folderId
             : placement?.folderId ?? existing?.folderId,
-        position: g.isDefault
-            ? 0
-            : placement?.position ?? existing?.position ?? g.position,
+        position: placement?.position ?? existing?.position ?? g.position,
       );
     }
     final memberships = {for (final g in resultGroups.values) ...g.bookmarkIds};
