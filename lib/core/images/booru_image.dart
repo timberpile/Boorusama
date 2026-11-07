@@ -149,7 +149,7 @@ class BooruImage extends ConsumerWidget {
               imageWidth: imageWidth,
               imageHeight: imageHeight,
               onDecodedAspectRatio: onDecodedAspectRatio,
-              forceCover: forceCover;
+              forceCover: forceCover,
               forceFill: forceFill,
               forceLoadPlaceholder: forceLoadPlaceholder,
               hideMismatchedPlaceholder: hideMismatchedPlaceholder,
@@ -165,7 +165,7 @@ class BooruImage extends ConsumerWidget {
       imageWidth: imageWidth,
       imageHeight: imageHeight,
       onDecodedAspectRatio: onDecodedAspectRatio,
-      forceCover: forceCover;
+      forceCover: forceCover,
       forceFill: forceFill,
       isLargeImage: imageQualitySettings != ImageQuality.low,
       forceLoadPlaceholder: forceLoadPlaceholder,
