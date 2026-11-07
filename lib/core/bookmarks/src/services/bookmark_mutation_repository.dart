@@ -176,6 +176,19 @@ class BookmarkMutationRepository
     }
   }
 
+  @override
+  Future<void> restoreLocalOrganization({
+    required List<Bookmark> records,
+    required List<BookmarkGroup> groups,
+    required List<CollectionFolder> folders,
+  }) => _write(
+    () => _requiredStore.restoreLocalOrganization(
+      records: records,
+      groups: groups,
+      folders: folders,
+    ),
+  );
+
   PostBookmark? _lookup(BookmarkUniqueId identity) {
     final updated = _upsertsByIdentity[identity];
     if (updated != null) return updated;

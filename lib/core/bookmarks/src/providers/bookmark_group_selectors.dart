@@ -76,6 +76,7 @@ List<PostBookmark> selectBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
   Map<int, DateTime>? addedAt,
+  Set<int>? availablePostIds,
 }) {
   return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
     final groupIds = view.kind == BookmarkViewKind.all
@@ -96,7 +97,11 @@ List<PostBookmark> selectBookmarks({
     };
 
     return filterBookmarks(
-      bookmarks: inView,
+      bookmarks: availablePostIds == null
+          ? inView
+          : inView
+                .where((bookmark) => availablePostIds.contains(bookmark.id))
+                .toList(),
       selectedTags: selectedTags,
       sortType: sortType,
       selectedBooruUrl: selectedBooruUrl,
@@ -117,6 +122,7 @@ List<PostBookmark> selectBookmarkPreviews({
   required BookmarkView view,
   required BookmarkSortType sortType,
   BookmarkShuffleState? shuffleState,
+  Set<int>? availablePostIds,
 }) {
   // Malformed rows retain the full selector's legacy behavior. All-view random
   // ordering still belongs to the full selector; group covers sample members.
@@ -129,17 +135,24 @@ List<PostBookmark> selectBookmarkPreviews({
       selectedTags: const [],
       sortType: sortType,
       shuffleState: shuffleState,
+      availablePostIds: availablePostIds,
     ).take(4).toList();
   }
 
   final groupIds = view.kind == BookmarkViewKind.all
       ? const <int>{}
       : state.bookmarkIdsForView(view);
-  final candidates = switch (view.kind) {
-    BookmarkViewKind.all => state.items,
-    BookmarkViewKind.group || BookmarkViewKind.subtree =>
-      groupIds.map((id) => state.bookmarksById[id]).whereType<PostBookmark>(),
-  };
+  final candidates =
+      switch (view.kind) {
+        BookmarkViewKind.all => state.items,
+        BookmarkViewKind.group || BookmarkViewKind.subtree =>
+          groupIds
+              .map((id) => state.bookmarksById[id])
+              .whereType<PostBookmark>(),
+      }.where(
+        (bookmark) =>
+            availablePostIds == null || availablePostIds.contains(bookmark.id),
+      );
   return performanceRecorder.measureSync(
     PerfOperation.bookmarkSelect,
     () {

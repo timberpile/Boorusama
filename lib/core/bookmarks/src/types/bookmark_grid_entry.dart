@@ -38,6 +38,7 @@ List<CollectionBookmark> selectPoolBookmarks({
   required BookmarkView view,
   required List<String> selectedTags,
   String? selectedBooruUrl,
+  Set<String>? availableCollectionIds,
 }) {
   final filters = selectedTags
       .map(BookmarkSearchToken.parse)
@@ -47,6 +48,9 @@ List<CollectionBookmark> selectPoolBookmarks({
       ? null
       : state.groupIdsForView(view);
   return state.pools.where((pool) {
+    if (availableCollectionIds != null &&
+        !availableCollectionIds.contains(pool.localId))
+      return false;
     if (groupsInView != null && !pool.groupIds.any(groupsInView.contains))
       return false;
     if (selectedBooruUrl != null &&
@@ -66,12 +70,15 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
   required BookmarkSortType sortType,
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
+  Set<int>? availablePostIds,
+  Set<String>? availableCollectionIds,
 }) {
   final pools = selectPoolBookmarks(
     state: state,
     view: view,
     selectedTags: selectedTags,
     selectedBooruUrl: selectedBooruUrl,
+    availableCollectionIds: availableCollectionIds,
   );
   final membershipDates = bookmarkMembershipDates(
     state: state,
@@ -88,6 +95,7 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
     selectedBooruUrl: selectedBooruUrl,
     shuffleState: shuffleState,
     addedAt: membershipDates,
+    availablePostIds: availablePostIds,
   );
   final entries = <BookmarkGridEntry>[
     ...posts.map(BookmarkPostEntry.new),

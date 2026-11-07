@@ -1340,11 +1340,16 @@ final class PackageTransactionSource implements ImportTransactionSource {
     ImageUrlResolver resolver(int? booruId) =>
         ref.read(bookmarkUrlResolverProvider(booruId));
     if (resolution.action == ImportAction.replace) {
-      await BookmarkImportService(
+      final service = BookmarkImportService(
         bookmarkRepository: bookmarkRepository,
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
-      ).replace(data);
+      );
+      if (preserveOrigins) {
+        await service.restoreLocalSnapshot(data);
+      } else {
+        await service.replace(data);
+      }
       return;
     }
     if (resolution.action == ImportAction.skip) return;

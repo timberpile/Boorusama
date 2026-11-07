@@ -6,12 +6,14 @@ import 'package:boorusama/core/backups/sources/bookmark_import_plan.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_planner.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_service.dart';
 import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
+import 'package:boorusama/core/bookmarks/src/data/stored_bookmark_codec.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_repository.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
@@ -45,7 +47,7 @@ void main() {
   late DateTime dateA;
   late DateTime dateB;
   String? failAfter;
-  int? firstImportedId;
+  int? observedJournalVersion;
   var sawJournal = false;
 
   Future<void> sync(Iterable<BoxBase<dynamic>> boxes) async {
@@ -58,7 +60,13 @@ void main() {
     }
     if (failAfter == null) return;
     final journalPending = metadata.containsKey('pendingMutation');
-    if (journalPending) sawJournal = true;
+    final journal = journalPending
+        ? contentMap(metadata.get('pendingMutation'))
+        : null;
+    if (journal != null) {
+      sawJournal = true;
+      observedJournalVersion = journal['version'] as int;
+    }
     // Reservation and initialization syncs happen before the mutation journal;
     // they are never mistaken for the requested cleanup boundary.
     if (!sawJournal) return;
@@ -70,7 +78,8 @@ void main() {
         'payload',
       _
           when journalPending &&
-              metadata.get('record:$firstImportedId') == null =>
+              metadata.get('recordRevision') ==
+                  contentMap(journal!['plan'])['expectedRevision'] =>
         'journal',
       _ when journalPending => 'index',
       _ => 'cleanup',
@@ -128,7 +137,7 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     failAfter = null;
-    firstImportedId = null;
+    observedJournalVersion = null;
     sawJournal = false;
     await openBoxes();
     final post = testPoolPost(7).copyWith(id: 0);
@@ -259,7 +268,6 @@ void main() {
       final revisionBefore = await bookmarks.readRevision();
       final boundBefore =
           contentMap(metadata.get('idReservation'))['nextId']! as int;
-      firstImportedId = boundBefore;
       sawJournal = false;
       failAfter = boundary;
 
@@ -352,4 +360,107 @@ void main() {
       }
     }
   });
+
+  test(
+    'private local rollback replays original IDs at every durable boundary',
+    () async {
+      const boundaries = ['journal', 'payload', 'index', 'cleanup'];
+      for (final (index, boundary) in boundaries.indexed) {
+        final originalRecords = await bookmarks.readAll();
+        final originalGroups = await groups.getGroups();
+        final snapshot = BookmarkBackupData.unified(
+          records: originalRecords,
+          groups: [
+            for (final group in originalGroups)
+              BookmarkGroupBackup(
+                id: group.id,
+                name: group.name,
+                bookmarkIds: group.bookmarkIds.toList(),
+                addedAt: group.addedAt,
+                parentGroupId: group.parentGroupId,
+                folderId: group.folderId,
+                position: group.position,
+              ),
+          ],
+          folders: await groups.getFolders(),
+        );
+        final originalWire = {
+          for (final record in originalRecords)
+            record.id: const StoredBookmarkCodec().encode(record),
+        };
+        final incoming = testPoolPost(99).copyWith(id: 100);
+        await importService().replace(
+          BookmarkBackupData.unified(
+            records: [incoming],
+            groups: [
+              BookmarkGroupBackup(
+                id: poolGroupA,
+                name: 'Replacement',
+                bookmarkIds: [incoming.id],
+                addedAt: {incoming.id: DateTime.utc(2026)},
+              ),
+            ],
+          ),
+        );
+        final replaced = (await bookmarks.readAll())
+            .whereType<PostBookmark>()
+            .single;
+        final bound = contentMap(metadata.get('idReservation'))['nextId'];
+        final revision = await bookmarks.readRevision();
+        sawJournal = false;
+        observedJournalVersion = null;
+        failAfter = boundary;
+        await expectLater(
+          importService().restoreLocalSnapshot(snapshot),
+          throwsStateError,
+          reason: boundary,
+        );
+        expect(sawJournal, isTrue, reason: boundary);
+        expect(observedJournalVersion, 3, reason: boundary);
+        await restart();
+        expect(
+          {
+            for (final record in await bookmarks.readAll())
+              record.id: const StoredBookmarkCodec().encode(record),
+          },
+          originalWire,
+          reason: boundary,
+        );
+        expect(await groups.getGroups(), originalGroups, reason: boundary);
+        expect(
+          contentMap(metadata.get('idReservation'))['nextId'],
+          bound,
+          reason: boundary,
+        );
+        expect(await bookmarks.readRevision(), revision + 1, reason: boundary);
+        expect(
+          metadata.containsKey('pendingMutation'),
+          isFalse,
+          reason: boundary,
+        );
+        // Only the authenticated local preimage path can restore tombstones.
+        // Ordinary writes still cannot recycle the discarded replacement's ID.
+        await expectLater(bookmarks.upsert(replaced), throwsFormatException);
+        final gap = (await bookmarks.reserveIds(1)).single;
+        await expectLater(
+          bookmarks.restoreLocalOrganization(
+            records: [
+              ...originalRecords,
+              replaced.copyWith(id: gap),
+            ],
+            groups: originalGroups,
+            folders: snapshot.folders,
+          ),
+          throwsFormatException,
+        );
+        expect(await bookmarks.read(gap), isNull);
+        expect(metadata.containsKey('pendingMutation'), isFalse);
+        if (index < boundaries.length - 1) {
+          await Hive.close();
+          await directory.delete(recursive: true);
+          await initialize();
+        }
+      }
+    },
+  );
 }

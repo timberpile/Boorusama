@@ -132,8 +132,19 @@ through durable local reservations; no imported number selects an existing
 payload slot. Proven source identities may deduplicate content, while readable
 unaddressable Posts and opaque legacy Collections remain independent records.
 Profile hints are not content identity and clearing a hint never infers a source
-ID from a retained snapshot. Loading preserved local media does not require a
-matching profile or successful remote request.
+ID from a retained snapshot. Decoding, importing and re-exporting preserved
+snapshots require neither a matching profile nor a successful remote request.
+Missing or ambiguous Bookmark profile mappings are optional access hints;
+Following Topic execution retains its required account dependencies. Optional
+Bookmark hints never choose an account for a required Topic.
+
+Ordinary timelines and local group covers omit media without a usable existing
+source/profile binding. The complete saved records and membership counts remain
+available to storage and export. Profile changes recompute this local projection
+without importing again or rewriting snapshots. Existing account, engine and
+installation-path isolation still applies; an unrelated selected profile is
+never a cover fallback. This stage adds no anonymous requests or unavailable-item
+indicator.
 
 Group conflict identity is its UUID, never its name or displayed path. Update
 replaces direct membership while preserving the existing name and placement;
@@ -142,6 +153,14 @@ remap parents consistently. Full category Replace restores validated imported
 definitions. Preview and apply share the same normalized hierarchy preparation,
 and cancellation/preflight failure performs no partial import. After a durable
 import, provider reload completes before the UI reports completion.
+
+Private transaction rollback restores its original local IDs and membership
+dates through `restoreLocalSnapshot`, rather than applying file-ID remapping.
+Its version-3 mutation journal explicitly identifies restored tombstones and
+recovers across each durable boundary. It accepts only previously known local
+slots and never lowers the allocator. This restores the same logical pre-import
+records; ordinary imports and Undo still cannot recycle a deleted ID. The private
+recovery path is never used for external file, clipboard or nearby input.
 
 Scoped subtree export retains separate group definitions and empty structural
 ancestors without including unselected ancestor contents. Partial tree selection

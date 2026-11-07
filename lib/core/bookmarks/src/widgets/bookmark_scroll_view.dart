@@ -31,6 +31,7 @@ import '../../../posts/listing/src/_internal/sliver_post_grid.dart';
 import '../../../errors/providers.dart';
 import '../../../settings/providers.dart';
 import '../types/bookmark_grid_entry.dart';
+import '../providers/bookmark_profile_availability.dart';
 import '../services/bookmark_series_projection.dart';
 import 'bookmark_pool_card.dart';
 import '../../../posts/listing/widgets.dart';
@@ -189,6 +190,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
             final shuffleState = ref.read(bookmarkShuffleProvider);
             final library = await ref.read(bookmarkProvider.future);
+            final availability =
+                ref.read(bookmarkProfileAvailabilityProvider) ??
+                BookmarkProfileAvailability(
+                  library,
+                  ref.read(booruConfigProvider),
+                );
             final entries = selectBookmarkGridEntries(
               state: library,
               view: widget.view,
@@ -196,6 +203,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               sortType: sortType,
               selectedBooruUrl: selectedBooruUrl,
               shuffleState: shuffleState,
+              availablePostIds: availability.postIds,
+              availableCollectionIds: availability.collectionIds,
             );
             final posts = performanceRecorder.measureSync(
               PerfOperation.bookmarkProject,

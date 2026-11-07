@@ -23,6 +23,15 @@ abstract interface class UnifiedBookmarkStore {
     Set<String> removeGroupIds = const {},
     List<CollectionFolder>? folders,
   });
+
+  /// Restore a trusted, private transaction preimage, including its local IDs.
+  /// External transfers must use normal import allocation, never this path.
+  /// The reservation high-water mark remains monotonic.
+  Future<void> restoreLocalOrganization({
+    required List<Bookmark> records,
+    required List<BookmarkGroup> groups,
+    required List<CollectionFolder> folders,
+  });
   Bookmark normalizeRecord(Bookmark record, {Bookmark? previous});
 
   Future<List<int>> reserveIds(int count);
