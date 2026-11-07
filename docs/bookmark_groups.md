@@ -62,6 +62,10 @@ All Bookmarks hides the cards and shows the deduplicated subtree timeline.
 A truly empty direct section has a compact empty state; filtered-empty content
 retains its controls. The production measured floating timeline header returns
 to its natural position below the cards when scrolling upward through the boundary.
+Pinned controls retain their visibility setting when the measured header fits.
+If enlarged text, wrapped chips or a reduced viewport make the header taller
+than the usable viewport, it scrolls naturally so every control remains reachable.
+Pinning resumes as soon as the header fits again.
 
 The Header title opens a Kurumi ancestor menu; Back moves up one group level.
 The Header mode control preserves the committed query while changing scope,

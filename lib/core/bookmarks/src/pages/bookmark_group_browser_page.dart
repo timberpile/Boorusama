@@ -492,7 +492,9 @@ class _BookmarkGroupBrowserPageState
                         _open(group.id);
                       }
                     },
-              onSelect: editable ? () => _select(group.id) : null,
+              onSelect: editable && !_selection.isActive
+                  ? () => _select(group.id)
+                  : null,
               onRename: editable ? () => _rename(group) : null,
               onMove: editable ? () => _move({group.id}, id) : null,
               onDuplicate: editable ? () => _duplicate([group]) : null,

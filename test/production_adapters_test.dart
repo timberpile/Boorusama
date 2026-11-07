@@ -183,6 +183,18 @@ void main() {
       isTrue,
     );
 
+    final metadata = await Hive.openBox<dynamic>(
+      '${boxName}_content_metadata',
+    );
+    final activeOrganization = metadata.get(
+      BookmarkStorageMigration.activeKey,
+    ) as Map;
+    expect(activeOrganization['version'], 3);
+    expect(activeOrganization['generation'], {
+      'groups': '${boxName}_bookmark_groups_hierarchy_v3',
+      'organization': '${boxName}_bookmark_folders_hierarchy_v3',
+    });
+
     final store = bookmarkRepository as UnifiedBookmarkStore;
     final migratedRecords = await store.readAll();
     final migratedPost = migratedRecords.whereType<PostBookmark>().single;
@@ -195,15 +207,18 @@ void main() {
     expect(migratedGroup.bookmarkIds, {migratedPost.id, migratedPoolId});
     expect(migratedGroup.addedAt[migratedPost.id], postDate);
     expect(migratedGroup.addedAt[migratedPoolId], poolDate);
-    expect(await organization.getFolders(), [
-      const CollectionFolder(id: parentFolderId, name: 'Parent', position: 0),
-      const CollectionFolder(
-        id: childFolderId,
-        name: 'Child',
-        parentId: parentFolderId,
-        position: 0,
-      ),
-    ]);
+    final migratedParent = (await organization.getGroup(parentFolderId))!;
+    expect(migratedParent.name, 'Parent');
+    expect(migratedParent.position, 0);
+    expect(migratedParent.parentGroupId, isNull);
+    expect(migratedParent.bookmarkIds, isEmpty);
+    final migratedChild = (await organization.getGroup(childFolderId))!;
+    expect(migratedChild.name, 'Child');
+    expect(migratedChild.position, 0);
+    expect(migratedChild.parentGroupId, parentFolderId);
+    expect(migratedChild.bookmarkIds, isEmpty);
+    expect(migratedGroup.parentGroupId, childFolderId);
+    expect(await organization.getFolders(), isEmpty);
     final poolView = (organization as PoolBookmarkRepository).readPoolBookmarks;
     expect((await poolView()).single.bookmarkId, migratedPoolId);
 
@@ -217,12 +232,28 @@ void main() {
     final reopenedStore = reopenedRepository as UnifiedBookmarkStore;
     final reopenedRecords = await reopenedStore.readAll();
     final reopenedGroup = (await reopenedOrganization.getGroup(groupsId))!;
+    final reopenedParent = (await reopenedOrganization.getGroup(
+      parentFolderId,
+    ))!;
+    final reopenedChild = (await reopenedOrganization.getGroup(childFolderId))!;
     expect(
       reopenedRecords.map((record) => record.id).toSet(),
       {migratedPost.id, migratedPoolId},
     );
     expect(reopenedGroup.bookmarkIds, migratedGroup.bookmarkIds);
     expect(reopenedGroup.addedAt, migratedGroup.addedAt);
+    expect(reopenedGroup.parentGroupId, childFolderId);
+    expect(reopenedParent.bookmarkIds, isEmpty);
+    expect(reopenedParent.parentGroupId, isNull);
+    expect(reopenedChild.bookmarkIds, isEmpty);
+    expect(reopenedChild.parentGroupId, parentFolderId);
+    expect(await reopenedOrganization.getFolders(), isEmpty);
+    expect(
+      (Hive.box<dynamic>('${boxName}_content_metadata').get(
+        BookmarkStorageMigration.activeKey,
+      ) as Map)['version'],
+      3,
+    );
     expect(
       (await (reopenedOrganization as PoolBookmarkRepository)
               .readPoolBookmarks())
