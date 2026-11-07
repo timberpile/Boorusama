@@ -122,7 +122,10 @@ void main() {
       final before = await library.snapshotForExport();
       expect(before.items.map((entry) => entry.id), [0, 1]);
       expect(before.items.last.uniqueId, isA<UnbookmarkablePostIdentity>());
-      expect(before.bookmarksById.containsKey(1), isFalse);
+      expect(
+        before.bookmarksByUniqueId.values.map((entry) => entry.id),
+        isNot(contains(1)),
+      );
       expect(before.groupsById[defaultBookmarkGroupId]!.bookmarkIds, {1});
       expect(before.groupsById[a.id]!.addedAt, {0: firstAdded});
       expect(before.groupsById[b.id]!.addedAt, {0: secondAdded});

@@ -60,8 +60,9 @@ Bookmark _mapBookmark(
     dataCodec: postDataCodec?.call(type),
   );
   if (decoded case StoredPostDecodeSuccess(:final post)) {
-    if (row.postId != post.id ||
-        BookmarkIdentity.tryFromPost(post) == null ||
+    // Keep readable legacy media without inventing an upstream identity.
+    // Unprovable identities stay out of deduplication; new writes stay strict.
+    if ((row.postId != null && row.postId != post.id) ||
         row.createdAt == null ||
         row.updatedAt == null) {
       throw const FormatException('Invalid bookmark snapshot identity');
