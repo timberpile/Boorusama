@@ -81,6 +81,35 @@ No SDK/dependency upgrades or user-data migration changes were introduced.
   changed-scope analysis exited 0 with 0 errors, 0 warnings and 83 informational
   findings (`candidate-format*`, `candidate-analysis*`). This is not lint-free.
 
+## Native-discovered registration cycle
+
+Frozen `c0942026a56b2f43b2992695a28936109ecfa093` built and installed
+successfully, but is not accepted. On the normal debug APK at 320dp/2x, the
+real public AIBooru Pool URI rendered native title and DText, then member loading
+showed `CircularDependencyError`. The controlled application fixtures had
+replaced the generic Post repository and therefore missed the production graph.
+
+The engine registration Ref lazily read `originAwarePostRepoProvider`, whose
+registry dependency led back to that same registration. The fix reads the
+existing engine-owned Post repository directly and wraps it with the established
+`OriginAwarePostRepository.fromConfig`; no new client, repository contract or
+source authorization is introduced. A production registry regression reproduced
+all three failures (Danbooru Pool, Related and Szurubooru Pool) at `c094` and then
+passed all three with the correction, including source/engine/profile origins.
+It overrides low-level HTTP, not the Post repositories or Group factory.
+
+The `c094` full regression was deliberately interrupted after the native finding,
+with no source edits during its partial execution. It is **not a complete pass**;
+`full-regression-c0942026a-interrupted.json` records this limit. The corrected
+candidate requires a fresh complete suite and native APK checks. Earlier
+native screenshots/results remain failed-candidate diagnostics.
+
+Original Android APK/data/settings are backed up and parked under the exclusive
+`emulator-5554` lease while a verified original-data clone is used for QA. Restore,
+verification, owned-QA cleanup and lease release are still required. The actual
+Szurubooru URL is pending from the user; no corresponding profile or test entry
+was available. Safebooru returned HTTP 403; AIBooru public reads were available.
+
 ## Remaining exit gates
 
 Run the complete local suite on the committed candidate without runtime/test

@@ -11,6 +11,7 @@ import '../../../core/posts/details/src/widgets/viewer_entry_navigation_header.d
 import '../../../core/posts/pools/group_summary_card.dart';
 import '../../../core/posts/pools/pool_grid_item.dart';
 import '../../../core/posts/post/providers.dart';
+import '../posts/providers.dart';
 import 'content_group_source.dart';
 import 'providers.dart';
 import 'src/pool_detail_page.dart';
@@ -29,7 +30,11 @@ BooruGroupCapability createSzurubooruGroupCapability(Ref ref) =>
           access: access,
           fetchPool: (id) =>
               ref.read(szurubooruPoolRepoProvider(config.auth)).getPool(id),
-          postRepository: () => ref.read(originAwarePostRepoProvider(config)),
+          // Avoid re-entering the registry through its own registration Ref.
+          postRepository: () => OriginAwarePostRepository.fromConfig(
+            delegate: ref.read(szurubooruPostRepoProvider(config.search)),
+            config: config,
+          ),
         );
       },
       presentation: const SzurubooruGroupPresentation(),

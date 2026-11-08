@@ -16,6 +16,7 @@ import '../../../core/posts/pools/pool_grid_item.dart';
 import '../../../core/posts/post/providers.dart';
 import '../client_provider.dart';
 import '../posts/related/related_gallery.dart';
+import '../posts/post/providers.dart';
 import 'content_group_source.dart';
 import 'details/src/pool_detail_page.dart';
 import 'details/src/widgets/pool_gallery_header.dart';
@@ -40,7 +41,13 @@ BooruGroupCapability createDanbooruGroupCapability(Ref ref) =>
                   cancelToken: ApiRequestContext.current().cancelToken,
                 ),
           ),
-          postRepository: () => ref.read(originAwarePostRepoProvider(config)),
+          // The factory's Ref belongs to engine registration. Reading the
+          // generic registry-backed repository here would re-enter that same
+          // registry. Reuse the native repository and its standard origin bridge.
+          postRepository: () => OriginAwarePostRepository.fromConfig(
+            delegate: ref.read(danbooruPostRepoProvider(config.search)),
+            config: config,
+          ),
         );
       },
       presentation: const DanbooruGroupPresentation(),
