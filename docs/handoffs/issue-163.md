@@ -5,9 +5,11 @@
 - Issue: https://github.com/timberpile/Boorusama/issues/163
 - Branch: `bug/163-masonry-thumbnail-aspect-ratios`
 - Base: `266a14c0f87f29213d48696bda7c806dc1d05b6e`
-- Verified runtime/test candidate: `8fdc267aceb28348253b9ebaf34287e2ba899db1`
+- Verified runtime candidate before the scrolling follow-up: `8fdc267aceb28348253b9ebaf34287e2ba899db1`
 - Local implementation, scoped verification and independent review completed on
   2026-11-08. Subsequent handoff-only edits do not change the checked candidate.
+- **Follow-up status:** intermittent Realbooru Masonry scrolling assertion remains
+  unreproduced; issue #163 is `in-progress` again. See the follow-up below.
 - Publication and integration are pending authorization. No push, PR, merge,
   issue closure or branch deletion was performed during this continuation.
 
@@ -124,6 +126,62 @@ finalizer explanation. This demonstrates that the diagnostic predates #163;
 its underlying engine/fixture cause was not resolved. The baseline worktree was
 removed after verifying its tracked source was clean. Its log is preserved as
 `baseline-selection.log` in the local artifact directory above.
+
+## Intermittent scrolling assertion follow-up
+
+After the initial review, the user reported
+`object.dart:4323: debugNeedsLayout is not true` while scrolling Realbooru's
+normal browse feed in Masonry. The user could not reproduce it by scrolling the
+same feed again. A full first-exception stack trace is unavailable.
+
+In the pinned SDK this assertion is in
+`RenderObjectWithLayoutCallbackMixin.scheduleLayoutCallback`. It diagnoses an
+inconsistent layout-callback state; the assertion alone does not identify the
+originating widget or an earlier exception in the frame.
+[Flutter issue #192030](https://github.com/flutter/flutter/issues/192030) reports
+the same assertion on Flutter 3.47.2 with obstructed tooltip overlays and resizing.
+That different reproduction is an investigation lead, not an established cause
+for this scrolling report.
+
+Added five scrolling tests in commit
+`02cd164592c59fdb6a8f3292e95a84c88fc26099`:
+
+- Actual post tiles scroll forward and backward with decoded-image resizing,
+  recycled children and non-overlapping geometry. The Realbooru case uses the
+  production thumbnail mapper, unknown dimensions, image-format probes and
+  video posters across 100 rows.
+- Deterministic child-ratio changes exercise 120 scrolling frames each in one,
+  two and three columns, including leading-child eviction and reinsertion.
+
+Verification on that test candidate:
+
+```bash
+fvm flutter test --no-pub \
+  --concurrency="$(python3 scripts/physical_core_count.py)" \
+  test/core/posts/listing/post_grid_item_test.dart \
+  test/core/posts/listing/masonry_scroll_layout_test.dart \
+  test/core/images \
+  test/boorus/gelbooru_v2/realbooru_video_thumbnail_test.dart
+
+fvm flutter analyze --no-pub --no-fatal-infos \
+  test/core/posts/listing/post_grid_item_test.dart \
+  test/core/posts/listing/masonry_scroll_layout_test.dart
+```
+
+Results: **76 tests passed**, exit 0, six workers; scoped analysis had **0 errors,
+0 warnings and 3 pre-existing informational findings**, exit 0. Formatting and
+`git diff --check` passed. Logs: `scroll-verification-final.log`,
+`scroll-analyze-final.log`, and `scroll-format-final.log` in the artifact directory.
+
+The available emulator was leased for a read of assertion messages and stack
+frames only; no matching assertion was present, and the lease was released.
+Its installed build's source correspondence was not established. No feed actions
+were exercised on the device for this follow-up.
+
+Runtime code is unchanged by this follow-up. The reported assertion remains
+unresolved. If it recurs, preserve the **first full Flutter exception**, including
+any earlier layout error, plus the active site/layout and action immediately
+before the failure. Keep the issue `in-progress` pending distinguishing evidence.
 
 ## Remaining limits and next step
 
