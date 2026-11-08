@@ -69,9 +69,11 @@ final danbooruPostRepoProvider =
 
           int? total;
           bool? hasMore;
+          int? rawPostCount;
           if (tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
-            // A fresh exact count can prove completeness or remaining members,
-            // even when the raw page is shorter than the requested limit.
+            // Preserve the existing exact-completeness contract for ordinary
+            // Search. Groups additionally need raw progress before filtering.
+            rawPostCount = posts.length;
             final count = await client.countPosts(
               tags: [
                 ...tags,
@@ -85,13 +87,14 @@ final danbooruPostRepoProvider =
             final uniqueCount = posts.map((post) => post.id).toSet().length;
             if (count != null && count >= uniqueCount && count >= 0) {
               total = count;
-              if (page == 1) hasMore = uniqueCount < count;
+              if (page == 1 && uniqueCount == count) hasMore = false;
             }
-            // Capture raw progress before visibility filtering removes banned
-            // or Flash Posts. A shortened visible page is not source exhaustion.
-            if (limit != null) hasMore ??= posts.length >= limit;
           }
-          final result = posts.toResult(total: total, hasMore: hasMore);
+          final result = posts.toResult(
+            total: total,
+            hasMore: hasMore,
+            rawPostCount: rawPostCount,
+          );
           return (options?.cascadeRequest ?? true)
               ? transformPosts(ref, result, config)
               : result;

@@ -228,11 +228,17 @@ final class DanbooruGroupSource extends ContentGroupSource
           () => PostContentEntry(reference: reference, post: post),
         );
     }
+    final rawCount = result.rawPostCount;
+    final countProvesMore =
+        page == 1 &&
+        result.total != null &&
+        rawCount != null &&
+        result.total! > rawCount;
     final more =
         result.hasMore ??
-        (result.maxPage == null
-            ? result.posts.length >= limit
-            : page < result.maxPage!);
+        (result.maxPage != null
+            ? page < result.maxPage!
+            : countProvesMore || (rawCount ?? result.posts.length) >= limit);
     return (
       page: ContentPage(
         items: [

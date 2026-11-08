@@ -162,7 +162,8 @@ P2 findings. The code was not approved, and #140 must remain unstarted:
   content bulk targets by engine/site/Post identity, disables colliding native
   Post Heroes, and opens the exact clicked member occurrence.
 - R2: the native Related repository could lose continuation after banned/Flash
-  filtering. Raw continuation is now captured before visibility filtering.
+  filtering. Raw Post count is now captured before visibility filtering and
+  survives origin binding; the ordinary nullable `hasMore` contract is preserved.
 - R3: the cursor projection could not support existing direct numeric page jumps
   and skipped source invalidation when refreshing later Pool pages. Native sources
   now expose optional bounded indexed reads; explicit refresh separately revokes
@@ -175,6 +176,15 @@ short. That failed run was deliberately interrupted before fixing the candidate;
 it is not a complete pass. Exact-count evidence now takes precedence over the
 raw-length fallback. The existing Search regression and the filtered Group
 production-registry/page-selector matrix are rerun together.
+
+The revised `a350dd97a6111319195ea91816f3ee712b51d395` complete run
+then exposed six existing producer-contract tests requiring unknown ordinary
+`hasMore` to remain null. That failed run was also deliberately interrupted before
+editing. The final approach leaves those assertions unchanged and carries the
+objective `rawPostCount` separately through Post transforms/origin binding into
+the Group adapter. All 43 combined producer, Search, registry, page-selector,
+pager and real member-route tests passed after this correction. A new complete
+pass and APK/native check are required; neither interrupted run is acceptance.
 
 Working-tree checks during remediation: 22 focused pager/production-registry/
 real paginated-grid tests passed; 207 existing listing, selection and action

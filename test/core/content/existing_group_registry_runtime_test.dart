@@ -397,14 +397,20 @@ void main() {
           expect(controller().errors.value, isNull);
           expect(controller().items.length, allHidden ? 0 : 1);
           expect(controller().hasMore, isTrue);
-          var done = false;
-          final future = controller().fetchMore()
-            ..whenComplete(() => done = true);
-          for (var i = 0; i < 100 && !done; i++) {
+          // Exercise the visible manual continuation control, including when
+          // the first raw page contains no visible Posts at all.
+          await tester.pump();
+          final loadMore = find.byType(FilledButton);
+          expect(loadMore, findsOneWidget);
+          await tester.tap(loadMore);
+          for (
+            var i = 0;
+            i < 100 && (pages.length < 2 || controller().loading);
+            i++
+          ) {
             await tester.pump(const Duration(milliseconds: 100));
           }
-          expect(done, isTrue);
-          await future;
+          expect(controller().loading, isFalse);
           expect(controller().errors.value, isNull);
           expect(controller().items.map((p) => p.id), contains(laterId));
           expect(pages, [1, 2]);

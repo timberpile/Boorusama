@@ -84,8 +84,10 @@ in `GroupMemberBatch.resolved`; no synthetic cover Post enters the viewer.
 Related retains the canonical direct-family query and existing oldest/newest
 sort without claiming authored chronology. Raw source cursors progress through
 filtered empty batches; stalled or missing continuation fails explicitly.
-The native Related repository captures raw continuation before banned/Flash
-visibility filtering. Existing numeric page selectors use the optional
+The native Related repository captures `PostResult.rawPostCount` before
+banned/Flash visibility filtering and preserves it through origin binding. The
+Group adapter uses that raw progress alongside exact counts; ordinary Search
+keeps its existing nullable `hasMore` completeness contract. Existing numeric page selectors use the optional
 `IndexedGroupMemberSource` capability for one bounded native page request;
 cursor-only sources retain their sequential contract. Explicit refresh invalidates
 the source envelope and resolved Posts on every page, while page navigation

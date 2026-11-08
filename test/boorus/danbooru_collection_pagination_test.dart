@@ -108,6 +108,7 @@ void main() {
               : scenario.ids,
         );
         expect(value.hasMore, scenario.more);
+        expect(value.rawPostCount, scenario.ids.length);
         expect(
           value.total,
           scenario.name == 'inconsistent count' ? null : scenario.count,
