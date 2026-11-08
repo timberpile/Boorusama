@@ -31,7 +31,9 @@ import 'package:boorusama/boorus/danbooru/posts/search/src/widgets/search_series
 import 'package:boorusama/core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
 
 import 'dart:async';
+
 import 'package:boorusama/core/posts/links/share_group_link_button.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 

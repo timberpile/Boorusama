@@ -62,21 +62,29 @@ No SDK/dependency upgrades or user-data migration changes were introduced.
   actor loss during gated filesystem preparation, filesystem failure and retry.
 - Public member navigation uses a controlled anonymous scope and fake API;
   actual real Post widgets/media access keys and System Back are exercised.
-  One Pool metadata request plus a separate native description request were
-  observed. This does not prove live-service transport or Android decoding.
+  Initially one Pool metadata request plus a separate native description request
+  were observed. The latter is outside public API permission: the public path
+  now renders native envelope DText with the existing renderer, without widening
+  the allow list. The final six public application tests passed, including visible DText and only
+  the permitted JSON metadata request. Controlled
+  transport does not prove live services or Android decoding.
 - Group link route tests use the real application router, including decoded
   `.bslink` navigation, account ambiguity, retained actors, Add Profile full URL,
   root close and a 320dp/2x chooser. Private no-borrow assertions inspect the
   retained binding; no independent source-factory request capture is claimed.
-- Intermediate changed-scope analysis found no errors and one unused test import
-  (removed); final analysis remains required. Existing informational findings
-  are reported separately from errors/warnings.
+- Five public cover widgets passed, including policy/loading/source denial and
+  shared media-cache scope, with no fake Post identity. Three actual public
+  Refresh application tests passed with writable Hive-backed repositories:
+  IDs/memberships/dates and Related newest preference survive; held-read
+  revocation cannot publish or borrow a newly added same-host account.
+- All 64 changed Dart files formatted (one import-layout change); complete
+  changed-scope analysis exited 0 with 0 errors, 0 warnings and 83 informational
+  findings (`candidate-format*`, `candidate-analysis*`). This is not lint-free.
 
 ## Remaining exit gates
 
-Finish cover and public Refresh regressions, inspect the complete issue delta,
-format/analyze all changed files, commit a frozen candidate and run the complete
-local suite without runtime/test edits during the pass. Exercise the required
+Run the complete local suite on the committed candidate without runtime/test
+edits during the pass, then inspect final evidence and the complete issue delta. Exercise the required
 Android/native service paths under an exclusive lease, preserve/restore the
 original APK, data and settings, record unavailable services honestly, and obtain
 independent Sol High approval. Any findings require fixes, retesting and

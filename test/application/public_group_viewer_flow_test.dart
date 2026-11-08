@@ -69,6 +69,10 @@ void main() {
       () => gallery.controller.items.length == 2,
     );
     expect(gallery.controller.items.map((p) => p.id), [101, 102]);
+    expect(
+      find.textContaining('Public Pool description', findRichText: true),
+      findsOneWidget,
+    );
     expect(find.byTooltip('Download'), findsNothing);
     await tester.tap(postTile(101));
     await f.harness.settle(tester);
@@ -104,6 +108,7 @@ void main() {
       hasLength(1),
       reason: 'all API paths: ${f.apiPaths}',
     );
+    expect(f.apiPaths, ['/pools/42.json']);
     expect(f.privateRequests, 0);
     expect(tester.takeException(), isNull);
   });
@@ -229,6 +234,7 @@ class _Fixture {
                 data: {
                   'id': 42,
                   'name': 'Saved Pool',
+                  'description': 'Public Pool description',
                   'post_count': 2,
                   'post_ids': [101, 102],
                 },
