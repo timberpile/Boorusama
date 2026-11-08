@@ -6,6 +6,8 @@ import 'dart:typed_data';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/grid_thumbnail_url.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/core/images/image_candidate_picker.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:boorusama/core/images/types.dart';
@@ -21,6 +23,7 @@ import 'large_grid_gif_fixture.dart';
 import 'package:boorusama/core/posts/listing/src/providers/cached_grid_gif.dart';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:boorusama/core/configs/gesture/types.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
@@ -57,6 +60,152 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  for (final realbooru in [false, true]) {
+    testWidgets(
+      'decoded thumbnails remain safe while scrolling a Masonry feed (Realbooru=$realbooru)',
+      (
+        tester,
+      ) async {
+        await tester.runAsync(() async {
+          final directory = await Directory.systemTemp.createTemp(
+            'grid-scroll-',
+          );
+          final cache = DrainingImageCacheManager(
+            cacheRootPathProvider: () => directory.path,
+          );
+          final adapter = _RecordingGridImageAdapter(bytes: _widePng);
+          final dio = Dio()..httpClientAdapter = adapter;
+          final scroll = ScrollController();
+          try {
+            await tester.pumpWidget(
+              _TestApp(
+                automaticMediaLoading: true,
+                scroll: scroll,
+                thumbnailGenerator: const DefaultGridThumbnailUrlGenerator(
+                  mediaMapper: gelbooruV2ThumbnailOnlyGridThumbnailMedia,
+                ),
+                thumbnailSettings: const GridThumbnailSettings(
+                  imageQuality: ImageQuality.high,
+                  animatedPostsDefaultState: AnimatedPostsDefaultState.static,
+                  gridSize: GridSize.normal,
+                ),
+                mediaOverrides: [
+                  defaultImageCacheManagerProvider.overrideWithValue(cache),
+                  dioForWidgetProvider.overrideWith((ref, config) => dio),
+                  mediaOverrideDioProvider.overrideWith((ref, config) => dio),
+                  httpHeadersProvider.overrideWith((ref, config) => const {}),
+                  deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+                  imageListingSettingsProvider.overrideWithValue(
+                    Settings.defaultSettings.listing.copyWith(
+                      imageListType: ImageListType.masonry,
+                    ),
+                  ),
+                ],
+                child: Center(
+                  child: SizedBox(
+                    width: 360,
+                    child: CustomScrollView(
+                      controller: scroll,
+                      scrollCacheExtent: const ScrollCacheExtent.pixels(120),
+                      slivers: [
+                        SliverMasonryGrid.count(
+                          crossAxisCount: 3,
+                          mainAxisSpacing: 4,
+                          crossAxisSpacing: 4,
+                          childCount: 100,
+                          itemBuilder: (context, index) => PostGridItem(
+                            key: ValueKey(index),
+                            post: TestPost(
+                              id: index,
+                              width: realbooru ? 0 : 100,
+                              height: realbooru ? 0 : 100,
+                              thumbnailImageUrl: _realbooruThumbnail(index),
+                              sampleImageUrl: _realbooruThumbnail(index),
+                              originalImageUrl: _realbooruThumbnail(index),
+                              booruData: GelbooruV2PostData(
+                                hasNotes: false,
+                                isVideoPreview: index % 3 == 0,
+                              ),
+                            ),
+                            imageUrl: realbooru
+                                ? null
+                                : 'https://grid-scroll.test/$index.png',
+                            index: index,
+                            useHero: false,
+                            multiSelectEnabled: false,
+                            config: _config.auth,
+                            onTap: (_) {},
+                            additions: PostGridItemAdditions.empty,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+            for (var frame = 0; frame < 40; frame++) {
+              final offset = frame < 20 ? frame * 100.0 : (39 - frame) * 100.0;
+              scroll.jumpTo(offset.clamp(0, scroll.position.maxScrollExtent));
+              await tester.pump();
+              await pumpUntil(
+                tester,
+                () =>
+                    find
+                        .descendant(
+                          of: find.byType(ImageCandidatePicker),
+                          matching: find.byType(BooruRawImage),
+                        )
+                        .evaluate()
+                        .isEmpty &&
+                    tester
+                        .widgetList<ExtendedImage>(
+                          find.byType(ExtendedImage),
+                        )
+                        .map((image) => image.controller)
+                        .nonNulls
+                        .every(
+                          (controller) =>
+                              controller.loadState.value == LoadState.completed,
+                        ),
+                reason: 'visible thumbnails at scroll frame $frame',
+              );
+              await tester.pump();
+              expect(
+                tester.takeException(),
+                isNull,
+                reason: 'scroll frame $frame',
+              );
+              final tiles = tester
+                  .elementList(find.byType(PostGridItem))
+                  .map(
+                    (element) => tester.getRect(find.byWidget(element.widget)),
+                  )
+                  .toList();
+              for (var index = 0; index < tiles.length; index++) {
+                expect(tiles[index].height, greaterThan(0));
+                for (final other in tiles.skip(index + 1)) {
+                  expect(tiles[index].overlaps(other), isFalse);
+                }
+              }
+              if (realbooru) {
+                expect(find.byType(ImageCandidatePicker), findsWidgets);
+              }
+            }
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            PaintingBinding.instance.imageCache.clear();
+            PaintingBinding.instance.imageCache.clearLiveImages();
+            await cache.drain();
+            dio.close(force: true);
+            scroll.dispose();
+            await directory.delete(recursive: true);
+          }
+        });
+      },
+    );
+  }
+
   testWidgets(
     'Masonry relayout follows decoded media and ignores stale sources',
     (
@@ -1036,3 +1185,6 @@ final _widePng = base64Decode(
 final _tallPng = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAIAAAAECAYAAACk7+45AAAAFklEQVR4nGPkEpH7z8DAwMDEAAWYDAAoeAFDw42DnwAAAABJRU5ErkJggg==',
 );
+
+String _realbooruThumbnail(int index) =>
+    'https://realbooru.test/thumbnails/ab/cd/thumbnail_${index.toRadixString(16).padLeft(32, '0')}.jpg';
