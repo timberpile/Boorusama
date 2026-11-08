@@ -97,3 +97,32 @@ No dependency or SDK upgrade is part of this task. Durable evidence lives in
   parser consumer. Full final-candidate regression, independent Sol High review,
   device/live-Pixiv validation and actual viewer/listing integration remain open.
   No test count here implies completion of #140.
+
+## Independent Sol High review correction
+
+The independent foundation review identified one P2: the Pixiv DTO discarded
+tag-field presence, so an omitted partial response published complete empty tags
+and could erase cached tags/index facts. Focused regressions reproduced that
+failure and a malformed native tag name throwing during DTO parsing. Evidence:
+`140-tag-omission-reproduction.log` (two expected failures before correction).
+
+The DTO now preserves unknown/partial/complete native tag observations without
+changing its existing non-null list API. Missing/non-list fields stay unknown;
+explicit `tags: []` remains authoritative empty; malformed entries retain usable
+native names with partial coverage instead of throwing. The Work mapper emits
+null when no usable fact was observed, preserving cached tags during the existing
+Details merge, and marks valid malformed subsets partial. No common metadata,
+authorization, storage or cache mechanism changed.
+
+Final correction verification (same runtime/test candidate as this handoff):
+
+- `fvm flutter test --no-pub --concurrency=6 test/boorus/pixiv/works
+  test/pixiv_test.dart`: **61 passed**, `140-tag-omission-final-tests.log`.
+- Complete `packages/booru_clients` suite, `fvm flutter test --no-pub
+  --concurrency=6`: **240 passed**, `140-tag-omission-package-suite.log`.
+- Analysis of Work source/tests and changed Pixiv DTO/test: **no issues** (zero
+  errors, warnings or informational findings), `140-tag-omission-final-analysis.log`.
+- Changed Dart formatting and `git diff --check` passed.
+
+The owning implementation addresses the finding; independent Sol High re-review
+is still required. Earlier runtime/device/full-project acceptance limits remain.

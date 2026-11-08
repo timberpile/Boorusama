@@ -8,6 +8,42 @@ import 'work_test_fixtures.dart';
 
 void main() {
   test(
+    'omitted tag observations preserve cached tags while explicit empty clears',
+    () {
+      final access = workAccess();
+      final previous = pixivWorkDetails(work(), access);
+      for (final dto in [
+        work(omitTags: true),
+        work(tags: null),
+        work(tags: 'invalid'),
+      work(tags: const [null, {'name': ''}]),
+      ]) {
+        expect(pixivWorkSummary(dto, access).previewTags, isNull);
+        final incoming = pixivWorkDetails(dto, access);
+        expect(incoming.tags, isNull);
+        expect(incoming.mergeWithPrevious(previous).tags, previous.tags);
+      }
+      final empty = pixivWorkDetails(work(tags: const []), access);
+      expect(empty.tags!.coverage, MetadataCoverage.complete);
+      expect(empty.mergeWithPrevious(previous).tags!.values, isEmpty);
+    },
+  );
+
+  test('malformed tag entries retain valid facts without claiming complete coverage', () {
+    final dto = work(
+      tags: [
+        {'name': 'known'},
+        null,
+        {'name': 42},
+        {'translated_name': 'missing native name'},
+      ],
+    );
+    final tags = pixivWorkDetails(dto, workAccess()).tags!;
+    expect(tags.coverage, MetadataCoverage.partial);
+    expect(tags.values.map((tag) => tag.name), ['known']);
+  });
+
+  test(
     'native listings retain one entry per Work and genuine animation Posts',
     () {
       final access = workAccess();

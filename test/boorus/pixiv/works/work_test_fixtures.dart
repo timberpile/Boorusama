@@ -26,6 +26,10 @@ PixivIllustDto work({
   bool visible = true,
   bool muted = false,
   String? original,
+  bool omitTags = false,
+  Object? tags = const [
+    {'name': 'fixture', 'translated_name': 'Fixture'},
+  ],
 }) => PixivIllustDto.fromJson({
   'id': id,
   'title': 'Work $id',
@@ -44,9 +48,7 @@ PixivIllustDto work({
     'square_medium': 'https://i.pximg.net/thumb/${id}_p0.jpg',
     'large': 'https://i.pximg.net/large/${id}_p0.jpg',
   },
-  'tags': [
-    {'name': 'fixture', 'translated_name': 'Fixture'},
-  ],
+  if (!omitTags) 'tags': tags,
   'meta_single_page': {
     'original_image_url':
         original ?? 'https://i.pximg.net/original/${id}_p0.jpg',
