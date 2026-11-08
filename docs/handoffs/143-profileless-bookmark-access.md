@@ -1,6 +1,6 @@
 # #143 Profileless Bookmark access: local handoff
 
-**Status:** implementation, complete regression and final-candidate Android checks passed locally. The original emulator state is restored and its lease released. Independent Sol High final re-review remains pending; do not start #156 until that gate passes. No publication or integration is authorized.
+**Status:** implementation, complete regression, final-candidate Android checks and independent Sol High final re-review passed locally. The original emulator state is restored and its lease released. The local stage gate permits #156. No publication or integration is authorized.
 
 ## Candidate and scope
 
@@ -31,13 +31,13 @@ The image/video cache namespace includes a process-session ID to prevent old run
 
 The actual public grid context menu and selection actions could reconstruct credential-free auth without the anonymous scope and reach the native/background downloader. Remediation now gates native Download on resolved permitted actors, prevents the public Bookmark actions from choosing the native path, and retains a fail-closed leaf guard before download providers are created. Source-bound permission/extraction/header work remains tied to the captured access actor.
 
-Focused download/action tests passed on intermediate remediation candidates, including the stored Bookmark and selection boundaries. The frozen candidate's complete suite passed; native context/selection checks passed; independent final re-review remains outstanding.
+Focused download/action tests passed on intermediate remediation candidates, including the stored Bookmark and selection boundaries. The frozen candidate's complete suite passed; native context/selection checks passed; independent final re-review approved the fix.
 
 ### F2 — A removed originating profile could be replaced by another account
 
 Bookmark download projection now resolves strictly against the saved source/profile binding. Missing or revoked origins are not re-resolved using the generic compatible-profile fallback. The operation retains an access-current check across asynchronous preparation and before scheduling. A bound download may not borrow another profile's credentials, extractor, or settings.
 
-Targeted actor-resolution, stale-operation, download scheduling, and source-header regressions were added. They are included in the frozen candidate's passing complete suite; independent review remains outstanding.
+Targeted actor-resolution, stale-operation, download scheduling, and source-header regressions were added. They are included in the frozen candidate's passing complete suite; independent final re-review approved the fix.
 
 ### F3 — Optional cache limits must not determine video playability
 
@@ -57,7 +57,7 @@ The focused image/bookmark regressions and frozen candidate's complete suite pas
 
 Public image presentation now filters candidate renditions through the existing `allowsMedia` policy. When the selected primary is forbidden, image and progressive viewer paths promote a permitted fallback/lower/intermediate rendition. If none is permitted, they display a terminal unavailable state with `unavailableEngine`; the rejected URL is not fetched or used for cache access. Failure reporting accepts a reason while preserving `refreshFailed` as the default, and retry removes only temporary failures. Missing, revoked, or still-loading access does not publish a permanent media failure.
 
-Controlled image-gate tests exercise decoded safe renditions and the all-forbidden terminal state, checking request/cache isolation. Targeted image, failure-state, and real-grid tests passed, and the frozen candidate's complete suite passed. Independent re-review remains pending.
+Controlled image-gate tests exercise decoded safe renditions and the all-forbidden terminal state, checking request/cache isolation. Targeted image, failure-state, and real-grid tests passed, and the frozen candidate's complete suite passed. Independent final re-review approved the fix.
 
 ## Automated verification
 
@@ -99,6 +99,6 @@ Fresh-campaign restoration passed. `native-remediation/restore-verifier/archive-
 
 ## Review and continuation
 
-Initial independent **GPT-6.1 Sol High** review (`sol-high-final-review.md`) returned CHANGES REQUIRED with F1–F5. The remediations above have passing full-suite and final native evidence. A fresh nonauthor Sol High final re-review of the entire base-to-candidate delta is still pending. Device restoration is verified; do not begin #156 before final review approval.
+Initial independent **GPT-6.1 Sol High** review (`sol-high-final-review.md`) returned CHANGES REQUIRED with F1–F5. The remediations above have passing full-suite and final native evidence. Fresh nonauthor **gpt-6.1-sol / High** final re-review approved `e8f55e9839a4d344f2f7fcaabaa945809ded4589` with no new confirmed findings and all F1–F5 resolved. See `sol-high-final-rereview.md`. The reviewer independently ran 61 focused tests, checked the clean tree and runtime equivalence, and reused the unchanged complete pass. The reviewer inspected recorded native/provenance/restoration evidence but did not independently repeat device actions. Existing native decoder-error propagation remains an explicit unverified limitation; relay-owned failures and image decode failures are covered. This final documentation-only update changes no runtime/test inputs. Device restoration is verified and the local stage gate is clear for #156.
 
 After approval continue #156, #140, #141 and #157, then combined review. Preserve completed stages and leave active #144 untouched. The issue remains open until separately authorized publication. No PR, push, merge into develop, issue closure or branch deletion is authorized.
