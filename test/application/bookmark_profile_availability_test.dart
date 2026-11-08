@@ -7,6 +7,8 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/content/anonymous_source_policy.dart';
+import 'package:boorusama/core/content/groups/group_source_provider.dart';
+import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
 import 'package:boorusama/core/posts/details/src/types/post_presentation_fallback_reason.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
@@ -234,6 +236,11 @@ void main() {
           viewportSize: const Size(390, 1100),
           additionalOverrides: [
             bookmarkProvider.overrideWith(() => _Bookmarks(initial)),
+            booruGroupCapabilityProvider.overrideWith(
+              (ref, type) => type == BooruType.danbooru
+                  ? createDanbooruGroupCapability(ref)
+                  : null,
+            ),
             booruConfigProvider.overrideWith(
               () => configs = _Configs(backend.config),
             ),
@@ -245,6 +252,11 @@ void main() {
             runtime: harness.runtime,
             additionalOverrides: [
               bookmarkProvider.overrideWith(() => _Bookmarks(initial)),
+              booruGroupCapabilityProvider.overrideWith(
+                (ref, type) => type == BooruType.danbooru
+                    ? createDanbooruGroupCapability(ref)
+                    : null,
+              ),
               booruConfigProvider.overrideWith(
                 () => configs = _Configs(backend.config),
               ),

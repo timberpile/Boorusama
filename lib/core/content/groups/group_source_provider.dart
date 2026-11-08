@@ -61,6 +61,19 @@ final contentGroupSourceProvider = Provider.autoDispose
       ],
     );
 
+/// Widgets observe an AsyncValue so scheduled source loss cannot escape through
+/// a synchronous Provider listener between frames. Controllers retain their
+/// existing explicit source-loss handling.
+final contentGroupSourceStateProvider = FutureProvider.autoDispose
+    .family<ContentGroupSource, ContentAccessKey>((ref, key) {
+      try {
+        return ref.watch(contentGroupSourceProvider(key));
+      } catch (error, stack) {
+        ref.state = groupSourceFailureState(error, stack);
+        rethrow;
+      }
+    }, dependencies: [contentGroupSourceProvider]);
+
 final groupSummaryProvider = FutureProvider.autoDispose
     .family<ContentGroupSummary, GroupMetadataKey>((ref, key) {
       final ContentGroupSource source;

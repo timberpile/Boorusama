@@ -1,3 +1,4 @@
+import '../../../../../../core/content/types.dart';
 import '../../../../../../core/navigation/destination_activity.dart';
 import '../../../../../../core/posts/details/src/types/viewer_entry.dart';
 import '../../../../../../core/posts/details/src/routes/route_utils.dart';
@@ -321,9 +322,20 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     return [
       for (final entry in _display)
         if (_displayPools[(entry.firstIndex, entry.seriesId)] case final pool?)
-          PoolViewerEntry(
-            origin: entry.posts.first.origin,
-            pool: pool,
+          GroupViewerEntry(
+            summary:
+                pool.loadedDetails?.summary ??
+                ContentGroupSummary(
+                  reference: const ContentReferenceCodec().parse(
+                    engine: widget.config.auth.booruType,
+                    site: Uri.parse(widget.config.url),
+                    kind: ContentKind.group,
+                    sourceKey: 'pool:${pool.id}',
+                  ),
+                  title: pool.title,
+                  memberCount: pool.total,
+                  displayCategory: pool.category.name,
+                ),
             occurrenceId: (_generation, entry.firstIndex, 'pool', pool.id),
             source: source,
           )

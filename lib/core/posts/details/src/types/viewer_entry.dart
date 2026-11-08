@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-import '../../../../bookmarks/src/types/pool_bookmark_capability.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../content/types.dart';
 import '../../../post/types.dart';
 
 /// Content identity never includes credentials or a navigation position.
@@ -57,7 +57,8 @@ final class ViewerSourceBinding {
 abstract class ViewerEntry {
   const ViewerEntry();
 
-  ViewerContentIdentity get contentIdentity;
+  ContentReference? get contentReference => null;
+  ContentIdentity? get contentIdentity => contentReference?.identity;
   ViewerSourceBinding? get source;
   Object get occurrenceId;
   bool get usesContentNavigationHeader => false;
@@ -76,29 +77,74 @@ final class PostViewerEntry extends ViewerEntry {
   @override
   final ViewerSourceBinding? source;
   @override
-  ViewerContentIdentity get contentIdentity =>
-      ViewerContentIdentity(post.origin, 'post', post.id);
+  ContentReference? get contentReference =>
+      source == null || source!.config == BooruConfig.empty
+      ? null
+      : const ContentReferenceCodec().fromPost(
+          post,
+          site: Uri.tryParse(source!.config.url),
+        );
 }
 
-final class PoolViewerEntry extends ViewerEntry {
-  const PoolViewerEntry({
-    required this.origin,
-    required this.pool,
+final class GroupViewerEntry extends ViewerEntry {
+  const GroupViewerEntry({
+    required this.summary,
     required this.occurrenceId,
     required this.source,
+    this.initialMemberKey,
   });
 
-  final PostOrigin origin;
-  @override
-  bool get usesContentNavigationHeader => true;
-  final RemoteBookmarkPool pool;
+  final ContentGroupSummary summary;
+  final String? initialMemberKey;
   @override
   final Object occurrenceId;
   @override
   final ViewerSourceBinding? source;
   @override
-  ViewerContentIdentity get contentIdentity =>
-      ViewerContentIdentity(origin, 'pool', pool.id);
+  ContentReference get contentReference => summary.reference;
+  @override
+  bool get usesContentNavigationHeader => true;
+}
+
+/// A retained old-wire Group may have no proven installation locator. Keep its
+/// outer occurrence navigable without manufacturing an address or source actor.
+final class UnavailableGroupViewerEntry extends ViewerEntry {
+  const UnavailableGroupViewerEntry({
+    required this.occurrenceId,
+    this.related = false,
+  });
+  final bool related;
+  @override
+  final Object occurrenceId;
+  @override
+  ViewerSourceBinding? get source => null;
+  @override
+  bool get usesContentNavigationHeader => true;
+}
+
+/// A source-bound configuration proves its complete Group URL; a normalized host alone does not prove HTTP
+/// scheme, port or installation path for a new Group reference.
+ContentReference? referenceForBoundGroup({
+  required PostOrigin origin,
+  required String sourceKey,
+  required ViewerSourceBinding? source,
+}) {
+  final config = source?.config;
+  if (config == null ||
+      config == BooruConfig.empty ||
+      config.auth.booruType != origin.booruType ||
+      normalizePostSourceHost(config.url) != origin.sourceHost)
+    return null;
+  try {
+    return const ContentReferenceCodec().parse(
+      engine: origin.booruType,
+      site: Uri.parse(config.url),
+      kind: ContentKind.group,
+      sourceKey: sourceKey,
+    );
+  } on FormatException {
+    return null;
+  }
 }
 
 /// A route owns a snapshot of established occurrences. Append-only updates

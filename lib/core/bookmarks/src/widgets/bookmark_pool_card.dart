@@ -1,7 +1,6 @@
+import 'bookmark_group_viewer_entry.dart';
 import '../providers/related_bookmark_provider.dart';
-import '../../../posts/related/related_family.dart';
 import '../../../posts/details/routes.dart';
-import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/listing/types.dart';
 import '../../../posts/post/types.dart';
@@ -16,6 +15,8 @@ import 'package:selection_mode/selection_mode.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../configs/manage/widgets.dart';
 import '../../../content/content_access_provider.dart';
+import '../../../content/types.dart';
+import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
 import '../../../posts/pools/pool_grid_item.dart';
@@ -150,31 +151,23 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       open();
       return;
     }
-    if (widget.pool.family case final family?) {
-      final config = resolvePoolBookmarkProfile(
-        widget.pool,
-        ref.read(booruConfigProvider),
-      );
-      goToPostDetailsPageCore<Post>(
-        ref: ref,
-        posts: const [],
-        initialIndex: 0,
-        hero: false,
-        initialThumbnailUrl: null,
-        config: config,
-        entries: [
-          RelatedViewerEntry(
-            family: family,
-            occurrenceId: widget.pool.localId,
-            source: config == null ? null : ViewerSourceBinding(config),
-          ),
-        ],
-      );
-      return;
-    }
-    await _perform(
-      (profile, capability) =>
-          capability.openBookmarkPool(ref, profile, widget.pool.referenceId),
+    final entry = groupViewerEntryForBookmark(
+      ref,
+      widget.pool,
+      occurrenceId: widget.pool.localId,
+    );
+    final source = entry.source;
+    final access = source == null
+        ? null
+        : ref.read(viewerSourceAccessProvider(source));
+    goToPostDetailsPageCore<Post>(
+      ref: ref,
+      posts: const [],
+      initialIndex: 0,
+      hero: false,
+      initialThumbnailUrl: null,
+      config: access?.config,
+      entries: [entry],
     );
   }
 
@@ -183,12 +176,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       final summary = await ref.read(
         relatedBookmarkRefreshProvider((profile, family)).future,
       );
-      if (!mounted ||
-          resolvePoolBookmarkProfile(
-                widget.pool,
-                ref.read(booruConfigProvider),
-              ) !=
-              profile)
+      if (!mounted || !_currentAccess(profile))
         throw StateError('Related profile changed');
       await ref.read(bookmarkProvider.notifier).refreshPoolBookmark(summary);
       return;
@@ -202,11 +190,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       poolBookmarkRefreshProvider((profile, remote)).future,
     );
     if (!mounted) return;
-    if (resolvePoolBookmarkProfile(
-          widget.pool,
-          ref.read(booruConfigProvider),
-        ) !=
-        profile) {
+    if (!_currentAccess(profile)) {
       throw StateError('Pool profile changed');
     }
     await ref.read(bookmarkProvider.notifier).refreshPoolBookmark(summary);
@@ -217,16 +201,27 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   ) async {
     if (_busy) return;
     _busy = true;
+    ProviderSubscription<ContentAccessContext?>? subscription;
     try {
-      final profile = resolvePoolBookmarkProfile(
+      final entry = groupViewerEntryForBookmark(
+        ref,
         widget.pool,
-        ref.read(booruConfigProvider),
+        occurrenceId: widget.pool.localId,
       );
+      final binding = entry.source;
+      if (binding == null) throw StateError('Pool source unavailable');
+      subscription = ref.listenManual(
+        viewerSourceAccessProvider(binding),
+        (_, _) {},
+      );
+      final access = subscription.read();
+      final profile = access?.config;
       final capability = profile == null
           ? null
           : ref.read(poolBookmarkCapabilityProvider(profile));
-      if (profile == null || capability == null)
-        throw StateError('Pool profile unavailable');
+      if (profile == null || capability == null || access == null)
+        throw StateError('Pool source unavailable');
+      _operationAccess = access;
       await action(profile, capability);
     } catch (_) {
       if (mounted)
@@ -237,8 +232,19 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
               : context.t.bookmark.pool_unavailable,
         );
     } finally {
+      subscription?.close();
+      _operationAccess = null;
       _busy = false;
     }
+  }
+
+  ContentAccessContext? _operationAccess;
+
+  bool _currentAccess(BooruConfig profile) {
+    final access = _operationAccess;
+    return access != null &&
+        identical(access.config, profile) &&
+        identical(ref.read(contentAccessContextProvider(access.key)), access);
   }
 
   Future<void> _remove() async {
@@ -275,10 +281,22 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
   final bool showLabel;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = resolvePoolBookmarkProfile(
+    final reference = bookmarkGroupReference(
       pool,
       ref.watch(booruConfigProvider),
     );
+    final access = reference == null
+        ? null
+        : ref.watch(
+            contentAccessForReferenceProvider(
+              ContentAccessRequest(
+                reference: reference,
+                profileIdHint: pool.origin.profileIdHint,
+                allowProfileHintFallback: false,
+              ),
+            ),
+          );
+    final profile = access?.config;
     final policy = profile == null
         ? null
         : ref.watch(poolCoverPolicyProvider(profile)).valueOrNull;
@@ -306,8 +324,8 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
                     gridThumbnailSettingsProvider(profile.auth),
                   ),
                 );
-      final access = ref.watch(contentProfileAccessProvider(profile.id));
-      if (access == null) return const SizedBox.expand();
+      if (access == null || (cover != null && media == null))
+        return const SizedBox.expand();
       return CurrentBooruConfigScope(
         config: profile,
         accessKey: access.key,

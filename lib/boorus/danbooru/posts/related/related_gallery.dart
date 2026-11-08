@@ -1,5 +1,5 @@
-import 'package:dio/dio.dart';
-import 'package:foundation/foundation.dart';
+import '../../../../core/posts/links/share_group_link_button.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -8,6 +8,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
+import '../../../../../core/boorus/booru/types.dart';
 import '../../../../../core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import '../../../../../core/bookmarks/src/providers/bookmark_provider.dart';
 import '../../../../../core/bookmarks/src/types/content_group_bookmark.dart'
@@ -17,14 +18,14 @@ import '../../../../../core/bookmarks/src/types/legacy_group_bookmark.dart'
 import '../../../../../core/bookmarks/src/types/bookmark_library_state.dart';
 import '../../../../../core/configs/config/providers.dart';
 import '../../../../../core/content/content_reference.dart';
-import '../../../../../core/http/client/coordination.dart';
+import '../../../../../core/content/groups/group_summary.dart';
 import '../../../../../core/posts/details/routes.dart';
 import '../../../../../core/posts/details/src/widgets/post_details_page_view_scope.dart';
 import '../../../../../core/posts/details/src/types/viewer_entry.dart';
 import '../../../../../core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
 import '../../../../../core/posts/details_pageview/widgets.dart';
 import '../../../../../core/posts/listing/widgets.dart';
-import '../../../../../core/posts/post/providers.dart';
+import '../../../../../core/posts/pools/group_post_scope.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/posts/related/related_family.dart';
 import '../../../../../core/settings/providers.dart';
@@ -36,6 +37,18 @@ import '../listing/widgets.dart';
 
 void openRelatedFamily(WidgetRef ref, RelatedFamilyReference family) {
   final config = ref.readConfig;
+  final locator = ViewerSourceBinding(config);
+  final reference = referenceForBoundGroup(
+    origin: family.origin,
+    sourceKey: 'related:${family.anchorId}',
+    source: locator,
+  );
+  if (reference == null) {
+    throw StateError('Related profile does not match family');
+  }
+  final source = config.anonymousReadScope == null
+      ? locator
+      : ViewerSourceBinding.publicRead(family.origin);
   goToPostDetailsPageCore<Post>(
     ref: ref,
     posts: const [],
@@ -44,10 +57,10 @@ void openRelatedFamily(WidgetRef ref, RelatedFamilyReference family) {
     initialThumbnailUrl: null,
     config: config,
     entries: [
-      RelatedViewerEntry(
-        family: family,
+      GroupViewerEntry(
+        summary: ContentGroupSummary(reference: reference),
         occurrenceId: Object(),
-        source: ViewerSourceBinding(config),
+        source: source,
       ),
     ],
   );
@@ -55,7 +68,7 @@ void openRelatedFamily(WidgetRef ref, RelatedFamilyReference family) {
 
 class RelatedGallery extends ConsumerStatefulWidget {
   const RelatedGallery({required this.entry, super.key});
-  final RelatedViewerEntry entry;
+  final GroupViewerEntry entry;
   @override
   ConsumerState<RelatedGallery> createState() => _RelatedGalleryState();
 }
@@ -63,7 +76,6 @@ class RelatedGallery extends ConsumerStatefulWidget {
 class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   final _scroll = AutoScrollController();
   final _selection = SelectionModeController();
-  final _cancellation = CancelToken();
   PostDetailsPageViewController? _pager;
   bool _selecting = false;
   RelatedPostsOrder? _order;
@@ -81,12 +93,31 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
     _pager = PostDetailsPageViewScope.maybeOf(context);
   }
 
+  RelatedFamilyReference get _family {
+    final reference = widget.entry.summary.reference;
+    if (reference.engine != BooruType.danbooru ||
+        reference.kind != ContentKind.group ||
+        !reference.sourceKey.startsWith('related:')) {
+      throw const FormatException('Invalid Related Group reference');
+    }
+    const BooruContentKeyCodec(BooruType.danbooru)
+        .canonicalize(ContentKind.group, reference.sourceKey);
+    return RelatedFamilyReference(
+      origin: PostOrigin.fromSource(
+        booruType: reference.engine,
+        booruId: reference.engine.id,
+        source: reference.site.toString(),
+      ),
+      anchorId: int.parse(reference.sourceKey.substring('related:'.length)),
+    );
+  }
+
   Object? _savedRelatedRecord(BookmarkLibraryState library) {
     final id =
         library.idByContent[(
-          siteNamespace: widget.entry.family.origin.sourceHost,
+          siteNamespace: _family.origin.sourceHost,
           kind: ContentKind.group,
-          sourceKey: 'related:${widget.entry.family.anchorId}',
+          sourceKey: 'related:${_family.anchorId}',
         )];
     final record = id == null ? null : library.byId[id];
     return switch (record) {
@@ -137,7 +168,6 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
 
   @override
   void dispose() {
-    _cancellation.cancel();
     _selection.removeListener(_selectionChanged);
     _selection.dispose();
     _scroll.dispose();
@@ -202,9 +232,8 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
     }
     final order = _order!;
     final saved = library?.pools
-        .where((p) => p.identity == widget.entry.family.identity)
+        .where((p) => p.identity == _family.identity)
         .firstOrNull;
-    final repo = ref.watch(originAwarePostRepoProvider(config));
     final perPage = ref.watch(
       imageListingSettingsProvider.select((s) => s.postsPerPage),
     );
@@ -212,30 +241,11 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
       top: false,
       bottom: false,
       child: CustomContextMenuOverlay(
-        child: PostScope<Post>(
+        child: GroupPostScope(
           key: ValueKey((widget.entry.occurrenceId, config, perPage, order)),
-          fetcher: (page) => TaskEither(
-            () => runWithApiRequestContext(
-              ApiRequestContext(
-                cancelToken: _cancellation,
-                canStart: () => mounted,
-              ),
-              () => repo
-                  .getPosts(
-                    '${widget.entry.family.query} ${order.queryOrder}',
-                    page,
-                    limit: perPage,
-                  )
-                  .map(
-                    (result) => result.copyWith(
-                      posts: result.posts
-                          .where(widget.entry.family.contains)
-                          .toList(),
-                    ),
-                  )
-                  .run(),
-            ),
-          ),
+          reference: widget.entry.summary.reference,
+          orderKey: order.name,
+          perPage: perPage,
           builder: (context, controller) => PoolGalleryCheckpoint(
             identity: (widget.entry.occurrenceId, 'related-viewport', order),
             controller: controller,
@@ -291,10 +301,11 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
               sliverHeaders: [
                 ViewerEntryNavigationHeader(
                   actions: [
+                    const GroupLinkShareButton(),
                     BookmarkGroupPickerAnchor(
                       request: RelatedBookmarkPickerRequest(
                         config: config,
-                        family: widget.entry.family,
+                        family: _family,
                         visibleOrder: order,
                       ),
                       builder: (context, show) => IconButton(

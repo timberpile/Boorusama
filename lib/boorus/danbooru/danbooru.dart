@@ -8,11 +8,13 @@ import '../../core/boorus/booru/types.dart';
 import '../../core/boorus/engine/types.dart';
 import 'danbooru_builder.dart';
 import 'danbooru_repository.dart';
+import 'pools/group_capability.dart';
 
 BooruComponents createDanbooru() => BooruComponents(
   parser: DanbooruParser(),
   createBuilder: DanbooruBuilder.new,
   createRepository: (ref) => DanbooruRepository(ref: ref),
+  createGroupCapability: createDanbooruGroupCapability,
 );
 
 final danbooruProvider = Provider<Danbooru>(

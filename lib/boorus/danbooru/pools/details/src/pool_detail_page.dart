@@ -1,3 +1,11 @@
+import '../../../../../core/configs/config/types.dart';
+import '../../../../../core/boorus/booru/types.dart';
+import '../../../../../core/content/types.dart';
+import '../../../../../core/posts/details/src/types/viewer_entry.dart';
+import '../../../../../core/posts/details/src/widgets/content_group_page.dart';
+import '../../../../../core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
+import '../../content_group_source.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -20,17 +28,60 @@ import 'widgets/description_section.dart';
 import 'widgets/pool_gallery_header.dart';
 import 'widgets/pool_order_selector.dart';
 
-class PoolDetailPage extends ConsumerWidget {
-  const PoolDetailPage({
-    required this.pool,
-    super.key,
-  });
-
+class PoolDetailPage extends ConsumerStatefulWidget {
+  const PoolDetailPage({required this.pool, super.key});
   final DanbooruPool pool;
+  @override
+  ConsumerState<PoolDetailPage> createState() => _PoolDetailPageState();
+}
+
+class _PoolDetailPageState extends ConsumerState<PoolDetailPage> {
+  late final GroupViewerEntry? _entry;
+  @override
+  void initState() {
+    super.initState();
+    final config = ref.readConfig;
+    try {
+      if (config.auth.booruType != BooruType.danbooru)
+        throw const FormatException('Wrong Pool engine');
+      final reference = const ContentReferenceCodec().parse(
+        engine: config.auth.booruType,
+        site: Uri.parse(config.url),
+        kind: ContentKind.group,
+        sourceKey: 'pool:${widget.pool.id}',
+      );
+      _entry = GroupViewerEntry(
+        summary: ContentGroupSummary(
+          reference: reference,
+          title: widget.pool.name,
+          memberCount: widget.pool.postCount,
+        ),
+        occurrenceId: Object(),
+        source: ViewerSourceBinding(config),
+      );
+    } on FormatException {
+      _entry = null;
+    }
+  }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      PoolDetailContent(pool: pool);
+  Widget build(BuildContext context) {
+    final entry = _entry;
+    return entry == null
+        ? ViewerEntryNavigationStatus(
+            child: Text(context.t.bookmark.pool_unavailable),
+          )
+        : ContentGroupPage(
+            entry: entry,
+            embedded: false,
+            prepareSource: (source) {
+              if (source is DanbooruGroupSource &&
+                  widget.pool.postIds != null) {
+                source.seedPool(entry.summary.reference, widget.pool);
+              }
+            },
+          );
+  }
 }
 
 /// The standalone route and mixed viewer use this same gallery implementation.

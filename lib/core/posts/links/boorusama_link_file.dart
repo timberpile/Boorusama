@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../../foundation/filesystem.dart';
 import 'boorusama_artist_link.dart';
+import 'boorusama_group_link.dart';
 import 'boorusama_post_link.dart';
 import 'boorusama_search_link.dart';
 
@@ -16,6 +17,16 @@ final class BoorusamaLinkFile {
       return BoorusamaLinkFile._(
         post.uri,
         'boorusama-post-${key.replaceFirst('id-', '')}.bslink',
+      );
+    }
+    if (BoorusamaGroupLink.tryParse(value) case final group?) {
+      final key = group.reference.sourceKey.replaceAll(
+        RegExp('[^a-zA-Z0-9_-]'),
+        '-',
+      );
+      return BoorusamaLinkFile._(
+        group.uri,
+        'boorusama-group-$key.bslink',
       );
     }
     if (BoorusamaSearchLink.tryParse(value) case final search?) {

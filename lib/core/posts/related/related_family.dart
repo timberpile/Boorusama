@@ -36,20 +36,3 @@ final class RelatedFamilyReference extends Equatable {
   @override
   List<Object?> get props => [identity];
 }
-
-final class RelatedViewerEntry extends ViewerEntry {
-  const RelatedViewerEntry({
-    required this.family,
-    required this.occurrenceId,
-    required this.source,
-  });
-  final RelatedFamilyReference family;
-  @override
-  final Object occurrenceId;
-  @override
-  final ViewerSourceBinding? source;
-  @override
-  ViewerContentIdentity get contentIdentity => family.identity;
-  @override
-  bool get usesContentNavigationHeader => true;
-}

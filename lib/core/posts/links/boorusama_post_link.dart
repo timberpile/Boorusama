@@ -17,6 +17,22 @@ final class BoorusamaPostLink extends Equatable {
   });
 
   factory BoorusamaPostLink.parse(String value) {
+    final data = parseResourceParameters(value, resource: 'post');
+    return BoorusamaPostLink._(
+      booruType: data.engine,
+      site: data.site,
+      key: data.key,
+      postId: parsePostId(data.engine, data.key),
+    );
+  }
+
+  /// Shared strict outer grammar for Post and Group portable resource URIs.
+  /// Resource-specific key interpretation remains with its existing codec.
+  static ({BooruType engine, Uri site, String rawSite, String key})
+  parseResourceParameters(String value, {required String resource}) {
+    if (!const {'post', 'group'}.contains(resource)) {
+      throw const FormatException('Unsupported portable resource');
+    }
     if (value.length > maxLength ||
         value.isEmpty ||
         value.trim() != value ||
@@ -26,7 +42,7 @@ final class BoorusamaPostLink extends Equatable {
     }
     final uri = Uri.parse(value);
     if (uri.scheme != 'boorusama' ||
-        uri.host != 'post' ||
+        uri.host != resource ||
         uri.userInfo.isNotEmpty ||
         uri.hasPort ||
         uri.path != routePath ||
@@ -46,17 +62,12 @@ final class BoorusamaPostLink extends Equatable {
         .map((config) => config.type)
         .firstOrNull;
     if (type == null || type == BooruType.unknown) {
-      throw const FormatException('Unsupported post engine');
+      throw FormatException('Unsupported $resource engine');
     }
-    final site = parseSourceSite(parameters['site']!.single);
+    final rawSite = parameters['site']!.single;
+    final site = parseSourceSite(rawSite);
     final key = parameters['key']!.single;
-    final postId = parsePostId(type, key);
-    return BoorusamaPostLink._(
-      booruType: type,
-      site: site,
-      key: key,
-      postId: postId,
-    );
+    return (engine: type, site: site, rawSite: rawSite, key: key);
   }
 
   static const routePath = '/open';

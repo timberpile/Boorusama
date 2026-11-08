@@ -1,14 +1,15 @@
 import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
 import 'package:boorusama/core/posts/details/src/routes/post_details_live_source.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
-import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_content.dart';
-import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/core/boorus/defaults/types.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
-import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/content/capabilities.dart';
+import 'package:boorusama/core/content/providers.dart';
+import 'package:boorusama/core/content/types.dart';
+import 'package:boorusama/core/posts/details/src/widgets/group_viewer_scope.dart';
 
 import 'progressive_image_test_utils.dart';
 
@@ -193,7 +194,7 @@ void main() {
           same(pagerState),
         );
         expect(_detailsController(tester), same(controller));
-        if (entries[i] is PoolViewerEntry) {
+        if (entries[i] is GroupViewerEntry) {
           expect(
             find.text('gallery-${entries[i].occurrenceId}'),
             findsOneWidget,
@@ -2209,6 +2210,15 @@ class _Harness {
              (ref, profileId) => const AsyncData('test-empty-policy'),
            ),
            booruEngineRegistryProvider.overrideWith(_createEngineRegistry),
+           booruGroupCapabilityProvider.overrideWith((ref, type) {
+             if (repository is _GalleryRepository &&
+                 type == BooruType.danbooru) {
+               return _galleryGroupCapability();
+             }
+             return ref
+                 .watch(booruEngineRegistryProvider)
+                 .getGroupCapability(type);
+           }),
            booruPostPresentationProvider.overrideWith((ref, request) {
              return switch (request.data) {
                DanbooruPostData() => DanbooruBuilder().postPresentation,
@@ -2533,6 +2543,7 @@ BooruEngineRegistry _createEngineRegistry(Ref ref) {
         booru: booru,
         builder: components.createBuilder(),
         repository: components.createRepository(ref),
+        groupCapability: components.createGroupCapability?.call(ref),
       ),
     );
   }
@@ -2866,38 +2877,101 @@ class _ReplayableImageAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
-PoolViewerEntry _groupEntry(
+GroupViewerEntry _groupEntry(
   String occurrence,
   int id,
   BookmarkedPoolCategory category,
-) => PoolViewerEntry(
-  origin: _posts.first.origin,
-  pool: RemoteBookmarkPool(
-    id: id,
+) => GroupViewerEntry(
+  summary: ContentGroupSummary(
+    reference: const ContentReferenceCodec().parse(
+      engine: BooruType.danbooru,
+      site: Uri.parse(_configs.first.url),
+      kind: ContentKind.group,
+      sourceKey: 'pool:$id',
+    ),
     title: 'Pool $id',
-    category: category,
-    total: 2,
+    memberCount: 2,
+    displayCategory: switch (category) {
+      BookmarkedPoolCategory.series => 'series',
+      BookmarkedPoolCategory.collection => 'collection',
+      BookmarkedPoolCategory.unknown => null,
+    },
   ),
   occurrenceId: occurrence,
   source: ViewerSourceBinding(_configs.first),
 );
 
-class _GalleryRepository extends BooruRepositoryDefault
-    implements ViewerEntryContentCapability {
+class _GalleryRepository extends BooruRepositoryDefault {
   const _GalleryRepository();
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+BooruGroupCapability _galleryGroupCapability() => BooruGroupCapability(
+  engine: BooruType.danbooru,
+  keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
+  createSource: _GalleryGroupSource.new,
+  presentation: const _GalleryGroupPresentation(),
+);
+
+class _GalleryGroupSource extends ContentGroupSource {
+  _GalleryGroupSource(this.access);
+
   @override
-  Widget buildViewerEntry(ViewerEntry entry) => CustomScrollView(
-    slivers: [
-      const ViewerEntryNavigationHeader(),
-      SliverToBoxAdapter(child: Text('gallery-${entry.occurrenceId}')),
-      SliverList.list(
-        children: [
-          for (var i = 0; i < 60; i++)
-            SizedBox(height: 50, child: Text('member-$i')),
-        ],
-      ),
-    ],
+  final ContentAccessContext access;
+
+  @override
+  TaskEither<BooruError, ContentGroupSummary> loadSummary(
+    ContentReference reference,
+  ) => TaskEither.right(ContentGroupSummary(reference: reference));
+
+  @override
+  TaskEither<BooruError, ContentGroupDetails> loadDetails(
+    ContentReference reference,
+  ) => TaskEither.right(
+    ContentGroupDetails(summary: ContentGroupSummary(reference: reference)),
   );
+
+  @override
+  TaskEither<BooruError, GroupMemberBatch> loadMembers(
+    GroupMemberQuery query,
+  ) => TaskEither.right((
+    page: ContentPage<GroupMember>(items: const [], total: 0),
+    resolved: const <ContentEntry>[],
+  ));
+}
+
+class _GalleryGroupPresentation implements BooruGroupPresentation {
+  const _GalleryGroupPresentation();
+
+  @override
+  bool supports(ContentGroupSummary summary) => true;
+
+  @override
+  GroupLayout layoutFor(ContentGroupSummary summary) => GroupLayout.memberGrid;
+
+  @override
+  String memberLabel(BuildContext context, ContentGroupSummary summary) =>
+      'members';
+
+  @override
+  Widget buildCard(BuildContext context, ContentGroupSummary summary) =>
+      const SizedBox.shrink();
+
+  @override
+  Widget buildDetails(BuildContext context, ContentGroupDetails details) {
+    final entry = GroupViewerScope.maybeEntryOf(context)!;
+    return CustomScrollView(
+      slivers: [
+        const ViewerEntryNavigationHeader(),
+        SliverToBoxAdapter(child: Text('gallery-${entry.occurrenceId}')),
+        SliverList.list(
+          children: [
+            for (var i = 0; i < 60; i++)
+              SizedBox(height: 50, child: Text('member-$i')),
+          ],
+        ),
+      ],
+    );
+  }
 }
