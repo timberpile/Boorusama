@@ -16,6 +16,49 @@ import 'work_test_fixtures.dart';
 
 void main() {
   test(
+    'Work indexes distinguish omitted, partial and explicitly empty tags',
+    () {
+      final access = workAccess();
+      final at = DateTime.utc(2026);
+      ContentGroupBookmark draft({
+        required Object? tags,
+        bool omitTags = false,
+      }) {
+        final dto = work(tags: tags, omitTags: omitTags);
+        return PixivWorkBookmarkTarget(
+          access: access,
+          summary: pixivWorkSummary(dto, access),
+          details: pixivWorkDetails(dto, access),
+        ).draft(currentAccess: access, at: at);
+      }
+
+      expect(draft(tags: null, omitTags: true).snapshot.index, isNull);
+      expect(draft(tags: null).snapshot.index, isNull);
+      final empty = draft(tags: const []).snapshot.index!;
+      expect(empty.tags, isEmpty);
+      expect(empty.coverage, MetadataCoverage.complete);
+      final partial = draft(
+        tags: const [
+          {'name': 'known'},
+          null,
+        ],
+      ).snapshot.index!;
+      expect(partial.tags, {'known'});
+      expect(partial.coverage, MetadataCoverage.partial);
+
+      final previous = pixivWorkDetails(work(), access);
+      final omitted = pixivWorkDetails(work(omitTags: true), access);
+      final retained = PixivWorkBookmarkTarget(
+        access: access,
+        summary: omitted.summary,
+        details: omitted.mergeWithPrevious(previous),
+      ).draft(currentAccess: access, at: at);
+      expect(retained.snapshot.index!.tags, {'fixture', 'Fixture'});
+      expect(retained.snapshot.index!.coverage, MetadataCoverage.complete);
+    },
+  );
+
+  test(
     'Work and Page drafts are separate targets with no implicit member payload',
     () {
       final access = workAccess();

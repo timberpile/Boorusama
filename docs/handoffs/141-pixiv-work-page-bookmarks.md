@@ -100,3 +100,31 @@ These are targeted foundation checks, not complete final-candidate regression,
 live Pixiv or Android/Maestro evidence. Independent Sol High review/re-review
 remains coordinated by the #156 lead after the foundation commits. No push,
 PR, integration, issue closure or device operation was performed.
+
+## Independent Sol High review correction
+
+The independent foundation review's P2 tag-omission finding applied to the
+inherited #140 mapper. The verified #140 fix `308463b1dcedf252ae260a361e13f6300244b9f5`
+was propagated here as `207e0e054`: Pixiv DTO observations preserve unknown,
+partial and explicitly complete tags. Omitted facts no longer create a complete
+empty Group index; explicit `tags: []` still does. Malformed subsets retain
+usable native tags and partial coverage without throwing.
+
+An additional #141 regression checks unknown/empty/partial index coverage and
+proves that merging an omitted refresh retains cached native/translated index
+tags. No Bookmark storage or schema change was needed.
+
+- Final `fvm flutter test --no-pub --concurrency=6 test/boorus/pixiv/works
+  test/core/bookmarks/stored_bookmark_codec_test.dart
+  test/core/bookmarks/bookmark_unified_library_service_test.dart`: **37 passed**,
+  `141-tag-omission-final-tests.log`.
+- Analysis of Work source/tests and changed Pixiv DTO/test: **no issues** (zero
+  errors, warnings or informational findings), `141-tag-omission-final-analysis.log`.
+- The complete **240-test** booru_clients pass is reused from the identical
+  package subtree at #140's correction; `140-tag-omission-package-suite.log`.
+  `git diff 308463b1d -- packages/booru_clients` is empty on this candidate.
+- Changed Dart formatting and `git diff --check` passed.
+
+The implementation addresses the finding; independent Sol High re-review remains
+coordinated by the lead. These scoped checks do not close the existing complete
+project, production UI, Android/Maestro, live-service or acceptance limits.
