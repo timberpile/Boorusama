@@ -892,7 +892,9 @@ class _CustomScrollViewState extends State<_CustomScrollView> {
                     final cacheExtent? => ScrollCacheExtent.pixels(
                       cacheExtent,
                     ),
-                    null => null,
+                    // Use the scroll viewport, not the whole screen, so the
+                    // preload range follows resizing and constrained panes.
+                    null => const ScrollCacheExtent.viewport(1),
                   },
                   slivers: widget.slivers,
                 ),

@@ -33,7 +33,6 @@ import '../../../post/types.dart';
 import '../../widgets.dart';
 import '../_internal/raw_post_grid.dart';
 import '../_internal/sliver_post_grid.dart';
-import '../providers/internal_providers.dart';
 import '../providers/providers.dart';
 import '../types/post_action_snapshot.dart';
 import '../types/grid_thumbnail_url_generator.dart';
@@ -138,8 +137,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
         controller: _autoScrollController,
         child: RawPostGrid(
           options: PostGridOptions(
-            cacheExtent:
-                widget.cacheExtent ?? ref.watch(gridCacheExtentProvider),
+            cacheExtent: widget.cacheExtent,
             hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),
             gridSize: ref.watch(
               imageListingSettingsProvider.select((v) => v.gridSize),

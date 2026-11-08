@@ -15,6 +15,7 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/rendering.dart' show CacheExtentStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -63,7 +64,15 @@ void main() {
         reason: 'An HTTP request must begin while its cached tile is still below the viewport.',
       );
       final grid = tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>));
-      expect(grid.cacheExtent, 844);
+      expect(grid.cacheExtent, isNull);
+      final scrollView = tester.widget<CustomScrollView>(
+        find.descendant(
+          of: find.byType(PostGrid<Post>),
+          matching: find.byType(CustomScrollView),
+        ),
+      );
+      expect(scrollView.scrollCacheExtent?.style, CacheExtentStyle.viewport);
+      expect(scrollView.scrollCacheExtent?.value, 1);
       expect(page.calls, hasLength(1));
       await page.close(tester);
     },

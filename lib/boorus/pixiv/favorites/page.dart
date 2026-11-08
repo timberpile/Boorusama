@@ -82,7 +82,6 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
         builder: (context, controller) => PostGrid<Post>(
           controller: controller,
           prefetchOnLayout: true,
-          cacheExtent: MediaQuery.sizeOf(context).height.clamp(0, 1200),
           header: const SizedBox.shrink(),
           selectionScope: (widget.config.id, _visibility),
           sliverHeaders: [
