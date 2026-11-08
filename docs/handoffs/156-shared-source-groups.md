@@ -1,215 +1,213 @@
 # Issue #156: shared existing-source Groups
 
-Status: implementation and focused verification in progress. This is not stage
-acceptance or authorization to publish. Required complete regression, Android
-acceptance and independent final review remain pending. Do not start #140 yet.
+Status: **code APPROVED by independent Sol High; stage BLOCKED by the required
+real Szurubooru Android check.** All available-service Android checks and original
+emulator restoration are complete. Do not start #140, publish, create a PR, merge
+or close the issue before the documented stage gate is satisfied.
 
 Branch/worktree: `maintenance/156-shared-source-groups`,
 `.worktrees/156-shared-source-groups`.
-Reviewed prerequisite base: `73087ebf863c4f97a769a2f014e5f2831f4054a6` (#143).
-The approved stage 05 plan and contract are retained on the planning branch and
+Approved prerequisite base: `73087ebf863c4f97a769a2f014e5f2831f4054a6` (#143).
+Final runtime/test candidate: `2074d452a4d715ebd1b15ed9d1fea8446471a4d2`.
+Subsequent handoff-only commits do not change the verified runtime or tests.
+The stage 05 plan and approved contract are retained on the planning branch and
 in `.worktrees/content-architecture-reference/docs/plans/content-architecture/`.
-The user's later reviewer instruction supersedes its Astra table: final review
-must use a fresh independent actual `gpt-6.1-sol` at High effort.
+The user's Sol-only reviewer instruction supersedes the older Astra table.
 
-## Implemented progress
+## Implemented runtime
 
-Danbooru Pool/Related and Szurubooru Pool now register shared Group sources in
-the existing engine registry. Native routes and mixed `GroupViewerEntry` pages
-use `ContentGroupPage`; the legacy Pool/Related viewer entry classes and old
-repository viewer dispatch have no remaining callers. Existing native gallery,
-timeline, order, checkpoint, selection and normal member-viewer routes remain.
-Member routes retain the gallery actor, including revocable public access,
-without treating an anonymous read configuration as a saved profile UUID.
+Danbooru Pool/Related and Szurubooru Pool register shared Group sources in the
+existing engine registry. Native routes and mixed `GroupViewerEntry` pages use
+`ContentGroupPage`. Legacy Pool/Related viewer entry classes and repository
+content dispatch are removed. Existing native headers, DText, timelines, sort
+controls, checkpoints, selection and normal member routes remain their owners.
+The #68 five-result grouping projection and counters are unchanged; #134 and
+#146–148 are not implemented here.
 
-Pool envelopes are shared per access; native manifest positions, duplicate
-membership, missing members, unknown versus empty manifests and existing sort
-semantics remain distinct. Batched real Posts populate shared resolved entries.
-Related uses the existing canonical direct-family query, with no inferred
-chronology or new #134 grouping. The #68 search projection remains its owner.
+Pool manifests retain source positions before sorting/filtering, distinct
+repeated memberships, unavailable members and unknown versus empty values.
+Batched real Posts populate resolved entries without per-Post requests.
+Related keeps the existing canonical direct-family query and oldest/newest
+semantics. Its native repository captures `PostResult.rawPostCount` before
+visibility filtering and preserves that fact through origin binding. The Group
+adapter uses raw progress/exact counts without changing ordinary Search's
+nullable `hasMore` completeness contract.
 
-Public saved Groups require a proven full locator, registered reader and the
-existing exact-source anonymous policy. Local saving uses the existing generic
-picker without creating a profile. Covers use existing static descriptors,
-policy digest, thumbnail resolver and scoped media cache; a rejected descriptor
-cannot fall back to its raw URL. Refresh captures and rechecks its actor.
+The real Group grid deduplicates source member keys, retains repeated Post
+occurrences and reconciles selection by those member keys. Existing filter-rule
+changes still clear selection. Bulk actions target each engine/site/Post once.
+Native Pool galleries disable colliding Post-identity Heroes and open the exact
+clicked occurrence. Optional `IndexedGroupMemberSource` reads preserve numeric
+page selection with one bounded native request. Explicit refresh separately
+revokes old reads and invalidates envelopes/resolved Posts on every page;
+ordinary page navigation preserves its snapshot.
 
-Portable Group links use the existing strict URI envelope, validated Group
-references and v1 `.bslink` format. The actual app route chooses an account
-explicitly when ambiguous, pins its actor, and requires profile setup for
-unapproved custom/HTTP sources. Existing native and member Post links remain.
-A Group header share action sends one address document, without account hints,
-local IDs, cached metadata or cover attachments.
+Saved Groups use the existing generic picker and canonical library records.
+Public reads require a proven locator, registered reader and the existing exact
+source policy. A retired profile hint cannot borrow another same-host profile.
+Refresh retains its captured actor and preserves IDs, memberships, Added dates
+and Related preference. Covers use policy-checked static media descriptors and
+the existing resolver/cache; no synthetic actionable Post is manufactured.
+Portable Group links reuse the strict URI envelope and v1 `.bslink` format,
+retain explicit profile choice and never encode local IDs/auth. Public member
+routes retain anonymous access without serializing a transient account UUID.
 
-## Actual verification so far
+## Commits
 
-Durable local evidence: `.worktrees/_artifacts/content-architecture/156/`.
-All runs use pinned FVM Flutter 3.47.2 / Dart 3.13.2 and six physical workers.
-No SDK/dependency upgrades or user-data migration changes were introduced.
+| Commit | Change |
+| --- | --- |
+| `89ca1d0f7976313839eeda86c27d2df2febe62a8` | fix: preserve unknown Szurubooru pool manifests (#156) |
+| `610bd9e6b013e389f44dcd4351b673608905b463` | refactor: route existing source groups through shared contracts (#156) |
+| `c0942026a56b2f43b2992695a28936109ecfa093` | fix: retain public group descriptions and refresh behavior (#156) |
+| `528a5d7ddd3243a91d28e66028397d9e8e62bcd3` | fix: avoid group factory registry re-entry (#156) |
+| `8dcf2ff13f1999d2f7a0e8e1502b798956144a40` | test: exercise native group repository boundaries (#156) |
+| `875b6a27bad424bb4e13ec6c5a6d4a44c66786a4` | fix: retain public group member routes at root ingress (#156) |
+| `881b69871d33870393cfc207b98e0ba80cd35bb7` | fix: preserve group occurrences and native pagination (#156) |
+| `c0226450f492b156666e1de95e0dc15303795089` | test: verify group occurrence selection through the real grid (#156) |
+| `a350dd97a6111319195ea91816f3ee712b51d395` | fix: retain parent continuation proven by exact counts (#156) |
+| `2074d452a4d715ebd1b15ed9d1fea8446471a4d2` | fix: carry raw group progress without changing search completeness (#156) |
 
-- `89ca1d0f7976313839eeda86c27d2df2febe62a8` preserves unknown Szurubooru
-  manifests without shifting member positions. Focused parser matrix: 66 passed.
-- `shared-groups-progress-matrix-v2`: 122 tests passed, exit 0, over actual
-  production adapters/registry, pager, page-size lifetime, public picker and
-  availability, Group/link-file codecs, native Pool/Related application flows,
-  mixed viewer entries, public member/Back flow and Group URI route widgets.
-  This is a working-tree progress check, not a frozen final-candidate pass.
-- The prior progress matrix had 96 passing and 16 failing header fixture checks:
-  the fixtures expected four buttons before the added Group share action.
-  Updated assertions require the share button and retain all target-size,
-  bounds and non-overlap checks. The rerun above passed all 16 variants.
-- Three Group share widget tests passed: one decoded document/repeated taps,
-  actor loss during gated filesystem preparation, filesystem failure and retry.
-- Public member navigation uses a controlled anonymous scope and fake API;
-  actual real Post widgets/media access keys and System Back are exercised.
-  Initially one Pool metadata request plus a separate native description request
-  were observed. The latter is outside public API permission: the public path
-  now renders native envelope DText with the existing renderer, without widening
-  the allow list. The final six public application tests passed, including visible DText and only
-  the permitted JSON metadata request. Controlled
-  transport does not prove live services or Android decoding.
-- Group link route tests use the real application router, including decoded
-  `.bslink` navigation, account ambiguity, retained actors, Add Profile full URL,
-  root close and a 320dp/2x chooser. Private no-borrow assertions inspect the
-  retained binding; no independent source-factory request capture is claimed.
-- Five public cover widgets passed, including policy/loading/source denial and
-  shared media-cache scope, with no fake Post identity. Three actual public
-  Refresh application tests passed with writable Hive-backed repositories:
-  IDs/memberships/dates and Related newest preference survive; held-read
-  revocation cannot publish or borrow a newly added same-host account.
-- All 64 changed Dart files formatted (one import-layout change); complete
-  changed-scope analysis exited 0 with 0 errors, 0 warnings and 83 informational
-  findings (`candidate-format*`, `candidate-analysis*`). This is not lint-free.
+## Final automated verification
 
-## Native-discovered registration cycle
+Durable evidence root: `.worktrees/_artifacts/content-architecture/156/`.
+Pinned FVM Flutter 3.47.2 / Dart 3.13.2; six detected physical test workers.
+No SDK/dependency upgrade or persisted-data codec/migration change was made.
 
-Frozen `c0942026a56b2f43b2992695a28936109ecfa093` built and installed
-successfully, but is not accepted. On the normal debug APK at 320dp/2x, the
-real public AIBooru Pool URI rendered native title and DText, then member loading
-showed `CircularDependencyError`. The controlled application fixtures had
-replaced the generic Post repository and therefore missed the production graph.
+- `./scripts/run_regression_tests.sh` passed on the unchanged committed `2074`
+  candidate, **2026-11-08 04:32:58–04:50:12 UTC**, exit 0: **6,718 application
+  tests, 1,671 package/CLI tests, two existing GoRouter skips, 39 PR-policy shell
+  checks, 20 Android-release shell checks and 76 Python tests**.
+  Evidence: `full-regression-raw-progress-final-{start,result,summary}.json`
+  and `.log`.
+- All 81 changed Dart paths are formatted, zero changes. Changed-scope analysis
+  exited 0 with **0 errors, 0 warnings and 90 informational findings**; this is
+  not lint-free. Evidence: `raw-progress-candidate-{format,analysis}*` and
+  `remediation-final-raw-progress-dart-paths.json`.
+- Focused coverage drives the actual Group/Post scope and grid for repeated
+  members within/across batches, missing members, filtered selection, appends
+  and unique bulk targets for both engines. Native Pool widget cases verify
+  exact repeated-member tap index and absence of Heroes. The real normal
+  member route opens index 2 in `[101,102,101]` and returns to the same gallery.
+- All three native source types are exercised through the actual paginated
+  controller for 1→3→last, previous/next and nonfirst refresh after manifest/Post
+  changes. Production-registry tests retain real native repositories with
+  controlled low-level HTTP, including short/empty filtered Related pages in
+  oldest/newest order and unknown count metadata. They click the visible
+  Load More button and reach the later Post with exactly two page requests.
+- The combined final producer/Search/registry/pagination/pager/member-route
+  matrix passed all 43 tests before freezing. Existing producer `hasMore`
+  assertions remain unchanged, with added raw-count preservation assertions.
 
-The engine registration Ref lazily read `originAwarePostRepoProvider`, whose
-registry dependency led back to that same registration. The fix reads the
-existing engine-owned Post repository directly and wraps it with the established
-`OriginAwarePostRepository.fromConfig`; no new client, repository contract or
-source authorization is introduced. A production registry regression reproduced
-all three failures (Danbooru Pool, Related and Szurubooru Pool) at `c094` and then
-passed all three with the correction, including source/engine/profile origins.
-It overrides low-level HTTP, not the Post repositories or Group factory.
+The native-hook message `File modified during build. Build must be rerun.`
+and intermittent Dart-finalizer diagnostics remain recorded in raw logs.
+The earlier #143 hooks_runner/libavif timestamp investigation applies; no source,
+test, generated input or SDK upgrade occurred during this frozen pass. The actual
+runner exit/result above, rather than an interrupted run, establishes completion.
 
-The `c094` full regression was deliberately interrupted after the native finding,
-with no source edits during its partial execution. It is **not a complete pass**;
-`full-regression-c0942026a-interrupted.json` records this limit. The corrected
-candidate requires a fresh complete suite and native APK checks. The focused
-remediation passed three production-graph tests, 24 adapter/public application
-tests, all 60 Pool/Related application flow tests, and both page-size tests.
-Fixtures now supply the engine-native repositories at their intended fake
-boundary while the new production-graph regression leaves those real providers
-intact. All 65 changed Dart files are formatted; final changed-scope analysis
-reported 0 errors, 0 warnings and 83 informational findings. Earlier
-native screenshots/results remain failed-candidate diagnostics.
+## Review findings and failed candidates
 
-The first Android campaign is restored and released. Post-cleanup comparison
-proves all 132 original archive entries unchanged; the original APK, 31 permission
-entries, system/WM settings and stopped state match the baseline. Only journal-owned
-QA parking and the empty original parking directory were removed. Original host
-backups and a verified seven-directory QA continuation archive remain local. The actual
-Szurubooru URL is pending from the user; no corresponding profile or test entry
-was available. Safebooru returned HTTP 403; AIBooru public reads were available.
+Independent actual `gpt-6.1-sol` High reviewed the entire issue delta at `875b`
+and confirmed three P2 findings: real-grid occurrence loss (R1), filtered Related
+continuation loss (R2), and numeric page jumps/nonfirst refresh (R3). All were
+resolved with regressions. Fresh independent actual Sol High reviewed the whole
+85-path final delta at `2074`: **CODE APPROVE, no remaining confirmed findings**.
+Reports: `sol-high-final-review.md` and `sol-high-final-rereview.md`.
+The reviewer reused the exact frozen complete pass; its own FVM attempts stopped
+before test execution on read-only SDK stamp/cache files and are not test passes.
 
-## Root Group member-route normalization
+Native verification also found and fixed the registration-Ref registry cycle and
+anonymous root-member-route normalization. Real production-registry and root
+application-route regressions cover both; fixtures no longer hide the native
+repository boundary behind the generic Post repository.
 
-`8dcf2ff13f1999d2f7a0e8e1502b798956144a40` passed the complete local
-suite unchanged: 6,686 application tests, 1,671 package/CLI tests, two existing
-GoRouter skips, 39 PR-policy shell checks, 20 release-script checks and 76 Python
-tests (2026-11-08 02:51:17–03:08:03 UTC, exit 0). This supersedes the interrupted
-`c094` run but is not final acceptance after the next native finding.
+Historical failures remain explicit. `c094` was interrupted after the native
+cycle finding. `c022` failed an existing Search incomplete-count assertion and
+was interrupted before correction. `a350` failed six existing nullable-`hasMore`
+producer assertions and was also interrupted before editing. The separate raw
+count fact preserves that contract; the `2074` full pass supersedes those runs.
+Earlier `8dc` and `875b` complete passes are historical evidence, not substituted
+for the final candidate.
 
-The rebuilt normal `8dc` APK rendered real AIBooru Pool members and decoded
-images, eliminating the registry cycle. A true cold launch directly via Group
-URI also opened successfully. However, opening a member from the root portable
-Group page normalized the transient anonymous configuration as a saved profile
-UUID and routed to Browse recovery. Contextual Bookmark gallery pushes had
-already avoided that path, so the original controlled test did not cover it.
+## Final Android evidence
 
-The correction excludes anonymous configurations from saved-profile extraction
-in the existing production navigation normalizer, while preserving the typed
-payload and pinned member actor. The same real application-route diagnostic
-failed before the fix and passed afterwards, including anonymous member media
-access and System Back to the gallery. All four public viewer tests and 22
-focused navigation/private/link consumer tests passed; analysis had no errors
-or warnings. The revised candidate still needs complete final verification.
+Final normal `lib/main.dart`, dev/debug APK at `2074` was built, retained and
+installed with matching SHA-256:
+`df5516665eb8d3598f4ca1d1af5005fae215c73646df90ff5abe7239c1efd3a1`.
+Provenance and all final native evidence are in `native-remediation/` beneath the
+evidence root. `2074-native-acceptance-summary.json` validates 11 passing flows.
+All device UI control used Maestro MCP under the exact `emulator-5554` lease.
 
-The earlier native gallery screenshot showed placeholders before media finished
-loading; later screenshots and read-only Flutter inspection confirmed decoded
-images. No loading-time or device-responsiveness claim is made. One automation
-flow delivering a link immediately after a separate MAIN launch missed the
-route; a proper cold VIEW launch and subsequent warm VIEW launches passed.
+At 320dp width and 2x system text scale, real Danbooru-compatible AIBooru checks
+passed:
 
-## Independent Sol High review and remediation
+- True cold Group URI/profile choice; Pool 80 title/DText, normal member/Back,
+  selection/Back clearing, deep loading to 130 members and deep member return.
+- Actual Related family 184723, Oldest→Newest, member opening and Back retaining
+  Newest. Decoded media is evidenced by final private-member and Related-member
+  screenshots; early gallery/deep captures can contain placeholders. No blanket
+  decoded-grid, decoder-throughput or device-responsiveness claim is made.
+- Two real occurrences of Series 146 in one mixed sequence. Each has two raw
+  members, with five nongroup Posts between them: first Latest→last Ordered,
+  both outer bounds, return to first still Latest, selection suppressing outer
+  swipes, and member/Back retaining the first occurrence. Landscape→portrait
+  retains Latest and the 17-member count. The preliminary one-member-per-occurrence
+  query correctly stayed ordinary Posts; read-only VM inspection confirmed
+  metadata/source identities, and its owned forward was removed. No runtime
+  change was needed to correct that QA setup.
+- B was manually selected, only disposable QA profile A was deleted through
+  normal Settings/Profiles, and the saved Default/Pool 80 record remained.
+  It reopened publicly without Download, including member/Back, while B remained
+  on the same host. A fresh URI then bound to the sole B profile and showed
+  Download as the control. A/B had no login/API credentials; this proves app
+  binding/access behavior, not signed-account remote write authorization.
 
-Frozen `875b6a27bad424bb4e13ec6c5a6d4a44c66786a4` passed the complete
-local suite unchanged: 6,687 application tests, 1,671 package/CLI tests, two
-existing GoRouter skips, 39 PR-policy shell checks, 20 release checks and 76
-Python tests (2026-11-08 03:17:31–03:33:12 UTC, exit 0).
+One initial cold chooser race and one exact-text selector for a combined
+profile-name/site label failed as setup diagnostics; corrected passing flows
+and their inspected hierarchies are retained. Earlier `875b` native evidence
+also includes generic saving and a one-document Android share sheet; no recipient
+was chosen. These older captures are not relabeled as final `2074` device checks.
 
-A fresh independent actual `gpt-6.1-sol` High review required changes for three
-P2 findings. The code was not approved, and #140 must remain unstarted:
+## Original device restoration
 
-- R1: the real grid's default Post-ID deduplication lost repeated Pool memberships.
-  The remediation projects member keys through ingestion and selection, collapses
-  content bulk targets by engine/site/Post identity, disables colliding native
-  Post Heroes, and opens the exact clicked member occurrence.
-- R2: the native Related repository could lose continuation after banned/Flash
-  filtering. Raw Post count is now captured before visibility filtering and
-  survives origin binding; the ordinary nullable `hasMore` contract is preserved.
-- R3: the cursor projection could not support existing direct numeric page jumps
-  and skipped source invalidation when refreshing later Pool pages. Native sources
-  now expose optional bounded indexed reads; explicit refresh separately revokes
-  pending reads and invalidates envelopes/resolved Posts on any page.
+The original APK, all **nine** root data directories and **212** archive entries
+are restored. Post-cleanup comparison proves zero missing, extra or changed
+entries, including file modes/content hashes and link targets. Original APK hash
+`6fe78d249fcf41135d6ddaa175dcd61d365b91b28c59a35f4dbab084ebf9827f`, all 31
+permission entries, font/rotation/animation settings, WM size/density and stopped
+state match the fresh baseline. Only journal-owned, backed-up QA parking was
+removed; original and QA host archives remain. The lease is released and the
+serial is available.
 
-The first remediation candidate `c0226450f492b156666e1de95e0dc15303795089`
-exposed an existing Search regression in its complete run: a fresh exact count
-larger than the first raw page must retain continuation even when that page is
-short. That failed run was deliberately interrupted before fixing the candidate;
-it is not a complete pass. Exact-count evidence now takes precedence over the
-raw-length fallback. The existing Search regression and the filtered Group
-production-registry/page-selector matrix are rerun together.
+The initial fixed-seven-directory restore capture missed `app_webview` and
+`app_textures` present in the fresh full backup. The verifier caught the 80
+missing capture entries before cleanup. Guarded supplemental restoration archived
+the current QA roots, restored their exact original subset, then compared all
+212 entries and repeated APK/settings/permission checks after cleanup. Initial
+failure reports and recovery journals remain retained.
 
-The revised `a350dd97a6111319195ea91816f3ee712b51d395` complete run
-then exposed six existing producer-contract tests requiring unknown ordinary
-`hasMore` to remain null. That failed run was also deliberately interrupted before
-editing. The final approach leaves those assertions unchanged and carries the
-objective `rawPostCount` separately through Post transforms/origin binding into
-the Group adapter. All 43 combined producer, Search, registry, page-selector,
-pager and real member-route tests passed after this correction. A new complete
-pass and APK/native check are required; neither interrupted run is acceptance.
+Final proof paths under `native-remediation/`:
 
-Working-tree checks during remediation: 22 focused pager/production-registry/
-real paginated-grid tests passed; 207 existing listing, selection and action
-consumer tests passed; four native Pool widget cases passed with repeated IDs,
-no Heroes and second-occurrence tap index. The final production-registry test
-file passed 15 cases, including actual grid continuation after short/empty first
-pages in oldest/newest order. These progress runs do not establish the revised
-frozen candidate's complete pass. Final format, analysis, full suite, required
-Android scenarios and independent Sol High re-review remain required.
+- `restore-verifier/after-cleanup-full-archive-result.json`: PASS, 212/212.
+- `restore-verifier/restored-state-post-cleanup-result.json`: PASS.
+- `controlled-state-cleanup.json` and `lease-release-result.json`: PASS/exit 0.
 
-The normal `875b` native APK proved decoded AIBooru Pool images, public member
-opening and Back, selection without Download, 130-member deep loading and return,
-generic saving through a credential-free QA profile and a one-document Android
-share sheet. No share recipient was chosen. Proper normal profile creation
-worked; a preliminary raw internal Add-Profile root-link setup asserted after
-persisting the QA profile and is retained as a failed setup diagnostic. No data
-reset occurred. The final cold-link check, Related, repeated outer occurrences,
-source removal, rotation and actual Szurubooru path still need revised-candidate
-verification. No timing/responsiveness claim is made.
+Future device campaigns must derive the complete root set from the fresh backup
+inventory; do not reuse the earlier fixed-seven-directory assumption.
 
-## Remaining exit gates
+## Remaining stage gate and continuation
 
-Run the complete local suite on the committed candidate without runtime/test
-edits during the pass, then inspect final evidence and the complete issue delta. Exercise the required
-Android/native service paths under an exclusive lease, preserve/restore the
-original APK, data and settings, record unavailable services honestly, and obtain
-independent Sol High approval. Any findings require fixes, retesting and
-re-review before #140. No PR, push, merge or issue closure is authorized.
+The required actual **Szurubooru native path is unverified**. No original
+Szurubooru profile or ignored test-credential entry was available; the refreshed
+availability check still reports no Szurubooru entry. Its real instance URL is
+pending from the user. Host adapter/parser/registry tests do not replace this
+required device check.
+
+Once the URL and any necessary locally supplied credentials/profile are available,
+finish only that native gate using the preserved verified implementation and a
+fresh exclusive lease/full-root backup. Preserve and restore the device again,
+record actual evidence, and obtain independent Sol High stage-gate confirmation.
+Reuse the unchanged `2074` complete pass across documentation/device-only updates;
+new runtime/test/generated-input changes require appropriate re-verification.
+Only after #156 is accepted may the rollout continue at #140, then #141/#157 and
+the combined acceptance stage. No PR, push, develop merge or issue closure has
+been authorized.
