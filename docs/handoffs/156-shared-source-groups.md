@@ -116,6 +116,35 @@ verification, owned-QA cleanup and lease release are still required. The actual
 Szurubooru URL is pending from the user; no corresponding profile or test entry
 was available. Safebooru returned HTTP 403; AIBooru public reads were available.
 
+## Root Group member-route normalization
+
+`8dcf2ff13f1999d2f7a0e8e1502b798956144a40` passed the complete local
+suite unchanged: 6,686 application tests, 1,671 package/CLI tests, two existing
+GoRouter skips, 39 PR-policy shell checks, 20 release-script checks and 76 Python
+tests (2026-11-08 02:51:17–03:08:03 UTC, exit 0). This supersedes the interrupted
+`c094` run but is not final acceptance after the next native finding.
+
+The rebuilt normal `8dc` APK rendered real AIBooru Pool members and decoded
+images, eliminating the registry cycle. A true cold launch directly via Group
+URI also opened successfully. However, opening a member from the root portable
+Group page normalized the transient anonymous configuration as a saved profile
+UUID and routed to Browse recovery. Contextual Bookmark gallery pushes had
+already avoided that path, so the original controlled test did not cover it.
+
+The correction excludes anonymous configurations from saved-profile extraction
+in the existing production navigation normalizer, while preserving the typed
+payload and pinned member actor. The same real application-route diagnostic
+failed before the fix and passed afterwards, including anonymous member media
+access and System Back to the gallery. All four public viewer tests and 22
+focused navigation/private/link consumer tests passed; analysis had no errors
+or warnings. The revised candidate still needs complete final verification.
+
+The earlier native gallery screenshot showed placeholders before media finished
+loading; later screenshots and read-only Flutter inspection confirmed decoded
+images. No loading-time or device-responsiveness claim is made. One automation
+flow delivering a link immediately after a separate MAIN launch missed the
+route; a proper cold VIEW launch and subsequent warm VIEW launches passed.
+
 ## Remaining exit gates
 
 Run the complete local suite on the committed candidate without runtime/test

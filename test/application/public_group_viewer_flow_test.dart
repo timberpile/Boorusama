@@ -1,3 +1,6 @@
+import 'package:flutter/widgets.dart';
+import 'package:boorusama/core/router.dart';
+import 'package:boorusama/core/posts/links/boorusama_group_link.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
 
 import 'dart:async';
@@ -55,6 +58,57 @@ class _Bookmarks extends BookmarkLibraryNotifier {
 }
 
 void main() {
+  testWidgets('root Group link opens public member and returns to Pool', (
+    tester,
+  ) async {
+    final f = await _Fixture.mount(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(Navigator).first),
+      listen: false,
+    );
+    final reference = const ContentReferenceCodec().parse(
+      engine: BooruType.danbooru,
+      site: Uri.parse(_site),
+      kind: ContentKind.group,
+      sourceKey: 'pool:42',
+    );
+    container
+        .read(routerProvider)
+        .go(BoorusamaGroupLink.fromReference(reference).uri.toString());
+    await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    await f.harness.pumpUntilFound(tester, postTile(101));
+    await tester.tap(postTile(101));
+    await f.harness.pumpUntil(
+      tester,
+      () => tester
+          .widgetList<PostDetailsPageScaffold>(postDetailsScaffold())
+          .any((w) => w.controller?.currentPost.value.id == 101),
+    );
+    await f.harness.pumpUntilFound(
+      tester,
+      find.byType(RawProgressivePostImage),
+    );
+    final media = ProviderScope.containerOf(
+      tester.element(find.byType(RawProgressivePostImage).first),
+      listen: false,
+    );
+    final key = media.read(currentContentAccessKeyProvider);
+    expect(key, isNotNull);
+    expect(key!.profileId, isNull);
+    expect(
+      media
+          .read(contentAccessContextProvider(key))
+          ?.config
+          ?.anonymousReadScope
+          ?.isCurrent,
+      isTrue,
+    );
+    expect(f.privateRequests, 0);
+    await tester.binding.handlePopRoute();
+    await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('public saved Pool opens its real member viewer and Back', (
     tester,
   ) async {
