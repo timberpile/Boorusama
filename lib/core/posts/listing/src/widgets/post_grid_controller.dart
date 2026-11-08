@@ -73,6 +73,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _hasMore = true;
   var _loading = false;
   Completer<void>? _pendingFetchMore;
+  bool Function()? _pendingFetchMoreCanStart;
   var _refreshing = false;
   var _preserveSelectionOnRefresh = false;
   var _refreshPending = false;
@@ -123,6 +124,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     _debounceTimer = null;
     final pending = _pendingFetchMore;
     _pendingFetchMore = null;
+    _pendingFetchMoreCanStart = null;
     _loading = false;
     if (pending != null && !pending.isCompleted) pending.complete();
   }
@@ -396,20 +398,36 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     return result.posts.isNotEmpty;
   }
 
-  Future<void> fetchMore({VoidCallback? onNoMoreData}) {
+  /// [canStart] revalidates an automatic request after the debounce delay.
+  /// Explicit continuation can join and promote a queued automatic request.
+  Future<void> fetchMore({
+    VoidCallback? onNoMoreData,
+    bool Function()? canStart,
+  }) {
     if (_disposed || _refreshing) return Future.value();
-    if (_pendingFetchMore case final pending?) return pending.future;
-    if (_loading || !_hasMore) return Future.value();
+    if (_pendingFetchMore case final pending?) {
+      if (canStart == null) _pendingFetchMoreCanStart = null;
+      return pending.future;
+    }
+    if (_loading || !_hasMore || !(canStart?.call() ?? true)) {
+      return Future.value();
+    }
     // A successful empty filtered page may advance; a failed initial page may not.
     if (!_hasLoadedPage) return refresh(maintainPage: true);
 
     final generation = _requestGeneration;
     final pending = _pendingFetchMore = Completer<void>();
+    _pendingFetchMoreCanStart = canStart;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(debounceDuration, () async {
       final previousPage = _page;
       try {
-        if (!_isCurrentRequest(generation) || _refreshing) return;
+        if (!_isCurrentRequest(generation) ||
+            _refreshing ||
+            !(_pendingFetchMoreCanStart?.call() ?? true)) {
+          return;
+        }
+        _pendingFetchMoreCanStart = null;
         _loading = true;
         if (_pageMode == PageMode.infinite) _setPage(previousPage + 1);
         notifyListeners();
@@ -437,6 +455,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
         if (identical(_pendingFetchMore, pending)) {
           _loading = false;
           _pendingFetchMore = null;
+          _pendingFetchMoreCanStart = null;
           _debounceTimer = null;
           if (!_disposed) notifyListeners();
         }

@@ -242,23 +242,21 @@ void main() {
         await _until(tester, () => !controller.refreshing);
         expect(controller.items, isEmpty);
         expect(controller.hasMore, isTrue);
-        final label = tester
-            .element(find.byType(PixivFavoritesPage))
-            .t
-            .infinite_scroll
-            .load_more;
-        final more = find.widgetWithText(FilledButton, label);
-        expect(more, findsOneWidget);
-        for (final (cursor, visible) in [('80', false), ('70', true)]) {
-          await tester.ensureVisible(more);
+        for (final (requested, cursor, visible) in [
+          ('90', '80', false),
+          ('80', '70', true),
+        ]) {
+          // Empty-but-continuing pages now use the shared bounded fill cycle.
           await tester.pump();
-          expect(more.hitTestable(), findsOneWidget);
-          await tester.tap(more);
           await tester.pump(controller.debounceDuration);
           await _until(tester, () => !page.calls.last.response.isCompleted);
           expect(
             page.calls.last.options.queryParameters['restrict'],
             private ? 'private' : 'public',
+          );
+          expect(
+            page.calls.last.options.queryParameters['max_bookmark_id'],
+            requested,
           );
           page.calls.last.complete(
             3,
@@ -266,7 +264,8 @@ void main() {
             more: !visible,
             cursor: cursor,
           );
-          await _until(tester, () => !controller.loadingMore);
+          await tester.pump();
+          await _until(tester, () => !controller.loading);
           expect(controller.hasMore, !visible);
           expect(
             controller.items.map((post) => post.illustId),
@@ -274,7 +273,12 @@ void main() {
           );
         }
         expect(page.calls, hasLength(start + 2));
-        expect(more, findsNothing);
+        final label = tester
+            .element(find.byType(PixivFavoritesPage))
+            .t
+            .infinite_scroll
+            .load_more;
+        expect(find.widgetWithText(FilledButton, label), findsNothing);
         expect(tester.takeException(), isNull);
         await page.close(tester);
       },
