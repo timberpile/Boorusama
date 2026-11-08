@@ -101,7 +101,13 @@ It overrides low-level HTTP, not the Post repositories or Group factory.
 The `c094` full regression was deliberately interrupted after the native finding,
 with no source edits during its partial execution. It is **not a complete pass**;
 `full-regression-c0942026a-interrupted.json` records this limit. The corrected
-candidate requires a fresh complete suite and native APK checks. Earlier
+candidate requires a fresh complete suite and native APK checks. The focused
+remediation passed three production-graph tests, 24 adapter/public application
+tests, all 60 Pool/Related application flow tests, and both page-size tests.
+Fixtures now supply the engine-native repositories at their intended fake
+boundary while the new production-graph regression leaves those real providers
+intact. All 65 changed Dart files are formatted; final changed-scope analysis
+reported 0 errors, 0 warnings and 83 informational findings. Earlier
 native screenshots/results remain failed-candidate diagnostics.
 
 Original Android APK/data/settings are backed up and parked under the exclusive

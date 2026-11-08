@@ -39,6 +39,7 @@ import 'dart:typed_data';
 
 import 'package:booru_clients/danbooru.dart' as api;
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/src/providers.dart';
 import 'package:boorusama/boorus/danbooru/pools/bookmarks.dart';
 import 'package:boorusama/boorus/danbooru/pools/details/src/pool_detail_page.dart';
 import 'package:boorusama/boorus/danbooru/pools/pool/types.dart';
@@ -2905,6 +2906,9 @@ _mount(
         (ref, type) => type == BooruType.danbooru
             ? createDanbooruGroupCapability(ref)
             : null,
+      ),
+      danbooruPostRepoProvider.overrideWith(
+        (ref, config) => ref.read(postRepoProvider(config)),
       ),
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),

@@ -1,3 +1,5 @@
+import 'package:boorusama/boorus/szurubooru/posts/providers.dart';
+
 import 'dart:async';
 
 import 'package:booru_clients/szurubooru.dart';
@@ -79,7 +81,10 @@ void main() {
         hasLength(4),
       );
       expect(second.resolved, hasLength(2));
-      expect((second.resolved.first as PostContentEntry).post, same(post3));
+      expect(
+        (second.resolved.first as PostContentEntry).post,
+        same((first.resolved.single as PostContentEntry).post),
+      );
       expect(f.repo.queries, ['id:3,2', 'id:1']);
       expect(f.requests, 1);
     },
@@ -258,6 +263,7 @@ class _Fixture {
         szurubooruClientProvider(config.auth)
             .overrideWithValue(SzurubooruClient(dio: dio, baseUrl: config.url)),
         originAwarePostRepoProvider(config).overrideWithValue(repo),
+        szurubooruPostRepoProvider(config.search).overrideWithValue(repo),
       ],
     );
     final capability = createSzurubooru().createGroupCapability!(

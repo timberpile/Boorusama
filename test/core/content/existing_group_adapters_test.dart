@@ -1,3 +1,4 @@
+import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
 import 'package:booru_clients/danbooru.dart';
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
 import 'package:boorusama/boorus/danbooru/danbooru.dart';
@@ -267,6 +268,7 @@ class _Fixture {
         danbooruClientProvider(config.auth)
             .overrideWithValue(DanbooruClient(baseUrl: config.url, dio: dio)),
         originAwarePostRepoProvider(config).overrideWithValue(repo),
+        danbooruPostRepoProvider(config.search).overrideWithValue(repo),
       ],
     );
     final capability = createDanbooru().createGroupCapability!(

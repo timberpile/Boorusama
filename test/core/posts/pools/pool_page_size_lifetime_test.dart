@@ -1,8 +1,10 @@
 import 'package:booru_clients/danbooru.dart';
 import 'package:booru_clients/szurubooru.dart' as szuru;
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/src/providers.dart';
 import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
 import 'package:boorusama/boorus/szurubooru/pools/group_capability.dart';
+import 'package:boorusama/boorus/szurubooru/posts/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
@@ -76,6 +78,12 @@ void main() {
         profiles: [config],
         overrides: [
           originAwarePostRepoProvider.overrideWith((ref, config) => repository),
+          danbooruPostRepoProvider.overrideWith(
+            (ref, config) => repository,
+          ),
+          szurubooruPostRepoProvider.overrideWith(
+            (ref, config) => repository,
+          ),
           imageListingSettingsProvider.overrideWith(
             (ref) => Settings.defaultSettings.listing.copyWith(
               postsPerPage: ref.watch(_pageSize),

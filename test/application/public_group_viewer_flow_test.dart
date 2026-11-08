@@ -1,3 +1,5 @@
+import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
@@ -175,6 +177,7 @@ class _Fixture {
   var apiRequests = 0;
   final apiPaths = <String>[];
   var privateRequests = 0;
+  BooruConfig? publicConfig;
   BooruConfig get privateConfig => BooruConfig.fromJson({
     ...backend.config.toJson(),
     'url': _site,
@@ -279,10 +282,14 @@ class _Fixture {
             'booruId': BooruType.danbooru.id,
             'booruIdHint': BooruType.danbooru.id,
           });
-          return ContentAccessContext.anonymous(
-            config: config.copyWith(anonymousReadScope: scope),
-            scope: scope,
-          );
+          final actor = config.copyWith(anonymousReadScope: scope);
+          f.publicConfig = actor;
+          return ContentAccessContext.anonymous(config: actor, scope: scope);
+        }),
+        danbooruPostRepoProvider.overrideWith((ref, search) {
+          final actor = f.publicConfig!;
+          expect(search.auth, actor.auth);
+          return ref.read(originAwarePostRepoProvider(actor));
         }),
         originAwarePostRepoProvider.overrideWith((ref, config) {
           if (config.anonymousReadScope == null) f.privateRequests++;

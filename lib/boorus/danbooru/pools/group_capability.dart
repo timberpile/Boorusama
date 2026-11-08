@@ -23,35 +23,36 @@ import 'details/src/widgets/pool_gallery_header.dart';
 import 'pool/src/data/parser.dart';
 import 'pool/types.dart';
 
-BooruGroupCapability createDanbooruGroupCapability(Ref ref) =>
-    BooruGroupCapability(
-      engine: BooruType.danbooru,
-      keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
-      createSource: (access) {
-        final config = access.config;
-        if (config == null)
-          throw StateError('Group source has no authorized configuration');
-        return DanbooruGroupSource(
-          access: access,
-          fetchPool: (id) async => poolDtoToDanbooruPool(
-            await ref
-                .read(danbooruClientProvider(config.auth))
-                .getPool(
-                  id,
-                  cancelToken: ApiRequestContext.current().cancelToken,
-                ),
-          ),
-          // The factory's Ref belongs to engine registration. Reading the
-          // generic registry-backed repository here would re-enter that same
-          // registry. Reuse the native repository and its standard origin bridge.
-          postRepository: () => OriginAwarePostRepository.fromConfig(
-            delegate: ref.read(danbooruPostRepoProvider(config.search)),
-            config: config,
-          ),
-        );
-      },
-      presentation: const DanbooruGroupPresentation(),
+BooruGroupCapability createDanbooruGroupCapability(
+  Ref ref,
+) => BooruGroupCapability(
+  engine: BooruType.danbooru,
+  keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
+  createSource: (access) {
+    final config = access.config;
+    if (config == null)
+      throw StateError('Group source has no authorized configuration');
+    return DanbooruGroupSource(
+      access: access,
+      fetchPool: (id) async => poolDtoToDanbooruPool(
+        await ref
+            .read(danbooruClientProvider(config.auth))
+            .getPool(
+              id,
+              cancelToken: ApiRequestContext.current().cancelToken,
+            ),
+      ),
+      // The factory's Ref belongs to engine registration. Reading the
+      // generic registry-backed repository here would re-enter that same
+      // registry. Reuse the native repository and its standard origin bridge.
+      postRepository: () => OriginAwarePostRepository.fromConfig(
+        delegate: ref.read(danbooruPostRepoProvider(config.search)),
+        config: config,
+      ),
     );
+  },
+  presentation: const DanbooruGroupPresentation(),
+);
 
 class DanbooruGroupPresentation
     implements BooruGroupPresentation, BooruGroupStatusPresentation {
