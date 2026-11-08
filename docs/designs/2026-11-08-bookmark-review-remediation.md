@@ -12,13 +12,27 @@ Starting #140/#141 and independent #157 foundation work is now authorized in
 separate worktrees while #156 verification continues. Develop integration,
 publication, issue closure and acceptance-gate bypass remain unauthorized.
 
+## Verified implementation status
+
+Runtime/test candidate `6af367354ef8c7e09dd939543b1cbf9403f2da35` implements
+the approved cache/UI/source corrections. Complete regression passed 8,414
+Flutter/Dart and 76 Python tests. Independent Sol High passes source/tests,
+exercised ordinary-main Android QA and independently verified restoration;
+full #156 acceptance remains on hold. See the [current handoff](../handoffs/156-bookmark-review-remediation.md)
+for exact commands, failures/corrections, measurements and remaining gates.
+Realbooru native HTML/media GET/decode now passes; its DAPI still returns
+`success=false`. Szurubooru needs a known valid Pool fixture. Current Android
+R3/R4 and local-policy/profile actions, original latency/mosaic attribution and
+Penpot publication remain open. The source observations below are the pinned
+pre-remediation diagnosis, not claims that those defects remain in this candidate.
+
 ## Evidence and scope
 
 This is the requested implementation contract for the follow-up to #143/#158/#156. Read the [local-agent handoff](../handoffs/156-bookmark-review-remediation.md) for order and verification. Audited source: `0812367722defc59d36063ee9d4a631cf263b010` on `maintenance/156-shared-source-groups`; runtime candidate `2074d452a4d715ebd1b15ed9d1fea8446471a4d2`. All source paths below refer to that pinned tree unless the implementing agent records a newer one.
 
 The user observed invisible occupied Danbooru cells, missing group covers, approximately 10-second initial Bookmark opening and 2-second mode switching, overly spacious/narrow pickers, unwanted leaf navigation and self rows, visible root Back, moving cover quadrants, unsuitable mode icons, unnecessarily shallow ancestor menus and profile-required Realbooru content. These are user reports, not measurements or device reproductions performed by this review.
 
-Source inspection confirms the mechanisms identified below. It does not prove Danbooru was globally down, attribute the exact delays, or establish the exact visual animation mechanism. An attempted public robots.txt retrieval was unsuccessful in this environment; that is not outage evidence. No Flutter/Android suite was run here. The existing #156 approval and checks do not cover these new reproductions/fixes.
+The initial source inspection confirmed the mechanisms below without proving a global Danbooru outage, exact delays or the animation mechanism. Its unsuccessful robots.txt retrieval was not outage evidence, and that diagnosis delivery contained no Flutter/Android run. The subsequent implementation and actual verification are recorded above and in the current handoff; the old #156 approval alone did not cover this remediation.
 
 The latest requested picker and browser behavior supersedes the older navigable-leaf, current-group-row and always-clickable-title design. Keep the rest of the accepted hierarchy, direct-membership, source-safety and v10 transfer contract.
 
@@ -170,7 +184,7 @@ Framework reference: https://api.flutter.dev/flutter/widgets/GridView-class.html
 
 Define Home as depth 0, a direct child group as depth 1, and its subgroup as depth 2. Only depth >= 2 exposes the clickable title/ancestor menu. At Home/depth 1 render an ordinary fitted title with no dropdown arrow, hidden focus target or popup semantics; the normal Back control already supplies the useful navigation. Derive depth from the current parent chain, not how the user arrived or the number of children.
 
-Keep mode switching in the Header, never an extra row. Supply localized action tooltips (for example Switch to All bookmarks) while making the current mode accessible. Keep Unified terminology: this view includes saved remote Group references as individual items and does not recursively fetch their Pages.
+Keep mode switching in the Header, never an extra row. Supply localized action tooltips (for example Switch to Unified) while making the current mode accessible. Keep Unified terminology: this view includes saved remote Group references as individual items and does not recursively fetch their Pages.
 
 The user selected [family A](bookmark-view-icons/README.md). Use its section/direct
 items glyph for Structure and uniform content grid for Unified, rendered through
@@ -193,7 +207,7 @@ Keep cross-host/scheme aliases explicit rather than changing content identity. I
 
 ## Earlier review findings: retain and reproduce
 
-These findings were traced on the same runtime but were not reproduced by this chat in Flutter. They remain part of the requested remediation; prove each failing production path before changing it, or document a counterexample.
+These findings were initially traced on the same pinned runtime without a Flutter reproduction. Their subsequent production-path regressions, fixes and remaining device limits are recorded in the current handoff. Preserve the requirement to prove a failing path before further changes, or document a counterexample.
 
 ### R1. Public Group selection can resolve another saved actor
 

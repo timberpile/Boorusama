@@ -1,22 +1,31 @@
 # Issue #156: shared existing-source Groups
 
-**Current continuation:** remediation has resumed with approved URL-cache reuse and
-Structure/Unified family-A icons. The earlier paused checkpoint remains historical
-evidence with failing/interrupted checks; the historical
-approval below applies only to the prior runtime candidate. See the
-[remediation checkpoint](156-bookmark-review-remediation.md#paused-implementation-checkpoint-2026-11-08)
-for current code, evidence and remaining gates.
+**Current status:** remediation candidate
+`6af367354ef8c7e09dd939543b1cbf9403f2da35` passes complete regression and
+independent Sol High source/test/exercised-QA review. Original APK/data/settings
+restoration is verified and the emulator lease released. **Full #156 acceptance
+is still on hold** for the source/device/performance/publication gates in the
+[current remediation handoff](156-bookmark-review-remediation.md).
 
-Status: **code APPROVED by independent Sol High; stage BLOCKED by the required
-real Szurubooru Android check.** All available-service Android checks and original
-emulator restoration are complete. Do not start #140, publish, create a PR, merge
-or close the issue before the documented stage gate is satisfied.
+URL/custom-key cache reuse and family-A Structure/Unified icons are implemented;
+icon selection is final. The later user instruction permits separate
+#140/#141/#157 foundations before #156 acceptance. Their owning branches and
+reviewed SHAs are recorded in that handoff. No PR, push, develop integration or
+issue closure is authorized.
+
+## Historical architecture implementation and verification
+
+The remaining architecture narrative and device reports below describe the
+earlier `2074d452a` candidate, not current remediation coverage. Historical
+approval: code approved by Sol High, stage held for real Szurubooru Android.
+These older device campaigns cannot satisfy new remediation device gates.
 
 Branch/worktree: `maintenance/156-shared-source-groups`,
 `.worktrees/156-shared-source-groups`.
 Approved prerequisite base: `73087ebf863c4f97a769a2f014e5f2831f4054a6` (#143).
-Final runtime/test candidate: `2074d452a4d715ebd1b15ed9d1fea8446471a4d2`.
-Subsequent handoff-only commits do not change the verified runtime or tests.
+Historical runtime/test candidate: `2074d452a4d715ebd1b15ed9d1fea8446471a4d2`.
+Its immediate handoff-only commits did not change the verified runtime/tests;
+the later remediation does and has its own complete pass.
 The stage 05 plan and approved contract are retained on the planning branch and
 in `.worktrees/content-architecture-reference/docs/plans/content-architecture/`.
 The user's Sol-only reviewer instruction supersedes the older Astra table.
@@ -201,20 +210,12 @@ Final proof paths under `native-remediation/`:
 Future device campaigns must derive the complete root set from the fresh backup
 inventory; do not reuse the earlier fixed-seven-directory assumption.
 
-## Remaining stage gate and continuation
+## Superseded stage-gate snapshot
 
-The required actual **Szurubooru native path is unverified**. No original
-Szurubooru profile or ignored test-credential entry was available; the refreshed
-availability check still reports no Szurubooru entry. Its real instance URL is
-pending from the user. Host adapter/parser/registry tests do not replace this
-required device check.
-
-Once the URL and any necessary locally supplied credentials/profile are available,
-finish only that native gate using the preserved verified implementation and a
-fresh exclusive lease/full-root backup. Preserve and restore the device again,
-record actual evidence, and obtain independent Sol High stage-gate confirmation.
-Reuse the unchanged `2074` complete pass across documentation/device-only updates;
-new runtime/test/generated-input changes require appropriate re-verification.
-Only after #156 is accepted may the rollout continue at #140, then #141/#157 and
-the combined acceptance stage. No PR, push, develop merge or issue closure has
-been authorized.
+At `2074d452a`, no Szurubooru URL/profile was available. The resumed campaign
+found the ignored URL and proved anonymous Pool viewing is permitted while
+listing requires a registered actor. It still lacks a known valid Pool fixture;
+actual Android Pool acceptance remains open. The URL itself is no longer the
+missing prerequisite. See the current handoff for that exact limitation and
+additional remediation gates. The later authorization to start #140/#141/#157
+supersedes the old stage-order prohibition; it does not authorize integration.
