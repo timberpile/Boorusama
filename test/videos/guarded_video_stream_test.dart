@@ -314,6 +314,10 @@ void main() {
         await response.fold<List<int>>([], (out, data) => out..addAll(data)),
         isEmpty,
       );
+      // The owner can subscribe after the initial native request has failed.
+      // The failure remains observable rather than becoming an empty native
+      // player that was considered initialized before its HTTP request finished.
+      await stream.failures.first.timeout(const Duration(seconds: 10));
       expect(adapter.requests, hasLength(1));
       expect(adapter.requests.single.uri.host, 'cdn.donmai.us');
     },

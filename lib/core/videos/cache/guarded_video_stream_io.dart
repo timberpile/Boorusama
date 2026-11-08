@@ -27,8 +27,14 @@ final class GuardedVideoStream {
   final CancelToken _cancellation;
   final String _path;
   final _requests = <CancelToken, HttpResponse>{};
+  final _failures = StreamController<void>();
+  var _reportedFailure = false;
   var _closed = false;
   Future<void>? _closing;
+
+  /// One route owns this stream; its first failure is buffered until the native
+  /// player's owner has subscribed, including an error during initialization.
+  Stream<void> get failures => _failures.stream;
 
   Uri get uri => Uri(
     scheme: 'http',
@@ -69,7 +75,10 @@ final class GuardedVideoStream {
     server.idleTimeout = const Duration(seconds: 30);
     server.listen(
       (request) => unawaited(stream._serve(request)),
-      onError: (Object _, StackTrace __) => unawaited(stream.close()),
+      onError: (Object _, StackTrace __) {
+        stream._reportFailure();
+        unawaited(stream.close());
+      },
     );
     unawaited(cancellation.whenCancel.then((_) => stream.close()));
     return stream;
@@ -168,6 +177,7 @@ final class GuardedVideoStream {
         );
       }
     } catch (_) {
+      if (token != null && !token.isCancelled) _reportFailure();
       token?.cancel('Video stream stopped');
       // A failed preparation must never complete as an empty success. Once
       // headers are sent, terminate the socket rather than send any late bytes.
@@ -196,6 +206,12 @@ final class GuardedVideoStream {
 
   Future<void> close() => _closing ??= _close();
 
+  void _reportFailure() {
+    if (!_allowed || _reportedFailure || _failures.isClosed) return;
+    _reportedFailure = true;
+    _failures.add(null);
+  }
+
   Future<void> _close() async {
     _closed = true;
     for (final entry in _requests.entries.toList()) {
@@ -203,5 +219,8 @@ final class GuardedVideoStream {
     }
     await _server.close(force: true);
     _requests.clear();
+    // A disposed preparation may never acquire a listener. Closing its signal
+    // must not wait for that absent listener before releasing the server.
+    unawaited(_failures.close());
   }
 }

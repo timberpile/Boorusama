@@ -35,9 +35,11 @@ final class GuardedStreamingVideoSource extends StreamingVideoSource {
   const GuardedStreamingVideoSource({
     required this.playbackUrl,
     required String originalUrl,
+    this.failures = const Stream.empty(),
   }) : super(originalUrl);
 
   final String playbackUrl;
+  final Stream<void> failures;
   @override
   String get url => playbackUrl;
 }

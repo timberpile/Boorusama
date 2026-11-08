@@ -566,16 +566,19 @@ class ErrorPlaceholder extends StatelessWidget {
     this.borderRadius,
     this.onRetry,
     this.reason = PostPresentationFallbackReason.refreshFailed,
+    this.video = false,
   });
 
   final VoidCallback? onRetry;
   final BorderRadiusGeometry? borderRadius;
   final PostPresentationFallbackReason reason;
+  final bool video;
 
   @override
   Widget build(BuildContext context) => ContentMediaOutcome(
     failed: true,
     reason: reason,
+    video: video,
     child: KurumiImageErrorPlaceholder(
       borderRadius: borderRadius,
       child: Stack(

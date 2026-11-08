@@ -97,6 +97,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   String? _error;
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<bool>? _bufferingSubscription;
+  StreamSubscription<void>? _sourceFailureSubscription;
   var _isBuffering = false;
   var _isDisposing = false;
   var _isPreparingSource = false;
@@ -192,9 +193,14 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     if (!mounted || _isDisposing) return;
     final generation = ++_sourceGeneration;
     _sourceCancellation?.cancel('Video source replaced');
+    _sourceFailureSubscription?.cancel().ignore();
+    _sourceFailureSubscription = null;
     final cancellation = _sourceCancellation = CancelToken();
     bool current() =>
-        mounted && !_isDisposing && generation == _sourceGeneration;
+        mounted &&
+        !_isDisposing &&
+        !cancellation.isCancelled &&
+        generation == _sourceGeneration;
 
     setState(() => _isPreparingSource = true);
     Future<void> Function()? releasePrepared;
@@ -212,6 +218,20 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
       releasePrepared = prepared.release;
       if (!current()) {
         return;
+      }
+      if (source case GuardedStreamingVideoSource(:final failures)) {
+        _sourceFailureSubscription = failures.listen((_) {
+          if (!current()) return;
+          cancellation.cancel('Guarded video failed');
+          final failedPlayer = _player;
+          _player = null;
+          if (failedPlayer != null)
+            unawaited(_disposePlayerSafely(failedPlayer));
+          setState(() {
+            _error = context.t.post.action.share_media_unavailable;
+            _isPreparingSource = false;
+          });
+        });
       }
       final releasePrevious = _releaseVideoSource;
 
@@ -401,6 +421,8 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     // muting the native player or releasing its local-file lease.
     final positionCancellation = _positionSubscription?.cancel();
     final bufferingCancellation = _bufferingSubscription?.cancel();
+    final failureCancellation = _sourceFailureSubscription?.cancel();
+    _sourceFailureSubscription = null;
     _positionSubscription = null;
     _bufferingSubscription = null;
     final player = _player;
@@ -423,6 +445,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     await release?.call();
     await positionCancellation;
     await bufferingCancellation;
+    await failureCancellation;
     _error = null;
     _isBuffering = false;
   }
@@ -569,6 +592,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   @override
   Widget build(BuildContext context) {
     return ContentMediaOutcome(
+      video: true,
       failed: switch (_currentState) {
         VideoPlayerError() || VideoPlayerUnsupported() => true,
         VideoPlayerReady() => false,

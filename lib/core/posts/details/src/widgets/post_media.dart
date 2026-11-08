@@ -117,6 +117,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                       if (uri == null || !publicScope.source.allowsMedia(uri))
                         return const ErrorPlaceholder(
                           borderRadius: BorderRadius.zero,
+                          video: true,
                           reason:
                               PostPresentationFallbackReason.unavailableEngine,
                         );

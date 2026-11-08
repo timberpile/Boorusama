@@ -68,6 +68,7 @@ Future<PreparedBoundVideo> prepareBoundVideo({
     source: GuardedStreamingVideoSource(
       playbackUrl: stream.uri.toString(),
       originalUrl: url,
+      failures: stream.failures,
     ),
     release: stream.close,
   );

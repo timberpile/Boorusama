@@ -59,6 +59,28 @@ ProviderContainer _container(
 
 void main() {
   test(
+    'a successful poster cannot clear a failed video for the same record',
+    () {
+      final context = _context();
+      final request = _request(context);
+      final container = _container(context);
+      addTearDown(container.dispose);
+      final notifier = container.read(contentMediaFailuresProvider.notifier);
+      notifier.record(request, failed: true, video: true);
+      notifier.record(request, failed: false);
+      expect(container.read(contentMediaFailuresProvider), {
+        request: PostPresentationFallbackReason.refreshFailed,
+      });
+      notifier.record(request, failed: false, video: true);
+      expect(container.read(contentMediaFailuresProvider), isEmpty);
+      notifier.record(request, failed: true, video: true);
+      notifier.retry([request]);
+      notifier.record(request, failed: true);
+      notifier.record(request, failed: false);
+      expect(container.read(contentMediaFailuresProvider), isEmpty);
+    },
+  );
+  test(
     'terminal failures deduplicate and valid success or retry clears them',
     () {
       final context = _context();

@@ -25,6 +25,9 @@ class _Lease implements VideoCacheLease {
 }
 
 class _Player extends Fake implements BooruPlayer {
+  _Player({this.initializeGate});
+  final Future<void>? initializeGate;
+  final initializeEntered = Completer<void>();
   VideoSource? source;
   VideoConfig? config;
   var disposed = false;
@@ -34,6 +37,8 @@ class _Player extends Fake implements BooruPlayer {
   Future<void> initialize(VideoSource source, {VideoConfig? config}) async {
     this.source = source;
     this.config = config;
+    if (!initializeEntered.isCompleted) initializeEntered.complete();
+    await initializeGate;
   }
 
   @override
@@ -67,6 +72,57 @@ Widget _app(Widget child) => ProviderScope(
 
 void main() {
   const remote = 'https://safebooru.donmai.us/video.mp4';
+  for (final pendingInitialization in [false, true]) {
+    testWidgets(
+      'guarded stream failure reaches UI during initialization=$pendingInitialization',
+      (tester) async {
+        final failures = StreamController<void>();
+        final gate = Completer<void>();
+        final player = _Player(
+          initializeGate: pendingInitialization ? gate.future : null,
+        );
+        var releases = 0;
+        await tester.pumpWidget(
+          _app(
+            BooruVideo(
+              url: remote,
+              aspectRatio: 1,
+              sourceLoader: (_) async => (
+                source: GuardedStreamingVideoSource(
+                  playbackUrl: 'http://127.0.0.1:12345/video',
+                  originalUrl: remote,
+                  failures: failures.stream,
+                ),
+                release: () async {
+                  releases++;
+                },
+              ),
+              playerFactory: (_) => player,
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(player.initializeEntered.isCompleted, isTrue);
+        if (!pendingInitialization) await tester.pumpAndSettle();
+        failures.add(null);
+        await tester.pump();
+        if (pendingInitialization) gate.complete();
+        await tester.pumpAndSettle();
+        expect(
+          find.text('The original media file is unavailable. Retry.'),
+          findsOneWidget,
+        );
+        expect(find.text('local-player'), findsNothing);
+        expect(player.disposed, isTrue);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+        expect(releases, 1);
+        await tester.runAsync(failures.close);
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   testWidgets('guarded stream gives native player no upstream headers', (
     tester,
   ) async {
