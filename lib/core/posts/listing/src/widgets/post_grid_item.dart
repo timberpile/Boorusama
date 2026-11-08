@@ -327,6 +327,7 @@ class _PostGridImage extends ConsumerStatefulWidget {
 }
 
 class _PostGridImageState extends ConsumerState<_PostGridImage> {
+  late final _imageSubtreeKey = GlobalKey();
   double? _decodedAspectRatio;
   var _candidateDecoded = false;
 
@@ -360,6 +361,23 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
     final aspectRatio = masonry
         ? _decodedAspectRatio ?? media.aspectRatio
         : media.aspectRatio;
+
+    Widget animateSize(Widget image) {
+      if (!masonry) return image;
+      final reduceMotion =
+          (KurumiTheme.maybeBehaviorOf(context)?.reduceMotion ?? false) ||
+          MediaQuery.disableAnimationsOf(context);
+      // Keep image/probe state when Reduce Motion removes the size animation.
+      final content = KeyedSubtree(key: _imageSubtreeKey, child: image);
+      // Zero-duration AnimatedSize can dirty itself during layout on this SDK.
+      if (reduceMotion) return content;
+      return AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: Alignment.topCenter,
+        child: content,
+      );
+    }
 
     void onDecodedAspectRatio(double value) {
       if (!mounted ||
@@ -403,7 +421,7 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
       cachedImageBytes: cachedImageBytes,
     );
     if (!media.probeImageFormats || cachedImageBytes != null) {
-      return normal(media.url);
+      return animateSize(normal(media.url));
     }
 
     final placeholder = normal(
@@ -416,40 +434,42 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
         ref.watch(
           imageListingSettingsProvider.select((v) => v.imageGridAspectRatio),
         );
-    return BooruImageCandidates(
-      config: config,
-      urls: [media.url, ...media.fallbackUrls],
-      imageCacheManager: imageCacheManager,
-      onDecodedAspectRatio: masonry
-          ? (value) {
-              if (!mounted ||
-                  widget.media != media ||
-                  widget.config != config) {
-                return;
+    return animateSize(
+      BooruImageCandidates(
+        config: config,
+        urls: [media.url, ...media.fallbackUrls],
+        imageCacheManager: imageCacheManager,
+        onDecodedAspectRatio: masonry
+            ? (value) {
+                if (!mounted ||
+                    widget.media != media ||
+                    widget.config != config) {
+                  return;
+                }
+                _candidateDecoded = true;
+                onDecodedAspectRatio(value);
               }
-              _candidateDecoded = true;
-              onDecodedAspectRatio(value);
-            }
-          : null,
-      placeholder: placeholder,
-      builder: (provider) {
-        // Preserve grid sizing while reusing the already decoded provider.
-        // Going through a second network provider would repeat decoding.
-        final image = LayoutBuilder(
-          builder: (context, constraints) => ExtendedImage(
-            image: provider,
-            width: constraints.maxWidth.roundToDouble(),
-            height: constraints.maxHeight.roundToDouble(),
-            fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
-            borderRadius: borderRadius,
-            placeholderWidget: placeholder,
-            errorWidget: placeholder,
-          ),
-        );
-        return cover || fit == BoxFit.contain || ratio == null
-            ? image
-            : AspectRatio(aspectRatio: ratio, child: image);
-      },
+            : null,
+        placeholder: placeholder,
+        builder: (provider) {
+          // Preserve grid sizing while reusing the already decoded provider.
+          // Going through a second network provider would repeat decoding.
+          final image = LayoutBuilder(
+            builder: (context, constraints) => ExtendedImage(
+              image: provider,
+              width: constraints.maxWidth.roundToDouble(),
+              height: constraints.maxHeight.roundToDouble(),
+              fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
+              borderRadius: borderRadius,
+              placeholderWidget: placeholder,
+              errorWidget: placeholder,
+            ),
+          );
+          return cover || fit == BoxFit.contain || ratio == null
+              ? image
+              : AspectRatio(aspectRatio: ratio, child: image);
+        },
+      ),
     );
   }
 }

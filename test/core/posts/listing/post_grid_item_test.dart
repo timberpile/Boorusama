@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
@@ -17,13 +18,19 @@ import 'package:boorusama/foundation/info/device_info.dart';
 
 import '../../../support/fakes/test_post.dart';
 import '../details/progressive_image_test_utils.dart'
-    show ControlledImageAdapter, DrainingImageCacheManager, lowerPng, pumpUntil;
+    show
+        ControlledImageAdapter,
+        DrainingImageCacheManager,
+        TestImageCache,
+        lowerPng,
+        pumpUntil;
 import 'large_grid_gif_fixture.dart';
 
 import 'package:boorusama/core/posts/listing/src/providers/cached_grid_gif.dart';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:flutter/rendering.dart'
+    show RenderAnimatedSize, ScrollCacheExtent;
 import 'package:flutter/services.dart';
 import 'package:boorusama/core/configs/gesture/types.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
@@ -60,6 +67,282 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  late ui.Image animationImage;
+  late ui.Image tallAnimationImage;
+  setUpAll(() async {
+    animationImage = await createTestImage(width: 40, height: 20, cache: false);
+    tallAnimationImage = await createTestImage(
+      width: 20,
+      height: 40,
+      cache: false,
+    );
+  });
+  tearDownAll(() {
+    animationImage.dispose();
+    tallAnimationImage.dispose();
+  });
+
+  testWidgets('Reduce Motion toggling retains an in-flight poster probe', (
+    tester,
+  ) async {
+    final adapter = ControlledImageAdapter();
+    final dio = Dio()..httpClientAdapter = adapter;
+    final motion = ValueNotifier(false);
+    try {
+      await tester.pumpWidget(
+        _TestApp(
+          automaticMediaLoading: true,
+          thumbnailGenerator: const _CandidateGenerator(),
+          mediaOverrides: [
+            defaultImageCacheManagerProvider.overrideWithValue(
+              TestImageCache({}),
+            ),
+            dioForWidgetProvider.overrideWith((ref, config) => dio),
+            mediaOverrideDioProvider.overrideWith((ref, config) => dio),
+            httpHeadersProvider.overrideWith((ref, config) => const {}),
+            deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+            imageListingSettingsProvider.overrideWithValue(
+              Settings.defaultSettings.listing.copyWith(
+                imageListType: ImageListType.masonry,
+              ),
+            ),
+          ],
+          child: Center(
+            child: SizedBox(
+              width: 160,
+              child: CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: ValueListenableBuilder(
+                      valueListenable: motion,
+                      builder: (context, reduce, child) => KurumiTheme(
+                        data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                        behavior: KurumiBehaviorData(reduceMotion: reduce),
+                        child: child!,
+                      ),
+                      child: PostGridItem(
+                        post: TestPost(id: 42),
+                        index: 0,
+                        useHero: false,
+                        multiSelectEnabled: true,
+                        config: _config.auth,
+                        onTap: (_) {},
+                        additions: PostGridItemAdditions.empty,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => adapter.requests.length == 3,
+          reason: 'poster probes and thumbnail placeholder',
+        ),
+      );
+      final probe = tester.state(find.byType(ImageCandidatePicker));
+      motion.value = true;
+      await tester.pump();
+      await tester.pump();
+      expect(tester.state(find.byType(ImageCandidatePicker)), same(probe));
+      await tester.runAsync(() async {
+        adapter.complete('https://grid-probe.test/image.jpg', _widePng);
+        await pumpUntil(
+          tester,
+          () => find
+              .descendant(
+                of: find.byType(ImageCandidatePicker),
+                matching: find.byType(BooruRawImage),
+              )
+              .evaluate()
+              .isEmpty,
+          reason: 'retained winning poster',
+        );
+      });
+      motion.value = false;
+      await tester.pump();
+      expect(tester.state(find.byType(ImageCandidatePicker)), same(probe));
+      final animated = tester.renderObject<RenderAnimatedSize>(
+        find.byType(AnimatedSize),
+      );
+      expect(animated.isAnimating, isFalse);
+      expect(animated.size.height, 80);
+      expect(adapter.requests, hasLength(3));
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      dio.close(force: true);
+      motion.dispose();
+    }
+  });
+
+  for (final layout in ImageListType.values) {
+    for (final motion in [
+      (app: false, system: false),
+      (app: true, system: false),
+      (app: false, system: true),
+    ]) {
+      final reduceMotion = motion.app || motion.system;
+      testWidgets(
+        'decoded resize interpolates only in Masonry: $layout / motion=$motion',
+        (
+          tester,
+        ) async {
+          final adapter = ControlledImageAdapter();
+          final dio = Dio()..httpClientAdapter = adapter;
+          var opened = 0;
+          await tester.pumpWidget(
+            _thumbnailAnimationApp(
+              dio: dio,
+              layout: layout,
+              reduceMotion: motion.app,
+              disableAnimations: motion.system,
+              onTap: (_) => opened++,
+            ),
+          );
+          final tile = find.byKey(const ValueKey('animated-tile'));
+          final next = find.byKey(const ValueKey('animated-next'));
+          final animated = find.descendant(
+            of: tile,
+            matching: find.byType(AnimatedSize),
+          );
+          expect(tester.getSize(tile).height, 160);
+          if (layout == ImageListType.masonry && !reduceMotion) {
+            expect(animated, findsOneWidget);
+            expect(
+              tester.renderObject<RenderAnimatedSize>(animated).isAnimating,
+              isFalse,
+            );
+          } else {
+            expect(animated, findsNothing);
+          }
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(tester.getSize(tile).height, 160);
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => adapter.requests.isNotEmpty,
+              reason: 'initial animation image request',
+            ),
+          );
+          final controller = tester
+              .widget<ExtendedImage>(find.byType(ExtendedImage))
+              .controller!;
+          final info = ImageInfo(image: animationImage.clone());
+          controller.replaceImage(info: info);
+          controller.changeLoadState(LoadState.completed);
+          await tester.pump();
+          await tester.pump();
+
+          if (layout == ImageListType.masonry && !reduceMotion) {
+            final top = tester.getTopLeft(tile);
+            expect(tester.getSize(tile).height, 160);
+            for (final fraction in [0.25, 0.5, 0.75, 1.0]) {
+              await tester.pump(const Duration(milliseconds: 75));
+              final height = 160 - 80 * Curves.easeOutCubic.transform(fraction);
+              expect(tester.getSize(tile).height, closeTo(height, 0.01));
+              expect(tester.getTopLeft(tile), top);
+              expect(
+                tester.getTopLeft(next).dy,
+                closeTo(top.dy + height + 8, 0.01),
+              );
+              final card = find.descendant(
+                of: tile,
+                matching: find.byType(ImageGridItem),
+              );
+              final hitArea = find.descendant(
+                of: card,
+                matching: find.byType(InkWell),
+              );
+              expect(tester.getRect(hitArea), tester.getRect(tile));
+            }
+            await tester.tapAt(
+              tester.getBottomLeft(tile) + const Offset(20, -4),
+            );
+            expect(opened, 1);
+          } else {
+            await tester.pump();
+            expect(
+              tester.getSize(tile).height,
+              layout == ImageListType.masonry ? 80 : 160,
+            );
+            await tester.pump(const Duration(milliseconds: 150));
+            expect(
+              tester.getSize(tile).height,
+              layout == ImageListType.masonry ? 80 : 160,
+            );
+          }
+          expect(controller.imageInfo.value, same(info));
+          if (layout == ImageListType.masonry && !reduceMotion) {
+            controller.replaceImage(
+              info: ImageInfo(image: tallAnimationImage.clone()),
+            );
+            await tester.pump();
+            await tester.pump();
+            for (final fraction in [0.25, 0.5, 0.75, 1.0]) {
+              await tester.pump(const Duration(milliseconds: 75));
+              final height = 80 + 240 * Curves.easeOutCubic.transform(fraction);
+              expect(tester.getSize(tile).height, closeTo(height, 0.01));
+              expect(
+                tester.getTopLeft(next).dy,
+                closeTo(tester.getTopLeft(tile).dy + height + 8, 0.01),
+              );
+            }
+          }
+          expect(adapter.requests, hasLength(1));
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump(const Duration(milliseconds: 1));
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
+          dio.close(force: true);
+        },
+      );
+    }
+  }
+
+  testWidgets('known initial Masonry dimensions do not animate on entry', (
+    tester,
+  ) async {
+    final dio = Dio()..httpClientAdapter = ControlledImageAdapter();
+    await tester.pumpWidget(
+      _thumbnailAnimationApp(
+        dio: dio,
+        layout: ImageListType.masonry,
+        reduceMotion: false,
+        initialRatio: 2,
+      ),
+    );
+    final tile = find.byKey(const ValueKey('animated-tile'));
+    final animated = find.descendant(
+      of: tile,
+      matching: find.byType(AnimatedSize),
+    );
+    expect(tester.getSize(tile).height, 80);
+    expect(
+      tester.renderObject<RenderAnimatedSize>(animated).isAnimating,
+      isFalse,
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(tester.getSize(tile).height, 80);
+    expect(
+      tester.renderObject<RenderAnimatedSize>(animated).isAnimating,
+      isFalse,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    PaintingBinding.instance.imageCache.clear();
+    PaintingBinding.instance.imageCache.clearLiveImages();
+    dio.close(force: true);
+  });
+
   for (final realbooru in [false, true]) {
     testWidgets(
       'decoded thumbnails remain safe while scrolling a Masonry feed (Realbooru=$realbooru)',
@@ -225,6 +508,7 @@ void main() {
           await tester.pumpWidget(
             _TestApp(
               automaticMediaLoading: true,
+              reduceMotion: true,
               mediaOverrides: [
                 defaultImageCacheManagerProvider.overrideWithValue(cache),
                 dioForWidgetProvider.overrideWith((ref, config) => dio),
@@ -1030,12 +1314,14 @@ class _TestApp extends StatelessWidget {
     this.contextMenuOnLongPress = false,
     this.repository,
     this.automaticMediaLoading = false,
+    this.reduceMotion = false,
     this.thumbnailGenerator = const _ProbeGenerator(),
     this.thumbnailSettings,
     this.mediaOverrides = const [],
   });
 
   final bool automaticMediaLoading;
+  final bool reduceMotion;
   final GridThumbnailUrlGenerator thumbnailGenerator;
   final GridThumbnailSettings? thumbnailSettings;
   final List<Override> mediaOverrides;
@@ -1094,6 +1380,7 @@ class _TestApp extends StatelessWidget {
           ).withBoorusamaColors(),
           builder: (context, child) => KurumiTheme(
             data: KurumiThemeData.fromMaterial(Theme.of(context)),
+            behavior: KurumiBehaviorData(reduceMotion: reduceMotion),
             child: child!,
           ),
           home: Scaffold(
@@ -1188,3 +1475,65 @@ final _tallPng = base64Decode(
 
 String _realbooruThumbnail(int index) =>
     'https://realbooru.test/thumbnails/ab/cd/thumbnail_${index.toRadixString(16).padLeft(32, '0')}.jpg';
+
+Widget _thumbnailAnimationApp({
+  required Dio dio,
+  required ImageListType layout,
+  required bool reduceMotion,
+  double initialRatio = 1,
+  bool disableAnimations = false,
+  ValueChanged<GridThumbnailMedia>? onTap,
+}) {
+  final tile = PostGridItem(
+    key: const ValueKey('animated-tile'),
+    post: TestPost(id: 42, width: 160 * initialRatio, height: 160),
+    imageUrl: 'https://grid-animation.test/image.png',
+    index: 0,
+    useHero: false,
+    multiSelectEnabled: false,
+    config: _config.auth,
+    onTap: onTap,
+    leadingIcons: const [Icon(Icons.star)],
+    quickActionButton: const SizedBox.shrink(),
+    additions: PostGridItemAdditions.empty,
+  );
+  const next = SizedBox(key: ValueKey('animated-next'), height: 40);
+  return _TestApp(
+    automaticMediaLoading: true,
+    reduceMotion: reduceMotion,
+    mediaOverrides: [
+      defaultImageCacheManagerProvider.overrideWithValue(TestImageCache({})),
+      dioForWidgetProvider.overrideWith((ref, config) => dio),
+      httpHeadersProvider.overrideWith((ref, config) => const {}),
+      deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+      imageListingSettingsProvider.overrideWithValue(
+        Settings.defaultSettings.listing.copyWith(imageListType: layout),
+      ),
+    ],
+    child: MediaQuery(
+      data: MediaQueryData(disableAnimations: disableAnimations),
+      child: Center(
+        child: SizedBox(
+          width: 160,
+          child: CustomScrollView(
+            slivers: [
+              if (layout == ImageListType.masonry)
+                SliverMasonryGrid.count(
+                  crossAxisCount: 1,
+                  mainAxisSpacing: 8,
+                  childCount: 2,
+                  itemBuilder: (context, index) => index == 0 ? tile : next,
+                )
+              else
+                SliverGrid.count(
+                  crossAxisCount: 1,
+                  mainAxisSpacing: 8,
+                  children: [tile, next],
+                ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
