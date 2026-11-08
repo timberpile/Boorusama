@@ -1,13 +1,17 @@
 # Issue #157: native nhentai source foundation
 
-Status: **source foundation implemented and package-verified; application engine
-and final acceptance remain pending**. The user authorized this independent work
+Status: **source foundation implemented, package-verified and independently
+reviewed; application engine and final acceptance remain pending**. The user
+authorized this independent work
 while #156 remediation continues. Nothing here enables a source, integrates into
 develop, or completes #157.
 
 Branch: `feature/157-native-nhentai-galleries`.
 Worktree: `.worktrees/157-native-nhentai-galleries`.
 Base: `5a73ae6233d92abef4e7f062b35114743ed5d5a6` (#156 paused checkpoint).
+Verified runtime source: `7a621b3049fe61622082e7bf7e7218e0d37493b0`.
+The subsequent handoff update changes documentation only; runtime source and tests
+remain identical to that reviewed candidate.
 The upstream #156 cache corrections must be reconciled before a combined candidate
 is tested. This branch changes only new source-specific package files and this
 handoff, not shared content/access/cache/Bookmark storage, engine registration,
@@ -99,6 +103,29 @@ Pinned FVM Flutter 3.47.2, Dart 3.13.2, six detected physical test workers.
   of routine tests and does not turn network availability into a unit-test gate.
 - `git diff --check`: passed.
 
+## Independent foundation review (2026-11-08)
+
+An actual independent **Sol High** review inspected source candidate
+`7a621b3049fe61622082e7bf7e7218e0d37493b0` against the base above, the current
+contracts and this handoff. It identified **no actionable correctness findings**
+in the #157 foundation. The reviewer independently ran, from
+`packages/booru_clients`,
+`fvm flutter test --no-pub --concurrency=6 test/nhentai`: **38 tests passed**.
+Its diff check against the supplied base also passed.
+
+The durable ignored local
+[review report](../../../_artifacts/architecture-foundations-sol-review.md) and
+adjacent `sol-review-157-tests.log` record the independent evidence and limits.
+The **276-test complete package pass**, clean scoped analysis and live host
+GET/decode results above are author verification; the reviewer read them but
+did not independently repeat those checks. Its independent 38-test run is not
+a full-package or complete-project regression. No Android, live service, decoder,
+timing or restoration validation was performed by that review.
+
+This closes the independent review gate for this source foundation only. It does
+not approve a later application cutover or complete #157. Fresh final runtime
+review remains required when the gated application adapters are implemented.
+
 Historical failures are retained. The first complete package attempt had three
 load failures because this fresh worktree lacked ignored generated booru config.
 `fvm install` linked the already installed SDK and `./gen.sh booru` generated only
@@ -108,7 +135,8 @@ booru config input, cache identity, backup codec or generated tracked file chang
 
 ## Remaining integration and acceptance
 
-- Independent actual **Sol High** review is still required. Older plan references
+- The independent actual **Sol High** foundation review is complete as recorded
+  above. Final application/runtime review remains open; older plan references
   to Astra do not supersede the user's newer reviewer instruction.
 - The engine remains absent from production registration/configuration. Complete
   the native Android/Dio GET/decode/cancellation/pagination gate under an exclusive
