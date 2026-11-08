@@ -1,4 +1,3 @@
-import '../../../../navigation/destination_activity.dart';
 import '../../../../bookmarks/src/types/bookmark_identity.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
@@ -35,13 +34,11 @@ import '../../../post/types.dart';
 import '../../widgets.dart';
 import '../_internal/raw_post_grid.dart';
 import '../_internal/sliver_post_grid.dart';
-import '../providers/internal_providers.dart';
 import '../providers/providers.dart';
 import '../types/post_action_snapshot.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/page_mode.dart';
 import '../types/active_blacklist_count.dart';
-import 'infinite_scroll_listener.dart';
 import 'post_grid_prefetch.dart';
 import 'post_grid_controller.dart';
 
@@ -72,7 +69,6 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.scrollToTopButton,
     this.enablePullToRefresh,
     this.cacheExtent,
-    this.prefetchOnLayout = false,
   });
 
   final List<Widget>? sliverHeaders;
@@ -96,7 +92,6 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
   final double? cacheExtent;
-  final bool prefetchOnLayout;
 
   @override
   ConsumerState<PostGrid<T>> createState() => _PostGridState();
@@ -133,15 +128,14 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return PerformanceScreenScope(
+    final grid = PerformanceScreenScope(
       screen: PerfScreen.searchGrid,
       priority: 0,
       child: _InheritedAutoScrollController(
         controller: _autoScrollController,
         child: RawPostGrid(
           options: PostGridOptions(
-            cacheExtent:
-                widget.cacheExtent ?? ref.watch(gridCacheExtentProvider),
+            cacheExtent: widget.cacheExtent,
             hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),
             gridSize: ref.watch(
               imageListingSettingsProvider.select((v) => v.gridSize),
@@ -217,7 +211,6 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
               PostGridScrollToTopButton(
                 controller: widget.controller,
                 autoScrollController: _autoScrollController,
-                prefetchOnLayout: widget.prefetchOnLayout,
               ),
           onNextPage: () => _goToNextPage(
             widget.controller,
@@ -263,6 +256,11 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
               ),
         ),
       ),
+    );
+    return PostGridPrefetch(
+      controller: widget.controller,
+      scrollController: _autoScrollController,
+      child: grid,
     );
   }
 }
@@ -429,13 +427,11 @@ class PostGridScrollToTopButton extends StatelessWidget {
     required this.autoScrollController,
     super.key,
     this.bottomPadding,
-    this.prefetchOnLayout = false,
   });
 
   final PostGridController controller;
   final AutoScrollController autoScrollController;
   final double? bottomPadding;
-  final bool prefetchOnLayout;
 
   @override
   Widget build(BuildContext context) {
@@ -452,18 +448,13 @@ class PostGridScrollToTopButton extends StatelessWidget {
             padding: multiSelect
                 ? EdgeInsets.only(bottom: effectiveBottomPadding)
                 : EdgeInsets.only(bottom: effectiveBottomPadding),
-            child: _GridPrefetchHost(
-              controller: controller,
+            child: KurumiScrollToTop(
               scrollController: autoScrollController,
-              prefetchOnLayout: prefetchOnLayout,
-              child: KurumiScrollToTop(
-                scrollController: autoScrollController,
-                layoutChanges: controller.itemsNotifier,
-                child: KurumiScrollToTopButton(
-                  onPressed: () {
-                    autoScrollController.jumpTo(0);
-                  },
-                ),
+              layoutChanges: controller.itemsNotifier,
+              child: KurumiScrollToTopButton(
+                onPressed: () {
+                  autoScrollController.jumpTo(0);
+                },
               ),
             ),
           );
@@ -938,36 +929,4 @@ class _InheritedAutoScrollController extends InheritedWidget {
   bool updateShouldNotify(_InheritedAutoScrollController oldWidget) {
     return controller != oldWidget.controller;
   }
-}
-
-class _GridPrefetchHost extends StatelessWidget {
-  const _GridPrefetchHost({
-    required this.controller,
-    required this.scrollController,
-    required this.prefetchOnLayout,
-    required this.child,
-  });
-  final PostGridController controller;
-  final ScrollController scrollController;
-  final bool prefetchOnLayout;
-  final Widget child;
-  @override
-  Widget build(BuildContext context) => prefetchOnLayout
-      ? PostGridPrefetch(
-          controller: controller,
-          scrollController: scrollController,
-          child: child,
-        )
-      : InfiniteScrollListener(
-          scrollController: scrollController,
-          onBottomReached: () {
-            if (!NavigationActivity.of(context) ||
-                !(ModalRoute.of(context)?.isCurrent ?? true)) {
-              return;
-            }
-            if (controller.pageMode == PageMode.infinite && controller.hasMore)
-              controller.fetchMore();
-          },
-          child: child,
-        );
 }

@@ -1,5 +1,3 @@
-import 'package:flutter/rendering.dart' show ScrollDirection;
-
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -768,7 +766,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   PostGridController<Post>? _controller;
   late FeedHistorySession _history;
   late List<StoredPostSnapshot> _filteredSnapshots;
-  var _prefetchedAtLength = -1;
   var _historyStarted = false;
   var _hasUpdates = false;
   var _historyCoverageIncomplete = false;
@@ -915,7 +912,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (filterChanged || sourceDefinitionsChanged || postsChanged) {
       _history.dispose();
       _history = _createHistory();
-      _prefetchedAtLength = -1;
       _historyStarted = false;
       _hasUpdates = false;
       _historyCoverageIncomplete = false;
@@ -935,7 +931,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (widget.filter.isActive) return;
     _history.dispose();
     _history = _createHistory();
-    _prefetchedAtLength = -1;
     setState(() {
       _historyStarted = false;
       _hasUpdates = false;
@@ -965,7 +960,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (widget.filter.isActive) return;
     final controller = _controller;
     if (controller == null || !controller.hasMore) return;
-    _prefetchedAtLength = controller.items.length;
     setState(() => _historyStarted = true);
     unawaited(controller.fetchMore());
   }
@@ -995,6 +989,10 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 total: snapshots.length,
                 hasMore: false,
               );
+            }
+            if (page > 1 && mounted && identical(history, _history)) {
+              // Shared grid prefetch and manual continuation both start history.
+              setState(() => _historyStarted = true);
             }
             final result = await history.load(page);
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1047,24 +1045,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
               enablePullToRefresh: false,
               multiSelectActions: _FeedSelectionActions(controller: controller),
               itemBuilder: (context, index, scroll, useHero) {
-                if (!widget.filter.isActive &&
-                    scroll.hasClients &&
-                    scroll.offset > 0 &&
-                    scroll.position.userScrollDirection ==
-                        ScrollDirection.reverse &&
-                    controller.hasMore &&
-                    index >= controller.items.length - 100 &&
-                    _prefetchedAtLength != controller.items.length) {
-                  _prefetchedAtLength = controller.items.length;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted &&
-                        !widget.filter.isActive &&
-                        identical(controller, _controller)) {
-                      setState(() => _historyStarted = true);
-                      unawaited(controller.fetchMore());
-                    }
-                  });
-                }
                 final post = controller.items.elementAt(index);
                 final config = switch (const PostOriginResolver().resolve(
                   post.origin,
