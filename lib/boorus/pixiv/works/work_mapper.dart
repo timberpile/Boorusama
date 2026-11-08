@@ -140,14 +140,22 @@ List<Post> pixivWorkPagePosts(
   ];
 }
 
-GroupTags _tags(PixivIllustDto dto) => GroupTags(
-  coverage: MetadataCoverage.complete,
-  values: [
-    for (final tag in dto.tags)
-      if (tag.name case final name? when name.isNotEmpty)
-        GroupTag(name: name, displayName: tag.translatedName),
-  ],
-);
+GroupTags? _tags(PixivIllustDto dto) {
+  if (dto.tagCoverage == PixivTagCoverage.unknown ||
+      (dto.tagCoverage == PixivTagCoverage.partial && dto.tags.isEmpty)) {
+    return null;
+  }
+  return GroupTags(
+    coverage: dto.tagCoverage == PixivTagCoverage.complete
+        ? MetadataCoverage.complete
+        : MetadataCoverage.partial,
+    values: [
+      for (final tag in dto.tags)
+        if (tag.name case final name? when name.isNotEmpty)
+          GroupTag(name: name, displayName: tag.translatedName),
+    ],
+  );
+}
 
 Uri? _safeUri(String? value) {
   if (value == null || value.isEmpty) return null;

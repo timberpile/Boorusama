@@ -3,6 +3,8 @@ import 'pixiv_image_urls_dto.dart';
 import 'pixiv_series_dto.dart';
 import 'pixiv_tag_dto.dart';
 
+enum PixivTagCoverage { unknown, partial, complete }
+
 /// An illust/manga/ugoira work.
 ///
 /// Every field is nullable — Pixiv keeps adding undocumented fields
@@ -19,6 +21,7 @@ class PixivIllustDto {
     this.restrict,
     this.user,
     this.tags = const [],
+    this.tagCoverage = PixivTagCoverage.unknown,
     this.tools = const [],
     this.createDate,
     this.pageCount,
@@ -38,6 +41,7 @@ class PixivIllustDto {
   });
 
   factory PixivIllustDto.fromJson(Map<String, dynamic> json) {
+    final (tags, tagCoverage) = _parseTags(json['tags']);
     return PixivIllustDto(
       id: json['id'] as int?,
       title: json['title'] as String?,
@@ -48,7 +52,8 @@ class PixivIllustDto {
       caption: json['caption'] as String?,
       restrict: json['restrict'] as int?,
       user: PixivIllustUser.fromJson(json['user'] as Map<String, dynamic>?),
-      tags: _parseTags(json['tags']),
+      tags: tags,
+      tagCoverage: tagCoverage,
       tools: _parseStringList(json['tools']),
       createDate: json['create_date'] as String?,
       pageCount: json['page_count'] as int?,
@@ -88,6 +93,10 @@ class PixivIllustDto {
   final int? restrict;
   final PixivIllustUser? user;
   final List<PixivTag> tags;
+
+  /// Whether native tag membership was observed, including a known empty list.
+  /// Missing/non-list fields are unknown; malformed list entries are partial.
+  final PixivTagCoverage tagCoverage;
   final List<String> tools;
 
   /// ISO8601 with a `+09:00` (JST) offset.
@@ -138,13 +147,29 @@ class PixivIllustDto {
     return single != null ? [single] : const [];
   }
 
-  static List<PixivTag> _parseTags(dynamic json) {
-    if (json is! List) return const [];
-
-    return json
-        .whereType<Map<String, dynamic>>()
-        .map(PixivTag.fromJson)
-        .toList();
+  static (List<PixivTag>, PixivTagCoverage) _parseTags(dynamic json) {
+    if (json is! List) return (const [], PixivTagCoverage.unknown);
+    var coverage = PixivTagCoverage.complete;
+    final tags = <PixivTag>[];
+    for (final item in json) {
+      if (item is! Map<String, dynamic> ||
+          item['name'] is! String ||
+          (item['name'] as String).isEmpty) {
+        coverage = PixivTagCoverage.partial;
+        continue;
+      }
+      final translation = item['translated_name'];
+      if (translation != null && translation is! String) {
+        coverage = PixivTagCoverage.partial;
+      }
+      tags.add(
+        PixivTag(
+          name: item['name'] as String,
+          translatedName: translation is String ? translation : null,
+        ),
+      );
+    }
+    return (tags, coverage);
   }
 
   static List<String> _parseStringList(dynamic json) {
