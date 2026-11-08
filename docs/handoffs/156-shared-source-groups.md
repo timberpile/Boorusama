@@ -168,6 +168,14 @@ P2 findings. The code was not approved, and #140 must remain unstarted:
   now expose optional bounded indexed reads; explicit refresh separately revokes
   pending reads and invalidates envelopes/resolved Posts on any page.
 
+The first remediation candidate `c0226450f492b156666e1de95e0dc15303795089`
+exposed an existing Search regression in its complete run: a fresh exact count
+larger than the first raw page must retain continuation even when that page is
+short. That failed run was deliberately interrupted before fixing the candidate;
+it is not a complete pass. Exact-count evidence now takes precedence over the
+raw-length fallback. The existing Search regression and the filtered Group
+production-registry/page-selector matrix are rerun together.
+
 Working-tree checks during remediation: 22 focused pager/production-registry/
 real paginated-grid tests passed; 207 existing listing, selection and action
 consumer tests passed; four native Pool widget cases passed with repeated IDs,

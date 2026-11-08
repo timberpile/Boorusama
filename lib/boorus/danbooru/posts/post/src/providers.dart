@@ -70,8 +70,8 @@ final danbooruPostRepoProvider =
           int? total;
           bool? hasMore;
           if (tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
-            // The ordinary count may be estimated or cached. Only a fresh
-            // exact count can prove that every raw member was received.
+            // A fresh exact count can prove completeness or remaining members,
+            // even when the raw page is shorter than the requested limit.
             final count = await client.countPosts(
               tags: [
                 ...tags,
@@ -85,7 +85,7 @@ final danbooruPostRepoProvider =
             final uniqueCount = posts.map((post) => post.id).toSet().length;
             if (count != null && count >= uniqueCount && count >= 0) {
               total = count;
-              if (page == 1 && uniqueCount == count) hasMore = false;
+              if (page == 1) hasMore = uniqueCount < count;
             }
             // Capture raw progress before visibility filtering removes banned
             // or Flash Posts. A shortened visible page is not source exhaustion.
