@@ -137,23 +137,27 @@ class DanbooruBlacklistTagRepository implements BlacklistTagRefRepository {
 
   @override
   Future<Set<String>> getBlacklistedTags(BooruConfigAuth config) async {
-    final currentUser = await ref.watch(
-      danbooruCurrentUserProvider(config).future,
-    );
+    // Server preferences enrich local filtering; they are not permission to
+    // read an already cached image. Never hold the local library behind a
+    // pending/failed current-user request. Watching the AsyncValue still updates
+    // the policy when server data arrives, and retains known data on refresh.
+    final currentUser = ref
+        .watch(danbooruCurrentUserProvider(config))
+        .valueOrNull;
 
     if (currentUser == null) {
       return {};
     }
 
-    final danbooruBlacklistedTags = await ref.watch(
-      danbooruBlacklistedTagsProvider(config).future,
-    );
+    final danbooruBlacklistedTags =
+        ref.watch(danbooruBlacklistedTagsProvider(config)).valueOrNull ??
+        currentUser.blacklistedTags.toList();
     final isUnverified = config.isUnverified();
     final booru = ref.watch(danbooruProvider);
     final censoredTagsBanned = booru.hasCensoredTagsBanned(config.url);
 
     return {
-      ...?danbooruBlacklistedTags,
+      ...danbooruBlacklistedTags,
       if (!isUnverified && censoredTagsBanned && !currentUser.level.isGoldPlus)
         ...kCensoredTags,
     };

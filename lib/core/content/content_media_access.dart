@@ -1,10 +1,7 @@
-import 'dart:async';
-
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../configs/config/types.dart';
-import '../images/scoped_image_cache_manager.dart';
 import '../posts/post/types.dart';
 import 'anonymous_source_policy.dart';
 import 'content_access.dart';
@@ -53,6 +50,8 @@ ContentMediaAccess watchContentMediaAccess(
   );
 }
 
+// Retained for existing callers. The image cache below deliberately does not
+// use this transient namespace for persistent keys.
 String contentMediaCacheNamespace(ContentAccessKey key) =>
     'content-media-v${AnonymousSourcePolicy.version}/${key.engine.id}/'
     '${Uri.encodeComponent(key.siteNamespace)}/${key.profileId ?? 'public'}/'
@@ -65,35 +64,12 @@ final contentMediaCacheNamespaceProvider =
       dependencies: [contentAccessEpochsProvider],
     );
 
+/// Share the normal URL/custom-key cache with Browse and previous app sessions.
+/// Access belongs to the caller and HTTP transport, not to a disk filename.
+/// This provider does not own the manager and must not dispose or clear it when
+/// a page, profile, or runtime access key changes.
 final contentMediaCacheManagerProvider = Provider.autoDispose
     .family<
       ImageCacheManager,
       ({ImageCacheManager manager, ContentAccessKey access})
-    >(
-      (ref, request) {
-        final context = ref.watch(contentAccessContextProvider(request.access));
-        var active = true;
-        final manager = ScopedImageCacheManager(
-          delegate: request.manager,
-          namespace: ref.watch(
-            contentMediaCacheNamespaceProvider(request.access),
-          ),
-          current: () =>
-              active &&
-              context != null &&
-              identical(
-                ref.read(contentAccessContextProvider(request.access)),
-                context,
-              ),
-        );
-        ref.onDispose(() {
-          active = false;
-          unawaited(manager.dispose());
-        });
-        return manager;
-      },
-      dependencies: [
-        contentAccessContextProvider,
-        contentMediaCacheNamespaceProvider,
-      ],
-    );
+    >((ref, request) => request.manager);
