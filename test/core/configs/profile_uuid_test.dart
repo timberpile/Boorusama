@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:boorusama/core/configs/config/data.dart';
-import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/src/data/booru_config_repository_hive.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:hive_ce/hive.dart';
@@ -11,53 +10,6 @@ import 'package:boorusama/foundation/loggers.dart';
 const profileUuid = '4d5b640c-cf50-4291-83f6-d6ff359e6389';
 
 void main() {
-  test('local media provenance survives restart and rename but rotates for auth/import/recreation', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'profile-media-generation',
-    );
-    Hive.init(directory.path);
-    var box = await Hive.openBox<String>('media-profiles');
-    addTearDown(() async {
-      if (box.isOpen) await box.close();
-      await directory.delete(recursive: true);
-    });
-    var repo = HiveBooruConfigRepository(box: box);
-    final data = BooruConfig.defaultConfig(
-      booruType: BooruType.danbooru,
-      url: 'https://safebooru.donmai.us',
-      customDownloadFileNameFormat: null,
-    ).toBooruConfigData();
-    final first = (await repo.add(data))!;
-    expect(first.localMediaGeneration, isNotNull);
-    expect(
-      first.toJson().keys.any((k) => k.toLowerCase().contains('generation')),
-      isFalse,
-    );
-    await box.close();
-    box = await Hive.openBox<String>('media-profiles');
-    repo = HiveBooruConfigRepository(box: box);
-    final restored = (await repo.getAll()).single;
-    expect(restored.localMediaGeneration, first.localMediaGeneration);
-    final renamed = (await repo.update(
-      first.id,
-      restored.copyWith(name: 'Renamed').toBooruConfigData(),
-    ))!;
-    expect(renamed.localMediaGeneration, first.localMediaGeneration);
-    final changed = (await repo.update(
-      first.id,
-      renamed.copyWith(apiKey: 'fixture').toBooruConfigData(),
-    ))!;
-    expect(changed.localMediaGeneration, isNot(first.localMediaGeneration));
-    final imported = (await repo.addAll([changed])).single;
-    expect(imported.localMediaGeneration, isNot(changed.localMediaGeneration));
-    await repo.remove(imported);
-    final recreated = (await repo.addAll([imported])).single;
-    expect(
-      recreated.localMediaGeneration,
-      isNot(imported.localMediaGeneration),
-    );
-  });
-
   test('profile JSON retains its canonical UUID', () {
     final profile = BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),

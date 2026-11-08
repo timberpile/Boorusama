@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_pool_card.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_cover_failures.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -18,8 +19,89 @@ import 'package:kurumi/material.dart';
 import '../posts/details/progressive_image_test_utils.dart';
 import '../search/following_topics/following_topic_test_utils.dart';
 import '../../support/fakes/test_post.dart';
+import 'pool_bookmark_test_utils.dart';
 
 void main() {
+  for (final count in [1, 2]) {
+    testWidgets(
+      '$count cached Posts retain $count distinct Pool covers in remaining slots',
+      (tester) async {
+        final profile = BooruConfig.fromJson({
+          ...testProfile.toJson(),
+          'booruId': BooruType.danbooru.id,
+          'booruIdHint': BooruType.danbooru.id,
+        });
+        final cache = _Cache();
+        final requests = <String>[];
+        final harness = FollowingTopicHarness(
+          profiles: [profile],
+          imageCacheManager: cache,
+          loadImages: true,
+          overrides: [
+            dioForWidgetProvider.overrideWith(
+              (ref, auth) =>
+                  Dio()..httpClientAdapter = _MissingAdapter(requests),
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        final previews = [
+          for (var id = 1; id <= count; id++) _bookmark(profile, id),
+        ];
+        for (final bookmark in previews)
+          await cache.saveFile(
+            cache.generateCacheKey(bookmark.thumbnailUrl),
+            lowerPng,
+          );
+        final pools = [
+          for (var id = 1; id <= count; id++)
+            testPool(id: id, host: 'unavailable.example'),
+        ];
+        await harness.pump(
+          tester,
+          Scaffold(
+            body: SizedBox.square(
+              dimension: 200,
+              child: BookmarkLocalGroupCard(
+                title: 'Mixed',
+                previews: previews,
+                pools: pools,
+                group: null,
+                onTap: () {},
+                onRename: null,
+                onDuplicate: null,
+                onDelete: null,
+              ),
+            ),
+          ),
+        );
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () =>
+                tester
+                    .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
+                    .where((image) => image.image != null)
+                    .length ==
+                count,
+            reason: 'cached mixed cover decode',
+          ),
+        );
+        expect(
+          tester
+              .widgetList<BookmarkPoolCoverImage>(
+                find.byType(BookmarkPoolCoverImage),
+              )
+              .map((cover) => cover.pool.referenceId),
+          orderedEquals(pools.map((pool) => pool.poolId)),
+        );
+        expect(find.byTooltip('Retry'), findsNothing);
+        expect(requests, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'four failed covers yield to an authorized cached later candidate within the source budget',
     (tester) async {
@@ -110,19 +192,13 @@ void main() {
       bool decoded() => tester
           .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
           .any((w) => w.image != null);
-      for (var i = 0; i < 100 && !decoded(); i++) {
-        await tester.pump();
-        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-      }
-      print({
-        'requests': requests,
-        'failures': harness.container
-            .read(bookmarkCoverFailuresProvider)
-            .values
-            .map((e) => e.length)
-            .toList(),
-        'imageWidgets': find.byType(ExtendedRawImage).evaluate().length,
-      });
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          decoded,
+          reason: 'bounded later cached cover decode',
+        ),
+      );
       expect(decoded(), isTrue);
       expect(requests.length, lessThanOrEqualTo(4));
       expect(requests.every((path) => path.startsWith('/thumb')), isTrue);
@@ -140,8 +216,49 @@ void main() {
         ),
         findsNothing,
       );
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => find.byTooltip('Retry').evaluate().isNotEmpty,
+          reason: 'single foreground cover retry',
+        ),
+      );
+      expect(find.byTooltip('Retry'), findsOneWidget);
+      await tester.tap(find.byTooltip('Retry'));
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          decoded,
+          reason: 'cached cover after explicit retry',
+        ),
+      );
+      expect(requests.length, lessThanOrEqualTo(8));
       expect(tester.takeException(), isNull);
     },
+  );
+}
+
+PostBookmark _bookmark(BooruConfig profile, int id) {
+  final post = TestPost(
+    id: id,
+    booruData: const LegacyPostData(typeKey: 'legacy_danbooru', custom: {}),
+    thumbnailImageUrl: 'https://active.example/thumb$id.png',
+    sampleImageUrl: 'https://active.example/large$id.png',
+    originalImageUrl: 'https://active.example/original$id.png',
+    origin: PostOrigin.fromSource(
+      booruType: BooruType.danbooru,
+      booruId: BooruType.danbooru.id,
+      source: profile.url,
+      profileIdHint: profile.id,
+    ),
+  );
+  return PostBookmark.fromSnapshot(
+    id: id,
+    createdAt: DateTime.utc(2026),
+    updatedAt: DateTime.utc(2026),
+    postId: id,
+    snapshot: const StoredPostCodec().encode(post),
+    post: post,
   );
 }
 

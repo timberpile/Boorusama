@@ -132,11 +132,6 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                           cachedBypassDdosHeadersProvider(request.url),
                         ),
                     };
-                    final cacheNamespace = access.key == null
-                        ? null
-                        : ref.watch(
-                            contentMediaCacheNamespaceProvider(access.key!),
-                          );
                     return BooruVideo(
                       key: ValueKey((access.key, request.url)),
                       sourceLoader: access.key == null
@@ -155,7 +150,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                                       access.key;
                               return prepareBoundVideo(
                                 url: request.url,
-                                namespace: cacheNamespace!,
+                                namespace: 'content-media',
                                 transport: mediaDio!,
                                 headers: mediaHeaders,
                                 isCurrent: current,

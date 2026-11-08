@@ -3,7 +3,6 @@ import 'dart:convert';
 
 // Package imports:
 import 'package:hive_ce/hive.dart';
-import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../../../../foundation/loggers.dart';
@@ -40,15 +39,14 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<BooruConfig?> add(BooruConfigData booruConfigData) async {
-    final generation = const Uuid().v4();
-    final json = {...booruConfigData.toJson(), _generationKey: generation};
+    final json = booruConfigData.toJson();
     final jsonString = jsonEncode(json);
     final id = createProfileId();
     await box.put(id, jsonString);
 
-    return booruConfigData
-        .toBooruConfig(id: id)
-        ?.copyWith(localMediaGeneration: generation);
+    return booruConfigData.toBooruConfig(
+      id: id,
+    );
   }
 
   @override
@@ -58,52 +56,36 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<List<BooruConfig>> getAll() async {
-    final configs = <BooruConfig>[];
-    for (final id in box.keys.toList()) {
-      if (!isCanonicalProfileId(id)) continue;
-      final raw = box.get(id);
-      if (raw == null) continue;
-      final json = jsonDecode(raw) as Map<String, dynamic>;
-      var generation = json[_generationKey] as String?;
-      if (generation == null || !Uuid.isValidUUID(fromString: generation)) {
-        generation = const Uuid().v4();
-        // Confirm provenance durably before exposing the profile to readers.
-        await box.put(id, jsonEncode({...json, _generationKey: generation}));
-      }
-      final config = BooruConfigData.fromJson(json)
-          .toBooruConfig(id: id as String);
-      if (config != null)
-        configs.add(config.copyWith(localMediaGeneration: generation));
-    }
-    return configs;
-  }
+    return box.keys
+        .map((e) {
+          if (!isCanonicalProfileId(e)) return null;
+          final jsonString = box.get(e);
+          if (jsonString == null) return null;
+          final json = jsonDecode(jsonString);
+          final booruConfigData = BooruConfigData.fromJson(json);
 
-  static const _generationKey = '_localMediaGenerationV1';
+          return booruConfigData.toBooruConfig(
+            id: e as String,
+          );
+        })
+        .nonNulls
+        .toList();
+  }
 
   @override
   Future<BooruConfig?> update(
     String id,
     BooruConfigData booruConfigData,
   ) async {
-    final raw = box.get(id);
-    final previous = raw == null
-        ? null
-        : jsonDecode(raw) as Map<String, dynamic>;
-    final old = previous == null
-        ? null
-        : BooruConfigData.fromJson(previous).toBooruConfig(id: id);
-    final next = booruConfigData.toBooruConfig(id: id);
-    final oldGeneration = previous?[_generationKey] as String?;
-    final generation = old?.auth == next?.auth && oldGeneration != null
-        ? oldGeneration
-        : const Uuid().v4();
-    final json = {...booruConfigData.toJson(), _generationKey: generation};
+    final json = booruConfigData.toJson();
     final jsonString = jsonEncode(json);
 
     try {
       await box.put(id, jsonString);
 
-      return next?.copyWith(localMediaGeneration: generation);
+      return booruConfigData.toBooruConfig(
+        id: id,
+      );
     } catch (error, stackTrace) {
       logger?.handledError(
         'Profiles',
@@ -130,18 +112,14 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
 
     for (final booruConfig in booruConfigs) {
       final data = booruConfig.toBooruConfigData();
-      // Import/replacement starts a new local actor even when an ID is reused.
-      final generation = const Uuid().v4();
-      final json = {...data.toJson(), _generationKey: generation};
+      final json = data.toJson();
       final jsonString = jsonEncode(json);
       await box.put(booruConfig.id, jsonString);
 
       configs.add(
-        data
-            .toBooruConfig(
-              id: booruConfig.id,
-            )!
-            .copyWith(localMediaGeneration: generation),
+        data.toBooruConfig(
+          id: booruConfig.id,
+        )!,
       );
     }
 

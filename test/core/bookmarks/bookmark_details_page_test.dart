@@ -6,7 +6,6 @@ import 'package:boorusama/core/content/content_access.dart';
 import 'package:boorusama/core/content/anonymous_read_scope.dart';
 import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/content/content_media_access.dart';
-import 'package:boorusama/core/images/scoped_image_cache_manager.dart';
 import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_hierarchy_conversion.dart';
 import 'package:uuid/uuid.dart';
@@ -727,18 +726,12 @@ void main() {
           authEpoch: 1,
           policyEpoch: 2,
         );
-        final scopedCache = ScopedImageCacheManager(
-          delegate: cache,
-          namespace:
-              '${epochs.sessionId}/${contentMediaCacheNamespace(fixedAccess.key)}',
-          current: () => true,
-        );
         for (final url in [
           bookmark.thumbnailUrl,
           bookmark.sampleUrl,
           bookmark.originalUrl,
         ]) {
-          final key = scopedCache.generateCacheKey(url);
+          final key = cache.generateCacheKey(url);
           await cache.saveFile(key, lowerPng);
           expect(await cache.getCachedFileBytes(key), lowerPng);
         }
@@ -815,16 +808,12 @@ void main() {
             expect(
               adapter.requests,
               isEmpty,
-              reason: 'all bookmark surfaces reuse the current access-scoped cache files',
+              reason: 'all bookmark surfaces reuse ordinary URL cache files',
             );
             for (final image in tester.widgetList<BooruRawImage>(
               find.byType(BooruRawImage),
             )) {
-              expect(image.imageCacheManager, isA<ScopedImageCacheManager>());
-              expect(
-                (image.imageCacheManager! as ScopedImageCacheManager).delegate,
-                same(cache),
-              );
+              expect(image.imageCacheManager, same(cache));
             }
             await tester.pumpWidget(const SizedBox());
           }
@@ -832,7 +821,6 @@ void main() {
           await tester.pumpWidget(const SizedBox());
           controller.dispose();
           dio.close(force: true);
-          await scopedCache.dispose();
           await cache.dispose();
           await root.delete(recursive: true);
         }

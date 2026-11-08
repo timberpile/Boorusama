@@ -444,17 +444,26 @@ void main() {
     expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
     expect(find.text('Child'), findsOneWidget);
 
+    await tester.tap(_ancestorMenu(tester));
+    await scenario.harness.settle(tester);
+    expect(find.text('Home'), findsOneWidget);
+    expect(find.text('Root'), findsOneWidget);
+    final currentItem = find.ancestor(
+      of: find.text('Child'),
+      matching: find.byType(KurumiPopupMenuItem),
+    );
+    expect(tester.widget<KurumiPopupMenuItem>(currentItem).onTap, isNull);
+    await tester.binding.handlePopRoute();
+    await scenario.harness.settle(tester);
+
     await tester.binding.handlePopRoute();
     await scenario.harness.settle(tester);
     expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
     expect(find.text('Root'), findsOneWidget);
 
-    await tester.tap(_ancestorMenu(tester));
-    await scenario.harness.settle(tester);
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Root'), findsWidgets);
-    expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
-    await tester.tap(find.text('Home'));
+    // A root group has no ancestor popup; its ordinary Back action reaches Home.
+    expect(_ancestorMenu(tester), findsNothing);
+    await tester.tap(find.byType(BackButton));
     await scenario.harness.settle(tester);
     expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
     expect(

@@ -19,6 +19,7 @@ import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid_controller.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/post/src/data/origin_aware_post_repository.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -75,7 +76,10 @@ void main() {
           contentGroupSourceProvider.overrideWith(
             (ref, key) => DanbooruGroupSource(
               access: ref.read(contentAccessContextProvider(key))!,
-              postRepository: () => repo,
+              postRepository: () => OriginAwarePostRepository.fromConfig(
+                delegate: repo,
+                config: config,
+              ),
               fetchPool: (_) async {
                 fetches++;
                 return version == 1 ? original : pool(2);
@@ -107,6 +111,12 @@ void main() {
       }
       PostGridController<Post> controller() =>
           tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>)).controller;
+      for (var i = 0; i < 100 && controller().refreshing; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      }
+      expect(controller().errors.value, isNull);
+      expect(controller().items.map((p) => p.id), [1, 2]);
       expect(find.text('Before'), findsWidgets);
       var jumped = false;
       final jump = controller().jumpToPage(2)
@@ -141,6 +151,14 @@ void main() {
       }
       expect(find.text('After'), findsWidgets);
       expect(find.text('Before'), findsNothing);
+      expect(
+        find.textContaining('new description', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('old description', findRichText: true),
+        findsNothing,
+      );
       expect(controller().page, 2);
       expect(controller().items.map((p) => p.id), [2, 3]);
       expect(

@@ -55,7 +55,10 @@ final class AnonymousSource extends Equatable {
 
   bool allowsMedia(Uri target) =>
       _safeHttps(target) &&
-      !target.hasQuery &&
+      (!target.hasQuery ||
+          (_site == 'https://realbooru.com' && _realbooruMediaQuery(target))) &&
+      (_site != 'https://realbooru.com' ||
+          RegExp(r'^/(?:images|thumbnails|samples)/').hasMatch(target.path)) &&
       _mediaHosts.contains(target.host) &&
       _safePath(target) &&
       RegExp(
@@ -70,6 +73,7 @@ final class AnonymousSource extends Equatable {
         target.queryParametersAll.keys.any(_credentialParameter)) {
       return false;
     }
+    if (_site == 'https://realbooru.com') return _realbooruApi(target);
     return switch (engine) {
       BooruType.danbooru => RegExp(
         r'^/(?:posts|pools|tags|notes|comments|artists|counts/posts)(?:/[1-9][0-9]*)?\.json$',
@@ -95,6 +99,63 @@ final class AnonymousSource extends Equatable {
 
   @override
   List<Object?> get props => [engine, _site];
+}
+
+bool _realbooruMediaQuery(Uri target) =>
+    target.queryParametersAll.entries.every(
+      (entry) =>
+          const {'v', 'version'}.contains(entry.key) &&
+          entry.value.length == 1 &&
+          RegExp(r'^[0-9]+$').hasMatch(entry.value.single),
+    );
+
+bool _realbooruApi(Uri target) {
+  if (target.path != '/index.php') return false;
+  final query = target.queryParameters;
+  if (target.queryParametersAll.values.any((values) => values.length != 1))
+    return false;
+  bool number(String name, {int minimum = 0, int? maximum}) {
+    final value = query[name];
+    if (value == null) return true;
+    final parsed = int.tryParse(value);
+    return parsed != null &&
+        parsed >= minimum &&
+        (maximum == null || parsed <= maximum);
+  }
+
+  if (query['page'] == 'dapi') {
+    return query.keys.every(
+          const {
+            'page',
+            's',
+            'q',
+            'id',
+            'limit',
+            'pid',
+            'tags',
+            'json',
+          }.contains,
+        ) &&
+        query['s'] == 'post' &&
+        query['q'] == 'index' &&
+        number('id', minimum: 1) &&
+        number('limit', minimum: 1, maximum: 100) &&
+        number('pid') &&
+        (query['json'] == null || const {'0', '1'}.contains(query['json']));
+  }
+  // Existing Realbooru engine overrides use the native HTML listing/detail
+  // parser while its documented DAPI endpoint is unavailable.
+  if (query['page'] != 'post') return false;
+  return switch (query['s']) {
+    'list' =>
+      query.keys.every(const {'page', 's', 'tags', 'pid'}.contains) &&
+          number('pid'),
+    'view' =>
+      query.keys.every(const {'page', 's', 'id'}.contains) &&
+          query['id'] != null &&
+          number('id', minimum: 1),
+    _ => false,
+  };
 }
 
 bool _safeHttps(Uri uri) =>
@@ -125,6 +186,9 @@ bool _credentialParameter(String name) => const {
 // Source sites are the exact built-in installations in boorus.yaml. CDN access
 // remains separate and explicit; unknown media hosts remain unavailable.
 const _sources = [
+  AnonymousSource._(BooruType.gelbooruV2, 'https://realbooru.com', {
+    'realbooru.com',
+  }),
   AnonymousSource._(BooruType.danbooru, 'https://danbooru.donmai.us', {
     'danbooru.donmai.us',
     'cdn.donmai.us',

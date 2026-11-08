@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/manage/widgets.dart';
-import 'package:boorusama/core/content/anonymous_access_provider.dart';
-import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';

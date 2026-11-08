@@ -137,7 +137,7 @@ ProviderContainer _makeContainer(_Cache cache, Dio dio) => ProviderContainer(
 
 void main() {
   test(
-    'actor namespaces differ and same key differs across app sessions',
+    'disk keys stay URL-based across actors and provider sessions',
     () async {
       final cache = _Cache();
       final dio = Dio()..httpClientAdapter = _Adapter();
@@ -185,13 +185,6 @@ void main() {
         publicKey: publicContext,
       };
       two.read(contexts.notifier).state = {a.key: a};
-      final ns = [
-        one.read(contentMediaCacheNamespaceProvider(a.key)),
-        one.read(contentMediaCacheNamespaceProvider(b.key)),
-        one.read(contentMediaCacheNamespaceProvider(publicKey)),
-        two.read(contentMediaCacheNamespaceProvider(a.key)),
-      ];
-      expect(ns.toSet(), hasLength(4));
       final firstProvider = contentMediaCacheManagerProvider((
         manager: cache,
         access: a.key,
@@ -204,9 +197,10 @@ void main() {
       final second = two.read(firstProvider);
       final firstKey = first.generateCacheKey(image);
       final secondKey = second.generateCacheKey(image);
-      expect(firstKey, isNot(secondKey));
+      expect(firstKey, secondKey);
+      expect(firstKey, cache.generateCacheKey(image));
       await first.saveFile(firstKey, Uint8List.fromList([1]));
-      expect(await second.getCachedFileBytes(secondKey), isNull);
+      expect(await second.getCachedFileBytes(secondKey), [1]);
     },
   );
 

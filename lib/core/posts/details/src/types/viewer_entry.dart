@@ -44,7 +44,6 @@ final class ViewerSourceBinding {
         .where(
           (candidate) =>
               candidate.id == config.id &&
-              candidate.localMediaGeneration == config.localMediaGeneration &&
               candidate.auth == config.auth &&
               candidate.filter == config.filter &&
               BooruConfigSearchFilter.fromConfig(candidate) ==

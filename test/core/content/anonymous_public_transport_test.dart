@@ -1,3 +1,9 @@
+import 'dart:ui' as ui;
+
+import 'package:booru_clients/src/gelbooru_v2/parsers/rb_parsers.dart';
+
+import '../posts/details/progressive_image_test_utils.dart' show lowerPng;
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -10,6 +16,68 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'Realbooru native anonymous detail parser and media GET decode without account headers',
+    (tester) async {
+      await tester.runAsync(() async {
+        final source = const AnonymousSourcePolicy().resolve(
+          BooruType.gelbooruV2,
+          Uri.parse('https://realbooru.com'),
+        )!;
+        final coordinator = ApiRequestCoordinator();
+        final delegate = _RecordingAdapter(
+          responses: [
+            ResponseBody.fromString(
+              '<input name="id" value="42"><img id="image" src="/images/ab/cd/fixture.png" width="1" height="1">',
+              200,
+              headers: {
+                Headers.contentTypeHeader: ['text/html'],
+              },
+            ),
+            ResponseBody.fromBytes(
+              lowerPng,
+              200,
+              headers: {
+                Headers.contentTypeHeader: ['image/png'],
+              },
+            ),
+          ],
+        );
+        final dio = _coordinatedDio(delegate, coordinator, source);
+        addTearDown(() {
+          dio.close(force: true);
+          coordinator.dispose();
+        });
+        final response = await dio.get<String>(
+          '/index.php?page=post&s=view&id=42',
+        );
+        final post = parseRbPostHtml(response, {
+          'baseUrl': source.site.toString(),
+        });
+        expect(post, isNotNull);
+        final media = await dio.get<List<int>>(
+          post!.sampleUrl!,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        {
+          final codec = await ui.instantiateImageCodec(
+            Uint8List.fromList(media.data!),
+          );
+          final frame = await codec.getNextFrame();
+          expect(frame.image.width, greaterThan(0));
+          frame.image.dispose();
+          codec.dispose();
+        }
+        expect(delegate.calls, hasLength(2));
+        for (final call in delegate.calls) {
+          _expectNoCredentialHeaders(call.options.headers);
+          expect(call.requestStream, isNull);
+          expect(call.options.data, isNull);
+        }
+      });
+    },
+  );
+
   final source = const AnonymousSourcePolicy().resolve(
     BooruType.danbooru,
     Uri.parse('https://safebooru.donmai.us'),

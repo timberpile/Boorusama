@@ -24,8 +24,13 @@ void retryBookmarkPolicy(WidgetRef ref, PostOrigin origin) {
 
 /// Occupied slots retain geometry while access policy is unresolved or denied.
 class BookmarkAccessPlaceholder extends ConsumerWidget {
-  const BookmarkAccessPlaceholder({required this.origin, super.key});
+  const BookmarkAccessPlaceholder({
+    required this.origin,
+    this.aspectRatio = 1,
+    super.key,
+  });
   final PostOrigin origin;
+  final double aspectRatio;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,22 +43,25 @@ class BookmarkAccessPlaceholder extends ConsumerWidget {
         ? ref.watch(contentEffectivePolicyProvider(resolved.config.id))
         : null;
     final loading = policy?.isLoading ?? false;
-    return ColoredBox(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: Center(
-        child: loading
-            ? Semantics(
-                label: context.t.bookmark.loading,
-                child: const SizedBox.square(
-                  dimension: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+    return AspectRatio(
+      aspectRatio: aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1,
+      child: ColoredBox(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: Center(
+          child: loading
+              ? Semantics(
+                  label: context.t.bookmark.loading,
+                  child: const SizedBox.square(
+                    dimension: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : IconButton(
+                  tooltip: context.t.bookmark.unavailable_temporary,
+                  icon: const Icon(Icons.cloud_off_outlined),
+                  onPressed: () => retryBookmarkPolicy(ref, origin),
                 ),
-              )
-            : IconButton(
-                tooltip: context.t.bookmark.unavailable_temporary,
-                icon: const Icon(Icons.cloud_off_outlined),
-                onPressed: () => retryBookmarkPolicy(ref, origin),
-              ),
+        ),
       ),
     );
   }

@@ -162,7 +162,7 @@ void main() {
     },
   );
 
-  test('cache scopes separate same-auth profiles, public and unscoped and reject late reads', () async {
+  test('cache URL keys are shared while captured access remains independently revoked', () async {
     final c = makeContainer();
     addTearDown(c.dispose);
     final profiles = c.read(booruConfigProvider.notifier) as _Configs;
@@ -219,26 +219,20 @@ void main() {
     final bk = bm.generateCacheKey(url);
     final pk = pm.generateCacheKey(url);
     final legacy = delegate.generateCacheKey(url);
-    expect({ak, bk, pk, legacy}, hasLength(4));
+    expect({ak, bk, pk, legacy}, hasLength(1));
     await am.saveFile(ak, Uint8List.fromList([1]));
-    await bm.saveFile(bk, Uint8List.fromList([2]));
-    await pm.saveFile(pk, Uint8List.fromList([3]));
-    await delegate.saveFile(legacy, Uint8List.fromList([4]));
-    expect(await am.getCachedFileBytes(bk), isNull);
-    expect(await bm.getCachedFileBytes(pk), isNull);
-    expect(await pm.getCachedFileBytes(legacy), isNull);
-    expect(await am.getCachedFileBytes(ak), [1]);
-    expect(await bm.getCachedFileBytes(bk), [2]);
-    expect(await pm.getCachedFileBytes(pk), [3]);
+    expect(await bm.getCachedFileBytes(bk), [1]);
+    expect(await pm.getCachedFileBytes(pk), [1]);
     final gate = Completer<Uint8List?>();
     delegate.readGate = gate;
     final pending = am.getCachedFileBytes(ak);
     profiles.replace([b]);
     expect(c.read(contentAccessContextProvider(aAccess.key)), isNull);
     gate.complete(Uint8List.fromList([1]));
-    expect(await pending, isNull);
+    expect(await pending, [1]);
+    expect(c.read(contentAccessContextProvider(aAccess.key)), isNull);
     delegate.readGate = null;
-    expect(await am.getCachedFileBytes(ak), isNull);
-    expect(await bm.getCachedFileBytes(bk), [2]);
+    // Storage still exists; current access, transport and consumers decide use.
+    expect(await bm.getCachedFileBytes(bk), [1]);
   });
 }

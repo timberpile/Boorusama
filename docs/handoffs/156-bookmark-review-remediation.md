@@ -1,6 +1,77 @@
 # Bookmark review remediation before continuing the rollout
 
 
+## Active continuation (supersedes paused cache/icon and stage-order instructions)
+
+The user resumed the existing branch at `5a73ae623`, also verified as the remote
+head. The explicit accepted cache decision is URL/custom-key reuse; the paused
+opaque generation and policy-snapshot store are rejected and being removed.
+The separate offline patch `2fbcc64e6` is selectively integrated, not blindly
+cherry-picked. Its actual Flutter tests were previously unexecuted.
+
+Family A is approved, with group modes Structure and Unified. Internal persisted
+`allBookmarks` values stay compatible; the global All Bookmarks destination is
+unchanged. Separate #140/#141 and independent #157 work may begin before #156
+acceptance, but no PR, develop integration, push or issue closure is authorized.
+Penpot currently has no connected instance; selected editable SVGs and exact
+component names are preserved in the design README.
+
+The paused checkpoint below is historical evidence, not the active cache or icon
+contract. Its failed/interrupted checks must be superseded by final-candidate
+verification, Android restoration and independent Sol High approval.
+
+### Combined implementation checkpoint
+
+The underlying image manager now preserves ordinary URL/custom keys, separate
+renditions and existing quota/lease ownership. Removed the paused generation
+allocator, config fields, namespace provider and duplicate policy store. Runtime
+actor epochs, presentation/transport guards and late-result rejection remain.
+The imported Danbooru tests needed their local blacklist fixture corrected to
+the existing JSON-list representation; their decoded-cache/outage paths pass.
+
+The native refresh failure also exposed a test fixture that bypassed the normal
+origin-aware repository. Corrected that seam without weakening the page-level
+assertions. The corrected test fails against the old production scope/cache
+implementation and passes with refreshed title, description and member IDs.
+Danbooru descriptions now use the refreshed native envelope's DText for both
+public and saved actors instead of retaining separately cached HTML.
+
+Cover decoding needed completion-driven test pumping, not a broader candidate
+scan. Independent Sol High review additionally found skipped Pool covers when
+Posts occupy earlier slots. Sequential remaining-Pool allocation now has cached
+1+1 and 2+2 regressions. Empty mosaic cells are decorative; exhausted candidates
+expose one foreground Retry, with bounded reattempt coverage. Browser root Back
+and child ancestor navigation are tested under the accepted depth contract.
+
+Durable evidence is under `.worktrees/_artifacts/156-resume/`. Focused actor,
+policy, preload, cover and refresh checks passed 16 tests; outage/details and
+translation consumers passed 27. The first broad run completed with 2,584 passes
+and three failures: the obsolete root-popup expectation and two keyboard audits
+of decorative empty-cover Retry buttons. The latter audits now pass; the
+corrected hierarchy scenario also passes. These partial runs do not establish a
+final-candidate complete regression pass. Full regression, ordinary-main Android
+acceptance/restoration and the exact-head independent review remain pending.
+
+Serial host probes retain the before/after attribution limit: 9,000 synthetic
+rows took 764.6–935.3 ms for first tag-index construction and 0.282–0.601 ms on
+reuse; 1,000 real Hive rows wrote in 719.2 ms and cold-loaded in 197.6 ms. These
+do not measure Android opening, mode-switch frames or decoded-media latency.
+
+Fresh Realbooru DAPI still returns HTTP 200 with `success=false`. Existing HTML
+listing/detail parsing and guarded thumbnail/sample GET/decode succeed on the
+host with the app's ordinary first-party Referer. No profile or extra CDN was
+introduced. Real Android public-reader acceptance is still pending. Szurubooru
+advertises anonymous Pool viewing but restricts listing to registered users;
+the preserved app contains no Szurubooru profile. A bounded 100-Post discovery
+found no Pool, so a known existing Pool ID is requested rather than bypassing
+listing permissions or treating the listing 403 as a view denial.
+
+Separate reviewed foundations are committed at #140 `308463b1d`, #141
+`1167f6dbf`, and #157 `7a621b304`. Their own handoffs retain production UI,
+combined/full-regression and Android gates. Sol High's Pixiv tag-omission P2 was
+reproduced, corrected and independently re-reviewed; no remaining actionable
+foundation finding was reported. This does not complete those issues.
+
 ## Paused implementation checkpoint (2026-11-08)
 
 The user explicitly requested committing the current state and pausing. This
@@ -95,7 +166,7 @@ Audited remote head: `0812367722defc59d36063ee9d4a631cf263b010`; inherited runti
 
 The latest user corrections override older #158 decisions about navigable leaves, the repeated current-group row, root Back visibility, picker density and ancestor-menu depth. They do not remove direct memberships, per-group mode persistence, hierarchical system Back, or the single scrolling timeline contract. Backup output remains version 10.
 
-Do not proceed to #140 until the in-scope correctness fixes, required checks and independent review are complete. Retain the existing real Szurubooru Android gate from the original handoff. An unavailable test instance is an explicit remaining gate, not a reason to invent evidence or silently remove coverage. No PR, develop integration, release, issue closure or runtime push is authorized by this documentation delivery; honor any additional authorization in the local session.
+The resumed user request permits separate #140/#141 and independent #157 foundation work during this remediation. Develop integration still requires every applicable acceptance gate. Retain the existing real Szurubooru Android gate from the original handoff. An unavailable test instance is an explicit remaining gate, not a reason to invent evidence or silently remove coverage. No PR, develop integration, release, issue closure or runtime push is authorized by this documentation delivery; honor any additional authorization in the local session.
 
 ## Delivery scope
 
@@ -110,7 +181,7 @@ The specification contains source evidence, confidence levels and implementation
 | N5 | Groups containing only subgroups show neither a trailing divider nor a misleading No bookmarks section. |
 | N6 | Compact, wider, consistent modal and anchored pickers; right-aligned glyph within a generous navigation target; no navigation for leaves or repeated self row; no visible Home Back action. |
 | N7 | Four cover tiles stay fixed relative to their group card during scrolling and overscroll. |
-| N8 | Ancestor menu only from depth 2; icon alternatives are supplied for selection, not silently chosen for production. |
+| N8 | Ancestor menu only from depth 2; approved family-A icons for Structure/Unified. |
 | N9 | Add verified exact-source anonymous Realbooru reads, or report the concrete live transport blocker without fabricating a profile. |
 | R1 | Public/source-bound selections cannot borrow another saved account for actions. |
 | R2 | Deleting the currently open group normalizes navigation once, without cascading upward. |
@@ -129,9 +200,9 @@ Reproduce R1 first through the actual production selection toolbar, not merely a
 
 ### 2. Resolve access, cache and source failures together
 
-Implement N1/N2 with R1 as the security regression gate. Preserve exact engine/site/installation/account isolation, cancellation and late-result guards. A temporary transport failure must not become a permanent missing-profile classification. A stored record remains locally manageable and exportable even when remote access fails.
+Implement N1/N2 with R1 as the actor-binding regression gate. Preserve exact engine/site/installation/account isolation, cancellation and late-result guards. A temporary transport failure must not become a permanent missing-profile classification. A stored record remains locally manageable and exportable even when remote access fails.
 
-Use a durable opaque cache generation and current authorization checks as separate concerns. Do not simply delete session IDs from the current cache key, fall back globally to URL-only cache entries, bypass blacklist checks, reuse a different account, or serialize credentials into cache identities. Cover both image and video users of the shared namespace.
+Use ordinary URL/custom-key media storage, with current authorization checks at presentation/transport and late-publication boundaries. Remove the rejected generation allocator and duplicate policy store. Preserve global/profile local rules and reactively available server preferences, actor identity, redirect/header restrictions and cancellation; test image/video consumers separately.
 
 Resolve N3 through the existing cover renderer and media pipeline with bounded candidate loading. Do not eagerly fetch every member or remote Group to manufacture a cover. Preserve legitimate GIF playback settings while removing unintended geometric motion.
 
@@ -151,7 +222,7 @@ Fix R2/R3/R4 with focused production-path regressions. Preserve the previous #15
 
 ## Delegation and independent review
 
-The lead owns account/action binding, durable cache generations, cached policy provenance, revocation, migration implications and the Group refresh/restoration logic. Bounded low-cost subagents may prepare deterministic fixtures, localized strings, fixed mosaic/picker geometry changes, SVG/import checks and narrow tests in disjoint files. Review their diffs before integrating. Avoid concurrent edits to shared access/cache files.
+The lead owns account/action binding, selective URL-cache integration, revocation, local/server policy composition and Group refresh/restoration logic. Bounded low-cost subagents may prepare deterministic fixtures, localized strings, fixed mosaic/picker geometry changes, SVG/import checks and narrow tests in disjoint files. Review their diffs before integrating. Avoid concurrent edits to shared access/cache files.
 
 The final independent reviewer must be an actual **Sol High** agent, following the later user instruction recorded in the #143/#156 handoffs. It must not have authored the canonical implementation/tests/fixes. Provide base/head, the complete remediation delta, this contract, actual failed and passing commands, and device evidence. Require adversarial coverage of account borrowing, persistent cache reuse versus revocation, outage placeholders, mode invalidation and both picker presenters. Fix findings, rerun checks and obtain final re-review of the corrected candidate. Do not relabel self-review, a weaker model, or old approval as this review.
 
@@ -162,10 +233,10 @@ Use FVM and the repository's pinned dependencies. Keep runtime tests behavioral;
 | Area | Minimum regression cases |
 | --- | --- |
 | Access/outage | Delayed remote policy, policy failure, valid last-known same-actor policy, no prior policy, 503/timeout/DNS failure, explicit 401/403, deleted profile, blocked URL and unrelated healthy source. No invisible occupied cells, silent policy bypass or row reindexing under an open action. |
-| Durable cache | Seed real disk cache, fully recreate the provider container/process with unchanged profile/policy, disable network and render/decode. Then change credentials, source path, blacklist, delete/recreate profile, revoke in flight, change anonymous policy and retry. Verify permitted reuse and denied cross-scope reads separately. |
+| URL cache | Seed ordinary URL/custom-key disk entries, recreate providers/process/cache manager and decode offline. Preserve distinct renditions. Change actor/policy and verify presentation/transport and in-flight publication revocation independently of shared storage identity. No generation database or cache clearing. |
 | Cover fallback | First four candidates fail, a later candidate is healthy/cached; bounded request count, stable positions, no forbidden thumbnail, no full-library crawl, empty/all-denied fallback and recovery after explicit retry. |
-| Performance | Large known fixture; cold migration versus later startup; warm Structure/All switching; unrelated library publication; profile change during computation; no content-detail requests merely to open/switch. Reuse existing benchmark harness and record same-host before/after results. |
-| Empty/browser | Children-only group, truly empty leaf, direct records filtered to zero, all unavailable, All Bookmarks genuinely empty, root and Default. Ancestor menu depth 0/1/2/3, deleted current group and repeated rebuilds. |
+| Performance | Large known fixture; cold migration versus later startup; warm Structure/Unified switching; unrelated library publication; profile change during computation; no content-detail requests merely to open/switch. Reuse existing benchmark harness and record same-host before/after results. |
+| Empty/browser | Children-only group, truly empty leaf, direct records filtered to zero, all unavailable, global All Bookmarks genuinely empty, root and Default. Ancestor menu depth 0/1/2/3, deleted current group and repeated rebuilds. |
 | Picker | Modal + anchor + context + batch + Recent; leaf versus parent, hidden Home Back, direct-membership indicators, full-row hit coverage, split boundary, keyboard focus, RTL, large text, small height and naming-dialog Back ownership. |
 | Mosaic | Deterministic decoded images, fast drags and top/bottom overscroll; tile-to-card relative rects invariant, no inner Scrollable, no reentry animation or Hero. Test scrolling from a thumbnail as well as the card label. |
 | Realbooru | Existing parser/engine, bodyless anonymous API GET, media GET and decode, permitted redirects, forbidden host/scheme/path/query, no Cookie/Authorization/account proxy inheritance, profile deletion, reboot and unavailable recovery. |
@@ -189,14 +260,14 @@ Use Maestro with an exclusive emulator lease and a complete fresh backup invento
 2. Load several images, force-stop, disable network and reopen the same group. Confirm actual decoded thumbnails after a true restart. Repeat after a scope-changing profile edit to verify isolation.
 3. Use a group whose earliest four cover candidates fail. Its title/card stays usable; an allowed later candidate can supply a cover without a request storm. Repeat Home scrolling/overscroll: mosaic tiles stay attached.
 4. A children-only group has just child cards. An empty leaf still has an appropriate empty state; searching existing direct content to zero keeps search controls.
-5. Toggle Structure/All repeatedly on a large warm group. Record shell/projection/media timings separately and verify scoped results, deduplication, query and per-group mode persistence.
+5. Toggle Structure/Unified repeatedly on a large warm group. Record shell/projection/media timings separately and verify scoped results, deduplication, query and per-group mode persistence.
 6. Open normal and batch pickers. Leaf body selects without an arrow/self-only page. Parent body selects directly; its trailing zone opens children. No Home Back row. System Back still moves up, then closes at root. Test 320dp, enlarged text and keyboard.
 7. In Home and a root-level group the title is plain. In a subgroup the title opens Home/ancestor navigation. No extra breadcrumb row.
-8. Delete only a disposable Realbooru test profile, open its saved group and decode a real image without creating another profile. Remote account actions remain unavailable.
+8. With no saved Realbooru profile, open its saved group and decode a real image through the public reader. Remote account actions remain unavailable.
 9. Exercise R1-R4 and the real Szurubooru check as detailed above. Use test accounts/content; do not send unnecessary remote Favorite mutations merely to verify button visibility.
 
 ## Completion and continuation
 
-Commit coherent fixes with the owning issue references, preserving #143/#158/#156 context where appropriate. Update the normal #156 completion handoff with exact commits, source-supported causes, actual timings/tests, independent review and remaining limits; retain historical evidence rather than rewriting it as a pass. Report any product deviation before shipping it. Icon choice is still a user decision and does not block correctness work: keep alternatives out of runtime until chosen.
+Commit coherent fixes with the owning issue references, preserving #143/#158/#156 context where appropriate. Update the normal #156 completion handoff with exact commits, source-supported causes, actual timings/tests, independent review and remaining limits; retain historical evidence rather than rewriting it as a pass. Report any product deviation before shipping it. Family A is approved and used for Structure/Unified; family B is archived.
 
-After remediation, the required source/device gate and final independent approval, resume the existing order #140 -> #141 -> #157, subject to the existing integration/publication restrictions. Nothing here authorizes bypassing a gate, deleting a user's cache, changing backup version, or merging develop.
+Separate #140 work and independent #157 foundation work may proceed now; #141 follows a stable #140 contract. Keep each owning branch and evidence separate, with final integration of #157 dependent on #140/#141. Nothing here authorizes bypassing a gate, deleting a user's cache, changing backup version, or merging develop.

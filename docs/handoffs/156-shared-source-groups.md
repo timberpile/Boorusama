@@ -1,7 +1,8 @@
 # Issue #156: shared existing-source Groups
 
-**Current continuation:** remediation is paused at the user's request. Its local
-checkpoint is incomplete and has failing/interrupted checks; the historical
+**Current continuation:** remediation has resumed with approved URL-cache reuse and
+Structure/Unified family-A icons. The earlier paused checkpoint remains historical
+evidence with failing/interrupted checks; the historical
 approval below applies only to the prior runtime candidate. See the
 [remediation checkpoint](156-bookmark-review-remediation.md#paused-implementation-checkpoint-2026-11-08)
 for current code, evidence and remaining gates.

@@ -631,17 +631,23 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
         final access = ref.watch(contentAccessForOriginProvider(post.origin));
         final config = access?.config;
         if (config == null)
-          return BookmarkAccessPlaceholder(origin: post.origin);
+          return BookmarkAccessPlaceholder(
+            origin: post.origin,
+            aspectRatio: post.aspectRatio ?? 1,
+          );
         final visibility = ref.watch(
           contentPostVisibilityProvider((access: access!.key, post: post)),
         );
         if (visibility.valueOrNull != true)
-          return BookmarkAccessPlaceholder(origin: post.origin);
+          return BookmarkAccessPlaceholder(
+            origin: post.origin,
+            aspectRatio: post.aspectRatio ?? 1,
+          );
         final effectiveAuth = config.auth;
 
         return CurrentBooruConfigScope(
           config: config,
-          accessKey: access!.key,
+          accessKey: access.key,
           requireAccess: true,
           bookmarkId: ref
               .watch(bookmarkProvider)

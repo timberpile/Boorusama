@@ -4,6 +4,11 @@ import 'package:i18n/i18n.dart';
 
 void main() {
   final translations = Translations();
+  test('Unified is the group mode while the global destination stays All Bookmarks', () {
+    expect(translations.bookmark.groups.all_bookmarks, 'Unified');
+    expect(translations.bookmark.groups.structure, 'Structure');
+    expect(translations.bookmark.groups.all, 'All');
+  });
 
   for (final testCase in [
     (key: 'bookmark.groups.add_to', expected: 'Add to Shared'),

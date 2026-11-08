@@ -22,9 +22,9 @@ class PoolDescriptionSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfigAuth;
-    // Public reads already have the native DText in the shared Pool envelope.
-    // The account HTML endpoint is outside the anonymous API allow list.
-    if (config.anonymousReadScope != null) {
+    // Use the shared envelope's current DText for both actors. A separate cached
+    // HTML read could retain the previous description after a Group refresh.
+    if (pool.description != null || config.anonymousReadScope != null) {
       final description = pool.description;
       return description == null || description.isEmpty
           ? const SizedBox.shrink()

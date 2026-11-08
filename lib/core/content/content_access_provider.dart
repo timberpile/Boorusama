@@ -1,10 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:uuid/uuid.dart';
 
-import 'dart:async';
-
-import '../configs/search/types.dart';
-import 'content_policy_snapshot.dart';
 import '../posts/filter/types.dart';
 import '../bookmarks/src/providers/pool_bookmark_provider.dart'
     show poolCoverAllowsRating;
@@ -23,68 +18,22 @@ import 'anonymous_access_provider.dart';
 /// Reuse the established non-secret visibility policy and effective blacklist.
 /// A loading/failed policy cannot authorize cached Group metadata or media.
 final contentEffectiveBlacklistProvider = Provider.autoDispose
-    .family<AsyncValue<Set<String>>, String>(
-      (ref, profileId) {
-        final matches = ref
-            .watch(booruConfigProvider)
-            .where((p) => p.id == profileId)
-            .toList();
-        if (matches.length != 1) {
-          return AsyncError(
-            AppError(
-              type: AppErrorType.loadDataFromServerFailed,
-              message: 'Content profile unavailable',
-            ),
-            StackTrace.current,
-          );
-        }
-        final config = matches.single;
-        final policy = ref.watch(blacklistTagsProvider(config.filter));
-        final generation = config.localMediaGeneration;
-        if (policy.hasValue && !policy.hasError && !policy.isLoading) {
-          if (generation != null) {
-            // Failed snapshot persistence does not invalidate a live valid policy.
-            unawaited(
-              ref
-                  .read(contentPolicySnapshotStoreProvider)
-                  .write(generation, policy.requireValue)
-                  .catchError((Object _) {}),
-            );
-          }
-          return AsyncData(policy.requireValue);
-        }
-        if (generation != null &&
-            (policy.isLoading || isTransientPolicyFailure(policy.error))) {
-          final saved = ref
-              .watch(contentPolicySnapshotStoreProvider)
-              .read(generation);
-          final global = ref.watch(globalBlacklistedTagsProvider);
-          if (saved != null &&
-              global.hasValue &&
-              !global.hasError &&
-              !global.isLoading) {
-            final local = config.blacklistConfigs;
-            final replace =
-                local?.enable == true &&
-                BlacklistCombinationMode.fromString(local!.combinationMode) ==
-                    BlacklistCombinationMode.replace;
-            final tags = {
-              if (!replace) ...saved,
-              if (!replace) ...global.requireValue.map((e) => e.name),
-              if (local?.enable == true) ...queryAsList(local!.blacklistedTags),
-            };
-            return AsyncData(tags);
-          }
-        }
-        return policy;
-      },
-      dependencies: [
-        booruConfigProvider,
-        blacklistTagsProvider,
-        globalBlacklistedTagsProvider,
-        contentPolicySnapshotStoreProvider,
-      ],
-    );
+    .family<AsyncValue<Set<String>>, String>((ref, profileId) {
+      final matches = ref
+          .watch(booruConfigProvider)
+          .where((p) => p.id == profileId)
+          .toList();
+      if (matches.length != 1) {
+        return AsyncError(
+          AppError(
+            type: AppErrorType.loadDataFromServerFailed,
+            message: 'Content profile unavailable',
+          ),
+          StackTrace.current,
+        );
+      }
+      return ref.watch(blacklistTagsProvider(matches.single.filter));
+    }, dependencies: [booruConfigProvider, blacklistTagsProvider]);
 
 final contentEffectivePolicyProvider = Provider.autoDispose
     .family<AsyncValue<String>, String>((ref, id) {
@@ -108,9 +57,6 @@ final contentEffectivePolicyProvider = Provider.autoDispose
 final contentAccessEpochsProvider = Provider((ref) => ContentAccessEpochs());
 
 class ContentAccessEpochs {
-  /// Epoch counters restart with the application; disk cache namespaces must
-  /// not collide with another process's different credentials or policy.
-  final sessionId = const Uuid().v4();
   var _value = 0;
   int next() => ++_value;
 }
@@ -142,15 +88,12 @@ class ContentAccessScopes extends Notifier<Map<String, ContentProfileScope>> {
     for (final config in profiles) {
       if (counts[config.id] != 1) continue;
       final old = _previous[config.id];
-      final sameAuth =
-          old != null &&
-          old.config.auth == config.auth &&
-          old.config.localMediaGeneration == config.localMediaGeneration;
+      final sameAuth = old != null && old.config.auth == config.auth;
       final sameBinding =
           sameAuth && ViewerSourceBinding(old.config).resolve([config]) != null;
       next[config.id] = (
         config: config,
-        authEpoch: sameAuth ? old!.authEpoch : nextEpoch(),
+        authEpoch: sameAuth ? old.authEpoch : nextEpoch(),
         bindingEpoch: sameBinding ? old.bindingEpoch : nextEpoch(),
       );
     }
@@ -210,7 +153,6 @@ class ContentProfileAccess
       config: scope.config,
       authEpoch: scope.authEpoch,
       policyEpoch: ref.read(contentAccessScopesProvider.notifier).nextEpoch(),
-      policyFingerprint: digest,
     );
   }
 

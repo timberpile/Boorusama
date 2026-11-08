@@ -4,6 +4,67 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const policy = AnonymousSourcePolicy();
+  test(
+    'Realbooru permits only its registered anonymous read/parser endpoints',
+    () {
+      final source = policy.resolve(
+        BooruType.gelbooruV2,
+        Uri.parse('https://realbooru.com'),
+      )!;
+      for (final path in [
+        '/index.php?page=dapi&s=post&q=index&limit=1&pid=0&tags=rating:safe',
+        '/index.php?page=post&s=list&tags=cat&pid=42',
+        '/index.php?page=post&s=view&id=42',
+      ]) {
+        expect(
+          source.allowsApi(Uri.parse('https://realbooru.com$path')),
+          isTrue,
+          reason: path,
+        );
+      }
+      for (final path in [
+        '/index.php?page=account&s=login',
+        '/index.php?page=post&s=delete&id=42',
+        '/index.php?page=dapi&s=post&q=index&login=fixture',
+        '/index.php?page=dapi&s=post&q=index&limit=101',
+        '/index.php?page=dapi&s=post&q=index&pid=-1',
+        '/index.php?page=post&s=view&id=42&id=43',
+        '/index.php?page=post&s=view&id=42&action=delete',
+      ]) {
+        expect(
+          source.allowsApi(Uri.parse('https://realbooru.com$path')),
+          isFalse,
+          reason: path,
+        );
+      }
+      expect(
+        source.allowsMedia(
+          Uri.parse('https://realbooru.com/thumbnails/ab/cd/thumb.jpg?v=1'),
+        ),
+        isTrue,
+      );
+      for (final url in [
+        'http://realbooru.com/images/x.jpg',
+        'https://cdn.realbooru.com/images/x.jpg',
+        'https://realbooru.com/admin/x.jpg',
+        'https://realbooru.com/images/x.jpg?token=secret',
+        'https://realbooru.com/images/x.jpg?v=1&v=2',
+      ]) {
+        expect(source.allowsMedia(Uri.parse(url)), isFalse, reason: url);
+      }
+      expect(
+        policy.resolve(BooruType.danbooru, Uri.parse('https://realbooru.com')),
+        isNull,
+      );
+      expect(
+        policy.resolve(
+          BooruType.gelbooruV2,
+          Uri.parse('https://realbooru.com/install'),
+        ),
+        isNull,
+      );
+    },
+  );
   test('Sakuga post endpoint mapping does not merge source identities', () {
     final root = policy.forNamespace(BooruType.moebooru, 'sakugabooru.com')!;
     final www = policy.forNamespace(BooruType.moebooru, 'www.sakugabooru.com')!;

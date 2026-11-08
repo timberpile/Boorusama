@@ -1,3 +1,4 @@
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/performance.dart';
@@ -232,10 +233,21 @@ class _BookmarkGroupBrowserPageState
                             ? context.t.bookmark.groups.all_bookmarks
                             : context.t.bookmark.groups.structure,
                         isSelected: mode == BookmarkGroupViewMode.allBookmarks,
-                        icon: Icon(
-                          mode == BookmarkGroupViewMode.structure
-                              ? Icons.account_tree_outlined
-                              : Icons.view_module_outlined,
+                        icon: Semantics(
+                          value: mode == BookmarkGroupViewMode.structure
+                              ? context.t.bookmark.groups.structure
+                              : context.t.bookmark.groups.all_bookmarks,
+                          child: SvgPicture.asset(
+                            mode == BookmarkGroupViewMode.structure
+                                ? 'assets/icon/bookmark_view_structure.svg'
+                                : 'assets/icon/bookmark_view_unified.svg',
+                            width: 24,
+                            height: 24,
+                            colorFilter: ColorFilter.mode(
+                              Theme.of(context).colorScheme.onSurface,
+                              BlendMode.srcIn,
+                            ),
+                          ),
                         ),
                         onPressed: () => _setMode(
                           id,

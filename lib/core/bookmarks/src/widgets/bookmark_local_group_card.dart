@@ -83,15 +83,17 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                       ),
                     ),
                     const Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0x99000000),
-                              Color(0x66000000),
-                            ],
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0x99000000),
+                                Color(0x66000000),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -101,16 +103,18 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                       left: 8,
                       right: hasActions ? 52 : 8,
                       bottom: selected ? 40 : 8,
-                      child: DefaultTextStyle(
-                        style: Kurumi.themeOf(context).textTheme.titleMedium!
-                            .copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              shadows: const [Shadow(blurRadius: 4)],
-                            ),
-                        child: KurumiFittedText(
-                          Text(title),
-                          alignment: AlignmentDirectional.topStart,
+                      child: IgnorePointer(
+                        child: DefaultTextStyle(
+                          style: Kurumi.themeOf(context).textTheme.titleMedium!
+                              .copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                shadows: const [Shadow(blurRadius: 4)],
+                              ),
+                          child: KurumiFittedText(
+                            Text(title),
+                            alignment: AlignmentDirectional.topStart,
+                          ),
                         ),
                       ),
                     ),
@@ -264,33 +268,52 @@ class _BookmarkGroupCoverState extends ConsumerState<_BookmarkGroupCover> {
         }
       });
     }
-    return BookmarkGroupPreviewGrid(
-      previews: const [],
-      additionalPreviews: [
-        for (var slot = 0; slot < 4; slot++)
-          if (_slots[slot] case final index? when index < candidates.length)
-            _BookmarkGroupPreviewImage(
-              key: ValueKey((slot, candidates[index].id)),
-              bookmark: candidates[index],
-              onFailed: () {
-                if (!mounted || _slots[slot] != index) return;
-                setState(() {
-                  _slots[slot] = _next < candidates.length ? _next++ : null;
-                });
-              },
-            )
-          else if (slot < widget.pools.length)
-            BookmarkPoolCoverImage(pool: widget.pools[slot])
-          else
-            Center(
-              child: IconButton(
-                tooltip: context.t.generic.action.retry,
-                onPressed: _retry,
-                icon: const Icon(Icons.bookmarks_outlined),
+    var poolIndex = 0;
+    final failed = _slots.any((index) => index == null);
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: BookmarkGroupPreviewGrid(
+            previews: const [],
+            additionalPreviews: [
+              for (var slot = 0; slot < 4; slot++)
+                if (_slots[slot] case final index?
+                    when index < candidates.length)
+                  _BookmarkGroupPreviewImage(
+                    key: ValueKey((slot, candidates[index].id)),
+                    bookmark: candidates[index],
+                    onFailed: () {
+                      if (!mounted || _slots[slot] != index) return;
+                      setState(() {
+                        _slots[slot] = _next < candidates.length
+                            ? _next++
+                            : null;
+                      });
+                    },
+                  )
+                else if (poolIndex < widget.pools.length)
+                  BookmarkPoolCoverImage(pool: widget.pools[poolIndex++])
+                else
+                  const Center(child: Icon(Icons.bookmarks_outlined)),
+            ],
+            itemBuilder: (_, _) => const SizedBox.expand(),
+          ),
+        ),
+        if (failed)
+          Positioned(
+            right: 4,
+            bottom: 4,
+            child: IconButton(
+              tooltip: context.t.generic.action.retry,
+              onPressed: _retry,
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.black54,
+                foregroundColor: Colors.white,
               ),
+              icon: const Icon(Icons.refresh),
             ),
+          ),
       ],
-      itemBuilder: (_, _) => const SizedBox.expand(),
     );
   }
 }
@@ -404,7 +427,7 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
     }
     return CurrentBooruConfigScope(
       config: imageConfig,
-      accessKey: access!.key,
+      accessKey: access.key,
       requireAccess: true,
       bookmarkId: bookmark.id,
       child: BooruImage(

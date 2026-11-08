@@ -1,5 +1,17 @@
 # Bookmark outage, cache, performance and interaction remediation
 
+## Approved continuation decisions
+
+The user resumed implementation after checkpoint `5a73ae623` and superseded the
+initial cache proposal: persistent image bytes use existing URL/custom keys,
+with access checked separately at presentation and transport boundaries. No
+session/auth/policy salt, durable generation allocator, or cache migration is
+approved. Family A is selected, and the group modes are **Structure** and
+**Unified**; the global All Bookmarks destination keeps its existing name.
+Starting #140/#141 and independent #157 foundation work is now authorized in
+separate worktrees while #156 verification continues. Develop integration,
+publication, issue closure and acceptance-gate bypass remain unauthorized.
+
 ## Evidence and scope
 
 This is the requested implementation contract for the follow-up to #143/#158/#156. Read the [local-agent handoff](../handoffs/156-bookmark-review-remediation.md) for order and verification. Audited source: `0812367722defc59d36063ee9d4a631cf263b010` on `maintenance/156-shared-source-groups`; runtime candidate `2074d452a4d715ebd1b15ed9d1fea8446471a4d2`. All source paths below refer to that pinned tree unless the implementing agent records a newer one.
@@ -28,9 +40,19 @@ Do not return an invisible widget for an occupied grid entry. Use the existing K
 
 Expose enough policy-loading/error state to the existing availability indicator; do not count ordinary in-progress loads as permanent failures. Avoid double counting one local Bookmark via several media renditions. Retrying a source-policy failure must retry the policy/access dependency, not only remount a tile. Retry only currently permitted visible work and preserve the captured actor.
 
-For offline-capable cached presentation, retain a last successfully obtained effective policy scoped to the same exact profile/source and authorization generation in appropriate local protected storage. Apply current local filters immediately. Reuse that known policy during a transient refresh failure only when its provenance still matches; show stale/offline state where useful. No prior valid policy or a changed/deleted actor must fail closed with visible feedback. Do not substitute an empty blacklist on errors, use another profile's policy, or confuse 401/403 with a temporary 503. An explicit local replacement-policy configuration need not await irrelevant remote blacklist data; preserve its actual semantics in a focused test.
+For Danbooru offline presentation, use locally available policy immediately.
+The read-side repository observes current-user and server-blacklist AsyncValues
+without awaiting HTTP completion. Known server preferences enrich global and
+profile rules reactively; no additional durable policy-cache layer is needed.
+Explicit replacement rules bypass irrelevant remote work. Server mutation
+methods, captured actor identity, and current local filtering remain intact.
+Failures in a required local policy still have visible loading/error feedback;
+unknown remote preferences must not masquerade as fetched server data.
 
-Required regressions: stalled policy, failed policy with/without valid local snapshot, policy refresh with retained previous data, local blacklist edits, credential changes, profile deletion, unrelated healthy source and explicit retry. Use fake request completion gates, not live downtime as the only reproduction.
+Required regressions include stalled/failed Danbooru preferences, known previous
+server data during refresh, recovery, local blacklist edits and replace/merge
+semantics, credential/profile changes, explicit retry and an unrelated healthy
+source. Use controlled completions rather than live downtime alone.
 
 ## N2. Persistent media cache keys are not stable across sessions
 
@@ -42,29 +64,29 @@ Additionally, `ContentProfileAccess` is auto-disposed; a recreated notifier assi
 
 Saved Post metadata and image bytes are different caches. `BookmarkLibraryService._load()` reads local records, repairs organization and builds indexes; the Bookmark timeline projects those snapshots. Neither requires fetching every Post from the source. Earlier thumbnails can still physically exist yet be unreachable through the new namespaced key. A group cover may also request a sample URL while only a thumbnail rendition was cached.
 
-### Recommended correction
+### Approved correction (supersedes the original generation proposal)
 
-Keep transient authorization/cancellation keys for live requests. Give persistent media a separately stable, local, opaque cache identity whose lifetime matches the actual security boundary rather than a provider instance or process session. Reuse the existing managed cache, disk quota, leases and atomic writes.
+Return the existing underlying `ImageCacheManager` from the content-media cache
+provider. Preserve ordinary URL/custom keys, rendition separation, quota,
+eviction, file leases and atomic writes. A navigation/mode/provider/process
+change does not alter a disk key. Do not dispose or clear the shared manager
+when an access consumer leaves.
 
-A minimal conceptual cache descriptor has these fields; adapt an existing type rather than introducing a second access framework:
+Authorization remains independent: preserve current actor/source bindings,
+visibility checks, URL and redirect/header restrictions, cancellation and
+late-publication guards. No new access model or identity database is introduced.
+Request epochs remain transient lifecycle state and never enter persistent
+image filenames. Bound video reads likewise retain their current transport and
+publication guards with a stable content-media cache namespace.
 
-```text
-PersistentMediaScope
-  namespaceId: String          // opaque local random ID, stable across ordinary restarts
-  engine: BooruType            // exact supported engine
-  siteNamespace: String       // exact normalized installation, not a host suffix
-  profileId?: String          // null only for explicitly permitted anonymous reads
-  authGeneration: int         // durable non-secret revision, rotated on authorization changes
-  schemaVersion: int          // cache descriptor format, not Bookmark backup version
-```
+Normal URL/custom-key files remain reusable for their exact original URL. Old
+randomized namespaced files are retained under normal eviction, but generally
+cannot be reverse-mapped after the lost session; the index lacks the original
+URL. Do not invent a reverse-hash migration or promise recovery of those files.
 
-It is a provenance/cache descriptor, never permission to read by itself. Check current authorization and visibility before opening cached bytes and again before publication. Current policy may re-evaluate already cached content or use a validated stable policy partition; it must not depend on observer creation order. Keep public and private namespaces separate. Do not put tokens, credential hashes, account headers or runtime controllers into filenames or export these local cache descriptors.
-
-Rotate/revoke the durable generation on credential/account/source changes and deletion; reconcile profile import/replace/restore and all local mutation paths before access is enabled. A profile rename or an ordinary restart is not an authorization change. Concurrent providers must agree on the same generation. Deleted/recreated profiles must not accidentally reacquire earlier private bytes.
-
-Do not fix this by merely removing `sessionId` while keeping runtime epoch numbers that can collide after restart. Do not blindly fall back from a private scoped miss to the old global URL cache. Reuse/promote legacy bytes only with adequate proven source/access provenance; otherwise retain the file under normal retention and accept a disclosed one-time miss. Do not wipe all media caches or saved data as a migration strategy. Do not weaken existing revocation tests to obtain a hit.
-
-Test real on-disk reuse across full provider-container/process recreation, including offline decode, not just same-session memory hits. Cover both images and videos that consume the namespace, quota eviction, late writes after revocation, changed policy, account/source changes and unchanged actor after a mode remount.
+Test actual disk reopen, container recreation and decoded cached media during
+Danbooru outages, zero unnecessary transport on a hit, distinct thumbnail/sample
+URLs and custom keys, local filter updates, and retained request revocation.
 
 ## N3. A failed first cover candidate set starves group thumbnails
 
@@ -111,7 +133,7 @@ Use unfiltered saved membership facts, not media availability, for structural em
 | Structure: no children and no direct records | Normal genuinely empty-group state. |
 | Direct records exist but query filters to zero | Keep search/filter controls and a search-empty state. |
 | Direct records exist but source access/media fails | Preserve unavailable/error feedback; never report that the group contains no saved records. |
-| All Bookmarks | Hide local child cards; render/search the deduplicated subtree. A genuinely empty subtree may show its normal empty state. |
+| Unified | Hide local child cards; render/search the deduplicated subtree. A genuinely empty subtree may show its normal empty state. |
 
 ## N6. Compact, thumb-friendly shared pickers
 
@@ -148,9 +170,16 @@ Framework reference: https://api.flutter.dev/flutter/widgets/GridView-class.html
 
 Define Home as depth 0, a direct child group as depth 1, and its subgroup as depth 2. Only depth >= 2 exposes the clickable title/ancestor menu. At Home/depth 1 render an ordinary fitted title with no dropdown arrow, hidden focus target or popup semantics; the normal Back control already supplies the useful navigation. Derive depth from the current parent chain, not how the user arrived or the number of children.
 
-Keep mode switching in the Header, never an extra row. Supply localized action tooltips (for example Switch to All bookmarks) while making the current mode accessible. Keep All Bookmarks terminology: this view includes saved remote Group references as individual items and does not recursively fetch their Pages.
+Keep mode switching in the Header, never an extra row. Supply localized action tooltips (for example Switch to All bookmarks) while making the current mode accessible. Keep Unified terminology: this view includes saved remote Group references as individual items and does not recursively fetch their Pages.
 
-Two editable [SVG icon families](bookmark-view-icons/README.md) accompany this contract. A depicts the real screen distinction (folder section plus direct items versus one uniform grid); B depicts nested grouping versus a content stack. A is the recommendation, not an approved production selection. Keep them out of runtime until the user chooses. Correctness work is not blocked by that choice. Penpot import/publishing has not been performed by this delivery.
+The user selected [family A](bookmark-view-icons/README.md). Use its section/direct
+items glyph for Structure and uniform content grid for Unified, rendered through
+the existing SVG dependency and semantic theme color. The icon shows the current
+mode; tooltip announces the destination and semantics expose the current mode.
+The `allBookmarks` enum/persisted value may remain unchanged for compatibility.
+Prepare Penpot components `Bookmark view / Structure` and
+`Bookmark view / Unified`; publication is pending whenever no project is connected.
+Family B is archived and is no longer awaiting selection.
 
 ## N9. Realbooru without a profile
 

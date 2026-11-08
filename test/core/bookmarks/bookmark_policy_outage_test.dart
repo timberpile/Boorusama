@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
-import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
@@ -94,7 +93,12 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await _until(
+        tester,
+        () =>
+            find.byType(BookmarkAccessPlaceholder).evaluate().length == 1 &&
+            find.byType(DefaultImageGridItem).evaluate().length == 1,
+      );
       expect(find.byType(BookmarkAccessPlaceholder), findsOneWidget);
       expect(
         tester.getSize(find.byType(BookmarkAccessPlaceholder)).shortestSide,
@@ -102,7 +106,10 @@ void main() {
       );
       expect(find.byType(DefaultImageGridItem), findsOneWidget);
       gate.completeError(StateError('controlled policy failure'));
-      await tester.pumpAndSettle();
+      await _until(
+        tester,
+        () => find.byIcon(Icons.cloud_off_outlined).evaluate().length == 1,
+      );
       expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
       expect(find.byType(DefaultImageGridItem), findsOneWidget);
       final indicator = tester.widget<BookmarkUnavailableIndicator>(
@@ -119,4 +126,16 @@ class _Library extends BookmarkLibraryNotifier {
   final BookmarkLibraryState library;
   @override
   FutureOr<BookmarkLibraryState> build() => library;
+}
+
+Future<void> _until(WidgetTester tester, bool Function() ready) async {
+  for (var i = 0; i < 100 && !ready(); i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+  }
+  expect(
+    ready(),
+    isTrue,
+    reason: 'Controlled Bookmark policy state was not published',
+  );
 }
