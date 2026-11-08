@@ -103,18 +103,16 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                       left: 8,
                       right: hasActions ? 52 : 8,
                       bottom: selected ? 40 : 8,
-                      child: IgnorePointer(
-                        child: DefaultTextStyle(
-                          style: Kurumi.themeOf(context).textTheme.titleMedium!
-                              .copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                shadows: const [Shadow(blurRadius: 4)],
-                              ),
-                          child: KurumiFittedText(
-                            Text(title),
-                            alignment: AlignmentDirectional.topStart,
-                          ),
+                      child: DefaultTextStyle(
+                        style: Kurumi.themeOf(context).textTheme.titleMedium!
+                            .copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              shadows: const [Shadow(blurRadius: 4)],
+                            ),
+                        child: KurumiFittedText(
+                          Text(title),
+                          alignment: AlignmentDirectional.topStart,
                         ),
                       ),
                     ),

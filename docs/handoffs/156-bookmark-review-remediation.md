@@ -52,6 +52,14 @@ corrected hierarchy scenario also passes. These partial runs do not establish a
 final-candidate complete regression pass. Full regression, ordinary-main Android
 acceptance/restoration and the exact-head independent review remain pending.
 
+The first complete runner on `83c808143` reproduced a card-title hit-test
+regression introduced by wrapping its label in IgnorePointer. That run was
+stopped after the failure and is not a pass. Retaining title hit testing while
+letting only the decorative gradient ignore pointers fixes the existing drag
+selection test. The corrected selection, hierarchy and actual cover Retry batch
+passes 18 tests (`selection-covers-final.log`). A fresh complete run and APK are
+required for this correction.
+
 Serial host probes retain the before/after attribution limit: 9,000 synthetic
 rows took 764.6–935.3 ms for first tag-index construction and 0.282–0.601 ms on
 reuse; 1,000 real Hive rows wrote in 719.2 ms and cold-loaded in 197.6 ms. These
