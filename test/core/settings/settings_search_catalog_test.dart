@@ -104,6 +104,7 @@ void main() {
       expect(mobile.any((item) => item.id == 'download.network'), isTrue);
       for (final catalog in [desktop, mobile]) {
         expect(catalog.any((item) => item.id == 'viewer.swipe_mode'), isFalse);
+        expect(catalog.any((item) => item.id == 'viewer.double_tap_zoom'), isFalse);
         expect(searchSettings(catalog, 'swipe mode'), isEmpty);
       }
     },

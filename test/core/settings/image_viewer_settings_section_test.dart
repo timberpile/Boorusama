@@ -43,6 +43,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Swipe Mode'), findsNothing);
+        expect(find.text('Double-Tap Zoom Behavior'), findsNothing);
         final loadOriginal = find.text('Load Original When Zooming');
         await tester.ensureVisible(loadOriginal);
         await tester.tap(loadOriginal);

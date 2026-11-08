@@ -534,6 +534,64 @@ void main() {
     },
   );
 
+  testWidgets('missing post geometry follows decoded representation changes', (
+    tester,
+  ) async {
+    VisibilityDetectorController.instance.updateInterval = Duration.zero;
+    _mobileViewport(tester, size: const Size(800, 1200));
+    final adapter = ControlledImageAdapter();
+    final post = _post(
+      id: 1,
+      booruType: BooruType.danbooru,
+      host: 'https://danbooru.example',
+      data: _posts.first.booruData,
+      height: 0,
+    );
+    final harness = _Harness(
+      posts: [post],
+      imageAdapter: adapter,
+      imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+    );
+    addTearDown(harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.runAsync(
+      () => pumpUntil(
+        tester,
+        () => adapter.pending.keys.any((url) => url.contains('/media/1')),
+        reason: 'sample request',
+      ),
+    );
+    adapter.complete(
+      adapter.pending.keys.singleWhere((url) => url.contains('/media/1')),
+      targetPng,
+    );
+    await tester.runAsync(() => waitForPixel(tester, [0, 0, 255, 255]));
+    await tester.pump();
+    Size? geometry() => tester
+        .widget<InteractiveViewerExtended>(
+          find.byType(InteractiveViewerExtended).first,
+        )
+        .contentSize;
+    expect(geometry(), const Size(8, 8));
+
+    _detailsController(tester).loadOriginalImage(post);
+    await tester.runAsync(
+      () => pumpUntil(
+        tester,
+        () => adapter.pending.keys.any((url) => url.endsWith('/original-1')),
+        reason: 'original request',
+      ),
+    );
+    adapter.complete(
+      adapter.pending.keys.singleWhere((url) => url.endsWith('/original-1')),
+      portraitPng,
+    );
+    await tester.runAsync(() => waitForPixel(tester, [0, 255, 0, 255]));
+    await tester.pump();
+    expect(geometry(), const Size(2, 8));
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('representation metadata cannot resize known post content', (
     tester,
   ) async {
@@ -2237,6 +2295,7 @@ class _Harness {
            booruRepoProvider.overrideWith((ref, config) => repository),
            booruBuilderProvider.overrideWith((ref, config) => null),
            automaticMediaLoadingEnabledProvider.overrideWithValue(loadMedia),
+           zoomStudyEnabledProvider.overrideWithValue(false),
            dioForWidgetProvider.overrideWith(
              (ref, config) =>
                  Dio(BaseOptions(baseUrl: 'https://images.example/'))
@@ -2785,7 +2844,7 @@ final class _MediaResolver implements MediaUrlResolver {
 
   @override
   double? resolveMediaAspectRatio(Post post, BooruConfigViewer config) =>
-      post.width / post.height;
+      post.aspectRatio;
 
   @override
   String resolveVideoUrl(Post post, BooruConfigViewer config) =>

@@ -335,6 +335,7 @@ class _Harness extends StatelessWidget {
       automaticMediaLoadingEnabledProvider.overrideWithValue(
         imageAdapter != null,
       ),
+      zoomStudyEnabledProvider.overrideWithValue(false),
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
       if (imageAdapter case final adapter?)
         dioForWidgetProvider.overrideWith(

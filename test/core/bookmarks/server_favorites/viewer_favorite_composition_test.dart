@@ -112,6 +112,7 @@ void main() {
                     (ref, config) => _ToolbarBuilder(),
                   ),
                   automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+                  zoomStudyEnabledProvider.overrideWithValue(false),
                   defaultImageCacheManagerProvider.overrideWithValue(
                     _ImageCache(),
                   ),

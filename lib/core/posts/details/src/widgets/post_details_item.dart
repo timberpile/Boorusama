@@ -11,6 +11,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../foundation/platform.dart';
+import '../../../../../foundation/info/package_info.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/gesture/types.dart';
@@ -22,6 +23,7 @@ import '../../../listing/providers.dart';
 import '../../../listing/types.dart';
 import '../../../post/types.dart';
 import '../providers/note_overlay_provider.dart';
+import 'zoom_study_overlay.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/types.dart';
 import 'play_pause_animation_overlay.dart';
@@ -152,11 +154,6 @@ class _PostDetailsItemState<T extends Post>
         (settings) => settings.snapZoomToFit,
       ),
     );
-    final doubleTapZoomMode = ref.watch(
-      imageViewerSettingsProvider.select(
-        (settings) => settings.doubleTapZoomMode,
-      ),
-    );
 
     final booruRepo = ref.watch(booruRepoProvider(widget.authConfig));
     final gestures = widget.gestureConfig?.fullview;
@@ -168,6 +165,9 @@ class _PostDetailsItemState<T extends Post>
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,
     );
+    final showZoomStudy =
+        ref.watch(isDevEnvironmentProvider) &&
+        ref.watch(zoomStudyEnabledProvider);
 
     void onItemTap() {
       final controller = widget.detailsController;
@@ -212,6 +212,27 @@ class _PostDetailsItemState<T extends Post>
       }
     }
 
+    // Cropped previews must not replace the full-post layout geometry or move
+    // its reading position. Decode dimensions only fill missing metadata.
+    final decodedImage =
+        !post.isVideo && _imageController.loadState.value == LoadState.completed
+        ? _imageController.imageInfo.value?.image
+        : null;
+    final decodedSize =
+        decodedImage != null &&
+            decodedImage.width > 0 &&
+            decodedImage.height > 0
+        ? Size(decodedImage.width.toDouble(), decodedImage.height.toDouble())
+        : null;
+    final hasPostGeometry =
+        post.width.isFinite &&
+        post.height.isFinite &&
+        post.width > 0 &&
+        post.height > 0;
+    final mediaSize = hasPostGeometry
+        ? Size(post.width, post.height)
+        : decodedSize ?? Size(post.width, post.height);
+
     final initialThumbnailUrl = widget.detailsController.initialThumbnailUrl;
     final initialPlaceholderMedia = initialThumbnailUrl != null
         ? _initialPlaceholderMedia(post, initialThumbnailUrl)
@@ -224,13 +245,10 @@ class _PostDetailsItemState<T extends Post>
         onTap: onItemTap,
         child: InteractiveViewerExtended(
           key: _videoKey,
-          contentSize: Size(post.width, post.height),
+          contentSize: mediaSize,
           controller: widget.transformController,
           constrainPanToContent: _isPageSettled,
           snapZoomToFit: snapZoomToFit,
-          doubleTapZoomMode: post.isVideo
-              ? DoubleTapZoomMode.classic
-              : doubleTapZoomMode,
           enable: switch (noteOverlayShown) {
             // If the note overlay is shown, disable all interactions to prevent gesture conflicts
             true => false,
@@ -352,7 +370,7 @@ class _PostDetailsItemState<T extends Post>
       ),
     );
 
-    return switch ((navigation, viewerTransform)) {
+    final content = switch ((navigation, viewerTransform)) {
       (final nav?, final transform?) => ValueListenableBuilder(
         valueListenable: widget.detailsController.originalImagePostKeys,
         builder: (_, _, _) {
@@ -370,7 +388,7 @@ class _PostDetailsItemState<T extends Post>
             pageController: pageViewController,
             currentSettledPage: widget.detailsController.currentSettledPage,
             pageIndex: widget.index,
-            contentSize: Size(post.width, post.height),
+            contentSize: mediaSize,
             navigation: nav,
             mediaState: _mediaState,
             enabled:
@@ -387,6 +405,27 @@ class _PostDetailsItemState<T extends Post>
       ),
       _ => viewer,
     };
+
+    if (!showZoomStudy || !_isPageSettled || post.isVideo) return content;
+    return Stack(
+      children: [
+        Positioned.fill(child: content),
+        Align(
+          alignment: Alignment.bottomRight,
+          child: Padding(
+            padding: EdgeInsets.only(
+              right: 12,
+              bottom: 88 + MediaQuery.paddingOf(context).bottom,
+            ),
+            child: ZoomStudyOverlay(
+              post: post,
+              controller: widget.transformController,
+              decodedSize: decodedSize,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   GridThumbnailMedia _initialPlaceholderMedia(

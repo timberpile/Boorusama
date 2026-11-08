@@ -22,33 +22,20 @@ const _kScaleMultiplier = 5.0;
 /// Default zoom scale for double tap if content and container sizes are unknown.
 const _kDoubleTapScale = 3.0;
 
-/// Factor to determine when content is much larger than the container.
-const _kImageExceedsContainerThreshold = 3.0;
-
 const _kContentConstraintTolerance = 0.5;
 
-const _kSnapToFitTolerance = 0.05;
+const _kSnapToFitTolerance = 0.10;
+
+/// Conservative detail zoom for ordinary media; extreme media instead uses
+/// readability targets based on its displayed image footprint.
+const _kClassicDetailZoom = 2.25;
+const _kClassicSquareBoost = 0.20;
+const _kClassicNormalMaxZoom = 2.50;
+const _kClassicComicDetailMultiplier = 2.0;
 
 const _kScaleChangeTolerance = 1e-10;
 
-const _kZoomStateTolerance = 0.001;
-
 const _kSnapSettleDuration = Duration(milliseconds: 50);
-
-enum DoubleTapZoomMode {
-  classic,
-  fitCycle;
-
-  factory DoubleTapZoomMode.parse(dynamic value) => switch (value) {
-    'classic' || '0' || 0 => classic,
-    'fitCycle' || '1' || 1 => fitCycle,
-    _ => defaultValue,
-  };
-
-  static const DoubleTapZoomMode defaultValue = fitCycle;
-
-  dynamic toData() => index;
-}
 
 class KurumiTransformationDetails {
   const KurumiTransformationDetails({
@@ -138,7 +125,6 @@ class KurumiInteractiveViewer extends StatelessWidget {
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
     this.snapZoomToFit = false,
-    this.doubleTapZoomMode = DoubleTapZoomMode.classic,
   });
 
   final Widget child;
@@ -156,7 +142,6 @@ class KurumiInteractiveViewer extends StatelessWidget {
 
   final bool constrainPanToContent;
   final bool snapZoomToFit;
-  final DoubleTapZoomMode doubleTapZoomMode;
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +158,6 @@ class KurumiInteractiveViewer extends StatelessWidget {
       scaleEnabled: scaleEnabled,
       constrainPanToContent: constrainPanToContent,
       snapZoomToFit: snapZoomToFit,
-      doubleTapZoomMode: doubleTapZoomMode,
       child: child,
     );
   }
@@ -195,7 +179,6 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
     this.snapZoomToFit = false,
-    this.doubleTapZoomMode = DoubleTapZoomMode.classic,
   });
 
   final Widget child;
@@ -223,7 +206,6 @@ class KurumiRawInteractiveViewer extends StatefulWidget {
 
   final bool constrainPanToContent;
   final bool snapZoomToFit;
-  final DoubleTapZoomMode doubleTapZoomMode;
 
   @override
   State<KurumiRawInteractiveViewer> createState() =>
@@ -234,6 +216,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     with SingleTickerProviderStateMixin {
   late var _controller = widget.controller ?? TransformationController();
   TapDownDetails? _doubleTapDetails;
+  Matrix4? _classicReturnMatrix;
 
   late final AnimationController _animationController;
   late Animation<Matrix4> _animation;
@@ -275,6 +258,12 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   void didUpdateWidget(covariant KurumiRawInteractiveViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
 
+    // Loading a higher-resolution representation can change contentSize
+    // while the same image and its saved return position remain active.
+    if (oldWidget.controller != widget.controller) {
+      _classicReturnMatrix = null;
+    }
+
     // Handle controller changes
     if (oldWidget.controller != widget.controller) {
       _controller.removeListener(_onChanged);
@@ -309,6 +298,9 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   void _onAnimationChanged() => _controller.value = _animation.value;
 
   void _onChanged() {
+    if (!_animationController.isAnimating && _controller.value.isIdentity()) {
+      _classicReturnMatrix = null;
+    }
     if (_snapTimer != null) {
       _scheduleSnap();
     }
@@ -431,6 +423,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
         );
 
         if (_containerSize != containerSize) {
+          _classicReturnMatrix = null;
           _containerSize = containerSize;
           _scheduleContentConstraint();
         }
@@ -523,108 +516,81 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     });
   }
 
-  Matrix4 _calculateDoubleTapMatrix(Offset tapPosition) {
-    return switch (widget.doubleTapZoomMode) {
-      DoubleTapZoomMode.classic => _calculateClassicDoubleTapMatrix(
-        tapPosition,
-      ),
-      DoubleTapZoomMode.fitCycle => _calculateFitCycleDoubleTapMatrix(
-        tapPosition,
-      ),
-    };
-  }
-
   Matrix4 _calculateClassicDoubleTapMatrix(Offset tapPosition) {
-    // If already zoomed, reset transformation.
-    if (!_controller.value.isIdentity()) {
-      return Matrix4.identity();
+    final previousBaseline = _classicReturnMatrix;
+    if (previousBaseline != null) {
+      _classicReturnMatrix = null;
+      return previousBaseline.clone();
     }
 
-    final content = widget.contentSize;
-    final viewport = _containerSize;
-
-    // Check if both sizes are available.
-    if (content != null &&
-        viewport != null &&
-        _isValidSize(content) &&
-        _isValidSize(viewport)) {
-      // Calculate aspect ratios
-      final viewportAspectRatio = content.aspectRatio;
-      final containerAspectRatio = viewport.aspectRatio;
-
-      final heightRatio = containerAspectRatio / viewportAspectRatio;
-      final widthRatio = viewportAspectRatio / containerAspectRatio;
-      final isContentMuchWider = widthRatio > _kImageExceedsContainerThreshold;
-      final isContentMuchTaller =
-          heightRatio > _kImageExceedsContainerThreshold;
-
-      // Check if content has a drastically different aspect ratio
-      final needsSpecialZoom = isContentMuchWider || isContentMuchTaller;
-
-      if (needsSpecialZoom) {
-        return _calcZoomMatrixFromSize(
-          viewport: viewport,
-          content: content,
-          focalPoint: tapPosition,
-        );
-      }
-    }
-
-    // Fallback to a fixed zoom.
-    return _calcZoomMatrixFromZoomValue(
-      focalPoint: tapPosition,
-      zoomValue: _kDoubleTapScale,
-    );
-  }
-
-  Matrix4 _calculateFitCycleDoubleTapMatrix(Offset tapPosition) {
     final content = widget.contentSize;
     final viewport = _containerSize;
     if (!_isValidSize(content) || !_isValidSize(viewport)) {
-      return _calculateClassicDoubleTapMatrix(tapPosition);
+      if (!_controller.value.isIdentity()) return Matrix4.identity();
+      _classicReturnMatrix = Matrix4.identity();
+      return _calcZoomMatrixFromZoomValue(
+        focalPoint: tapPosition,
+        zoomValue: _kDoubleTapScale,
+      );
     }
 
-    final currentScale = _scale2D(_controller.value);
-    if (!currentScale.isFinite || currentScale < 1 - _scaledZoomTolerance(1)) {
+    final image = content!;
+    final bounds = viewport!;
+    final baseline = _controller.value;
+    final initialScale = _scale2D(baseline);
+    final comicWidthFit = _calcOtherDimensionFitScale(
+      viewport: bounds,
+      content: image,
+    );
+
+    // Auto Comic may already have fitted a tall image to width. Treat that
+    // transform (including its reading position) as the starting state.
+    final isComicReadingBaseline =
+        image.aspectRatio < 0.25 &&
+        initialScale > 1 &&
+        (initialScale - comicWidthFit).abs() <=
+            comicWidthFit * _kSnapToFitTolerance;
+
+    if (!baseline.isIdentity() && !isComicReadingBaseline) {
       return Matrix4.identity();
     }
 
-    final secondFitScale = _calcOtherDimensionFitScale(
-      viewport: viewport!,
-      content: content!,
-    );
-    final maxScale = _calcMaxScale(content, viewport);
-    final secondTarget = min(secondFitScale, maxScale);
-    final detailTarget = min(
-      secondFitScale * _kDoubleTapScale,
-      maxScale,
+    final viewportAspect = bounds.aspectRatio;
+    // Very narrow viewports may already fit the tall image's width. A
+    // double tap must still zoom in rather than shrink below contain fit.
+    var targetScale = max(
+      1.15,
+      _calcAspectAwareClassicZoom(content: image, viewport: bounds),
     );
 
-    if (_approximatelySameZoom(secondTarget, 1)) {
-      return currentScale <= 1 + _scaledZoomTolerance(1)
-          ? _calcZoomMatrixForTargetScale(
-              focalPoint: tapPosition,
-              targetScale: detailTarget,
-            )
-          : Matrix4.identity();
+    if (isComicReadingBaseline &&
+        viewportAspect < 1 &&
+        targetScale <= initialScale * 1.05) {
+      // Width is already filled; offer a modest detail step on first tap.
+      targetScale = initialScale * _kClassicComicDetailMultiplier;
     }
 
-    if (currentScale < secondTarget - _scaledZoomTolerance(secondTarget)) {
-      return _calcZoomMatrixForTargetScale(
-        focalPoint: tapPosition,
-        targetScale: secondTarget,
-      );
+    final otherFit = comicWidthFit;
+    final ordinary = image.aspectRatio >= 0.55 && image.aspectRatio <= 2.40;
+    // Automatic fit snapping must never enlarge the requested zoom.
+    // Snap down to an exact width/height fit to avoid needless 2D panning.
+    if (otherFit > 1.15 &&
+        targetScale >= otherFit &&
+        (!ordinary || otherFit <= _kClassicNormalMaxZoom) &&
+        targetScale - otherFit <= otherFit * _kSnapToFitTolerance) {
+      targetScale = otherFit;
     }
 
-    if (_approximatelySameZoom(currentScale, secondTarget) &&
-        detailTarget > secondTarget + _scaledZoomTolerance(secondTarget)) {
-      return _calcZoomMatrixForTargetScale(
-        focalPoint: tapPosition,
-        targetScale: detailTarget,
-      );
+    final maximumScale = _calcMaxScale(image, bounds);
+    if (maximumScale.isFinite && maximumScale > 1) {
+      targetScale = min(targetScale, maximumScale);
     }
 
-    return Matrix4.identity();
+    _classicReturnMatrix = baseline.clone();
+    return _calcZoomMatrixForTargetScale(
+      focalPoint: tapPosition,
+      targetScale: targetScale,
+    );
   }
 
   Matrix4 _calcZoomMatrixForTargetScale({
@@ -643,7 +609,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     if (_doubleTapDetails == null) return;
 
     final position = _doubleTapDetails!.localPosition;
-    final endMatrix = _calculateDoubleTapMatrix(position);
+    final endMatrix = _calculateClassicDoubleTapMatrix(position);
 
     _animation =
         Matrix4Tween(
@@ -656,25 +622,70 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   }
 }
 
-// Calculates the target scale by fitting width for tall images and height for wide images.
-Matrix4 _calcZoomMatrixFromSize({
-  required Size viewport,
+// Target scale relative to contain-fit. Normal images get a conservative
+// detail zoom; extreme shapes fill a useful image band or reading column.
+double _calcAspectAwareClassicZoom({
   required Size content,
-  required Offset focalPoint,
+  required Size viewport,
 }) {
-  if (!_isValidSize(content) || !_isValidSize(viewport)) {
-    return Matrix4.identity();
-  }
+  final imageAspect = content.aspectRatio;
+  final viewportAspect = viewport.aspectRatio;
 
-  // Create transformation matrix centered at focal point
-  return _calcZoomMatrixFromZoomValue(
-    focalPoint: focalPoint,
-    zoomValue: _calcOtherDimensionFitScale(
+  if (viewportAspect >= 1) {
+    final otherFit = _calcOtherDimensionFitScale(
       viewport: viewport,
       content: content,
-    ),
-  );
+    );
+    final normal = otherFit.clamp(1.15, _kClassicNormalMaxZoom).toDouble();
+
+    if (imageAspect >= 1.75) {
+      // Fade from a modest detail zoom to a full-height panorama, without
+      // introducing a discontinuity when a picture crosses a ratio boundary.
+      final wideHeightFit = max(1.15, imageAspect / viewportAspect);
+      return _lerpClassicZoom(
+        normal,
+        wideHeightFit,
+        _classicSmoothstep(1.75, 2.40, imageAspect),
+      );
+    }
+    if (imageAspect >= 0.55) return normal;
+
+    return _lerpClassicZoom(
+      1 / imageAspect,
+      normal,
+      _classicSmoothstep(0.30, 0.55, imageAspect),
+    );
+  }
+
+  final squareDistance = log(imageAspect) / 0.13;
+  final detail =
+      _kClassicDetailZoom +
+      _kClassicSquareBoost * exp(-0.5 * squareDistance * squareDistance);
+
+  if (imageAspect < 0.55) {
+    return _lerpClassicZoom(
+      viewportAspect / imageAspect,
+      detail,
+      _classicSmoothstep(0.30, 0.55, imageAspect),
+    );
+  }
+  if (imageAspect > 1.75) {
+    return _lerpClassicZoom(
+      detail,
+      1.10 * imageAspect,
+      _classicSmoothstep(1.75, 2.40, imageAspect),
+    );
+  }
+  return detail;
 }
+
+double _classicSmoothstep(double start, double end, double value) {
+  final t = ((value - start) / (end - start)).clamp(0.0, 1.0).toDouble();
+  return t * t * (3 - 2 * t);
+}
+
+double _lerpClassicZoom(double from, double to, double factor) =>
+    from + (to - from) * factor;
 
 double _calcOtherDimensionFitScale({
   required Size viewport,
@@ -706,11 +717,16 @@ double _calcMaxScale(Size? contentSize, Size? containerSize) {
     return _kFallbackMaxScale;
   }
 
+  // The viewport displays even tiny images at contain fit. Keep a useful
+  // relative zoom range and ensure maxScale never falls below minScale.
   return max(
-        contentSize.width / containerSize.width,
-        contentSize.height / containerSize.height,
-      ) *
-      _kScaleMultiplier;
+    _kDoubleTapScale,
+    max(
+          contentSize.width / containerSize.width,
+          contentSize.height / containerSize.height,
+        ) *
+        _kScaleMultiplier,
+  );
 }
 
 bool _isValidSize(Size? size) =>
@@ -783,12 +799,6 @@ double _scale2D(Matrix4 matrix) {
   final scaleY = matrix.entry(1, 0);
   return sqrt(scaleX * scaleX + scaleY * scaleY);
 }
-
-bool _approximatelySameZoom(double first, double second) =>
-    (first - second).abs() <= _scaledZoomTolerance(second);
-
-double _scaledZoomTolerance(double scale) =>
-    _kZoomStateTolerance * max(1, scale.abs());
 
 Matrix4? _constrainPanToContent({
   required Matrix4 matrix,
