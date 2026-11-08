@@ -104,7 +104,7 @@ void main() {
         expectedFormat: GroupTextFormat.plainText,
         expectedCreated: created,
         expectedUpdated: updated,
-        memberPostIds: rawPool.postIds,
+        memberPostIds: rawPool.postIds!,
       );
     },
   );

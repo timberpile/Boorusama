@@ -192,7 +192,7 @@ class _SzurubooruPoolPostList extends ConsumerWidget {
       key: ValueKey((pool.postIds, order, perPage)),
       fetcher: (page) => TaskEither.tryCatch(
         () => repo.fetchPostIds(
-          ids: pool.postIds,
+          ids: pool.postIds ?? const [],
           page: page,
           perPage: perPage,
           order: order,
