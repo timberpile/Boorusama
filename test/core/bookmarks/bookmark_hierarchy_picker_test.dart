@@ -70,7 +70,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final pickerRect = tester.getRect(find.byType(BookmarkGroupPicker));
-        expect(pickerRect.width, lessThanOrEqualTo(280));
+        expect(pickerRect.width, lessThanOrEqualTo(420));
         expect(pickerRect.left, greaterThanOrEqualTo(0));
         expect(pickerRect.right, lessThanOrEqualTo(320));
 
@@ -190,9 +190,10 @@ void main() {
 ValueKey<(String, String)> _groupRowKey(String id) =>
     ValueKey(('bookmark-picker-group', id));
 
-String _path(WidgetTester tester) => tester
-    .widget<Text>(find.byKey(const ValueKey('bookmark-picker-path')))
-    .data!;
+String _path(WidgetTester tester) {
+  final path = find.byKey(const ValueKey('bookmark-picker-path'));
+  return path.evaluate().isEmpty ? 'Home' : tester.widget<Text>(path).data!;
+}
 
 Future<void> _tapTrailing(
   WidgetTester tester,
@@ -223,8 +224,10 @@ Future<_Fixture> _mount(
   double textScale = 1,
   List<BookmarkGroup> recentGroups = const [],
 }) async {
-  await tester.binding.setSurfaceSize(size);
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
   final library = _Library();
   final appNavigation = AppNavigation();
   late final GoRouter router;

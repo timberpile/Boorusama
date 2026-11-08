@@ -149,29 +149,24 @@ class _BookmarkFolderPickerContentsState
       if (!_navigation.back()) widget.onRootBack?.call();
     }
 
-    Widget target(BookmarkGroup group, {bool here = false}) {
+    Widget target(BookmarkGroup group) {
       final enabled = widget.selectableGroupIds?.contains(group.id) ?? true;
       final body = enabled
-          ? (here
-                ? widget.currentGroupBuilder ?? widget.groupBuilder
-                : widget.groupBuilder)(context, group)
+          ? widget.groupBuilder(context, group)
           : BookmarkPickerMenuItem(
               title: group.displayName(context),
               icon: const Icon(Icons.bookmarks_outlined),
               onTap: null,
             );
-      return here
-          ? ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 60),
-              child: body,
-            )
-          : BookmarkPickerSplitRow(
-              key: ValueKey(('bookmark-picker-group', group.id)),
-              onOpen: () => _navigation.open(group.id),
-              navigationLabel:
-                  '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
-              child: body,
-            );
+      return BookmarkPickerSplitRow(
+        key: ValueKey(('bookmark-picker-group', group.id)),
+        onOpen: _tree.childrenOf(group.id).isEmpty
+            ? null
+            : () => _navigation.open(group.id),
+        navigationLabel:
+            '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
+        child: body,
+      );
     }
 
     final navigation = Column(
@@ -183,25 +178,26 @@ class _BookmarkFolderPickerContentsState
             key: const ValueKey('bookmark-picker-navigation'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: KurumiPopupMenuItem(
-                  key: const ValueKey('bookmark-picker-back'),
-                  hideOnTap: false,
-                  icon: const Icon(Icons.arrow_back, size: 20),
-                  title: Tooltip(
-                    message: path,
-                    child: Text(
-                      path,
-                      key: const ValueKey('bookmark-picker-path'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+              if (current == null)
+                const Spacer()
+              else
+                Expanded(
+                  child: KurumiPopupMenuItem(
+                    key: const ValueKey('bookmark-picker-back'),
+                    hideOnTap: false,
+                    icon: const Icon(Icons.arrow_back, size: 20),
+                    title: Tooltip(
+                      message: path,
+                      child: Text(
+                        path,
+                        key: const ValueKey('bookmark-picker-path'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
+                    onTap: back,
                   ),
-                  onTap: current == null && widget.onRootBack == null
-                      ? null
-                      : back,
                 ),
-              ),
               if (widget.onCreateGroup case final create?)
                 Tooltip(
                   message: context.t.bookmark.groups.create_new,
@@ -225,10 +221,6 @@ class _BookmarkFolderPickerContentsState
       ],
     );
     final entries = <Widget>[
-      if (current != null) ...[
-        target(current, here: true),
-        const KurumiContextMenuDivider(),
-      ],
       if (id == null) ...widget.homeChildren,
       for (final group in _tree.childrenOf(id)) target(group),
       if (widget.footerBuilder case final footer?) ...[
@@ -243,14 +235,15 @@ class _BookmarkFolderPickerContentsState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: constraints.maxHeight.isFinite
-                    ? constraints.maxHeight * .4
-                    : double.infinity,
+            if (current != null || widget.onCreateGroup != null)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight.isFinite
+                      ? constraints.maxHeight * .4
+                      : double.infinity,
+                ),
+                child: SingleChildScrollView(child: navigation),
               ),
-              child: SingleChildScrollView(child: navigation),
-            ),
             Flexible(
               flex: 3,
               child: ListView(
@@ -299,42 +292,49 @@ class BookmarkPickerSplitRow extends StatelessWidget {
   Widget build(BuildContext context) => Stack(
     children: [
       Padding(
-        padding: const EdgeInsetsDirectional.only(end: 80),
+        padding: EdgeInsetsDirectional.only(end: onOpen == null ? 0 : 80),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 60),
+          constraints: const BoxConstraints(minHeight: 48),
           child: child,
         ),
       ),
-      PositionedDirectional(
-        end: 0,
-        top: 0,
-        bottom: 0,
-        width: 80,
-        child: Semantics(
-          button: true,
-          label: navigationLabel,
-          enabled: onOpen != null,
-          child: Tooltip(
-            message: navigationLabel,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onOpen,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    border: BorderDirectional(
-                      start: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant,
+      if (onOpen != null)
+        PositionedDirectional(
+          end: 0,
+          top: 0,
+          bottom: 0,
+          width: 80,
+          child: Semantics(
+            button: true,
+            label: navigationLabel,
+            enabled: onOpen != null,
+            child: Tooltip(
+              message: navigationLabel,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onOpen,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: BorderDirectional(
+                        start: BorderSide(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                      ),
+                    ),
+                    child: const Padding(
+                      padding: EdgeInsetsDirectional.only(end: 10),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Icon(Icons.chevron_right),
                       ),
                     ),
                   ),
-                  child: const Center(child: Icon(Icons.chevron_right)),
                 ),
               ),
             ),
           ),
         ),
-      ),
     ],
   );
 }
@@ -422,6 +422,7 @@ class BookmarkPickerMenuItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => KurumiPopupMenuItem(
+    minHeight: 48,
     icon: IconTheme.merge(
       data: const IconThemeData(size: 20),
       child: icon,

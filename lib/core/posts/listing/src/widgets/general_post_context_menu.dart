@@ -40,9 +40,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
       builder: (context, posts, _) {
         if (index >= posts.length) return child;
         final post = posts[index];
-        final snapshot = PostActionSnapshot([
-          post,
-        ], ref.watch(booruConfigProvider));
+        final snapshot = PostActionSnapshot.watch(ref, [post]);
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
             PostContextMenuActions(

@@ -107,10 +107,10 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
         if (!_navigation.back()) _controller.hide();
       },
       overlayBuilder: (context) => Padding(
-        padding: const EdgeInsets.all(8),
+        padding: EdgeInsets.zero,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: 280,
+            maxWidth: math.min(420, MediaQuery.sizeOf(context).width - 24),
             maxHeight: _maxHeight(context),
           ),
           child: BookmarkGroupPicker(
@@ -321,7 +321,9 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
                   BookmarkPickerSplitRow(
                     navigationLabel:
                         '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
-                    onOpen: () => _navigation.open(group.id),
+                    onOpen: tree?.childrenOf(group.id).isNotEmpty == true
+                        ? () => _navigation.open(group.id)
+                        : null,
                     child: row(group, recent: true),
                   ),
               ],

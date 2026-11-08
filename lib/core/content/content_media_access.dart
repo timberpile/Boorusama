@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,12 +61,27 @@ String contentMediaCacheNamespace(ContentAccessKey key) =>
     '${Uri.encodeComponent(key.siteNamespace)}/${key.profileId ?? 'public'}/'
     '${key.authEpoch}/${key.policyEpoch}';
 
-final contentMediaCacheNamespaceProvider =
-    Provider.family<String, ContentAccessKey>(
-      (ref, key) =>
-          '${ref.watch(contentAccessEpochsProvider).sessionId}/${contentMediaCacheNamespace(key)}',
-      dependencies: [contentAccessEpochsProvider],
-    );
+final contentMediaCacheNamespaceProvider = Provider.family<String, ContentAccessKey>(
+  (ref, key) {
+    final context = ref.watch(contentAccessContextProvider(key));
+    final config = context?.config;
+    if (config == null)
+      return 'revoked/${ref.watch(contentAccessEpochsProvider).sessionId}/${contentMediaCacheNamespace(key)}';
+    final generation = config.localMediaGeneration;
+    final policy = context?.policyFingerprint;
+    // Non-repository fixtures/unpersisted actors cannot claim durable provenance.
+    final actor = key.profileId == null
+        ? 'public-v${AnonymousSourcePolicy.version}'
+        : generation;
+    if (actor == null || policy == null)
+      return '${ref.watch(contentAccessEpochsProvider).sessionId}/${contentMediaCacheNamespace(key)}';
+    return 'content-media-durable-v1/${sha256.convert(utf8.encode(jsonEncode([key.engine.id, key.siteNamespace, key.profileId, actor, policy])))}';
+  },
+  dependencies: [
+    contentAccessContextProvider,
+    contentAccessEpochsProvider,
+  ],
+);
 
 final contentMediaCacheManagerProvider = Provider.autoDispose
     .family<

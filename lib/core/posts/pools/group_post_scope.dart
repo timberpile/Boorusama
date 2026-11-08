@@ -121,7 +121,19 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
       ),
       // Membership keys, rather than Post IDs, own deduplication and selection.
       duplicateIdentity: (_) => null,
-      onRefresh: pager?.refresh,
+      onRefresh: pager == null
+          ? null
+          : () {
+              pager.refresh();
+              if (key != null) {
+                final metadata = GroupMetadataKey(
+                  reference: widget.reference,
+                  access: key,
+                );
+                ref.invalidate(groupDetailsProvider(metadata));
+                ref.invalidate(groupSummaryProvider(metadata));
+              }
+            },
       selectionKeysBuilder: pager?.selectionKeys,
       builder: widget.builder,
     );

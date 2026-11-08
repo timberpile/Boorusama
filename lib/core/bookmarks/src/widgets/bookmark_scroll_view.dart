@@ -1,3 +1,4 @@
+import 'bookmark_access_placeholder.dart';
 import 'bookmark_group_viewer_entry.dart';
 import '../providers/pool_bookmark_provider.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
@@ -86,6 +87,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   var _mediaRetryRevision = 0;
   List<BookmarkGridEntry> _fetchedEntries = const [];
   List<BookmarkGridEntry> _entries = const [];
+  Object? _unavailableInputs;
+  List<BookmarkGridEntry> _unavailableEntries = const [];
   Map<Object, int> _rawPostIndices = const {};
 
   late String _selectionQuery = widget.searchController.text;
@@ -409,19 +412,46 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     final library = ref.watch(bookmarkProvider).valueOrNull;
     final availability = ref.watch(bookmarkProfileAvailabilityProvider);
     if (library == null || availability == null) return const {};
-    final entries = selectBookmarkGridEntries(
-      state: library,
-      view: widget.view,
-      selectedTags: _parseTagsFromText(widget.searchController.text),
-      sortType: ref.watch(selectedBookmarkSortTypeProvider),
-      selectedBooruUrl: ref.watch(selectedBooruUrlProvider),
-    );
+    final tags = widget.searchController.text;
+    final source = ref.watch(selectedBooruUrlProvider);
+    final inputs = (library, widget.view, tags, source);
+    if (_unavailableInputs != inputs) {
+      _unavailableInputs = inputs;
+      _unavailableEntries = selectBookmarkGridEntries(
+        state: library,
+        view: widget.view,
+        selectedTags: _parseTagsFromText(tags),
+        sortType: BookmarkSortType.newest,
+        selectedBooruUrl: source,
+      );
+    }
+    final entries = _unavailableEntries;
     final counts = Map.of(availability.countsForEntries(entries));
     final origins = {
       for (final entry in entries.whereType<BookmarkPostEntry>())
         entry.bookmark.id: entry.bookmark.post.origin,
     };
     final counted = <int>{};
+    for (final entry in entries.whereType<BookmarkPostEntry>()) {
+      final bookmark = entry.bookmark;
+      if (availability.unavailableReasons.containsKey(bookmark.id)) continue;
+      final resolution = const PostOriginResolver().resolve(
+        bookmark.post.origin,
+        ref.watch(booruConfigProvider),
+        allowProfileHintFallback: false,
+      );
+      if (resolution case ResolvedPostOrigin(:final config)) {
+        final policy = ref.watch(contentEffectivePolicyProvider(config.id));
+        if (policy.hasError) {
+          counted.add(bookmark.id);
+          counts.update(
+            PostPresentationFallbackReason.refreshFailed,
+            (n) => n + 1,
+            ifAbsent: () => 1,
+          );
+        }
+      }
+    }
     for (final failure in ref.watch(contentMediaFailuresProvider).entries) {
       final id = failure.key.bookmarkId;
       final origin = origins[id];
@@ -452,6 +482,14 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       for (final entry in selected.whereType<BookmarkPostEntry>())
         entry.bookmark.id,
     };
+    for (final entry in selected.whereType<BookmarkPostEntry>()) {
+      if (ref.read(
+            contentAccessForOriginProvider(entry.bookmark.post.origin),
+          ) ==
+          null) {
+        retryBookmarkPolicy(ref, entry.bookmark.post.origin);
+      }
+    }
     ref.read(contentMediaFailuresProvider.notifier).retry([
       for (final key in ref.read(contentMediaFailuresProvider).keys)
         if (ids.contains(key.bookmarkId)) key,
@@ -592,7 +630,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
         final post = posts[index];
         final access = ref.watch(contentAccessForOriginProvider(post.origin));
         final config = access?.config;
-        if (config == null) return const SizedBox.shrink();
+        if (config == null)
+          return BookmarkAccessPlaceholder(origin: post.origin);
+        final visibility = ref.watch(
+          contentPostVisibilityProvider((access: access!.key, post: post)),
+        );
+        if (visibility.valueOrNull != true)
+          return BookmarkAccessPlaceholder(origin: post.origin);
         final effectiveAuth = config.auth;
 
         return CurrentBooruConfigScope(

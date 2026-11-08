@@ -1,3 +1,8 @@
+import 'bookmark_access_placeholder.dart';
+import '../providers/bookmark_cover_failures.dart';
+import '../../../configs/manage/providers.dart';
+import '../../../posts/post/types.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -72,14 +77,9 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: BookmarkGroupPreviewGrid(
+                      child: _BookmarkGroupCover(
                         previews: previews,
-                        additionalPreviews: [
-                          for (final pool in pools)
-                            BookmarkPoolCoverImage(pool: pool),
-                        ],
-                        itemBuilder: (_, bookmark) =>
-                            _BookmarkGroupPreviewImage(bookmark: bookmark),
+                        pools: pools,
                       ),
                     ),
                     const Positioned.fill(
@@ -189,22 +189,131 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
   final Widget Function(BuildContext context, PostBookmark bookmark)
   itemBuilder;
 
+  Widget _tile(BuildContext context, int index) => index < previews.length
+      ? itemBuilder(context, previews[index])
+      : index - previews.length < additionalPreviews.length
+      ? additionalPreviews[index - previews.length]
+      : const SizedBox.expand();
+
   @override
-  Widget build(BuildContext context) => GridView.builder(
-    physics: const NeverScrollableScrollPhysics(),
+  Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.all(2),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      crossAxisSpacing: 2,
-      mainAxisSpacing: 2,
+    child: Column(
+      children: [
+        for (var row = 0; row < 2; row++) ...[
+          if (row > 0) const SizedBox(height: 2),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: _tile(context, row * 2)),
+                const SizedBox(width: 2),
+                Expanded(child: _tile(context, row * 2 + 1)),
+              ],
+            ),
+          ),
+        ],
+      ],
     ),
-    itemCount: 4,
-    itemBuilder: (context, index) => index < previews.length
-        ? itemBuilder(context, previews[index])
-        : index - previews.length < additionalPreviews.length
-        ? additionalPreviews[index - previews.length]
-        : const SizedBox.shrink(),
   );
+}
+
+class _BookmarkGroupCover extends ConsumerStatefulWidget {
+  const _BookmarkGroupCover({required this.previews, required this.pools});
+  final List<PostBookmark> previews;
+  final List<CollectionBookmark> pools;
+  @override
+  ConsumerState<_BookmarkGroupCover> createState() =>
+      _BookmarkGroupCoverState();
+}
+
+class _BookmarkGroupCoverState extends ConsumerState<_BookmarkGroupCover> {
+  final _slots = <int?>[0, 1, 2, 3];
+  int _next = 4;
+  void _reset() {
+    _slots.setAll(0, [0, 1, 2, 3]);
+    _next = 4;
+  }
+
+  @override
+  void didUpdateWidget(_BookmarkGroupCover oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.previews, widget.previews)) _reset();
+  }
+
+  void _retry() {
+    final origins = widget.previews.take(12).map((b) => b.post.origin).toSet();
+    for (final origin in origins) {
+      final key = ref.read(contentAccessForOriginProvider(origin))?.key;
+      if (key != null)
+        ref.read(bookmarkCoverFailuresProvider.notifier).retry(key);
+      retryBookmarkPolicy(ref, origin);
+    }
+    setState(_reset);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final candidates = widget.previews.take(12).toList();
+    for (final origin in candidates.map((b) => b.post.origin).toSet()) {
+      ref.listen(contentAccessForOriginProvider(origin), (previous, next) {
+        if (next != null && previous?.key != next.key) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(_reset);
+          });
+        }
+      });
+    }
+    return BookmarkGroupPreviewGrid(
+      previews: const [],
+      additionalPreviews: [
+        for (var slot = 0; slot < 4; slot++)
+          if (_slots[slot] case final index? when index < candidates.length)
+            _BookmarkGroupPreviewImage(
+              key: ValueKey((slot, candidates[index].id)),
+              bookmark: candidates[index],
+              onFailed: () {
+                if (!mounted || _slots[slot] != index) return;
+                setState(() {
+                  _slots[slot] = _next < candidates.length ? _next++ : null;
+                });
+              },
+            )
+          else if (slot < widget.pools.length)
+            BookmarkPoolCoverImage(pool: widget.pools[slot])
+          else
+            Center(
+              child: IconButton(
+                tooltip: context.t.generic.action.retry,
+                onPressed: _retry,
+                icon: const Icon(Icons.bookmarks_outlined),
+              ),
+            ),
+      ],
+      itemBuilder: (_, _) => const SizedBox.expand(),
+    );
+  }
+}
+
+/// A terminal image outcome reports once after layout, never during build.
+class _CoverFailure extends StatefulWidget {
+  const _CoverFailure({required this.onFailed});
+  final VoidCallback onFailed;
+  @override
+  State<_CoverFailure> createState() => _CoverFailureState();
+}
+
+class _CoverFailureState extends State<_CoverFailure> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onFailed();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const Icon(Icons.bookmarks_outlined);
 }
 
 String bookmarkGroupPreviewUrl(
@@ -219,7 +328,11 @@ String bookmarkGroupPreviewUrl(
         (url) =>
             Uri.tryParse(url)?.path.toLowerCase().endsWith('.gif') ?? false,
       );
-  if (autoplayGif || !isGif) return bookmark.sampleUrl;
+  if (!isGif)
+    return bookmark.thumbnailUrl.isNotEmpty
+        ? bookmark.thumbnailUrl
+        : bookmark.sampleUrl;
+  if (autoplayGif) return bookmark.sampleUrl;
 
   // Never fetch an animation just to display its first frame. Extensionless
   // and potentially animated WebP/AVIF variants are not proven static posters.
@@ -232,9 +345,14 @@ String bookmarkGroupPreviewUrl(
 }
 
 class _BookmarkGroupPreviewImage extends ConsumerWidget {
-  const _BookmarkGroupPreviewImage({required this.bookmark});
+  const _BookmarkGroupPreviewImage({
+    required this.bookmark,
+    required this.onFailed,
+    super.key,
+  });
 
   final PostBookmark bookmark;
+  final VoidCallback onFailed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -249,12 +367,41 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
       bookmark,
       autoplayGif: autoplayGif,
     );
-    if (imageUrl.isEmpty) return const SizedBox.expand();
+    if (imageUrl.isEmpty) return const Icon(Icons.bookmarks_outlined);
     final access = ref.watch(
       contentAccessForOriginProvider(bookmark.post.origin),
     );
     final imageConfig = access?.config;
-    if (imageConfig == null) return const SizedBox.expand();
+    if (imageConfig == null) {
+      final resolution = const PostOriginResolver().resolve(
+        bookmark.post.origin,
+        ref.watch(booruConfigProvider),
+        allowProfileHintFallback: false,
+      );
+      if (resolution case ResolvedPostOrigin(:final config)) {
+        if (ref.watch(contentEffectivePolicyProvider(config.id)).hasError)
+          return _CoverFailure(onFailed: onFailed);
+      }
+      return BookmarkAccessPlaceholder(origin: bookmark.post.origin);
+    }
+    final visible = ref.watch(
+      contentPostVisibilityProvider((access: access!.key, post: bookmark.post)),
+    );
+    if (visible.valueOrNull == false) return _CoverFailure(onFailed: onFailed);
+    if (visible.valueOrNull != true)
+      return BookmarkAccessPlaceholder(origin: bookmark.post.origin);
+    if ((ref.watch(bookmarkCoverFailuresProvider)[access.key]?.length ?? 0) >=
+        4) {
+      final cached = ref.watch(
+        bookmarkCoverCachedProvider((access: access.key, url: imageUrl)),
+      );
+      if (cached.hasError || cached.valueOrNull == false)
+        return _CoverFailure(onFailed: onFailed);
+      if (cached.valueOrNull != true)
+        return const SizedBox.expand(
+          child: Center(child: Icon(Icons.bookmarks_outlined)),
+        );
+    }
     return CurrentBooruConfigScope(
       config: imageConfig,
       accessKey: access!.key,
@@ -264,7 +411,14 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
         imageUrl: imageUrl,
         config: imageConfig.auth,
         fit: BoxFit.cover,
-        placeholderWidget: const SizedBox.expand(),
+        errorWidget: _CoverFailure(
+          onFailed: () {
+            ref
+                .read(bookmarkCoverFailuresProvider.notifier)
+                .record(access.key, bookmark.id);
+            onFailed();
+          },
+        ),
       ),
     );
   }

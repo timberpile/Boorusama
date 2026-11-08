@@ -9,6 +9,8 @@ import 'anonymous_read_scope.dart';
 import 'anonymous_source_policy.dart';
 import 'content_access.dart';
 import 'content_access_provider.dart';
+import '../bookmarks/src/providers/pool_bookmark_provider.dart'
+    show poolCoverPolicy;
 
 final anonymousSourcePolicyProvider = Provider(
   (ref) => const AnonymousSourcePolicy(),
@@ -79,6 +81,10 @@ anonymousContentAccessProvider = Provider.autoDispose
         return ContentAccessContext.anonymous(
           config: base.copyWith(anonymousReadScope: scope),
           scope: scope,
+          policyFingerprint: poolCoverPolicy(
+            base,
+            blacklist.requireValue.map((e) => e.name).toSet(),
+          ),
         );
       },
       dependencies: [

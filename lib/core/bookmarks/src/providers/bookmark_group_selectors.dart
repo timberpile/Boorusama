@@ -123,6 +123,7 @@ List<PostBookmark> selectBookmarkPreviews({
   required BookmarkSortType sortType,
   BookmarkShuffleState? shuffleState,
   Set<int>? availablePostIds,
+  int limit = 4,
 }) {
   // Malformed rows retain the full selector's legacy behavior. All-view random
   // ordering still belongs to the full selector; group covers sample members.
@@ -136,7 +137,7 @@ List<PostBookmark> selectBookmarkPreviews({
       sortType: sortType,
       shuffleState: shuffleState,
       availablePostIds: availablePostIds,
-    ).take(4).toList();
+    ).take(limit).toList();
   }
 
   final groupIds = view.kind == BookmarkViewKind.all
@@ -160,6 +161,7 @@ List<PostBookmark> selectBookmarkPreviews({
         return _sampleGroupPreviews(
           candidates,
           shuffleState?.seed ?? _defaultPreviewShuffle.seed!,
+          limit,
         );
       }
       final compare = _bookmarkComparator(
@@ -176,9 +178,9 @@ List<PostBookmark> selectBookmarkPreviews({
         while (index < best.length && compare(best[index], candidate) <= 0) {
           index++;
         }
-        if (index >= 4) continue;
+        if (index >= limit) continue;
         best.insert(index, candidate);
-        if (best.length > 4) best.removeLast();
+        if (best.length > limit) best.removeLast();
       }
       return best;
     },
@@ -195,6 +197,7 @@ final _defaultPreviewShuffle = const BookmarkShuffleState().withNewShuffle();
 List<PostBookmark> _sampleGroupPreviews(
   Iterable<PostBookmark> candidates,
   int seed,
+  int limit,
 ) {
   final best = <({int rank, int id, PostBookmark bookmark})>[];
   for (final bookmark in candidates) {
@@ -202,7 +205,7 @@ List<PostBookmark> _sampleGroupPreviews(
     final rank = _previewRank(id, seed);
     // Once full, almost every later rank loses. Avoid walking all four entries
     // merely to reject it; insertion still handles the occasional better rank.
-    if (best.length == 4 &&
+    if (best.length == limit &&
         (rank > best.last.rank ||
             (rank == best.last.rank && id > best.last.id))) {
       continue;
@@ -213,9 +216,9 @@ List<PostBookmark> _sampleGroupPreviews(
             (best[index].rank == rank && best[index].id < id))) {
       index++;
     }
-    if (index >= 4) continue;
+    if (index >= limit) continue;
     best.insert(index, (rank: rank, id: id, bookmark: bookmark));
-    if (best.length > 4) best.removeLast();
+    if (best.length > limit) best.removeLast();
   }
   return [for (final entry in best) entry.bookmark];
 }

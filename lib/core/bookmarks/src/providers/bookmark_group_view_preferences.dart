@@ -22,30 +22,43 @@ class BookmarkGroupViewPreferences
     extends Notifier<Map<String, BookmarkGroupViewMode>> {
   Future<void> _writeQueue = Future<void>.value();
   var _disposed = false;
+  Map<String, BookmarkGroupViewMode> _durable = const {};
+  final _pendingModes =
+      <({Object token, String id, BookmarkGroupViewMode mode})>[];
+  Map<String, BookmarkGroupViewMode> _project() => Map.unmodifiable({
+    ..._durable,
+    for (final edit in _pendingModes) edit.id: edit.mode,
+  });
 
   @override
   Map<String, BookmarkGroupViewMode> build() {
     _disposed = false;
     ref.onDispose(() => _disposed = true);
-    return Map.unmodifiable(
+    _durable = Map.unmodifiable(
       _decode(ref.read(miscDataStoreProvider).get(_storageKey)),
     );
+    return _durable;
   }
 
   BookmarkGroupViewMode modeFor(String id) =>
       state[_canonicalId(id)] ?? BookmarkGroupViewMode.structure;
 
-  Future<void> setMode(String id, BookmarkGroupViewMode mode) =>
-      _enqueue(() async {
-        if (_disposed) return;
-        final key = _canonicalId(id);
-        if (state[key] == mode ||
-            (state[key] == null && mode == BookmarkGroupViewMode.structure)) {
-          return;
-        }
-        final next = Map<String, BookmarkGroupViewMode>.of(state)..[key] = mode;
-        await _persist(next);
-      });
+  Future<void> setMode(String id, BookmarkGroupViewMode mode) async {
+    if (_disposed) return;
+    final key = _canonicalId(id);
+    if (state[key] == mode ||
+        (state[key] == null && mode == BookmarkGroupViewMode.structure))
+      return;
+    final edit = (token: Object(), id: key, mode: mode);
+    _pendingModes.add(edit);
+    state = _project();
+    try {
+      await _enqueue(() => _persist({..._durable, key: mode}, publish: false));
+    } finally {
+      _pendingModes.remove(edit);
+      if (!_disposed) state = _project();
+    }
+  }
 
   Future<void> forgetGroup(String id) => forgetGroups({id});
 
@@ -54,9 +67,9 @@ class BookmarkGroupViewPreferences
     return _enqueue(() async {
       if (_disposed) return;
       final keys = _canonicalIds(requestedIds);
-      final removed = keys.where(state.containsKey).toSet();
+      final removed = keys.where(_durable.containsKey).toSet();
       if (removed.isEmpty) return;
-      final next = Map<String, BookmarkGroupViewMode>.of(state)
+      final next = Map<String, BookmarkGroupViewMode>.of(_durable)
         ..removeWhere((key, _) => removed.contains(key));
       await _persist(next);
     });
@@ -67,8 +80,8 @@ class BookmarkGroupViewPreferences
     return _enqueue(() async {
       if (_disposed) return;
       final valid = _canonicalIds(requestedIds);
-      if (state.keys.every(valid.contains)) return;
-      final next = Map<String, BookmarkGroupViewMode>.of(state)
+      if (_durable.keys.every(valid.contains)) return;
+      final next = Map<String, BookmarkGroupViewMode>.of(_durable)
         ..removeWhere((key, _) => !valid.contains(key));
       await _persist(next);
     });
@@ -92,10 +105,10 @@ class BookmarkGroupViewPreferences
         normalized[id] = entry.value;
       }
       final missing = normalized.entries.where(
-        (entry) => !state.containsKey(entry.key),
+        (entry) => !_durable.containsKey(entry.key),
       );
       if (missing.isEmpty) return;
-      final next = Map<String, BookmarkGroupViewMode>.of(state)
+      final next = Map<String, BookmarkGroupViewMode>.of(_durable)
         ..addEntries(missing);
       await _persist(next);
     });
@@ -111,12 +124,16 @@ class BookmarkGroupViewPreferences
     return result;
   }
 
-  Future<void> _persist(Map<String, BookmarkGroupViewMode> next) async {
+  Future<void> _persist(
+    Map<String, BookmarkGroupViewMode> next, {
+    bool publish = true,
+  }) async {
     final encoded = <String, String>{
       for (final id in next.keys.toList()..sort()) id: next[id]!.name,
     };
     await ref.read(miscDataStoreProvider).put(_storageKey, jsonEncode(encoded));
-    if (!_disposed) state = Map.unmodifiable(next);
+    _durable = Map.unmodifiable(next);
+    if (!_disposed && publish) state = _project();
   }
 
   String _canonicalId(String id) {

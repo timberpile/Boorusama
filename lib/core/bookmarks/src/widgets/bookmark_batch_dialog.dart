@@ -19,9 +19,10 @@ class BookmarkBatchDialog extends StatelessWidget {
     padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
     child: KurumiDialog(
       width: 420,
+      screenInset: 12,
       height: 560,
       semanticLabel: title,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: SizedBox(
         key: const Key('bookmark-batch-surface'),
         width: 420,
@@ -34,8 +35,11 @@ class BookmarkBatchDialog extends StatelessWidget {
                 constraints: BoxConstraints(
                   maxHeight: constraints.maxHeight / 3,
                 ),
-                child: KurumiFittedText(
-                  Text(title, style: Theme.of(context).textTheme.titleLarge),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: KurumiFittedText(
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),

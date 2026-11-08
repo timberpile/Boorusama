@@ -117,8 +117,10 @@ class KurumiPopupMenuItem extends StatelessWidget {
     this.icon,
     this.trailing,
     this.hideOnTap = true,
+    this.minHeight = 0,
   });
 
+  final double minHeight;
   final Widget title;
   final Widget? icon;
   final Widget? trailing;
@@ -144,33 +146,36 @@ class KurumiPopupMenuItem extends StatelessWidget {
         child: InkWell(
           onTap: onTap == null ? null : handleTap,
           borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: 8,
-            ),
-            child: Row(
-              children: [
-                if (icon case final icon?)
-                  Theme(
-                    data: Theme.of(context).copyWith(
-                      iconTheme: IconThemeData(
-                        color: onTap == null
-                            ? Theme.of(context).disabledColor
-                            : colorScheme.onSurfaceVariant,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 8,
+              ),
+              child: Row(
+                children: [
+                  if (icon case final icon?)
+                    Theme(
+                      data: Theme.of(context).copyWith(
+                        iconTheme: IconThemeData(
+                          color: onTap == null
+                              ? Theme.of(context).disabledColor
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: icon,
                       ),
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: icon,
-                    ),
-                  ),
-                Flexible(child: title),
-                if (trailing case final trailing?) ...[
-                  const SizedBox(width: 8),
-                  trailing,
+                  Flexible(child: title),
+                  if (trailing case final trailing?) ...[
+                    const SizedBox(width: 8),
+                    trailing,
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

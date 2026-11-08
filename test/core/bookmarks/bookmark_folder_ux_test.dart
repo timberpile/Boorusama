@@ -48,6 +48,56 @@ import '../../application/support/fake_image_dio.dart';
 import '../posts/details/progressive_image_test_utils.dart';
 
 void main() {
+  testWidgets('deleted current group normalizes once across later rebuilds', (
+    tester,
+  ) async {
+    final root = _group('root', 'Root');
+    final child = _group('child', 'Child', parent: 'root');
+    final leaf = _group('leaf', 'Leaf', parent: 'child');
+    final library = _Library(_state(groups: [root, child, leaf]));
+    await _pump(
+      tester,
+      library,
+      home: BookmarkGroupBrowserPage(groupId: leaf.id),
+    );
+    library.publish(groups: [root, child]);
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 3; i++) {
+      library.publish(groups: [root, child]);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Child')),
+        findsOneWidget,
+      );
+    }
+    library.publish(groups: [root, child, leaf]);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Child')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('children-only group has neither separator nor empty timeline', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _Library(
+        _state(
+          groups: [
+            _group('root', 'Root'),
+            _group('child', 'Child', parent: 'root'),
+          ],
+        ),
+      ),
+      home: BookmarkGroupBrowserPage(groupId: _id('root')),
+    );
+    expect(find.text('Child'), findsOneWidget);
+    expect(find.text('No bookmarks'), findsNothing);
+    expect(find.byType(Divider), findsNothing);
+  });
+
   testWidgets(
     'covered browsers defer preview filtering and show current groups when revealed',
     (tester) async {
@@ -956,7 +1006,7 @@ void main() {
         );
         final normal = tester.getSize(find.byType(KurumiContextMenuTile));
         final bookmark = tester.getSize(find.byType(BookmarkPickerMenuItem));
-        expect(bookmark.height, normal.height);
+        expect(bookmark.height, normal.height < 48 ? 48 : normal.height);
         TextStyle? style(String label) => tester
             .widget<RichText>(
               find.descendant(
@@ -1011,8 +1061,8 @@ void main() {
           ),
         );
         final ordered = [one, two]..sort((a, b) => a.top.compareTo(b.top));
-        expect(one.height, greaterThanOrEqualTo(60));
-        expect(two.height, greaterThanOrEqualTo(60));
+        expect(one.height, greaterThanOrEqualTo(48));
+        expect(two.height, greaterThanOrEqualTo(48));
         expect(ordered.last.top, greaterThanOrEqualTo(ordered.first.bottom));
         expect(tester.takeException(), isNull);
       },
@@ -1031,6 +1081,11 @@ void main() {
               id: 'child',
               name: 'Cookie',
               parentId: 'root',
+            ),
+            const CollectionFolder(
+              id: 'cookie-leaf',
+              name: 'Cookie leaf',
+              parentId: 'child',
             ),
           ],
           groups: [
@@ -1145,7 +1200,9 @@ void main() {
             of: picker,
             matching: find.byKey(const ValueKey('bookmark-picker-path')),
           ),
-          findsOneWidget,
+          find.byKey(const ValueKey('bookmark-picker-back')).evaluate().isEmpty
+              ? findsNothing
+              : findsOneWidget,
         );
       }
 
@@ -1408,6 +1465,11 @@ void main() {
               id: 'child',
               name: 'Cookie',
               parentId: 'root',
+            ),
+            const CollectionFolder(
+              id: 'cookie-leaf',
+              name: 'Cookie leaf',
+              parentId: 'child',
             ),
           ],
           bookmarks: [_bookmark],

@@ -1,5 +1,92 @@
 # Bookmark review remediation before continuing the rollout
 
+
+## Paused implementation checkpoint (2026-11-08)
+
+The user explicitly requested committing the current state and pausing. This
+checkpoint is **incomplete and not approved**. The original runtime approval in
+`156-shared-source-groups.md` does not cover this remediation delta. Fetched and
+fast-forwarded the existing clean task worktree to `363ab8672` before editing.
+No runtime push, PR, develop integration, #140 work, issue closure or icon-family
+selection occurred. Backup output remains version 10.
+
+Implemented work in progress includes captured-actor selection snapshots and
+execution guards; repository-owned opaque local media generations (excluded from
+transfer codecs); policy snapshots and visible outage slots; shared compact
+picker corrections; children-only browser emptiness and ancestor-menu depth;
+optimistic serialized mode preferences; bounded cover candidates with fixed
+mosaic slots and source backoff; deletion navigation normalization; indexed
+checkpoint restoration; and Group metadata invalidation/stale-seed rejection.
+These changes still require debugging, adversarial review and complete validation.
+
+Controlled baseline regressions reproduced public selection borrowing another
+saved actor, repeated deletion fallback, page-3 checkpoint loss at offsets zero
+and 20, children-only empty UI, and stale route-seed acceptance after invalidation.
+The deterministic original mosaic geometry remained stable after allowing for
+floating-point rounding; no confirmed attribution of the reported geometric
+motion has been established. The fixed mosaic is not evidence that the reported
+animation was reproduced or resolved on Android.
+
+Durable local evidence and recovery scripts are under
+`.worktrees/_artifacts/156-remediation/` in the primary workspace. Logs retain
+failed setup/compile attempts as well as later results; filenames do not imply
+passing checks. In particular:
+
+- `core-targeted-first.log`: 12 focused tests passed on an earlier intermediate
+  state (selection, checkpoint, envelope cache and original mosaic geometry).
+- `action-profile-targeted.log`: 21 tests passed on an earlier intermediate
+  state (profile-generation lifecycle, action parity and mode preferences).
+- `ui-targeted-corrected.log`: 81 passes and two old root-path assertions failed;
+  subsequent assertion updates have not received a complete final rerun.
+- `focused-corrections.log`: cover-fallback decode and native ContentGroupPage
+  metadata/member refresh tests still failed. Diagnose these production-path
+  cases before claiming N3/R4 complete; avoid weakening their intended behavior.
+- `targeted-matrix.log`: the requested broad affected-suite run reported failures
+  and was interrupted at the user's pause request. Some earlier failures have
+  subsequent edits, but this log is **not a completed pass**. Revalidate profile
+  write-error behavior, backup replacement rollback, hierarchy navigation,
+  no-poster GIF autoplay, preload revocation and all updated picker consumers.
+  Cancellation-time failures must be separated from completed test failures.
+- `geometry-performance-before.log`: the original local workload probes completed
+  within a run whose geometry fixture failed. The 9,000-row tag-index first-entry
+  samples were approximately 750-889 ms, later entries 0.28-0.62 ms. The separate
+  1,000-record Hive probe reported about 796 ms write and 202 ms cold load. These
+  host probes do not measure Android opening/mode latency or explain the user's
+  10/2-second observations. No matched final after-run has been recorded.
+- Changed Dart files were formatted and `git diff --check` passed at checkpoint.
+  Earlier scoped analysis reported errors/warnings on intermediate states; no
+  clean analysis of the entire checkpoint is claimed.
+
+The anonymous Realbooru DAPI GET returned HTTP 200 XML with `success=false` and
+an explicit site response that the API is offline indefinitely. No anonymous
+Realbooru permission was added. A Szurubooru URL is now present in the ignored
+primary credential file: `/api/info` returned 200 and anonymous `/api/pools`
+returned 403. Check the existing app profile or obtain the needed authorized test
+actor before declaring the real Szurubooru gate satisfied. Never print credential
+values or private payloads. Redacted probe results are retained locally.
+
+Android preparation used an exclusive `emulator-5554` lease, a fresh original APK
+and full nine-root archive, verified pre-isolation equivalence, and inventoried
+parking plus a working clone. No remediation APK was built/installed and no
+Maestro acceptance test ran before the pause. Restoration evidence is recorded
+in `android/restoration.json` and the associated archive comparison results.
+All nine original roots, APK, permissions and settings were restored. Both the
+restored archive and complete post-cleanup archive comparisons passed. Window
+size/density match the baseline; the original app was resumed because it had
+been running before this campaign. `final-system-check.json` passed and the
+exact emulator lease was released (`lease-release-result.json`). The sole Maestro
+flow resumed the restored original app; it is not remediation acceptance evidence.
+Check these durable results, not historical campaign reports, when resuming.
+The original APK hash for this campaign is
+`a6c31bf518d151fec6d8100b4623ee24d6845d5953540425a3e2b1e275e559ce`.
+
+Remaining work includes the unresolved regressions, complete targeted reruns,
+final-candidate full regression, current-source normal-app Android/Maestro
+verification and restoration, measured cold/warm behavior, and the independent
+actual Sol High final review/re-review. No reviewer has been spawned for this
+checkpoint. The SVG family remains awaiting the user's selection. Keep #140
+and develop integration gated.
+
 ## Mandate and starting point
 
 Continue the existing `maintenance/156-shared-source-groups` task in its owned isolated worktree. The user requested investigation and a handoff for the local implementation agent, covering both the latest device findings and the four earlier review findings. This delivery adds requirements/design assets only, not runtime fixes or a new passing review.

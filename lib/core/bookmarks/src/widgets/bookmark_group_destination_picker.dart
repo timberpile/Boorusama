@@ -75,6 +75,7 @@ class _BookmarkGroupDestinationPickerState
 
     return KurumiDialog(
       width: 420,
+      screenInset: 12,
       height: 560,
       semanticLabel: context.t.bookmark.groups.move_here,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),

@@ -49,6 +49,12 @@ class BlacklistedTagsNotifier
     extends FamilyAsyncNotifier<BlacklistedTagsState, BooruConfigFilter> {
   @override
   FutureOr<BlacklistedTagsState> build(BooruConfigFilter arg) async {
+    final local = arg.blacklistConfigs;
+    if (local?.enable == true &&
+        BlacklistCombinationMode.fromString(local!.combinationMode) ==
+            BlacklistCombinationMode.replace) {
+      return BlacklistedTagsState(tags: _combineTags({}, local));
+    }
     final repo = ref.watch(blacklistTagsRefRepoProvider(arg.auth));
     final booruSpecificBlacklistedTags = await repo.getBlacklistedTags(
       arg.auth,

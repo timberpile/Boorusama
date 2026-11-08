@@ -274,14 +274,14 @@ void main() {
         final nameRect = tester.getRect(name);
         final rowRect = tester.getRect(row);
         final splitRowRect = tester.getRect(splitRow);
-        // At the popup's 280dp cap the body reserves 80dp for navigation.
+        // Recent leaves use the complete row, without a navigation column.
         // Check the actual independent regions instead of a folder-era
         // absolute text-width budget.
         expect(nameRect.left, greaterThanOrEqualTo(rowRect.left));
         expect(nameRect.right, lessThanOrEqualTo(rowRect.right));
         expect(rect.left, greaterThanOrEqualTo(rowRect.left));
         expect(rect.right, rowRect.right - 8);
-        expect(rowRect.right, closeTo(splitRowRect.right - 80, .001));
+        expect(rowRect.right, closeTo(splitRowRect.right, .001));
         expect(rect.width, greaterThan(0));
         expect(
           find.byTooltip(path),

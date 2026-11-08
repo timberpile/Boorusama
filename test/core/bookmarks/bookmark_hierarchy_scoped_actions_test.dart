@@ -105,7 +105,7 @@ void main() {
       );
       expect(
         find.byKey(const ValueKey('bookmark-picker-path')),
-        findsOneWidget,
+        findsNothing,
       );
       await tester.tapAt(Offset(rect.right - 40, rect.center.dy));
       await tester.pumpAndSettle();

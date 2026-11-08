@@ -1,6 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import 'dart:async';
+
+import '../configs/search/types.dart';
+import 'content_policy_snapshot.dart';
+import '../posts/filter/types.dart';
+import '../bookmarks/src/providers/pool_bookmark_provider.dart'
+    show poolCoverAllowsRating;
+
 import '../blacklists/providers.dart';
 import '../bookmarks/src/providers/pool_bookmark_provider.dart'
     show poolCoverPolicy;
@@ -14,26 +22,84 @@ import 'anonymous_access_provider.dart';
 
 /// Reuse the established non-secret visibility policy and effective blacklist.
 /// A loading/failed policy cannot authorize cached Group metadata or media.
+final contentEffectiveBlacklistProvider = Provider.autoDispose
+    .family<AsyncValue<Set<String>>, String>(
+      (ref, profileId) {
+        final matches = ref
+            .watch(booruConfigProvider)
+            .where((p) => p.id == profileId)
+            .toList();
+        if (matches.length != 1) {
+          return AsyncError(
+            AppError(
+              type: AppErrorType.loadDataFromServerFailed,
+              message: 'Content profile unavailable',
+            ),
+            StackTrace.current,
+          );
+        }
+        final config = matches.single;
+        final policy = ref.watch(blacklistTagsProvider(config.filter));
+        final generation = config.localMediaGeneration;
+        if (policy.hasValue && !policy.hasError && !policy.isLoading) {
+          if (generation != null) {
+            // Failed snapshot persistence does not invalidate a live valid policy.
+            unawaited(
+              ref
+                  .read(contentPolicySnapshotStoreProvider)
+                  .write(generation, policy.requireValue)
+                  .catchError((Object _) {}),
+            );
+          }
+          return AsyncData(policy.requireValue);
+        }
+        if (generation != null &&
+            (policy.isLoading || isTransientPolicyFailure(policy.error))) {
+          final saved = ref
+              .watch(contentPolicySnapshotStoreProvider)
+              .read(generation);
+          final global = ref.watch(globalBlacklistedTagsProvider);
+          if (saved != null &&
+              global.hasValue &&
+              !global.hasError &&
+              !global.isLoading) {
+            final local = config.blacklistConfigs;
+            final replace =
+                local?.enable == true &&
+                BlacklistCombinationMode.fromString(local!.combinationMode) ==
+                    BlacklistCombinationMode.replace;
+            final tags = {
+              if (!replace) ...saved,
+              if (!replace) ...global.requireValue.map((e) => e.name),
+              if (local?.enable == true) ...queryAsList(local!.blacklistedTags),
+            };
+            return AsyncData(tags);
+          }
+        }
+        return policy;
+      },
+      dependencies: [
+        booruConfigProvider,
+        blacklistTagsProvider,
+        globalBlacklistedTagsProvider,
+        contentPolicySnapshotStoreProvider,
+      ],
+    );
+
 final contentEffectivePolicyProvider = Provider.autoDispose
-    .family<AsyncValue<String>, String>((ref, profileId) {
-      final matches = ref
+    .family<AsyncValue<String>, String>((ref, id) {
+      final profiles = ref
           .watch(booruConfigProvider)
-          .where((p) => p.id == profileId)
-          .toList();
-      if (matches.length != 1) {
+          .where((config) => config.id == id);
+      if (profiles.length != 1)
         return AsyncError(
-          AppError(
-            type: AppErrorType.loadDataFromServerFailed,
-            message: 'Content profile unavailable',
-          ),
+          StateError('Content profile unavailable'),
           StackTrace.current,
         );
-      }
-      final config = matches.single;
       return ref
-          .watch(blacklistTagsProvider(config.filter))
-          .whenData((tags) => poolCoverPolicy(config, tags));
-    }, dependencies: [booruConfigProvider, blacklistTagsProvider]);
+          .watch(contentEffectiveBlacklistProvider(id))
+          .whenData((tags) => poolCoverPolicy(profiles.single, tags));
+    }, dependencies: [booruConfigProvider, contentEffectiveBlacklistProvider]);
 
 /// Only current profiles and monotonic counters are retained. Policy/client work
 /// is deferred to the one profile actually requested by a visible consumer.
@@ -76,10 +142,12 @@ class ContentAccessScopes extends Notifier<Map<String, ContentProfileScope>> {
     for (final config in profiles) {
       if (counts[config.id] != 1) continue;
       final old = _previous[config.id];
-      final sameAuth = old?.config.auth == config.auth;
-      final sameBinding =
+      final sameAuth =
           old != null &&
-          ViewerSourceBinding(old.config).resolve([config]) != null;
+          old.config.auth == config.auth &&
+          old.config.localMediaGeneration == config.localMediaGeneration;
+      final sameBinding =
+          sameAuth && ViewerSourceBinding(old.config).resolve([config]) != null;
       next[config.id] = (
         config: config,
         authEpoch: sameAuth ? old!.authEpoch : nextEpoch(),
@@ -91,8 +159,12 @@ class ContentAccessScopes extends Notifier<Map<String, ContentProfileScope>> {
   }
 }
 
-final contentProfileAccessProvider = NotifierProvider.autoDispose
-    .family<ContentProfileAccess, ContentAccessContext?, String>(
+final contentProfileAccessProvider =
+    NotifierProvider.family<
+      ContentProfileAccess,
+      ContentAccessContext?,
+      String
+    >(
       ContentProfileAccess.new,
       dependencies: [
         contentAccessScopesProvider,
@@ -101,7 +173,7 @@ final contentProfileAccessProvider = NotifierProvider.autoDispose
     );
 
 class ContentProfileAccess
-    extends AutoDisposeFamilyNotifier<ContentAccessContext?, String> {
+    extends FamilyNotifier<ContentAccessContext?, String> {
   ContentAccessContext? _previous;
   String? _policy;
   int? _bindingEpoch;
@@ -138,6 +210,7 @@ class ContentProfileAccess
       config: scope.config,
       authEpoch: scope.authEpoch,
       policyEpoch: ref.read(contentAccessScopesProvider.notifier).nextEpoch(),
+      policyFingerprint: digest,
     );
   }
 
@@ -243,5 +316,34 @@ final contentAccessForOriginProvider = Provider.autoDispose
         contentProfileAccessProvider,
         anonymousSourcePolicyProvider,
         anonymousContentAccessProvider,
+      ],
+    );
+
+/// Check saved Post facts against the same current policy used to admit media.
+final contentPostVisibilityProvider = Provider.autoDispose
+    .family<AsyncValue<bool>, ({ContentAccessKey access, Post post})>(
+      (ref, request) {
+        final access = ref.watch(contentAccessContextProvider(request.access));
+        final config = access?.config;
+        if (config == null) return const AsyncData(false);
+        final tags = request.access.profileId == null
+            ? ref
+                  .watch(globalBlacklistedTagsProvider)
+                  .whenData((rows) => rows.map((e) => e.name).toSet())
+            : ref.watch(contentEffectiveBlacklistProvider(config.id));
+        return tags.whenData(
+          (tags) =>
+              filterTags([request.post], tags).isNotEmpty &&
+              poolCoverAllowsRating(config, request.post.rating) &&
+              !(config.deletedItemBehavior.isHidden &&
+                  (request.post.status?.matches('deleted') ?? false)) &&
+              !(config.bannedPostVisibility.isHidden &&
+                  (request.post.status?.matches('banned') ?? false)),
+        );
+      },
+      dependencies: [
+        contentAccessContextProvider,
+        globalBlacklistedTagsProvider,
+        contentEffectiveBlacklistProvider,
       ],
     );

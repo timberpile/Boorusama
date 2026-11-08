@@ -1,6 +1,9 @@
 import 'package:booru_clients/szurubooru.dart' as szuru;
 import 'package:boorusama/boorus/danbooru/pools/details/src/widgets/danbooru_infinite_post_id_list.dart';
 import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
+import 'package:boorusama/boorus/danbooru/pools/content_group_source.dart';
+import 'package:boorusama/boorus/danbooru/pools/details/src/pool_detail_page.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/boorus/danbooru/pools/pool/types.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
 import 'package:boorusama/boorus/szurubooru/pools/group_capability.dart';
@@ -13,6 +16,8 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
 import 'package:boorusama/core/posts/details/src/routes/viewer_navigation_scope.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/post_grid_controller.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
@@ -37,6 +42,116 @@ const _szuruPool = SzurubooruPool(
 );
 
 void main() {
+  testWidgets(
+    'native ContentGroupPage refresh updates Header and members without reseeding',
+    (tester) async {
+      final config = BooruConfig.fromJson({
+        ...testProfile.toJson(),
+        'booruId': BooruType.danbooru.id,
+        'booruIdHint': BooruType.danbooru.id,
+      });
+      DanbooruPool pool(int version) => DanbooruPool(
+        id: 1,
+        name: version == 1 ? 'Before' : 'After',
+        postIds: version == 1 ? [1, 2, 3] : [1, 3, 2, 3],
+        postCount: version == 1 ? 3 : 4,
+        description: version == 1 ? 'old description' : 'new description',
+        category: DanbooruPoolCategory.series,
+        createdAt: null,
+        updatedAt: null,
+      );
+      final original = pool(1);
+      var version = 1;
+      var fetches = 0;
+      final repo = _Posts();
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        overrides: [
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, type) => type == BooruType.danbooru
+                ? createDanbooruGroupCapability(ref)
+                : null,
+          ),
+          contentGroupSourceProvider.overrideWith(
+            (ref, key) => DanbooruGroupSource(
+              access: ref.read(contentAccessContextProvider(key))!,
+              postRepository: () => repo,
+              fetchPool: (_) async {
+                fetches++;
+                return version == 1 ? original : pool(2);
+              },
+            ),
+          ),
+          imageListingSettingsProvider.overrideWith(
+            (ref) => Settings.defaultSettings.listing.copyWith(
+              postsPerPage: 2,
+              pageMode: PageMode.paginated,
+            ),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      harness.container
+          .read(selectedTestProfileProvider.notifier)
+          .select(config);
+      await harness.pump(
+        tester,
+        Scaffold(body: PoolDetailPage(pool: original)),
+      );
+      for (
+        var i = 0;
+        i < 100 && find.byType(PostGrid<Post>).evaluate().isEmpty;
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      PostGridController<Post> controller() =>
+          tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>)).controller;
+      expect(find.text('Before'), findsWidgets);
+      var jumped = false;
+      final jump = controller().jumpToPage(2)
+        ..whenComplete(() => jumped = true);
+      for (var i = 0; i < 100 && !jumped; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(jumped, isTrue);
+      await jump;
+      await tester.pump();
+      expect(controller().page, 2);
+      version = 2;
+      final refreshed = controller().refresh(maintainPage: true);
+      var done = false;
+      refreshed.whenComplete(() => done = true);
+      for (var i = 0; i < 100 && !done; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(done, isTrue);
+      await refreshed;
+      for (var i = 0; i < 100 && find.text('After').evaluate().isEmpty; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.pump();
+      for (
+        var i = 0;
+        i < 100 && (controller().refreshing || controller().items.isEmpty);
+        i++
+      ) {
+        await tester.pump(const Duration(milliseconds: 100));
+        await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      }
+      expect(find.text('After'), findsWidgets);
+      expect(find.text('Before'), findsNothing);
+      expect(controller().page, 2);
+      expect(controller().items.map((p) => p.id), [2, 3]);
+      expect(
+        fetches,
+        1,
+        reason: 'Metadata and manifest share exactly one new envelope',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final engine in [BooruType.danbooru, BooruType.szurubooru]) {
     for (final embedded in [false, true]) {
       testWidgets(

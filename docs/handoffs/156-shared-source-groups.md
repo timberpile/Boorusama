@@ -1,5 +1,11 @@
 # Issue #156: shared existing-source Groups
 
+**Current continuation:** remediation is paused at the user's request. Its local
+checkpoint is incomplete and has failing/interrupted checks; the historical
+approval below applies only to the prior runtime candidate. See the
+[remediation checkpoint](156-bookmark-review-remediation.md#paused-implementation-checkpoint-2026-11-08)
+for current code, evidence and remaining gates.
+
 Status: **code APPROVED by independent Sol High; stage BLOCKED by the required
 real Szurubooru Android check.** All available-service Android checks and original
 emulator restoration are complete. Do not start #140, publish, create a PR, merge

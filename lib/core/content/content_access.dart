@@ -45,6 +45,7 @@ final class ContentAccessContext {
     required this.key,
     required this.baseUrl,
     required this.config,
+    this.policyFingerprint,
   });
 
   factory ContentAccessContext.profile({
@@ -52,6 +53,7 @@ final class ContentAccessContext {
     required int authEpoch,
     required int policyEpoch,
     Uri? baseUrl,
+    String? policyFingerprint,
   }) {
     if (config.anonymousReadScope != null) {
       throw const FormatException('A public read scope is not a user profile');
@@ -69,12 +71,14 @@ final class ContentAccessContext {
           ? site
           : BoorusamaPostLink.parseSourceSite(baseUrl.toString()),
       config: config,
+      policyFingerprint: policyFingerprint,
     );
   }
 
   factory ContentAccessContext.anonymous({
     required BooruConfig config,
     required AnonymousReadScope scope,
+    String? policyFingerprint,
   }) {
     final auth = config.auth;
     if (!identical(config.anonymousReadScope, scope) ||
@@ -93,10 +97,14 @@ final class ContentAccessContext {
       key: scope.key,
       baseUrl: scope.source.site,
       config: config,
+      policyFingerprint: policyFingerprint,
     );
   }
 
   final ContentAccessKey key;
+
+  /// Current non-secret visibility partition, bound by the access provider.
+  final String? policyFingerprint;
 
   /// The endpoint belongs to the authorized profile/adapter, not an imported URL.
   final Uri baseUrl;
@@ -116,6 +124,7 @@ final class ContentAccessContext {
       key: key,
       baseUrl: BoorusamaPostLink.parseSourceSite(endpoint.toString()),
       config: config,
+      policyFingerprint: policyFingerprint,
     );
   }
 

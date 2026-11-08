@@ -26,12 +26,16 @@ class BookmarkProfileAvailability {
     final posts = <int>{};
     final collections = <String>{};
     final reasons = <Object, PostPresentationFallbackReason>{};
+    final resolutions = <PostOrigin, PostOriginResolution>{};
     for (final bookmark in library.items) {
       final post = bookmark.post;
-      final resolution = const PostOriginResolver().resolve(
+      final resolution = resolutions.putIfAbsent(
         post.origin,
-        profiles,
-        allowProfileHintFallback: false,
+        () => const PostOriginResolver().resolve(
+          post.origin,
+          profiles,
+          allowProfileHintFallback: false,
+        ),
       );
       final source = policy.forNamespace(
         post.origin.booruType,

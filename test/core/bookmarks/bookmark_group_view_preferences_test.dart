@@ -150,6 +150,11 @@ void main() {
         BookmarkGroupViewMode.allBookmarks,
       );
       await store.started!.future;
+      expect(
+        preferences.modeFor(groupA),
+        BookmarkGroupViewMode.allBookmarks,
+        reason: 'Visual mode must not wait for the pending storage write',
+      );
       final second = preferences.setMode(
         groupB,
         BookmarkGroupViewMode.allBookmarks,

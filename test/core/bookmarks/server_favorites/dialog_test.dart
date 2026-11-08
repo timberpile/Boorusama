@@ -722,7 +722,14 @@ void main() {
     'group creation fits narrow width enlarged text and the open keyboard',
     (tester) async {
       await prepare(
-        folders: [const CollectionFolder(id: 'folder', name: 'Saved')],
+        folders: [
+          const CollectionFolder(id: 'folder', name: 'Saved'),
+          const CollectionFolder(
+            id: 'child',
+            name: 'Child',
+            parentId: 'folder',
+          ),
+        ],
       );
       await mount(tester);
       await open(tester);

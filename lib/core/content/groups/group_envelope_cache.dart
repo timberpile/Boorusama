@@ -18,11 +18,12 @@ final class GroupEnvelopeCache<T> {
   final int maxEntries;
   final _entries = <ContentReference, _Envelope<T>>{};
   var _disposed = false;
+  final _invalidatedSeeds = <ContentReference>{};
 
   /// Admit a real envelope already fetched by the same source route. This does
   /// not replace pending work or grant access to an imported metadata snapshot.
   bool seed(ContentReference reference, T value) {
-    if (_disposed) return false;
+    if (_disposed || _invalidatedSeeds.contains(reference)) return false;
     if (reference.kind != ContentKind.group ||
         reference.engine != access.engine ||
         reference.siteNamespace != access.siteNamespace) {
@@ -191,6 +192,7 @@ final class GroupEnvelopeCache<T> {
   }
 
   void invalidate(ContentReference reference) {
+    _invalidatedSeeds.add(reference);
     final entry = _entries[reference];
     if (entry != null) _abort(reference, entry);
   }

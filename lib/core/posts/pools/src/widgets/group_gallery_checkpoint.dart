@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../navigation/destination_activity.dart';
 import '../../../listing/providers.dart';
+import '../../../listing/types.dart';
 import '../../../post/types.dart';
 
 /// Page eviction retains only an offset and the extent of the previous visit.
@@ -55,10 +56,12 @@ class _PoolGalleryCheckpointState extends State<PoolGalleryCheckpoint> {
       _read = true;
       final saved = _storage?.readState(context, identifier: widget.identity);
       if (saved case (final double offset, final int page, final int perPage)
-          when perPage == widget.perPage) {
-        _offset = offset;
-        _page = page;
-        _restoring = offset > 0;
+          when page > 0 && perPage > 0) {
+        _offset = perPage == widget.perPage ? offset : 0;
+        _page = ((page - 1) * perPage ~/ widget.perPage) + 1;
+        _restoring =
+            _offset > 0 ||
+            (widget.controller.pageMode == PageMode.paginated && _page > 1);
       }
     }
     _changed();
@@ -105,7 +108,17 @@ class _PoolGalleryCheckpointState extends State<PoolGalleryCheckpoint> {
     }
     final position = widget.scrollController.position;
     if (!position.hasContentDimensions) return;
-    if (_offset > position.maxScrollExtent &&
+    if (controller.pageMode == PageMode.paginated) {
+      final last = controller.maxPage.value;
+      final target = last == null ? _page : _page.clamp(1, last < 1 ? 1 : last);
+      if (controller.page != target) {
+        _fetchPending = true;
+        unawaited(_fetchPreviousPage(target));
+        return;
+      }
+    }
+    if (controller.pageMode != PageMode.paginated &&
+        _offset > position.maxScrollExtent &&
         controller.page < _page &&
         controller.hasMore) {
       _fetchPending = true;
@@ -120,9 +133,13 @@ class _PoolGalleryCheckpointState extends State<PoolGalleryCheckpoint> {
     _save();
   }
 
-  Future<void> _fetchPreviousPage() async {
+  Future<void> _fetchPreviousPage([int? page]) async {
     try {
-      await widget.controller.fetchMore();
+      if (page != null) {
+        await widget.controller.jumpToPage(page);
+      } else {
+        await widget.controller.fetchMore();
+      }
     } catch (_) {
       // The grid owns request errors and its explicit Retry action.
     } finally {

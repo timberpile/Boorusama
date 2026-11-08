@@ -48,7 +48,7 @@ void main() {
     },
   );
 
-  test('ordinary image quality and video poster selection stay unchanged', () {
+  test('ordinary covers use thumbnails and retain video poster selection', () {
     final image = gif.copyWith(
       format: () => 'jpg',
       sampleUrl: 'https://example.test/sample.jpg',
@@ -58,7 +58,10 @@ void main() {
       format: () => 'mp4',
       originalUrl: 'https://example.test/original.mp4',
     );
-    expect(bookmarkGroupPreviewUrl(image, autoplayGif: false), image.sampleUrl);
+    expect(
+      bookmarkGroupPreviewUrl(image, autoplayGif: false),
+      image.thumbnailUrl,
+    );
     expect(
       bookmarkGroupPreviewUrl(video, autoplayGif: false),
       video.thumbnailUrl,

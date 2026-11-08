@@ -1,7 +1,15 @@
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/manage/widgets.dart';
+import 'package:boorusama/core/content/anonymous_access_provider.dart';
+import 'package:boorusama/core/content/anonymous_source_policy.dart';
+import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
+import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
+import 'package:boorusama/core/downloads/downloader/providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
@@ -24,6 +32,94 @@ import '../../bookmarks/pool_bookmark_test_utils.dart';
 import '../../search/following_topics/following_topic_test_utils.dart';
 
 void main() {
+  testWidgets(
+    'public Group production selection never borrows a saved account',
+    (tester) async {
+      final config = BooruConfig.fromJson({
+        ...testProfile.toJson(),
+        'url': 'https://safebooru.donmai.us',
+        'booruId': BooruType.danbooru.id,
+        'booruIdHint': BooruType.danbooru.id,
+        'login': 'fixture',
+        'apiKey': 'fixture',
+      });
+      final reference = const ContentReferenceCodec().parse(
+        engine: BooruType.danbooru,
+        site: Uri.parse(config.url),
+        kind: ContentKind.group,
+        sourceKey: 'pool:42',
+      );
+      var privateDownloadReads = 0;
+      final selection = OrderedSelectionController<Object>();
+      addTearDown(selection.dispose);
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        overrides: [
+          globalBlacklistedTagsProvider.overrideWith(_GlobalBlacklist.new),
+          contentGroupSourceProvider.overrideWith(
+            (ref, key) => _Source(
+              ref.read(contentAccessContextProvider(key))!,
+              reference,
+            ),
+          ),
+          downloadNotifierParamsProvider.overrideWith((ref, params) {
+            privateDownloadReads++;
+            return ref.watch(sourceDownloadNotifierParamsProvider(params));
+          }),
+        ],
+      );
+      addTearDown(harness.dispose);
+      final origin = PostOrigin.fromSource(
+        booruType: BooruType.danbooru,
+        booruId: BooruType.danbooru.id,
+        source: config.url,
+      );
+      await harness.pump(
+        tester,
+        Consumer(
+          builder: (context, ref, _) {
+            final access = ref.watch(
+              viewerSourceAccessProvider(
+                ViewerSourceBinding.publicRead(origin),
+              ),
+            );
+            if (access == null) return const SizedBox.shrink();
+            return CurrentBooruConfigScope(
+              config: access.config!,
+              accessKey: access.key,
+              requireAccess: true,
+              child: Scaffold(
+                body: GroupPostScope(
+                  reference: reference,
+                  perPage: 3,
+                  builder: (context, controller) => PostGrid<Post>(
+                    controller: controller,
+                    selectionModeController: selection,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await _pumpUntil(
+        tester,
+        () =>
+            find.byType(PostGrid<Post>).evaluate().isNotEmpty &&
+            !_controller(tester).refreshing &&
+            _controller(tester).items.isNotEmpty,
+      );
+      selection.click(0);
+      await tester.pump();
+      expect(
+        privateDownloadReads,
+        0,
+        reason: 'Public selection must retain its captured actor',
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   for (final engine in [BooruType.danbooru, BooruType.szurubooru]) {
     testWidgets(
       'GroupPostScope preserves ordered member occurrences: $engine',
@@ -269,4 +365,9 @@ final class _Source extends ContentGroupSource {
       ),
     ),
   );
+}
+
+class _GlobalBlacklist extends GlobalBlacklistedTagsNotifier {
+  @override
+  IList<BlacklistedTag> build() => <BlacklistedTag>[].lock;
 }

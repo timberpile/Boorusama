@@ -67,10 +67,7 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
               ? const SizedBox.shrink()
               : MultiSelectionActionBar(children: extras);
         }
-        final snapshot = PostActionSnapshot(
-          selectedPosts,
-          ref.watch(booruConfigProvider),
-        );
+        final snapshot = PostActionSnapshot.watch(ref, selectedPosts);
         final actions = _PostActionsBar(
           snapshot: snapshot,
           bookmark: bookmark,

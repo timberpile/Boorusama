@@ -279,7 +279,6 @@ class PostSelectionActions<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configs = ref.watch(booruConfigProvider);
     return ListenableBuilder(
       listenable: Listenable.merge([selectionModeController, postController]),
       builder: (context, _) {
@@ -288,7 +287,7 @@ class PostSelectionActions<T extends Post> extends ConsumerWidget {
             : selectionModeController
                   .selectedFrom(postController.items.toList())
                   .toList();
-        final snapshot = PostActionSnapshot(selectedPosts, configs);
+        final snapshot = PostActionSnapshot.watch(ref, selectedPosts);
         final config = snapshot.commonConfig;
         final compatible =
             config != null &&

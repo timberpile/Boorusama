@@ -56,6 +56,7 @@ class _BookmarkGroupBrowserPageState
       widget.groupId == null && widget.folderId != null;
   List<String> _lastPath = const [];
   AsyncValue<BookmarkLibraryState>? _visibleLibrary;
+  bool _normalizing = false;
   final _search = TextEditingController();
   final _selection = OrderedSelectionController<CollectionSelectionKey>();
   final _scrolls = <Object, AutoScrollController>{};
@@ -140,7 +141,24 @@ class _BookmarkGroupBrowserPageState
     final ordinaryChildren = children
         .where((child) => !child.isDefault)
         .toList();
-    if (id != null && state != null) {
+    final requested = _legacyFolderRequest
+        ? state?.legacyFolderGroupIds[_requestedId] ?? _requestedId
+        : _requestedId;
+    if (state != null && requested != id && !_normalizing) {
+      _normalizing = true;
+      final captured = _requestedId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _normalizing = false;
+        if (!mounted || _requestedId != captured) return;
+        _selection.disable();
+        _search.clear();
+        setState(() {
+          _requestedId = id;
+          _legacyFolderRequest = false;
+        });
+      });
+    }
+    if (id != null && state != null && requested == id) {
       _lastPath = [
         for (final ancestor in state.groupTree.ancestors(id)) ancestor.id,
       ];
@@ -188,7 +206,10 @@ class _BookmarkGroupBrowserPageState
               child: Scaffold(
                 appBar: KurumiAppBar(
                   leading: id == null ? null : BackButton(onPressed: up),
-                  title: id == null || state == null
+                  title:
+                      id == null ||
+                          state == null ||
+                          state.groupTree.ancestors(id).isEmpty
                       ? Text(title)
                       : KurumiPopupMenuButton(
                           semanticLabel:
@@ -208,8 +229,8 @@ class _BookmarkGroupBrowserPageState
                       IconButton(
                         key: const Key('bookmark-group-view-mode'),
                         tooltip: mode == BookmarkGroupViewMode.structure
-                            ? context.t.bookmark.groups.structure
-                            : context.t.bookmark.groups.all_bookmarks,
+                            ? context.t.bookmark.groups.all_bookmarks
+                            : context.t.bookmark.groups.structure,
                         isSelected: mode == BookmarkGroupViewMode.allBookmarks,
                         icon: Icon(
                           mode == BookmarkGroupViewMode.structure
@@ -321,7 +342,8 @@ class _BookmarkGroupBrowserPageState
                             cards,
                         if (id != null &&
                             mode == BookmarkGroupViewMode.structure &&
-                            ordinaryChildren.isNotEmpty)
+                            ordinaryChildren.isNotEmpty &&
+                            !genuinelyEmpty)
                           const SliverToBoxAdapter(
                             child: Divider(
                               indent: 12,
@@ -338,7 +360,9 @@ class _BookmarkGroupBrowserPageState
                             controller: scroll,
                             slivers: [
                               ...slivers,
-                              if (genuinelyEmpty)
+                              if (genuinelyEmpty &&
+                                  (mode != BookmarkGroupViewMode.structure ||
+                                      ordinaryChildren.isEmpty))
                                 SliverToBoxAdapter(
                                   child: Padding(
                                     padding: const EdgeInsets.all(24),
@@ -486,6 +510,7 @@ class _BookmarkGroupBrowserPageState
             final preview = _previews.putIfAbsent(
               key,
               () => selectBookmarkPreviews(
+                limit: 12,
                 state: state,
                 view: previewView,
                 sortType: _previewInputs!.$2,

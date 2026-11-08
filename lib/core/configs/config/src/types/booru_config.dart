@@ -70,7 +70,11 @@ class BooruConfig extends Equatable {
     this.profileIcon,
     this.optionWarnings = const [],
     this.anonymousReadScope,
+    this.localMediaGeneration,
   });
+
+  /// Local repository provenance; deliberately absent from all transfer codecs.
+  final String? localMediaGeneration;
 
   /// Transient import diagnostics; not part of persisted profile identity.
   final List<String> optionWarnings;
@@ -241,6 +245,7 @@ class BooruConfig extends Equatable {
   final ProfileIconConfigs? profileIcon;
 
   BooruConfig copyWith({
+    String? localMediaGeneration,
     AnonymousReadScope? anonymousReadScope,
     ThumbnailActions? thumbnailActions,
     String? url,
@@ -256,6 +261,7 @@ class BooruConfig extends Equatable {
     return BooruConfig(
       id: id,
       anonymousReadScope: anonymousReadScope ?? this.anonymousReadScope,
+      localMediaGeneration: localMediaGeneration ?? this.localMediaGeneration,
       optionWarnings: optionWarnings,
       booruId: booruId,
       booruIdHint: booruIdHint ?? this.booruIdHint,
@@ -294,6 +300,7 @@ class BooruConfig extends Equatable {
 
   @override
   List<Object?> get props => [
+    localMediaGeneration,
     id,
     booruId,
     booruIdHint,
