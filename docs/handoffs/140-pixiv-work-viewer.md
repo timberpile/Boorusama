@@ -1,7 +1,7 @@
 # Issue #140: Pixiv Work/Page viewer continuation
 
-Status: **started, incomplete, not approved**. This branch begins the authorized
-Pixiv work while #156 acceptance continues. No runtime UI cutover, publication,
+Status: **started, foundation reviewed, issue incomplete**. This branch begins
+the authorized Pixiv work while #156 acceptance continues. No runtime UI cutover, publication,
 PR, develop integration, issue closure or device acceptance is claimed.
 
 Branch/worktree: `feature/140-pixiv-work-viewer`,
@@ -69,9 +69,10 @@ This source foundation is not a complete delivery of #140.
   until #141 provides their real behavior.
 - #141 must use its own branch after this Work/Page contract is stable; it remains
   a separate task and is not implemented in this branch.
-- Run consumer and complete final-candidate regression, independent actual Sol
-  High review/re-review, then real authenticated Android/Maestro acceptance with
-  the required exclusive lease and verified restoration. No emulator is owned
+- Run consumer and complete final-candidate regression, fresh independent actual
+  Sol High review of the production integration, then real authenticated
+  Android/Maestro acceptance with the required exclusive lease and verified
+  restoration. No emulator is owned
   by this workstream.
 
 ## Verification
@@ -94,7 +95,7 @@ No dependency or SDK upgrade is part of this task. Durable evidence lives in
   provider errors; the fixture now owns its listener's error, while retaining
   both late-result rejection and denied current-provider assertions.
 - These checks cover only the new engine-owned foundation and its existing
-  parser consumer. Full final-candidate regression, independent Sol High review,
+  parser consumer. Full final-candidate regression, production integration review,
   device/live-Pixiv validation and actual viewer/listing integration remain open.
   No test count here implies completion of #140.
 
@@ -124,5 +125,19 @@ Final correction verification (same runtime/test candidate as this handoff):
   errors, warnings or informational findings), `140-tag-omission-final-analysis.log`.
 - Changed Dart formatting and `git diff --check` passed.
 
-The owning implementation addresses the finding; independent Sol High re-review
-is still required. Earlier runtime/device/full-project acceptance limits remain.
+Independent actual Sol High review and re-review are complete for source candidate
+`308463b1dcedf252ae260a361e13f6300244b9f5`. The reviewer independently reran the
+foundation/parser command: **61 passed**, `sol-review-140-corrected-tests.log`.
+The omitted/explicit-empty/partial-tag finding is resolved, with no remaining
+actionable foundation findings. The [durable independent report](../../../_artifacts/architecture-foundations-sol-review.md)
+records the exact scope, correction and limits; it is local workspace evidence,
+not a published repository artifact.
+
+This final handoff update changes documentation only. Runtime, tests and the
+package subtree match the reviewed source candidate, so the existing scoped and
+240-test package passes remain applicable. Documentation links and
+`git diff --check` were verified without rerunning application tests.
+
+Production listings, viewer composition/gestures/actions, full combined regression,
+fresh production integration review and current Android/Maestro acceptance remain
+open. The source foundation review does not complete #140 or authorize integration.
