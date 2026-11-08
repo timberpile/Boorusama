@@ -569,6 +569,7 @@ class _ImageRetryControllerScopeState
       if (mounted &&
           identical(_controller, controller) &&
           identical(controller.imageInfo.value, info) &&
+          controller.loadState.value == LoadState.completed &&
           widget.onDecodedAspectRatio == callback) {
         callback(ratio);
       }

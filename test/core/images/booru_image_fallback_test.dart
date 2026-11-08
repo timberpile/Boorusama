@@ -27,6 +27,43 @@ import 'package:boorusama/foundation/info/device_info.dart';
 import '../posts/details/progressive_image_test_utils.dart' as images;
 
 void main() {
+  testWidgets('does not report decoded pixels hidden by a later load failure', (
+    tester,
+  ) async {
+    final controller = ExtendedImageController();
+    addTearDown(controller.dispose);
+    final dio = Dio()..httpClientAdapter = _PendingAdapter();
+    addTearDown(() => dio.close(force: true));
+    Widget app(ValueChanged<double> callback) => _testApp(
+      BooruRawImage(
+        dio: dio,
+        imageUrl: 'https://example.test/late-failure.gif',
+        controller: controller,
+        onDecodedAspectRatio: callback,
+      ),
+    );
+    final ratios = <double>[];
+    await tester.pumpWidget(app(ratios.add));
+    final image = await tester.runAsync(
+      () => createTestImage(width: 40, height: 20, cache: false),
+    );
+    controller.replaceImage(info: ImageInfo(image: image!));
+    controller.changeLoadState(LoadState.completed);
+    await tester.pump();
+    expect(ratios, [2]);
+
+    controller.changeLoadState(LoadState.failed);
+    await tester.pump();
+    final hiddenRatios = <double>[];
+    await tester.pumpWidget(app(hiddenRatios.add));
+    await tester.pump();
+    expect(hiddenRatios, isEmpty);
+    expect(find.byType(ErrorPlaceholder), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    tester.binding.imageCache.clear();
+  });
+
   testWidgets('an empty replacement does not report the previous image ratio', (
     tester,
   ) async {
@@ -49,6 +86,7 @@ void main() {
       () => createTestImage(width: 40, height: 20, cache: false),
     );
     controller.replaceImage(info: ImageInfo(image: image!));
+    controller.changeLoadState(LoadState.completed);
     await tester.pump();
     expect(ratios, [2]);
 
