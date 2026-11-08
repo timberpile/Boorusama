@@ -27,6 +27,39 @@ import 'package:boorusama/foundation/info/device_info.dart';
 import '../posts/details/progressive_image_test_utils.dart' as images;
 
 void main() {
+  testWidgets('an empty replacement does not report the previous image ratio', (
+    tester,
+  ) async {
+    final controller = ExtendedImageController();
+    addTearDown(controller.dispose);
+    final dio = Dio()..httpClientAdapter = _PendingAdapter();
+    addTearDown(() => dio.close(force: true));
+    final ratios = <double>[];
+    final replacementRatios = <double>[];
+    Widget app(String url, ValueChanged<double> callback) => _testApp(
+      BooruRawImage(
+        dio: dio,
+        imageUrl: url,
+        controller: controller,
+        onDecodedAspectRatio: callback,
+      ),
+    );
+    await tester.pumpWidget(app('https://example.test/image.png', ratios.add));
+    final image = await tester.runAsync(
+      () => createTestImage(width: 40, height: 20, cache: false),
+    );
+    controller.replaceImage(info: ImageInfo(image: image!));
+    await tester.pump();
+    expect(ratios, [2]);
+
+    await tester.pumpWidget(app('', replacementRatios.add));
+    await tester.pump();
+    expect(replacementRatios, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    tester.binding.imageCache.clear();
+  });
+
   testWidgets('reports decoded image proportions instead of the tile ratio', (
     tester,
   ) async {
@@ -41,14 +74,19 @@ void main() {
           child: BooruRawImage(
             dio: dio,
             imageUrl: '',
-            aspectRatio: 1,
             cachedImageBytes: base64Decode(_widePng),
             onDecodedAspectRatio: ratios.add,
           ),
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.runAsync(
+      () => images.pumpUntil(
+        tester,
+        () => ratios.isNotEmpty,
+        reason: 'decoded memory image proportions',
+      ),
+    );
     expect(ratios, isNotEmpty);
     expect(ratios.last, 2);
 
@@ -56,54 +94,57 @@ void main() {
     tester.binding.imageCache.clear();
   });
 
-  testWidgets('reports decoded fallback dimensions after the main image fails', (
-    tester,
-  ) async {
-    const primaryUrl = 'https://example.test/poster.jpg';
-    const fallbackUrl = 'https://example.test/thumbnail.jpg';
-    final adapter = images.ControlledImageAdapter();
-    final dio = Dio()..httpClientAdapter = adapter;
-    addTearDown(() => dio.close(force: true));
-    final ratios = <double>[];
+  testWidgets(
+    'reports decoded fallback dimensions after the main image fails',
+    (
+      tester,
+    ) async {
+      const primaryUrl = 'https://example.test/poster.jpg';
+      const fallbackUrl = 'https://example.test/thumbnail.jpg';
+      final adapter = images.ControlledImageAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(() => dio.close(force: true));
+      final ratios = <double>[];
 
-    await tester.pumpWidget(
-      _testApp(
-        SizedBox(
-          width: 120,
-          child: BooruRawImage(
-            dio: dio,
-            imageUrl: primaryUrl,
-            fallbackUrl: fallbackUrl,
-            onDecodedAspectRatio: ratios.add,
+      await tester.pumpWidget(
+        _testApp(
+          SizedBox(
+            width: 120,
+            child: BooruRawImage(
+              dio: dio,
+              imageUrl: primaryUrl,
+              fallbackUrl: fallbackUrl,
+              onDecodedAspectRatio: ratios.add,
+            ),
           ),
         ),
-      ),
-    );
-    await tester.runAsync(() async {
-      await images.pumpUntil(
-        tester,
-        () => adapter.pending.containsKey(primaryUrl),
-        reason: 'primary image request',
       );
-      adapter.complete(primaryUrl, Uint8List(0), status: 404);
-      await images.pumpUntil(
-        tester,
-        () => adapter.pending.containsKey(fallbackUrl),
-        reason: 'fallback image request',
-      );
-      adapter.complete(fallbackUrl, base64Decode(_tallPng));
-      await images.pumpUntil(
-        tester,
-        () => ratios.isNotEmpty,
-        reason: 'decoded fallback proportions',
-      );
-    });
-    expect(ratios.last, 0.5);
-    expect(adapter.requests.length, 2);
+      await tester.runAsync(() async {
+        await images.pumpUntil(
+          tester,
+          () => adapter.pending.containsKey(primaryUrl),
+          reason: 'primary image request',
+        );
+        adapter.complete(primaryUrl, Uint8List(0), status: 404);
+        await images.pumpUntil(
+          tester,
+          () => adapter.pending.containsKey(fallbackUrl),
+          reason: 'fallback image request',
+        );
+        adapter.complete(fallbackUrl, base64Decode(_tallPng));
+        await images.pumpUntil(
+          tester,
+          () => ratios.isNotEmpty,
+          reason: 'decoded fallback proportions',
+        );
+      });
+      expect(ratios.last, 0.5);
+      expect(adapter.requests.length, 2);
 
-    await tester.pumpWidget(const SizedBox.shrink());
-    tester.binding.imageCache.clear();
-  });
+      await tester.pumpWidget(const SizedBox.shrink());
+      tester.binding.imageCache.clear();
+    },
+  );
 
   testWidgets(
     'HTTP 404 advances extensions and a decoded PNG stops the chain',

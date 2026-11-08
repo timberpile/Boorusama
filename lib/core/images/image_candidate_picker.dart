@@ -49,6 +49,7 @@ class _ImageCandidatePickerState extends State<ImageCandidatePicker> {
   var _scheduled = false;
   var _complete = false;
   ImageProvider? _winner;
+  double? _decodedAspectRatio;
 
   @override
   void initState() {
@@ -115,6 +116,7 @@ class _ImageCandidatePickerState extends State<ImageCandidatePicker> {
             _complete = true;
             _timer?.cancel();
             _winner = request.image;
+            _decodedAspectRatio = aspectRatio;
             for (final entry in _requests.entries.toList()) {
               if (entry.key != index) entry.value.close();
             }
@@ -125,11 +127,6 @@ class _ImageCandidatePickerState extends State<ImageCandidatePicker> {
               if (mounted) _requests[index]?.retainWithoutListening();
             });
             widget.onSelected(index);
-            if (aspectRatio != null) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) widget.onDecodedAspectRatio?.call(aspectRatio);
-              });
-            }
             setState(() {});
           },
           onError: (error, stack) {
@@ -170,10 +167,19 @@ class _ImageCandidatePickerState extends State<ImageCandidatePicker> {
   }
 
   @override
-  Widget build(BuildContext context) => switch (_winner) {
-    final image? => widget.builder(image),
-    null => widget.placeholder,
-  };
+  Widget build(BuildContext context) {
+    final ratio = _decodedAspectRatio;
+    final callback = widget.onDecodedAspectRatio;
+    if (ratio != null && callback != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.onDecodedAspectRatio == callback) callback(ratio);
+      });
+    }
+    return switch (_winner) {
+      final image? => widget.builder(image),
+      null => widget.placeholder,
+    };
+  }
 }
 
 class _Probe {

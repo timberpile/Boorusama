@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -14,7 +15,7 @@ import 'package:boorusama/foundation/info/device_info.dart';
 
 import '../../../support/fakes/test_post.dart';
 import '../details/progressive_image_test_utils.dart'
-    show DrainingImageCacheManager, lowerPng, pumpUntil;
+    show ControlledImageAdapter, DrainingImageCacheManager, lowerPng, pumpUntil;
 import 'large_grid_gif_fixture.dart';
 
 import 'package:boorusama/core/posts/listing/src/providers/cached_grid_gif.dart';
@@ -32,6 +33,7 @@ import 'package:flutter/gestures.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
+import 'package:sliver_masonry_grid/sliver_masonry_grid.dart';
 
 // Project imports:
 import 'package:boorusama/boorus/danbooru/posts/favorites/widgets.dart';
@@ -55,6 +57,133 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  testWidgets(
+    'Masonry relayout follows decoded media and ignores stale sources',
+    (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        final directory = await Directory.systemTemp.createTemp('grid-ratios-');
+        final cache = DrainingImageCacheManager(
+          cacheRootPathProvider: () => directory.path,
+        );
+        final adapter = ControlledImageAdapter();
+        final dio = Dio()..httpClientAdapter = adapter;
+        final source = ValueNotifier('https://grid-ratios.test/wide.png');
+        const tileKey = ValueKey('ratio-tile');
+        const nextKey = ValueKey('next-tile');
+        try {
+          await tester.pumpWidget(
+            _TestApp(
+              automaticMediaLoading: true,
+              mediaOverrides: [
+                defaultImageCacheManagerProvider.overrideWithValue(cache),
+                dioForWidgetProvider.overrideWith((ref, config) => dio),
+                httpHeadersProvider.overrideWith((ref, config) => const {}),
+                deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+                imageListingSettingsProvider.overrideWithValue(
+                  Settings.defaultSettings.listing.copyWith(
+                    imageListType: ImageListType.masonry,
+                  ),
+                ),
+              ],
+              child: MediaQuery(
+                data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+                child: Center(
+                  child: SizedBox(
+                    width: 160,
+                    child: CustomScrollView(
+                      slivers: [
+                        SliverMasonryGrid.count(
+                          crossAxisCount: 1,
+                          mainAxisSpacing: 8,
+                          childCount: 2,
+                          itemBuilder: (context, index) => index == 1
+                              ? const SizedBox(key: nextKey, height: 40)
+                              : ValueListenableBuilder<String>(
+                                  valueListenable: source,
+                                  builder: (context, url, _) => PostGridItem(
+                                    key: tileKey,
+                                    post: TestPost(id: 42),
+                                    imageUrl: url,
+                                    index: 0,
+                                    useHero: false,
+                                    multiSelectEnabled: true,
+                                    config: _config.auth,
+                                    onTap: (_) {},
+                                    additions: PostGridItemAdditions.empty,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+          final tile = find.byKey(tileKey);
+          final next = find.byKey(nextKey);
+          void expectHeight(double height) {
+            expect(tester.getSize(tile), Size(160, height));
+            expect(
+              tester.getTopLeft(next).dy,
+              tester.getBottomLeft(tile).dy + 8,
+            );
+            expect(tester.takeException(), isNull);
+          }
+
+          expectHeight(160);
+          await pumpUntil(
+            tester,
+            () => adapter.pending.containsKey(source.value),
+            reason: 'first thumbnail request',
+          );
+          adapter.complete(source.value, _widePng);
+          await pumpUntil(
+            tester,
+            () => tester.getSize(tile).height == 80,
+            reason: 'wide Masonry relayout',
+          );
+          expectHeight(80);
+          final oldCallback = tester
+              .widget<BooruImage>(find.byType(BooruImage))
+              .onDecodedAspectRatio!;
+          source.value = 'https://grid-ratios.test/tall.png';
+          await tester.pump();
+          oldCallback(0.1);
+          await tester.pump();
+          expectHeight(160);
+          await pumpUntil(
+            tester,
+            () => adapter.pending.containsKey(source.value),
+            reason: 'replacement thumbnail request',
+          );
+          adapter.complete(source.value, _tallPng);
+          await pumpUntil(
+            tester,
+            () => tester.getSize(tile).height == 320,
+            reason: 'tall Masonry relayout',
+          );
+          expectHeight(320);
+          source.value = '';
+          await tester.pump();
+          await tester.pump();
+          expectHeight(160);
+          expect(adapter.requests, hasLength(2));
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          PaintingBinding.instance.imageCache.clear();
+          PaintingBinding.instance.imageCache.clearLiveImages();
+          await cache.drain();
+          dio.close(force: true);
+          source.dispose();
+          await directory.delete(recursive: true);
+        }
+      });
+    },
+  );
+
   for (final layout in ImageListType.values) {
     testWidgets(
       'decoded thumbnail probes preserve $layout sizing and request ownership',
@@ -68,8 +197,9 @@ void main() {
           final cache = DrainingImageCacheManager(
             cacheRootPathProvider: () => directory.path,
           );
-          final adapter = _RecordingGridImageAdapter();
+          final adapter = _RecordingGridImageAdapter(bytes: _widePng);
           final dio = Dio()..httpClientAdapter = adapter;
+          final metadataRatio = ValueNotifier<double?>(null);
           try {
             await tester.pumpWidget(
               _TestApp(
@@ -90,14 +220,19 @@ void main() {
                 child: Center(
                   child: SizedBox.square(
                     dimension: 160,
-                    child: PostGridItem(
-                      post: TestPost(id: 42),
-                      index: 0,
-                      useHero: false,
-                      multiSelectEnabled: true,
-                      config: _config.auth,
-                      onTap: (_) {},
-                      additions: PostGridItemAdditions.empty,
+                    child: ValueListenableBuilder<double?>(
+                      valueListenable: metadataRatio,
+                      builder: (context, ratio, _) => PostGridItem(
+                        post: TestPost(id: 42),
+                        index: 0,
+                        useHero: false,
+                        multiSelectEnabled: true,
+                        config: _config.auth,
+                        onTap: (_) {},
+                        additions: PostGridItemAdditions(
+                          imageAspectRatio: ratio,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -146,8 +281,14 @@ void main() {
             expect(size.width, 160);
             expect(
               size.height,
-              closeTo(layout == ImageListType.masonry ? 160 / 1.5 : 160, 0.01),
+              closeTo(layout == ImageListType.masonry ? 80 : 160, 0.01),
             );
+            final requestCount = adapter.requests.length;
+            metadataRatio.value = 1.25;
+            await tester.pump();
+            await tester.pump();
+            expect(tester.getSize(winner), size);
+            expect(adapter.requests, hasLength(requestCount));
             expect(tester.takeException(), isNull);
           } finally {
             await tester.pumpWidget(const SizedBox.shrink());
@@ -156,6 +297,7 @@ void main() {
             await cache.drain();
             dio.close(force: true);
             await directory.delete(recursive: true);
+            metadataRatio.dispose();
           }
         });
       },
@@ -865,6 +1007,8 @@ class _GestureRepository implements BooruRepository {
 }
 
 class _RecordingGridImageAdapter implements HttpClientAdapter {
+  _RecordingGridImageAdapter({this.bytes});
+  final Uint8List? bytes;
   final requests = <String>[];
   @override
   Future<ResponseBody> fetch(
@@ -874,7 +1018,7 @@ class _RecordingGridImageAdapter implements HttpClientAdapter {
   ) async {
     requests.add(options.uri.toString());
     return ResponseBody.fromBytes(
-      lowerPng,
+      bytes ?? lowerPng,
       200,
       headers: {
         Headers.contentTypeHeader: ['image/png'],
@@ -885,3 +1029,10 @@ class _RecordingGridImageAdapter implements HttpClientAdapter {
   @override
   void close({bool force = false}) {}
 }
+
+final _widePng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAQAAAACCAYAAAB/qH1jAAAAE0lEQVR4nGPkEpH7z4AEmBjQAAAltAE/TFqhyQAAAABJRU5ErkJggg==',
+);
+final _tallPng = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAAECAYAAACk7+45AAAAFklEQVR4nGPkEpH7z8DAwMDEAAWYDAAoeAFDw42DnwAAAABJRU5ErkJggg==',
+);

@@ -456,8 +456,12 @@ class _Groups extends BookmarkGroupRepositoryHive {
   Future<BookmarkGroup> removeBookmarks(String id, Set<int> ids) =>
       metrics.write(() => super.removeBookmarks(id, ids));
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> ids) =>
-      metrics.write(() => super.replaceMemberships(id, ids));
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> ids, {
+    Map<int, DateTime>? addedAt,
+  }) =>
+      metrics.write(() => super.replaceMemberships(id, ids, addedAt: addedAt));
   @override
   Future<bool> repair({required Set<int> validBookmarkIds}) {
     metrics.repairs++;

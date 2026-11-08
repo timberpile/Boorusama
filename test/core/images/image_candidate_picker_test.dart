@@ -26,19 +26,17 @@ void main() {
     int? preferred,
     ValueChanged<int?>? onSelected,
     ValueChanged<double>? onDecodedAspectRatio,
-  }) =>
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: ImageCandidatePicker(
-          candidates: [for (final candidate in candidates) candidate.create],
-          preferredIndex: preferred,
-          onSelected: onSelected ?? (_) {},
-          onDecodedAspectRatio: onDecodedAspectRatio,
-          placeholder: const Text('Thumbnail'),
-          builder: (provider) =>
-              Text('Selected ${(provider as _Candidate).id}'),
-        ),
-      );
+  }) => Directionality(
+    textDirection: TextDirection.ltr,
+    child: ImageCandidatePicker(
+      candidates: [for (final candidate in candidates) candidate.create],
+      preferredIndex: preferred,
+      onSelected: onSelected ?? (_) {},
+      onDecodedAspectRatio: onDecodedAspectRatio,
+      placeholder: const Text('Thumbnail'),
+      builder: (provider) => Text('Selected ${(provider as _Candidate).id}'),
+    ),
+  );
 
   testWidgets('reports decoded dimensions of the chosen candidate', (
     tester,
@@ -67,6 +65,20 @@ void main() {
     expect(candidates[1].cancelled, isFalse);
     await tester.pump(const Duration(seconds: 10));
     expect(candidates.skip(2).map((candidate) => candidate.loads), [0, 0, 0]);
+  });
+
+  testWidgets('reports an existing winner when ratio reporting is enabled', (
+    tester,
+  ) async {
+    await tester.pumpWidget(app());
+    candidates[0].stream.complete(decoded.clone());
+    await tester.pump();
+    final aspectRatios = <double>[];
+    await tester.pumpWidget(app(onDecodedAspectRatio: aspectRatios.add));
+    await tester.pump();
+
+    expect(aspectRatios, [decoded.width / decoded.height]);
+    expect(candidates.map((candidate) => candidate.loads), [1, 1, 0, 0, 0]);
   });
 
   testWidgets('waits for the deadline before probing secondary formats', (

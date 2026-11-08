@@ -257,7 +257,9 @@ class BooruRawImage extends StatelessWidget {
 
     return _ImageRetryControllerScope(
       controller: controller,
-      onDecodedAspectRatio: onDecodedAspectRatio,
+      onDecodedAspectRatio: imageUrl.isEmpty && cachedImageBytes == null
+          ? null
+          : onDecodedAspectRatio,
       beforeRetry: () async {
         await imageCacheManager?.clearCache(
           imageCacheManager!.generateCacheKey(imageUrl),
@@ -535,6 +537,44 @@ class _ImageRetryControllerScopeState
   late final _owned = ExtendedImageController();
   var _retrying = false;
 
+  ExtendedImageController get _controller => widget.controller ?? _owned;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.imageInfo.addListener(_reportDecodedAspectRatio);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImageRetryControllerScope oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldController = oldWidget.controller ?? _owned;
+    if (!identical(oldController, _controller)) {
+      oldController.imageInfo.removeListener(_reportDecodedAspectRatio);
+      _controller.imageInfo.addListener(_reportDecodedAspectRatio);
+    }
+  }
+
+  void _reportDecodedAspectRatio() {
+    final callback = widget.onDecodedAspectRatio;
+    if (callback == null) return;
+    final controller = _controller;
+    final info = controller.imageInfo.value;
+    final image = info?.image;
+    if (image == null || image.width <= 0 || image.height <= 0) return;
+    final ratio = image.width / image.height;
+    // Cached frames can arrive while a descendant is building. Observe them
+    // without rebuilding an ancestor, and notify the tile after layout.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          identical(_controller, controller) &&
+          identical(controller.imageInfo.value, info) &&
+          widget.onDecodedAspectRatio == callback) {
+        callback(ratio);
+      }
+    });
+  }
+
   Future<void> _retry() async {
     if (_retrying) return;
     _retrying = true;
@@ -551,31 +591,13 @@ class _ImageRetryControllerScopeState
 
   @override
   Widget build(BuildContext context) {
-    final controller = widget.controller ?? _owned;
-    final child = widget.builder(controller, _retry);
-    final onDecodedAspectRatio = widget.onDecodedAspectRatio;
-    if (onDecodedAspectRatio == null) return child;
-
-    return ValueListenableBuilder<ImageInfo?>(
-      valueListenable: controller.imageInfo,
-      builder: (context, info, child) {
-        final image = info?.image;
-        if (image != null && image.width > 0 && image.height > 0) {
-          final aspectRatio = image.width / image.height;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && identical(controller.imageInfo.value, info)) {
-              onDecodedAspectRatio(aspectRatio);
-            }
-          });
-        }
-        return child!;
-      },
-      child: child,
-    );
+    _reportDecodedAspectRatio();
+    return widget.builder(_controller, _retry);
   }
 
   @override
   void dispose() {
+    _controller.imageInfo.removeListener(_reportDecodedAspectRatio);
     _owned.dispose();
     super.dispose();
   }

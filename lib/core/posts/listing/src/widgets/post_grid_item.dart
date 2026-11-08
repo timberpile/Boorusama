@@ -328,7 +328,7 @@ class _PostGridImage extends ConsumerStatefulWidget {
 
 class _PostGridImageState extends ConsumerState<_PostGridImage> {
   double? _decodedAspectRatio;
-  bool _candidateDecoded = false;
+  var _candidateDecoded = false;
 
   @override
   void didUpdateWidget(covariant _PostGridImage oldWidget) {
@@ -366,6 +366,7 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
           !masonry ||
           widget.media != media ||
           widget.config != config ||
+          !identical(widget.cachedImageBytes, cachedImageBytes) ||
           !value.isFinite ||
           value <= 0 ||
           _decodedAspectRatio == value) {
@@ -421,7 +422,9 @@ class _PostGridImageState extends ConsumerState<_PostGridImage> {
       imageCacheManager: imageCacheManager,
       onDecodedAspectRatio: masonry
           ? (value) {
-              if (!mounted || widget.media != media || widget.config != config) {
+              if (!mounted ||
+                  widget.media != media ||
+                  widget.config != config) {
                 return;
               }
               _candidateDecoded = true;
