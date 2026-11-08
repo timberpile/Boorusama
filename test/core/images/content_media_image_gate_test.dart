@@ -512,7 +512,7 @@ void main() {
   });
 
   testWidgets(
-    'caller cache manager is scoped by access key and unsafe fallbacks are removed',
+    'caller cache manager keeps disk identity and unsafe fallbacks are removed',
     (tester) async {
       final delegate = _Cache();
       final first = scope(key(1));
@@ -572,8 +572,14 @@ void main() {
       final k1 = manager1.generateCacheKey(safe);
       final manager2 = await mount(two);
       final k2 = manager2.generateCacheKey(safe);
-      expect(k1, isNot(k2));
-      expect(k1, isNot(delegate.generateCacheKey(safe)));
+      expect(manager1, same(delegate));
+      expect(manager2, same(delegate));
+      expect(k1, k2);
+      expect(k1, delegate.generateCacheKey(safe));
+      expect(
+        manager2.generateCacheKey(safe, customKey: 'saved-media'),
+        'saved-media',
+      );
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,

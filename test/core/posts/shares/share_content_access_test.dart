@@ -40,11 +40,13 @@ class _Fs extends Mock implements AppFileSystem {}
 class _Cache implements ImageCacheManager {
   final reads = <String>[];
   final values = <String, Uint8List>{};
+  Completer<Uint8List?>? pendingBytes;
   @override
   String generateCacheKey(String url, {String? customKey}) => customKey ?? url;
   @override
   FutureOr<Uint8List?> getCachedFileBytes(String key, {Duration? maxAge}) {
     reads.add(key);
+    if (pendingBytes case final pending?) return pending.future;
     return values[key];
   }
 
@@ -84,9 +86,17 @@ void main() {
     BooruType.danbooru,
     Uri.parse(site),
   )!;
-  for (final unsafe in [true, false]) {
+  for (final (unsafe, pendingCache) in [
+    (true, false),
+    (false, false),
+    (false, true),
+  ]) {
     testWidgets(
-      'public share ${unsafe ? 'rejects unsafe URL' : 'revokes pending media'} without publishing',
+      'public share ${unsafe
+          ? 'rejects unsafe URL'
+          : pendingCache
+          ? 'revokes pending cached bytes'
+          : 'revokes pending HTTP media'} without publishing',
       (tester) async {
         final cache = _Cache();
         final adapter = images.ControlledImageAdapter();
@@ -129,7 +139,8 @@ void main() {
         var published = 0;
         var bypassCalls = 0;
         var dioReads = 0;
-        cache.values[url] = images.targetPng;
+        if (unsafe) cache.values[url] = images.targetPng;
+        if (pendingCache) cache.pendingBytes = Completer<Uint8List?>();
         final container = ProviderContainer(
           overrides: [
             loggerProvider.overrideWithValue(AppLogger()),
@@ -196,21 +207,34 @@ void main() {
           expect(cache.reads, isEmpty);
         } else {
           expect(cache.reads, isNotEmpty);
-          expect(cache.reads.every((value) => value != url), isTrue);
+          expect(cache.reads.every((value) => value == url), isTrue);
         }
         await tester.runAsync(() async {
           await tester.tap(find.byTooltip('Copy Image'));
           await tester.pump();
           if (!unsafe) {
-            await images.pumpUntil(
-              tester,
-              () => adapter.pending.containsKey(url),
-              reason: 'public image request',
-            );
+            if (pendingCache) {
+              await images.pumpUntil(
+                tester,
+                () => cache.reads.length >= 2,
+                reason: 'share preparation cache read after metadata lookup',
+              );
+              expect(adapter.requests, isEmpty);
+            } else {
+              await images.pumpUntil(
+                tester,
+                () => adapter.pending.containsKey(url),
+                reason: 'public image request',
+              );
+            }
             active = false;
             container.read(current.notifier).state = null;
             await tester.pump();
-            adapter.complete(url, images.targetPng);
+            if (pendingCache) {
+              cache.pendingBytes!.complete(images.targetPng);
+            } else {
+              adapter.complete(url, images.targetPng);
+            }
           }
         });
         await tester.pumpAndSettle();
@@ -220,6 +244,8 @@ void main() {
           expect(dioReads, 0);
           expect(adapter.requests, isEmpty);
           expect(cache.reads, isEmpty);
+        } else if (pendingCache) {
+          expect(adapter.requests, isEmpty);
         }
         await tester.pumpWidget(const SizedBox.shrink());
       },
