@@ -54,7 +54,6 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [implement-change](.agents/skills/implement-change/SKILL.md) | Clear, scoped implementation |
 | [debug-issue](.agents/skills/debug-issue/SKILL.md) | Known symptom, uncertain cause |
 | [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
-| [visual-explainers](.agents/skills/visual-explainers/SKILL.md) | Visual architecture/UX explanations: image drafts, editable SVG documentation, or standalone interactive HTML |
 | [execute-plan](.agents/skills/execute-plan/SKILL.md) | Implement an existing plan or detailed design |
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |

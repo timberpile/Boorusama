@@ -1,0 +1,57 @@
+{
+  "baseline": "8672cf2ba235fbc810bbcf3296efef1eb4410a37",
+  "inputs": {
+    "develop": "266a14c0f87f29213d48696bda7c806dc1d05b6e",
+    "feature/140-pixiv-work-viewer": "d7298c5a06883977966421aec0d11ecf4d2564e4",
+    "feature/141-pixiv-work-page-bookmarks": "01fa085840f8442246505b1ad1d883e01a4fecdb",
+    "feature/157-native-nhentai-galleries": "cf71fb22e142564d96a1f25cce85a48898ec52fc",
+    "feature/162-unified-page-prefetch": "dfe1c4690b1dc91d8bc4dc38321be478fac8fa11",
+    "bug/161-pixiv-explore-pagination": "db54e43bb38e3d997136c52c3434c35342737df3",
+    "feature/160-viewport-thumbnail-prefetch": "d13e06592cd5d6153d70d672d42fa089071940bb",
+    "feature/144-folder-based-collection-sync": "4dbc9f08adb8bcbce17877d71d80a57ba475243c",
+    "feature/136-kurumi-ui-design-system": "1cb65e313d1ed2d9071553a05941f56784f36c6a",
+    "maintenance/content-architecture-design": "fdb68f657284e1f76701c83683aa0228484d09c8"
+  },
+  "predecessors": {
+    "feature/132-preserve-favorites-sync-group-contents": {
+      "sha": "32ebbcc6f41347f8f40275d4912a2f7012b75549",
+      "ancestor": true
+    },
+    "maintenance/154-content-group-contracts": {
+      "sha": "f3bb2d30b92116dff44dac8fc6aceabbc67a3d14",
+      "ancestor": true
+    },
+    "maintenance/155-unified-bookmark-storage": {
+      "sha": "f6deb27590a38a812c532c939085742886cdda3f",
+      "ancestor": true
+    },
+    "feature/158-unified-bookmark-hierarchy": {
+      "sha": "b9405fdbd5312a797d8165d556d48785d183881d",
+      "ancestor": true
+    },
+    "feature/55-undo-reversible-actions": {
+      "sha": "482ae4b1e5fd1e34b344a5c61959a210b8527281",
+      "ancestor": true
+    }
+  },
+  "resolutions": [
+    {
+      "input": "feature/136-kurumi-ui-design-system",
+      "path": "AGENTS.md",
+      "resolution": "Keep newer #156 documentation"
+    },
+    {
+      "input": "feature/136-kurumi-ui-design-system",
+      "path": "docs/handoffs/136-timeline-contract-20261103.md",
+      "resolution": "Keep newer #156 documentation"
+    },
+    {
+      "input": "feature/136-kurumi-ui-design-system",
+      "path": "docs/ui_style_guide.md",
+      "resolution": "Keep newer #156 documentation"
+    }
+  ],
+  "guidance": "Current #156 AGENTS.md takes precedence over historical planning additions.",
+  "flutter_tests_run": false,
+  "purpose": "Isolated integration candidate, not develop or release approval"
+}

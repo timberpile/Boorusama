@@ -1,6 +1,6 @@
 # Work and Current Page Actions — UX Options
 
-**Later user feedback supersedes the older three-way comparison below.** The latest compact preference and researched behavior are in [Decision 2: Work/Page UX and Actions](2026-11-05-decision-02-work-page-ux-and-actions.md): normal Bookmark tap saves the whole Work; long press offers Work/Page; normal Download targets the current Page; long press offers Download All; the existing Share Sheet gets two compact Boorusama Work/Page portable links. Group Header + per-Post Timeline remains for Pools and Related. The variants below are historical design experiments. 
+**Later user feedback supersedes the older three-way comparison below.** The latest compact preference and researched behavior are in [Decision 2: Work/Page UX and Actions](2026-11-05-decision-02-work-page-ux-and-actions.md): normal Bookmark tap saves the whole Work; long press offers Work/Page; normal Download targets the current Page; long press offers Download All; the existing Share Sheet gets two compact Boorusama Work/Page portable links. Group Header + per-Post Timeline remains for Pools and Related. The variants below are historical design experiments.
 
 Status: **design discussion, not implemented or approved.** Read the [short visual architecture overview](2026-11-04-content-architecture.md) first.
 
