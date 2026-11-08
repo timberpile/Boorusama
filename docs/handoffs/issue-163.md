@@ -3,61 +3,136 @@
 ## State
 
 - Issue: https://github.com/timberpile/Boorusama/issues/163
-- Implementation branch: `bug/163-masonry-thumbnail-aspect-ratios` (based on `develop` at `266a14c0f87f29213d48696bda7c806dc1d05b6e`)
-- Implementation candidate before this handoff: `4d20ed64f513d755e53a2abb3cba8f60708053bc`
-- **Not verified or approved for integration.** No PR or merge was requested.
-- The GitHub connector was used to commit changes directly to the isolated remote branch. This environment has neither a Flutter/FVM SDK nor a local Git checkout. No Flutter tests, analyzer, formatter, emulator, or device checks have run.
-- An independent review agent is not exposed in this session. **Independent review remains required** before declaring the issue ready. Do not report a review as completed until a separate agent has actually performed it.
+- Branch: `bug/163-masonry-thumbnail-aspect-ratios`
+- Base: `266a14c0f87f29213d48696bda7c806dc1d05b6e`
+- Verified runtime/test candidate: `8fdc267aceb28348253b9ebaf34287e2ba899db1`
+- Local implementation, scoped verification and independent review completed on
+  2026-11-08. Subsequent handoff-only edits do not change the checked candidate.
+- Publication and integration are pending authorization. No push, PR, merge,
+  issue closure or branch deletion was performed during this continuation.
 
-## Scope and implementation
+## Result and remediation
 
-The symptom reported on Realbooru is an incorrectly sized Masonry tile for a video poster. HTML listing records lack dimensions, so the grid initially uses its configured fallback aspect ratio even when the loaded poster is widescreen. Thumbnail-only image listings and other engines can have similar gaps.
+Realbooru listing rows can lack poster dimensions, leaving Masonry tiles at a
+fallback ratio after the displayed image decodes. The grid now observes the
+already decoded visible rendition and updates its presentation ratio without
+animation, additional media/detail requests, or persisted model changes.
 
-The committed implementation keeps sizing in presentation state and does not alter post, bookmark, or snapshot models:
+Normal, cached-byte and fallback images report through the repository's local
+`ExtendedImageController.imageInfo` API. Format probes reuse the winning decoded
+image and retain its dimensions across callback and metadata updates.
+Standard and Classic sizing retain their existing behavior.
 
-- `lib/core/posts/listing/src/widgets/post_grid_item.dart`: `_PostGridImage` maintains a decoded aspect ratio locally, updates only for Masonry, guards stale callbacks when media/config changes, and ignores delayed probe-placeholder ratios after a winning image has been decoded.
-- `lib/core/images/booru_image.dart`: an optional ratio callback follows the existing `ExtendedImageController.imageInfo` for the primary image, cached image bytes, and fallback chain. Reporting is deferred until after the current frame.
-- `lib/core/images/image_candidate_picker.dart` and `lib/core/images/booru_image_candidates.dart`: the format-probing picker reports the first successfully decoded candidate's real dimensions without resolving its image provider again.
-- No animation, new network requests, thumbnail prefetch behavior changes, or persistence changes.
+The continuation fixed four verified boundaries:
 
-The local `packages/extended_image` fork **does not** expose upstream `loadStateChanged` or `enableLoadState`; this code intentionally uses its existing `ExtendedImageController.imageInfo`. Review against this repository's fork, not pub.dev examples.
+- Replacing a decoded image with an empty source no longer reports stale
+  controller dimensions. Late source and cached-byte callbacks are guarded.
+- Direct controller observation replaces an ancestor `ValueListenableBuilder`:
+  synchronous cached GIF delivery previously caused a build-phase FlutterError.
+  Tile notifications run after the frame and validate the current callback,
+  controller and image information.
+- A retained candidate picker can report its already decoded dimensions when a
+  callback becomes available or presentation metadata changes. The late-callback
+  regression failed before the correction. Normal app layout switching recreates
+  the grid subtree; that was not claimed as a reproduced app defect.
+- Completed display state is checked at callback delivery. After a later-frame
+  failure, retained primary pixels are hidden by the error/fallback surface;
+  their old dimensions must not override the visible fallback. The new
+  regression failed before this guard was added.
 
-## Checks to run
+The requested analyzer run also exposed a pre-existing invalid benchmark override.
+`benchmark/bookmark_mutation_latency_test.dart` now accepts and forwards the
+repository's optional `addedAt` argument; application bookmark code is unchanged.
 
-Before doing any further work, read the current `AGENTS.md`, the issue, `docs/issue_workflow.md`, and `.agents/skills/debug-issue/SKILL.md`. Reuse this branch in an isolated worktree. Format the touched Dart files with `fvm dart format`, then run the affected Flutter suites:
+## Independent review
+
+A separate agent, `/root/review_163`, inspected the implementation against the
+base, local ExtendedImage fork, Masonry renderer and tests. It identified the
+stale empty-source defect and coverage gaps, then re-reviewed the remediation
+and benchmark signature correction with no remaining confirmed findings.
+The reviewer performed source inspection only; the checks below were run by the
+implementing agent. Device scrolling and visual jump behavior were not reviewed.
+
+## Verification
+
+The worktree used FVM Flutter 3.47.2 / Dart 3.13.2. Dependencies were resolved,
+and missing generated outputs were restored with `./gen.sh`; generation produced
+no tracked changes. Changed Dart files were formatted with `fvm dart format`.
+
+Application tests and analysis ran on the runtime/test candidate above; the
+benchmark source state is recorded separately below:
 
 ```bash
-fvm dart format lib/core/images/booru_image.dart \
-  lib/core/images/booru_image_candidates.dart \
-  lib/core/images/image_candidate_picker.dart \
-  lib/core/posts/listing/src/widgets/post_grid_item.dart \
-  test/core/images/booru_image_fallback_test.dart \
-  test/core/images/image_candidate_picker_test.dart
-
 fvm flutter test --no-pub \
-  test/core/images/booru_image_fallback_test.dart \
-  test/core/images/image_candidate_picker_test.dart \
-  test/core/images/image_candidate_handoff_test.dart \
+  --concurrency="$(python3 scripts/physical_core_count.py)" \
+  test/core/images \
   test/boorus/gelbooru_v2/realbooru_video_thumbnail_test.dart \
-  test/core/posts/listing/grid_thumbnail_media_test.dart
+  test/core/posts/listing \
+  test/core/posts/details/progressive_post_image_test.dart
 
-fvm flutter analyze --no-pub
+fvm flutter test --no-pub --concurrency=1 \
+  benchmark/bookmark_mutation_latency_test.dart
+
+fvm flutter analyze --no-pub --no-fatal-infos
+
+git diff --check
 ```
 
-The new tests cover decoded in-memory image dimensions, decoded network fallback dimensions, and the winning candidate callback. They were written but **not executed** here. Investigate any compile, analyzer, formatting, or runtime errors and fix them on the same branch. Because this changes shared image presentation, run additional affected consumer tests when justified. The full local regression on the final integration candidate is mandatory before merging into `develop`.
+- Affected application tests: **225 passed**, exit 0, six workers, no skips.
+  Selection fixtures emitted hit-test warnings. Corrupt-animation tests emitted
+  expected native decode errors. A non-failing native VM/finalizer diagnostic
+  also appeared in the selection fixture; see the baseline check below.
+- Serial benchmark fixture: **2 passed**, exit 0 on
+  `a37035ec0115ca53a50873027bfa8926ff268800`. The later change only guards image
+  reporting and adds its regression; benchmark code and behavior are unchanged.
+  This validates the corrected override; no comparative performance or device
+  timing claim is made.
+- Analyzer: **0 errors, 0 warnings, 3,382 informational lints**, exit 0 with
+  `--no-fatal-infos`. The initial default analyzer run failed with the benchmark
+  override error and informational lints; it is not reported as a clean pass.
+- Formatting and whitespace checks completed successfully.
 
-## Independent review instructions
+Coverage includes decoded memory/fallback dimensions, candidate ownership and
+handoff, actual non-square Masonry sizing, metadata-only updates, empty/source
+replacement and stale callbacks. A real Masonry sliver verifies following-row
+placement after height changes at 160 px width and 2x text. Standard/Classic
+sizing, large cached GIFs, selection consumers and progressive viewer images are
+included in the affected suites.
 
-Use a fresh agent/context that was **not involved in implementing the change**. Have it inspect the diff from `develop`, the current repository code, and the new tests. Request actionable findings with severity, exact paths, failure conditions, and fixes. In particular:
+Detailed local logs remain under the ignored
+`.worktrees/_artifacts/163-masonry-thumbnail-aspect-ratios/` directory in the
+primary workspace (`final-affected-tests-v2.log`, `benchmark-smoke.log`,
+`final-analyze-v2.log`, `format-final.log`, and `late-failure-format.log`).
 
-1. Confirm that callbacks observe the actual decoded visible rendition, including Realbooru's poster probing, cached images and fallbacks, without triggering extra network requests or decoding.
-2. Inspect lifecycle and race safety: post reuse, profile changes, image quality changes, failed probes, late placeholder callbacks, rapid scrolling, disposal, GIF frames and disabled media loading.
-3. Confirm that Masonry relayouts safely when children change height and that Standard/Classic layouts, viewer navigation, selections, and bookmark/snapshot persistence remain unaffected.
-4. Check that the tests use the repository's **local** ExtendedImage API and cover meaningful regression boundaries.
-5. Keep the fix as simple as practical; avoid speculative caches or animated transitions. Only explore animation if actual device/UI review finds disruptive jumps.
+## Native diagnostic baseline check
 
-The remediation pass must address every confirmed finding, rerun affected checks, and record exact commands, results and outstanding limitations. A manual Android/Maestro check is recommended for Realbooru video rows and other sites with missing dimensions, following `docs/android_emulator.md` lease rules. Do not claim manual validation without running it.
+To trace the native VM/finalizer message, the listing suite was repeated with
+JSON reporting at six workers and serially; both runs passed. Serial output
+associated the message with `selection_action_parity_test.dart`.
 
-## Handoff constraints
+A temporary detached worktree at the exact pre-issue base
+`266a14c0f87f29213d48696bda7c806dc1d05b6e` then ran:
 
-Do not merge, close the issue, create a PR, or delete this branch without appropriate authorization. Keep the issue `in-progress` until the implementation, required independent review and scope-appropriate verification are complete.
+```bash
+fvm flutter test --no-pub --concurrency=1 \
+  test/core/posts/listing/selection_action_parity_test.dart
+```
+
+Both baseline tests passed and reproduced the same native message:
+`Callbacks into the Dart VM are currently prohibited`, with the typed-data /
+finalizer explanation. This demonstrates that the diagnostic predates #163;
+its underlying engine/fixture cause was not resolved. The baseline worktree was
+removed after verifying its tracked source was clean. Its log is preserved as
+`baseline-selection.log` in the local artifact directory above.
+
+## Remaining limits and next step
+
+No APK, emulator/Maestro, physical-device or live Realbooru validation was run.
+Actual scrolling and visual relayout jumps remain unvalidated. Widget checks
+cover the constrained layout behavior; keyboard checks do not apply to these
+non-editable tiles.
+
+The complete local application/package/CLI/tooling regression has **not** run.
+Before integration, obtain merge authorization and run that complete suite on the
+final combined develop candidate. Keep the issue open and retain the task branch
+until the authorized publication/integration workflow is completed.
