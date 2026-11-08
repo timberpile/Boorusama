@@ -1,7 +1,7 @@
 # Issue #141: independent Pixiv Work/Page Bookmark continuation
 
-Status: **started, incomplete, not approved**. The user explicitly authorized
-beginning this issue after #140 establishes a stable source contract; completion
+Status: **started, foundation reviewed, issue incomplete**. The user explicitly
+authorized beginning this issue after #140 establishes a stable source contract; completion
 still depends on #140's actual viewer/listing integration. No runtime UI cutover,
 PR, publication, develop integration, issue closure or device acceptance is
 claimed.
@@ -67,9 +67,10 @@ Page-specific bytes remain Page actions; native Pixiv source links stay Work
 links. Narrow/large-text UI, picker during swipes, resource cleanup and cancellation
 still require production-path regressions.
 
-Final acceptance requires mixed-library import/backup compatibility, independent
-actual Sol High review/re-review, complete final-candidate regression and leased
-real Android/Maestro Work/Page save/open/remove/Undo/share verification with full
+Final acceptance requires mixed-library import/backup compatibility, fresh
+independent actual Sol High review of the production integration, complete
+final-candidate regression and leased real Android/Maestro Work/Page
+save/open/remove/Undo/share verification with full
 restoration. No emulator is owned by this workstream. The approved Image View/
 Overview and Work/Page action decisions are already recorded; no new unresolved
 product decision was introduced by this foundation.
@@ -97,8 +98,8 @@ On the unchanged runtime/test candidate committed with this handoff:
 - Changed Dart formatting and `git diff --check` passed.
 
 These are targeted foundation checks, not complete final-candidate regression,
-live Pixiv or Android/Maestro evidence. Independent Sol High review/re-review
-remains coordinated by the #156 lead after the foundation commits. No push,
+live Pixiv or Android/Maestro evidence. The completed foundation review/re-review
+is recorded below; production integration review remains open. No push,
 PR, integration, issue closure or device operation was performed.
 
 ## Independent Sol High review correction
@@ -125,6 +126,22 @@ tags. No Bookmark storage or schema change was needed.
   `git diff 308463b1d -- packages/booru_clients` is empty on this candidate.
 - Changed Dart formatting and `git diff --check` passed.
 
-The implementation addresses the finding; independent Sol High re-review remains
-coordinated by the lead. These scoped checks do not close the existing complete
-project, production UI, Android/Maestro, live-service or acceptance limits.
+Independent actual Sol High review and re-review are complete for source candidate
+`1167f6dbf398be58879cf2967bd0c2a084cbe8f4`. The reviewer independently reran the
+Work/codec/library command: **37 passed**, `sol-review-141-corrected-tests.log`.
+The omitted/explicit-empty/partial-tag finding is resolved, with no remaining
+actionable foundation findings. The reviewer also independently verified the
+corrected #140/#141 package subtrees match and reused the owning 240-test package
+pass. The [durable independent report](../../../_artifacts/architecture-foundations-sol-review.md)
+records the exact scope and limits; it is local workspace evidence, not a
+published repository artifact.
+
+This final handoff update and the reconciled inherited #140 handoff change
+documentation only. Runtime, tests and package files match the reviewed candidate;
+existing scoped/package passes remain applicable. Documentation links and
+`git diff --check` were verified without rerunning application tests.
+
+Production listing/viewer integration, generic picker/share/UI wiring, full
+combined regression, fresh production integration review and current
+Android/Maestro acceptance remain open. The source foundation review does not
+complete #141 or authorize integration.
