@@ -21,3 +21,12 @@ abstract class ContentGroupSource {
   void invalidate(ContentReference reference) {}
   void dispose() {}
 }
+
+/// Optional native page access for galleries with a numeric page selector.
+/// Implementations validate the ordinal and keep cursor encoding source-owned.
+abstract interface class IndexedGroupMemberSource {
+  TaskEither<BooruError, GroupMemberBatch> loadMemberPage(
+    GroupMemberQuery query, {
+    required int page,
+  });
+}

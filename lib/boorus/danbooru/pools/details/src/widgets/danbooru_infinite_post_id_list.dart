@@ -32,7 +32,6 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     this.scrollController,
     this.onSelectionChanged,
     this.orderControl,
-    this.useHero = true,
   });
 
   final DanbooruPool pool;
@@ -40,7 +39,6 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
   final Object? checkpointIdentity;
   final AutoScrollController? scrollController;
   final ValueChanged<bool>? onSelectionChanged;
-  final bool useHero;
   final Widget? orderControl;
   final List<Widget>? sliverHeaders;
 
@@ -87,19 +85,17 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
                     index: index,
                     autoScrollController: scrollController,
                     controller: controller,
-                    useHero: this.useHero && useHero,
-                    // Back must preserve the gallery viewport, rather than apply
-                    // the ordinary originating-grid scroll-to-current behavior.
-                    onTap: this.useHero
-                        ? null
-                        : () => goToPostDetailsPageFromController(
-                            ref: ref,
-                            initialIndex: index,
-                            controller: controller,
-                            initialThumbnailUrl: null,
-                            config: config,
-                            hero: false,
-                          ),
+                    // A Pool can contain the same Post more than once, so
+                    // Post-identity Hero tags are not unique in this gallery.
+                    useHero: false,
+                    onTap: () => goToPostDetailsPageFromController(
+                      ref: ref,
+                      initialIndex: index,
+                      controller: controller,
+                      initialThumbnailUrl: null,
+                      config: config,
+                      hero: false,
+                    ),
                   ),
                 ),
             sliverHeaders: [

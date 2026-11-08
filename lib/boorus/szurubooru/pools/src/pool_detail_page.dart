@@ -231,18 +231,18 @@ class _SzurubooruPoolDetailContentState
                 index: index,
                 autoScrollController: scroll,
                 controller: controller,
-                useHero: !widget.embedded && useHero,
+                // Repeated Pool members share a Post identity, so their
+                // default Post Hero tags cannot safely identify occurrences.
+                useHero: false,
                 config: config.auth,
-                onTap: !widget.embedded
-                    ? null
-                    : () => goToPostDetailsPageFromController(
-                        ref: ref,
-                        initialIndex: index,
-                        controller: controller,
-                        initialThumbnailUrl: null,
-                        config: config,
-                        hero: false,
-                      ),
+                onTap: () => goToPostDetailsPageFromController(
+                  ref: ref,
+                  initialIndex: index,
+                  controller: controller,
+                  initialThumbnailUrl: null,
+                  config: config,
+                  hero: false,
+                ),
               ),
           sliverHeaders: [
             if (widget.embedded)

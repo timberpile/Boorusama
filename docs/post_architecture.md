@@ -84,6 +84,20 @@ in `GroupMemberBatch.resolved`; no synthetic cover Post enters the viewer.
 Related retains the canonical direct-family query and existing oldest/newest
 sort without claiming authored chronology. Raw source cursors progress through
 filtered empty batches; stalled or missing continuation fails explicitly.
+The native Related repository captures raw continuation before banned/Flash
+visibility filtering. Existing numeric page selectors use the optional
+`IndexedGroupMemberSource` capability for one bounded native page request;
+cursor-only sources retain their sequential contract. Explicit refresh invalidates
+the source envelope and resolved Posts on every page, while page navigation
+preserves the current source snapshot.
+
+The Group grid deduplicates source member keys instead of Post identities, so
+repeated Pool memberships survive ingestion. Selection reconciles those same
+membership keys through filtered projections and appends; changing filter rules
+retains the established selection-reset policy. Content actions collapse selected
+repetitions to one target per engine/site/Post identity; the persisted bookmark
+identity and each displayed occurrence remain unchanged. Native Pool grids disable
+Post-identity Heroes and pass the exact clicked index to the normal member route.
 
 `ViewerEntrySequence` owns the route snapshot and explicitly maps displayed page
 indices to its compact list of real Posts. Repeated content may occupy distinct

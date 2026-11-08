@@ -154,7 +154,9 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           scrollController: _autoScrollController,
           bottomInset: widget.bottomInset,
           selectionScope: (ref.watchConfigAuth, widget.selectionScope),
-          selectionKeysBuilder: widget.selectionKeysBuilder,
+          selectionKeysBuilder:
+              widget.selectionKeysBuilder ??
+              widget.controller.selectionKeysBuilder,
           footer: Consumer(
             builder: (_, ref, _) {
               return widget.multiSelectActions ??

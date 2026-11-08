@@ -52,6 +52,39 @@ void main() {
     expect(source.requests, hasLength(2));
   });
 
+  test('overlapping member keys are skipped, distinct occurrences and selection survive', () async {
+    final source = _Source();
+    final pager = _pager(source);
+    addTearDown(pager.dispose);
+    final post = _post(3);
+    final first = pager.fetch(1);
+    (await source.request(0)).complete(
+      _batch(
+        [_member(3, 'a'), _member(3, 'b')],
+        posts: [post],
+        next: 'next',
+      ),
+    );
+    final firstResult = await first;
+    final firstKeys = pager.selectionKeys(firstResult.posts);
+    expect(firstKeys.toSet(), hasLength(2));
+    final next = pager.fetch(2);
+    (await source.request(1)).complete(
+      _batch(
+        [_member(3, 'b'), _member(3, 'c')],
+        posts: [post],
+      ),
+    );
+    final secondResult = await next;
+    expect(secondResult.posts, [same(post)]);
+    final keys = pager.selectionKeys([
+      ...firstResult.posts,
+      ...secondResult.posts,
+    ]);
+    expect(keys.take(2), firstKeys);
+    expect(keys.toSet(), hasLength(3));
+  });
+
   test('missing preceding cursor rejects without requesting source', () async {
     final source = _Source();
     final pager = _pager(source);
@@ -96,6 +129,7 @@ void main() {
         old,
         throwsA(isA<RequestCancelledError>()),
       );
+      pager.refresh();
       final refresh = pager.fetch(1);
       final fresh = await source.request(2);
       expect(source.invalidations, 1);

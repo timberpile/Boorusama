@@ -17,7 +17,8 @@ import 'pool/types.dart';
 
 /// Danbooru owns Pool manifests and direct Related-family query semantics. The
 /// shared contracts carry those values without changing either gallery layout.
-final class DanbooruGroupSource extends ContentGroupSource {
+final class DanbooruGroupSource extends ContentGroupSource
+    implements IndexedGroupMemberSource {
   DanbooruGroupSource({
     required this.access,
     required this.fetchPool,
@@ -148,7 +149,21 @@ final class DanbooruGroupSource extends ContentGroupSource {
   @override
   TaskEither<BooruError, GroupMemberBatch> loadMembers(
     GroupMemberQuery query,
-  ) => _read(() async {
+  ) => _loadMembers(query);
+
+  @override
+  TaskEither<BooruError, GroupMemberBatch> loadMemberPage(
+    GroupMemberQuery query, {
+    required int page,
+  }) => _loadMembers(query, indexedPage: page);
+
+  TaskEither<BooruError, GroupMemberBatch> _loadMembers(
+    GroupMemberQuery query, {
+    int? indexedPage,
+  }) => _read(() async {
+    if (indexedPage != null && (indexedPage < 1 || query.cursor != null)) {
+      throw const FormatException('Invalid indexed Group page');
+    }
     _require(query.reference);
     if (query.reference.sourceKey.startsWith('pool:')) {
       final pool = await _pool(query.reference);
@@ -156,6 +171,7 @@ final class DanbooruGroupSource extends ContentGroupSource {
         query,
         ids: pool.postIds,
         defaultLimit: defaultLimit,
+        indexedPage: indexedPage,
       );
     }
     final order = switch (query.orderKey) {
@@ -163,7 +179,7 @@ final class DanbooruGroupSource extends ContentGroupSource {
       'newest' => RelatedPostsOrder.newest,
       _ => throw const FormatException('Unsupported Related order'),
     };
-    var page = 1;
+    var page = indexedPage ?? 1;
     var limit = (query.requestedLimit ?? defaultLimit).clamp(1, 200);
     if (query.cursor case final cursor?) {
       final value = jsonDecode(cursor.token);

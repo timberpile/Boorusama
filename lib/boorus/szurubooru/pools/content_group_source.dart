@@ -12,7 +12,8 @@ import 'types.dart';
 
 /// Uses Szurubooru's actual Pool envelope and ordered member IDs. It does not
 /// infer Danbooru category semantics from a Szurubooru category name.
-final class SzurubooruGroupSource extends ContentGroupSource {
+final class SzurubooruGroupSource extends ContentGroupSource
+    implements IndexedGroupMemberSource {
   SzurubooruGroupSource({
     required this.access,
     required this.fetchPool,
@@ -125,9 +126,28 @@ final class SzurubooruGroupSource extends ContentGroupSource {
   @override
   TaskEither<BooruError, GroupMemberBatch> loadMembers(
     GroupMemberQuery query,
-  ) => _read(() async {
+  ) => _loadMembers(query);
+
+  @override
+  TaskEither<BooruError, GroupMemberBatch> loadMemberPage(
+    GroupMemberQuery query, {
+    required int page,
+  }) => _loadMembers(query, indexedPage: page);
+
+  TaskEither<BooruError, GroupMemberBatch> _loadMembers(
+    GroupMemberQuery query, {
+    int? indexedPage,
+  }) => _read(() async {
+    if (indexedPage != null && (indexedPage < 1 || query.cursor != null)) {
+      throw const FormatException('Invalid indexed Group page');
+    }
     final pool = await _pool(query.reference);
-    return _members.load(query, ids: pool.postIds, defaultLimit: defaultLimit);
+    return _members.load(
+      query,
+      ids: pool.postIds,
+      defaultLimit: defaultLimit,
+      indexedPage: indexedPage,
+    );
   });
 
   @override

@@ -5,7 +5,7 @@ import '../../../post/types.dart';
 /// Captured before opening a menu/dialog. Execution never reads grid indices.
 class PostActionSnapshot {
   PostActionSnapshot(Iterable<Post> posts, Iterable<BooruConfig> profiles)
-    : posts = List.unmodifiable(posts) {
+    : posts = List.unmodifiable(uniquePosts(posts)) {
     targets = List.unmodifiable([
       for (final post in this.posts)
         (
@@ -20,6 +20,19 @@ class PostActionSnapshot {
           },
         ),
     ]);
+  }
+
+  /// Bulk actions target content once even when several memberships are selected.
+  static List<T> uniquePosts<T extends Post>(Iterable<T> posts) {
+    final seen = <Object>{};
+    final result = <T>[];
+    for (final post in posts) {
+      final identity = BookmarkIdentity.tryFromPost(post);
+      if (identity == null || seen.add((post.origin.booruType, identity))) {
+        result.add(post);
+      }
+    }
+    return result;
   }
 
   final List<Post> posts;

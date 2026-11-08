@@ -47,12 +47,14 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
       listenable: Listenable.merge([controller, postController]),
       builder: (context, _) {
         final selectedPosts = List<T>.unmodifiable(
-          postController.refreshing
-              ? <T>[]
-              : selectedPostsBuilder?.call(controller) ??
-                    controller
-                        .selectedFrom(postController.items.toList())
-                        .toList(),
+          PostActionSnapshot.uniquePosts(
+            postController.refreshing
+                ? <T>[]
+                : selectedPostsBuilder?.call(controller) ??
+                      controller
+                          .selectedFrom(postController.items.toList())
+                          .toList(),
+          ),
         );
         if (selectedPosts.isEmpty) {
           if (selectedPostsBuilder == null ||

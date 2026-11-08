@@ -110,9 +110,11 @@ intact. All 65 changed Dart files are formatted; final changed-scope analysis
 reported 0 errors, 0 warnings and 83 informational findings. Earlier
 native screenshots/results remain failed-candidate diagnostics.
 
-Original Android APK/data/settings are backed up and parked under the exclusive
-`emulator-5554` lease while a verified original-data clone is used for QA. Restore,
-verification, owned-QA cleanup and lease release are still required. The actual
+The first Android campaign is restored and released. Post-cleanup comparison
+proves all 132 original archive entries unchanged; the original APK, 31 permission
+entries, system/WM settings and stopped state match the baseline. Only journal-owned
+QA parking and the empty original parking directory were removed. Original host
+backups and a verified seven-directory QA continuation archive remain local. The actual
 Szurubooru URL is pending from the user; no corresponding profile or test entry
 was available. Safebooru returned HTTP 403; AIBooru public reads were available.
 
@@ -144,6 +146,46 @@ loading; later screenshots and read-only Flutter inspection confirmed decoded
 images. No loading-time or device-responsiveness claim is made. One automation
 flow delivering a link immediately after a separate MAIN launch missed the
 route; a proper cold VIEW launch and subsequent warm VIEW launches passed.
+
+## Independent Sol High review and remediation
+
+Frozen `875b6a27bad424bb4e13ec6c5a6d4a44c66786a4` passed the complete
+local suite unchanged: 6,687 application tests, 1,671 package/CLI tests, two
+existing GoRouter skips, 39 PR-policy shell checks, 20 release checks and 76
+Python tests (2026-11-08 03:17:31–03:33:12 UTC, exit 0).
+
+A fresh independent actual `gpt-6.1-sol` High review required changes for three
+P2 findings. The code was not approved, and #140 must remain unstarted:
+
+- R1: the real grid's default Post-ID deduplication lost repeated Pool memberships.
+  The remediation projects member keys through ingestion and selection, collapses
+  content bulk targets by engine/site/Post identity, disables colliding native
+  Post Heroes, and opens the exact clicked member occurrence.
+- R2: the native Related repository could lose continuation after banned/Flash
+  filtering. Raw continuation is now captured before visibility filtering.
+- R3: the cursor projection could not support existing direct numeric page jumps
+  and skipped source invalidation when refreshing later Pool pages. Native sources
+  now expose optional bounded indexed reads; explicit refresh separately revokes
+  pending reads and invalidates envelopes/resolved Posts on any page.
+
+Working-tree checks during remediation: 22 focused pager/production-registry/
+real paginated-grid tests passed; 207 existing listing, selection and action
+consumer tests passed; four native Pool widget cases passed with repeated IDs,
+no Heroes and second-occurrence tap index. The final production-registry test
+file passed 15 cases, including actual grid continuation after short/empty first
+pages in oldest/newest order. These progress runs do not establish the revised
+frozen candidate's complete pass. Final format, analysis, full suite, required
+Android scenarios and independent Sol High re-review remain required.
+
+The normal `875b` native APK proved decoded AIBooru Pool images, public member
+opening and Back, selection without Download, 130-member deep loading and return,
+generic saving through a credential-free QA profile and a one-document Android
+share sheet. No share recipient was chosen. Proper normal profile creation
+worked; a preliminary raw internal Add-Profile root-link setup asserted after
+persisting the QA profile and is retained as a failed setup diagnostic. No data
+reset occurred. The final cold-link check, Related, repeated outer occurrences,
+source removal, rotation and actual Szurubooru path still need revised-candidate
+verification. No timing/responsiveness claim is made.
 
 ## Remaining exit gates
 

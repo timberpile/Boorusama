@@ -166,7 +166,6 @@ class _PoolDetailContentState extends ConsumerState<PoolDetailContent> {
             ? (widget.storageId ?? pool.id, 'viewport', _order)
             : null,
         scrollController: _scrollController,
-        useHero: !widget.embedded,
         onSelectionChanged: widget.embedded
             ? (active) {
                 if (_selectionActive == active) return;

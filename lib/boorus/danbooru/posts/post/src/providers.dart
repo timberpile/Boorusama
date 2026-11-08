@@ -87,6 +87,9 @@ final danbooruPostRepoProvider =
               total = count;
               if (page == 1 && uniqueCount == count) hasMore = false;
             }
+            // Capture raw progress before visibility filtering removes banned
+            // or Flash Posts. A shortened visible page is not source exhaustion.
+            if (limit != null) hasMore ??= posts.length >= limit;
           }
           final result = posts.toResult(total: total, hasMore: hasMore);
           return (options?.cascadeRequest ?? true)

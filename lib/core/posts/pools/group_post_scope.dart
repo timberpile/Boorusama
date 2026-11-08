@@ -10,6 +10,8 @@ import '../../content/content_media_access.dart';
 import '../../content/groups/group_source_provider.dart';
 import '../../content/types.dart';
 import '../../errors/types.dart';
+import '../../settings/providers.dart';
+import '../listing/types.dart';
 import '../listing/widgets.dart';
 import '../listing/src/widgets/post_grid_controller.dart';
 import '../post/types.dart';
@@ -84,6 +86,9 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
               reference: widget.reference,
               orderKey: widget.orderKey,
               perPage: widget.perPage,
+              isPaginated: () =>
+                  ref.read(imageListingSettingsProvider).pageMode ==
+                  PageMode.paginated,
               isCurrent: () {
                 if (!mounted || _identity != identity) return false;
                 try {
@@ -114,6 +119,10 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
                 message: 'Unable to load Group members',
               ),
       ),
+      // Membership keys, rather than Post IDs, own deduplication and selection.
+      duplicateIdentity: (_) => null,
+      onRefresh: pager?.refresh,
+      selectionKeysBuilder: pager?.selectionKeys,
       builder: widget.builder,
     );
     return access?.config == null

@@ -109,6 +109,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'repeated Pool member opens the selected occurrence on the real route',
+    (tester) async {
+      final f = await _Fixture.mount(tester, memberIds: [101, 102, 101]);
+      await f.open(tester);
+      final gallery = tester.widget<PostGrid<Post>>(
+        find.descendant(
+          of: find.byType(PoolDetailContent),
+          matching: find.byType(PostGrid<Post>),
+        ),
+      );
+      await f.harness.pumpUntil(
+        tester,
+        () => gallery.controller.items.length == 3,
+      );
+      expect(gallery.controller.items.map((post) => post.id), [101, 102, 101]);
+      await tester.tap(postTile(101).last);
+      await f.harness.pumpUntil(
+        tester,
+        () => tester
+            .widgetList<PostDetailsPageScaffold>(postDetailsScaffold())
+            .any((page) => page.controller?.currentPage.value == 2),
+      );
+      final page = tester
+          .widgetList<PostDetailsPageScaffold>(postDetailsScaffold())
+          .firstWhere((page) => page.controller?.currentPage.value == 2);
+      expect(page.controller!.posts.map((post) => post.id), [101, 102, 101]);
+      expect(page.controller!.currentPost.value.id, 101);
+      await tester.binding.handlePopRoute();
+      await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+      expect(gallery.controller.items.map((post) => post.id), [101, 102, 101]);
+      expect(f.privateRequests, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('public saved Pool opens its real member viewer and Back', (
     tester,
   ) async {
@@ -240,6 +276,7 @@ class _Fixture {
   static Future<_Fixture> mount(
     WidgetTester tester, {
     bool holdMetadata = false,
+    List<int> memberIds = const [101, 102],
   }) async {
     final backend = FakeBooruBackend();
     final f = _Fixture(backend, holdMetadata ? Completer<void>() : null);
@@ -292,8 +329,8 @@ class _Fixture {
                   'id': 42,
                   'name': 'Saved Pool',
                   'description': 'Public Pool description',
-                  'post_count': 2,
-                  'post_ids': [101, 102],
+                  'post_count': memberIds.length,
+                  'post_ids': memberIds,
                 },
               ),
             );

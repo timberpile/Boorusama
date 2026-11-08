@@ -33,6 +33,7 @@ final class PoolGroupMembers {
     GroupMemberQuery query, {
     required List<int>? ids,
     required int defaultLimit,
+    int? indexedPage,
   }) async {
     if (_disposed ||
         !access.accepts(query.reference) ||
@@ -52,6 +53,9 @@ final class PoolGroupMembers {
       _ => throw const FormatException('Unsupported Pool member order'),
     };
     final revision = sha256.convert(utf8.encode(jsonEncode(ids))).toString();
+    if (indexedPage != null && (indexedPage < 1 || query.cursor != null)) {
+      throw const FormatException('Invalid indexed Pool page');
+    }
     var offset = 0;
     var limit = (query.requestedLimit ?? defaultLimit).clamp(1, 200);
     if (query.cursor case final cursor?) {
@@ -78,6 +82,9 @@ final class PoolGroupMembers {
               query.requestedLimit!.clamp(1, 200) != limit)) {
         throw const FormatException('Invalid Pool cursor range');
       }
+    }
+    if (indexedPage != null) {
+      offset = ((indexedPage - 1) * limit).clamp(0, ids.length);
     }
     final positions = List.generate(ids.length, (index) => index);
     if (order != PoolDetailsOrder.order) {
