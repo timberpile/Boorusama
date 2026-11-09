@@ -182,7 +182,10 @@ class BookmarkLibraryService {
       addedAt: {for (final id in members) id: now},
     );
     beforeCommit?.call();
-    await store.commitOrganization(records: writes, groups: [group]);
+    await withBookmarkCommitGuard(
+      () => store.commitOrganization(records: writes, groups: [group]),
+      beforeCommit,
+    );
     return (group: group, addedCount: members.length);
   });
 
@@ -861,7 +864,10 @@ class BookmarkLibraryService {
       BookmarkGroupTree([...groups, group]);
       try {
         beforeCommit?.call();
-        await store.commitOrganization(groups: [group]);
+        await withBookmarkCommitGuard(
+          () => store.commitOrganization(groups: [group]),
+          beforeCommit,
+        );
       } catch (error, stack) {
         // Finish journal replay before deciding whether a committed-then-throw
         // write created this exact group. Never allocate a replacement UUID.

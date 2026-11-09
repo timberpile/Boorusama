@@ -33,6 +33,7 @@ import '../bookmark_id_allocator.dart';
 import '../stored_bookmark_codec.dart';
 import '../stored_group_codec.dart';
 import 'bookmark_hive_object.dart';
+import 'bookmark_journal_hash.dart';
 import 'bookmark_id_store.dart';
 import 'bookmark_group_hive_object.dart';
 
@@ -81,6 +82,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   // without retaining another library cache or keeping deleted payloads alive.
   final _decodedGroups = Expando<Bookmark>();
   (Box<BookmarkGroupHiveObject>, Box<dynamic>)? _organizationHandles;
+  static const _workBatchSize = 64;
+  static Future<void> _yieldEventTurn() => Future<void>.delayed(Duration.zero);
+
   static const _journal = 'pendingMutation';
   static const _schema = 'repositorySchema';
   static const _revision = 'recordRevision';
@@ -557,7 +561,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     );
   });
   @override
-  Future<List<Bookmark>> readAll() => _ready(() async {
+  Future<List<Bookmark>> readAll() => _ready(() {
     final ids =
         _metadata.keys
             .whereType<String>()
@@ -565,11 +569,18 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
             .map((key) => _localId(int.tryParse(key.substring(7))))
             .toList()
           ..sort();
-    return performanceRecorder.measureSync(
+    return performanceRecorder.measureAsync(
       PerfOperation.bookmarkDecodeAll,
-      () => List<Bookmark>.unmodifiable([
-        for (final id in ids) ?_read(id),
-      ]),
+      () async {
+        final records = <Bookmark>[];
+        for (final (index, id) in ids.indexed) {
+          if (index > 0 && index % _workBatchSize == 0) {
+            await _yieldEventTurn();
+          }
+          if (_read(id) case final record?) records.add(record);
+        }
+        return List<Bookmark>.unmodifiable(records);
+      },
     );
   });
   @override
@@ -647,7 +658,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     }
     final deletes = <Map<String, Object?>>[];
     final previous = <String, Object?>{};
-    for (final id in removeIds) {
+    for (final (index, id) in removeIds.indexed) {
+      if (index > 0 && index % _workBatchSize == 0) {
+        await _yieldEventTurn();
+      }
       final header = _storedHeader(id);
       if (header == null || header['kind'] == 'deleted') continue;
       _read(id);
@@ -660,17 +674,22 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     final headers = <String, Object?>{};
     final identities = <ContentIdentity, int>{};
     final restoredIds = <int>{};
+    final inputIds = <int>{};
     final bound = (await _ids.readNextId())!;
     final floor = _metadata.get(_floor) as int;
-    for (final original in records) {
+    for (final (index, original) in records.indexed) {
+      if (index > 0 && index % _workBatchSize == 0) {
+        await _yieldEventTurn();
+      }
       final id = _localId(original.id);
-      if (headers.containsKey('$id') || removeIds.contains(id)) {
+      if (!inputIds.add(id) || removeIds.contains(id)) {
         throw const FormatException('Duplicate Bookmark mutation ID');
       }
       final wire = _codec.encode(original);
       final record = _codec.decode(wire);
       final header = _header(record);
       final before = _storedHeader(id);
+      Bookmark? current;
       if (before == null) {
         if (restoreLocalPreimage || id < floor || id >= bound) {
           throw const FormatException('Bookmark ID was not reserved');
@@ -684,7 +703,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
           }
           restoredIds.add(id);
         } else {
-          _read(id);
+          current = _read(id);
           _compatible(before, header, record);
         }
       }
@@ -703,6 +722,11 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
           throw const FormatException('Incompatible content engines');
         }
         identities[identity] = id;
+      }
+      // Duplicate and compatibility checks above also apply to unchanged rows.
+      // Compare the complete local wire, including dates, hints and opaque data.
+      if (current != null && _sameStoredWire(wire, _codec.encode(current))) {
+        continue;
       }
       previous['$id'] = before;
       headers['$id'] = header;
@@ -734,9 +758,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
           : organization == null
           ? 1
           : 2,
-      'hash': _hash(plan),
+      'hash': await bookmarkJournalHash(plan),
       'plan': plan,
     };
+    validateBookmarkCommitGuard();
     await _metadata.put(_journal, journal);
     await _sync([_metadata]);
     await _apply(plan);
@@ -749,8 +774,6 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     );
   }
 
-  static String _hash(Object value) =>
-      sha256.convert(utf8.encode(jsonEncode(value))).toString();
   Future<void> _recover() async {
     try {
       final raw = _metadata.get(_journal);
@@ -760,7 +783,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       if (!const {1, 2, 3}.contains(journal['version']) ||
           (journal['version'] != 1) != plan.containsKey('organization') ||
           (journal['version'] == 3) != plan.containsKey('restoredIds') ||
-          journal['hash'] != _hash(plan)) {
+          journal['hash'] != await bookmarkJournalHash(plan)) {
         throw const FormatException('Invalid Bookmark mutation journal');
       }
       await _apply(plan);
@@ -785,9 +808,13 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     }
     final previous = contentMap(plan['previous']);
     final headers = contentMap(plan['headers']);
-    final records = (plan['upserts']! as List)
-        .map((value) => _codec.decode(value))
-        .toList();
+    final records = <Bookmark>[];
+    for (final (index, value) in (plan['upserts']! as List).indexed) {
+      if (index > 0 && index % _workBatchSize == 0) {
+        await _yieldEventTurn();
+      }
+      records.add(_codec.decode(value));
+    }
     final deletes = (plan['deletes']! as List).map(contentMap).toList();
     final restoredIds = <int>{};
     if (plan['restoredIds'] case final raw?) {
@@ -833,7 +860,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       indexWrites[_recordKey(id)] = desired;
     }
 
-    for (final record in records) {
+    for (final (index, record) in records.indexed) {
+      if (index > 0 && index % _workBatchSize == 0) {
+        await _yieldEventTurn();
+      }
       final id = _localId(record.id);
       if (!seen.add(id)) throw const FormatException('Duplicate journal ID');
       final header = _header(record);
@@ -922,8 +952,8 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         deletes.map((entry) => _localId(entry['id'])).toSet(),
       );
     }
-    if (postWrites.isNotEmpty) await _posts.putAll(postWrites);
-    if (groupWrites.isNotEmpty) await _groups.putAll(groupWrites);
+    if (postWrites.isNotEmpty) await _putAllBatched(_posts, postWrites);
+    if (groupWrites.isNotEmpty) await _putAllBatched(_groups, groupWrites);
     if (postDeletes.isNotEmpty) await _posts.deleteAll(postDeletes);
     if (groupDeletes.isNotEmpty) await _groups.deleteAll(groupDeletes);
     final organizationBoxes = organization == null
@@ -939,6 +969,22 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     await _sync([_metadata]);
     await _metadata.delete(_journal);
     await _sync([_metadata]);
+  }
+
+  /// Every payload is validated before entering this method. The one durable
+  /// journal remains present across batches until the existing final sync and
+  /// revision commit, so recovery can replay a partially written payload set.
+  Future<void> _putAllBatched<T>(Box<T> box, Map<dynamic, T> values) async {
+    var batch = <dynamic, T>{};
+    for (final entry in values.entries) {
+      batch[entry.key] = entry.value;
+      if (batch.length == _workBatchSize) {
+        await box.putAll(batch);
+        batch = <dynamic, T>{};
+        await _yieldEventTurn();
+      }
+    }
+    if (batch.isNotEmpty) await box.putAll(batch);
   }
 
   Future<List<PostBookmark>> _createPosts(List<PostBookmark> inputs) => _ready(
@@ -1069,4 +1115,59 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     await _groups.close();
     await _metadata.close();
   }
+}
+
+/// A no-op must still be valid plain JSON. Do not accept identical opaque
+/// containers without visiting their values: old journal encoding would reject
+/// non-finite numbers, unsupported objects and cycles before any payload write.
+bool _sameStoredWire(Object? first, Object? second) {
+  final leftAncestors = Set<Object>.identity();
+  final rightAncestors = Set<Object>.identity();
+  bool equal(Object? left, Object? right) {
+    if (left is Map && right is Map) {
+      if (left.length != right.length ||
+          !leftAncestors.add(left) ||
+          !rightAncestors.add(right)) {
+        return false;
+      }
+      try {
+        for (final key in left.keys) {
+          if (key is! String ||
+              !right.containsKey(key) ||
+              !equal(left[key], right[key])) {
+            return false;
+          }
+        }
+        return true;
+      } finally {
+        leftAncestors.remove(left);
+        rightAncestors.remove(right);
+      }
+    }
+    if (left is List && right is List) {
+      if (left.length != right.length ||
+          !leftAncestors.add(left) ||
+          !rightAncestors.add(right)) {
+        return false;
+      }
+      try {
+        for (var i = 0; i < left.length; i++) {
+          if (!equal(left[i], right[i])) return false;
+        }
+        return true;
+      } finally {
+        leftAncestors.remove(left);
+        rightAncestors.remove(right);
+      }
+    }
+    if (left is num && right is num) {
+      return left.isFinite &&
+          right.isFinite &&
+          left.runtimeType == right.runtimeType &&
+          left.toString() == right.toString();
+    }
+    return (left == null || left is String || left is bool) && left == right;
+  }
+
+  return equal(first, second);
 }

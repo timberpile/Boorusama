@@ -56,6 +56,51 @@ final class BookmarkCommittedChange {
   final int revision;
 }
 
+final _bookmarkCommitGuardZoneKey = Object();
+
+/// Carry a captured actor/access guard through asynchronous storage preparation.
+/// It is checked once more at the irreversible journal boundary, never during
+/// replay or after the journal has admitted an operation.
+Future<T> withBookmarkCommitGuard<T>(
+  Future<T> Function() operation,
+  void Function()? beforeCommit,
+) async {
+  if (beforeCommit == null) return operation();
+  final inherited =
+      Zone.current[_bookmarkCommitGuardZoneKey] as _BookmarkCommitGuardScope?;
+  final scope = _BookmarkCommitGuardScope(
+    beforeCommit,
+    (inherited?.active ?? false) ? inherited : null,
+  );
+  try {
+    return await runZoned(
+      operation,
+      zoneValues: {_bookmarkCommitGuardZoneKey: scope},
+    );
+  } finally {
+    scope.active = false;
+  }
+}
+
+void validateBookmarkCommitGuard() {
+  (Zone.current[_bookmarkCommitGuardZoneKey] as _BookmarkCommitGuardScope?)
+      ?.validate();
+}
+
+final class _BookmarkCommitGuardScope {
+  _BookmarkCommitGuardScope(this.guard, this.parent);
+
+  final void Function() guard;
+  final _BookmarkCommitGuardScope? parent;
+  var active = true;
+
+  void validate() {
+    if (!active) throw StateError('Bookmark commit guard has expired');
+    parent?.validate();
+    guard();
+  }
+}
+
 final _bookmarkWriteObserverZoneKey = Object();
 
 T observeBookmarkWrites<T>(

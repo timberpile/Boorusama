@@ -62,14 +62,17 @@ extension on BookmarkLibraryService {
     if (added.isNotEmpty || created.isNotEmpty) {
       final now = DateTime.now().toUtc();
       beforeCommit?.call();
-      await store.commitOrganization(
-        records: created,
-        groups: [
-          target.copyWith(
-            bookmarkIds: {...target.bookmarkIds, ...added},
-            addedAt: {...target.addedAt, for (final id in added) id: now},
-          ),
-        ],
+      await withBookmarkCommitGuard(
+        () => store.commitOrganization(
+          records: created,
+          groups: [
+            target.copyWith(
+              bookmarkIds: {...target.bookmarkIds, ...added},
+              addedAt: {...target.addedAt, for (final id in added) id: now},
+            ),
+          ],
+        ),
+        beforeCommit,
       );
     }
     return (
@@ -177,11 +180,14 @@ extension on BookmarkLibraryService {
     };
     final deleted = [for (final id in finalMembership) snapshot.byId[id]!];
     beforeCommit?.call();
-    await unifiedStore!.commitOrganization(
-      removeIds: finalMembership,
-      groups: [
-        target.copyWith(bookmarkIds: target.bookmarkIds.difference(affected)),
-      ],
+    await withBookmarkCommitGuard(
+      () => unifiedStore!.commitOrganization(
+        removeIds: finalMembership,
+        groups: [
+          target.copyWith(bookmarkIds: target.bookmarkIds.difference(affected)),
+        ],
+      ),
+      beforeCommit,
     );
     final media = removed.whereType<PostBookmark>().toList();
     return BookmarkGroupRemovalResult(

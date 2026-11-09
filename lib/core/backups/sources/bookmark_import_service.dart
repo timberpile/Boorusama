@@ -67,12 +67,34 @@ class BookmarkImportService {
   }) async {
     final store = _unified!;
     return store.runReadWriteScope(() async {
+      final currentRecords = await store.readAll();
+      final byIdentity = <Object, Bookmark>{};
+      for (final record in currentRecords) {
+        final identity = bookmarkContentIdentity(record);
+        if (identity != null) {
+          byIdentity[identity] = record;
+        }
+      }
+      // The pure preparation API is also used by worker projections. Resolve
+      // its expensive normalization here in event turns, under the same owner,
+      // and reuse those validated values during the unchanged structural pass.
+      final normalized = Map<Bookmark, Bookmark>.identity();
+      for (final (index, candidate) in plan.records.indexed) {
+        if (index > 0 && index % 64 == 0) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        final identity = bookmarkContentIdentity(candidate);
+        normalized[candidate] = store.normalizeRecord(
+          candidate,
+          previous: identity == null ? null : byIdentity[identity],
+        );
+      }
       final prepared = BookmarkImportPreparation.prepare(
         plan: plan,
-        currentRecords: await store.readAll(),
+        currentRecords: currentRecords,
         currentGroups: await groupRepository.getGroups(),
         currentFolders: await groupRepository.getFolders(),
-        normalize: store.normalizeRecord,
+        normalize: (candidate, {previous}) => normalized[candidate]!,
         replace: replace,
         removeIds: removeIds,
         importFolderName: importFolderName,
