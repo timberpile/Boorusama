@@ -1,5 +1,3 @@
-import 'package:flutter/rendering.dart' show ScrollDirection;
-
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -765,23 +763,42 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
 }
 
 class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
+  final _feedScrollController = AutoScrollController();
   PostGridController<Post>? _controller;
   late FeedHistorySession _history;
   late List<StoredPostSnapshot> _filteredSnapshots;
-  var _prefetchedAtLength = -1;
   var _historyStarted = false;
   var _hasUpdates = false;
   var _historyCoverageIncomplete = false;
+  var _feedAtEnd = false;
+  var _endCheckScheduled = false;
+
+  void _scheduleFeedEndCheck() {
+    if (_endCheckScheduled) return;
+    _endCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _endCheckScheduled = false;
+      if (!mounted) return;
+      final atEnd =
+          _feedScrollController.positions.length == 1 &&
+          _feedScrollController.position.hasContentDimensions &&
+          _feedScrollController.position.extentAfter <= 48;
+      if (atEnd != _feedAtEnd) setState(() => _feedAtEnd = atEnd);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _feedScrollController.addListener(_scheduleFeedEndCheck);
+    _scheduleFeedEndCheck();
     _history = _createHistory();
     _filteredSnapshots = widget.filter.apply(widget.feed.posts);
   }
 
   @override
   void dispose() {
+    _feedScrollController.dispose();
     _history.dispose();
     super.dispose();
   }
@@ -915,7 +932,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (filterChanged || sourceDefinitionsChanged || postsChanged) {
       _history.dispose();
       _history = _createHistory();
-      _prefetchedAtLength = -1;
       _historyStarted = false;
       _hasUpdates = false;
       _historyCoverageIncomplete = false;
@@ -935,7 +951,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (widget.filter.isActive) return;
     _history.dispose();
     _history = _createHistory();
-    _prefetchedAtLength = -1;
     setState(() {
       _historyStarted = false;
       _hasUpdates = false;
@@ -958,6 +973,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       scrollController: scrollController,
       initialThumbnailUrl: post.thumbnailImageUrl,
       config: widget.config,
+      canContinue: () => mounted && _historyStarted && !widget.filter.isActive,
     );
   });
 
@@ -965,7 +981,6 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (widget.filter.isActive) return;
     final controller = _controller;
     if (controller == null || !controller.hasMore) return;
-    _prefetchedAtLength = controller.items.length;
     setState(() => _historyStarted = true);
     unawaited(controller.fetchMore());
   }
@@ -996,6 +1011,10 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 hasMore: false,
               );
             }
+            if (page > 1 && mounted && identical(history, _history)) {
+              // Shared grid prefetch and manual continuation both start history.
+              setState(() => _historyStarted = true);
+            }
             final result = await history.load(page);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted && identical(history, _history)) {
@@ -1018,90 +1037,90 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
         _controller = controller;
         return Stack(
           children: [
-            PostGrid<Post>(
-              controller: controller,
-              body: widget.filter.isActive && _filteredSnapshots.isEmpty
-                  ? SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Text(
-                          context.t.following_topics.feed_filter_empty,
-                        ),
-                      ),
-                    )
-                  : null,
-              header: const SizedBox.shrink(),
-              sliverHeaders: [
-                TimelineHeaderSliver(child: widget.filterHeader),
-                SliverToBoxAdapter(
-                  child: _FeedStatusHeader(
-                    sources: widget.sources,
-                    refreshChecked: widget.refreshChecked,
-                    refreshTotal: widget.refreshTotal,
-                    unavailable: _historyCoverageIncomplete,
-                    completedSourceIds: _history.exhaustedSourceIds,
-                    historyComplete: _history.exhausted,
-                  ),
-                ),
-              ],
-              enablePullToRefresh: false,
-              multiSelectActions: _FeedSelectionActions(controller: controller),
-              itemBuilder: (context, index, scroll, useHero) {
-                if (!widget.filter.isActive &&
-                    scroll.hasClients &&
-                    scroll.offset > 0 &&
-                    scroll.position.userScrollDirection ==
-                        ScrollDirection.reverse &&
-                    controller.hasMore &&
-                    index >= controller.items.length - 100 &&
-                    _prefetchedAtLength != controller.items.length) {
-                  _prefetchedAtLength = controller.items.length;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted &&
-                        !widget.filter.isActive &&
-                        identical(controller, _controller)) {
-                      setState(() => _historyStarted = true);
-                      unawaited(controller.fetchMore());
-                    }
-                  });
+            NotificationListener<ScrollMetricsNotification>(
+              onNotification: (notification) {
+                if (notification.depth == 0 &&
+                    notification.metrics.axis == Axis.vertical) {
+                  _scheduleFeedEndCheck();
                 }
-                final post = controller.items.elementAt(index);
-                final config = switch (const PostOriginResolver().resolve(
-                  post.origin,
-                  ref.watch(booruConfigProvider),
-                )) {
-                  ResolvedPostOrigin(:final config) => config,
-                  _ => null,
-                };
-                return PostGridContextMenu(
-                  controller: controller,
-                  index: index,
-                  child: DefaultImageGridItem(
-                    index: index,
-                    autoScrollController: scroll,
-                    controller: controller,
-                    useHero: useHero,
-                    config: config?.auth ?? BooruConfig.empty.auth,
-                    imageConfig: config?.auth,
-                    presentation: config == null
-                        ? const GenericPostPresentation()
-                        : null,
-                    onTap: () => _openPost(index, scroll, post),
-                  ),
-                );
+                return false;
               },
+              child: PostGrid<Post>(
+                scrollController: _feedScrollController,
+                // The normal footer is available only after explicit history
+                // start, including when bounded auto-fill leaves a short feed.
+                showLoadMoreButton: _historyStarted,
+                automaticContinuationEnabled:
+                    _historyStarted && !widget.filter.isActive,
+                controller: controller,
+                body: widget.filter.isActive && _filteredSnapshots.isEmpty
+                    ? SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text(
+                            context.t.following_topics.feed_filter_empty,
+                          ),
+                        ),
+                      )
+                    : null,
+                header: const SizedBox.shrink(),
+                sliverHeaders: [
+                  TimelineHeaderSliver(child: widget.filterHeader),
+                  SliverToBoxAdapter(
+                    child: _FeedStatusHeader(
+                      sources: widget.sources,
+                      refreshChecked: widget.refreshChecked,
+                      refreshTotal: widget.refreshTotal,
+                      unavailable: _historyCoverageIncomplete,
+                      completedSourceIds: _history.exhaustedSourceIds,
+                      historyComplete: _history.exhausted,
+                    ),
+                  ),
+                ],
+                enablePullToRefresh: false,
+                multiSelectActions: _FeedSelectionActions(
+                  controller: controller,
+                ),
+                itemBuilder: (context, index, scroll, useHero) {
+                  final post = controller.items.elementAt(index);
+                  final config = switch (const PostOriginResolver().resolve(
+                    post.origin,
+                    ref.watch(booruConfigProvider),
+                  )) {
+                    ResolvedPostOrigin(:final config) => config,
+                    _ => null,
+                  };
+                  return PostGridContextMenu(
+                    controller: controller,
+                    index: index,
+                    child: DefaultImageGridItem(
+                      index: index,
+                      autoScrollController: scroll,
+                      controller: controller,
+                      useHero: useHero,
+                      config: config?.auth ?? BooruConfig.empty.auth,
+                      imageConfig: config?.auth,
+                      presentation: config == null
+                          ? const GenericPostPresentation()
+                          : null,
+                      onTap: () => _openPost(index, scroll, post),
+                    ),
+                  );
+                },
+              ),
             ),
             if (!widget.filter.isActive &&
                 (_hasUpdates ||
                     _historyCoverageIncomplete ||
-                    (widget.feed.posts.length < 12 &&
-                        !_historyStarted &&
+                    (!_historyStarted &&
+                        _feedAtEnd &&
                         !controller.refreshing &&
                         controller.hasMore)))
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 16,
+                // The destination padding includes the main navigation bar.
+                bottom: 16 + MediaQuery.paddingOf(context).bottom,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1113,12 +1132,13 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                           context.t.following_topics.feed_updates_available,
                         ),
                       ),
-                    if (widget.feed.posts.length < 12 &&
-                        !_historyStarted &&
+                    if (!_historyStarted &&
+                        _feedAtEnd &&
                         !_historyCoverageIncomplete &&
                         !controller.refreshing &&
                         controller.hasMore)
                       FilledButton.icon(
+                        key: const ValueKey('cached-feed-load-older'),
                         onPressed: _loadOlderPosts,
                         icon: const Icon(Icons.expand_more),
                         label: Text(

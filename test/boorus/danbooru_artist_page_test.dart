@@ -753,6 +753,7 @@ void main() {
                       ? [testSearchPost(42, DateTime(2026))]
                       : [_MediaPost(testSearchPost(1, DateTime(2026)), 'mp4')],
                   total: null,
+                  hasMore: false,
                 ),
               );
             });

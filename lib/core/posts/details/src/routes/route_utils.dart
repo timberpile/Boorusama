@@ -43,6 +43,7 @@ void goToPostDetailsPageFromController<T extends Post>({
   AutoScrollController? scrollController,
   BooruConfig? config,
   bool hero = true,
+  bool Function()? canContinue,
 }) {
   final projection = ViewerNavigationScope.maybeOf(ref.context);
   if (projection != null) {
@@ -61,10 +62,16 @@ void goToPostDetailsPageFromController<T extends Post>({
       changes: controller,
       posts: () => controller.items,
       hasMore: () =>
-          controller.pageMode == PageMode.infinite && controller.hasMore,
+          (canContinue?.call() ?? true) &&
+          controller.pageMode == PageMode.infinite &&
+          controller.hasMore,
       loading: () => controller.loadingMore,
       failed: () => controller.errors.value != null,
-      fetchMore: controller.fetchMore,
+      fetchMore: () async {
+        if (canContinue?.call() ?? true) {
+          await controller.fetchMore(canStart: canContinue);
+        }
+      },
     ),
   );
 }

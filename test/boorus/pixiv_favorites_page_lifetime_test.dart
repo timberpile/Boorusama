@@ -15,6 +15,7 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/rendering.dart' show CacheExtentStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
@@ -63,7 +64,15 @@ void main() {
         reason: 'An HTTP request must begin while its cached tile is still below the viewport.',
       );
       final grid = tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>));
-      expect(grid.cacheExtent, 844);
+      expect(grid.cacheExtent, isNull);
+      final scrollView = tester.widget<CustomScrollView>(
+        find.descendant(
+          of: find.byType(PostGrid<Post>),
+          matching: find.byType(CustomScrollView),
+        ),
+      );
+      expect(scrollView.scrollCacheExtent?.style, CacheExtentStyle.viewport);
+      expect(scrollView.scrollCacheExtent?.value, 1);
       expect(page.calls, hasLength(1));
       await page.close(tester);
     },
@@ -168,6 +177,7 @@ void main() {
       await page.pump(tester);
       page.calls.single.complete(1, count: 60, more: true);
       await _until(tester, () => !page.controller(tester).refreshing);
+      await tester.pumpAndSettle();
       final scrollable = find
           .byWidgetPredicate(
             (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
@@ -176,8 +186,11 @@ void main() {
       final position = tester.state<ScrollableState>(scrollable).position;
       expect(page.calls, hasLength(1));
       position.jumpTo(
-        position.maxScrollExtent - position.viewportDimension * 2,
+        // Masonry refines its estimate after the jump. Stay just inside the
+        // threshold rather than depending on subpixel estimation rounding.
+        position.maxScrollExtent - position.viewportDimension * 2 + 32,
       );
+      await tester.pump();
       await tester.pump(page.controller(tester).debounceDuration);
       await _until(tester, () => page.calls.length == 2);
       expect(position.extentAfter, greaterThan(position.viewportDimension));
@@ -233,23 +246,21 @@ void main() {
         await _until(tester, () => !controller.refreshing);
         expect(controller.items, isEmpty);
         expect(controller.hasMore, isTrue);
-        final label = tester
-            .element(find.byType(PixivFavoritesPage))
-            .t
-            .infinite_scroll
-            .load_more;
-        final more = find.widgetWithText(FilledButton, label);
-        expect(more, findsOneWidget);
-        for (final (cursor, visible) in [('80', false), ('70', true)]) {
-          await tester.ensureVisible(more);
+        for (final (requested, cursor, visible) in [
+          ('90', '80', false),
+          ('80', '70', true),
+        ]) {
+          // Empty-but-continuing pages now use the shared bounded fill cycle.
           await tester.pump();
-          expect(more.hitTestable(), findsOneWidget);
-          await tester.tap(more);
           await tester.pump(controller.debounceDuration);
           await _until(tester, () => !page.calls.last.response.isCompleted);
           expect(
             page.calls.last.options.queryParameters['restrict'],
             private ? 'private' : 'public',
+          );
+          expect(
+            page.calls.last.options.queryParameters['max_bookmark_id'],
+            requested,
           );
           page.calls.last.complete(
             3,
@@ -257,7 +268,8 @@ void main() {
             more: !visible,
             cursor: cursor,
           );
-          await _until(tester, () => !controller.loadingMore);
+          await tester.pump();
+          await _until(tester, () => !controller.loading);
           expect(controller.hasMore, !visible);
           expect(
             controller.items.map((post) => post.illustId),
@@ -265,7 +277,12 @@ void main() {
           );
         }
         expect(page.calls, hasLength(start + 2));
-        expect(more, findsNothing);
+        final label = tester
+            .element(find.byType(PixivFavoritesPage))
+            .t
+            .infinite_scroll
+            .load_more;
+        expect(find.widgetWithText(FilledButton, label), findsNothing);
         expect(tester.takeException(), isNull);
         await page.close(tester);
       },

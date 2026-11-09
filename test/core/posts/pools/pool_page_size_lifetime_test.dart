@@ -5,6 +5,7 @@ import 'package:boorusama/boorus/szurubooru/pools/providers.dart';
 import 'package:boorusama/boorus/szurubooru/pools/src/pool_detail_page.dart';
 import 'package:boorusama/boorus/szurubooru/pools/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/navigation/destination_activity.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/pools/widgets.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
@@ -52,12 +53,17 @@ void main() {
       addTearDown(harness.dispose);
       await harness.pump(
         tester,
-        Scaffold(
-          body: danbooru
-              ? DanbooruInfinitePostIdList(
-                  pool: DanbooruPool.empty().copyWith(id: 1, postIds: _ids),
-                )
-              : const SzurubooruPoolDetailPage(poolId: 1),
+        // Keep automatic continuation inactive while checking explicit slice
+        // requests and controller replacement independently of viewport fill.
+        NavigationActivity(
+          active: false,
+          child: Scaffold(
+            body: danbooru
+                ? DanbooruInfinitePostIdList(
+                    pool: DanbooruPool.empty().copyWith(id: 1, postIds: _ids),
+                  )
+                : const SzurubooruPoolDetailPage(poolId: 1),
+          ),
         ),
       );
       PostGridController<Post> controller() =>

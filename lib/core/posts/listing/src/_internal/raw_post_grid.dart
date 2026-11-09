@@ -69,6 +69,7 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
     this.blacklistedIdString,
     this.refreshAtStart = true,
     this.enablePullToRefresh = true,
+    this.showLoadMoreButton = true,
     this.safeArea = true,
     this.options = const PostGridOptions(),
   });
@@ -80,6 +81,7 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
 
   final bool refreshAtStart;
   final bool enablePullToRefresh;
+  final bool showLoadMoreButton;
   final bool safeArea;
 
   final Widget? footer;
@@ -381,7 +383,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                               trueChild: const SliverSizedBox.shrink(),
                             ),
                           widget.body,
-                          if (pageMode == PageMode.infinite)
+                          if (pageMode == PageMode.infinite &&
+                              widget.showLoadMoreButton)
                             _buildLoadMore(colorScheme),
                           if (pageMode == PageMode.paginated)
                             ConditionalValueListenableBuilder(
@@ -892,7 +895,9 @@ class _CustomScrollViewState extends State<_CustomScrollView> {
                     final cacheExtent? => ScrollCacheExtent.pixels(
                       cacheExtent,
                     ),
-                    null => null,
+                    // Use the scroll viewport, not the whole screen, so the
+                    // preload range follows resizing and constrained panes.
+                    null => const ScrollCacheExtent.viewport(1),
                   },
                   slivers: widget.slivers,
                 ),
