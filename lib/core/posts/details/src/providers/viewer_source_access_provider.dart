@@ -45,7 +45,7 @@ ViewerSourceBinding? bindViewerOrigin(
   final resolution = const PostOriginResolver().resolve(
     origin,
     profiles,
-    allowProfileHintFallback: false,
+    allowProfileHintFallback: true,
   );
   return switch (resolution) {
     ResolvedPostOrigin(:final config) => ViewerSourceBinding(

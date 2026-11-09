@@ -45,6 +45,7 @@ CollectionBookmark? bookmarkCollectionProjection(
           sample: (cover.sample ?? cover.thumbnail).toString(),
           original: (cover.original ?? cover.thumbnail).toString(),
           variants: cover.variants,
+          visibility: cover.visibility,
         );
   final index = record.snapshot.index;
   // Existing Pool filtering consumes a sampled member union. Native source
@@ -183,6 +184,7 @@ Bookmark collectionRecordForSave(
               ? null
               : Uri.parse(selectedCover.original),
           variants: selectedCover?.variants ?? const {},
+          visibility: selectedCover?.visibility,
         );
   final summary = ContentGroupSummary(
     reference: reference,

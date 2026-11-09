@@ -15,6 +15,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../configs/config/types.dart';
+import '../../../../backups/folder_sync/widgets.dart';
 import '../../../../widgets/popup_menu_action_label.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
@@ -602,7 +603,16 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
       child: Scaffold(
         appBar: KurumiAppBar(
           backgroundColor: TimelineHeaderSliver.backgroundColorOf(context),
-          title: Text(feed?.name ?? strings.topic_feeds),
+          title: Row(
+            children: [
+              Flexible(child: Text(feed?.name ?? strings.topic_feeds)),
+              if (isFolderFeed)
+                CollectionSyncIndicator(
+                  kind: 'following_topics',
+                  localId: folder.id,
+                ),
+            ],
+          ),
           actions: [
             if (_latestSuccessfulCheck(sources) case final checkedAt?)
               Padding(
@@ -616,34 +626,42 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
                   ),
                 ),
               ),
-            PopupMenuButton<String>(
-              tooltip: context.t.generic.action.more,
-              onSelected: (action) async {
-                if (action == 'refresh' && !_filter.isActive) {
-                  await _refreshFeed(context, ref, widget.feedId);
-                } else if (action == 'settings' && folder != null) {
-                  await _editFolderSettings(folder);
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'refresh',
-                  enabled:
+            KurumiPopupMenuButton(
+              semanticLabel: context.t.generic.action.more,
+              icon: const Icon(Icons.more_vert),
+              items: [
+                KurumiPopupMenuItem(
+                  title: Text(strings.refresh),
+                  icon: const Icon(Icons.refresh),
+                  onTap:
                       !_filter.isActive &&
-                      feedEnabled &&
-                      feed != null &&
-                      state?.refreshingFeedId == null,
-                  child: PopupMenuActionLabel(
-                    icon: Icons.refresh,
-                    label: strings.refresh,
-                  ),
+                          feedEnabled &&
+                          feed != null &&
+                          state?.refreshingFeedId == null
+                      ? () => _refreshFeed(context, ref, widget.feedId)
+                      : null,
                 ),
                 if (isFolderFeed)
-                  PopupMenuItem(
-                    value: 'settings',
-                    child: PopupMenuActionLabel(
-                      icon: Icons.tune,
-                      label: strings.feed_settings,
+                  KurumiPopupMenuItem(
+                    title: Text(strings.feed_settings),
+                    icon: const Icon(Icons.tune),
+                    onTap: () => _editFolderSettings(folder),
+                  ),
+                if (isFolderFeed)
+                  KurumiPopupMenuItem(
+                    title: Text(
+                      collectionSyncActionLabel(
+                        context,
+                        ref,
+                        kind: 'following_topics',
+                        localId: folder.id,
+                      ),
+                    ),
+                    icon: const Icon(Icons.upload_outlined),
+                    onTap: () => openFolderSyncForCollection(
+                      context,
+                      kind: 'following_topics',
+                      localId: folder.id,
                     ),
                   ),
               ],

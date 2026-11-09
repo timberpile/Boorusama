@@ -1,5 +1,6 @@
 // Package imports:
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
@@ -25,6 +26,7 @@ import '../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../settings/providers.dart';
 import 'image_quality.dart';
 import 'providers.dart';
+import 'media_diagnostics.dart';
 
 const _defaultRadius = BorderRadius.all(Radius.circular(8));
 const _placeholderAspectRatioMismatchThreshold = 0.05;
@@ -194,8 +196,20 @@ class BooruImage extends ConsumerWidget {
         .toSet()
         .toList();
 
+    final diagnostics = ref.watch(mediaDiagnosticsProvider(config));
+    MediaDiagnosticBinding binding(bool overridden) => access.key != null
+        ? config.anonymousReadScope != null
+              ? MediaDiagnosticBinding.anonymous
+              : MediaDiagnosticBinding.bound
+        : overridden
+        ? MediaDiagnosticBinding.override
+        : MediaDiagnosticBinding.unbound;
     return BooruRawImage(
       key: ValueKey((access.key, imageUrl)),
+      diagnostics: diagnostics,
+      diagnosticBinding: binding(imageRequest.overridden),
+      placeholderDiagnosticBinding: binding(placeholderRequest.overridden),
+      fallbackDiagnosticBinding: binding(fallbackRequest.overridden),
       dio: imageRequest.overridden && access.key == null
           ? ref.watch(mediaOverrideDioProvider(config))
           : dio,
@@ -296,8 +310,16 @@ class BooruRawImage extends StatelessWidget {
     this.androidVersion,
     this.imageCacheManager,
     this.cachedImageBytes,
+    this.diagnostics,
+    this.diagnosticBinding = MediaDiagnosticBinding.unbound,
+    this.placeholderDiagnosticBinding = MediaDiagnosticBinding.unbound,
+    this.fallbackDiagnosticBinding = MediaDiagnosticBinding.unbound,
   });
 
+  final MediaDiagnostics? diagnostics;
+  final MediaDiagnosticBinding diagnosticBinding;
+  final MediaDiagnosticBinding placeholderDiagnosticBinding;
+  final MediaDiagnosticBinding fallbackDiagnosticBinding;
   final Dio dio;
   final Dio? placeholderDio;
   final Map<String, String>? placeholderHeaders;
@@ -339,6 +361,7 @@ class BooruRawImage extends StatelessWidget {
     return _ImageRetryControllerScope(
       controller: controller,
       beforeRetry: () async {
+        diagnostics?.retry(imageUrl);
         await imageCacheManager?.clearCache(
           imageCacheManager!.generateCacheKey(imageUrl),
         );
@@ -370,6 +393,16 @@ class BooruRawImage extends StatelessWidget {
               if (cachedImageBytes case final bytes?) {
                 return ExtendedImage(
                   image: MemoryImage(bytes),
+                  onError: (error, stack) => unawaited(
+                    diagnostics?.imageFailure(
+                      url: imageUrl,
+                      error: error,
+                      stackTrace: stack,
+                      headers: headers,
+                      binding: diagnosticBinding,
+                      suppliedBytes: true,
+                    ),
+                  ),
                   borderRadius: borderRadius,
                   width: width,
                   height: height,
@@ -383,6 +416,16 @@ class BooruRawImage extends StatelessWidget {
               return imageUrl.isNotEmpty
                   ? ExtendedImage.network(
                       imageUrl,
+                      onError: (error, stack) => unawaited(
+                        diagnostics?.imageFailure(
+                          url: imageUrl,
+                          error: error,
+                          stackTrace: stack,
+                          headers: headers,
+                          binding: diagnosticBinding,
+                          manager: imageCacheManager,
+                        ),
+                      ),
                       dio: dio,
                       headers: headers,
                       borderRadius: borderRadius,
@@ -421,6 +464,21 @@ class BooruRawImage extends StatelessWidget {
                                     ? _wrapPlaceholderAspectRatio(
                                         ExtendedImage.network(
                                           url,
+                                          onError: (error, stack) => unawaited(
+                                            diagnostics?.imageFailure(
+                                              url: url,
+                                              error: error,
+                                              stackTrace: stack,
+                                              headers:
+                                                  placeholderHeaders ?? headers,
+                                              binding:
+                                                  placeholderDiagnosticBinding,
+                                              rendition:
+                                                  MediaDiagnosticRendition
+                                                      .placeholder,
+                                              manager: imageCacheManager,
+                                            ),
+                                          ),
                                           dio: placeholderDio ?? dio,
                                           headers:
                                               placeholderHeaders ?? headers,
@@ -446,13 +504,13 @@ class BooruRawImage extends StatelessWidget {
                             ),
                           ),
                       errorWidget:
-                          errorWidget ??
                           fallbackWidget ??
                           switch (fallbackUrl) {
                             final String url
                                 when url.isNotEmpty && url != imageUrl =>
                               _ImageRetryControllerScope(
                                 beforeRetry: () async {
+                                  diagnostics?.retry(url);
                                   await imageCacheManager?.clearCache(
                                     imageCacheManager!.generateCacheKey(url),
                                   );
@@ -460,6 +518,18 @@ class BooruRawImage extends StatelessWidget {
                                 builder: (fallbackController, retryFallback) =>
                                     ExtendedImage.network(
                                       url,
+                                      onError: (error, stack) => unawaited(
+                                        diagnostics?.imageFailure(
+                                          url: url,
+                                          error: error,
+                                          stackTrace: stack,
+                                          headers: fallbackHeaders ?? headers,
+                                          binding: fallbackDiagnosticBinding,
+                                          rendition:
+                                              MediaDiagnosticRendition.fallback,
+                                          manager: imageCacheManager,
+                                        ),
+                                      ),
                                       dio: fallbackDio ?? dio,
                                       controller: fallbackController,
                                       headers: fallbackHeaders ?? headers,
@@ -473,16 +543,20 @@ class BooruRawImage extends StatelessWidget {
                                       androidVersion: androidVersion,
                                       cacheManager: imageCacheManager,
                                       placeholderWidget: imagePlaceHolder,
-                                      errorWidget: ErrorPlaceholder(
-                                        borderRadius: borderRadius,
-                                        onRetry: retryFallback,
-                                      ),
+                                      errorWidget:
+                                          errorWidget ??
+                                          ErrorPlaceholder(
+                                            borderRadius: borderRadius,
+                                            onRetry: retryFallback,
+                                          ),
                                     ),
                               ),
-                            _ => ErrorPlaceholder(
-                              onRetry: retry,
-                              borderRadius: borderRadius,
-                            ),
+                            _ =>
+                              errorWidget ??
+                                  ErrorPlaceholder(
+                                    onRetry: retry,
+                                    borderRadius: borderRadius,
+                                  ),
                           },
                     )
                   : imagePlaceHolder;

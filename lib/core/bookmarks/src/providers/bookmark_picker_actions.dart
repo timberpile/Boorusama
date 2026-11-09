@@ -65,6 +65,10 @@ class BookmarkPickerActions {
 
   void _checkOwnership() {
     if (_disposed || !isActive()) throw StateError('Bookmark picker dismissed');
+    if (request case ContentGroupBookmarkPickerRequest(:final access)) {
+      if (container.read(contentAccessContextProvider(access)) == null)
+        throw StateError('Bookmark picker source changed');
+    }
     if (request.source case final source?) {
       final public = source.anonymousReadScope;
       if (public != null) {
@@ -103,7 +107,9 @@ class BookmarkPickerActions {
             await container.read(
               relatedBookmarkDraftProvider((source, family)).future,
             ),
-          PostBookmarkPickerRequest() || SavedBookmarkPickerRequest() => null,
+          PostBookmarkPickerRequest() ||
+          SavedBookmarkPickerRequest() ||
+          ContentGroupBookmarkPickerRequest() => null,
         };
     _checkOwnership();
     return draft;
@@ -117,6 +123,16 @@ class BookmarkPickerActions {
     _pending = true;
     try {
       _checkOwnership();
+      if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+        return await container
+            .read(bookmarkProvider.notifier)
+            .toggleContentGroupTarget(
+              draft,
+              groupId: groupId,
+              onRemoved: onRemoved,
+              beforeCommit: _checkOwnership,
+            );
+      }
       if (request case SavedBookmarkPickerRequest(:final record)) {
         return await container
             .read(bookmarkProvider.notifier)
@@ -162,6 +178,17 @@ class BookmarkPickerActions {
       final collection = await _resolveCollection();
       _checkOwnership();
       beforeCommit();
+      if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+        await container
+            .read(bookmarkProvider.notifier)
+            .createGroupWithContentDraft(
+              name,
+              draft,
+              parentGroupId: parentGroupId,
+              beforeCommit: _checkOwnership,
+            );
+        return;
+      }
       if (request case SavedBookmarkPickerRequest(:final record)) {
         await container
             .read(bookmarkProvider.notifier)

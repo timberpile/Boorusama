@@ -11,6 +11,7 @@ import '../../../navigation/app_navigation.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
+import '../../../backups/folder_sync/mirror_guard.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_picker_actions.dart';
 import '../providers/recent_bookmark_groups_provider.dart';
@@ -262,6 +263,10 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
               .firstOrNull
               ?.groupIds ??
           const {};
+    } else if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+      final id =
+          library?.idByContent[draft.snapshot.summary.reference.identity];
+      memberships = id == null ? const {} : library!.membershipsForId(id);
     } else if (request case PostBookmarkPickerRequest(:final post)) {
       final saved = library?.storedBookmarkForPost(post);
       memberships = library?.hasUnifiedRecords == true
@@ -276,29 +281,37 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
       memberships = const {};
     }
     final tree = library?.groupTree;
+    final mirrorGuard = ref.exists(collectionMirrorGuardProvider)
+        ? ref.read(collectionMirrorGuardProvider)
+        : null;
     final recentGroups =
         ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
         const <BookmarkGroup>[];
-    Widget row(BookmarkGroup group, {bool recent = false, bool here = false}) =>
-        BookmarkPickerMenuItem(
-          icon: Icon(
-            Symbols.bookmarks,
-            fill: memberships.contains(group.id) ? 1 : 0,
-          ),
-          title: here
-              ? memberships.contains(group.id)
-                    ? context.t.bookmark.groups.remove_here
-                    : context.t.bookmark.groups.save_here
-              : group.displayName(context),
-          detail: recent
-              ? tree
-                    ?.ancestors(group.id)
-                    .map((g) => g.displayName(context))
-                    .join(' / ')
-              : null,
-          hideOnTap: false,
-          onTap: () => _toggle(group.id),
-        );
+    BookmarkPickerMenuItem row(
+      BookmarkGroup group, {
+      bool recent = false,
+      bool here = false,
+    }) => BookmarkPickerMenuItem(
+      icon: Icon(
+        Symbols.bookmarks,
+        fill: memberships.contains(group.id) ? 1 : 0,
+      ),
+      title: here
+          ? memberships.contains(group.id)
+                ? context.t.bookmark.groups.remove_here
+                : context.t.bookmark.groups.save_here
+          : group.displayName(context),
+      detail: recent
+          ? tree
+                ?.ancestors(group.id)
+                .map((g) => g.displayName(context))
+                .join(' / ')
+          : null,
+      hideOnTap: false,
+      onTap: mirrorGuard?.isReadOnly(group.id) == true
+          ? null
+          : () => _toggle(group.id),
+    );
     return BookmarkFolderPickerContents(
       folders: library?.folders ?? const [],
       groups: library?.groups ?? const [],
@@ -319,6 +332,7 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
                 ),
                 for (final group in recentGroups)
                   BookmarkPickerSplitRow(
+                    selected: memberships.contains(group.id),
                     navigationLabel:
                         '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
                     onOpen: tree?.childrenOf(group.id).isNotEmpty == true

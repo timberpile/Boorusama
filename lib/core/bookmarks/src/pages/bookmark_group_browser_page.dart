@@ -25,6 +25,8 @@ import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import '../services/bookmark_library_service.dart';
 import '../types/bookmark.dart';
+import '../types/content_group_bookmark.dart';
+import '../types/bookmark_grid_entry.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
@@ -33,6 +35,7 @@ import '../widgets/bookmark_collection_deletion_summary.dart';
 import '../widgets/bookmark_group_destination_picker.dart';
 import '../widgets/bookmark_group_label.dart';
 import '../widgets/bookmark_group_name_dialog.dart';
+import '../../../backups/folder_sync/widgets.dart';
 import '../widgets/bookmark_local_group_card.dart';
 import '../widgets/bookmark_scroll_view.dart';
 
@@ -63,6 +66,7 @@ class _BookmarkGroupBrowserPageState
   final _scrolls = <Object, AutoScrollController>{};
   final _previews = <String, List<PostBookmark>>{};
   final _poolPreviews = <String, List<CollectionBookmark>>{};
+  final _nativePreviews = <String, List<ContentGroupBookmark>>{};
   (
     BookmarkLibraryState,
     BookmarkSortType,
@@ -265,6 +269,23 @@ class _BookmarkGroupBrowserPageState
                           icon: const Icon(Icons.add),
                           onTap: () => _create(id),
                         ),
+                        if (group != null)
+                          KurumiPopupMenuItem(
+                            title: Text(
+                              collectionSyncActionLabel(
+                                context,
+                                ref,
+                                kind: 'bookmarks',
+                                localId: group.id,
+                              ),
+                            ),
+                            icon: const Icon(Icons.upload_outlined),
+                            onTap: () => openFolderSyncForCollection(
+                              context,
+                              kind: 'bookmarks',
+                              localId: group.id,
+                            ),
+                          ),
                         if (group != null && !group.isDefault) ...[
                           KurumiPopupMenuItem(
                             title: Text(context.t.bookmark.groups.rename),
@@ -320,84 +341,87 @@ class _BookmarkGroupBrowserPageState
                           ),
                         ],
                       ),
-                body: SafeArea(
-                  top: false,
-                  child: library.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (_, _) =>
-                        const Center(child: Icon(Icons.error_outline)),
-                    data: (state) {
-                      _updatePreviewInputs(state, visible: visible);
-                      final genuinelyEmpty =
-                          view != null &&
-                          state.bookmarkIdsForView(view).isEmpty &&
-                          (state.hasUnifiedRecords ||
-                              !state.pools.any(
-                                (pool) => pool.groupIds.contains(id),
-                              ));
-                      final cards = _cards(
-                        state,
-                        id,
-                        ordinaryChildren,
-                        selected,
-                      );
-                      final slivers = <Widget>[
-                        if (mode == BookmarkGroupViewMode.structure &&
-                            (id == null || ordinaryChildren.isNotEmpty))
-                          if (id != null && !genuinelyEmpty)
-                            CollectionSelectionBinding(
-                              controller: _selection,
-                              child: cards,
-                            )
-                          else
-                            cards,
-                        if (id != null &&
-                            mode == BookmarkGroupViewMode.structure &&
-                            ordinaryChildren.isNotEmpty &&
-                            !genuinelyEmpty)
-                          const SliverToBoxAdapter(
-                            child: Divider(
-                              indent: 12,
-                              endIndent: 12,
-                              height: 1,
+                body: CollectionSyncSeen(
+                  localId: library.hasValue ? id ?? '' : '',
+                  child: SafeArea(
+                    top: false,
+                    child: library.when(
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (_, _) =>
+                          const Center(child: Icon(Icons.error_outline)),
+                      data: (state) {
+                        _updatePreviewInputs(state, visible: visible);
+                        final genuinelyEmpty =
+                            view != null &&
+                            state.bookmarkIdsForView(view).isEmpty &&
+                            (state.hasUnifiedRecords ||
+                                !state.pools.any(
+                                  (pool) => pool.groupIds.contains(id),
+                                ));
+                        final cards = _cards(
+                          state,
+                          id,
+                          ordinaryChildren,
+                          selected,
+                        );
+                        final slivers = <Widget>[
+                          if (mode == BookmarkGroupViewMode.structure &&
+                              (id == null || ordinaryChildren.isNotEmpty))
+                            if (id != null && !genuinelyEmpty)
+                              CollectionSelectionBinding(
+                                controller: _selection,
+                                child: cards,
+                              )
+                            else
+                              cards,
+                          if (id != null &&
+                              mode == BookmarkGroupViewMode.structure &&
+                              ordinaryChildren.isNotEmpty &&
+                              !genuinelyEmpty)
+                            const SliverToBoxAdapter(
+                              child: Divider(
+                                indent: 12,
+                                endIndent: 12,
+                                height: 1,
+                              ),
                             ),
-                          ),
-                      ];
-                      if (id == null || genuinelyEmpty) {
+                        ];
+                        if (id == null || genuinelyEmpty) {
+                          return OrderedSelectionCanvas(
+                            controller: _selection,
+                            child: CustomScrollView(
+                              key: PageStorageKey(scope),
+                              controller: scroll,
+                              slivers: [
+                                ...slivers,
+                                if (genuinelyEmpty &&
+                                    (mode != BookmarkGroupViewMode.structure ||
+                                        ordinaryChildren.isEmpty))
+                                  SliverToBoxAdapter(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(24),
+                                      child: Text(context.t.bookmark.none),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        }
                         return OrderedSelectionCanvas(
                           controller: _selection,
-                          child: CustomScrollView(
-                            key: PageStorageKey(scope),
-                            controller: scroll,
-                            slivers: [
-                              ...slivers,
-                              if (genuinelyEmpty &&
-                                  (mode != BookmarkGroupViewMode.structure ||
-                                      ordinaryChildren.isEmpty))
-                                SliverToBoxAdapter(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(24),
-                                    child: Text(context.t.bookmark.none),
-                                  ),
-                                ),
-                            ],
+                          child: BookmarkScrollView(
+                            key: ValueKey(scope),
+                            scrollController: scroll,
+                            searchController: _search,
+                            localGroupSelectionController: _selection,
+                            view: view!,
+                            title: title,
+                            leadingSlivers: slivers,
                           ),
                         );
-                      }
-                      return OrderedSelectionCanvas(
-                        controller: _selection,
-                        child: BookmarkScrollView(
-                          key: ValueKey(scope),
-                          scrollController: scroll,
-                          searchController: _search,
-                          localGroupSelectionController: _selection,
-                          view: view!,
-                          title: title,
-                          leadingSlivers: slivers,
-                        ),
-                      );
-                    },
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -471,6 +495,7 @@ class _BookmarkGroupBrowserPageState
       _previewInputs = inputs;
       _previews.clear();
       _poolPreviews.clear();
+      _nativePreviews.clear();
     }
   }
 
@@ -546,11 +571,25 @@ class _BookmarkGroupBrowserPageState
                   .toList(),
             );
             final editable = group != null && !group.isDefault;
+            final native = _nativePreviews.putIfAbsent(
+              key,
+              () => selectNativeGroupBookmarks(
+                state: state,
+                view: previewView,
+                selectedTags: const [],
+                availableRecordIds:
+                    _previewInputs!.$4?.nativeGroupIds ?? const {},
+              ).take(12).toList(),
+            );
             final card = BookmarkLocalGroupCard(
               title: title,
               previews: preview,
               pools: pools,
+              nativeGroups: native,
               group: group,
+              hasChildren:
+                  group != null &&
+                  state.groupTree.childrenOf(group.id).isNotEmpty,
               selected: group != null && selected.contains(group.id),
               onTap:
                   !editable && (_selection.isActive || selectionModifierPressed)
@@ -682,7 +721,7 @@ class _BookmarkGroupBrowserPageState
                         !ids.contains(group.id),
                   )) ...[
                     const SizedBox(height: 8),
-                    Text(context.t.bookmark.groups.promoted_children),
+                    Text(context.t.bookmark.groups.deleted_subgroups),
                   ],
                   const SizedBox(height: 16),
                   Wrap(

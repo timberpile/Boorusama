@@ -7,6 +7,10 @@ import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.d
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/bookmarks/src/types/unified_bookmark_store.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -112,7 +116,7 @@ void main() {
   }
 
   test(
-    'undo restores group identities, hierarchy, order, memberships and orphan payloads',
+    'subtree deletion and Undo preserve hierarchy, outside memberships, dates and mixed payloads',
     () async {
       final root = await service.createGroup('Root');
       final otherRootChild = await service.createGroup(
@@ -127,6 +131,30 @@ void main() {
         'Child',
         parentGroupId: parent.id,
       );
+      final grandchild = await service.createGroup(
+        'Grandchild',
+        parentGroupId: child.id,
+      );
+      final poolId = (await repository.reserveIds(1)).single;
+      final poolDate = DateTime.utc(2024, 2, 2);
+      final pool = ContentGroupBookmark(
+        id: poolId,
+        snapshot: StoredGroupSnapshot(
+          summary: ContentGroupSummary(
+            reference: const ContentReferenceCodec().parse(
+              engine: BooruType.danbooru,
+              site: Uri.parse('https://danbooru.donmai.us'),
+              kind: ContentKind.group,
+              sourceKey: 'pool:900',
+            ),
+            title: 'Offline Series',
+          ),
+        ),
+        createdAt: poolDate,
+        observedAt: poolDate,
+      );
+      await repository.upsert(pool);
+      await setMembership(child.id, {poolId}, dates: {poolId: poolDate});
       final orphan = await addPost(201);
       final shared = await addPost(202);
       final orphanDate = DateTime.utc(2024, 2, 3, 4, 5, 6);
@@ -142,7 +170,7 @@ void main() {
         },
       );
       await setMembership(
-        child.id,
+        grandchild.id,
         {shared.id},
         dates: {
           shared.id: childSharedDate,
@@ -157,17 +185,31 @@ void main() {
       );
       final originalParent = (await groupRepository.getGroup(parent.id))!;
       final originalChild = (await groupRepository.getGroup(child.id))!;
+      final originalGrandchild = (await groupRepository.getGroup(
+        grandchild.id,
+      ))!;
       final nextIdBeforeUndo = (await repository.reserveIds(1)).single;
 
       final deletion = await service.deleteHierarchy({parent.id});
-      expect(deletion.deletedRecordIds, contains(orphan.id));
+      expect(deletion.deletedGroups.map((group) => group.id).toSet(), {
+        parent.id,
+        child.id,
+        grandchild.id,
+      });
+      expect(deletion.singlePreview.group.id, parent.id);
+      expect(
+        deletion.singlePreview.descendantGroups
+            .map((group) => group.id)
+            .toSet(),
+        {child.id, grandchild.id},
+      );
+      expect(deletion.deletedRecordIds, containsAll([orphan.id, poolId]));
+      expect(await repository.read(poolId), isNull);
       expect(deletion.deletedRecordIds, isNot(contains(shared.id)));
       expect(await repository.read(orphan.id), isNull);
       expect(await repository.read(shared.id), isNotNull);
-      expect(
-        (await groupRepository.getGroup(child.id))!.parentGroupId,
-        root.id,
-      );
+      expect(await groupRepository.getGroup(child.id), isNull);
+      expect(await groupRepository.getGroup(grandchild.id), isNull);
       expect(
         (await groupRepository.getGroup(otherRootChild.id))!.addedAt[shared.id],
         otherSharedDate,
@@ -181,7 +223,22 @@ void main() {
       expect(restoredParent.position, originalParent.position);
       expect(restoredChild.parentGroupId, originalChild.parentGroupId);
       expect(restoredChild.position, originalChild.position);
-      expect(restoredChild.addedAt[shared.id], childSharedDate);
+      final restoredGrandchild = (await groupRepository.getGroup(
+        grandchild.id,
+      ))!;
+      expect(
+        restoredGrandchild.parentGroupId,
+        originalGrandchild.parentGroupId,
+      );
+      expect(restoredGrandchild.position, originalGrandchild.position);
+      expect(restoredGrandchild.addedAt[shared.id], childSharedDate);
+      final restoredPoolId = restoredChild.bookmarkIds.single;
+      expect(restoredPoolId, greaterThan(nextIdBeforeUndo));
+      expect(restoredChild.addedAt[restoredPoolId], poolDate);
+      final restoredPool =
+          (await repository.read(restoredPoolId))! as ContentGroupBookmark;
+      expect(restoredPool.snapshot, pool.snapshot);
+      expect(restoredPool.reference, pool.reference);
       expect(
         (await groupRepository.getGroup(otherRootChild.id))!.addedAt[shared.id],
         otherSharedDate,
@@ -203,7 +260,7 @@ void main() {
   );
 
   test(
-    'undo restores only parent/order and preserves newer child edits',
+    'a recreated descendant rejects Undo without overwriting newer memberships',
     () async {
       final root = await service.createGroup('Root');
       final parent = await service.createGroup(
@@ -214,46 +271,33 @@ void main() {
         'Child',
         parentGroupId: parent.id,
       );
-      final existing = await addPost(203);
-      final addedLater = await addPost(204);
-      final existingDate = DateTime.utc(2024, 3, 1);
+      final later = await addPost(204);
       final laterDate = DateTime.utc(2024, 3, 2);
-      await setMembership(
-        child.id,
-        {existing.id},
-        dates: {
-          existing.id: existingDate,
-        },
-      );
-      final originalChild = (await groupRepository.getGroup(child.id))!;
-
       final deletion = await service.deleteHierarchy({parent.id});
-      await groupRepository.renameGroup(child.id, 'Renamed after promotion');
-      await setMembership(
-        child.id,
-        {existing.id, addedLater.id},
-        dates: {
-          existing.id: existingDate,
-          addedLater.id: laterDate,
-        },
+      expect(await groupRepository.getGroup(child.id), isNull);
+      final replacement = child.copyWith(
+        name: 'Replacement descendant',
+        parentGroupId: root.id,
+        bookmarkIds: {later.id},
+        addedAt: {later.id: laterDate},
       );
-
-      await service.undoHierarchyDeletion(deletion);
-
-      final restoredChild = (await groupRepository.getGroup(child.id))!;
-      expect(restoredChild.parentGroupId, parent.id);
-      expect(restoredChild.position, originalChild.position);
-      expect(restoredChild.name, 'Renamed after promotion');
-      expect(restoredChild.bookmarkIds, {existing.id, addedLater.id});
-      expect(restoredChild.addedAt, {
-        existing.id: existingDate,
-        addedLater.id: laterDate,
-      });
+      await unifiedBookmarkStorage(repository)!
+          .commitOrganization(groups: [replacement]);
+      final beforeRevision = await repository.readRevision();
+      final marker = (await repository.reserveIds(1)).single;
+      await expectLater(
+        service.undoHierarchyDeletion(deletion),
+        throwsStateError,
+      );
+      expect(await repository.readRevision(), beforeRevision);
+      expect(await groupRepository.getGroup(parent.id), isNull);
+      expect(await groupRepository.getGroup(child.id), replacement);
+      expect((await repository.reserveIds(1)).single, marker + 1);
     },
   );
 
   test(
-    'a newer child move rejects undo before writes or ID allocation',
+    'a recreated descendant moved elsewhere rejects Undo before writes or ID allocation',
     () async {
       final root = await service.createGroup('Root');
       final parent = await service.createGroup(
@@ -266,6 +310,11 @@ void main() {
       );
       final destination = await service.createGroup('Other destination');
       final deletion = await service.deleteHierarchy({parent.id});
+      await unifiedBookmarkStorage(repository)!.commitOrganization(
+        groups: [
+          child.copyWith(parentGroupId: root.id),
+        ],
+      );
       await service.moveGroups({child.id}, parentGroupId: destination.id);
       final beforeRevision = await repository.readRevision();
       final beforeGroups = await groupRepository.getGroups();
@@ -346,10 +395,7 @@ void main() {
       expect(await repository.readRevision(), beforeRevision);
       expect(await groupRepository.getGroups(), beforeGroups);
       expect((await groupRepository.getGroup(parent.id))!.name, 'Replacement');
-      expect(
-        (await groupRepository.getGroup(child.id))!.parentGroupId,
-        root.id,
-      );
+      expect(await groupRepository.getGroup(child.id), isNull);
       expect((await repository.reserveIds(1)).single, marker + 1);
     },
   );

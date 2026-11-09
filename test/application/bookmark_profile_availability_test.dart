@@ -116,6 +116,113 @@ BookmarkLibraryState _library(BooruConfig config, {required bool hinted}) {
 }
 
 void main() {
+  test('Gelbooru saved record reattaches only to a unique exact compatible profile', () async {
+    final original = BooruConfig.fromJson({
+      ...BooruConfig.defaultConfig(
+        booruType: BooruType.gelbooruV2,
+        url: 'https://gelbooru.com',
+        customDownloadFileNameFormat: null,
+      ).toJson(),
+      'id': '00000000-0000-4000-8000-000000000001',
+    });
+    final origin = PostOrigin.fromSource(
+      booruType: BooruType.gelbooruV2,
+      booruId: original.booruId,
+      source: original.url,
+      profileIdHint: original.id,
+    );
+    final base = _library(
+      FakeBooruBackend().config,
+      hinted: false,
+    ).items.single;
+    final post = base.post.copyWith(origin: origin);
+    final record = base.copyWith(
+      post: post,
+      snapshot: const StoredPostCodec().encode(post),
+      sourceUrl: original.url,
+    );
+    final saved = BookmarkLibraryState(
+      bookmarks: [record],
+      records: [record],
+      groups: [
+        BookmarkGroup(
+          id: defaultBookmarkGroupId,
+          name: 'Default',
+          bookmarkIds: {record.id},
+        ),
+      ],
+    );
+    late _Configs profiles;
+    final container = ProviderContainer(
+      overrides: [
+        bookmarkProvider.overrideWith(() => _Bookmarks(saved)),
+        booruConfigProvider.overrideWith(() => profiles = _Configs(original)),
+      ],
+    );
+    final held = container.listen(
+      bookmarkProfileAvailabilityProvider,
+      (_, _) {},
+    );
+    addTearDown(() {
+      held.close();
+      container.dispose();
+    });
+    await container.read(bookmarkProvider.future);
+    BookmarkProfileAvailability availability() =>
+        container.read(bookmarkProfileAvailabilityProvider)!;
+    final replacement = BooruConfig.fromJson({
+      ...original.toJson(),
+      'id': '00000000-0000-4000-8000-000000000002',
+    });
+    final recreated = BooruConfig.fromJson({
+      ...original.toJson(),
+      'id': '00000000-0000-4000-8000-000000000003',
+    });
+    profiles.replace([]);
+    expect(availability().postIds, isEmpty);
+    profiles.replace([replacement]);
+    expect(availability().postIds, {record.id});
+    profiles.replace([]);
+    expect(availability().postIds, isEmpty);
+    profiles.replace([recreated]);
+    expect(availability().postIds, {record.id});
+    profiles.replace([replacement, recreated]);
+    expect(availability().postIds, isEmpty);
+    expect(
+      availability().unavailableReasons[record.id],
+      PostPresentationFallbackReason.ambiguousProfile,
+    );
+    profiles.replace([original, replacement]);
+    expect(availability().postIds, {record.id});
+    final resolved = const PostOriginResolver().resolve(origin, [
+      original,
+      replacement,
+    ]);
+    expect((resolved as ResolvedPostOrigin).config.id, original.id);
+    for (final incompatible in [
+      BooruConfig.fromJson({
+        ...replacement.toJson(),
+        'url': 'https://gelbooru.com/install',
+      }),
+      BooruConfig.fromJson({
+        ...replacement.toJson(),
+        'url': 'https://other.gelbooru.com',
+      }),
+      BooruConfig.fromJson({
+        ...replacement.toJson(),
+        'booruIdHint': BooruType.gelbooru.id,
+      }),
+    ]) {
+      profiles.replace([incompatible]);
+      expect(availability().postIds, isEmpty);
+    }
+    profiles.replace([replacement]);
+    expect(availability().postIds, {record.id});
+    expect(identical(container.read(bookmarkProvider).value, saved), isTrue);
+    expect(saved.groups.single.bookmarkIds, {record.id});
+    expect(saved.records.single, same(record));
+  });
+
   test('local availability requires a profile or registered safe media', () {
     final config = FakeBooruBackend().config;
     final publicConfig = BooruConfig.fromJson({
@@ -324,28 +431,26 @@ void main() {
           });
           await setProfiles([backend.config, otherAccount]);
           media(visible: true);
-          configs.replace([otherAccount]);
-          await tester.pump();
-          expect(postTile(101), findsNothing);
-          expect(find.byType(BookmarkPoolCard), findsNothing);
-          final childAfterRevocation = tester.widget<BookmarkLocalGroupCard>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is BookmarkLocalGroupCard && widget.title == 'Child',
-            ),
-          );
-          expect(childAfterRevocation.previews, isEmpty);
-          expect(childAfterRevocation.pools, isEmpty);
+          await setProfiles([otherAccount]);
+          media(visible: true);
           expect(
             find.byWidgetPredicate(
               (widget) =>
                   widget is DefaultImageGridItem &&
                   widget.config.login == 'other-account',
             ),
-            findsNothing,
+            findsOneWidget,
+            reason: 'A fresh saved-item read reattaches to the unique compatible profile',
           );
-          await harness.settle(tester);
+          final anotherReplacement = BooruConfig.fromJson({
+            ...backend.config.toJson(),
+            'id': '00000000-0000-4000-8000-000000000003',
+            'login': 'another-account',
+          });
+          await setProfiles([otherAccount, anotherReplacement]);
           media(visible: false);
+          await setProfiles([anotherReplacement]);
+          media(visible: true);
           await setProfiles([]);
           media(visible: false);
           final wrongPath = BooruConfig.fromJson({

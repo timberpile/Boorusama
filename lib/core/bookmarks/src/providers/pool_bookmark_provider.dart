@@ -1,4 +1,5 @@
 import '../types/pool_bookmark_cover.dart';
+import '../../../content/groups/group_metadata.dart';
 
 import 'dart:convert';
 
@@ -18,6 +19,31 @@ import '../types/pool_bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/pool_bookmark_capability.dart';
 import 'bookmark_provider.dart';
+
+bool savedPoolCoverVisible(
+  CollectionBookmark pool,
+  BooruConfig config,
+  Set<String> blacklist,
+) {
+  final evidence = pool.cover?.visibility;
+  if (evidence == null ||
+      (blacklist.isNotEmpty &&
+          evidence.tagCoverage != MetadataCoverage.complete))
+    return false;
+  final rating = Rating.parse(evidence.rating);
+  if (!poolCoverAllowsRating(config, rating) ||
+      (config.deletedItemBehavior.isHidden && evidence.deleted) ||
+      (config.bannedPostVisibility.isHidden && evidence.banned))
+    return false;
+  final facts = TagFilterData(
+    tags: evidence.tags.map((tag) => tag.toLowerCase()).toSet(),
+    rating: rating,
+    score: 0,
+  );
+  return !blacklist.any(
+    (expression) => checkIfTagsContainsRawTagExpression(facts, expression),
+  );
+}
 
 final poolBookmarkCapabilityProvider =
     Provider.family<PoolBookmarkCapability?, BooruConfig>(
@@ -176,14 +202,12 @@ bool poolCoverAllowsRating(BooruConfig config, Rating rating) =>
         config.granularRatingFilters?.ratings.contains(rating) ?? false,
     };
 
-/// A stored hint must resolve to its original profile. Removing that profile
-/// never authorizes borrowing the sole remaining account on the same host.
+/// A new saved-content read prefers its original profile, then resolves one
+/// exact compatible replacement. Operations capture that actor separately.
 BooruConfig? resolvePoolBookmarkProfile(
   CollectionBookmark pool,
   List<BooruConfig> configs,
-) =>
-    (pool.isRelated && pool.origin.profileIdHint == null) ||
-        pool.sourceTypeId != pool.origin.booruType.id
+) => pool.sourceTypeId != pool.origin.booruType.id
     ? null
     : resolveBookmarkOriginProfile(pool.origin, configs);
 
@@ -193,7 +217,7 @@ BooruConfig? resolveBookmarkOriginProfile(
 ) => switch (const PostOriginResolver().resolve(
   origin,
   configs,
-  allowProfileHintFallback: false,
+  allowProfileHintFallback: true,
 )) {
   ResolvedPostOrigin(:final config) => config,
   _ => null,

@@ -37,7 +37,6 @@ import '../_internal/sliver_post_grid.dart';
 import '../providers/providers.dart';
 import '../types/post_action_snapshot.dart';
 import '../types/grid_thumbnail_url_generator.dart';
-import '../types/page_mode.dart';
 import '../types/active_blacklist_count.dart';
 import 'post_grid_prefetch.dart';
 import 'post_grid_controller.dart';
@@ -349,7 +348,7 @@ class PostGridContextMenu extends StatelessWidget {
           final Post post => const PostOriginResolver().resolve(
             post.origin,
             ref.watch(booruConfigProvider),
-            allowProfileHintFallback: false,
+            allowProfileHintFallback: true,
           ),
           _ => null,
         };

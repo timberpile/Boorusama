@@ -9,12 +9,10 @@ import '../../../core/configs/config/types.dart';
 import '../../../core/configs/create/routes.dart';
 import '../../../core/navigation/navigation_profile_picker.dart';
 import '../../../core/posts/listing/types.dart';
-import '../../../core/posts/listing/widgets.dart';
-import '../../../core/posts/post/types.dart';
-import '../../../core/widgets/widgets.dart';
-import '../../../core/posts/listing/src/widgets/timeline_header_sliver.dart';
 import '../configs/extra_data.dart';
-import 'providers.dart';
+import '../client_provider.dart';
+import '../works/favorites_session.dart';
+import '../works/work_listing.dart';
 
 class PixivFavoritesPage extends ConsumerWidget {
   const PixivFavoritesPage({super.key});
@@ -61,6 +59,13 @@ class _FavoritesView extends ConsumerStatefulWidget {
 
 class _FavoritesViewState extends ConsumerState<_FavoritesView> {
   var _visibility = PixivBookmarkVisibility.public;
+  PixivWorkFavoritesSession? _session;
+  Object? _sessionIdentity;
+  @override
+  void dispose() {
+    _session?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,53 +74,53 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
       userId: widget.userId,
       visibility: _visibility,
     );
-    final session = ref.watch(pixivFavoritesSessionProvider(sessionKey));
+    if (_sessionIdentity != sessionKey) {
+      _session?.dispose();
+      _sessionIdentity = sessionKey;
+      final visibility = _visibility;
+      final client = ref.read(pixivClientProvider(widget.config.auth));
+      _session = PixivWorkFavoritesSession(
+        (cursor, token) => client.getUserBookmarks(
+          userId: widget.userId,
+          visibility: visibility,
+          maxBookmarkId: cursor,
+          cancelToken: token,
+        ),
+      );
+    }
+    final session = _session!;
     final strings = context.t.pixiv.explore.follow_restrict;
-    return CustomContextMenuOverlay(
-      child: PostScope<Post>(
-        // The controller retains its fetcher, so it must share the session's
-        // full identity, including non-authentication configuration changes.
-        key: ValueKey(sessionKey),
-        // A cursor cannot safely support arbitrary page jumps.
+    return Scaffold(
+      body: PixivWorkGrid(
+        config: widget.config,
+        queryIdentity: sessionKey,
         pageMode: PageMode.infinite,
-        fetcher: session.getPosts,
-        builder: (context, controller) => PostGrid<Post>(
-          controller: controller,
-          header: const SizedBox.shrink(),
-          selectionScope: (widget.config.id, _visibility),
-          sliverHeaders: [
-            KurumiSliverAppBar(
-              title: Text(context.t.profile.favorites),
-              actions: const [NavigationProfilePicker(favorites: true)],
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Center(
-                  child: KurumiSegmentedButton<PixivBookmarkVisibility>(
-                    key: const ValueKey('pixiv-favorites-privacy'),
-                    initialValue: _visibility,
-                    segments: {
-                      PixivBookmarkVisibility.public: strings.public,
-                      PixivBookmarkVisibility.private: strings.private,
-                    },
-                    onChanged: (value) {
-                      if (value != _visibility) {
-                        setState(() => _visibility = value);
-                      }
-                    },
-                  ),
+        fetchPage: session.fetch,
+        sliverHeaders: [
+          KurumiSliverAppBar(
+            title: Text(context.t.profile.favorites),
+            actions: const [NavigationProfilePicker(favorites: true)],
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Center(
+                child: KurumiSegmentedButton<PixivBookmarkVisibility>(
+                  key: const ValueKey('pixiv-favorites-privacy'),
+                  initialValue: _visibility,
+                  segments: {
+                    PixivBookmarkVisibility.public: strings.public,
+                    PixivBookmarkVisibility.private: strings.private,
+                  },
+                  onChanged: (value) {
+                    if (value != _visibility)
+                      setState(() => _visibility = value);
+                  },
                 ),
               ),
             ),
-            const TimelineHeaderSliver(
-              child: PostGridConfigurationHeader<Post>(),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

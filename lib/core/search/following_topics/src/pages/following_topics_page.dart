@@ -1142,6 +1142,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                                             folder: true,
                                           ),
                                     name: folder.name,
+                                    localId: folder.id,
                                     onOpenFeed: folder.feedEnabled
                                         ? () => _openFolderFeed(folder.id)
                                         : null,

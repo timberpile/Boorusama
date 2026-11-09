@@ -28,6 +28,8 @@ class Store implements NhentaiTagStore {
   bool failCheckpoint = false;
   Completer<void>? batchStarted;
   Completer<void>? batchGate;
+  Completer<void>? checkpointStarted;
+  Completer<void>? checkpointGate;
   void source(Uri source) => expect(source.toString(), 'https://nhentai.net');
   @override
   Future<Map<int, NhentaiTag>> readTags(Uri value, Set<int> ids) async {
@@ -69,6 +71,10 @@ class Store implements NhentaiTagStore {
   ) async {
     source(value);
     calls.add('checkpoint');
+    if (checkpointStarted case final started? when !started.isCompleted) {
+      started.complete();
+    }
+    await checkpointGate?.future;
     if (failCheckpoint) {
       failCheckpoint = false;
       throw StateError('checkpoint write failed');
@@ -77,7 +83,45 @@ class Store implements NhentaiTagStore {
   }
 }
 
+class StoreWrapper
+    implements NhentaiTagStore, NhentaiTagStoreSerializationOwner {
+  StoreWrapper(this.delegate);
+  final Store delegate;
+  @override
+  Object get serializationOwner => delegate;
+  @override
+  Future<Map<int, NhentaiTag>> readTags(Uri source, Set<int> ids) =>
+      delegate.readTags(source, ids);
+  @override
+  Future<void> upsertTags(Uri source, List<NhentaiTag> tags) =>
+      delegate.upsertTags(source, tags);
+  @override
+  Future<NhentaiTagCheckpoint?> readCheckpoint(
+    Uri source,
+    String category,
+    String sort,
+  ) => delegate.readCheckpoint(source, category, sort);
+  @override
+  Future<void> writeCheckpoint(Uri source, NhentaiTagCheckpoint checkpoint) =>
+      delegate.writeCheckpoint(source, checkpoint);
+}
+
 void main() {
+  test(
+    'native details can remember observed tags without another lookup',
+    () async {
+      final store = Store();
+      final cache = NhentaiTagCache(
+        store: store,
+        lookup: (_, _) => throw StateError('Already observed'),
+        catalog: (_, _, _, _) => throw UnimplementedError(),
+      );
+      addTearDown(cache.dispose);
+      await cache.remember([tag(5), tag(5, name: 'latest')]);
+      expect((await cache.resolveVisible([5]))[5]!.name, 'latest');
+      expect(store.calls, ['batch']);
+    },
+  );
   test(
     'constructor does no work and visible IDs resolve in deduplicated batches',
     () async {
@@ -204,7 +248,7 @@ void main() {
           ..failCheckpoint = failure == 'checkpoint';
         final requests = <int>[];
         NhentaiTagCache open() => NhentaiTagCache(
-          store: store,
+          store: StoreWrapper(store),
           lookup: (_, _) => throw UnimplementedError(),
           catalog: (category, sort, n, token) async {
             requests.add(n);
@@ -355,10 +399,128 @@ void main() {
       final cancelled = expectLater(warm, throwsA(isA<DioException>()));
       await store.batchStarted!.future;
       token.cancel('fixture left');
-      await cancelled;
+      final resumed = cache.warmCatalog('tag');
       store.batchGate!.complete();
-      await Future<void>.value();
-      expect(store.checkpoints, isEmpty);
+      await cancelled;
+      expect((await resumed).nextPage, 2);
+      expect(store.calls, ['batch', 'batch', 'checkpoint']);
+    },
+  );
+
+  for (final replaceSource in [false, true]) {
+    test(
+      '${replaceSource ? 'disposed replacement' : 'cancelled caller'} waits for a started checkpoint before resuming traversal',
+      () async {
+        final store = Store()
+          ..checkpointStarted = Completer<void>()
+          ..checkpointGate = Completer<void>();
+        final requests = <int>[];
+        NhentaiTagCache open() => NhentaiTagCache(
+          store: StoreWrapper(store),
+          lookup: (_, _) => throw UnimplementedError(),
+          catalog: (category, sort, n, token) async {
+            requests.add(n);
+            return page(n, [n]);
+          },
+        );
+        final first = open();
+        addTearDown(first.dispose);
+        final token = CancelToken();
+        final warm = first.warmCatalog('tag', cancelToken: token);
+        final cancelled = expectLater(warm, throwsA(isA<DioException>()));
+        var firstSettled = false;
+        unawaited(cancelled.then((_) => firstSettled = true));
+        await store.checkpointStarted!.future;
+        if (replaceSource) {
+          first.dispose();
+        } else {
+          token.cancel('fixture left');
+        }
+        final next = replaceSource ? open() : first;
+        if (replaceSource) addTearDown(next.dispose);
+        final resumed = next.warmCatalog('tag');
+        // Drain already queued cancellation/dispatch continuations while the
+        // durable write remains explicitly gated, without a host-time budget.
+        await Future<void>.value();
+        await Future<void>.value();
+        expect(firstSettled, isFalse);
+        expect(requests, [1]);
+        expect(store.calls, ['batch', 'checkpoint']);
+        store.checkpointGate!.complete();
+        await cancelled;
+        final result = await resumed;
+        expect(requests, [1, 2]);
+        expect(result.seenIds, {1, 2});
+        expect(result.nextPage, isNull);
+        expect(store.checkpoints[('tag', 'popular')], same(result));
+        expect(store.calls, ['batch', 'checkpoint', 'batch', 'checkpoint']);
+      },
+    );
+  }
+
+  test(
+    'late visible upsert cannot overwrite a replacement source observation',
+    () async {
+      final store = Store()
+        ..batchStarted = Completer<void>()
+        ..batchGate = Completer<void>();
+      final secondLookup = Completer<void>();
+      NhentaiTagCache open(String name) => NhentaiTagCache(
+        store: store,
+        lookup: (ids, token) async {
+          if (name == 'new') secondLookup.complete();
+          return [tag(1, name: name)];
+        },
+        catalog: (_, _, _, _) => throw UnimplementedError(),
+      );
+      final first = open('old');
+      final read = first.resolveVisible([1]);
+      final cancelled = expectLater(read, throwsA(isA<DioException>()));
+      await store.batchStarted!.future;
+      first.dispose();
+      await cancelled;
+      final second = open('new');
+      addTearDown(second.dispose);
+      final refreshed = second.resolveVisible([1]);
+      await secondLookup.future;
+      expect(store.calls, ['batch']);
+      store.batchGate!.complete();
+      expect((await refreshed)[1]!.name, 'new');
+      expect(store.tags[1]!.name, 'new');
+      expect(store.calls, ['batch', 'batch']);
+    },
+  );
+
+  test(
+    'checkpoint failure after cancellation releases the store queue for safe replay',
+    () async {
+      final store = Store()
+        ..checkpointStarted = Completer<void>()
+        ..checkpointGate = Completer<void>()
+        ..failCheckpoint = true;
+      final requests = <int>[];
+      NhentaiTagCache open() => NhentaiTagCache(
+        store: store,
+        lookup: (_, _) => throw UnimplementedError(),
+        catalog: (category, sort, n, token) async {
+          requests.add(n);
+          return page(n, [1]);
+        },
+      );
+      final first = open();
+      final failed = expectLater(first.warmCatalog('tag'), throwsStateError);
+      await store.checkpointStarted!.future;
+      first.dispose();
+      final second = open();
+      addTearDown(second.dispose);
+      final replay = second.warmCatalog('tag');
+      store.checkpointGate!.complete();
+      await failed;
+      final result = await replay;
+      expect(requests, [1, 1]);
+      expect(result.nextPage, 2);
+      expect(store.tags.keys, {1});
+      expect(store.checkpoints[('tag', 'popular')], same(result));
     },
   );
 }

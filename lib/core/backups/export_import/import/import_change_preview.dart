@@ -122,7 +122,7 @@ final class ImportChangePreviewRow extends Equatable {
   final bool isContainer;
   final ImportPreviewLimit? limit;
   final ImportChangeCounts? countOverride;
-  ImportChangeCounts get counts =>
+  late final ImportChangeCounts counts =
       (countOverride ??
           ImportChangeCounts(
             added:

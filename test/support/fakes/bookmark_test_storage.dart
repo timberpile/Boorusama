@@ -39,6 +39,7 @@ final class BookmarkTestStorage {
     BooruPostDataCodec? Function(BooruType type)? postDataCodec,
     GroupMetadataCodec groupMetadataCodec = const GroupMetadataCodec(),
     Logger? logger,
+    Future<void> Function(Iterable<BoxBase<dynamic>> boxes)? syncBoxes,
   }) => BookmarkHiveRepository(
     posts,
     groupPayloadBox: groupPayloadBox,
@@ -47,6 +48,7 @@ final class BookmarkTestStorage {
     postDataCodec: postDataCodec,
     groupMetadataCodec: groupMetadataCodec,
     logger: logger,
+    syncBoxes: syncBoxes,
   );
 
   Future<void> close() async {

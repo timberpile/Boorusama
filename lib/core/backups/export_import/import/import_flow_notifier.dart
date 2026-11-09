@@ -1,4 +1,10 @@
 import 'dart:async';
+import 'dart:isolate';
+
+import '../../../bookmarks/src/data/stored_bookmark_codec.dart';
+import '../../../bookmarks/src/data/stored_group_codec.dart';
+import '../../../content/types.dart';
+import '../../../boorus/booru/types.dart';
 
 import 'package:i18n/i18n.dart';
 
@@ -77,6 +83,7 @@ final class ImportFlowState {
     this.containsCredentials = false,
     this.bookmarkRefreshFailed = false,
     this.planRefreshed = false,
+    this.previewPending = false,
     this.error,
   });
 
@@ -96,6 +103,7 @@ final class ImportFlowState {
   final bool containsCredentials;
   final bool bookmarkRefreshFailed;
   final bool planRefreshed;
+  final bool previewPending;
   final Object? error;
 
   ImportFlowState copyWith({
@@ -113,6 +121,7 @@ final class ImportFlowState {
     bool? containsCredentials,
     bool? bookmarkRefreshFailed,
     bool? planRefreshed,
+    bool? previewPending,
     Object? error,
   }) => ImportFlowState(
     status: status ?? this.status,
@@ -130,6 +139,7 @@ final class ImportFlowState {
     containsCredentials: containsCredentials ?? this.containsCredentials,
     bookmarkRefreshFailed: bookmarkRefreshFailed ?? this.bookmarkRefreshFailed,
     planRefreshed: planRefreshed ?? this.planRefreshed,
+    previewPending: previewPending ?? this.previewPending,
     error: error,
   );
 }
@@ -165,10 +175,22 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   List<SourcePreflightSnapshot> _preflightSnapshots = const [];
   final Map<ProfileSiteKey, String> _profileChoices = {};
   final Map<String, String> _copyProfileIds = {};
+  var _planningRevision = 0;
+  var _disposed = false;
+  ImportPreflightResult? _completedPreflight;
+  Future<void>? _planningTail;
+
+  /// Completion boundary for review consumers and deterministic async tests.
+  Future<void> get previewComplete => _planningTail ?? Future.value();
+  int dependencyPlanningRuns = 0;
+  int get sourceProjectionRuns =>
+      _sources.values.fold(0, (total, source) => total + source.projectionRuns);
 
   @override
   ImportFlowState build() {
     ref.onDispose(() {
+      _disposed = true;
+      _planningRevision++;
       final package = _package;
       if (package != null) unawaited(package.dispose());
     });
@@ -178,6 +200,9 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   Future<void> load(String path) => _load(path);
 
   Future<void> _load(String? path) async {
+    final loadTiming = Stopwatch()..start();
+    final revision = ++_planningRevision;
+    _completedPreflight = null;
     final previous = path == null ? state.resolved : null;
     state = const ImportFlowState(status: ImportFlowStatus.checking);
     try {
@@ -193,6 +218,13 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         0,
         (total, source) =>
             total + source.parts.fold(0, (sum, part) => sum + part.byteLength),
+      );
+      _logImportTiming(
+        ref,
+        'staging',
+        loadTiming,
+        sources: package.manifest.sources.length,
+        bytes: _stagingBytes,
       );
       if (path != null) _profileChoices.clear();
       _copyProfileIds.clear();
@@ -221,6 +253,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       final unsupportedSourceIssues = <ImportPlanIssue>[];
       var containsCredentials = package.manifest.containsCredentials ?? false;
       for (final manifest in package.manifest.sources) {
+        final sourceTiming = Stopwatch()..start();
         final source = registry.getSource(manifest.id);
         if (source == null) {
           planning.add(
@@ -409,6 +442,12 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             ],
           ),
         );
+        _logImportTiming(
+          ref,
+          'source_preparation',
+          sourceTiming,
+          items: _importDiagnosticItems(wrapper.preparedData),
+        );
       }
       if (wrappers['profiles'] == null) {
         final source = registry.getSource('profiles');
@@ -461,16 +500,19 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             );
       final resolved = _retainImportChoices(proposed, previous);
       final dependencies = _profileDependencies(resolved);
+      final preflight = await _preflightWithDependencies(
+        proposed,
+        resolved,
+        dependencies,
+      );
+      if (_disposed || revision != _planningRevision) return;
+      _completedPreflight = preflight;
       state = ImportFlowState(
         status: ImportFlowStatus.review,
         planRefreshed: path == null,
         proposed: proposed,
         resolved: resolved,
-        preflight: _preflightWithDependencies(
-          proposed,
-          resolved,
-          dependencies,
-        ),
+        preflight: _acknowledgementGate(preflight, resolved),
         profileMappings: dependencies.mappings,
         profileNames: {
           for (final profile in dependencies.projectedProfiles)
@@ -482,6 +524,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         createdAt: package.manifest.createdAt,
         exporterVersion: package.manifest.appVersion,
         containsCredentials: containsCredentials,
+      );
+      _logImportTiming(
+        ref,
+        'preview_state_published',
+        loadTiming,
+        sources: proposed.sources.length,
+        items:
+            preflight.summary.created +
+            preflight.summary.updated +
+            preflight.summary.deleted,
       );
     } catch (error, stackTrace) {
       ref
@@ -498,62 +550,133 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   }
 
   void replaceSource(ResolvedImportSource source) {
-    final proposed = state.proposed;
     final resolved = state.resolved?.replaceSource(source);
-    if (proposed == null || resolved == null) return;
-    final dependencies = _profileDependencies(resolved);
-    state = state.copyWith(
-      resolved: resolved,
-      preflight: _preflightWithDependencies(
-        proposed,
-        resolved,
-        dependencies,
-      ),
-      profileMappings: dependencies.mappings,
-      profileNames: {
-        for (final profile in dependencies.projectedProfiles)
-          profile.id: profile.name,
-      },
-    );
+    if (state.proposed == null ||
+        resolved == null ||
+        resolved == state.resolved)
+      return;
+    _schedulePreview(resolved);
   }
 
   void chooseProfileMapping(ProfileSiteKey key, String profileId) {
+    if (_profileChoices[key] == profileId) return;
     _profileChoices[key] = profileId;
-    final proposed = state.proposed;
     final resolved = state.resolved;
-    if (proposed == null || resolved == null) return;
-    final dependencies = _profileDependencies(resolved);
-    state = state.copyWith(
-      profileMappings: dependencies.mappings,
-      profileNames: {
-        for (final profile in dependencies.projectedProfiles)
-          profile.id: profile.name,
-      },
-      preflight: _preflightWithDependencies(
-        proposed,
+    if (state.proposed == null || resolved == null) return;
+    _schedulePreview(resolved);
+  }
+
+  void _schedulePreview(ResolvedImportPlan resolved) {
+    final revision = ++_planningRevision;
+    _warningsAcknowledged = false;
+    state = state.copyWith(resolved: resolved, previewPending: true);
+    final previous = _planningTail;
+    final next = previous == null
+        ? _replan(resolved, revision)
+        : previous.then((_) => _replan(resolved, revision));
+    _planningTail = next;
+    unawaited(next);
+  }
+
+  Future<void> _replan(ResolvedImportPlan resolved, int revision) async {
+    final previewTiming = Stopwatch()..start();
+    if (_disposed || revision != _planningRevision) return;
+    try {
+      final dependencies = _profileDependencies(resolved);
+      final preflight = await _preflightWithDependencies(
+        state.proposed!,
         resolved,
         dependencies,
-      ),
+      );
+      if (_disposed || revision != _planningRevision) return;
+      _completedPreflight = preflight;
+      state = state.copyWith(
+        previewPending: false,
+        preflight: _acknowledgementGate(preflight, resolved),
+        profileMappings: dependencies.mappings,
+        profileNames: {
+          for (final profile in dependencies.projectedProfiles)
+            profile.id: profile.name,
+        },
+      );
+      _logImportTiming(
+        ref,
+        'preview_state_published',
+        previewTiming,
+        sources: resolved.sources.length,
+        items:
+            preflight.summary.created +
+            preflight.summary.updated +
+            preflight.summary.deleted,
+      );
+    } catch (error, stack) {
+      if (_disposed || revision != _planningRevision) return;
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'Import',
+            'preview',
+            error: error,
+            stackTrace: stack,
+            outcome: 'apply_disabled',
+          );
+      state = state.copyWith(
+        previewPending: false,
+        preflight: ImportPreflightResult(
+          warnings: const [],
+          errors: const [
+            ImportPlanIssue(code: 'preview_failed', sourceId: 'package'),
+          ],
+          summary: state.preflight?.summary ?? const PlannedChangeSummary(),
+        ),
+      );
+    }
+  }
+
+  ImportPreflightResult _acknowledgementGate(
+    ImportPreflightResult completed,
+    ResolvedImportPlan resolved,
+  ) {
+    final errors = [
+      ...completed.errors,
+      if (completed.requiresWarningAcknowledgement && !_warningsAcknowledged)
+        const ImportPlanIssue(
+          code: 'warnings_not_acknowledged',
+          sourceId: 'package',
+        ),
+    ];
+    return ImportPreflightResult(
+      warnings: completed.warnings,
+      errors: errors,
+      summary: completed.summary,
+      sourceSummaries: completed.sourceSummaries,
+      validatedPlan: errors.isEmpty ? completed.validatedPlan : null,
     );
   }
 
   void acknowledgeWarnings(bool value) {
-    _warningsAcknowledged = value;
-    final proposed = state.proposed;
+    if (state.previewPending) return;
+    final completed = _completedPreflight;
     final resolved = state.resolved;
-    if (proposed == null || resolved == null) return;
+    if (completed == null || resolved == null) return;
+    final acknowledgementTiming = Stopwatch()..start();
+    _warningsAcknowledged = value;
     state = state.copyWith(
-      preflight: _preflightWithDependencies(
-        proposed,
-        resolved,
-        _profileDependencies(resolved),
-      ),
+      preflight: _acknowledgementGate(completed, resolved),
+    );
+    _logImportTiming(
+      ref,
+      'acknowledgement_state_published',
+      acknowledgementTiming,
+      sources: resolved.sources.length,
     );
   }
 
   Future<void> apply(BuildContext context) async {
+    if (state.previewPending) return;
     final validated = state.preflight?.validatedPlan;
     if (validated == null) return;
+    final applyTiming = Stopwatch()..start();
     state = state.copyWith(status: ImportFlowStatus.importing);
     try {
       await ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
@@ -588,6 +711,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         bookmarkRefreshFailed:
             _sources['bookmarks']?.bookmarkRefreshFailed ?? false,
       );
+      _logImportTiming(
+        ref,
+        'apply_completed',
+        applyTiming,
+        sources: validated.plan.sources.length,
+        items:
+            validated.summary.created +
+            validated.summary.updated +
+            validated.summary.deleted,
+      );
     } on StaleImportPlanException {
       // The original clipboard/received file may be gone; keep using verified staged parts.
       await _load(null);
@@ -617,11 +750,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     }
   }
 
-  ImportPreflightResult _preflightWithDependencies(
+  Future<ImportPreflightResult> _preflightWithDependencies(
     ProposedImportPlan proposed,
     ResolvedImportPlan resolved,
     ProfileDependencyPlan dependencies,
-  ) {
+  ) async {
     final resolvedMappings = <ProfileReferenceKey, String>{};
     for (final mapping in dependencies.mappings) {
       final id = mapping.profileId;
@@ -646,9 +779,10 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           sourceId: snapshot.sourceId,
           revisionToken: snapshot.revisionToken,
           summary: switch (resolvedById[snapshot.sourceId]) {
-            final resolution? => _sources[snapshot.sourceId]!.plannedChanges(
-              resolution,
-            ),
+            final resolution? =>
+              await _sources[snapshot.sourceId]!.plannedChanges(
+                resolution,
+              ),
             null => snapshot.summary,
           },
           warnings: snapshot.warnings,
@@ -672,6 +806,8 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
   }
 
   ProfileDependencyPlan _profileDependencies(ResolvedImportPlan resolved) {
+    final dependencyTiming = Stopwatch()..start();
+    dependencyPlanningRuns++;
     final resolvedById = {
       for (final source in resolved.sources) source.id: source,
     };
@@ -743,7 +879,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         _copyProfileIds.putIfAbsent(exportedId, createProfileId);
       }
     }
-    return const ProfileDependencyPlanner().plan(
+    final dependencies = const ProfileDependencyPlanner().plan(
       references: references,
       optionalReferences: optionalReferences,
       dependentSources: dependentSources,
@@ -756,6 +892,14 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       credentialsIncluded: _sources['profiles']?.credentialsIncluded ?? false,
       choices: _profileChoices,
     );
+    _logImportTiming(
+      ref,
+      'profile_dependencies',
+      dependencyTiming,
+      sources: resolved.sources.length,
+      items: references.length + optionalReferences.length,
+    );
+    return dependencies;
   }
 
   bool _includesDependencyItem(
@@ -779,7 +923,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     sources: snapshots,
     availableBytes: _availableBytes,
     stagingBytes: _stagingBytes,
-    warningsAcknowledged: _warningsAcknowledged,
+    warningsAcknowledged: true,
   );
 }
 
@@ -994,71 +1138,46 @@ final class PackageTransactionSource implements ImportTransactionSource {
     ).capture();
   }
 
-  PlannedChangeSummary? plannedChanges(ResolvedImportSource resolution) {
-    const projector = ImportPlannedChangeProjector();
-    return switch ((id, _localSnapshot, preparedData)) {
-      (
-        'profiles',
-        final List<BooruConfig> local,
-        final List<BooruConfig> data,
-      ) =>
-        projector.profiles(
-          local: local,
-          imported: data,
-          resolution: resolution,
-          credentialsIncluded: credentialsIncluded,
-          copyIds: copyProfileIds,
-        ),
-      ('profiles', final List<BooruConfig> local, null) => projector.profiles(
-        local: local,
-        imported: const [],
-        resolution: resolution,
-        credentialsIncluded: credentialsIncluded,
-        copyIds: copyProfileIds,
-      ),
-      (
-        'bookmarks',
-        final BookmarkImportLocalSnapshot local,
-        final BookmarkBackupData data,
-      ) =>
-        projector.bookmarks(
-          local: local,
-          incoming: data,
-          resolution: resolution,
-          profileMappings: profileMappings,
-          recordCodec:
-              ((source as JsonBackupSource).handler as BookmarkBackupCodec)
-                  .records,
-        ),
-      (
-        followingTopicsBackupSourceId,
-        final FollowingTopicImportLocalSnapshot local,
-        final FollowingTopicBackupData data,
-      ) =>
-        projector.followingTopics(
-          local: local,
-          incoming: data,
-          resolution: resolution,
-          profileMappings: profileMappings,
-        ),
-      (
-        topicFeedsBackupSourceId,
-        final TopicFeedImportLocalSnapshot local,
-        final TopicFeedBackupData data,
-      ) =>
-        projector.topicFeeds(
-          local: local,
-          incoming: data,
-          resolution: resolution,
-          profileMappings: profileMappings,
-        ),
-      _ => projector.jsonPreview(
-        sourceId: id,
-        local: _localSnapshot,
-        incoming: _incomingComparable,
-        resolution: resolution,
-      ),
-    };
+  Object? _projectionKey;
+  var projectionRuns = 0;
+  Future<PlannedChangeSummary?>? _projection;
+
+  Future<PlannedChangeSummary?> plannedChanges(
+    ResolvedImportSource resolution,
+  ) {
+    final mappings = Map<ProfileReferenceKey, String>.unmodifiable(
+      profileMappings,
+    );
+    final copies = Map<String, String>.unmodifiable(copyProfileIds);
+    final key = [resolution, mappings, copies];
+    if (const DeepCollectionEquality().equals(_projectionKey, key) &&
+        _projection != null)
+      return _projection!;
+    _projectionKey = key;
+    projectionRuns++;
+    final codec = id == 'bookmarks'
+        ? ((source as JsonBackupSource).handler as BookmarkBackupCodec).records
+        : const StoredBookmarkCodec();
+    final task = _ImportProjectionTask(
+      id: id,
+      local: _localSnapshot,
+      incoming: preparedData,
+      comparable: _incomingComparable,
+      resolution: resolution,
+      credentialsIncluded: credentialsIncluded,
+      copyIds: copies,
+      mappings: mappings,
+      codec: _detachedRecordCodec(codec),
+    );
+    final projectionTiming = Stopwatch()..start();
+    return _projection = Isolate.run(task.project).whenComplete(() {
+      _logImportTiming(
+        ref,
+        'source_projection',
+        projectionTiming,
+        items: _importDiagnosticItems(preparedData),
+      );
+    });
   }
 
   @override
@@ -1547,3 +1666,151 @@ final class PackageTransactionSource implements ImportTransactionSource {
     }
   }
 }
+
+StoredBookmarkCodec _detachedRecordCodec(StoredBookmarkCodec original) {
+  final metadata = original.groups.metadata;
+  final posts = {
+    for (final engine in BooruYamlConfigs.values.map((config) => config.type))
+      engine: original.postDataCodec?.call(engine),
+  };
+  final groups = {
+    for (final engine in BooruYamlConfigs.values.map((config) => config.type))
+      engine: metadata.dataCodecFor?.call(engine),
+  };
+  final keys = {
+    for (final engine in BooruYamlConfigs.values.map((config) => config.type))
+      if (engine != BooruType.unknown)
+        engine: metadata.references.codecFor(engine),
+  };
+  return _codecFromMaps(posts, groups, keys);
+}
+
+StoredBookmarkCodec _codecFromMaps(
+  Map<BooruType, BooruPostDataCodec?> posts,
+  Map<BooruType, BooruGroupDataCodec?> groups,
+  Map<BooruType, ContentKeyCodec> keys,
+) => StoredBookmarkCodec(
+  postDataCodec: (engine) => posts[engine],
+  groups: StoredGroupCodec(
+    metadata: GroupMetadataCodec(
+      references: ContentReferenceCodec(keyCodecFor: (engine) => keys[engine]),
+      dataCodecFor: (engine) => groups[engine],
+    ),
+  ),
+);
+
+final class _ImportProjectionTask {
+  const _ImportProjectionTask({
+    required this.id,
+    required this.local,
+    required this.incoming,
+    required this.comparable,
+    required this.resolution,
+    required this.credentialsIncluded,
+    required this.copyIds,
+    required this.mappings,
+    required this.codec,
+  });
+  final String id;
+  final Object? local;
+  final Object? incoming;
+  final Object? comparable;
+  final ResolvedImportSource resolution;
+  final bool credentialsIncluded;
+  final Map<String, String> copyIds;
+  final Map<ProfileReferenceKey, String> mappings;
+  final StoredBookmarkCodec codec;
+  PlannedChangeSummary? project() {
+    const projector = ImportPlannedChangeProjector();
+    return switch ((id, local, incoming)) {
+      (
+        'profiles',
+        final List<BooruConfig> local,
+        final List<BooruConfig> data,
+      ) =>
+        projector.profiles(
+          local: local,
+          imported: data,
+          resolution: resolution,
+          credentialsIncluded: credentialsIncluded,
+          copyIds: copyIds,
+        ),
+      ('profiles', final List<BooruConfig> local, null) => projector.profiles(
+        local: local,
+        imported: const [],
+        resolution: resolution,
+        credentialsIncluded: credentialsIncluded,
+        copyIds: copyIds,
+      ),
+      (
+        'bookmarks',
+        final BookmarkImportLocalSnapshot local,
+        final BookmarkBackupData data,
+      ) =>
+        projector.bookmarks(
+          local: local,
+          incoming: data,
+          resolution: resolution,
+          profileMappings: mappings,
+          recordCodec: codec,
+        ),
+      (
+        followingTopicsBackupSourceId,
+        final FollowingTopicImportLocalSnapshot local,
+        final FollowingTopicBackupData data,
+      ) =>
+        projector.followingTopics(
+          local: local,
+          incoming: data,
+          resolution: resolution,
+          profileMappings: mappings,
+        ),
+      (
+        topicFeedsBackupSourceId,
+        final TopicFeedImportLocalSnapshot local,
+        final TopicFeedBackupData data,
+      ) =>
+        projector.topicFeeds(
+          local: local,
+          incoming: data,
+          resolution: resolution,
+          profileMappings: mappings,
+        ),
+      _ => projector.jsonPreview(
+        sourceId: id,
+        local: local,
+        incoming: comparable,
+        resolution: resolution,
+      ),
+    };
+  }
+}
+
+/// Only numeric workload/timing facts are emitted, never imported names, tags,
+/// profile IDs, source paths, payloads or credentials. Publication timings end at
+/// controller state assignment; actual Android frame latency is measured apart.
+void _logImportTiming(
+  Ref ref,
+  String stage,
+  Stopwatch timer, {
+  int sources = 0,
+  int items = 0,
+  int bytes = 0,
+}) {
+  try {
+    ref
+        .read(loggerProvider)
+        .info(
+          'Import',
+          'stage=$stage; elapsed_us=${timer.elapsedMicroseconds}; sources=$sources; items=$items; bytes=$bytes',
+        );
+  } catch (_) {}
+}
+
+int _importDiagnosticItems(Object? data) => switch (data) {
+  BookmarkBackupData() => data.records.length + data.groups.length,
+  FollowingTopicBackupData() => data.records.length + data.folders.length,
+  TopicFeedBackupData() => data.feeds.length,
+  List() => data.length,
+  _ => 0,
+};

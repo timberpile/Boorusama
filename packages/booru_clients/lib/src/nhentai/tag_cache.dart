@@ -18,6 +18,12 @@ abstract interface class NhentaiTagStore {
   Future<void> writeCheckpoint(Uri source, NhentaiTagCheckpoint checkpoint);
 }
 
+/// Wrappers over the same open durable store share its mutation owner. A new
+/// source/coordinator must not race an old wrapper's already-started write.
+abstract interface class NhentaiTagStoreSerializationOwner {
+  Object get serializationOwner;
+}
+
 final class NhentaiTagCheckpoint {
   NhentaiTagCheckpoint({
     required this.category,
@@ -62,15 +68,25 @@ final class NhentaiTagCache {
     required this.lookup,
     required this.catalog,
     DateTime Function()? now,
-  }) : now = now ?? DateTime.now;
+  }) : now = now ?? DateTime.now,
+       _coordinator =
+           _storeCoordinators[switch (store) {
+                 NhentaiTagStoreSerializationOwner(:final serializationOwner) =>
+                   serializationOwner,
+                 _ => store,
+               }] ??=
+               _TagStoreCoordinator();
   static final source = Uri.parse('https://nhentai.net');
+  // A replacement source can share the store while an old source's durable
+  // write is still settling. Instance-local queues cannot order those writes.
+  static final _storeCoordinators = Expando<_TagStoreCoordinator>();
+  final _TagStoreCoordinator _coordinator;
   final NhentaiTagStore store;
   final NhentaiTagLookup lookup;
   final NhentaiTagCatalog catalog;
   final DateTime Function() now;
   final _lifetime = CancelToken();
   final _pendingIds = <int, Future<NhentaiTag?>>{};
-  Future<void> _catalogTail = Future.value();
   var _visibleCalls = 0;
   Completer<void>? _visibleDrained;
 
@@ -84,6 +100,19 @@ final class NhentaiTagCache {
     _lifetime.whenCancel.then<T>((error) => throw error),
     if (token != null) token.whenCancel.then<T>((error) => throw error),
   ]);
+
+  Future<void> _persist(
+    Future<void> Function() write,
+    CancelToken? token,
+  ) async {
+    // Cancellation may stop a write before dispatch, but cannot cancel an
+    // already-started local mutation or release its serialization barrier.
+    await _coordinator.write(() {
+      _check(token);
+      return write();
+    });
+    _check(token);
+  }
 
   Future<Map<int, NhentaiTag>> resolveVisible(
     Iterable<int> requested, {
@@ -146,14 +175,27 @@ final class NhentaiTagCache {
         throw const FormatException('Foreign visible tag');
       }
       final unique = {for (final tag in tags) tag.id: tag};
-      await store.upsertTags(source, unique.values.toList());
-      _check(null);
+      await _persist(
+        () => store.upsertTags(source, unique.values.toList()),
+        null,
+      );
       return unique;
     } finally {
       for (final id in ids) {
         _pendingIds.remove(id);
       }
     }
+  }
+
+  /// Details already carry canonical tags. Reuse the same durable-write owner
+  /// without requesting those IDs again or racing an outgoing source's write.
+  Future<void> remember(Iterable<NhentaiTag> observed) {
+    _check(null);
+    final tags = {for (final tag in observed) tag.id: tag};
+    if (tags.keys.any((id) => id < 1 || id > 9007199254740991)) {
+      return Future.error(ArgumentError('Invalid observed tag ID'));
+    }
+    return _persist(() => store.upsertTags(source, tags.values.toList()), null);
   }
 
   Future<NhentaiTagCheckpoint> warmCatalog(
@@ -170,10 +212,10 @@ final class NhentaiTagCache {
         pageBudget > 5) {
       return Future.error(ArgumentError('Invalid bounded catalog request'));
     }
-    final operation = _catalogTail.then(
+    final operation = _coordinator.catalogTail.then(
       (_) => _warm(category, sort, pageBudget, cancelToken, restartSweep),
     );
-    _catalogTail = operation.then<void>(
+    _coordinator.catalogTail = operation.then<void>(
       (_) {},
       onError: (Object _, StackTrace _) {},
     );
@@ -248,16 +290,14 @@ final class NhentaiTagCache {
                     checkpoint.observedPageCount != batch.pageCount)),
       );
       // Ordering matters: checkpoint failure can only cause harmless batch replay.
-      await _wait(
-        store.upsertTags(
+      await _persist(
+        () => store.upsertTags(
           source,
           {for (final tag in batch.items) tag.id: tag}.values.toList(),
         ),
         token,
       );
-      _check(token);
-      await _wait(store.writeCheckpoint(source, next), token);
-      _check(token);
+      await _persist(() => store.writeCheckpoint(source, next), token);
       checkpoint = next;
     }
     return checkpoint!;
@@ -265,5 +305,19 @@ final class NhentaiTagCache {
 
   void dispose() {
     _lifetime.cancel('nhentai tag source disposed');
+  }
+}
+
+final class _TagStoreCoordinator {
+  Future<void> catalogTail = Future.value();
+  Future<void> _writeTail = Future.value();
+
+  Future<void> write(Future<void> Function() mutation) {
+    final operation = _writeTail.then((_) => mutation());
+    _writeTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
   }
 }

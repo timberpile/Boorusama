@@ -11,6 +11,7 @@ import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.d
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -67,7 +68,11 @@ void main() {
     final a = await library.createGroup('Works');
     final b = await library.createGroup('Pages');
     final access = workAccess();
-    final dto = work();
+    final dto = work(
+      tags: [
+        {'name': 'blocked'},
+      ],
+    );
     final at = DateTime.utc(2026, 1, 2);
     final whole = PixivWorkBookmarkTarget(
       access: access,
@@ -121,5 +126,32 @@ void main() {
       restoredWork.snapshot.details!.description!.text,
       '<p>Work caption</p>',
     );
+    for (final observation in [
+      work(omitTags: true),
+      work(tags: [null]),
+    ]) {
+      final target = PixivWorkBookmarkTarget(
+        access: access,
+        summary: pixivWorkSummary(observation, access),
+        details: pixivWorkDetails(observation, access),
+      ).draft(currentAccess: access, at: at);
+      await library.updateGroupSnapshot(restoredWork.id, target.snapshot);
+      state = await library.load();
+      final refreshed = state.byId[restoredWork.id]! as ContentGroupBookmark;
+      expect(
+        refreshed.snapshot.details!.tags!.values.map((tag) => tag.name),
+        contains('blocked'),
+      );
+      expect(refreshed.snapshot.index!.tags, contains('blocked'));
+      final coverage = pixivWorkVisibility(observation).tagCoverage;
+      expect(refreshed.summary.cover!.visibility!.tagCoverage, coverage);
+      if (coverage == MetadataCoverage.partial) {
+        expect(
+          refreshed.snapshot.details!.tags!.coverage,
+          MetadataCoverage.partial,
+        );
+        expect(refreshed.snapshot.index!.coverage, MetadataCoverage.partial);
+      }
+    }
   });
 }

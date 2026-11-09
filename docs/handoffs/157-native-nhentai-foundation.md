@@ -158,3 +158,66 @@ booru config input, cache identity, backup codec or generated tracked file chang
 - Reconcile the completed #156/#140/#141 candidates, run relevant app consumer
   tests and the complete final combined project regression before any proposed
   integration. No PR, push, develop integration or issue closure is authorized.
+
+
+## Combined production continuation (2026-11-09)
+
+The sections above describe the historical foundation candidate. The combined
+rollout now registers nhentai as engine 38 and implements ordinary Browse/Search,
+anonymous transport, exact source-provided media paths, native Gallery summaries,
+shared detail/member envelopes and a durable tag store using the existing cache.
+No HTML, cookie/account proxy or challenge bypass is introduced.
+
+Gallery cards use the shared native timeline and its existing bounded pagination
+policy. Pages retain actual Gallery/Page locators and missing manifest positions.
+Gallery and Page bookmarks are independent canonical records. Saved native groups
+participate in local library display, strict filtering, tag suggestions, membership
+ordering, bulk operations, mixed viewer navigation and local group cover mosaics.
+Cover probes prefer existing cached renditions and never fetch members to render
+a card. Stored metadata is available during a failed live member read only under
+valid current source access.
+
+C3 persistence now shares mutation serialization across replacement coordinators
+and store wrappers. A canceled started durable write remains serialized until it
+settles. C4 retains unknown tags, unions partial observations by identity and
+allows an explicit complete-empty observation to clear metadata and index. The
+application regression uses the real Hive unified store and verifies restart,
+independent Gallery/Page removal and Undo, plus matching metadata/index updates.
+
+The complete `booru_clients` package suite passed **286 tests**. The log is
+`.worktrees/_artifacts/final-rollout-2026-11-08/nhentai-package-suite-final.log`.
+Targeted serialization analysis reported no issues. The qualified native/Pixiv
+application batch passed **56 tests with one opt-in live test skipped**; see
+`native-and-pixiv-production-tests-final.log`. It covers actual registered Pixiv
+Search/Favorites and mixed Work/Ugoira navigation, Favorites privacy cancellation,
+source envelope reuse, missing Page positions, known-zero manifests, saved Hive
+records, tag observation merges, native mosaics and shared pagination consumers.
+The production-route test found and fixed a Ugoira card requiring an absent
+selection ancestor; native Post cards now explicitly disable selectable wrappers.
+The existing prefetch harness now waits for completed ingestion and uses known
+content height: its old lazy delegate retained stale geometry despite a changed
+item count, which did not establish the claimed continuation threshold. Policy
+expectations and production prefetch behavior were preserved.
+
+Final targeted application analysis reported **zero errors, zero warnings and 15
+informational findings**. Earlier interrupted or failed application runs remain
+non-qualifying. The final combined handoff owns complete-suite candidate evidence.
+
+The bounded host check used anonymous GETs for config, listing, search, one detail
+and one tag-ID lookup. Exact returned Page and thumbnail resources returned HTTP
+200 and decoded with ffmpeg (1280x1807 and 500x706). Those two tested paths had no
+duplicate extension. Search returned 25 items despite a requested limit of two;
+continuation therefore uses the raw source result rather than assumed requested
+page size. The redacted evidence is `nhentai-host-read-check.log` in the same
+artifact directory. This is host transport/decoder evidence; it does not establish
+Android acceptance, source-restoration success or final independent approval.
+
+The opt-in `test/boorus/nhentai/native_live_read_test.dart` passed **one live test**
+through the guarded production Dio stack and Flutter decoder. Both exact returned
+resources decoded at the dimensions above. Its redacted log is
+`nhentai-native-live-read.log`; ordinary regression skips live-service access.
+This remains host Flutter evidence. Android ordinary-main acceptance, emulator
+restoration, the complete final
+combined suite and an independent Sol High review of that exact candidate remain
+separate rollout gates owned by the combined handoff. This continuation does not
+authorize a PR, push, develop integration, release or issue closure.

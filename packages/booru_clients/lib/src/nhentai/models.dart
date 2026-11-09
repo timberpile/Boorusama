@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:equatable/equatable.dart';
 
 const _maxSafeInteger = 9007199254740991;
@@ -48,6 +50,7 @@ final class NhentaiGallerySummary {
     this.pageCount,
     this.favoriteCount,
     this.tagIds = const [],
+    this.tagIdCoverage = NhentaiTagCoverage.unknown,
     this.blacklisted,
   });
   factory NhentaiGallerySummary.fromJson(Map<String, dynamic> json) =>
@@ -62,6 +65,11 @@ final class NhentaiGallerySummary {
         pageCount: _integer(json['num_pages']),
         favoriteCount: _integer(json['num_favorites']),
         tagIds: _ids(json['tag_ids']),
+        tagIdCoverage: json['tag_ids'] is! List
+            ? NhentaiTagCoverage.unknown
+            : _ids(json['tag_ids']).length == (json['tag_ids'] as List).length
+            ? NhentaiTagCoverage.complete
+            : NhentaiTagCoverage.partial,
         blacklisted: json['blacklisted'] is bool
             ? json['blacklisted'] as bool
             : null,
@@ -76,6 +84,7 @@ final class NhentaiGallerySummary {
   final int? pageCount;
   final int? favoriteCount;
   final List<int> tagIds;
+  final NhentaiTagCoverage tagIdCoverage;
   final bool? blacklisted;
   String get sourceKey => 'gallery:$id';
 }
@@ -155,6 +164,8 @@ final class NhentaiTag extends Equatable {
   List<Object?> get props => [id, type, name, count, slug];
 }
 
+enum NhentaiTagCoverage { unknown, partial, complete }
+
 final class NhentaiGalleryDetails {
   NhentaiGalleryDetails._({
     required this.id,
@@ -165,11 +176,13 @@ final class NhentaiGalleryDetails {
     required this.favoriteCount,
     required this.uploadedAt,
     required this.tags,
+    required this.tagCoverage,
     required this.pages,
     required this.cover,
     required this.thumbnail,
   });
   factory NhentaiGalleryDetails.fromJson(Map<String, dynamic> json) {
+    final (tags, tagCoverage) = _parseTags(json['tags']);
     final title = json['title'] is Map<String, dynamic>
         ? json['title'] as Map<String, dynamic>
         : const <String, dynamic>{};
@@ -192,10 +205,8 @@ final class NhentaiGalleryDetails {
       uploadedAt: seconds == null || seconds > 8640000000000
           ? null
           : DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true),
-      tags: List.unmodifiable([
-        if (json['tags'] case final List tags)
-          for (final tag in tags) NhentaiTag.fromJson(jsonObject(tag)),
-      ]),
+      tags: tags,
+      tagCoverage: tagCoverage,
       pages: pages == null ? null : List.unmodifiable(pages),
       cover: json['cover'] is Map<String, dynamic>
           ? NhentaiImageDescriptor.fromJson(
@@ -218,6 +229,10 @@ final class NhentaiGalleryDetails {
   final DateTime? uploadedAt;
   final List<NhentaiTag> tags;
 
+  /// Absent/null/non-list fields are unknown, rather than an observed empty
+  /// membership. Malformed entries retain the usable subset as partial.
+  final NhentaiTagCoverage tagCoverage;
+
   /// Null means absent, and an empty default array does not prove an empty Gallery.
   final List<NhentaiPage>? pages;
   final NhentaiImageDescriptor? cover;
@@ -228,6 +243,20 @@ final class NhentaiGalleryDetails {
       pages != null &&
       pages!.length == pageCount &&
       pages!.every((p) => p.number <= pageCount!);
+
+  static (List<NhentaiTag>, NhentaiTagCoverage) _parseTags(Object? value) {
+    if (value is! List) return (const [], NhentaiTagCoverage.unknown);
+    var coverage = NhentaiTagCoverage.complete;
+    final tags = <NhentaiTag>[];
+    for (final item in value) {
+      try {
+        tags.add(NhentaiTag.fromJson(jsonObject(item)));
+      } on FormatException {
+        coverage = NhentaiTagCoverage.partial;
+      }
+    }
+    return (List.unmodifiable(tags), coverage);
+  }
 }
 
 /// Raw length and server metadata remain separate from visible/deduplicated data.
@@ -287,6 +316,23 @@ final class NhentaiPageIdentity extends Equatable {
     return NhentaiPageIdentity(
       galleryId: int.parse(match[1]!),
       pageNumber: int.parse(match[2]!),
+    );
+  }
+  factory NhentaiPageIdentity.fromNumericPostId(int id) {
+    _positive(id, 'numeric Page ID');
+    final value = id - 1;
+    var diagonal = ((math.sqrt(8 * value + 1) - 1) / 2).floor();
+    // Correct floating-point rounding at the exact-integer storage boundary.
+    while (diagonal * (diagonal + 1) ~/ 2 > value) {
+      diagonal--;
+    }
+    while ((diagonal + 1) * (diagonal + 2) ~/ 2 <= value) {
+      diagonal++;
+    }
+    final pageIndex = value - diagonal * (diagonal + 1) ~/ 2;
+    return NhentaiPageIdentity(
+      galleryId: diagonal - pageIndex + 1,
+      pageNumber: pageIndex + 1,
     );
   }
   final int galleryId;

@@ -1,5 +1,4 @@
-/// Experimental read-only source foundation. The application engine stays gated
-/// until native transport, decoder and shared Gallery/Page acceptance pass.
+/// Read-only native Gallery/Page API, media policy and persistent tag contracts.
 library;
 
 export 'src/nhentai/client.dart';
@@ -12,5 +11,6 @@ export 'src/nhentai/models.dart'
         NhentaiPage,
         NhentaiPageIdentity,
         NhentaiResultPage,
-        NhentaiTag;
+        NhentaiTag,
+        NhentaiTagCoverage;
 export 'src/nhentai/tag_cache.dart';

@@ -105,7 +105,7 @@ ProviderContainer makeContainer({bool allowDio = false}) => ProviderContainer(
 );
 
 void main() {
-  test('profile selection is strict and public fallback never borrows another account', () {
+  test('new origin reads reattach uniquely while strict requests and captured actors stay bound', () {
     final c = makeContainer();
     addTearDown(c.dispose);
     final profiles = c.read(booruConfigProvider.notifier) as _Configs;
@@ -134,12 +134,18 @@ void main() {
     expect(c.read(byReference), isNull);
     expect(c.read(hintOrigin)!.key.profileId, aId);
     expect(c.read(hintReference)!.key.profileId, aId);
+    final captured = c.read(hintOrigin)!;
     profiles.replace([b]);
-    final originPublic = c.read(hintOrigin)!;
+    final replacementRead = c.read(hintOrigin)!;
     final referencePublic = c.read(hintReference)!;
-    expect(originPublic.key.profileId, isNull);
+    expect(replacementRead.key.profileId, bId);
+    expect(replacementRead.config!.auth.apiKey, 'other-secret');
+    expect(
+      c.read(contentAccessContextProvider(captured.key)),
+      isNull,
+      reason: 'A new read may reattach; the captured actor must remain revoked',
+    );
     expect(referencePublic.key.profileId, isNull);
-    expect(originPublic.config!.auth.apiKey, isNull);
     expect(referencePublic.config!.auth.login, isNull);
     expect(c.read(booruConfigProvider), [b]);
     expect(b.auth.apiKey, 'other-secret');
@@ -224,7 +230,9 @@ void main() {
     () {
       final c = makeContainer();
       addTearDown(c.dispose);
-      final provider = contentAccessForOriginProvider(origin(hint: aId));
+      // This test observes an explicitly anonymous/strict request. New saved
+      // origin reads deliberately reattach when a unique profile appears.
+      final provider = contentAccessForReferenceProvider(request(hint: aId));
       final subscription = c.listen(provider, (_, _) {});
       addTearDown(subscription.close);
       final profiles = c.read(booruConfigProvider.notifier) as _Configs;

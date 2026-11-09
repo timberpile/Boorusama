@@ -35,7 +35,9 @@ final class PublicReadHttpClientAdapter implements HttpClientAdapter {
           !isApiSafeRead(request) ||
           request.data != null ||
           requestStream != null ||
-          (!source.allowsApi(uri) && !source.allowsMedia(uri)) ||
+          (!source.allowsApi(uri) &&
+              !source.allowsMedia(uri) &&
+              !source.allowsFavicon(uri)) ||
           request.headers.entries.any(_unsafeHeader)) {
         throw DioException(
           requestOptions: options,

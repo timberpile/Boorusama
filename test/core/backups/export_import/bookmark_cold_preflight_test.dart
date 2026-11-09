@@ -11,6 +11,7 @@ import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/types/backup_registry.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_factory_hive.dart';
+import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/factory.dart';
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
@@ -35,6 +36,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../../../support/fakes/memory_repositories.dart';
 
 const groupId = '11111111-1111-4111-8111-111111111111';
 
@@ -73,6 +76,7 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             loggerProvider.overrideWithValue(AppLogger()),
+            miscDataStoreProvider.overrideWithValue(MemoryMiscDataStore()),
             dataMutationCoordinatorProvider.overrideWithValue(coordinator),
             booruEngineRegistryProvider.overrideWith(
               (ref) => BooruEngineRegistry(),

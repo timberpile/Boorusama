@@ -10,11 +10,11 @@ import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/posts/explores/types.dart';
 import '../../../core/posts/explores/widgets.dart';
-import '../../../core/posts/listing/widgets.dart';
 import '../configs/extra_data.dart';
-import '../posts/types.dart';
 import 'feed.dart';
 import 'providers.dart';
+import '../client_provider.dart';
+import '../works/work_listing.dart';
 
 /// Pixiv's Explore page: a feed selector (Ranking / Following /
 /// Recommended) over a shared post grid.
@@ -61,59 +61,56 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
     ).xRestrict;
 
     return Scaffold(
-      body: PostScope<Post>(
-        fetcher: (page) => ref
-            .read(pixivExploreRepoProvider(config))
-            .getPosts(
-              feed: _feed.value,
-              page: page,
-            ),
-        // `top: false` because the SliverAppBar in `sliverHeaders` already
-        // covers the status bar itself, and `safeArea: false` on the grid
-        // so the grid itself still paints to the edges. Without this,
-        // controls pinned below the grid render underneath Android's
-        // system navigation bar in edge-to-edge mode. Mirrors Danbooru's
-        // explore page.
-        builder: (context, controller) => SafeArea(
+      body: ValueListenableBuilder(
+        valueListenable: _feed,
+        builder: (context, feed, _) => SafeArea(
           top: false,
           child: Column(
             children: [
               Expanded(
-                child: PostGrid(
-                  controller: controller,
-                  safeArea: false,
+                child: PixivWorkGrid(
+                  config: config,
+                  queryIdentity: feed,
                   sliverHeaders: [
                     _PixivExploreSliverAppBar(
                       feed: _feed,
                       headerHeight: _headerHeight,
                       accountXRestrict: accountXRestrict,
-                      onFeedKindChanged: (kind) {
-                        _feed.value = pixivDefaultFeedFor(
-                          kind,
-                          current: _feed.value,
-                          newestRankingDate: pixivRankingNewestDate(),
-                        );
-                        controller.refresh();
-                      },
-                      onControlsChanged: () => controller.refresh(),
+                      onFeedKindChanged: (kind) =>
+                          _feed.value = pixivDefaultFeedFor(
+                            kind,
+                            current: _feed.value,
+                            newestRankingDate: pixivRankingNewestDate(),
+                          ),
+                      onControlsChanged: () => setState(() {}),
                     ),
                   ],
+                  fetchPage: (page) {
+                    final client = ref.read(pixivClientProvider(config.auth));
+                    return switch (feed) {
+                      PixivRankingFeed(:final mode, :final date) =>
+                        client.getRanking(
+                          mode: mode,
+                          date: pixivRankingRequestDateFor(date),
+                          page: page,
+                        ),
+                      PixivFollowingFeed(:final restrict) =>
+                        client.getFollowedIllusts(
+                          restrict: restrict,
+                          page: page,
+                        ),
+                      PixivRecommendedFeed() => client.getRecommendedIllusts(
+                        page: page,
+                      ),
+                    };
+                  },
                 ),
               ),
-              // The date stepper is meaningless outside Ranking and stays
-              // pinned at the bottom, outside the scrolling grid — it does
-              // not float away with the header.
-              ValueListenableBuilder(
-                valueListenable: _feed,
-                builder: (context, feed, _) => switch (feed) {
-                  PixivRankingFeed() => _RankingDateStepper(
-                    feed: _feed,
-                    onChanged: () => controller.refresh(),
-                  ),
-                  PixivFollowingFeed() ||
-                  PixivRecommendedFeed() => const SizedBox.shrink(),
-                },
-              ),
+              if (feed is PixivRankingFeed)
+                _RankingDateStepper(
+                  feed: _feed,
+                  onChanged: () => setState(() {}),
+                ),
             ],
           ),
         ),

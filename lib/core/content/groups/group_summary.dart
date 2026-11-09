@@ -25,6 +25,24 @@ final class ContentGroupSummary extends Equatable {
   final String? displayCategory;
   final GroupTags? previewTags;
   final BooruGroupSummaryData? sourceData;
+
+  ContentGroupSummary mergeWithPrevious(ContentGroupSummary? previous) {
+    if (previous == null) return this;
+    const ContentReferenceCodec().requireCompatible(
+      previous.reference,
+      reference,
+    );
+    return ContentGroupSummary(
+      reference: reference,
+      title: title ?? previous.title,
+      cover: cover ?? previous.cover,
+      memberCount: memberCount ?? previous.memberCount,
+      displayCategory: displayCategory ?? previous.displayCategory,
+      previewTags: mergeGroupTagObservation(previewTags, previous.previewTags),
+      sourceData: sourceData ?? previous.sourceData,
+    );
+  }
+
   @override
   List<Object?> get props => [
     reference,

@@ -48,6 +48,8 @@ import 'share_media_url_resolution.dart';
 import 'share_media_preparation.dart';
 import 'share_payload_tile.dart';
 import 'share_payloads.dart';
+import '../../../content/types.dart';
+import '../../links/boorusama_group_link.dart';
 
 enum _ShareSegment { media, links }
 
@@ -58,6 +60,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     required this.viewer,
     required this.imageCacheManager,
     this.accessKey,
+    this.groupReference,
     this.requireAccess = false,
     this.postQuality = PostQuality.high,
     this.shareAdapter,
@@ -69,6 +72,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
   });
 
   final ContentAccessKey? accessKey;
+  final ContentReference? groupReference;
   final bool requireAccess;
   final PostQuality postQuality;
   final Post post;
@@ -287,6 +291,22 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
         auth: widget.auth,
       )?.uri.toString(),
     );
+    final group = widget.groupReference;
+    final pageKey = BoorusamaPostLink.stableKeyForPost(post)?.split(':');
+    final groupKey = group?.sourceKey.split(':');
+    final groupUri =
+        group != null &&
+            group.engine == post.origin.booruType &&
+            group.siteNamespace == post.origin.sourceHost &&
+            pageKey != null &&
+            pageKey.length == 3 &&
+            groupKey != null &&
+            groupKey.length == 2 &&
+            pageKey[1] == groupKey[1] &&
+            ((groupKey[0] == 'work' && pageKey[0] == 'work-page') ||
+                (groupKey[0] == 'gallery' && pageKey[0] == 'gallery-page'))
+        ? BoorusamaGroupLink.fromReference(group).uri.toString()
+        : null;
     final capabilities = SharePlatformCapabilities.forPlatform(
       currentAppPlatform(),
     );
@@ -349,6 +369,37 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                       Text(
                         context.t.post.action.image_copy_platform_unavailable,
                       ),
+                    if (_segment == _ShareSegment.links &&
+                        groupUri != null) ...[
+                      SharePayloadTile(
+                        key: const ValueKey('share-native-group-link'),
+                        leading: const Icon(
+                          Icons.collections_bookmark_outlined,
+                        ),
+                        title: context.t.content_viewer.share_group,
+                        value: groupUri,
+                        showValue: true,
+                        unavailable: context.t.post.action.unavailable,
+                        copyTooltip: context.t.post.action.copy,
+                        shareTooltip: context.linkFileLabel,
+                        onCopy: _active == null && _accessCurrent()
+                            ? () => AppClipboard.copy(groupUri)
+                            : null,
+                        onShare: _active == null && canShareMedia
+                            ? () => _perform(
+                                SharePayload(
+                                  id: SharePayloadId.boorusamaLink,
+                                  value: groupUri,
+                                  canCopy: false,
+                                  canShare: true,
+                                ),
+                                share: true,
+                              )
+                            : null,
+                        busy: _active != null,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     for (final payload in switch (_segment) {
                       _ShareSegment.media => payloads.media,
                       _ShareSegment.links => payloads.links,
@@ -358,7 +409,11 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                             ? const ValueKey('share-bslink-file')
                             : ValueKey(payload.id),
                         leading: _leadingIcon(payload.id, sourceLink),
-                        title: _title(context, payload.id),
+                        title:
+                            groupUri != null &&
+                                payload.id == SharePayloadId.boorusamaLink
+                            ? context.t.content_viewer.share_page
+                            : _title(context, payload.id),
                         value: payload.value,
                         deferred: payload.deferred,
                         showValue:
@@ -379,10 +434,17 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                         copyTooltip: _copyTooltip(context, payload.id),
                         shareTooltip: _shareTooltip(context, payload.id),
                         onCopy:
-                            payload.canCopy &&
-                                (payload.id == SharePayloadId.video ||
-                                    !payload.isMedia ||
-                                    capabilities.canCopyImage)
+                            groupUri != null &&
+                                payload.id == SharePayloadId.boorusamaLink
+                            ? _active == null &&
+                                      _accessCurrent() &&
+                                      payload.value != null
+                                  ? () => AppClipboard.copy(payload.value!)
+                                  : null
+                            : payload.canCopy &&
+                                  (payload.id == SharePayloadId.video ||
+                                      !payload.isMedia ||
+                                      capabilities.canCopyImage)
                             ? () => _perform(payload, share: false)
                             : null,
                         onShare:
@@ -588,7 +650,11 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       final value = payload.value;
       if (isLinkFile &&
           BoorusamaPostLink.fromPost(post, auth: auth)?.uri.toString() !=
-              value) {
+              value &&
+          (widget.groupReference == null ||
+              BoorusamaGroupLink.fromReference(widget.groupReference!).uri
+                      .toString() !=
+                  value)) {
         throw const ShareMediaException(ShareMediaFailure.unavailable);
       }
       if (isLinkFile) {

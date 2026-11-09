@@ -19,6 +19,7 @@ import '../../../content/types.dart';
 import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
 import '../../../configs/config/types.dart';
 import '../../../images/booru_image.dart';
+import '../../../images/media_diagnostics.dart';
 import '../../../posts/pools/pool_grid_item.dart';
 import '../../../selection/selection_input.dart';
 import '../../../settings/providers.dart';
@@ -27,6 +28,8 @@ import '../providers/pool_bookmark_provider.dart';
 import '../types/pool_bookmark.dart';
 import '../types/pool_bookmark_capability.dart';
 import 'bookmark_group_picker.dart';
+import '../../../blacklists/providers.dart';
+import '../providers/bookmark_cover_failures.dart';
 
 class BookmarkPoolCard extends ConsumerStatefulWidget {
   const BookmarkPoolCard({
@@ -292,7 +295,7 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
               ContentAccessRequest(
                 reference: reference,
                 profileIdHint: pool.origin.profileIdHint,
-                allowProfileHintFallback: false,
+                allowProfileHintFallback: true,
               ),
             ),
           );
@@ -300,13 +303,17 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
     final policy = profile == null
         ? null
         : ref.watch(poolCoverPolicyProvider(profile)).valueOrNull;
+    final blacklist = profile == null
+        ? null
+        : ref.watch(blacklistTagsProvider(profile.filter)).valueOrNull;
     final radius = ref.watch(
       imageListingSettingsProvider.select((s) => s.imageBorderRadius),
     );
     if (profile != null &&
         pool.coverUrl != null &&
-        pool.coverPolicy != null &&
-        pool.coverPolicy == policy) {
+        ((pool.coverPolicy != null && pool.coverPolicy == policy) ||
+            (blacklist != null &&
+                savedPoolCoverVisible(pool, profile, blacklist)))) {
       final cover =
           pool.cover ??
           (pool.isRelated
@@ -326,6 +333,14 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
                 );
       if (access == null || (cover != null && media == null))
         return const SizedBox.expand();
+      final preferred = media?.url ?? pool.coverUrl!;
+      final cached = ref.watch(
+        bookmarkCoverCachedRenditionProvider((
+          access: access.key,
+          primary: preferred,
+          sample: cover?.sample ?? '',
+        )),
+      );
       return CurrentBooruConfigScope(
         config: profile,
         accessKey: access.key,
@@ -333,13 +348,24 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
         bookmarkId: pool.bookmarkId,
         child: BooruImage(
           config: profile.auth,
-          imageUrl: media?.url ?? pool.coverUrl!,
+          imageUrl: cached.valueOrNull ?? preferred,
           placeholderUrl: pool.coverUrl,
           aspectRatio: .6,
           fit: BoxFit.cover,
           borderRadius: BorderRadius.circular(radius),
         ),
       );
+    }
+    if (profile != null) {
+      ref
+          .watch(mediaDiagnosticsProvider(profile.auth))
+          ?.event(
+            url: pool.coverUrl ?? '',
+            stage: 'resolution',
+            outcome: pool.coverUrl == null
+                ? 'cover_descriptor_missing'
+                : 'cover_visibility_filtered',
+          );
     }
     return ColoredBox(
       color: Kurumi.themeOf(context).colorScheme.surfaceContainerLow,

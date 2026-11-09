@@ -13,11 +13,11 @@ visibleBookmarkGridEntries(
   final entries = <BookmarkGridEntry>[];
   final indices = <Object, int>{};
   for (final entry in fetched) {
-    if (entry is BookmarkPoolEntry) {
+    if (entry is! BookmarkPostEntry) {
       entries.add(entry);
       continue;
     }
-    final post = (entry as BookmarkPostEntry).bookmark.post;
+    final post = entry.bookmark.post;
     final index = byObject[post];
     if (index == null) continue;
     entries.add(entry);

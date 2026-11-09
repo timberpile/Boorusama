@@ -12,6 +12,8 @@ import '../types/following_topic_sort.dart';
 import '../types/following_topic.dart';
 import 'following_topic_card.dart';
 import 'topic_new_posts_badge.dart';
+import 'following_topic_sync_menu.dart';
+import '../../../../backups/folder_sync/widgets.dart';
 
 final class FollowingTopicFolderPreview {
   const FollowingTopicFolderPreview({
@@ -97,6 +99,7 @@ bool canRefreshFollowingTopicFolder({
 class FollowingTopicFolderCard extends StatelessWidget {
   const FollowingTopicFolderCard({
     required this.name,
+    this.localId,
     required this.itemCount,
     required this.newPostCount,
     this.newPostCountIsLowerBound = false,
@@ -119,6 +122,7 @@ class FollowingTopicFolderCard extends StatelessWidget {
   });
 
   final String name;
+  final String? localId;
   final int itemCount;
   final int newPostCount;
   final bool newPostCountIsLowerBound;
@@ -181,6 +185,11 @@ class FollowingTopicFolderCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (localId != null)
+                      CollectionSyncIndicator(
+                        kind: 'following_topics',
+                        localId: localId!,
+                      ),
                     if (newPostCount > 0)
                       TopicNewPostsBadge(
                         count: newPostCount,
@@ -198,11 +207,11 @@ class FollowingTopicFolderCard extends StatelessWidget {
                         onPressed: onOpenFeed,
                       ),
                     if (!selecting)
-                      PopupMenuButton<FollowingTopicAction>(
-                        tooltip: context.t.generic.action.more,
-                        icon: const Icon(Symbols.more_vert),
-                        onSelected: onAction,
-                        itemBuilder: (context) => [
+                      FollowingTopicSyncMenu(
+                        localId: localId,
+                        folder: true,
+                        onAction: onAction,
+                        entries: [
                           PopupMenuItem(
                             value: FollowingTopicAction.refresh,
                             enabled: canRefresh,

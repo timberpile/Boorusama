@@ -29,6 +29,22 @@ final class GroupBookmarkIndex extends Equatable {
   final DateTime? newestMemberUpload;
   final String? coverPolicy;
 
+  GroupBookmarkIndex mergeWithPrevious(GroupBookmarkIndex? previous) {
+    if (previous == null ||
+        basis != previous.basis ||
+        coverage == MetadataCoverage.complete)
+      return this;
+    if (coverage == MetadataCoverage.unknown) return previous;
+    return GroupBookmarkIndex(
+      tags: {...previous.tags, ...tags},
+      basis: basis,
+      coverage: MetadataCoverage.partial,
+      oldestMemberUpload: oldestMemberUpload ?? previous.oldestMemberUpload,
+      newestMemberUpload: newestMemberUpload ?? previous.newestMemberUpload,
+      coverPolicy: coverPolicy ?? previous.coverPolicy,
+    );
+  }
+
   @override
   List<Object?> get props => [
     tags,

@@ -238,7 +238,7 @@ final contentAccessForOriginProvider = Provider.autoDispose
         final resolution = const PostOriginResolver().resolve(
           origin,
           ref.watch(booruConfigProvider),
-          allowProfileHintFallback: false,
+          allowProfileHintFallback: true,
         );
         return switch (resolution) {
           ResolvedPostOrigin(:final config) => ref.watch(

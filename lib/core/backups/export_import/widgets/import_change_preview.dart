@@ -1,12 +1,14 @@
 import '../../../bookmarks/src/types/bookmark_group.dart';
+
 import 'package:collection/collection.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../import/import_change_preview.dart';
+import 'import_bounded_list.dart';
 import '../../../search/following_topics/src/compatibility/topic_storage_contract.dart';
 
-class ImportChangePreview extends StatelessWidget {
+class ImportChangePreview extends StatefulWidget {
   const ImportChangePreview({
     super.key,
     required this.rows,
@@ -18,21 +20,70 @@ class ImportChangePreview extends StatelessWidget {
   final Map<String, String> profileNames;
 
   @override
-  Widget build(BuildContext context) {
-    final strings = context.t.settings.backup_and_restore.export_import;
-    final groups = groupBy(
-      rows,
+  State<ImportChangePreview> createState() => _ImportChangePreviewState();
+}
+
+class _ImportChangePreviewState extends State<ImportChangePreview> {
+  final _expanded = <Object>{};
+  late Map<String, List<ImportChangePreviewRow>> _groups;
+  late ImportChangeCounts _counts;
+  late Map<String, ImportChangeCounts> _categoryCounts;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepare();
+  }
+
+  @override
+  void didUpdateWidget(ImportChangePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rows.length != widget.rows.length ||
+        !oldWidget.rows.indexed.every(
+          (entry) => identical(entry.$2, widget.rows[entry.$1]),
+        )) {
+      _prepare();
+    }
+  }
+
+  void _prepare() {
+    _groups = groupBy(
+      widget.rows,
       (row) => row.category == 'topic_folders'
           ? followingTopicsBackupSourceId
           : row.category,
     );
+    _categoryCounts = {
+      for (final entry in _groups.entries)
+        entry.key: entry.value.fold(
+          const ImportChangeCounts(),
+          (sum, row) => sum + row.counts,
+        ),
+    };
+    _counts = _categoryCounts.values.fold(
+      const ImportChangeCounts(),
+      (sum, counts) => sum + counts,
+    );
+  }
+
+  void _recordExpansion(Object id, bool expanded) {
+    if (expanded) {
+      _expanded.add(id);
+    } else {
+      _expanded.remove(id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.t.settings.backup_and_restore.export_import;
     String categoryName(String id) => switch (id) {
       'bookmarks' => strings.preview_bookmark_groups,
       'topic_folders' || followingTopicsBackupSourceId =>
-        sourceNames[followingTopicsBackupSourceId] ??
+        widget.sourceNames[followingTopicsBackupSourceId] ??
             strings.sources.following_topics,
       'bookmark_metadata' => strings.preview_bookmark_data,
-      _ => sourceNames[id] ?? id,
+      _ => widget.sourceNames[id] ?? id,
     };
     String rowName(ImportChangePreviewRow row) =>
         row.id == defaultBookmarkGroupId
@@ -47,16 +98,13 @@ class ImportChangePreview extends StatelessWidget {
                   ? categoryName(row.category)
                   : row.label,
           };
-    final counts = rows.fold(
-      const ImportChangeCounts(),
-      (sum, row) => sum + row.counts,
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ExpansionTile(
           key: const ValueKey('planned-change-summary'),
-          maintainState: true,
+          initiallyExpanded: _expanded.contains('summary'),
+          onExpansionChanged: (value) => _recordExpansion('summary', value),
           tilePadding: const EdgeInsets.symmetric(horizontal: 4),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,44 +114,64 @@ class ImportChangePreview extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              _Counts(counts: counts),
+              _Counts(counts: _counts),
             ],
           ),
           children: [
-            if (rows.isEmpty)
+            if (widget.rows.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(strings.nothing_to_import),
               ),
-            for (final entry in groups.entries)
-              Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ExpansionTile(
-                  key: ValueKey('change-category-${entry.key}'),
-                  maintainState: true,
-                  title: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(categoryName(entry.key)),
-                      const SizedBox(height: 8),
-                      _Counts(
-                        counts: entry.value.fold(
-                          const ImportChangeCounts(),
-                          (sum, row) => sum + row.counts,
+            Builder(
+              builder: (context) => Column(
+                children: [
+                  for (final entry in _groups.entries)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ExpansionTile(
+                        key: ValueKey('change-category-${entry.key}'),
+                        initiallyExpanded: _expanded.contains(entry.key),
+                        onExpansionChanged: (value) =>
+                            _recordExpansion(entry.key, value),
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(categoryName(entry.key)),
+                            const SizedBox(height: 8),
+                            _Counts(
+                              counts: _categoryCounts[entry.key]!,
+                            ),
+                          ],
                         ),
+                        children: [
+                          Builder(
+                            builder: (context) => ImportBoundedList(
+                              storageKey: ('import-preview', entry.key),
+                              itemCount: entry.value.length,
+                              itemBuilder: (context, index) {
+                                final row = entry.value[index];
+                                return _ChangeRow(
+                                  key: ValueKey((row.category, row.id)),
+                                  row: row,
+                                  label: rowName(row),
+                                  profileNames: widget.profileNames,
+                                  expanded: _expanded,
+                                  expansionKey: (
+                                    entry.key,
+                                    row.category,
+                                    row.id,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  children: [
-                    for (final row in entry.value)
-                      _ChangeRow(
-                        row: row,
-                        label: rowName(row),
-                        profileNames: profileNames,
-                      ),
-                  ],
-                ),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ],
@@ -191,10 +259,15 @@ class _ChangeRow extends StatelessWidget {
     required this.row,
     required this.label,
     required this.profileNames,
+    required this.expanded,
+    required this.expansionKey,
+    super.key,
   });
   final ImportChangePreviewRow row;
   final String label;
   final Map<String, String> profileNames;
+  final Set<Object> expanded;
+  final Object expansionKey;
   @override
   Widget build(BuildContext context) {
     final strings = context.t.settings.backup_and_restore.export_import;
@@ -312,21 +385,43 @@ class _ChangeRow extends StatelessWidget {
         (row.details.isNotEmpty && row.category != 'settings'))
       return ExpansionTile(
         key: ValueKey('change-detail-${row.category}-${row.id}'),
-        maintainState: true,
+        initiallyExpanded: expanded.contains(expansionKey),
+        onExpansionChanged: (value) {
+          if (value) {
+            expanded.add(expansionKey);
+          } else {
+            expanded.remove(expansionKey);
+          }
+        },
         title: title,
         leading: leading,
         children: [
-          for (final d in row.details)
-            Align(alignment: Alignment.centerLeft, child: detail(d)),
-          for (final child in row.children)
-            Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: _ChangeRow(
-                row: child,
-                label: child.label,
-                profileNames: profileNames,
-              ),
+          Builder(
+            builder: (context) => ImportBoundedList(
+              storageKey: ('import-preview-details', expansionKey),
+              itemCount: row.details.length + row.children.length,
+              itemBuilder: (context, index) {
+                if (index < row.details.length) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: detail(row.details[index]),
+                  );
+                }
+                final child = row.children[index - row.details.length];
+                return Padding(
+                  key: ValueKey((child.category, child.id)),
+                  padding: const EdgeInsets.only(left: 12),
+                  child: _ChangeRow(
+                    row: child,
+                    label: child.label,
+                    profileNames: profileNames,
+                    expanded: expanded,
+                    expansionKey: (expansionKey, child.category, child.id),
+                  ),
+                );
+              },
             ),
+          ),
         ],
       );
     return Padding(

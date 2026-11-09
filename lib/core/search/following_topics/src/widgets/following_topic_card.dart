@@ -1,7 +1,6 @@
 // Package imports:
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:clock/clock.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -15,6 +14,8 @@ import 'following_topic_query_text.dart';
 import 'following_topic_preview.dart';
 import 'search_refresh_error_text.dart';
 import 'topic_new_posts_badge.dart';
+import 'following_topic_sync_menu.dart';
+import '../../../../backups/folder_sync/widgets.dart';
 
 enum FollowingTopicAction {
   info,
@@ -197,6 +198,10 @@ class FollowingTopicCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                     ),
+                    CollectionSyncIndicator(
+                      kind: 'following_topics',
+                      localId: topic.id,
+                    ),
                     if (topic.hasNewPosts)
                       TopicNewPostsBadge(
                         count: topic.newPostCountEstimate,
@@ -208,11 +213,11 @@ class FollowingTopicCard extends StatelessWidget {
                         color: Theme.of(context).colorScheme.primary,
                       ),
                     if (!selecting)
-                      PopupMenuButton<FollowingTopicAction>(
-                        icon: const Icon(Symbols.more_vert),
-                        tooltip: context.t.generic.action.more,
-                        onSelected: onAction,
-                        itemBuilder: (context) =>
+                      FollowingTopicSyncMenu(
+                        localId: topic.id,
+                        enabledSync: actionItemBuilder == null,
+                        onAction: onAction,
+                        entries:
                             actionItemBuilder?.call(context) ??
                             [
                               PopupMenuItem(

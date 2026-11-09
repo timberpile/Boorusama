@@ -7,6 +7,7 @@ import '../models/export_item_presentation.dart';
 import '../models/export_selection.dart';
 import '../models/import_action.dart';
 import 'import_recommendation_tree.dart';
+import 'import_bounded_list.dart';
 
 class ImportActionEditor extends StatelessWidget {
   const ImportActionEditor({
@@ -33,6 +34,7 @@ class ImportActionEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolvedItems = {for (final item in resolved.items) item.id: item};
+    final proposedById = {for (final item in proposed.items) item.id: item};
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
@@ -66,23 +68,26 @@ class ImportActionEditor extends StatelessWidget {
                     ),
               )
             else
-              for (final item in proposed.items)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: _buildItemAction(
-                    item,
-                    resolvedItems,
-                    ExportItemPresentation(label: itemLabel(item.id)),
-                  ),
-                ),
+              ImportBoundedList(
+                storageKey: ('import-actions', proposed.id),
+                itemCount: proposed.items.length,
+                itemBuilder: (context, index) {
+                  final item = proposed.items[index];
+                  return Padding(
+                    key: ValueKey(item.id),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: _buildItemAction(
+                      item,
+                      resolvedItems,
+                      ExportItemPresentation(label: itemLabel(item.id)),
+                    ),
+                  );
+                },
+              ),
         ],
       ),
     );
   }
-
-  Map<String, ProposedImportItem> get proposedById => {
-    for (final item in proposed.items) item.id: item,
-  };
 
   Widget _buildItemAction(
     ProposedImportItem item,

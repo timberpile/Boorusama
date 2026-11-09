@@ -7,6 +7,7 @@ final class BookmarkHierarchyDeletion {
     required Iterable<BookmarkGroup> deletedGroups,
     required Map<int, Bookmark> recordsBefore,
     required Set<int> deletedRecordIds,
+    required this.requestedRootId,
     required Iterable<BookmarkGroup> promotedChildrenBefore,
     required Iterable<BookmarkGroup> promotedChildrenAfter,
   }) : deletedGroups = List.unmodifiable(deletedGroups),
@@ -18,16 +19,19 @@ final class BookmarkHierarchyDeletion {
   final List<BookmarkGroup> deletedGroups;
   final Map<int, Bookmark> recordsBefore;
   final Set<int> deletedRecordIds;
+  final String requestedRootId;
   final List<BookmarkGroup> promotedChildrenBefore;
   final List<BookmarkGroup> promotedChildrenAfter;
 
   BookmarkGroupDeletionPreview get singlePreview {
-    final group = deletedGroups.single;
+    final group = deletedGroups.firstWhere(
+      (group) => group.id == requestedRootId,
+    );
     return BookmarkGroupDeletionPreview(
       group: group,
-      orphanBookmarkIds: deletedRecordIds.intersection(group.bookmarkIds),
-      promotedChildren: promotedChildrenBefore
-          .where((child) => child.parentGroupId == group.id)
+      orphanBookmarkIds: deletedRecordIds,
+      descendantGroups: deletedGroups
+          .where((child) => child.id != group.id)
           .toList(),
     );
   }
@@ -50,17 +54,28 @@ extension BookmarkHierarchyOperations on BookmarkLibraryService {
     final before = await _snapshotForMutation();
     final preview = BookmarkCollectionDeletionPreview.from(
       before,
-      folderIds: const {},
-      groupIds: groupIds,
+      folderIds: expectedPreview?.selectedFolderIds ?? const {},
+      groupIds: expectedPreview?.selectedGroupIds ?? groupIds,
     );
-    if (expectedPreview != null && preview != expectedPreview)
+    final requestedClosure = {
+      for (final root in before.groupTree.selectionRoots(groupIds))
+        ...before.groupTree.subtreeIds(root.id),
+    };
+    if (expectedPreview != null &&
+        (preview != expectedPreview ||
+            !const SetEquality<String>().equals(
+              requestedClosure,
+              preview.groupIds,
+            )))
       throw BookmarkCollectionChangedException(preview);
-    final promoted = before.groupTree.promotedChildrenFor(groupIds);
+    final removedIds = preview.groupIds;
+    final promoted = <BookmarkGroup>[];
     final removed = before.groups
-        .where((group) => groupIds.contains(group.id))
+        .where((group) => removedIds.contains(group.id))
         .toList();
     final members = {for (final group in removed) ...group.bookmarkIds};
     final receipt = BookmarkHierarchyDeletion._(
+      requestedRootId: before.groupTree.selectionRoots(groupIds).first.id,
       deletedGroups: removed,
       recordsBefore: {
         for (final id in members)
@@ -75,11 +90,16 @@ extension BookmarkHierarchyOperations on BookmarkLibraryService {
       ],
     );
     try {
-      await store.commitOrganization(
+      Future<void> commit() => store.commitOrganization(
         removeIds: receipt.deletedRecordIds,
-        removeGroupIds: groupIds,
+        removeGroupIds: removedIds,
         groups: promoted,
       );
+      if (mirrorGuard case final guard?) {
+        await guard.deleteLocalSubtree(commit);
+      } else {
+        await commit();
+      }
     } catch (error, stack) {
       try {
         // A read first resolves an interrupted journal. Confirm the complete
@@ -89,7 +109,7 @@ extension BookmarkHierarchyOperations on BookmarkLibraryService {
             group.id: group,
         };
         var complete =
-            groupIds.every((id) => !current.containsKey(id)) &&
+            removedIds.every((id) => !current.containsKey(id)) &&
             promoted.every(
               (group) => _sameHierarchyGroup(current[group.id], group),
             );

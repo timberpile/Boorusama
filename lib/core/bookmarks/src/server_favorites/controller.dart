@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../foundation/data_mutation_coordinator.dart';
+import '../../../../foundation/loggers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../http/client/coordination.dart';
@@ -122,9 +126,7 @@ class ServerFavoriteFetchNotifier
         final session = job.session;
         if (session == null) continue;
         if (!configs.any(
-          (config) =>
-              config.id == session.config.id &&
-              config.auth == session.config.auth,
+          (config) => serverFavoriteActorMatches(session.config, config),
         )) {
           job.cancellation.cancel();
         }
@@ -192,8 +194,10 @@ class ServerFavoriteFetchNotifier
       final session = await job.cancellation.wait(_capture(profileId));
       job.cancellation.throwIfCancelled();
       if (expectedSession != null) {
-        if (session.config.id != expectedSession.config.id ||
-            session.config.auth != expectedSession.config.auth) {
+        if (!serverFavoriteActorMatches(
+          expectedSession.config,
+          session.config,
+        )) {
           throw const ServerFavoriteException(
             ServerFavoriteProblem.accountChanged,
           );
@@ -208,6 +212,8 @@ class ServerFavoriteFetchNotifier
       final source = ref.read(serverFavoriteSourceProvider(session.config));
       result =
           await ServerFavoriteFetchRunner<Post>(
+            onError: (error, stack, problem) =>
+                _diagnoseFetch(profileId, error, stack, problem),
             // Thumbnail-only listings also resolve each post inside this
             // context, so their detail requests share the bulk pacing.
             fetchPage: (page) => runWithApiRequestContext(
@@ -245,12 +251,19 @@ class ServerFavoriteFetchNotifier
       result = const ServerFavoriteProgress(
         status: ServerFavoriteFetchStatus.cancelled,
       );
-    } on ServerFavoriteException catch (error) {
+    } on ServerFavoriteException catch (error, stack) {
+      _diagnoseFetch(profileId, error, stack, error.problem);
       result = ServerFavoriteProgress(
         status: ServerFavoriteFetchStatus.failed,
         problem: error.problem,
       );
-    } catch (_) {
+    } catch (error, stack) {
+      _diagnoseFetch(
+        profileId,
+        error,
+        stack,
+        ServerFavoriteProblem.localFailure,
+      );
       result = const ServerFavoriteProgress(
         status: ServerFavoriteFetchStatus.failed,
         problem: ServerFavoriteProblem.localFailure,
@@ -260,6 +273,40 @@ class ServerFavoriteFetchNotifier
     if (identical(_jobs[profileId], job)) _jobs.remove(profileId);
     job.completion.complete(result);
     return result;
+  }
+
+  void _diagnoseFetch(
+    String profileId,
+    Object error,
+    StackTrace stack,
+    ServerFavoriteProblem problem,
+  ) {
+    final stage = switch (problem) {
+      ServerFavoriteProblem.accountChanged ||
+      ServerFavoriteProblem.ambiguousAccount => 'actor',
+      ServerFavoriteProblem.targetChanged => 'target_revision',
+      ServerFavoriteProblem.targetMissing ||
+      ServerFavoriteProblem.noTarget => 'target',
+      ServerFavoriteProblem.remoteFailure ||
+      ServerFavoriteProblem.timedOut ||
+      ServerFavoriteProblem.paginationStalled => 'remote_fetch',
+      _ => 'local_write_or_dispatch',
+    };
+    final actor = sha256
+        .convert(utf8.encode(profileId))
+        .toString()
+        .substring(0, 12);
+    try {
+      ref
+          .read(loggerProvider)
+          .handledError(
+            'FavoritesSync',
+            'fetch; stage=$stage; actor=$actor; problem=${problem.name}',
+            error: error,
+            stackTrace: stack,
+            outcome: 'stopped',
+          );
+    } catch (_) {}
   }
 
   void _publish(String profileId, _FetchJob job, ServerFavoriteProgress value) {
@@ -305,8 +352,7 @@ class ServerFavoriteFetchNotifier
     final configs = await ref.read(booruConfigRepoProvider).getAll();
     if (_disposed) throw const ServerFavoriteCancelled();
     final exists = configs.any(
-      (config) =>
-          config.id == session.config.id && config.auth == session.config.auth,
+      (config) => serverFavoriteActorMatches(session.config, config),
     );
     if (!exists) {
       throw const ServerFavoriteException(ServerFavoriteProblem.accountChanged);

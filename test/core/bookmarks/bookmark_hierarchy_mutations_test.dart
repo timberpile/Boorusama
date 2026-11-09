@@ -197,7 +197,7 @@ void main() {
   });
 
   test(
-    'deleting a parent promotes children and removes only orphan payloads',
+    'deleting a parent removes its subtree and only exclusively held payloads',
     () async {
       final parent = await service.createGroup('Parent');
       final child = await service.createGroup(
@@ -210,22 +210,28 @@ void main() {
       await addMembership(parent.id, orphan);
       await addMembership(child.id, shared);
       await addMembership(other.id, shared);
-      final childDate = (await groupRepository.getGroup(child.id))!
-          .addedAt[shared.id];
       final otherDate = (await groupRepository.getGroup(other.id))!
           .addedAt[shared.id];
 
       await service.deleteGroup(parent.id);
 
-      final promotedChild = (await groupRepository.getGroup(child.id))!;
-      expect(promotedChild.parentGroupId, isNull);
-      expect(promotedChild.addedAt[shared.id], childDate);
+      expect(await groupRepository.getGroup(parent.id), isNull);
+      expect(await groupRepository.getGroup(child.id), isNull);
       expect(
         (await groupRepository.getGroup(other.id))!.addedAt[shared.id],
         otherDate,
       );
       expect(await repository.read(orphan.id), isNull);
       expect(await repository.read(shared.id), isNotNull);
+      await restart();
+      expect(await groupRepository.getGroup(parent.id), isNull);
+      expect(await groupRepository.getGroup(child.id), isNull);
+      expect(await repository.read(orphan.id), isNull);
+      expect(await repository.read(shared.id), isNotNull);
+      expect(
+        (await groupRepository.getGroup(other.id))!.addedAt[shared.id],
+        otherDate,
+      );
     },
   );
 

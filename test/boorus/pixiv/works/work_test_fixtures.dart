@@ -25,6 +25,7 @@ PixivIllustDto work({
   String type = 'manga',
   bool visible = true,
   bool muted = false,
+  int xRestrict = 0,
   String? original,
   bool omitTags = false,
   Object? tags = const [
@@ -39,7 +40,7 @@ PixivIllustDto work({
   'page_count': pageCount,
   'width': 1200,
   'height': 1800,
-  'x_restrict': 0,
+  'x_restrict': xRestrict,
   'sanity_level': 2,
   'visible': visible,
   'is_muted': muted,

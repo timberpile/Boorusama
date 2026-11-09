@@ -9,6 +9,7 @@ import '../widgets/bookmark_group_label.dart';
 import '../widgets/bookmark_group_name_dialog.dart';
 import '../widgets/bookmark_batch_dialog.dart';
 import 'target_settings.dart';
+import '../../../backups/folder_sync/mirror_guard.dart';
 
 Future<ServerFavoriteTarget?> showServerFavoriteTargetPicker(
   BuildContext context, {
@@ -40,14 +41,25 @@ class _ServerFavoriteTargetPickerState
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(bookmarkLibraryProvider).valueOrNull;
-    Widget option(ServerFavoriteTarget target, String label, IconData icon) =>
-        BookmarkPickerMenuItem(
-          icon: Icon(icon),
-          title: label,
-          trailing: widget.selected == target ? const Icon(Icons.check) : null,
-          hideOnTap: false,
-          onTap: _creating ? null : () => Navigator.pop(context, target),
-        );
+    final mirrors = ref.exists(collectionMirrorGuardProvider)
+        ? ref.read(collectionMirrorGuardProvider)
+        : null;
+    BookmarkPickerMenuItem option(
+      ServerFavoriteTarget target,
+      String label,
+      IconData icon,
+    ) => BookmarkPickerMenuItem(
+      icon: Icon(icon),
+      title: label,
+      trailing: widget.selected == target ? const Icon(Icons.check) : null,
+      hideOnTap: false,
+      onTap:
+          _creating ||
+              (target.groupId != null &&
+                  mirrors?.isReadOnly(target.groupId!) == true)
+          ? null
+          : () => Navigator.pop(context, target),
+    );
     return BookmarkBatchDialog(
       title: context.t.bookmark.groups.selector,
       child: BookmarkFolderPickerContents(

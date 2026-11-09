@@ -385,3 +385,15 @@
         quick-profile:
           name: Pixiv
           authentication: required
+
+- nhentai:
+    metadata:
+      id: 38
+      display-name: nhentai
+      single-site: true
+    protocol: https_2
+    sites:
+      - url: https://nhentai.net/
+        quick-profile:
+          name: nhentai
+          authentication: unnecessary

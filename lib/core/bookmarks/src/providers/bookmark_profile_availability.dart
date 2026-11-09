@@ -11,6 +11,7 @@ import '../../../posts/details/src/types/post_presentation_fallback_reason.dart'
 import '../../../posts/post/types.dart';
 import '../types/bookmark_grid_entry.dart';
 import '../types/bookmark_library_state.dart';
+import '../types/content_group_bookmark.dart';
 import 'bookmark_provider.dart';
 import 'pool_bookmark_provider.dart';
 
@@ -25,6 +26,7 @@ class BookmarkProfileAvailability {
   }) {
     final posts = <int>{};
     final collections = <String>{};
+    final nativeGroups = <int>{};
     final reasons = <Object, PostPresentationFallbackReason>{};
     final resolutions = <PostOrigin, PostOriginResolution>{};
     for (final bookmark in library.items) {
@@ -34,7 +36,7 @@ class BookmarkProfileAvailability {
         () => const PostOriginResolver().resolve(
           post.origin,
           profiles,
-          allowProfileHintFallback: false,
+          allowProfileHintFallback: true,
         ),
       );
       final source = policy.forNamespace(
@@ -72,7 +74,7 @@ class BookmarkProfileAvailability {
       final resolution = const PostOriginResolver().resolve(
         collection.origin,
         profiles,
-        allowProfileHintFallback: false,
+        allowProfileHintFallback: true,
       );
       final key = collection.bookmarkId ?? ('pool', collection.localId);
       if (resolution is AmbiguousPostOrigin) {
@@ -123,11 +125,47 @@ class BookmarkProfileAvailability {
             : PostPresentationFallbackReason.missingProfile;
       }
     }
+    for (final record in library.records.whereType<ContentGroupBookmark>()) {
+      final reference = record.reference;
+      if (reference.sourceKey.startsWith('pool:') ||
+          reference.sourceKey.startsWith('related:'))
+        continue;
+      final origin = PostOrigin.fromSource(
+        booruType: reference.engine,
+        booruId: reference.engine.id,
+        source: reference.site.toString(),
+        profileIdHint: record.sourceProfileHint,
+      );
+      final resolution = const PostOriginResolver().resolve(
+        origin,
+        profiles,
+        allowProfileHintFallback: true,
+      );
+      if (resolution is AmbiguousPostOrigin) {
+        reasons[record.id] = PostPresentationFallbackReason.ambiguousProfile;
+        continue;
+      }
+      final supported =
+          supportsGroup?.call(reference) ?? resolution is ResolvedPostOrigin;
+      if (supported &&
+          (resolution is ResolvedPostOrigin ||
+              policy.resolve(reference.engine, reference.site) != null)) {
+        nativeGroups.add(record.id);
+      } else {
+        reasons[record.id] =
+            resolution is ResolvedPostOrigin ||
+                policy.resolve(reference.engine, reference.site) != null
+            ? PostPresentationFallbackReason.unavailableEngine
+            : PostPresentationFallbackReason.missingProfile;
+      }
+    }
+    nativeGroupIds = Set.unmodifiable(nativeGroups);
     postIds = Set.unmodifiable(posts);
     collectionIds = Set.unmodifiable(collections);
     unavailableReasons = Map.unmodifiable(reasons);
     recordIds = Set.unmodifiable({
       ...postIds,
+      ...nativeGroupIds,
       for (final collection in library.pools)
         if (collectionIds.contains(collection.localId) &&
             collection.bookmarkId != null)
@@ -138,6 +176,7 @@ class BookmarkProfileAvailability {
   late final Set<int> postIds;
   late final Set<String> collectionIds;
   late final Set<int> recordIds;
+  late final Set<int> nativeGroupIds;
 
   /// Keys are saved record IDs, or legacy collection keys when no ID exists.
   late final Map<Object, PostPresentationFallbackReason> unavailableReasons;
@@ -153,6 +192,7 @@ class BookmarkProfileAvailability {
         BookmarkPostEntry(:final bookmark) => bookmark.id,
         BookmarkPoolEntry(:final pool) =>
           pool.bookmarkId ?? ('pool', pool.localId),
+        BookmarkNativeGroupEntry(:final bookmark) => bookmark.id,
       };
       final reason = unavailableReasons[key];
       if (reason != null && seen.add(key)) {
@@ -174,7 +214,9 @@ final bookmarkProfileAvailabilityProvider =
                 library,
                 profiles,
                 policy: ref.watch(anonymousSourcePolicyProvider),
-                references: library.pools.isEmpty
+                references:
+                    library.records.whereType<ContentGroupBookmark>().isEmpty &&
+                        library.pools.isEmpty
                     ? const ContentReferenceCodec()
                     : ref.watch(contentReferenceCodecProvider),
                 supportsGroup: (reference) =>

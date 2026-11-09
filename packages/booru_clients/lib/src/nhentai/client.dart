@@ -5,7 +5,6 @@ import 'models.dart';
 
 /// Read-only API wrapper. Supply the application's coordinated anonymous Dio;
 /// the app's final transport adapter remains responsible for header/redirect safety.
-/// This foundation is not registered as an application engine yet.
 final class NhentaiClient {
   NhentaiClient({required Dio dio}) : _dio = dio;
   final Dio _dio;

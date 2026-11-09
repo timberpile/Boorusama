@@ -24,6 +24,82 @@ import 'package:boorusama/core/backups/export_import/widgets/import_action_edito
 import 'package:boorusama/core/backups/export_import/widgets/import_recommendation_tree.dart';
 
 void main() {
+  testWidgets(
+    'pending preview disables acknowledgement and Apply for old valid plan',
+    (tester) async {
+      var applies = 0;
+      var acknowledgements = 0;
+      final preflight = _result(
+        validated: true,
+        summary: const PlannedChangeSummary(created: 1),
+        warnings: const [
+          ImportPlanIssue(code: 'private_data', sourceId: 'profiles'),
+        ],
+      );
+      Widget review(bool pending) => _app(
+        ImportReviewValidation(
+          preflight: preflight,
+          previewPending: pending,
+          sourceNames: const {'profiles': 'Profiles'},
+          itemLabels: const {},
+          onWarningsAcknowledged: (_) => acknowledgements++,
+          onApply: () => applies++,
+          onDone: () {},
+        ),
+      );
+      await tester.pumpWidget(review(true));
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byType(CheckboxListTile))
+            .onChanged,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('apply-import')))
+            .onPressed,
+        isNull,
+      );
+      await tester.pumpWidget(review(false));
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.tap(find.byKey(const ValueKey('apply-import')));
+      expect(acknowledgements, 1);
+      expect(applies, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'large custom selection tree builds a bounded number of item editors',
+    (tester) async {
+      var builtItems = 0;
+      final nodes = [
+        for (var i = 0; i < 5000; i++) ExportSelectionNode(id: 'group-$i'),
+      ];
+      await tester.pumpWidget(
+        _app(
+          ImportItemTree(
+            descriptor: ExportSelectionDescriptor.collection(
+              id: 'bookmarks',
+              children: nodes,
+            ),
+            itemIds: {for (final node in nodes) node.id},
+            presentation: const ExportSelectionPresentation(items: {}),
+            itemBuilder: (context, id, presentation) {
+              builtItems++;
+              return Text(presentation.label);
+            },
+          ),
+        ),
+      );
+      expect(builtItems, inInclusiveRange(1, 40));
+      expect(find.text('group-4999'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final count in [0, 1, 2]) {
     testWidgets(
       'shared review shows one site selector only for $count candidates',
@@ -617,15 +693,16 @@ ImportPreflightResult _result({
   List<ImportPlanIssue> warnings = const [],
   List<ImportPlanIssue> errors = const [],
   bool validated = false,
+  PlannedChangeSummary summary = const PlannedChangeSummary(unchanged: 1),
 }) => ImportPreflightResult(
   warnings: warnings,
   errors: errors,
-  summary: const PlannedChangeSummary(unchanged: 1),
+  summary: summary,
   validatedPlan: validated
       ? ValidatedImportPlan(
           plan: ResolvedImportPlan(sources: const []),
           revisionTokens: const {},
-          summary: const PlannedChangeSummary(unchanged: 1),
+          summary: summary,
         )
       : null,
 );

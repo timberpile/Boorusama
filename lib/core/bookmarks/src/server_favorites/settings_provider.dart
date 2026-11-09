@@ -3,15 +3,39 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../boorus/pixiv/configs/extra_data.dart';
+import '../../../boorus/booru/types.dart';
+
 import '../../../../foundation/data_mutation_coordinator.dart';
+import '../../../../foundation/loggers.dart';
 import '../../../cache/misc_data_store.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
 import '../providers/bookmark_provider.dart';
 import 'target_settings.dart';
+import '../../../backups/folder_sync/mirror_guard.dart';
 
 /// Not a bookmark/profile field: exporting either must not export behavior.
 const serverFavoriteSettingsStorageKey = 'server_favorite_targets_v1';
+
+/// Refresh tokens and expiry metadata can rotate without changing the actor.
+/// Unknown Pixiv identities retain the stricter credential comparison.
+bool serverFavoriteActorMatches(BooruConfig expected, BooruConfig actual) {
+  if (expected.id != actual.id) return false;
+  final a = expected.auth;
+  final b = actual.auth;
+  if (a == b) return true;
+  if (a.booruType != BooruType.pixiv ||
+      b.booruType != BooruType.pixiv ||
+      a.booruId != b.booruId ||
+      a.url != b.url ||
+      a.login != b.login)
+    return false;
+  final user = PixivExtraData.fromPassHash(a.passHash).userId;
+  return user != null &&
+      user.isNotEmpty &&
+      user == PixivExtraData.fromPassHash(b.passHash).userId;
+}
 
 bool serverFavoriteAccountsMatch(
   List<BooruConfig> expected,
@@ -20,7 +44,7 @@ bool serverFavoriteAccountsMatch(
     expected.length == actual.length &&
     expected.every(
       (profile) => actual.any(
-        (other) => other.id == profile.id && other.auth == profile.auth,
+        (other) => serverFavoriteActorMatches(profile, other),
       ),
     );
 
@@ -77,7 +101,7 @@ class ServerFavoriteSettingsNotifier
       if (!ref
           .read(booruConfigProvider)
           .any(
-            (p) => p.id == profile.id && p.auth == profile.auth,
+            (p) => serverFavoriteActorMatches(profile, p),
           )) {
         throw const ServerFavoriteException(
           ServerFavoriteProblem.accountChanged,
@@ -137,31 +161,61 @@ class ServerFavoriteSettingsNotifier
     Iterable<String?> Function(ServerFavoriteSettings, ServerFavoriteSettings)
     groupsToBind,
   ) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
-    final current = await future;
-    final updated = await update(current);
-    final groupIds = groupsToBind(current, updated).nonNulls.toSet();
-    if (groupIds.isNotEmpty) {
-      final library = await ref
-          .read(bookmarkLibraryProvider.notifier)
-          .snapshotForExport();
-      for (final groupId in groupIds) {
-        validateServerFavoriteBinding(
-          groupId: groupId,
-          groupIds: library.groupsById.keys.toSet(),
-        );
+    var stage = 'settings_revision';
+    try {
+      final current = await future;
+      final updated = await update(current);
+      final groupIds = groupsToBind(current, updated).nonNulls.toSet();
+      if (groupIds.isNotEmpty) {
+        final library = await ref
+            .read(bookmarkLibraryProvider.notifier)
+            .snapshotForExport();
+        for (final groupId in groupIds) {
+          if (ref.exists(collectionMirrorGuardProvider) &&
+              ref.read(collectionMirrorGuardProvider).isReadOnly(groupId)) {
+            throw const CollectionMirrorReadOnly();
+          }
+          validateServerFavoriteBinding(
+            groupId: groupId,
+            groupIds: library.groupsById.keys.toSet(),
+          );
+        }
       }
+      if (updated == current) return;
+      // Assignment only changes local settings. Existing Post and collection
+      // memberships, snapshots and dates are never cleared or rewritten here.
+      stage = 'settings_write';
+      await ref
+          .read(miscDataStoreProvider)
+          .put(
+            serverFavoriteSettingsStorageKey,
+            jsonEncode(updated.toJson()),
+          );
+      // Publish only a successful settings write. Explicit fetch actions are
+      // handled by the fetch controller, never by assigning a destination.
+      state = AsyncData(updated);
+    } catch (error, stack) {
+      final problem = error is ServerFavoriteException ? error.problem : null;
+      final category = switch (problem) {
+        ServerFavoriteProblem.accountChanged ||
+        ServerFavoriteProblem.ambiguousAccount => 'actor',
+        ServerFavoriteProblem.targetChanged => 'target_revision',
+        ServerFavoriteProblem.targetMissing ||
+        ServerFavoriteProblem.noTarget => 'target',
+        _ => stage,
+      };
+      try {
+        ref
+            .read(loggerProvider)
+            .handledError(
+              'FavoritesSync',
+              'settings; stage=$category',
+              error: error,
+              stackTrace: stack,
+              outcome: 'not_saved',
+            );
+      } catch (_) {}
+      rethrow;
     }
-    if (updated == current) return;
-    // Assignment only changes local settings. Existing Post and collection
-    // memberships, snapshots and dates are never cleared or rewritten here.
-    await ref
-        .read(miscDataStoreProvider)
-        .put(
-          serverFavoriteSettingsStorageKey,
-          jsonEncode(updated.toJson()),
-        );
-    // Publish only a successful settings write. Explicit fetch actions are
-    // handled by the fetch controller, never by assigning a destination.
-    state = AsyncData(updated);
   });
 }

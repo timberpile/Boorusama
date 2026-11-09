@@ -26,7 +26,7 @@ class PostActionSnapshot {
               : switch (const PostOriginResolver().resolve(
                   post.origin,
                   profiles,
-                  allowProfileHintFallback: false,
+                  allowProfileHintFallback: true,
                 )) {
                   ResolvedPostOrigin(:final config) => config,
                   _ => null,
@@ -57,9 +57,7 @@ class PostActionSnapshot {
     if (access == null ||
         access.key.profileId == null ||
         post.origin.booruType != access.key.engine ||
-        post.origin.sourceHost != access.key.siteNamespace ||
-        (post.origin.profileIdHint != null &&
-            post.origin.profileIdHint != access.key.profileId))
+        post.origin.sourceHost != access.key.siteNamespace)
       return null;
     return access.config;
   }
@@ -99,15 +97,13 @@ class PostActionSnapshot {
       return (isAccessCurrent?.call() ?? false) &&
           (access?.key.profileId == null || access!.matchesProfiles(profiles));
     return targets.every((target) {
-      final resolved = const PostOriginResolver().resolve(
-        target.post.origin,
-        profiles,
-        allowProfileHintFallback: false,
-      );
-      return switch (resolved) {
-        ResolvedPostOrigin(:final config) => config == target.config,
-        _ => target.config == null,
-      };
+      final captured = target.config;
+      // Resolve only at capture. Rechecking a saved hint could select a newly
+      // added profile after this menu opened and redirect a queued action.
+      return captured != null &&
+          profiles.any(
+            (current) => current.id == captured.id && current == captured,
+          );
     });
   }
 }

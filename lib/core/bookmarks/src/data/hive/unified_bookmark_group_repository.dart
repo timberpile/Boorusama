@@ -167,28 +167,38 @@ final class UnifiedBookmarkGroupRepository
     );
   });
   @override
-  Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) =>
-      _run(() async {
-        final group = await _require(id);
-        final groups = await _reader.getGroups();
-        final otherIds = {
-          for (final other in groups)
-            if (other.id != group.id) ...other.bookmarkIds,
-        };
-        return BookmarkGroupDeletionPreview(
-          group: group,
-          orphanBookmarkIds: group.bookmarkIds.difference(otherIds),
-          promotedChildren: BookmarkGroupTree(groups).childrenOf(group.id),
-        );
-      });
+  Future<BookmarkGroupDeletionPreview> previewDeleteGroup(String id) => _run(
+    () async {
+      final group = await _require(id);
+      final groups = await _reader.getGroups();
+      final tree = BookmarkGroupTree(groups);
+      final subtree = tree.subtreeIds(id);
+      final otherIds = {
+        for (final other in groups)
+          if (!subtree.contains(other.id)) ...other.bookmarkIds,
+      };
+      return BookmarkGroupDeletionPreview(
+        group: group,
+        orphanBookmarkIds: {
+          for (final member in subtree) ...tree.groupsById[member]!.bookmarkIds,
+        }.difference(otherIds),
+        descendantGroups: [
+          for (final member in subtree)
+            if (member != id) tree.groupsById[member]!,
+        ],
+      );
+    },
+  );
   @override
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) => _run(() async {
     final preview = await previewDeleteGroup(id);
     if (preview.group.isDefault) throw StateError('Default cannot be deleted');
     await bookmarks.commitOrganization(
-      removeGroupIds: {preview.group.id},
-      groups: BookmarkGroupTree(await _reader.getGroups())
-          .promotedChildrenFor({preview.group.id}),
+      removeGroupIds: {
+        preview.group.id,
+        for (final child in preview.descendantGroups) child.id,
+      },
+      removeIds: preview.orphanBookmarkIds,
     );
     return preview;
   });

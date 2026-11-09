@@ -1,14 +1,15 @@
 import 'package:kurumi/material.dart';
+import 'package:flutter/foundation.dart' show setEquals;
 
 import '../models/export_item_presentation.dart';
 import '../models/export_selection.dart';
+import 'import_bounded_list.dart';
 
-typedef ImportItemBuilder =
-    Widget Function(
-      BuildContext context,
-      String itemId,
-      ExportItemPresentation presentation,
-    );
+typedef ImportItemBuilder = Widget Function(
+  BuildContext context,
+  String itemId,
+  ExportItemPresentation presentation,
+);
 
 class ImportRecommendationTree extends StatelessWidget {
   const ImportRecommendationTree({
@@ -60,7 +61,7 @@ class ImportRecommendationTree extends StatelessWidget {
   );
 }
 
-class ImportItemTree extends StatelessWidget {
+class ImportItemTree extends StatefulWidget {
   const ImportItemTree({
     super.key,
     required this.descriptor,
@@ -77,30 +78,68 @@ class ImportItemTree extends StatelessWidget {
   final ExportItemPresentation Function(String itemId)? fallbackPresentation;
 
   @override
+  State<ImportItemTree> createState() => _ImportItemTreeState();
+}
+
+class _ImportItemTreeState extends State<ImportItemTree> {
+  final _expanded = <String>{};
+  late List<ExportSelectionNode> _roots;
+  late List<String> _extraIds;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepare();
+  }
+
+  @override
+  void didUpdateWidget(ImportItemTree oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.descriptor, widget.descriptor) ||
+        !setEquals(oldWidget.itemIds, widget.itemIds)) {
+      if (oldWidget.descriptor.id != widget.descriptor.id) _expanded.clear();
+      _prepare();
+    }
+  }
+
+  void _prepare() {
+    _roots = [
+      for (final root in widget.descriptor.rootNodes)
+        ?_visibleNode(root, widget.itemIds),
+    ];
+    _extraIds = widget.itemIds.difference(widget.descriptor.childIds).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final treeIds = descriptor.childIds;
-    return Column(
-      children: [
-        for (final root in descriptor.rootNodes)
-          if (_visibleNode(root, itemIds) case final visible?)
-            _ImportTreeNode(
-              node: visible,
-              itemIds: itemIds,
-              presentation: presentation,
-              itemBuilder: itemBuilder,
-              depth: 1,
-            ),
-        for (final id in itemIds.difference(treeIds))
-          Padding(
-            padding: _importTreePadding(1),
-            child: itemBuilder(
-              context,
-              id,
-              fallbackPresentation?.call(id) ??
-                  ExportItemPresentation(label: id),
-            ),
+    return ImportBoundedList(
+      storageKey: ('import-tree', widget.descriptor.id),
+      itemCount: _roots.length + _extraIds.length,
+      itemBuilder: (context, index) {
+        if (index < _roots.length) {
+          final root = _roots[index];
+          return _ImportTreeNode(
+            key: ValueKey(root.id),
+            node: root,
+            itemIds: widget.itemIds,
+            presentation: widget.presentation,
+            itemBuilder: widget.itemBuilder,
+            expanded: _expanded,
+            depth: 1,
+          );
+        }
+        final id = _extraIds[index - _roots.length];
+        return Padding(
+          key: ValueKey(id),
+          padding: _importTreePadding(1),
+          child: widget.itemBuilder(
+            context,
+            id,
+            widget.fallbackPresentation?.call(id) ??
+                ExportItemPresentation(label: id),
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -111,13 +150,16 @@ class _ImportTreeNode extends StatelessWidget {
     required this.itemIds,
     required this.presentation,
     required this.itemBuilder,
+    required this.expanded,
     required this.depth,
+    super.key,
   });
 
   final ExportSelectionNode node;
   final Set<String> itemIds;
   final ExportSelectionPresentation presentation;
   final ImportItemBuilder itemBuilder;
+  final Set<String> expanded;
   final int depth;
 
   @override
@@ -132,20 +174,37 @@ class _ImportTreeNode extends StatelessWidget {
     }
     return ExpansionTile(
       key: ValueKey('import-tree:${node.id}'),
+      initiallyExpanded: expanded.contains(node.id),
+      onExpansionChanged: (value) {
+        if (value) {
+          expanded.add(node.id);
+        } else {
+          expanded.remove(node.id);
+        }
+      },
       tilePadding: _importTreePadding(depth),
       title: itemIds.contains(node.id)
           ? itemBuilder(context, node.id, item)
           : ImportItemLabel(item: item),
       children: [
-        for (final child in node.children)
-          if (_visibleNode(child, itemIds) case final visible?)
-            _ImportTreeNode(
-              node: visible,
-              itemIds: itemIds,
-              presentation: presentation,
-              itemBuilder: itemBuilder,
-              depth: depth + 1,
-            ),
+        Builder(
+          builder: (context) => ImportBoundedList(
+            storageKey: ('import-tree-children', node.id),
+            itemCount: node.children.length,
+            itemBuilder: (context, index) {
+              final child = node.children[index];
+              return _ImportTreeNode(
+                key: ValueKey(child.id),
+                node: child,
+                itemIds: itemIds,
+                presentation: presentation,
+                itemBuilder: itemBuilder,
+                expanded: expanded,
+                depth: depth + 1,
+              );
+            },
+          ),
+        ),
       ],
     );
   }

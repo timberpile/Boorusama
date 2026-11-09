@@ -124,6 +124,7 @@ void main() {
                 .length;
         final migrated = await migration().open();
         final result = await migrated.getGroups();
+        expect(await migrated.readRecentGroupIds(), [child]);
         expect(result.singleWhere((g) => g.id == child).parentGroupId, parent);
         expect(result.singleWhere((g) => g.id == empty).parentGroupId, parent);
         expect(result.where((g) => g.id == parent), hasLength(1));
@@ -138,7 +139,9 @@ void main() {
             50,
           );
         await restart();
-        expect(await (await migration().open()).getGroups(), result);
+        final reopened = await migration().open();
+        expect(await reopened.getGroups(), result);
+        expect(await reopened.readRecentGroupIds(), [child]);
         expect(
           (activeV2
                   ? await Hive.openBox<BookmarkGroupHiveObject>(

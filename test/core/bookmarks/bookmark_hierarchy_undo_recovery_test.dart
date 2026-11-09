@@ -24,6 +24,74 @@ import 'package:path/path.dart' as p;
 import 'pool_bookmark_test_utils.dart';
 
 void main() {
+  for (var boundary = 1; boundary <= 4; boundary++) {
+    test('subtree deletion recovers atomically from cold checkpoint $boundary', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'subtree-delete-checkpoint-',
+      );
+      final powerCut = _PowerCutCapture(directory);
+      Directory? checkpoint;
+      try {
+        var workspace = await _openWorkspace(directory, powerCut.sync);
+        final a = await workspace.service.createGroup('A');
+        final b = await workspace.service.createGroup('B', parentGroupId: a.id);
+        final c = await workspace.service.createGroup('C', parentGroupId: b.id);
+        final d = await workspace.service.createGroup('Outside D');
+        final ids = await workspace.repository.reserveIds(2);
+        final shared = testPoolPost(81).copyWith(id: ids[0]);
+        final orphan = testPoolPost(82).copyWith(id: ids[1]);
+        await workspace.repository.upsertAll([shared, orphan]);
+        final insideDate = DateTime.utc(2024, 1, 1);
+        final outsideDate = DateTime.utc(2024, 1, 2);
+        await workspace.groupRepository.replaceMemberships(
+          c.id,
+          {shared.id, orphan.id},
+          addedAt: {
+            shared.id: insideDate,
+            orphan.id: insideDate,
+          },
+        );
+        await workspace.groupRepository.replaceMemberships(
+          d.id,
+          {shared.id},
+          addedAt: {
+            shared.id: outsideDate,
+          },
+        );
+        powerCut.arm(boundary);
+        try {
+          await workspace.service.deleteHierarchy({a.id});
+        } catch (_) {
+          // Only a durable confirmation can advertise Undo after write failure.
+        }
+        expect(powerCut.captured, isTrue);
+        checkpoint = powerCut.checkpointDirectory!;
+        await Hive.close();
+        workspace = await _openWorkspace(checkpoint, _syncDurably);
+        for (final group in [a, b, c]) {
+          expect(await workspace.groupRepository.getGroup(group.id), isNull);
+        }
+        expect(await workspace.repository.read(orphan.id), isNull);
+        expect(await workspace.repository.read(shared.id), shared);
+        expect((await workspace.groupRepository.getGroup(d.id))!.addedAt, {
+          shared.id: outsideDate,
+        });
+        expect(workspace.metadata.containsKey('pendingMutation'), isFalse);
+        await Hive.close();
+        workspace = await _openWorkspace(checkpoint, _syncDurably);
+        expect(await workspace.groupRepository.getGroup(c.id), isNull);
+        expect(await workspace.repository.read(shared.id), shared);
+        expect(await workspace.repository.read(orphan.id), isNull);
+      } finally {
+        await Hive.close();
+        if (checkpoint != null && checkpoint.existsSync()) {
+          await checkpoint.delete(recursive: true);
+        }
+        if (directory.existsSync()) await directory.delete(recursive: true);
+      }
+    });
+  }
+
   for (final isUtc in [false, true]) {
     for (var boundary = 1; boundary <= 5; boundary++) {
       test(
@@ -106,11 +174,7 @@ void main() {
               parent.id,
             });
             expect(await workspace.groupRepository.getGroup(parent.id), isNull);
-            expect(
-              (await workspace.groupRepository.getGroup(child.id))!
-                  .parentGroupId,
-              isNull,
-            );
+            expect(await workspace.groupRepository.getGroup(child.id), isNull);
             expect(await workspace.repository.readAll(), isEmpty);
 
             powerCut.arm(boundary);

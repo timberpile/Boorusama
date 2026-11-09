@@ -348,6 +348,7 @@ void main() {
             (source) => source.id == 'bookmarks',
           );
           notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          await notifier.previewComplete;
           expect(
             container.read(importFlowProvider).profileMappings,
             crossCategories ? hasLength(1) : isEmpty,
@@ -363,6 +364,7 @@ void main() {
             );
           }
           notifier.replaceSource(original);
+          await notifier.previewComplete;
           // Only the selected Topics remain blocking. Bookmark-only mappings
           // are optional; previewing them must still leave storage untouched.
           if (crossCategories) await notifier.apply(context);
@@ -401,8 +403,10 @@ void main() {
             );
           } else {
             notifier.chooseProfileMapping(key, firstId);
+            await notifier.previewComplete;
             final previous = container.read(importFlowProvider).preflight;
             notifier.chooseProfileMapping(key, secondId);
+            await notifier.previewComplete;
             expect(
               identical(previous, container.read(importFlowProvider).preflight),
               isFalse,

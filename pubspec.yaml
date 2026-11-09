@@ -70,6 +70,7 @@ dependencies:
       ref: 3e46518ea7823aebae8838754c21353bd2d44189
   cross_file: ^0.3.4+2
   crypto: ^3.0.5
+  cryptography: ^2.7.0
   device_info_plus: ^13.2.0
   dio: ^5.7.0
   http_parser: ^4.1.2

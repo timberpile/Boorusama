@@ -40,6 +40,8 @@ import '../types/bookmark_grid_entry.dart';
 import '../providers/bookmark_profile_availability.dart';
 import '../services/bookmark_series_projection.dart';
 import 'bookmark_pool_card.dart';
+import 'bookmark_native_group_card.dart';
+import '../types/content_group_bookmark.dart';
 import '../../../posts/listing/widgets.dart';
 import '../../../posts/post/types.dart';
 import '../../../widgets/widgets.dart';
@@ -215,6 +217,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               shuffleState: shuffleState,
               availablePostIds: availability.postIds,
               availableCollectionIds: availability.collectionIds,
+              availableNativeGroupIds: availability.nativeGroupIds,
             );
             final posts = performanceRecorder.measureSync(
               PerfOperation.bookmarkProject,
@@ -319,13 +322,16 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 MultiSelectPopupButton(
                   enabled:
                       !controller.refreshing &&
-                      (selectedPosts.isNotEmpty || _selectedPools().isNotEmpty),
+                      (selectedPosts.isNotEmpty ||
+                          _selectedPools().isNotEmpty ||
+                          _selectedNativeGroups().isNotEmpty),
                   icon: const Icon(Symbols.bookmarks),
                   name: context.t.bookmark.bulk.title,
                   items: [
                     BookmarkMultiSelectionMenu(
                       posts: selectedPosts,
                       pools: _selectedPools(),
+                      records: _selectedNativeGroups(),
                       config: auth,
                       currentGroupId: widget.view.kind == BookmarkViewKind.group
                           ? widget.view.groupId
@@ -430,6 +436,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     final origins = {
       for (final entry in entries.whereType<BookmarkPostEntry>())
         entry.bookmark.id: entry.bookmark.post.origin,
+      for (final entry in entries.whereType<BookmarkNativeGroupEntry>())
+        entry.bookmark.id: nativeBookmarkGroupOrigin(entry.bookmark),
     };
     final counted = <int>{};
     for (final entry in entries.whereType<BookmarkPostEntry>()) {
@@ -438,7 +446,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       final resolution = const PostOriginResolver().resolve(
         bookmark.post.origin,
         ref.watch(booruConfigProvider),
-        allowProfileHintFallback: false,
+        allowProfileHintFallback: true,
       );
       if (resolution case ResolvedPostOrigin(:final config)) {
         final policy = ref.watch(contentEffectivePolicyProvider(config.id));
@@ -481,6 +489,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     final ids = {
       for (final entry in selected.whereType<BookmarkPostEntry>())
         entry.bookmark.id,
+      for (final entry in selected.whereType<BookmarkNativeGroupEntry>())
+        entry.bookmark.id,
     };
     for (final entry in selected.whereType<BookmarkPostEntry>()) {
       if (ref.read(
@@ -504,6 +514,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
         entry.pool,
   ];
 
+  List<ContentGroupBookmark> _selectedNativeGroups() => [
+    for (final entry in _entries.whereType<BookmarkNativeGroupEntry>())
+      if (_entryAvailable(entry, ref.read(booruConfigProvider)) &&
+          _selectionModeController.selectedKeys.contains(entry.key))
+        entry.bookmark,
+  ];
+
   bool _entryAvailable(BookmarkGridEntry entry, List<BooruConfig> profiles) =>
       switch (entry) {
         BookmarkPostEntry(:final bookmark) =>
@@ -519,6 +536,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                   .read(bookmarkProfileAvailabilityProvider)
                   ?.collectionIds
                   .contains(pool.localId) ??
+              false,
+        BookmarkNativeGroupEntry(:final bookmark) =>
+          ref
+                  .read(bookmarkProfileAvailabilityProvider)
+                  ?.nativeGroupIds
+                  .contains(bookmark.id) ??
               false,
       };
 
@@ -579,6 +602,29 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                         ? widget.view.groupId
                         : null,
                   )
+                : item is BookmarkNativeGroupEntry
+                ? BookmarkNativeGroupCard(
+                    bookmark: item.bookmark,
+                    index: index,
+                    groupId: widget.view.kind == BookmarkViewKind.group
+                        ? widget.view.groupId
+                        : null,
+                    onOpen: () {
+                      if (_hasUnavailableEntries(ref.read(booruConfigProvider)))
+                        return;
+                      _endLocalGroupSelection();
+                      goToBookmarkDetailsPage(
+                        ref,
+                        index,
+                        initialThumbnailUrl:
+                            item.bookmark.summary.cover?.thumbnail.toString() ??
+                            '',
+                        controller: controller,
+                        sourceView: widget.view,
+                        entries: _viewerEntries(),
+                      );
+                    },
+                  )
                 : _buildItem(
                     _rawPostIndices[item.key]!,
                     controller,
@@ -614,6 +660,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             pool,
             occurrenceId: entry.key,
           ),
+          BookmarkNativeGroupEntry(:final bookmark) =>
+            nativeGroupViewerEntryForBookmark(
+              ref,
+              bookmark,
+              occurrenceId: entry.key,
+            ),
         },
       ),
     );

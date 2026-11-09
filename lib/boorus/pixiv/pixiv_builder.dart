@@ -13,9 +13,14 @@ import 'configs/widgets.dart';
 import 'home/custom_home.dart';
 import 'favorites/page.dart';
 import 'posts/types.dart';
+import 'works/search_page.dart';
 
 class PixivBuilder extends BaseBooruBuilder {
   PixivBuilder();
+
+  @override
+  SearchPageBuilder get searchPageBuilder =>
+      (context, params) => PixivWorkSearchPage(params: params);
 
   @override
   late final postPresentation = TypedBooruPostPresentation<PixivPostData>(

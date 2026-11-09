@@ -12,7 +12,7 @@ void retryBookmarkPolicy(WidgetRef ref, PostOrigin origin) {
   final resolved = const PostOriginResolver().resolve(
     origin,
     ref.read(booruConfigProvider),
-    allowProfileHintFallback: false,
+    allowProfileHintFallback: true,
   );
   if (resolved case ResolvedPostOrigin(:final config)) {
     ref.invalidate(blacklistedTagsNotifierProvider(config.filter));
@@ -37,7 +37,7 @@ class BookmarkAccessPlaceholder extends ConsumerWidget {
     final resolved = const PostOriginResolver().resolve(
       origin,
       ref.watch(booruConfigProvider),
-      allowProfileHintFallback: false,
+      allowProfileHintFallback: true,
     );
     final policy = resolved is ResolvedPostOrigin
         ? ref.watch(contentEffectivePolicyProvider(resolved.config.id))

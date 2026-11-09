@@ -4,7 +4,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../navigation/destination_activity.dart';
 import '../types/page_mode.dart';
-import 'post_grid_controller.dart';
+import '../types/timeline_continuation_controller.dart';
 
 /// Owns automatic continuation for one post timeline. Short and empty pages
 /// share a bounded fill cycle; scrolling or refresh starts a new cycle.
@@ -15,7 +15,7 @@ class PostGridPrefetch extends StatefulWidget {
     required this.child,
     super.key,
   });
-  final PostGridController controller;
+  final TimelineContinuationController controller;
   final ScrollController scrollController;
   final Widget child;
   @override
@@ -147,7 +147,8 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
     unawaited(
       controller.fetchMore(
         // Check again at dispatch, not only before the debounce interval.
-        canStart: () => mounted &&
+        canStart: () =>
+            mounted &&
             identical(controller, widget.controller) &&
             identical(scrollController, widget.scrollController) &&
             _canStart(),
@@ -168,7 +169,8 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
         onNotification: (notification) {
           if (notification.depth == 0 &&
               widget.scrollController.positions.length == 1 &&
-              notification.metrics.axis == widget.scrollController.position.axis) {
+              notification.metrics.axis ==
+                  widget.scrollController.position.axis) {
             _schedule();
           }
           return false;

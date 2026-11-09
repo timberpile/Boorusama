@@ -6,8 +6,9 @@ extension on BookmarkLibraryService {
   Future<BookmarkDraftSaveResult> _saveUnifiedDrafts(
     Iterable<Bookmark> drafts,
     String groupId,
-    Iterable<Bookmark> savedRecords,
-  ) => unifiedStore!.runReadWriteScope(() async {
+    Iterable<Bookmark> savedRecords, [
+    void Function()? beforeCommit,
+  ]) => unifiedStore!.runReadWriteScope(() async {
     final store = unifiedStore!;
     final target = await _requireUnifiedGroup(groupId);
     // All structures and source interpretations are validated before the
@@ -46,6 +47,7 @@ extension on BookmarkLibraryService {
         pending.add(candidate);
       }
     }
+    beforeCommit?.call();
     final ids = await store.reserveIds(pending.length);
     final created = <Bookmark>[
       for (final (index, draft) in pending.indexed)
@@ -59,6 +61,7 @@ extension on BookmarkLibraryService {
     final added = selected.difference(target.bookmarkIds);
     if (added.isNotEmpty || created.isNotEmpty) {
       final now = DateTime.now().toUtc();
+      beforeCommit?.call();
       await store.commitOrganization(
         records: created,
         groups: [
@@ -144,8 +147,9 @@ extension on BookmarkLibraryService {
   Future<BookmarkGroupRemovalResult> _removeUnifiedMembers(
     Iterable<Bookmark> selected,
     String groupId,
-    Set<String> poolLocalIds,
-  ) => unifiedStore!.runReadWriteScope(() async {
+    Set<String> poolLocalIds, [
+    void Function()? beforeCommit,
+  ]) => unifiedStore!.runReadWriteScope(() async {
     final snapshot = await _snapshotForMutation();
     final target =
         snapshot.groupsById[groupId] ??
@@ -172,6 +176,7 @@ extension on BookmarkLibraryService {
         if (snapshot.membershipsForId(id).difference({groupId}).isEmpty) id,
     };
     final deleted = [for (final id in finalMembership) snapshot.byId[id]!];
+    beforeCommit?.call();
     await unifiedStore!.commitOrganization(
       removeIds: finalMembership,
       groups: [

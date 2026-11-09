@@ -25,7 +25,12 @@ final class MediaRequest extends Equatable {
         }
         return MediaRequest._(
           url: uri.replace(host: rule.to, userInfo: '').toString(),
-          headers: filterSourceHeaders(headers),
+          headers: filterMediaHeaders(
+            headers,
+            source: sourceUrl == null ? null : Uri.tryParse(sourceUrl),
+            destination: uri,
+            preserveSourceRootReferer: false,
+          ),
           overridden: true,
         );
       }
@@ -38,13 +43,7 @@ final class MediaRequest extends Equatable {
         !permitsSourceHeaders(uri, source)) {
       return MediaRequest._(
         url: uri.replace(userInfo: '').toString(),
-        headers: {
-          ...filterSourceHeaders(headers),
-          for (final entry in headers.entries)
-            if (entry.key.toLowerCase() == 'referer' &&
-                _safeRootReferer(entry.value, source))
-              entry.key: entry.value,
-        },
+        headers: filterMediaHeaders(headers, source: source, destination: uri),
         overridden: true,
       );
     }
@@ -89,6 +88,45 @@ final class MediaRequest extends Equatable {
         !uri.hasFragment &&
         const ['', '/'].contains(uri.path);
   }
+
+  /// Pixiv's public image Referer is a media protocol header, not API auth.
+  /// Validate both roles explicitly; a redirect to another host loses it.
+  static bool permitsMediaReferer(String value, Uri source, Uri destination) {
+    const pixivSites = {'pixiv.net', 'www.pixiv.net', 'app-api.pixiv.net'};
+    if (pixivSites.contains(source.host.toLowerCase())) {
+      final referer = Uri.tryParse(value);
+      final host = destination.host.toLowerCase();
+      return source.scheme == 'https' &&
+          source.userInfo.isEmpty &&
+          destination.scheme == 'https' &&
+          destination.userInfo.isEmpty &&
+          destination.port == 443 &&
+          (host == 'pximg.net' || host.endsWith('.pximg.net')) &&
+          referer != null &&
+          referer.toString() == 'https://www.pixiv.net/';
+    }
+    return _safeRootReferer(value, source);
+  }
+
+  static Map<String, String> filterMediaHeaders(
+    Map<String, String> headers, {
+    required Uri? source,
+    required Uri destination,
+    bool preserveSourceRootReferer = true,
+  }) => {
+    ...filterSourceHeaders(headers),
+    if (source != null)
+      for (final entry in headers.entries)
+        if ((preserveSourceRootReferer ||
+                const {
+                  'pixiv.net',
+                  'www.pixiv.net',
+                  'app-api.pixiv.net',
+                }.contains(source.host)) &&
+            entry.key.toLowerCase() == 'referer' &&
+            permitsMediaReferer(entry.value, source, destination))
+          entry.key: entry.value,
+  };
 
   /// Filters source-profile headers before sending to a replacement host.
   /// Apply destination-host clearance after this, not before.

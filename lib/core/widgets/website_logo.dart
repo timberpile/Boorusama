@@ -45,14 +45,22 @@ class WebsiteLogo extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final required = ref.watch(contentAccessRequiredProvider);
+    final url = this.url;
     final key = ref.watch(currentContentAccessKeyProvider);
     final access = key == null
         ? null
         : ref.watch(contentAccessContextProvider(key));
     // Imported external source links are not permission to probe their icons.
-    // Public readers use the existing local fallback, including after revocation.
-    if (required && (access == null || key?.profileId == null)) {
+    // A validated public source may use its own anonymous favicon transport.
+    if (required && access == null) {
       return SizedBox.square(dimension: size, child: _buildFallback());
+    }
+    final public = access?.config?.anonymousReadScope;
+    if (public != null) {
+      final uri = url == null ? null : Uri.tryParse(url);
+      if (uri == null || !public.source.allowsFavicon(uri)) {
+        return SizedBox.square(dimension: size, child: _buildFallback());
+      }
     }
     final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
     final delegate = cacheManager ?? fallbackManager;
@@ -61,7 +69,6 @@ class WebsiteLogo extends ConsumerWidget {
         : ref.watch(
             contentMediaCacheManagerProvider((manager: delegate, access: key)),
           );
-    final url = this.url;
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,
     );
@@ -76,7 +83,7 @@ class WebsiteLogo extends ConsumerWidget {
       child: switch ((url, automaticMediaLoadingEnabled)) {
         (final url?, true) => ExtendedImage.network(
           url,
-          dio: dio,
+          dio: public?.dio ?? dio,
           clearMemoryCacheIfFailed: false,
           fit: fit,
           fetchStrategy: const FetchStrategyBuilder(

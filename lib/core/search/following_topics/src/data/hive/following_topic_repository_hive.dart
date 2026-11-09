@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../../../../configs/config/src/types/profile_id.dart';
+import '../../../../../backups/folder_sync/mirror_guard.dart';
 import '../../types/search_post_preview.dart';
 import '../../services/conservative_refresh_policy.dart';
 import '../../types/search_refresh.dart';
@@ -29,11 +30,13 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     Box<dynamic>? organizationBox,
     Uuid uuid = const Uuid(),
     Clock clock = const Clock(),
+    this.mirrorGuard,
   }) : _organizationBox = organizationBox,
        _box = box,
        _uuid = uuid,
        _clock = clock;
 
+  final CollectionMirrorGuard? mirrorGuard;
   final Box<FollowingTopicHiveObject> _box;
   final Uuid _uuid;
   final Clock _clock;
@@ -644,6 +647,10 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> replaceOrganization(TopicOrganization organization) =>
       _serialize(() async {
+        mirrorGuard?.validateFollowingOrganization(
+          _organization(),
+          organization,
+        );
         final storage = _organizationBox;
         if (storage == null) {
           throw StateError('Organization storage unavailable');
@@ -725,6 +732,11 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> deleteSharedFolderAndTopics(String folderId) => _serialize(
     () async {
+      mirrorGuard?.validateFollowingRemoval([
+        folderId,
+        ..._organization().tree.subtree(folderId),
+        ..._organization().recursiveIds(folderId),
+      ]);
       final storage = _organizationBox;
       if (storage == null) throw StateError('Organization storage unavailable');
       final previousOrganization = _organization();
@@ -888,6 +900,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       final topics = _topics().toList();
       final internalIds = _feedSourceIds();
       final topicId = (id ?? _uuid.v4()).trim().toLowerCase();
+      mirrorGuard?.validateFollowingEdit(topicId, definitionChanged: true);
       if (topicId.isEmpty) {
         throw const FormatException('Followed topic IDs cannot be empty.');
       }
@@ -978,6 +991,16 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     if (_feedSourceIds().contains(current.id)) {
       throw StateError('Feed sources cannot be edited as followed topics.');
     }
+    mirrorGuard?.validateFollowingEdit(
+      id,
+      definitionChanged:
+          current.profileId != profileId ||
+          current.query != query.trim() ||
+          (queryStructure != null &&
+              current.queryStructure != queryStructure()) ||
+          (autoUpdateEnabled != null &&
+              current.autoUpdateEnabled != autoUpdateEnabled),
+    );
     final trimmedQuery = query.trim();
     final normalizedQuery = normalizeSearchIdentity(trimmedQuery);
     if (normalizedQuery.isEmpty) {
@@ -1235,6 +1258,17 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         if (storage == null) throw StateError('Topic settings unavailable');
         final known = _topics().map((source) => source.id).toSet();
         final selected = ids.toSet();
+        for (final id in selected) {
+          mirrorGuard?.validateFollowingEdit(
+            id,
+            definitionChanged:
+                _topics()
+                    .where((topic) => topic.id == id)
+                    .firstOrNull
+                    ?.autoUpdateEnabled !=
+                enabled,
+          );
+        }
         if (!known.containsAll(selected)) {
           throw StateError('Topic not found');
         }
@@ -1501,6 +1535,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> delete(String id) {
     return _serialize(() async {
+      mirrorGuard?.validateFollowingRemoval([id.trim()]);
       final current = _box.get(id.trim());
       if (current == null) {
         return;
@@ -1560,9 +1595,14 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   Future<void> deleteForProfile(String profileId) {
     return _serialize(() async {
       final keys = _box.values
-          .where((object) => object.profileId == profileId)
+          .where(
+            (object) =>
+                object.profileId == profileId &&
+                mirrorGuard?.isFollowingReadOnly(object.id) != true,
+          )
           .map((object) => object.id)
           .toList();
+      mirrorGuard?.validateFollowingRemoval(keys);
       final previousTopics = {
         for (final id in keys) id: ?_box.get(id),
       };
@@ -1645,6 +1685,24 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
           .where((object) => object.profileId == profileId)
           .map((object) => object.id)
           .toList();
+      final restored = {for (final topic in topics) topic.id: topic};
+      mirrorGuard?.validateFollowingRemoval(
+        existingKeys.where((id) => !restored.containsKey(id)),
+      );
+      for (final topic in topics) {
+        final old = _box.get(topic.id);
+        if (old != null) {
+          final before = _toTopic(old);
+          mirrorGuard?.validateFollowingEdit(
+            topic.id,
+            definitionChanged:
+                before.profileId != topic.profileId ||
+                before.query != topic.query ||
+                before.queryStructure != topic.queryStructure ||
+                before.autoUpdateEnabled != topic.autoUpdateEnabled,
+          );
+        }
+      }
       await _box.deleteAll(existingKeys);
       await _box.putAll({
         for (final topic in topics) topic.id: _toObject(topic),

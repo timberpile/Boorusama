@@ -85,8 +85,15 @@ class ServerFavoriteFetchRunner<T> {
     required this.identity,
     required this.validateSession,
     required this.addPage,
+    this.onError,
   });
 
+  final void Function(
+    Object error,
+    StackTrace stack,
+    ServerFavoriteProblem problem,
+  )?
+  onError;
   final Future<ServerFavoritePage<T>> Function(int page) fetchPage;
   final Object Function(T post) identity;
   final Future<void> Function() validateSession;
@@ -192,17 +199,26 @@ class ServerFavoriteFetchRunner<T> {
       return publish(ServerFavoriteFetchStatus.completed);
     } on ServerFavoriteCancelled {
       return publish(ServerFavoriteFetchStatus.cancelled);
-    } on ServerFavoriteException catch (error) {
+    } on ServerFavoriteException catch (error, stack) {
+      _report(error, stack, error.problem);
       return publish(ServerFavoriteFetchStatus.failed, error.problem);
-    } on TimeoutException {
+    } on TimeoutException catch (error, stack) {
+      _report(error, stack, ServerFavoriteProblem.timedOut);
       return publish(
         ServerFavoriteFetchStatus.failed,
         ServerFavoriteProblem.timedOut,
       );
-    } catch (_) {
+    } catch (error, stack) {
+      _report(error, stack, stage);
       // The failure category is safe to display; raw request errors can include
       // private URLs, login details, or response bodies and must not be exposed.
       return publish(ServerFavoriteFetchStatus.failed, stage);
     }
+  }
+
+  void _report(Object error, StackTrace stack, ServerFavoriteProblem problem) {
+    try {
+      onError?.call(error, stack, problem);
+    } catch (_) {}
   }
 }

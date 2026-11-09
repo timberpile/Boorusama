@@ -52,7 +52,7 @@ final class ContentGroupDetails extends Equatable {
       summary: summary,
       description: description ?? previous.description,
       creators: creators ?? previous.creators,
-      tags: tags ?? previous.tags,
+      tags: mergeGroupTagObservation(tags, previous.tags),
       sourceDates: dates == null
           ? oldDates
           : GroupSourceDates(

@@ -1,3 +1,5 @@
+import 'native_metadata_selection.dart';
+
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -312,34 +314,36 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   Widget build(BuildContext context) {
     final details = PostDetails.maybeOf<Post>(context);
     final pager = PostDetailsPageViewScope.of(context);
-    return MixedPostDetailsImagePreloader(
-      posts: details?.posts ?? const [],
-      sequence: widget.sequence,
-      child: ListenableBuilder(
-        listenable: Listenable.merge([
-          pager.currentPage,
-          if (details != null) details.controller.currentPost,
-        ]),
-        builder: (context, _) {
-          final sequence = widget.sequence;
-          final post = sequence == null
-              ? details!.controller.currentPost.value
-              : sequence.postAt(pager.page);
-          return PostPagePresentationScope(
-            post: post,
-            sourceBinding: widget.sequence?.entries[pager.page].source,
-            fallbackConfig: widget.fallbackConfig,
-            groupBuilder: (context) => CurrentPostDetailsNotes(
-              post: null,
-              viewerConfig: BooruConfig.empty.viewer,
-              authConfig: BooruConfig.empty.auth,
-              enabled: false,
-              child: Stack(children: [_buildGroupViewer(context, details)]),
-            ),
-            builder: (context, ref, presentation) =>
-                _buildViewer(context, ref, details!, presentation),
-          );
-        },
+    return NativeMetadataSelectionScope(
+      child: MixedPostDetailsImagePreloader(
+        posts: details?.posts ?? const [],
+        sequence: widget.sequence,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            pager.currentPage,
+            if (details != null) details.controller.currentPost,
+          ]),
+          builder: (context, _) {
+            final sequence = widget.sequence;
+            final post = sequence == null
+                ? details!.controller.currentPost.value
+                : sequence.postAt(pager.page);
+            return PostPagePresentationScope(
+              post: post,
+              sourceBinding: widget.sequence?.entries[pager.page].source,
+              fallbackConfig: widget.fallbackConfig,
+              groupBuilder: (context) => CurrentPostDetailsNotes(
+                post: null,
+                viewerConfig: BooruConfig.empty.viewer,
+                authConfig: BooruConfig.empty.auth,
+                enabled: false,
+                child: Stack(children: [_buildGroupViewer(context, details)]),
+              ),
+              builder: (context, ref, presentation) =>
+                  _buildViewer(context, ref, details!, presentation),
+            );
+          },
+        ),
       ),
     );
   }

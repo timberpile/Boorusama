@@ -35,7 +35,16 @@ class ImportRollbackException implements Exception {
 }
 
 final class ImportTransaction {
-  const ImportTransaction({required this.store, required this.fs});
+  const ImportTransaction({
+    required this.store,
+    required this.fs,
+    this.verifiedLocalRestore,
+  });
+
+  /// Startup-only authority, applied after a private journal's rollback digest
+  /// is verified. Ordinary incoming/manual imports never supply this callback.
+  final Future<void> Function(Future<void> Function() restore)?
+  verifiedLocalRestore;
 
   final ImportJournalStore store;
   final AppFileSystem fs;
@@ -140,8 +149,16 @@ final class ImportTransaction {
         if (await _digest(path) != journal.rollbackHashes[id]) {
           throw StateError('Rollback payload failed verification: $id');
         }
-        await source.restore(path);
-        await source.durableSync();
+        Future<void> restoreVerified() async {
+          await source.restore(path);
+          await source.durableSync();
+        }
+
+        final restore = verifiedLocalRestore;
+        if (restore == null)
+          await restoreVerified();
+        else
+          await restore(restoreVerified);
       } catch (error) {
         errors.add(error);
       }

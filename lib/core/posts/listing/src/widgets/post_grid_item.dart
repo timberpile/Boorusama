@@ -102,6 +102,7 @@ class PostGridItem extends ConsumerWidget {
     this.presentation,
     this.additions,
     this.disablePostInteraction,
+    this.selectionEnabled = true,
   });
 
   final Post post;
@@ -121,6 +122,7 @@ class PostGridItem extends ConsumerWidget {
   final BooruPostPresentation? presentation;
   final PostGridItemAdditions? additions;
   final bool? disablePostInteraction;
+  final bool selectionEnabled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -272,13 +274,15 @@ class PostGridItem extends ConsumerWidget {
       leadingIcons: leadingIcons,
       blockOverlay: effectiveBlockOverlay,
     );
-    final selectableItem = DefaultSelectableItem(
-      index: index,
-      post: post,
-      item: item,
-      config: config,
-      indicatorSize: ref.watch(selectionIndicatorSizeProvider),
-    );
+    final selectableItem = selectionEnabled
+        ? DefaultSelectableItem(
+            index: index,
+            post: post,
+            item: item,
+            config: config,
+            indicatorSize: ref.watch(selectionIndicatorSizeProvider),
+          )
+        : item;
     final tooltip =
         resolvedAdditions.tooltipBuilder?.call(selectableItem) ??
         DefaultTagListPrevewTooltip(

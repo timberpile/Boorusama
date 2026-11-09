@@ -92,10 +92,14 @@ final class GroupViewerEntry extends ViewerEntry {
     required this.occurrenceId,
     required this.source,
     this.initialMemberKey,
+    this.storedDetails,
   });
 
   final ContentGroupSummary summary;
   final String? initialMemberKey;
+
+  /// A saved source observation, never a member manifest or request permission.
+  final ContentGroupDetails? storedDetails;
   @override
   final Object occurrenceId;
   @override

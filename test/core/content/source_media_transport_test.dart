@@ -1,11 +1,115 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:boorusama/core/http/client/src/data/source_media_http_adapter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:boorusama/core/configs/network/types.dart';
 
 void main() {
+  test('Pixiv media resolver and final adapter retain image protocol header and decode bytes', () async {
+    final bytes = await File('test/fixtures/post_quality/original.png')
+        .readAsBytes();
+    for (final site in [
+      'https://pixiv.net',
+      'https://www.pixiv.net',
+      'https://app-api.pixiv.net',
+    ]) {
+      final delegate = _Delegate()..stream = Stream.value(bytes);
+      final request = MediaRequest.resolve(
+        'https://i.pximg.net/img.jpg',
+        overrides: const [],
+        sourceUrl: site,
+        headers: const {
+          'Referer': 'https://www.pixiv.net/',
+          'Authorization': 'Bearer secret',
+          'Cookie': 'secret',
+        },
+      );
+      final dio =
+          Dio(BaseOptions(headers: {'Authorization': 'Bearer base-secret'}))
+            ..httpClientAdapter = SourceMediaHttpClientAdapter(
+              delegate: delegate,
+              source: Uri.parse(site),
+              current: () => true,
+            );
+      try {
+        final response = await dio.get<List<int>>(
+          request.url,
+          options: Options(
+            headers: request.headers,
+            responseType: ResponseType.bytes,
+            extra: const {'boorusama.request.media': true},
+          ),
+        );
+        expect(
+          delegate.requests.single.headers['Referer'],
+          'https://www.pixiv.net/',
+        );
+        expect(
+          delegate.requests.single.headers.keys.map((key) => key.toLowerCase()),
+          isNot(contains('authorization')),
+        );
+        expect(
+          delegate.requests.single.headers.keys.map((key) => key.toLowerCase()),
+          isNot(contains('cookie')),
+        );
+        final codec = await ui.instantiateImageCodec(
+          Uint8List.fromList(response.data!),
+        );
+        final frame = await codec.getNextFrame();
+        expect(frame.image.width, greaterThan(0));
+        frame.image.dispose();
+        codec.dispose();
+      } finally {
+        dio.close(force: true);
+      }
+    }
+  });
+
+  test('Pixiv explicit media overrides retain referer but foreign redirects strip it', () async {
+    final delegate = _Delegate()..locations.add('https://foreign.test/image');
+    final rules = [MediaHostOverride(from: 'i.pximg.net', to: 'media.test')];
+    final request = MediaRequest.resolve(
+      'https://i.pximg.net/img.jpg',
+      overrides: rules,
+      sourceUrl: 'https://pixiv.net',
+      headers: const {
+        'Referer': 'https://www.pixiv.net/',
+        'Authorization': 'secret',
+      },
+    );
+    final dio = Dio()
+      ..httpClientAdapter = SourceMediaHttpClientAdapter(
+        delegate: delegate,
+        source: Uri.parse('https://pixiv.net'),
+        mediaHostOverrides: rules,
+        current: () => true,
+      );
+    try {
+      await dio.get<List<int>>(
+        request.url,
+        options: Options(
+          headers: request.headers,
+          responseType: ResponseType.bytes,
+          extra: const {'boorusama.request.media': true},
+        ),
+      );
+      expect(
+        delegate.requests.first.headers['Referer'],
+        'https://www.pixiv.net/',
+      );
+      expect(
+        delegate.requests.last.headers.keys.map((key) => key.toLowerCase()),
+        isNot(contains('referer')),
+      );
+    } finally {
+      dio.close(force: true);
+    }
+  });
+
   late _Delegate delegate;
   late SourceMediaHttpClientAdapter adapter;
   late Dio dio;

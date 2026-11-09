@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:booru_clients/nhentai.dart';
 
 import '../../boorus/booru/types.dart';
 import '../../configs/config/types.dart';
@@ -203,6 +204,12 @@ final class BoorusamaPostLink extends Equatable {
         throw const FormatException('Invalid Pixiv page');
       }
       return NumericPostId(work * 1000 + page);
+    }
+    if (type == BooruType.nhentai) {
+      // Preserve the actual Gallery/Page locator for repository hydration.
+      // Its paired numeric ID is only an internal media/storage bridge.
+      final identity = NhentaiPageIdentity.parse(key);
+      return StringPostId(identity.sourceKey);
     }
     if (!key.startsWith('id:')) {
       throw const FormatException('Invalid post reference');

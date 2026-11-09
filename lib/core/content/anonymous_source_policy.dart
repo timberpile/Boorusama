@@ -53,13 +53,26 @@ final class AnonymousSource extends Equatable {
   final Set<String> _apiHosts;
   Uri get site => Uri.parse(_site);
 
+  bool allowsFavicon(Uri target) =>
+      _safeHttps(target) &&
+      target.host == site.host &&
+      !target.hasQuery &&
+      target.path == '/favicon.ico' &&
+      _safePath(target);
+
   bool allowsMedia(Uri target) =>
       _safeHttps(target) &&
       (!target.hasQuery ||
           (_site == 'https://realbooru.com' && _realbooruMediaQuery(target))) &&
       (_site != 'https://realbooru.com' ||
           RegExp(r'^/(?:images|thumbnails|samples)/').hasMatch(target.path)) &&
-      _mediaHosts.contains(target.host) &&
+      (_mediaHosts.contains(target.host) ||
+          (engine == BooruType.nhentai &&
+              RegExp(r'^[it][1-9][0-9]*\.nhentai\.net$')
+                  .hasMatch(target.host) &&
+              RegExp(
+                r'^/galleries/[1-9][0-9]*/[A-Za-z0-9_-]+(?:\.(?:jpg|jpeg|png|gif|webp|avif))+$',
+              ).hasMatch(target.path))) &&
       _safePath(target) &&
       RegExp(
         r'\.(?:jpg|jpeg|png|gif|webp|avif|bmp|webm|mp4)$',
@@ -74,6 +87,7 @@ final class AnonymousSource extends Equatable {
       return false;
     }
     if (_site == 'https://realbooru.com') return _realbooruApi(target);
+    if (engine == BooruType.nhentai) return _nhentaiApi(target);
     return switch (engine) {
       BooruType.danbooru => RegExp(
         r'^/(?:posts|pools|tags|notes|comments|artists|counts/posts)(?:/[1-9][0-9]*)?\.json$',
@@ -108,6 +122,57 @@ bool _realbooruMediaQuery(Uri target) =>
           entry.value.length == 1 &&
           RegExp(r'^[0-9]+$').hasMatch(entry.value.single),
     );
+
+bool _nhentaiApi(Uri target) {
+  if (target.host != 'nhentai.net' ||
+      target.queryParametersAll.values.any((values) => values.length != 1)) {
+    return false;
+  }
+  final query = target.queryParameters;
+  bool positive(String? value, {int maximum = 9007199254740991}) {
+    final parsed = value != null && RegExp(r'^[1-9][0-9]*$').hasMatch(value)
+        ? int.tryParse(value)
+        : null;
+    return parsed != null && parsed <= maximum;
+  }
+
+  if (const ['/api/v2/config', '/api/v2/cdn'].contains(target.path) ||
+      RegExp(r'^/api/v2/galleries/[1-9][0-9]*$').hasMatch(target.path)) {
+    return query.isEmpty &&
+        (!target.path.startsWith('/api/v2/galleries/') ||
+            positive(target.pathSegments.last));
+  }
+  if (target.path == '/api/v2/tags/ids') {
+    final ids = query['ids']?.split(',');
+    return query.length == 1 &&
+        ids != null &&
+        ids.isNotEmpty &&
+        ids.length <= 100 &&
+        ids.every(positive);
+  }
+  final listing = const [
+    '/api/v2/galleries',
+    '/api/v2/search',
+  ].contains(target.path);
+  final catalog =
+      RegExp(r'^/api/v2/tags/[a-z][a-z0-9_-]*$').hasMatch(target.path) &&
+      target.pathSegments.last != 'general';
+  if (!listing && !catalog) return false;
+  return query.keys.every(
+        (key) => {
+          'page',
+          'per_page',
+          if (catalog) 'sort',
+          if (target.path == '/api/v2/search') 'query',
+        }.contains(key),
+      ) &&
+      (query['page'] == null || positive(query['page'])) &&
+      (query['per_page'] == null ||
+          positive(query['per_page'], maximum: 100)) &&
+      (query['query']?.length ?? 0) <= 4096 &&
+      (query['sort'] == null ||
+          const ['popular', 'name'].contains(query['sort']));
+}
 
 bool _realbooruApi(Uri target) {
   if (target.path != '/index.php') return false;
@@ -186,6 +251,7 @@ bool _credentialParameter(String name) => const {
 // Source sites are the exact built-in installations in boorus.yaml. CDN access
 // remains separate and explicit; unknown media hosts remain unavailable.
 const _sources = [
+  AnonymousSource._(BooruType.nhentai, 'https://nhentai.net', {}),
   AnonymousSource._(BooruType.gelbooruV2, 'https://realbooru.com', {
     'realbooru.com',
   }),

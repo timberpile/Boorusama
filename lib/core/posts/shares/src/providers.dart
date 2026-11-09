@@ -14,6 +14,7 @@ import '../../../downloads/filename/types.dart';
 import '../../post/types.dart';
 import '../../links/boorusama_post_link.dart';
 import 'unified_post_share_sheet.dart';
+import '../../details/src/widgets/group_viewer_scope.dart';
 
 final shareProvider = Provider.autoDispose((ref) => ShareService(ref));
 
@@ -93,6 +94,7 @@ class ShareService {
         : postShareProfileName(profiles, post, config);
     final modal = UnifiedPostShareSheet(
       post: post,
+      groupReference: GroupViewerScope.maybeEntryOf(context)?.summary.reference,
       auth: config,
       profileIconUrl: profileIconUrl,
       profileName: profileName,
@@ -114,10 +116,7 @@ class ShareService {
         : showDialog(
             context: context,
             routeSettings: routeSettings,
-            builder: (context) => AlertDialog(
-              contentPadding: EdgeInsets.zero,
-              content: modal,
-            ),
+            builder: (context) => KurumiDialog(child: modal),
           );
   }
 }

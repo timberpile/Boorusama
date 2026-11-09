@@ -109,9 +109,13 @@ class _ReviewImport extends ConsumerWidget {
         profile.id: profile.name,
       ...state.profileNames,
     };
+    final nameCounts = <String, int>{};
+    for (final name in names.values) {
+      nameCounts.update(name, (count) => count + 1, ifAbsent: () => 1);
+    }
     final profileNames = {
       for (final (index, entry) in names.entries.indexed)
-        entry.key: names.values.where((name) => name == entry.value).length > 1
+        entry.key: nameCounts[entry.value]! > 1
             ? '${entry.value} (${index + 1})'
             : entry.value,
     };
@@ -144,6 +148,7 @@ class _ReviewImport extends ConsumerWidget {
         const SizedBox(height: 12),
         for (final source in proposed.sources)
           ImportActionEditor(
+            key: ValueKey(source.id),
             proposed: source,
             resolved: resolvedById[source.id]!,
             onChanged: ref.read(importFlowProvider.notifier).replaceSource,
@@ -208,12 +213,15 @@ class _ReviewImport extends ConsumerWidget {
             profileNames: profileNames,
           ),
         const SizedBox(height: 16),
-        if (preflight.warnings.isEmpty && preflight.errors.isEmpty)
+        if (!state.previewPending &&
+            preflight.warnings.isEmpty &&
+            preflight.errors.isEmpty)
           ListTile(
             leading: const Icon(Icons.check_circle_outline),
             title: Text(strings.all_checks_passed),
           ),
         ImportReviewValidation(
+          previewPending: state.previewPending,
           preflight: preflight,
           profileSelectors: {
             for (final mapping in state.profileMappings)
@@ -242,6 +250,7 @@ class ImportReviewValidation extends StatelessWidget {
     required this.onWarningsAcknowledged,
     required this.onApply,
     required this.onDone,
+    this.previewPending = false,
   });
 
   final ImportPreflightResult preflight;
@@ -251,6 +260,7 @@ class ImportReviewValidation extends StatelessWidget {
   final ValueChanged<bool> onWarningsAcknowledged;
   final VoidCallback onApply;
   final VoidCallback onDone;
+  final bool previewPending;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +281,15 @@ class ImportReviewValidation extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (previewPending) ...[
+          LinearProgressIndicator(
+            semanticsLabel: context.t.settings.data_and_storage.loading,
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(context.t.settings.data_and_storage.loading),
+          ),
+        ],
         if (preflight.warnings.isNotEmpty) ...[
           Text(
             strings.warnings,
@@ -293,7 +312,9 @@ class ImportReviewValidation extends StatelessWidget {
               value: !preflight.errors.any(
                 (issue) => issue.code == 'warnings_not_acknowledged',
               ),
-              onChanged: (value) => onWarningsAcknowledged(value ?? false),
+              onChanged: previewPending
+                  ? null
+                  : (value) => onWarningsAcknowledged(value ?? false),
               title: Text(strings.acknowledge_warnings),
             ),
         ],
@@ -316,7 +337,9 @@ class ImportReviewValidation extends StatelessWidget {
             ),
         ],
         const SizedBox(height: 20),
-        if (preflight.isValid && !preflight.summary.hasMutations) ...[
+        if (!previewPending &&
+            preflight.isValid &&
+            !preflight.summary.hasMutations) ...[
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: Text(strings.nothing_to_import),
@@ -325,7 +348,7 @@ class ImportReviewValidation extends StatelessWidget {
         ] else
           FilledButton(
             key: const ValueKey('apply-import'),
-            onPressed: preflight.isValid ? onApply : null,
+            onPressed: !previewPending && preflight.isValid ? onApply : null,
             child: Text(strings.apply_import),
           ),
       ],

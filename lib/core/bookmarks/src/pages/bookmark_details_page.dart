@@ -217,7 +217,7 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         : switch (const PostOriginResolver().resolve(
             post.origin,
             ref.watch(booruConfigProvider),
-            allowProfileHintFallback: false,
+            allowProfileHintFallback: true,
           )) {
             ResolvedPostOrigin(:final config) => config,
             _ => null,

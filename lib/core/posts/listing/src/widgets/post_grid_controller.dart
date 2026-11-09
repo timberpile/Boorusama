@@ -14,6 +14,7 @@ import '../../../../errors/types.dart';
 import '../../../filter/types.dart';
 import '../../../post/types.dart';
 import '../types/page_mode.dart';
+import '../types/timeline_continuation_controller.dart';
 import 'post_duplicate_checker.dart';
 
 const _kFirstPage = 1;
@@ -30,7 +31,8 @@ extension TagCountX<T> on Map<String, Set<T>> {
   int get totalNonDuplicatesPostCount => values.expand((e) => e).toSet().length;
 }
 
-class PostGridController<T extends Post> extends ChangeNotifier {
+class PostGridController<T extends Post> extends ChangeNotifier
+    implements TimelineContinuationController {
   PostGridController({
     required this.fetcher,
     required this.blacklistedTagsFetcher,
@@ -93,9 +95,12 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
   Iterable<T> get items => _filteredItems;
   Iterable<T> get allItems => _items;
+  @override
   bool get hasMore => _hasMore;
   bool get loading => _loading;
+  @override
   bool get loadingMore => _loading || (_debounceTimer?.isActive ?? false);
+  @override
   bool get refreshing => _refreshing;
   bool get preserveSelectionOnRefresh => _preserveSelectionOnRefresh;
   int get page => pageNotifier.value;
@@ -108,12 +113,14 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   final ValueNotifier<int> pageNotifier = ValueNotifier(_kFirstPage);
   Timer? _debounceTimer;
   final Duration debounceDuration;
+  @override
   PageMode get pageMode => _pageMode;
   final activeFilters = ValueNotifier<Map<String, bool>>({});
   final tagCounts = ValueNotifier<Map<String, Set<PostBlacklistIdentity>>>({});
   final hasBlacklist = ValueNotifier(false);
   final visibleHiddenTags = ValueNotifier<List<HiddenData>>([]);
-  final errors = ValueNotifier<BooruError?>(null);
+  @override
+  final ValueNotifier<BooruError?> errors = ValueNotifier<BooruError?>(null);
   final StreamController<PostControllerEvent> _eventController;
   Stream<PostControllerEvent> get events => _eventController.stream;
   final bool forcedPageMode;
@@ -423,6 +430,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
 
   /// [canStart] revalidates an automatic request after the debounce delay.
   /// Explicit continuation can join and promote a queued automatic request.
+  @override
   Future<void> fetchMore({
     VoidCallback? onNoMoreData,
     bool Function()? canStart,

@@ -66,6 +66,7 @@ class ExtendedImage extends StatefulWidget {
     this.controller,
     this.placeholderWidget,
     this.errorWidget,
+    this.onError,
   }) : assert(constraints == null || constraints.debugAssertIsValid()),
        constraints = (width != null || height != null)
            ? constraints?.tighten(width: width, height: height) ??
@@ -104,6 +105,7 @@ class ExtendedImage extends StatefulWidget {
     this.controller,
     this.placeholderWidget,
     this.errorWidget,
+    this.onError,
     TargetPlatform? platform,
     int? androidVersion,
     ImageCacheManager? cacheManager,
@@ -286,6 +288,9 @@ class ExtendedImage extends StatefulWidget {
 
   final Widget? placeholderWidget;
   final Widget? errorWidget;
+
+  /// Observes the actual failed request or decoder without replacing its state.
+  final ImageErrorListener? onError;
 
   @override
   State<ExtendedImage> createState() => _ExtendedImageState();
@@ -498,7 +503,8 @@ class _ExtendedImageState extends State<ExtendedImage>
     _isListeningToStream = true;
   }
 
-  void _loadFailed(dynamic exception, StackTrace? stackTrace) {
+  void _loadFailed(Object exception, StackTrace? stackTrace) {
+    widget.onError?.call(exception, stackTrace);
     final state = switch (exception) {
       DioException dioException
           when dioException.type == DioExceptionType.cancel =>

@@ -22,6 +22,7 @@ import '../types/bookmark_library_state.dart';
 import '../types/bookmark_repository.dart';
 import '../types/bookmark_record_fields.dart';
 import '../types/unified_bookmark_store.dart';
+import '../../../backups/folder_sync/mirror_guard.dart';
 
 part 'bookmark_library_records.dart';
 part 'bookmark_hierarchy_undo.dart';
@@ -86,10 +87,12 @@ class BookmarkLibraryService {
     required this.groupRepository,
     required this.imageUrlResolver,
     this.readMutationSnapshot,
+    this.mirrorGuard,
   });
 
   final BookmarkRepository bookmarkRepository;
   final BookmarkGroupRepository groupRepository;
+  final CollectionMirrorGuard? mirrorGuard;
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
 
   /// Supplied only inside the notifier's exclusive mutation boundary. Standalone
@@ -110,10 +113,11 @@ class BookmarkLibraryService {
     Iterable<Bookmark> drafts,
     String groupId, {
     Iterable<Bookmark> savedRecords = const [],
+    void Function()? beforeCommit,
   }) {
     if (unifiedStore == null)
       throw StateError('Unified Bookmark storage unavailable');
-    return _saveUnifiedDrafts(drafts, groupId, savedRecords);
+    return _saveUnifiedDrafts(drafts, groupId, savedRecords, beforeCommit);
   }
 
   Future<({BookmarkGroup group, int addedCount})> createGroupWithSavedRecords(
@@ -121,6 +125,8 @@ class BookmarkLibraryService {
     Iterable<Bookmark> records, {
     String? folderId,
     String? parentGroupId,
+    Iterable<Bookmark> drafts = const [],
+    void Function()? beforeCommit,
   }) => _scope(() async {
     final store =
         unifiedStore ??
@@ -143,6 +149,27 @@ class BookmarkLibraryService {
         throw StateError('Saved Bookmark changed before the action completed');
       members.add(current.id);
     }
+    final writes = <Bookmark>[];
+    final identities = <Object>{};
+    for (final draft in drafts) {
+      final candidate = store.normalizeRecord(draft);
+      final identity = bookmarkContentIdentity(candidate);
+      if (identity != null && !identities.add(identity)) continue;
+      final existing = identity == null
+          ? null
+          : await store.lookupContent(
+              identity,
+              engine: bookmarkEngine(candidate),
+            );
+      if (existing != null) {
+        store.normalizeRecord(candidate, previous: existing);
+        members.add(existing.id);
+      } else {
+        final id = (await store.reserveIds(1)).single;
+        writes.add(bookmarkWithId(candidate, id));
+        members.add(id);
+      }
+    }
     final now = DateTime.now().toUtc();
     final group = BookmarkGroup(
       id: const Uuid().v4().toLowerCase(),
@@ -154,7 +181,8 @@ class BookmarkLibraryService {
       bookmarkIds: members,
       addedAt: {for (final id in members) id: now},
     );
-    await store.commitOrganization(groups: [group]);
+    beforeCommit?.call();
+    await store.commitOrganization(records: writes, groups: [group]);
     return (group: group, addedCount: members.length);
   });
 
@@ -187,14 +215,42 @@ class BookmarkLibraryService {
     final record = await store.read(bookmarkId);
     if (record is! ContentGroupBookmark)
       throw StateError('Saved Group is unavailable');
+    final mergedSummary = snapshot.summary.mergeWithPrevious(
+      record.snapshot.summary,
+    );
+    final mergedDetails =
+        snapshot.details?.mergeWithPrevious(record.snapshot.details) ??
+        record.snapshot.details;
+    var mergedIndex =
+        snapshot.index?.mergeWithPrevious(record.snapshot.index) ??
+        record.snapshot.index;
+    final observedTags = snapshot.details?.tags ?? snapshot.summary.previewTags;
+    final mergedTags = snapshot.details?.tags != null
+        ? mergedDetails?.tags
+        : mergedSummary.previewTags;
+    if (snapshot.index?.basis == GroupTagIndexBasis.sourceGroup &&
+        observedTags != null &&
+        mergedTags != null) {
+      mergedIndex = GroupBookmarkIndex(
+        tags: {
+          for (final tag in mergedTags.values) ...[
+            ?tag.name,
+            if (tag.displayName?.isNotEmpty ?? false) tag.displayName!,
+          ],
+        },
+        basis: GroupTagIndexBasis.sourceGroup,
+        coverage: mergedTags.coverage,
+        oldestMemberUpload: mergedIndex?.oldestMemberUpload,
+        newestMemberUpload: mergedIndex?.newestMemberUpload,
+        coverPolicy: mergedIndex?.coverPolicy,
+      );
+    }
     final merged = authoritative
         ? snapshot
         : StoredGroupSnapshot(
-            summary: snapshot.summary,
-            details:
-                snapshot.details?.mergeWithPrevious(record.snapshot.details) ??
-                record.snapshot.details,
-            index: snapshot.index ?? record.snapshot.index,
+            summary: mergedSummary,
+            details: mergedDetails,
+            index: mergedIndex,
           );
     final updated = record.copyWith(
       snapshot: merged,
@@ -861,9 +917,15 @@ class BookmarkLibraryService {
     Iterable<Bookmark> bookmarks,
     String groupId, {
     Set<String> poolLocalIds = const {},
+    void Function()? beforeCommit,
   }) async {
     if (unifiedStore != null)
-      return _removeUnifiedMembers(bookmarks, groupId, poolLocalIds);
+      return _removeUnifiedMembers(
+        bookmarks,
+        groupId,
+        poolLocalIds,
+        beforeCommit,
+      );
     final pools = poolLocalIds.isEmpty
         ? const <CollectionBookmark>[]
         : await groupRepository.getPoolBookmarks();
@@ -1328,7 +1390,10 @@ class BookmarkCollectionDeletionPreview extends Equatable {
         throw StateError('Default cannot be deleted');
       }
       this.folderIds = const {};
-      this.groupIds = Set.unmodifiable(selected);
+      this.groupIds = Set.unmodifiable({
+        for (final root in snapshot.groupTree.selectionRoots(selected))
+          ...snapshot.groupTree.subtreeIds(root.id),
+      });
     } else {
       final tree = FolderTree(snapshot.folders);
       if ((folderIds.isEmpty && groupIds.isEmpty) ||

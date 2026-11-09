@@ -1,4 +1,6 @@
 import 'bookmark_access_placeholder.dart';
+import '../../../backups/folder_sync/widgets.dart';
+import '../../../backups/folder_sync/providers.dart';
 import '../providers/bookmark_cover_failures.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../posts/post/types.dart';
@@ -17,10 +19,13 @@ import '../../../settings/providers.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/pool_bookmark.dart';
+import '../types/content_group_bookmark.dart';
 import 'bookmark_pool_card.dart';
+import 'bookmark_native_group_card.dart';
+import '../../../content/types.dart';
 
 /// A locally saved Group with its own direct Bookmark members.
-final class BookmarkLocalGroupCard extends StatelessWidget {
+final class BookmarkLocalGroupCard extends ConsumerWidget {
   const BookmarkLocalGroupCard({
     required this.title,
     required this.previews,
@@ -30,18 +35,22 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
     required this.onDuplicate,
     required this.onDelete,
     this.pools = const [],
+    this.nativeGroups = const [],
     this.selected = false,
     this.onSelect,
     this.onMove,
+    this.hasChildren = false,
     super.key,
   });
 
   final bool selected;
+  final bool hasChildren;
   final VoidCallback? onSelect;
   final VoidCallback? onMove;
   final String title;
   final List<PostBookmark> previews;
   final List<CollectionBookmark> pools;
+  final List<ContentGroupBookmark> nativeGroups;
   final BookmarkGroup? group;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
@@ -49,9 +58,23 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
   final VoidCallback? onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.exists(folderSyncServiceProvider))
+      ref.watch(folderSyncStateProvider);
+    final mirror =
+        group != null &&
+        ref.exists(folderSyncServiceProvider) &&
+        (ref.read(folderSyncServiceProvider).snapshot['subscriptions']
+                    as Map<String, dynamic>? ??
+                {})
+            .values
+            .any(
+              (value) =>
+                  value['kind'] == 'bookmarks' && value['localId'] == group!.id,
+            );
     final borderRadius = BorderRadius.circular(12);
     final hasActions =
+        group != null ||
         onMove != null ||
         onRename != null ||
         onDuplicate != null ||
@@ -80,6 +103,7 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                       child: _BookmarkGroupCover(
                         previews: previews,
                         pools: pools,
+                        nativeGroups: nativeGroups,
                       ),
                     ),
                     const Positioned.fill(
@@ -116,6 +140,36 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (group != null)
+                      Positioned(
+                        bottom: 8,
+                        left: 8,
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            if (hasChildren)
+                              const Icon(
+                                Icons.folder_outlined,
+                                color: Colors.white,
+                              ),
+                            CollectionSyncIndicator(
+                              kind: 'bookmarks',
+                              localId: group!.id,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
+                    if (group != null && !selected)
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: CollectionSyncIndicator(
+                          kind: 'bookmarks',
+                          localId: group!.id,
+                          numericOnly: true,
+                        ),
+                      ),
                     if (selected)
                       const Positioned(
                         bottom: 8,
@@ -136,6 +190,25 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                             color: Colors.white,
                           ),
                           items: [
+                            if (group != null)
+                              KurumiPopupMenuItem(
+                                title: Text(
+                                  collectionSyncActionLabel(
+                                    context,
+                                    ref,
+                                    kind: 'bookmarks',
+                                    localId: group!.id,
+                                  ),
+                                ),
+                                icon: Icon(
+                                  mirror ? Icons.sync : Icons.upload_outlined,
+                                ),
+                                onTap: () => openFolderSyncForCollection(
+                                  context,
+                                  kind: 'bookmarks',
+                                  localId: group!.id,
+                                ),
+                              ),
                             if (onMove != null)
                               KurumiPopupMenuItem(
                                 title: Text(context.t.folders.move),
@@ -221,9 +294,14 @@ class BookmarkGroupPreviewGrid extends StatelessWidget {
 }
 
 class _BookmarkGroupCover extends ConsumerStatefulWidget {
-  const _BookmarkGroupCover({required this.previews, required this.pools});
+  const _BookmarkGroupCover({
+    required this.previews,
+    required this.pools,
+    required this.nativeGroups,
+  });
   final List<PostBookmark> previews;
   final List<CollectionBookmark> pools;
+  final List<ContentGroupBookmark> nativeGroups;
   @override
   ConsumerState<_BookmarkGroupCover> createState() =>
       _BookmarkGroupCoverState();
@@ -232,19 +310,26 @@ class _BookmarkGroupCover extends ConsumerStatefulWidget {
 class _BookmarkGroupCoverState extends ConsumerState<_BookmarkGroupCover> {
   final _slots = <int?>[0, 1, 2, 3];
   int _next = 4;
+  final _failedNative = <int>{};
   void _reset() {
     _slots.setAll(0, [0, 1, 2, 3]);
     _next = 4;
+    _failedNative.clear();
   }
 
   @override
   void didUpdateWidget(_BookmarkGroupCover oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.previews, widget.previews)) _reset();
+    if (!identical(oldWidget.previews, widget.previews) ||
+        !identical(oldWidget.nativeGroups, widget.nativeGroups))
+      _reset();
   }
 
   void _retry() {
-    final origins = widget.previews.take(12).map((b) => b.post.origin).toSet();
+    final origins = {
+      ...widget.previews.take(12).map((b) => b.post.origin),
+      ...widget.nativeGroups.take(12).map(nativeBookmarkGroupOrigin),
+    };
     for (final origin in origins) {
       final key = ref.read(contentAccessForOriginProvider(origin))?.key;
       if (key != null)
@@ -253,6 +338,17 @@ class _BookmarkGroupCoverState extends ConsumerState<_BookmarkGroupCover> {
     }
     setState(_reset);
   }
+
+  Widget _nativePreview(ContentGroupBookmark bookmark) =>
+      BookmarkNativeGroupCover(
+        key: ValueKey(('native-cover', bookmark.id)),
+        bookmark: bookmark,
+        onFailed: () {
+          if (mounted && !_failedNative.contains(bookmark.id)) {
+            setState(() => _failedNative.add(bookmark.id));
+          }
+        },
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -267,7 +363,30 @@ class _BookmarkGroupCoverState extends ConsumerState<_BookmarkGroupCover> {
       });
     }
     var poolIndex = 0;
-    final failed = _slots.any((index) => index == null);
+    var nativeIndex = 0;
+    final native = widget.nativeGroups
+        .take(12)
+        .where((record) => !_failedNative.contains(record.id))
+        .toList();
+    for (final bookmark in widget.nativeGroups.take(12)) {
+      ref.listen(
+        contentAccessForReferenceProvider(
+          ContentAccessRequest(
+            reference: bookmark.reference,
+            profileIdHint: bookmark.sourceProfileHint,
+          ),
+        ),
+        (previous, next) {
+          if (next != null && previous?.key != next.key) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(_reset);
+            });
+          }
+        },
+      );
+    }
+    final failed =
+        _slots.any((index) => index == null) || _failedNative.isNotEmpty;
     return Stack(
       children: [
         Positioned.fill(
@@ -291,8 +410,10 @@ class _BookmarkGroupCoverState extends ConsumerState<_BookmarkGroupCover> {
                   )
                 else if (poolIndex < widget.pools.length)
                   BookmarkPoolCoverImage(pool: widget.pools[poolIndex++])
+                else if (nativeIndex < native.length)
+                  _nativePreview(native[nativeIndex++])
                 else
-                  const Center(child: Icon(Icons.bookmarks_outlined)),
+                  const SizedBox.expand(),
             ],
             itemBuilder: (_, _) => const SizedBox.expand(),
           ),
@@ -397,7 +518,7 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
       final resolution = const PostOriginResolver().resolve(
         bookmark.post.origin,
         ref.watch(booruConfigProvider),
-        allowProfileHintFallback: false,
+        allowProfileHintFallback: true,
       );
       if (resolution case ResolvedPostOrigin(:final config)) {
         if (ref.watch(contentEffectivePolicyProvider(config.id)).hasError)
@@ -411,10 +532,22 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
     if (visible.valueOrNull == false) return _CoverFailure(onFailed: onFailed);
     if (visible.valueOrNull != true)
       return BookmarkAccessPlaceholder(origin: bookmark.post.origin);
+    final sample = bookmark.isVideo || (!autoplayGif && bookmark.post.isGif)
+        ? ''
+        : bookmark.sampleUrl;
+    final cachedRendition = ref.watch(
+      bookmarkCoverCachedRenditionProvider((
+        access: access.key,
+        primary: imageUrl,
+        sample: sample,
+      )),
+    );
+    if (cachedRendition.isLoading) return const SizedBox.expand();
+    final selectedUrl = cachedRendition.valueOrNull ?? imageUrl;
     if ((ref.watch(bookmarkCoverFailuresProvider)[access.key]?.length ?? 0) >=
         4) {
       final cached = ref.watch(
-        bookmarkCoverCachedProvider((access: access.key, url: imageUrl)),
+        bookmarkCoverCachedProvider((access: access.key, url: selectedUrl)),
       );
       if (cached.hasError || cached.valueOrNull == false)
         return _CoverFailure(onFailed: onFailed);
@@ -429,7 +562,7 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
       requireAccess: true,
       bookmarkId: bookmark.id,
       child: BooruImage(
-        imageUrl: imageUrl,
+        imageUrl: selectedUrl,
         config: imageConfig.auth,
         fit: BoxFit.cover,
         errorWidget: _CoverFailure(

@@ -1006,7 +1006,7 @@ void main() {
         );
         final normal = tester.getSize(find.byType(KurumiContextMenuTile));
         final bookmark = tester.getSize(find.byType(BookmarkPickerMenuItem));
-        expect(bookmark.height, normal.height < 48 ? 48 : normal.height);
+        expect(bookmark.height, normal.height);
         TextStyle? style(String label) => tester
             .widget<RichText>(
               find.descendant(
@@ -1061,8 +1061,10 @@ void main() {
           ),
         );
         final ordered = [one, two]..sort((a, b) => a.top.compareTo(b.top));
-        expect(one.height, greaterThanOrEqualTo(48));
-        expect(two.height, greaterThanOrEqualTo(48));
+        final titleHeight = tester.getSize(find.text('One')).height;
+        final compactHeight = (titleHeight < 20 ? 20 : titleHeight) + 16;
+        expect(one.height, compactHeight);
+        expect(two.height, compactHeight);
         expect(ordered.last.top, greaterThanOrEqualTo(ordered.first.bottom));
         expect(tester.takeException(), isNull);
       },

@@ -48,6 +48,9 @@ import '../types/unified_bookmark_store.dart';
 import '../types/bookmark_target.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_group_view_preferences.dart';
+import '../../../backups/folder_sync/mirror_guard.dart';
+import '../../../backups/folder_sync/providers.dart';
+import '../types/content_group_bookmark.dart';
 
 final bookmarkLibraryProvider =
     AsyncNotifierProvider<BookmarkLibraryNotifier, BookmarkLibraryState>(
@@ -257,6 +260,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return BookmarkLibraryService(
       bookmarkRepository: mutation ?? await bookmarkRepository,
       groupRepository: await ref.read(bookmarkGroupRepoProvider.future),
+      mirrorGuard: ref.exists(collectionMirrorGuardProvider)
+          ? ref.read(collectionMirrorGuardProvider)
+          : null,
       imageUrlResolver: (booruId) =>
           ref.read(bookmarkUrlResolverProvider(booruId)),
       readMutationSnapshot: mutation == null
@@ -311,6 +317,27 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     _removals.clear();
     _poolRemovals.clear();
     _recordRemovals.clear();
+  }
+
+  Future<void> _notifyHierarchyDeletion(Set<String> ids) async {
+    // Sync can acquire the same data coordinator. Notify only after the local
+    // mutation has released it, so concurrent synchronization cannot deadlock.
+    if (ids.isEmpty) return;
+    if (ref.exists(folderSyncServiceProvider)) {
+      try {
+        await ref.read(folderSyncServiceProvider).groupsDeleted(ids);
+      } catch (error, stack) {
+        ref
+            .read(loggerProvider)
+            .handledError(
+              'FolderSync',
+              'local_subtree_deleted',
+              error: error,
+              stackTrace: stack,
+              outcome: 'bindings_reconcile_on_next_sync',
+            );
+      }
+    }
   }
 
   Future<void> undoHierarchyDeletion(
@@ -503,6 +530,83 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       await _publishCommittedMutation();
       return BookmarkToggleOutcome.failed;
     }
+  });
+
+  Future<BookmarkToggleOutcome> toggleContentGroupTarget(
+    ContentGroupBookmark draft, {
+    required String groupId,
+    void Function()? beforeCommit,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
+  }) => _serialize(() async {
+    final current = await future;
+    final service = await _service;
+    beforeCommit?.call();
+    final id = current.idByContent[draft.snapshot.summary.reference.identity];
+    final saved = id == null ? null : current.byId[id];
+    if (saved != null && current.membershipsForId(saved.id).contains(groupId)) {
+      final removal = await service.removeBookmarksFromGroup(
+        [saved],
+        groupId,
+        beforeCommit: beforeCommit,
+      );
+      _recordRemoval(removal);
+      await _rememberManualGroup(groupId);
+      await _publishCommittedMutation();
+      onRemoved?.call(removal);
+      return BookmarkToggleOutcome.removed;
+    }
+    await service.saveDraftsToGroup(
+      saved == null ? [draft] : const [],
+      groupId,
+      savedRecords: saved == null ? const [] : [saved],
+      beforeCommit: beforeCommit,
+    );
+    await _rememberManualGroup(groupId);
+    await _publishCommittedMutation();
+    return BookmarkToggleOutcome.added;
+  });
+
+  Future<void> createGroupWithContentDraft(
+    String name,
+    ContentGroupBookmark draft, {
+    String? parentGroupId,
+    void Function()? beforeCommit,
+  }) => _runTrackedMutation(() async {
+    beforeCommit?.call();
+    final result = await (await _service).createGroupWithSavedRecords(
+      name,
+      const [],
+      parentGroupId: parentGroupId,
+      drafts: [draft],
+      beforeCommit: beforeCommit,
+    );
+    await _rememberManualGroup(result.group.id);
+  });
+
+  Future<int> addSavedRecordsToGroup(
+    Iterable<Bookmark> records,
+    String groupId,
+  ) => _serialize(() async {
+    final count = await (await _service).addBookmarksToGroup(records, groupId);
+    if (count > 0) await _rememberManualGroup(groupId);
+    await _publishCommittedMutation();
+    return count;
+  });
+
+  Future<BookmarkGroupRemovalResult> removeSavedRecordsFromGroup(
+    Iterable<Bookmark> records,
+    String groupId,
+  ) => _serialize(() async {
+    final result = await (await _service).removeBookmarksFromGroup(
+      records,
+      groupId,
+    );
+    if (result.removedCount > 0) {
+      _recordRemoval(result);
+      await _rememberManualGroup(groupId);
+    }
+    await _publishCommittedMutation();
+    return result;
   });
 
   Future<({BookmarkGroup group, int addedCount})> createGroupWithSavedRecords(
@@ -1143,27 +1247,33 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   Future<void> deleteSelection(
     BookmarkCollectionDeletionPreview expected,
-  ) => _runTrackedMutation(() async {
-    final service = await _service;
-    final current = await service.previewDeleteSelection(
-      folderIds: expected.selectedFolderIds,
-      groupIds: expected.selectedGroupIds,
-    );
-    if (current != expected) throw BookmarkCollectionChangedException(current);
-    if (service.unifiedStore != null) {
-      _recordHierarchyDeletion(
-        await service.deleteHierarchy(
+  ) async {
+    final deletedIds = await _runTrackedMutation<Set<String>>(() async {
+      final service = await _service;
+      final current = await service.previewDeleteSelection(
+        folderIds: expected.selectedFolderIds,
+        groupIds: expected.selectedGroupIds,
+      );
+      if (current != expected)
+        throw BookmarkCollectionChangedException(current);
+      var deleted = const <String>{};
+      if (service.unifiedStore != null) {
+        final receipt = await service.deleteHierarchy(
           current.groupIds,
           expectedPreview: current,
-        ),
-      );
-    } else {
-      await service.deleteSelection(expected);
-    }
-    for (final id in current.orphanBookmarkIds) {
-      _removals.remove(current.snapshot.bookmarksById[id]?.uniqueId);
-    }
-  });
+        );
+        _recordHierarchyDeletion(receipt);
+        deleted = {for (final group in receipt.deletedGroups) group.id};
+      } else {
+        await service.deleteSelection(expected);
+      }
+      for (final id in current.orphanBookmarkIds) {
+        _removals.remove(current.snapshot.bookmarksById[id]?.uniqueId);
+      }
+      return deleted;
+    });
+    await _notifyHierarchyDeletion(deletedIds);
+  }
 
   Future<void> renameGroup(String groupId, String name) => _serialize(() async {
     await (await ref.read(
@@ -1175,28 +1285,34 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<BookmarkGroupDeletionPreview> deleteGroup(
     String groupId, {
     BookmarkGroupDeletionPreview? expectedPreview,
-  }) => _serialize(() async {
-    final repository = await ref.read(bookmarkGroupRepoProvider.future);
-    final currentPreview = await repository.previewDeleteGroup(groupId);
-    if (expectedPreview != null && currentPreview != expectedPreview) {
-      throw BookmarkGroupChangedException(currentPreview);
-    }
-    final before = await future;
-    final service = await _service;
-    final BookmarkGroupDeletionPreview preview;
-    if (service.unifiedStore != null) {
-      final deletion = await service.deleteHierarchy({groupId});
-      _recordHierarchyDeletion(deletion);
-      preview = deletion.singlePreview;
-    } else {
-      preview = await service.deleteGroup(groupId);
-    }
-    for (final id in preview.orphanBookmarkIds) {
-      _removals.remove(before.bookmarksById[id]?.uniqueId);
-    }
-    await _publishCommittedMutation();
+  }) async {
+    final (preview, deletedIds) = await _serialize(() async {
+      final repository = await ref.read(bookmarkGroupRepoProvider.future);
+      final currentPreview = await repository.previewDeleteGroup(groupId);
+      if (expectedPreview != null && currentPreview != expectedPreview) {
+        throw BookmarkGroupChangedException(currentPreview);
+      }
+      final before = await future;
+      final service = await _service;
+      final BookmarkGroupDeletionPreview preview;
+      var deletedIds = const <String>{};
+      if (service.unifiedStore != null) {
+        final deletion = await service.deleteHierarchy({groupId});
+        _recordHierarchyDeletion(deletion);
+        deletedIds = {for (final group in deletion.deletedGroups) group.id};
+        preview = deletion.singlePreview;
+      } else {
+        preview = await service.deleteGroup(groupId);
+      }
+      for (final id in preview.orphanBookmarkIds) {
+        _removals.remove(before.bookmarksById[id]?.uniqueId);
+      }
+      await _publishCommittedMutation();
+      return (preview, deletedIds);
+    });
+    await _notifyHierarchyDeletion(deletedIds);
     return preview;
-  });
+  }
 
   Future<void> addExistingBookmarkToGroup(
     PostBookmark bookmark,

@@ -84,7 +84,7 @@ void main() {
   }
 
   test(
-    'selected parent and child delete only those nodes and promote survivors to nearest ancestor',
+    'overlapping parent and child selections delete the subtree exactly once',
     () async {
       final ancestor = await createGroup('Surviving ancestor');
       final parent = await createGroup(
@@ -96,56 +96,50 @@ void main() {
         parentGroupId: parent.id,
       );
       final grandchild = await createGroup(
-        'Surviving grandchild',
+        'Deleted grandchild',
         parentGroupId: child.id,
       );
       final saved = await addPost(201);
       await addMembership(grandchild.id, saved);
-      final beforeGrandchild = (await groupRepository.getGroup(grandchild.id))!;
 
       final preview = await service.previewDeleteSelection(
         folderIds: const {},
         groupIds: {parent.id, child.id},
       );
-      expect(preview.groupIds, {parent.id, child.id});
+      expect(preview.groupIds, {parent.id, child.id, grandchild.id});
+      expect(preview.orphanBookmarkIds, {saved.id});
       await service.deleteSelection(preview);
 
       final groups = await groupRepository.getGroups();
       expect(groups.map((group) => group.id).toSet(), {
         defaultBookmarkGroupId,
         ancestor.id,
-        grandchild.id,
       });
-      final promoted = (await groupRepository.getGroup(grandchild.id))!;
-      expect(promoted.parentGroupId, ancestor.id);
-      expect(promoted.bookmarkIds, beforeGrandchild.bookmarkIds);
-      expect(promoted.addedAt, beforeGrandchild.addedAt);
-      expect(await repository.read(saved.id), isNotNull);
+      expect(await groupRepository.getGroup(grandchild.id), isNull);
+      expect(await repository.read(saved.id), isNull);
     },
   );
 
-  test('deleting only a parent preserves its child and grandchild', () async {
-    final parent = await createGroup('Parent');
-    final child = await createGroup('Child', parentGroupId: parent.id);
-    final grandchild = await createGroup(
-      'Grandchild',
-      parentGroupId: child.id,
-    );
-    final saved = await addPost(202);
-    await addMembership(grandchild.id, saved);
-    final before = (await groupRepository.getGroup(grandchild.id))!;
+  test(
+    'single parent deletion removes child and grandchild payloads',
+    () async {
+      final parent = await createGroup('Parent');
+      final child = await createGroup('Child', parentGroupId: parent.id);
+      final grandchild = await createGroup(
+        'Grandchild',
+        parentGroupId: child.id,
+      );
+      final saved = await addPost(202);
+      await addMembership(grandchild.id, saved);
 
-    await service.deleteGroup(parent.id);
+      await service.deleteGroup(parent.id);
 
-    expect((await groupRepository.getGroup(parent.id)), isNull);
-    expect((await groupRepository.getGroup(child.id))!.parentGroupId, isNull);
-    final survivingGrandchild = (await groupRepository.getGroup(
-      grandchild.id,
-    ))!;
-    expect(survivingGrandchild.parentGroupId, child.id);
-    expect(survivingGrandchild.addedAt, before.addedAt);
-    expect(await repository.read(saved.id), isNotNull);
-  });
+      expect((await groupRepository.getGroup(parent.id)), isNull);
+      expect(await groupRepository.getGroup(child.id), isNull);
+      expect(await groupRepository.getGroup(grandchild.id), isNull);
+      expect(await repository.read(saved.id), isNull);
+    },
+  );
 
   test('moving a group to its current parent is a no-op', () async {
     final parent = await createGroup('Parent');
@@ -193,7 +187,7 @@ void main() {
   );
 
   test(
-    'direct group repository deletion promotes children and preserves dates',
+    'direct group repository deletion removes the same complete subtree',
     () async {
       final ancestor = await createGroup('Ancestor');
       final deleted = await createGroup('Deleted', parentGroupId: ancestor.id);
@@ -204,20 +198,117 @@ void main() {
       );
       final saved = await addPost(206);
       await addMembership(child.id, saved);
-      final before = (await groupRepository.getGroup(child.id))!;
+      final preview = await groupRepository.previewDeleteGroup(deleted.id);
+      expect(preview.descendantGroups.map((group) => group.id).toSet(), {
+        child.id,
+        grandchild.id,
+      });
+      expect(preview.orphanBookmarkIds, {saved.id});
 
       await groupRepository.deleteGroup(deleted.id);
 
-      final promoted = (await groupRepository.getGroup(child.id))!;
-      expect(promoted.parentGroupId, ancestor.id);
-      expect(promoted.addedAt, before.addedAt);
-      expect(
-        (await groupRepository.getGroup(grandchild.id))!.parentGroupId,
-        child.id,
-      );
-      expect(await repository.read(saved.id), isNotNull);
+      expect(await groupRepository.getGroup(ancestor.id), isNotNull);
+      expect(await groupRepository.getGroup(deleted.id), isNull);
+      expect(await groupRepository.getGroup(child.id), isNull);
+      expect(await groupRepository.getGroup(grandchild.id), isNull);
+      expect(await repository.read(saved.id), isNull);
     },
   );
+
+  test('confirmed root preview remains valid for the notifier expanded subtree call', () async {
+    final a = await createGroup('A');
+    final b = await createGroup('B', parentGroupId: a.id);
+    final c = await createGroup('C', parentGroupId: b.id);
+    final preview = await service.previewDeleteSelection(
+      folderIds: const {},
+      groupIds: {a.id},
+    );
+    expect(preview.selectedGroupIds, {a.id});
+    expect(preview.groupIds, {a.id, b.id, c.id});
+    final receipt = await service.deleteHierarchy(
+      preview.groupIds,
+      expectedPreview: preview,
+    );
+    expect(
+      receipt.deletedGroups.map((group) => group.id).toSet(),
+      preview.groupIds,
+    );
+    for (final id in preview.groupIds) {
+      expect(await groupRepository.getGroup(id), isNull);
+    }
+    await service.undoHierarchyDeletion(receipt);
+    expect((await groupRepository.getGroup(c.id))!.parentGroupId, b.id);
+  });
+
+  test('two disjoint subtrees remove each member once and preserve outside membership', () async {
+    final a = await createGroup('A');
+    final b = await createGroup('B', parentGroupId: a.id);
+    final c = await createGroup('C');
+    final d = await createGroup('D', parentGroupId: c.id);
+    final outside = await createGroup('Outside');
+    final shared = await addPost(210);
+    final firstOrphan = await addPost(211);
+    final secondOrphan = await addPost(212);
+    await addMembership(b.id, shared);
+    await addMembership(d.id, shared);
+    await addMembership(outside.id, shared);
+    await addMembership(b.id, firstOrphan);
+    await addMembership(d.id, secondOrphan);
+    final outsideBefore = await groupRepository.getGroup(outside.id);
+    final preview = await service.previewDeleteSelection(
+      folderIds: const {},
+      groupIds: {a.id, b.id, c.id},
+    );
+    expect(preview.groupIds, {a.id, b.id, c.id, d.id});
+    expect(preview.orphanBookmarkIds, {firstOrphan.id, secondOrphan.id});
+    await service.deleteSelection(preview);
+    expect(await groupRepository.getGroup(outside.id), outsideBefore);
+    expect(await repository.read(shared.id), isNotNull);
+    expect(await repository.read(firstOrphan.id), isNull);
+    expect(await repository.read(secondOrphan.id), isNull);
+    for (final id in [a.id, b.id, c.id, d.id]) {
+      expect(await groupRepository.getGroup(id), isNull);
+    }
+  });
+
+  for (final change in ['new child', 'outside membership']) {
+    for (final hierarchy in [false, true]) {
+      test(
+        'stale ${hierarchy ? 'hierarchy' : 'selection'} confirmation rejects $change',
+        () async {
+          final parent = await createGroup('Parent');
+          final child = await createGroup('Child', parentGroupId: parent.id);
+          final outside = await createGroup('Outside');
+          final saved = await addPost(213);
+          await addMembership(child.id, saved);
+          final preview = await service.previewDeleteSelection(
+            folderIds: const {},
+            groupIds: {parent.id},
+          );
+          expect(preview.orphanBookmarkIds, {saved.id});
+          if (change == 'new child') {
+            await createGroup(
+              'Added after confirmation',
+              parentGroupId: child.id,
+            );
+          } else {
+            await addMembership(outside.id, saved);
+          }
+          final before = await groupRepository.getGroups();
+          final revision = await repository.readRevision();
+          await expectLater(
+            hierarchy
+                ? service.deleteHierarchy({parent.id}, expectedPreview: preview)
+                : service.deleteSelection(preview),
+            throwsA(isA<BookmarkCollectionChangedException>()),
+          );
+          expect(await groupRepository.getGroups(), before);
+          expect(await repository.readRevision(), revision);
+          expect(await repository.read(saved.id), isNotNull);
+        },
+      );
+    }
+  }
 
   test(
     'legacy folder facade creates and renames ordinary hierarchy groups',

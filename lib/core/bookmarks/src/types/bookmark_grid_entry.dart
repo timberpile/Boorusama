@@ -5,6 +5,7 @@ import 'bookmark_library_state.dart';
 import 'bookmark_search_token.dart';
 import 'bookmark_view.dart';
 import 'pool_bookmark.dart';
+import 'content_group_bookmark.dart';
 
 sealed class BookmarkGridEntry {
   const BookmarkGridEntry();
@@ -30,6 +31,72 @@ final class BookmarkPoolEntry extends BookmarkGridEntry {
   DateTime? uploadDate({required bool oldest}) =>
       oldest ? pool.oldestUpload ?? pool.newestUpload : pool.newestUpload;
 }
+
+/// Native Works/Galleries retain their own Group record, never a Pool cast.
+final class BookmarkNativeGroupEntry extends BookmarkGridEntry {
+  BookmarkNativeGroupEntry(this.bookmark) : key = ('group', bookmark.id);
+  final ContentGroupBookmark bookmark;
+  @override
+  final Object key;
+  @override
+  DateTime? uploadDate({required bool oldest}) =>
+      bookmark.snapshot.details?.sourceDates?.publishedAt ??
+      bookmark.snapshot.details?.sourceDates?.createdAt;
+}
+
+List<ContentGroupBookmark> selectNativeGroupBookmarks({
+  required BookmarkLibraryState state,
+  required BookmarkView view,
+  required List<String> selectedTags,
+  String? selectedBooruUrl,
+  Set<int>? availableRecordIds,
+}) {
+  final inView = view.kind == BookmarkViewKind.all
+      ? null
+      : state.bookmarkIdsForView(view);
+  final filters = selectedTags
+      .map(BookmarkSearchToken.parse)
+      .where((token) => token.tag.isNotEmpty)
+      .toList();
+  return [
+    for (final record in state.records.whereType<ContentGroupBookmark>())
+      if (!record.reference.sourceKey.startsWith('pool:') &&
+          !record.reference.sourceKey.startsWith('related:') &&
+          (inView == null || inView.contains(record.id)) &&
+          (availableRecordIds == null ||
+              availableRecordIds.contains(record.id)) &&
+          (selectedBooruUrl == null ||
+              bookmarkSourceMatchesHost(
+                record.reference.siteNamespace,
+                selectedBooruUrl,
+              )) &&
+          _nativeTagsMatch(record, filters))
+        record,
+  ];
+}
+
+bool _nativeTagsMatch(
+  ContentGroupBookmark record,
+  List<BookmarkSearchToken> filters,
+) {
+  final tags = nativeGroupBookmarkTags(record);
+  return filters.every(
+    (filter) => filter.isNegative
+        ? !tags.contains(filter.tag)
+        : tags.contains(filter.tag),
+  );
+}
+
+Set<String> nativeGroupBookmarkTags(ContentGroupBookmark record) => {
+  ...?record.snapshot.index?.tags.map(canonicalBookmarkTag),
+  for (final tag
+      in (record.snapshot.details?.tags ?? record.summary.previewTags)
+              ?.values ??
+          const []) ...[
+    if (tag.name case final name?) canonicalBookmarkTag(name),
+    if (tag.displayName case final name?) canonicalBookmarkTag(name),
+  ],
+};
 
 /// Local, strict matching against each reference's stored union. Coverage never
 /// keeps a nonmatch visible, and this selector cannot perform I/O.
@@ -72,7 +139,15 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
   BookmarkShuffleState? shuffleState,
   Set<int>? availablePostIds,
   Set<String>? availableCollectionIds,
+  Set<int>? availableNativeGroupIds,
 }) {
+  final native = selectNativeGroupBookmarks(
+    state: state,
+    view: view,
+    selectedTags: selectedTags,
+    selectedBooruUrl: selectedBooruUrl,
+    availableRecordIds: availableNativeGroupIds,
+  );
   final pools = selectPoolBookmarks(
     state: state,
     view: view,
@@ -89,7 +164,9 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
     state: state,
     view: view,
     selectedTags: selectedTags,
-    sortType: pools.isNotEmpty && sortType == BookmarkSortType.random
+    sortType:
+        (pools.isNotEmpty || native.isNotEmpty) &&
+            sortType == BookmarkSortType.random
         ? BookmarkSortType.newest
         : sortType,
     selectedBooruUrl: selectedBooruUrl,
@@ -100,9 +177,10 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
   final entries = <BookmarkGridEntry>[
     ...posts.map(BookmarkPostEntry.new),
     ...pools.map(BookmarkPoolEntry.new),
+    ...native.map(BookmarkNativeGroupEntry.new),
   ];
   // Preserve the existing optimized Post-only sort/shuffle and tie behavior.
-  if (pools.isEmpty) return entries;
+  if (pools.isEmpty && native.isEmpty) return entries;
   if (sortType == BookmarkSortType.scoreDescending ||
       sortType == BookmarkSortType.scoreAscending) {
     // Posts already use the shared score comparator. References have no score;
@@ -143,6 +221,8 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
     BookmarkPostEntry(:final bookmark) =>
       membershipDates?[bookmark.id] ?? bookmark.createdAt,
     BookmarkPoolEntry(:final pool) => poolDates[pool.localId] ?? pool.createdAt,
+    BookmarkNativeGroupEntry(:final bookmark) =>
+      membershipDates?[bookmark.id] ?? bookmark.createdAt,
   };
   entries.sort((a, b) {
     final ad = uploads ? a.uploadDate(oldest: oldest) : savedAt(a);

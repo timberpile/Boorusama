@@ -38,6 +38,7 @@ final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
       groupPayloadBox: groups,
       metadataBox: metadata,
       coordinator: storage.coordinator,
+      mirrorGuard: storage.mirrorGuard,
       legacyGroupBoxName: boxName == 'favorites'
           ? 'bookmark_groups'
           : '${boxName}_bookmark_groups',

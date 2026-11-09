@@ -561,6 +561,7 @@ void main() {
                       ],
                     ),
             );
+            await notifier.previewComplete;
             expect(
               container.read(importFlowProvider).preflight!.isValid,
               isTrue,

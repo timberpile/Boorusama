@@ -10,6 +10,8 @@ import '../../../core/boorus/booru/types.dart';
 import '../../../core/content/groups/group_envelope_cache.dart';
 import '../../../core/content/groups/group_source_provider.dart';
 import '../../../core/content/types.dart';
+import '../../../core/content/groups/group_visibility.dart';
+import '../../../core/posts/rating/types.dart';
 import '../../../core/errors/types.dart';
 import '../posts/types.dart';
 import 'work_mapper.dart';
@@ -17,8 +19,11 @@ import 'work_mapper.dart';
 /// One captured Pixiv actor owns its shared artwork envelope and Page manifest.
 /// Native listing responses may seed that envelope without an extra detail read.
 final class PixivWorkSource extends ContentGroupSource {
-  PixivWorkSource({required this.access, required this.fetchWork})
-    : _envelopes = GroupEnvelopeCache(access: access.key) {
+  PixivWorkSource({
+    required this.access,
+    required this.fetchWork,
+    this.blacklist = const {},
+  }) : _envelopes = GroupEnvelopeCache(access: access.key) {
     if (access.key.engine != BooruType.pixiv ||
         access.key.profileId == null ||
         access.config == null) {
@@ -28,6 +33,7 @@ final class PixivWorkSource extends ContentGroupSource {
 
   @override
   final ContentAccessContext access;
+  final Set<String> blacklist;
   final Future<PixivIllustDto?> Function(int illustId) fetchWork;
   final GroupEnvelopeCache<PixivIllustDto> _envelopes;
   final _cancellation = CancelToken();
@@ -48,23 +54,52 @@ final class PixivWorkSource extends ContentGroupSource {
   void seedWork(PixivIllustDto dto) {
     final summary = pixivWorkSummary(dto, access);
     _require(summary.reference);
+    _requireVisible(dto);
+    _seeded.add(summary.reference);
     _envelopes.seed(summary.reference, dto);
   }
 
+  void invalidateAll() {
+    for (final reference in _seeded.toList()) invalidate(reference);
+    _seeded.clear();
+  }
+
+  final _seeded = <ContentReference>{};
+
   Future<PixivIllustDto> _work(ContentReference reference) {
     _require(reference);
-    return _envelopes.load(reference, () async {
-      final id = int.parse(reference.sourceKey.split(':').last);
-      final dto = await fetchWork(id);
-      if (_disposed ||
-          dto == null ||
-          dto.id != id ||
-          !pixivWorkIsVisible(dto) ||
-          PixivIllustType.parse(dto.type) == PixivIllustType.ugoira) {
-        throw StateError('Pixiv Work unavailable');
-      }
-      return dto;
-    });
+    return _envelopes
+        .load(reference, () async {
+          final id = int.parse(reference.sourceKey.split(':').last);
+          final dto = await fetchWork(id);
+          if (_disposed ||
+              dto == null ||
+              dto.id != id ||
+              !pixivWorkIsVisible(dto) ||
+              PixivIllustType.parse(dto.type) == PixivIllustType.ugoira) {
+            throw StateError('Pixiv Work unavailable');
+          }
+          return dto;
+        })
+        .then((dto) {
+          _requireVisible(dto);
+          return dto;
+        });
+  }
+
+  void _requireVisible(PixivIllustDto dto) {
+    final rating = Rating.parse(pixivWorkVisibility(dto).rating);
+    if (!pixivWorkIsVisible(dto) ||
+        !groupAllowsRating(access.config!, rating) ||
+        !groupTagsPassBlacklist(
+          pixivWorkTags(dto),
+          blacklist,
+          rating: rating,
+          sourceId: dto.id,
+          sourceUrl: access.baseUrl.toString(),
+        )) {
+      throw StateError('Pixiv Work is filtered by the current source policy');
+    }
   }
 
   TaskEither<BooruError, T> _read<T>(Future<T> Function() action) =>

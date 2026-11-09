@@ -19,6 +19,7 @@ import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
 import '../../../../images/providers.dart';
+import '../../../../images/media_diagnostics.dart';
 import '../../../../images/booru_image.dart'
     show ErrorPlaceholder, ImageRetryButton;
 import '../../../listing/types.dart';
@@ -151,6 +152,14 @@ class ProgressivePostImage extends ConsumerWidget {
         ? ref.watch(mediaOverrideDioProvider(config))
         : dio;
     return RawProgressivePostImage(
+      diagnostics: ref.watch(mediaDiagnosticsProvider(config)),
+      diagnosticBinding: access.key != null
+          ? config.anonymousReadScope != null
+                ? MediaDiagnosticBinding.anonymous
+                : MediaDiagnosticBinding.bound
+          : needsOverride
+          ? MediaDiagnosticBinding.override
+          : MediaDiagnosticBinding.unbound,
       resolveRequest: (url) {
         final request = network.resolveMedia(
           url,
@@ -202,8 +211,12 @@ class RawProgressivePostImage extends StatefulWidget {
     this.androidVersion,
     this.onRepresentationChanged,
     this.intermediateImageUrls = const [],
+    this.diagnostics,
+    this.diagnosticBinding = MediaDiagnosticBinding.unbound,
   });
 
+  final MediaDiagnostics? diagnostics;
+  final MediaDiagnosticBinding diagnosticBinding;
   final ({String url, Dio dio, Map<String, String> headers}) Function(String)?
   resolveRequest;
   final Dio dio;
@@ -464,6 +477,21 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
         // from replacement candidates; this does not remove disk payloads.
         unawaited(provider.evict());
         if (!mounted || candidate.disposed) return;
+        unawaited(
+          widget.diagnostics?.imageFailure(
+            url: request.url,
+            error: error,
+            stackTrace: stack,
+            headers: request.headers,
+            binding: widget.diagnosticBinding,
+            manager: widget.cacheManager,
+            rendition: url == widget.imageUrl
+                ? MediaDiagnosticRendition.target
+                : _intermediateUrls.contains(url)
+                ? MediaDiagnosticRendition.intermediate
+                : MediaDiagnosticRendition.preview,
+          ),
+        );
         _failedUrls.add(url);
         onError();
       },
@@ -560,6 +588,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     setState(() => _retrying = true);
     try {
       for (final url in _failedUrls.toList()) {
+        widget.diagnostics?.retry(widget.resolveRequest?.call(url).url ?? url);
         final requestUrl = widget.resolveRequest?.call(url).url ?? url;
         try {
           await widget.cacheManager.clearCache(

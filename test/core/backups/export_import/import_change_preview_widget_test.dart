@@ -1,10 +1,64 @@
 import 'package:boorusama/core/backups/export_import/import/import_change_preview.dart';
 import 'package:boorusama/core/backups/export_import/widgets/import_change_preview.dart';
+import 'package:boorusama/core/backups/export_import/widgets/import_bounded_list.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 
 void main() {
+  testWidgets('large categories build only visible rows after expansion', (
+    tester,
+  ) async {
+    final rows = [
+      for (var index = 0; index < 5000; index++)
+        ImportChangePreviewRow(
+          category: 'profiles',
+          id: 'profile-$index',
+          kind: ImportChangeKind.added,
+          label: 'Account $index',
+        ),
+    ];
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: ImportChangePreview(
+                rows: rows,
+                sourceNames: const {'profiles': 'Profiles'},
+                profileNames: const {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('5000 changes'), findsOneWidget);
+    expect(find.byType(ImportBoundedList), findsNothing);
+    await tester.tap(find.text('Planned Changes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ImportBoundedList), findsNothing);
+    await tester.tap(find.text('Profiles'));
+    await tester.pumpAndSettle();
+    final visible = find.textContaining(RegExp('^Account '));
+    expect(visible.evaluate().length, inInclusiveRange(1, 40));
+    expect(find.text('Account 4999'), findsNothing);
+    final list = find.descendant(
+      of: find.byType(ImportBoundedList),
+      matching: find.byType(ListView),
+    );
+    expect(tester.getSize(list).height, lessThanOrEqualTo(560));
+    await tester.drag(list, const Offset(0, -500));
+    await tester.pumpAndSettle();
+    expect(find.text('Account 0'), findsNothing);
+    expect(visible.evaluate().length, lessThan(40));
+    await tester.ensureVisible(find.text('Profiles'));
+    await tester.tap(find.text('Profiles'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ImportBoundedList), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('expanded field details fit 280px at doubled text size', (
     tester,
   ) async {

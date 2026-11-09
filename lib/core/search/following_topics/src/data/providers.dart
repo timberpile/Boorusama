@@ -7,6 +7,7 @@ import 'package:hive_ce/hive.dart';
 
 // Project imports:
 import '../types/following_topic_repository.dart';
+import '../../../../backups/folder_sync/mirror_guard.dart';
 import 'hive/following_topic_hive_object.dart';
 import 'hive/following_topic_repository_hive.dart';
 import '../compatibility/topic_storage_contract.dart';
@@ -36,6 +37,7 @@ class FollowingTopicRepositoryNotifier
     final resource = _FollowingTopicRepositoryBuild(
       _openBox,
       _withOrganization,
+      _withOrganization ? ref.watch(collectionMirrorGuardProvider) : null,
     );
     ref.onDispose(() {
       _closeFuture = resource.dispose();
@@ -52,10 +54,15 @@ class FollowingTopicRepositoryNotifier
 }
 
 class _FollowingTopicRepositoryBuild {
-  _FollowingTopicRepositoryBuild(this._openBox, this._withOrganization);
+  _FollowingTopicRepositoryBuild(
+    this._openBox,
+    this._withOrganization,
+    this.mirrorGuard,
+  );
 
   final Future<Box<FollowingTopicHiveObject>> Function() _openBox;
   final bool _withOrganization;
+  final CollectionMirrorGuard? mirrorGuard;
   Box<dynamic>? _organizationBox;
   final _closeCompleter = Completer<void>();
   Box<FollowingTopicHiveObject>? _box;
@@ -79,6 +86,7 @@ class _FollowingTopicRepositoryBuild {
       return HiveFollowingTopicRepository(
         box: box,
         organizationBox: _organizationBox,
+        mirrorGuard: mirrorGuard,
       );
     } catch (_) {
       _openingComplete = true;

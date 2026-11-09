@@ -110,9 +110,13 @@ class FavoriteHarness {
   late BookmarkTestStorage bookmarkStorage;
   List<Override> Function(BooruConfig)? _extraOverrides;
   late BooruConfig profile;
+  var _unifiedOrganization = false;
+  Future<void> Function(Iterable<BoxBase<dynamic>> boxes)? _syncBoxes;
 
   Future<void> open({
     bool sharedAuth = false,
+    bool unifiedOrganization = false,
+    Future<void> Function(Iterable<BoxBase<dynamic>> boxes)? syncBoxes,
     List<Override> Function(BooruConfig)? extraOverrides,
   }) async {
     profile = BooruConfig.fromJson({
@@ -141,7 +145,9 @@ class FavoriteHarness {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    _unifiedOrganization = unifiedOrganization;
     _extraOverrides = extraOverrides;
+    _syncBoxes = syncBoxes;
     await _openRepositories();
   }
 
@@ -150,11 +156,14 @@ class FavoriteHarness {
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('favorites-groups');
     organizationBox = await Hive.openBox<dynamic>('favorites-organization');
     bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
-    bookmarks = bookmarkStorage.repository(bookmarkBox);
+    bookmarks = bookmarkStorage.repository(bookmarkBox, syncBoxes: _syncBoxes);
     groups = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: organizationBox,
     );
+    final activeGroups = _unifiedOrganization
+        ? await bookmarks.openOrganization()
+        : groups;
     container = ProviderContainer(
       overrides: [
         ...bookmarkStorage.overrides,
@@ -165,7 +174,7 @@ class FavoriteHarness {
           () => BooruConfigNotifier(initialConfigs: profiles.profiles),
         ),
         bookmarkRepoProvider.overrideWith((ref) => bookmarks),
-        bookmarkGroupRepoProvider.overrideWith((ref) => groups),
+        bookmarkGroupRepoProvider.overrideWith((ref) => activeGroups),
         bookmarkUrlResolverProvider.overrideWith(
           (ref, id) => const DefaultImageUrlResolver(),
         ),
@@ -205,6 +214,7 @@ class FavoriteHarness {
     await bookmarkBox.close();
     await groupBox.close();
     await organizationBox.close();
+    if (_unifiedOrganization) await Hive.close();
     await directory.delete(recursive: true);
   }
 }

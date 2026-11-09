@@ -1,3 +1,4 @@
+import 'package:boorusama/core/posts/listing/src/widgets/post_grid_controller.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid_prefetch.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -26,18 +27,22 @@ void main() {
           body: PostScope<Post>(
             fetcher: (page) {
               pages.add(page);
-              return TaskEither.of(PostResult<Post>(
-                posts: page == 1 ? [] : [TestPost(id: 2)],
-                total: null,
-                hasMore: page == 1,
-              ));
+              return TaskEither.of(
+                PostResult<Post>(
+                  posts: page == 1 ? [] : [TestPost(id: 2)],
+                  total: null,
+                  hasMore: page == 1,
+                ),
+              );
             },
             builder: (context, value) {
               controller = value;
               return PostGrid<Post>(
                 controller: controller,
                 header: const SizedBox.shrink(),
-                scrollToTopButton: customButton ? const SizedBox.shrink() : null,
+                scrollToTopButton: customButton
+                    ? const SizedBox.shrink()
+                    : null,
                 itemBuilder: (_, index, scroll, hero) => Text('Post $index'),
               );
             },

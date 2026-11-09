@@ -33,12 +33,19 @@ void main() {
     await h.advance(tester);
     expect(h.pages, [1, 2], reason: 'Do not overlap page requests.');
     await h.reply(tester, count: 100, more: true);
+    expect(h.controller.items, hasLength(200));
+    expect(
+      h.scroll.position.extentAfter,
+      greaterThan(h.scroll.position.viewportDimension * 2),
+    );
     await h.advance(tester);
     expect(h.pages, [1, 2], reason: 'New content moves the end away.');
   });
 
   for (final count in [0, 1]) {
-    testWidgets('bounds idle continuation for $count-post pages', (tester) async {
+    testWidgets('bounds idle continuation for $count-post pages', (
+      tester,
+    ) async {
       final h = _Harness();
       await h.mount(tester);
       for (var page = 1; page <= 4; page++) {
@@ -179,9 +186,13 @@ void main() {
     await h.reply(tester, count: 1, more: true);
     expect(h.controller.loadingMore, isTrue);
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
-    unawaited(navigator.push<void>(
-      MaterialPageRoute(builder: (_) => const Scaffold(body: Text('Covered'))),
-    ));
+    unawaited(
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('Covered')),
+        ),
+      ),
+    );
     await h.advance(tester);
     expect(h.pages, [1]);
     navigator.pop();
@@ -239,8 +250,11 @@ void main() {
     final pages = <int>[];
     final controller = _controller((page) async {
       pages.add(page);
-      return PostResult<Post>(posts: [TestPost(id: page)], total: null,
-          hasMore: page == 1);
+      return PostResult<Post>(
+        posts: [TestPost(id: page)],
+        total: null,
+        hasMore: page == 1,
+      );
     });
     addTearDown(controller.dispose);
     await controller.refresh();
@@ -304,49 +318,74 @@ class _Harness {
     });
     // Begin the initial page explicitly, as RawPostGrid does in production.
     unawaited(controller.refresh());
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: Align(
-          alignment: Alignment.topLeft,
-          child: ValueListenableBuilder<double>(
-            valueListenable: height,
-            builder: (_, extent, child) => SizedBox(height: extent, child: child),
-            child: ValueListenableBuilder<bool>(
-              valueListenable: active,
-              builder: (_, enabled, child) => NavigationActivity(
-                active: enabled,
-                child: PostGridPrefetch(
-                  controller: controller,
-                  scrollController: scroll,
-                  child: child!,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: ValueListenableBuilder<double>(
+              valueListenable: height,
+              builder: (_, extent, child) =>
+                  SizedBox(height: extent, child: child),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: active,
+                builder: (_, enabled, child) => NavigationActivity(
+                  active: enabled,
+                  child: PostGridPrefetch(
+                    controller: controller,
+                    scrollController: scroll,
+                    child: child!,
+                  ),
                 ),
-              ),
-              child: ListenableBuilder(
-                listenable: controller,
-                builder: (_, _) => ListView.builder(
-                  controller: scroll,
-                  padding: EdgeInsets.zero,
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  itemExtent: 100,
-                  itemCount: controller.items.length,
-                  itemBuilder: (_, index) => Text('Post $index'),
+                child: ListenableBuilder(
+                  listenable: controller,
+                  builder: (_, _) => ListView(
+                    controller: scroll,
+                    padding: EdgeInsets.zero,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    // This fixture tests continuation against known geometry.
+                    // A lazy delegate can retain its old extent when existing
+                    // children are unchanged, even after itemCount increases.
+                    children: [SizedBox(height: controller.items.length * 100)],
+                  ),
                 ),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
     await tester.pump();
     expect(pages, [1]);
   }
 
-  Future<void> reply(WidgetTester tester, {required int count, required bool more}) async {
-    responses.last.complete(PostResult<Post>(
-      posts: [for (var i = 0; i < count; i++) TestPost(id: _nextId++)],
-      total: null,
-      hasMore: more,
-    ));
+  Future<void> reply(
+    WidgetTester tester, {
+    required int count,
+    required bool more,
+  }) async {
+    // A source reply is not the end of ingestion/filtering or its layout.
+    // Observe the controller's completion before inspecting viewport metrics.
+    final applied = Completer<void>();
+    void settled() {
+      if (!controller.refreshing &&
+          !controller.loadingMore &&
+          !applied.isCompleted) {
+        applied.complete();
+      }
+    }
+
+    controller.addListener(settled);
+    responses.last.complete(
+      PostResult<Post>(
+        posts: [for (var i = 0; i < count; i++) TestPost(id: _nextId++)],
+        total: null,
+        hasMore: more,
+      ),
+    );
+    await tester.pump();
+    await applied.future;
+    controller.removeListener(settled);
     await tester.pump();
   }
 

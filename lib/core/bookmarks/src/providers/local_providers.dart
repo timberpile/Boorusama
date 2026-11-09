@@ -14,6 +14,8 @@ import '../../../tags/local/providers.dart';
 import '../../../tags/tag/providers.dart';
 import '../../../tags/tag/types.dart';
 import '../../providers.dart';
+import '../types/bookmark_grid_entry.dart';
+import '../types/bookmark_view.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
@@ -30,9 +32,9 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
 ) async {
   ref.cacheFor(const Duration(seconds: 3));
-  final (bookmarks, pools) = await ref.watch(
-    bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
-  );
+  final library = await ref.watch(bookmarkProvider.future);
+  final bookmarks = library.items;
+  final pools = library.pools;
 
   final result = bookmarks.fold<Map<String, int>>(
     {},
@@ -46,6 +48,15 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   for (final pool in pools) {
     for (final tag in pool.tags) {
       result.update(tag, (n) => n + 1, ifAbsent: () => 1);
+    }
+  }
+  for (final group in selectNativeGroupBookmarks(
+    state: library,
+    view: const BookmarkView.all(),
+    selectedTags: const [],
+  )) {
+    for (final tag in nativeGroupBookmarkTags(group)) {
+      result.update(tag, (count) => count + 1, ifAbsent: () => 1);
     }
   }
   return result;
@@ -63,9 +74,9 @@ final selectedBookmarkSortTypeProvider =
 final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   ref,
 ) async {
-  final (bookmarks, pools) = await ref.watch(
-    bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
-  );
+  final library = await ref.watch(bookmarkProvider.future);
+  final bookmarks = library.items;
+  final pools = library.pools;
 
   final hosts = bookmarks.fold(
     <String>{},
@@ -79,6 +90,13 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
     pools
         .map((p) => Uri.tryParse('https://${p.origin.sourceHost}')?.host)
         .nonNulls,
+  );
+  hosts.addAll(
+    selectNativeGroupBookmarks(
+      state: library,
+      view: const BookmarkView.all(),
+      selectedTags: const [],
+    ).map((group) => group.reference.site.host),
   );
   return hosts.toList();
 });

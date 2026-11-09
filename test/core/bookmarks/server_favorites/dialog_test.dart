@@ -274,8 +274,13 @@ void main() {
     final title = find.descendant(of: contents, matching: find.text(label));
     final navigation = find.descendant(
       of: contents,
-      matching: find.byTooltip(
-        '${_strings(tester).bookmark.groups.open_group}: $label',
+      // The split action owns its semantic label. Its material_ui Tooltip
+      // excludes duplicate semantics, so RawTooltip has no finder message.
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            widget.message ==
+                '${_strings(tester).bookmark.groups.open_group}: $label',
       ),
     );
     if (title.hitTestable().evaluate().isEmpty) {

@@ -1,5 +1,6 @@
 import '../types/bookmark_grid_entry.dart';
 import '../types/pool_bookmark.dart';
+import '../types/content_group_bookmark.dart';
 
 // Dart imports:
 import 'dart:ui' show Brightness;
@@ -123,8 +124,15 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
         ),
         (
           library.pools,
+          library.records,
           source,
           view.kind == BookmarkViewKind.subtree ? library.groupTree : null,
+        ),
+        selectNativeGroupBookmarks(
+          state: library,
+          view: view,
+          selectedTags: const [],
+          selectedBooruUrl: source,
         ),
       );
     });
@@ -140,11 +148,14 @@ class _PoolTagOverlay {
     BookmarkTagIndex base,
     List<CollectionBookmark> pools,
     Object revision,
+    List<ContentGroupBookmark> nativeGroups,
   ) {
     if (identical(base, _base) && revision == _revision) return _value!;
     _base = base;
     _revision = revision;
-    return _value = base.withPoolBookmarks(pools);
+    return _value = base
+        .withPoolBookmarks(pools)
+        .withNativeGroupBookmarks(nativeGroups);
   }
 }
 

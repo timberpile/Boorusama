@@ -168,11 +168,30 @@ void main() {
         final feeds = originalSources.singleWhere(
           (source) => source.id == 'following_feeds',
         );
+        final projectionsBeforeChoice = notifier.sourceProjectionRuns;
+        final unaffectedFeedSummary = container
+            .read(importFlowProvider)
+            .preflight!
+            .sourceSummaries['following_feeds'];
         notifier.replaceSource(pinSource.copyWith(action: ImportAction.skip));
+        await notifier.previewComplete;
+        expect(
+          notifier.sourceProjectionRuns,
+          projectionsBeforeChoice + 1,
+          reason: 'Only the changed Topics source needs another projection',
+        );
+        expect(
+          container
+              .read(importFlowProvider)
+              .preflight!
+              .sourceSummaries['following_feeds'],
+          same(unaffectedFeedSummary),
+        );
         expect(dependencyProblem().profileDependency!.sourceIds, {
           'following_feeds',
         });
         notifier.replaceSource(feeds.copyWith(action: ImportAction.skip));
+        await notifier.previewComplete;
         expect(
           container
               .read(importFlowProvider)
@@ -182,11 +201,14 @@ void main() {
           isEmpty,
         );
         notifier.replaceSource(pinSource);
+        await notifier.previewComplete;
         expect(dependencyProblem().profileDependency!.sourceIds, {
           'pinned_searches',
         });
         notifier.replaceSource(feeds);
+        await notifier.previewComplete;
         notifier.chooseProfileMapping(key, firstId);
+        await notifier.previewComplete;
         expect(
           container
               .read(importFlowProvider)

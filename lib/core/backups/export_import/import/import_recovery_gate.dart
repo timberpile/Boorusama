@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../foundation/filesystem.dart';
 import '../../sources/providers.dart';
+import '../../folder_sync/mirror_guard.dart';
 import 'import_flow_notifier.dart';
 import 'import_journal.dart';
 import 'import_recovery_service.dart';
@@ -42,7 +43,13 @@ class ImportRecoveryNotifier extends AsyncNotifier<ImportRecoveryResult> {
     };
     return ImportRecoveryService(
       store: store,
-      transaction: ImportTransaction(store: store, fs: fs),
+      transaction: ImportTransaction(
+        store: store,
+        fs: fs,
+        verifiedLocalRestore: (restore) => ref
+            .read(collectionMirrorGuardProvider)
+            .recoverVerifiedLocalSnapshot(restore),
+      ),
       sources: () => sources,
     ).recoverPending();
   }

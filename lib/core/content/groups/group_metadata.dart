@@ -34,6 +34,7 @@ final class GroupCover extends Equatable {
     this.width,
     this.height,
     this.representedPost,
+    this.visibility,
     Map<String, String> variants = const {},
   }) : variants = Map.unmodifiable(variants) {
     [thumbnail, ?sample, ?original].forEach(validateGroupMetadataUri);
@@ -50,6 +51,7 @@ final class GroupCover extends Equatable {
   final int? width;
   final int? height;
   final ContentReference? representedPost;
+  final GroupCoverVisibility? visibility;
   final Map<String, String> variants;
   @override
   List<Object?> get props => [
@@ -59,8 +61,47 @@ final class GroupCover extends Equatable {
     width,
     height,
     representedPost,
+    visibility,
     variants,
   ];
+}
+
+/// Only the selected cover's filtering facts; no member manifest or media bytes.
+final class GroupCoverVisibility extends Equatable {
+  GroupCoverVisibility({
+    required Iterable<String> tags,
+    required this.rating,
+    required this.deleted,
+    required this.banned,
+    this.tagCoverage = MetadataCoverage.complete,
+  }) : tags = Set.unmodifiable(tags);
+  final Set<String> tags;
+  final MetadataCoverage tagCoverage;
+  final String rating;
+  final bool deleted;
+  final bool banned;
+  Map<String, Object?> toJson() => {
+    'tags': tags.toList()..sort(),
+    'rating': rating,
+    'deleted': deleted,
+    'banned': banned,
+    'tagCoverage': tagCoverage.name,
+  };
+  factory GroupCoverVisibility.fromJson(Map<String, dynamic> json) =>
+      GroupCoverVisibility(
+        tags: (json['tags'] as List).cast<String>(),
+        rating: json['rating'] as String,
+        deleted: json['deleted'] as bool,
+        banned: json['banned'] as bool,
+        tagCoverage: json['tagCoverage'] == null
+            ? MetadataCoverage.complete
+            : MetadataCoverage.values
+                      .where((value) => value.name == json['tagCoverage'])
+                      .firstOrNull ??
+                  MetadataCoverage.unknown,
+      );
+  @override
+  List<Object?> get props => [tags, rating, deleted, banned, tagCoverage];
 }
 
 final class GroupDescription extends Equatable {
@@ -78,6 +119,23 @@ final class GroupTags extends Equatable {
   final MetadataCoverage coverage;
   @override
   List<Object?> get props => [values, coverage];
+}
+
+GroupTags? mergeGroupTagObservation(GroupTags? current, GroupTags? previous) {
+  if (current == null || current.coverage == MetadataCoverage.unknown)
+    return previous ?? current;
+  if (previous == null || current.coverage == MetadataCoverage.complete)
+    return current;
+  Object identity(GroupTag tag) => tag.sourceId == null
+      ? ('name', tag.category, tag.name?.toLowerCase())
+      : ('id', tag.category, tag.sourceId);
+  return GroupTags(
+    coverage: MetadataCoverage.partial,
+    values: {
+      for (final tag in previous.values) identity(tag): tag,
+      for (final tag in current.values) identity(tag): tag,
+    }.values,
+  );
 }
 
 final class GroupTag extends Equatable {

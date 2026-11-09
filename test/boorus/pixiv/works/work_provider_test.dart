@@ -16,6 +16,36 @@ final _contexts = StateProvider<Map<ContentAccessKey, ContentAccessContext>>(
 );
 
 void main() {
+  test(
+    'secondary Work source provider also captures the effective blacklist',
+    () async {
+      final access = workAccess();
+      final client = _Client()..response.complete(work());
+      final container = ProviderContainer(
+        overrides: [
+          contentAccessContextProvider.overrideWith((_, _) => access),
+          contentEffectiveBlacklistProvider.overrideWith(
+            (_, _) => const AsyncData({'fixture'}),
+          ),
+          pixivClientProvider.overrideWith((_, _) => client),
+        ],
+      );
+      addTearDown(container.dispose);
+      final hold = container.listen(
+        pixivWorkSourceProvider(access.key),
+        (_, _) {},
+      );
+      addTearDown(hold.close);
+      final source = container.read(pixivWorkSourceProvider(access.key));
+      expect(
+        (await source.loadDetails(pixivWorkReference(access, 120)).run())
+            .isLeft(),
+        isTrue,
+      );
+      expect(source.blacklist, {'fixture'});
+    },
+  );
+
   test('production source provider captures actor and rejects late data after revocation', () async {
     final access = workAccess();
     final client = _Client();
@@ -25,6 +55,9 @@ void main() {
           (ref, key) => ref.watch(_contexts)[key],
         ),
         pixivClientProvider.overrideWith((ref, config) => client),
+        contentEffectiveBlacklistProvider.overrideWith(
+          (ref, id) => const AsyncData(<String>{}),
+        ),
       ],
     );
     addTearDown(container.dispose);

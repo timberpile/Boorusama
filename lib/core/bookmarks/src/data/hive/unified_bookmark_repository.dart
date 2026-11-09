@@ -15,6 +15,7 @@ import '../../../../../foundation/loggers/logger.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../content/content_map.dart';
 import '../../../../content/types.dart';
+import '../../../../backups/folder_sync/mirror_guard.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/bookmark.dart';
@@ -46,6 +47,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     required Box<dynamic> groupPayloadBox,
     required Box<dynamic> metadataBox,
     required this.coordinator,
+    this.mirrorGuard,
     this.postDataCodec,
     this.legacyGroupBoxName = 'bookmark_groups',
     this.legacyOrganizationBoxName = 'bookmark_folders',
@@ -68,6 +70,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   final Box<dynamic> _groups;
   final Box<dynamic> _metadata;
   final DataMutationCoordinator coordinator;
+  final CollectionMirrorGuard? mirrorGuard;
   final AppFileSystem fs;
   final Logger? logger;
   final BooruPostDataCodec? Function(BooruType type)? postDataCodec;
@@ -619,6 +622,29 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     List<CollectionFolder>? organizationFolders,
     bool restoreLocalPreimage = false,
   }) async {
+    if (mirrorGuard case final guard? when guard.groupIds.isNotEmpty) {
+      final (groupBox, _) = await _organizationBoxes();
+      guard.validate(
+        currentGroups: [
+          for (final row in groupBox.values)
+            BookmarkGroup(
+              id: row.id,
+              name: row.name,
+              bookmarkIds: row.bookmarkIds.toSet(),
+              parentGroupId: row.parentGroupId,
+              position: row.position,
+              addedAt: {
+                for (final entry in (row.addedAt ?? const {}).entries)
+                  if (int.tryParse(entry.key.toString()) case final id?)
+                    id: DateTime.parse(entry.value.toString()),
+              },
+            ),
+        ],
+        groups: organizationGroups,
+        removeGroupIds: removedOrganizationGroups,
+        removeIds: removeIds,
+      );
+    }
     final deletes = <Map<String, Object?>>[];
     final previous = <String, Object?>{};
     for (final id in removeIds) {

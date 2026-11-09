@@ -13,12 +13,14 @@ import '../../../../boorus/booru/providers.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/network/providers.dart';
+import '../../../../images/media_diagnostics.dart';
 import '../../../../ddos/handler/providers.dart';
 import '../coordination/api_request_coordinator.dart';
 import '../coordination/api_auth_refresh_registry.dart';
 import '../types/dio_options.dart';
 import '../types/http_utils.dart';
 import '../types/network_protocol_info.dart';
+import '../data/source_media_http_adapter.dart';
 import 'dio.dart';
 
 final apiAuthRefreshRegistryProvider = Provider<ApiAuthRefreshRegistry>(
@@ -97,7 +99,22 @@ final mediaOverrideDioProvider = Provider.autoDispose
               false,
         ),
       );
-      ref.onDispose(dio.close);
+      var active = true;
+      dio.httpClientAdapter = SourceMediaHttpClientAdapter(
+        delegate: dio.httpClientAdapter,
+        source: Uri.parse(config.url),
+        mediaHostOverrides: ref
+            .watch(networkSettingsProvider(config))
+            .activeMediaHostOverrides,
+        diagnostics: ref.watch(mediaDiagnosticsProvider(config)),
+        diagnosticBinding: MediaDiagnosticBinding.override,
+        current: () => active,
+        ownsDelegate: true,
+      );
+      ref.onDispose(() {
+        active = false;
+        dio.close();
+      });
       return dio;
     });
 
@@ -114,7 +131,20 @@ final dioForWidgetProvider = Provider.family<Dio, BooruConfigAuth>(
       return ref.watch(genericDioProvider);
     }
 
-    return repository.dio(config);
+    final dio = repository.dio(config);
+    final diagnostics = ref.watch(mediaDiagnosticsProvider(config));
+    if (diagnostics != null &&
+        !dio.interceptors.any((entry) => entry is MediaDiagnosticInterceptor)) {
+      dio.interceptors.add(
+        MediaDiagnosticInterceptor(
+          diagnostics,
+          binding: config.anonymousReadScope == null
+              ? MediaDiagnosticBinding.unbound
+              : MediaDiagnosticBinding.anonymous,
+        ),
+      );
+    }
+    return dio;
   },
   name: 'dioProvider',
 );

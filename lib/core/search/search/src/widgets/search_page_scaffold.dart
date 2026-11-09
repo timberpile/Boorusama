@@ -55,9 +55,18 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.extraHeaders,
     this.itemBuilder,
     this.resultGridBuilder,
+    this.nativeResultBuilder,
     this.searchRegionBuilder,
     this.landingViewBuilder,
   });
+
+  final Widget Function(
+    BuildContext context,
+    String query,
+    int initialPage,
+    Widget header,
+  )?
+  nativeResultBuilder;
 
   final SearchParams params;
   String? get initialQuery => params.query;
@@ -290,6 +299,7 @@ class _SearchPageScaffoldState<T extends Post>
             DefaultMobileSearchLandingView(controller: _controller),
         itemBuilder: widget.itemBuilder,
         resultGridBuilder: widget.resultGridBuilder,
+        nativeResultBuilder: widget.nativeResultBuilder,
         searchSuggestions: DefaultSearchSuggestions(
           multiSelectController: _searchModeController,
           config: ref.watchConfigAuth,
@@ -404,6 +414,31 @@ class _SearchPageScaffoldState<T extends Post>
                       ],
                     ),
                   )
+                : widget.nativeResultBuilder != null
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      SearchLinkShareMenu(
+                        profileName: ref.watchConfig.name,
+                        link: BoorusamaSearchLink.fromRaw(
+                          auth: ref.watchConfigAuth,
+                          query: value,
+                        ),
+                      ),
+                      FollowTopicButton(
+                        query: value,
+                        queryStructure: _typedQueryStructure(
+                          _tagsController.tags,
+                        ),
+                        originatingTopicId: origin?.value?.topic.id,
+                        original: origin?.value,
+                        onOpen: () => _openFollow(origin),
+                        compact: true,
+                        showCount: false,
+                        onFeedback: (message) => _topicFeedback.value = message,
+                      ),
+                    ],
+                  )
                 : const SizedBox.shrink(),
           ),
         ),
@@ -426,7 +461,8 @@ class _SearchPageScaffoldState<T extends Post>
 }
 
 SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
-    tags.isNotEmpty && tags.every((tag) => !tag.isRaw)
+    tags.isNotEmpty &&
+        tags.every((tag) => !tag.isRaw && tag.toString().trim().isNotEmpty)
     ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
     : null;
 

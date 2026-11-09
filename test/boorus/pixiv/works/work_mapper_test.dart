@@ -16,13 +16,26 @@ void main() {
         work(omitTags: true),
         work(tags: null),
         work(tags: 'invalid'),
-      work(tags: const [null, {'name': ''}]),
       ]) {
         expect(pixivWorkSummary(dto, access).previewTags, isNull);
         final incoming = pixivWorkDetails(dto, access);
         expect(incoming.tags, isNull);
         expect(incoming.mergeWithPrevious(previous).tags, previous.tags);
       }
+      final malformed = pixivWorkDetails(
+        work(
+          tags: const [
+            null,
+            {'name': ''},
+          ],
+        ),
+        access,
+      );
+      expect(malformed.tags!.coverage, MetadataCoverage.partial);
+      expect(malformed.tags!.values, isEmpty);
+      final merged = malformed.mergeWithPrevious(previous);
+      expect(merged.tags!.values, previous.tags!.values);
+      expect(merged.tags!.coverage, MetadataCoverage.partial);
       final empty = pixivWorkDetails(work(tags: const []), access);
       expect(empty.tags!.coverage, MetadataCoverage.complete);
       expect(empty.mergeWithPrevious(previous).tags!.values, isEmpty);

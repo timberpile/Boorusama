@@ -119,19 +119,25 @@ class _RegisteredGroupContent extends ConsumerWidget {
             actions: actions,
             child: const CircularProgressIndicator(),
           ),
-          error: (_, _) => ViewerEntryNavigationStatus(
-            actions: actions,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(context.t.bookmark.pool_unavailable),
-                TextButton(
-                  onPressed: () => ref.invalidate(groupDetailsProvider(key)),
-                  child: Text(context.t.generic.action.retry),
+          error: (_, _) =>
+              entry.storedDetails != null &&
+                  entry.storedDetails!.summary.reference ==
+                      entry.summary.reference
+              ? presentation.buildDetails(context, entry.storedDetails!)
+              : ViewerEntryNavigationStatus(
+                  actions: actions,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(context.t.bookmark.pool_unavailable),
+                      TextButton(
+                        onPressed: () =>
+                            ref.invalidate(groupDetailsProvider(key)),
+                        child: Text(context.t.generic.action.retry),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
         );
   }
 }

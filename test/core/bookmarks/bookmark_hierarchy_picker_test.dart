@@ -83,7 +83,7 @@ void main() {
         expect(fixture.library.creations, 0);
 
         // The body region remains the direct-selection action. The trailing
-        // 80dp region above is the only part that navigates into a child.
+        // 20% region above is the only part that navigates into a child.
         await _tapBody(tester, _leafId, direction);
         await tester.pumpAndSettle();
         expect(fixture.library.toggledGroupIds, [_leafId]);

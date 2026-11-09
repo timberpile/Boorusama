@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 
 import '../types/bookmark_group.dart';
 import '../types/bookmark_group_tree.dart';
+import 'bookmark_folder_picker_contents.dart';
 
 /// A selected destination wraps [parentGroupId] so Home (`null`) is distinct
 /// from dismissing the picker (`null` result).
@@ -136,11 +137,12 @@ class _BookmarkGroupDestinationPickerState
               children: [
                 for (final group in children)
                   if (!_excluded.contains(group.id))
-                    ListTile(
+                    BookmarkPickerMenuItem(
                       key: ValueKey('destination-${group.id}'),
-                      leading: const Icon(Icons.folder_outlined),
-                      title: Text(group.name),
+                      icon: const Icon(Icons.folder_outlined),
+                      title: group.name,
                       trailing: const Icon(Icons.chevron_right),
+                      hideOnTap: false,
                       onTap: () => setState(() => _currentParent = group.id),
                     ),
               ],

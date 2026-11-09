@@ -7,6 +7,23 @@ import '../../../core/posts/post/src/data/origin_aware_post_repository.dart';
 import '../posts/parser.dart';
 import '../posts/types.dart';
 
+GroupCoverVisibility pixivWorkVisibility(PixivIllustDto dto) =>
+    GroupCoverVisibility(
+      tags: dto.tags.map((tag) => tag.name).nonNulls,
+      tagCoverage: switch (dto.tagCoverage) {
+        PixivTagCoverage.complete => MetadataCoverage.complete,
+        PixivTagCoverage.partial => MetadataCoverage.partial,
+        _ => MetadataCoverage.unknown,
+      },
+      rating: switch (dto.xRestrict) {
+        0 => 'general',
+        1 || 2 => 'explicit',
+        _ => 'unknown',
+      },
+      deleted: false,
+      banned: false,
+    );
+
 ContentReference pixivWorkReference(
   ContentAccessContext access,
   int illustId,
@@ -85,8 +102,13 @@ ContentGroupSummary pixivWorkSummary(
     },
     displayCategory: dto.type,
     // A list preview is not evidence of an available page or original URL.
-    cover: thumbnail == null ? null : GroupCover(thumbnail: thumbnail),
-    previewTags: _tags(dto),
+    cover: thumbnail == null
+        ? null
+        : GroupCover(
+            thumbnail: thumbnail,
+            visibility: pixivWorkVisibility(dto),
+          ),
+    previewTags: pixivWorkTags(dto),
   );
 }
 
@@ -112,7 +134,7 @@ ContentGroupDetails pixivWorkDetails(
     ],
     _ => null,
   },
-  tags: _tags(dto),
+  tags: pixivWorkTags(dto),
   sourceDates: dto.createDate == null
       ? null
       : GroupSourceDates(createdAt: DateTime.tryParse(dto.createDate!)),
@@ -140,9 +162,8 @@ List<Post> pixivWorkPagePosts(
   ];
 }
 
-GroupTags? _tags(PixivIllustDto dto) {
-  if (dto.tagCoverage == PixivTagCoverage.unknown ||
-      (dto.tagCoverage == PixivTagCoverage.partial && dto.tags.isEmpty)) {
+GroupTags? pixivWorkTags(PixivIllustDto dto) {
+  if (dto.tagCoverage == PixivTagCoverage.unknown) {
     return null;
   }
   return GroupTags(

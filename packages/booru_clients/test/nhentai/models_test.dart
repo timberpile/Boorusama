@@ -53,9 +53,50 @@ void main() {
     expect(gallery.hasCompleteManifest, isTrue);
     expect(gallery.cover!.path, 'galleries/7001/cover.webp.webp');
     expect(gallery.tags.single.type, 'future_type');
+    expect(gallery.tagCoverage, NhentaiTagCoverage.complete);
     expect(gallery.favoriteCount, isNull);
     expect(gallery.uploadedAt, isNull);
   });
+  test('tag coverage distinguishes missing membership from complete empty', () {
+    for (final value in [
+      detail()..remove('tags'),
+      detail()..['tags'] = null,
+      detail()..['tags'] = 'invalid',
+    ]) {
+      final gallery = NhentaiGalleryDetails.fromJson(value);
+      expect(gallery.tags, isEmpty);
+      expect(gallery.tagCoverage, NhentaiTagCoverage.unknown);
+      expect(gallery.pages, hasLength(3));
+    }
+    final empty = NhentaiGalleryDetails.fromJson(detail()..['tags'] = []);
+    expect(empty.tags, isEmpty);
+    expect(empty.tagCoverage, NhentaiTagCoverage.complete);
+  });
+  test(
+    'malformed tag entries retain valid metadata and partial membership',
+    () {
+      final gallery = NhentaiGalleryDetails.fromJson(
+        detail()
+          ..['tags'] = [
+            {'id': 9, 'type': 'future_type', 'name': 'valid'},
+            null,
+            {'id': 0, 'type': 'tag', 'name': 'invalid ID'},
+            {'id': 10, 'type': 'tag', 'name': 123},
+            {'id': 11, 'type': 'artist', 'name': 'another valid'},
+          ],
+      );
+      expect(gallery.id, 101);
+      expect(gallery.pages, hasLength(3));
+      expect(gallery.tags.map((tag) => tag.id), [9, 11]);
+      expect(gallery.tagCoverage, NhentaiTagCoverage.partial);
+      expect(() => gallery.tags.clear(), throwsUnsupportedError);
+      final unusable = NhentaiGalleryDetails.fromJson(
+        detail()..['tags'] = [null],
+      );
+      expect(unusable.tags, isEmpty);
+      expect(unusable.tagCoverage, NhentaiTagCoverage.partial);
+    },
+  );
   test('missing/default manifest and explicit empty Gallery stay distinct', () {
     final absent = detail()..remove('pages');
     expect(NhentaiGalleryDetails.fromJson(absent).pages, isNull);
@@ -129,6 +170,7 @@ void main() {
       expect(response.items.first.pageCount, isNull);
       expect(response.items.last.mediaId, isNull);
       expect(response.items.first.favoriteCount, isNull);
+      expect(response.items.first.tagIdCoverage, NhentaiTagCoverage.unknown);
       expect(const NhentaiResultPage<int>(items: [], page: 1).hasMore, isNull);
       expect(
         () => NhentaiResultPage<NhentaiGallerySummary>.fromJson(
@@ -138,6 +180,19 @@ void main() {
         ),
         throwsFormatException,
       );
+    },
+  );
+  test(
+    'summary tag ID coverage preserves explicit empty and malformed subsets',
+    () {
+      final empty = NhentaiGallerySummary.fromJson({'id': 101, 'tag_ids': []});
+      expect(empty.tagIdCoverage, NhentaiTagCoverage.complete);
+      final partial = NhentaiGallerySummary.fromJson({
+        'id': 101,
+        'tag_ids': [5, null, 0],
+      });
+      expect(partial.tagIds, [5]);
+      expect(partial.tagIdCoverage, NhentaiTagCoverage.partial);
     },
   );
   test(
@@ -152,6 +207,10 @@ void main() {
           );
           expect(values.add(identity.numericPostId), isTrue);
           expect(NhentaiPageIdentity.parse(identity.sourceKey), identity);
+          expect(
+            NhentaiPageIdentity.fromNumericPostId(identity.numericPostId),
+            identity,
+          );
           expect(identity.sourcePosition, page - 1);
         }
       }
@@ -159,6 +218,11 @@ void main() {
       expect(
         NhentaiPageIdentity(galleryId: 134217727, pageNumber: 1).numericPostId,
         lessThanOrEqualTo(9007199254740991),
+      );
+      final largest = NhentaiPageIdentity(galleryId: 134217727, pageNumber: 1);
+      expect(
+        NhentaiPageIdentity.fromNumericPostId(largest.numericPostId),
+        largest,
       );
       expect(
         () => NhentaiPageIdentity(galleryId: 134217728, pageNumber: 1),

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 
 import '../../../../configs/network/types.dart';
+import '../../../../images/media_diagnostics.dart';
 import '../coordination/api_request_context.dart';
 
 /// Restricts credentials and redirects while borrowing the source transport.
@@ -12,11 +13,19 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
     required this.delegate,
     required this.source,
     required this.current,
+    this.mediaHostOverrides = const [],
+    this.ownsDelegate = false,
+    this.diagnostics,
+    this.diagnosticBinding = MediaDiagnosticBinding.bound,
   });
 
   final HttpClientAdapter delegate;
   final Uri source;
   final bool Function() current;
+  final List<MediaHostOverride> mediaHostOverrides;
+  final bool ownsDelegate;
+  final MediaDiagnostics? diagnostics;
+  final MediaDiagnosticBinding diagnosticBinding;
   final _pending = <Completer<void>>{};
   var _closed = false;
 
@@ -60,13 +69,20 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
     }
 
     var request = options;
+    var finalHeaders = options.headers;
+    int? correlation;
+    var destination = options.path;
+    var stage = 'resolution';
     Uri? previous;
     var redirects = 0;
     var handedOff = false;
     try {
       while (true) {
         check();
+        stage = 'resolution';
         final uri = request.uri;
+        destination = uri.toString();
+        correlation ??= diagnostics?.correlationFor(destination);
         if (!_validUri(uri) ||
             (previous?.scheme == 'https' && uri.scheme != 'https')) {
           throw DioException(
@@ -76,7 +92,9 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
         }
         final headers = _withinSource(uri)
             ? Map<String, dynamic>.of(request.headers)
-            : _safeHeaders(request.headers);
+            : _safeHeaders(request.headers, uri);
+        finalHeaders = headers;
+        stage = 'request';
         final fetch = delegate
             .fetch(
               request.copyWith(headers: headers, followRedirects: false),
@@ -115,8 +133,33 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
           308,
         ].contains(body.statusCode);
         if (!redirect || !options.followRedirects || location.isEmpty) {
+          if (body.statusCode >= 400) {
+            final failedRequest = request.copyWith(headers: headers);
+            diagnostics?.failure(
+              url: uri.toString(),
+              error: DioException(
+                requestOptions: failedRequest,
+                type: DioExceptionType.badResponse,
+                response: Response<dynamic>(
+                  requestOptions: failedRequest,
+                  statusCode: body.statusCode,
+                ),
+              ),
+              headers: headers,
+              binding: diagnosticBinding,
+              correlation: correlation,
+              stage: 'request',
+            );
+          }
           final original = body.stream;
-          body.stream = _guardStream(original, cancelled, check);
+          body.stream = _guardStream(
+            original,
+            cancelled,
+            check,
+            url: uri.toString(),
+            headers: headers,
+            correlation: correlation,
+          );
           handedOff = true;
           return body;
         }
@@ -136,6 +179,17 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
           headers: headers,
         );
       }
+    } catch (error, stack) {
+      diagnostics?.failure(
+        url: destination,
+        error: error,
+        stackTrace: stack,
+        headers: finalHeaders,
+        binding: diagnosticBinding,
+        correlation: correlation,
+        stage: MediaDiagnostics.isCancellation(error) ? 'request' : stage,
+      );
+      rethrow;
     } finally {
       if (!handedOff) _finish(cancelled);
     }
@@ -144,8 +198,11 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
   Stream<Uint8List> _guardStream(
     Stream<Uint8List> stream,
     Completer<void> cancelled,
-    void Function() check,
-  ) async* {
+    void Function() check, {
+    required String url,
+    required Map<String, dynamic> headers,
+    int? correlation,
+  }) async* {
     final iterator = StreamIterator(stream);
     final cancellation = cancelled.future.then<bool>((_) => false);
     try {
@@ -154,6 +211,17 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
         yield iterator.current;
       }
       check();
+    } catch (error, stack) {
+      diagnostics?.failure(
+        url: url,
+        error: error,
+        stackTrace: stack,
+        headers: headers,
+        binding: diagnosticBinding,
+        correlation: correlation,
+        stage: 'request',
+      );
+      rethrow;
     } finally {
       await iterator.cancel();
       _finish(cancelled);
@@ -174,32 +242,27 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
     return MediaRequest.permitsSourceHeaders(uri, source);
   }
 
-  Map<String, dynamic> _safeHeaders(Map<String, dynamic> headers) {
+  Map<String, dynamic> _safeHeaders(
+    Map<String, dynamic> headers,
+    Uri destination,
+  ) {
     final strings = <String, String>{};
     for (final entry in headers.entries) {
       if (entry.value is String) strings[entry.key] = entry.value as String;
     }
-    final result = <String, dynamic>{
-      ...MediaRequest.filterSourceHeaders(strings),
-    };
-    for (final entry in headers.entries) {
-      if (entry.key.toLowerCase() != 'referer' || entry.value is! String) {
-        continue;
-      }
-      final referer = Uri.tryParse(entry.value as String);
-      if (referer != null &&
-          referer.scheme == 'https' &&
-          referer.scheme == source.scheme &&
-          referer.host == source.host &&
-          referer.port == source.port &&
-          referer.userInfo.isEmpty &&
-          !referer.hasQuery &&
-          !referer.hasFragment &&
-          const ['', '/'].contains(referer.path)) {
-        result[entry.key] = entry.value;
-      }
-    }
-    return result;
+    // An explicitly configured replacement retains the original media role.
+    // Re-evaluate on every hop so an unrelated redirect cannot inherit it.
+    final original = mediaHostOverrides
+        .where((rule) => rule.to == destination.host)
+        .firstOrNull;
+    final mediaDestination = original == null
+        ? destination
+        : destination.replace(host: original.from);
+    return MediaRequest.filterMediaHeaders(
+      strings,
+      source: source,
+      destination: mediaDestination,
+    );
   }
 
   @override
@@ -209,5 +272,6 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
       if (!cancellation.isCompleted) cancellation.complete();
     }
     _pending.clear();
+    if (ownsDelegate) delegate.close(force: force);
   }
 }
