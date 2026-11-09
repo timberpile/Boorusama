@@ -684,16 +684,29 @@ class BookmarkLibraryService {
     BookmarkUniqueId? createBookmarkIdentity,
     Future<PostBookmark> Function()? createBookmark,
     Future<PostBookmark> Function()? prepareBookmark,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     if (unifiedStore != null) {
       if (existingBookmark != null)
-        return await _addUnifiedMembers([existingBookmark], groupId) > 0;
+        return (await saveDraftsToGroup(
+              const [],
+              groupId,
+              savedRecords: [existingBookmark],
+              beforeCommit: beforeCommit,
+            )).addedCount >
+            0;
       if (prepareBookmark == null)
         throw ArgumentError('A prepared Post draft is required');
       final draft = await prepareBookmark();
       if (draft.uniqueId != createBookmarkIdentity)
         throw const FormatException('Prepared Post identity changed');
-      return (await saveDraftsToGroup([draft], groupId)).addedCount > 0;
+      return (await saveDraftsToGroup(
+            [draft],
+            groupId,
+            beforeCommit: beforeCommit,
+          )).addedCount >
+          0;
     }
     final group = await groupRepository.getGroup(groupId);
     if (group == null) {
@@ -714,6 +727,7 @@ class BookmarkLibraryService {
     if (group.bookmarkIds.contains(bookmark.id)) return false;
 
     try {
+      beforeCommit?.call();
       await groupRepository.addBookmarks(groupId, {bookmark.id});
       return true;
     } catch (error, stackTrace) {
@@ -820,6 +834,7 @@ class BookmarkLibraryService {
   Future<BookmarkGroup> createGroup(
     String name, {
     String? parentGroupId,
+    void Function()? beforeCommit,
   }) => _scope(() async {
     final id = const Uuid().v4().toLowerCase();
     final store = unifiedStore;
@@ -845,6 +860,7 @@ class BookmarkLibraryService {
       );
       BookmarkGroupTree([...groups, group]);
       try {
+        beforeCommit?.call();
         await store.commitOrganization(groups: [group]);
       } catch (error, stack) {
         // Finish journal replay before deciding whether a committed-then-throw
@@ -859,6 +875,7 @@ class BookmarkLibraryService {
     if (parentGroupId != null)
       throw StateError('Nested Groups require unified storage');
     try {
+      beforeCommit?.call();
       return await groupRepository.createGroup(name, id: id);
     } catch (error, stack) {
       try {

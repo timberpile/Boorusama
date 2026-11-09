@@ -417,6 +417,7 @@ class _MediaGroupLoadedState extends ConsumerState<_MediaGroupLoaded> {
                   config: config.auth,
                   post: post,
                   source: config,
+                  access: widget.access.key,
                 )
         : ContentGroupBookmarkPickerRequest(
             draft: _draft(),
@@ -442,6 +443,7 @@ class _MediaGroupLoadedState extends ConsumerState<_MediaGroupLoaded> {
             config: config.auth,
             post: post,
             source: config,
+            access: widget.access.key,
           );
     final selected = await showDialog<BookmarkPickerRequest>(
       context: context,

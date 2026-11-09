@@ -478,7 +478,9 @@ class _Library extends BookmarkLibraryNotifier {
     Post post, {
     BookmarkTarget target = const BookmarkTarget.defaultGroup(),
     void Function(BookmarkGroupRemovalResult)? onRemoved,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     final current = state.requireValue;
     final id = target.groupId;
     toggles.add(id);

@@ -364,7 +364,9 @@ class _Library extends BookmarkLibraryNotifier {
     String? parentGroupId,
     List<CollectionBookmark> pools = const [],
     RelatedPostsOrder? initialRelatedOrder,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     final parent = parentGroupId ?? folderId;
     creations.add((
       posts: posts.toList(),

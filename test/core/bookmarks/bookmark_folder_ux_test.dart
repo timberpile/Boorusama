@@ -2039,7 +2039,9 @@ class _Library extends BookmarkLibraryNotifier {
     String? parentGroupId,
     List<CollectionBookmark> pools = const [],
     RelatedPostsOrder? initialRelatedOrder,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     final group = await createGroup(
       name,
       parentGroupId: parentGroupId,
@@ -2053,7 +2055,9 @@ class _Library extends BookmarkLibraryNotifier {
     Post post, {
     BookmarkTarget target = const BookmarkTarget.defaultGroup(),
     void Function(BookmarkGroupRemovalResult)? onRemoved,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     toggles.add(target);
     return BookmarkToggleOutcome.added;
   }

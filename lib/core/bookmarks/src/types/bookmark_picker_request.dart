@@ -41,14 +41,16 @@ final class PostBookmarkPickerRequest extends BookmarkPickerRequest {
     required this.config,
     required this.post,
     this.source,
+    this.access,
   });
   @override
   final BooruConfigAuth config;
   final Post post;
+  final ContentAccessKey? access;
   @override
   final BooruConfig? source;
   @override
-  List<Object?> get props => [config, post, source];
+  List<Object?> get props => [config, post, source, access];
 }
 
 /// A frozen local record remains editable without an addressable source or a

@@ -65,7 +65,12 @@ class BookmarkPickerActions {
 
   void _checkOwnership() {
     if (_disposed || !isActive()) throw StateError('Bookmark picker dismissed');
-    if (request case ContentGroupBookmarkPickerRequest(:final access)) {
+    final capturedAccess = switch (request) {
+      ContentGroupBookmarkPickerRequest(:final access) => access,
+      PostBookmarkPickerRequest(:final access) => access,
+      _ => null,
+    };
+    if (capturedAccess case final access?) {
       if (container.read(contentAccessContextProvider(access)) == null)
         throw StateError('Bookmark picker source changed');
     }
@@ -161,6 +166,7 @@ class BookmarkPickerActions {
               (request as PostBookmarkPickerRequest).post,
               target: BookmarkTarget.group(groupId),
               onRemoved: onRemoved,
+              beforeCommit: _checkOwnership,
             );
     } finally {
       _pending = false;
@@ -208,6 +214,7 @@ class BookmarkPickerActions {
             },
             parentGroupId: parentGroupId,
             pools: [?collection],
+            beforeCommit: _checkOwnership,
             initialRelatedOrder: switch (request) {
               RelatedBookmarkPickerRequest(:final visibleOrder) => visibleOrder,
               _ => null,

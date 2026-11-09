@@ -352,7 +352,9 @@ final class _Library extends BookmarkLibraryNotifier {
     String? parentGroupId,
     List<CollectionBookmark> pools = const [],
     RelatedPostsOrder? initialRelatedOrder,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     creations++;
     return (group: _root, addedCount: 0);
   }

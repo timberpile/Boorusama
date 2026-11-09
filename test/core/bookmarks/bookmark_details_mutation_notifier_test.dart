@@ -299,7 +299,9 @@ final class _RecordingBookmarkNotifier extends BookmarkLibraryNotifier {
     required BookmarkTarget target,
     required bool bookmarked,
     void Function(BookmarkGroupRemovalResult)? onRemoved,
+    void Function()? beforeCommit,
   }) async {
+    beforeCommit?.call();
     posts.add(post);
     if (failingPosts.contains(post)) return BookmarkToggleOutcome.failed;
     return bookmarked
