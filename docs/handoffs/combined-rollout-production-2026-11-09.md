@@ -1,5 +1,28 @@
 # Final combined rollout qualification
 
+## Pixiv Explore correction and current qualification
+
+The current runtime/test candidate is `310f826334ebca76817e03a6bffc4cc04a52d2c0`, tree `878da944b297feb8cad8d37e8136309470f692cc`, on the same combined branch. It supersedes the earlier ca candidate for delivery. The remaining sections preserve the original rollout evidence and its limits; the earlier device observations do not establish acceptance of this correction.
+
+The user's Explore crash was reproduced as `CircularDependencyError` with the real registered Pixiv engine and blacklist/notifier/repository chain. The engine-registration Ref had read effective blacklist policy that itself depends on the engine registry. Group source factories now receive their caller Ref; Pixiv prepares its client and blacklist through that source scope. Effective filtering, actor binding and source disposal remain intact. Other adapters only adopt the callback signature. A missed constructor tear-off in the mixed-viewer test fixture was also updated.
+
+The actual Explore widget exposed two additional layout failures: initial header measurement constrained controls to zero height, and the ranking date row overflowed at narrow width with enlarged text. Header controls now measure at natural height before reserving it, and the date label can flex within the available row width. Registered production-boundary tests exercise Ranking, Following, Recommended and return to Ranking at 800dp/100% and 320dp/150% text. Search, Favorites and policy tests now retain the real blacklist chain instead of overriding it away. These tests use controlled HTTP responses, not authenticated live services.
+
+Verification of unchanged, clean `310f82633`:
+
+- Focused Pixiv/nhentai/shared-content/mixed-viewer/pagination tests: **307 passed, one opt-in live skip**.
+- `TEST_CONCURRENCY=6 ./scripts/run_regression_tests.sh`: **8,778 Flutter/Dart passed, 3 skipped, zero failed**, across all fourteen application/package/CLI segments; **76 Python/tooling passed** and both shell tooling suites passed. Application: **7,021 passed, one skipped**. Started 2026-11-09 11:45:44 UTC; completed 11:59:20 UTC. Clean source and exact HEAD were verified before and after.
+- `fvm dart analyze`: **0 errors, 0 warnings, 3,932 informational findings**, exit zero.
+- Both ordinary `lib/main.dart` debug APKs built with pinned FVM Flutter 3.47.2 and `BOORUSAMA_REVISION=310f826334ebca76817e03a6bffc4cc04a52d2c0`, with clean unchanged source after both builds. Dev: `boorusama-combined-310f82633-dev-debug.apk`, SHA-256 `9077a3e0ee3568ba35dd678d8f2c0b62d261e9405fc049841aaccaf2e56e16d6`. Prod: `sync-peer-310f82633-prod-debug.apk`, SHA-256 `175e8d2f0f71250ea908c4a946ea8f9541be1fdde57e9b12e8e8e86498eb0d97`.
+
+Independent actual gpt-6.1-sol High approved exact `310f82633` source with no unresolved confirmed finding. Its initial analogous nhentai concern was retracted after distinguishing the pinned Riverpod `.future` proxy from a direct provider read. Two new configured-profile tests already pass on the unchanged nhentai callback, covering both allowed and blocked Gallery responses through the real registry/blacklist chain. No speculative nhentai rewrite was made. The failed first nhentai fixture attempt only compared the wrong URI property; its later log historically named `red-qualified` contains two passes and is not RED evidence. The original Pixiv RED contains the actual circular-dependency error. The interrupted complete run at `7930a56f3` and its failed analyzer (missed test factory signature) are preserved and are not reused as passes.
+
+A fresh exclusively leased `emulator-5554` inspection still failed in Maestro with `UNAVAILABLE` / device-server failure from its stale cached connection. Neither Boorusama package was initially installed. No app was installed or launched, app data/cache were not changed, package inventory was verified unchanged, and the lease was released. This follow-up therefore supplies **no new Android or authenticated Pixiv acceptance**. The user's offered manual final review remains applicable. Earlier complete restoration records and immutable data archives remain preserved; this inspection does not replace their historical scope. Android Java inputs are unchanged; the earlier five JVM passes remain historical rather than a fresh follow-up run.
+
+Durable local evidence and both APKs: `.worktrees/_artifacts/pixiv-explore-cycle-2026-11-09/`, including exact-candidate states/logs, `complete-summary-310f82633.json`, source/qualification review artifacts and `maestro-check.json`. Task-branch delivery remains within the existing authorization; no develop integration, PR, release or issue closure is authorized.
+
+## Earlier rollout qualification and evidence
+
 Branch: `maintenance/combined-testing-2026-11-08`.
 Runtime/test candidate: `ca66999c6523d6e3834484d5e0e70c847d4ed6fa`, tree `57e2512c866d71889dc4cf7e245db9edd16f233c`.
 
