@@ -1093,14 +1093,17 @@ final class PackageTransactionSource implements ImportTransactionSource {
             .bookmarkGroupRepository;
         ImageUrlResolver resolver(int? booruId) =>
             ref.read(bookmarkUrlResolverProvider(booruId));
+        final records = groupRepository is UnifiedBookmarkOrganization
+            ? await unifiedBookmarkStorage(bookmarkRepository)?.readAll()
+            : null;
         _localSnapshot = BookmarkImportLocalSnapshot(
-          records: groupRepository is UnifiedBookmarkOrganization
-              ? await unifiedBookmarkStorage(bookmarkRepository)?.readAll()
-              : null,
+          records: records,
           pools: await groupRepository.getPoolBookmarks(),
-          bookmarks: await bookmarkRepository.getAllBookmarksOrThrow(
-            imageUrlResolver: resolver,
-          ),
+          bookmarks:
+              records?.whereType<PostBookmark>() ??
+              await bookmarkRepository.getAllBookmarksOrThrow(
+                imageUrlResolver: resolver,
+              ),
           groups: await groupRepository.getGroups(),
           folders: await groupRepository.getFolders(),
         );

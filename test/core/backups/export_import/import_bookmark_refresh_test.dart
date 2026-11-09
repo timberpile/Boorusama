@@ -13,6 +13,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/types.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
@@ -83,6 +85,7 @@ void main() {
       overrides: [
         ...bookmarkStorage.overrides,
         loggerProvider.overrideWithValue(AppLogger()),
+        booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
         bookmarkRepoProvider.overrideWith((ref) => bookmarkRepository),
         bookmarkGroupRepoProvider.overrideWith((ref) => groupRepository),
         bookmarkUrlResolverProvider.overrideWith(
