@@ -8,6 +8,9 @@ abstract interface class TimelineContinuationController implements Listenable {
   bool get refreshing;
   bool get hasMore;
   bool get loadingMore;
+
+  /// Changes for explicit continuation, including promotion of a queued fetch.
+  int get manualContinuationRevision;
   ValueListenable<Object?> get errors;
   PageMode get pageMode;
   Future<void> fetchMore({bool Function()? canStart});

@@ -41,3 +41,21 @@ The final scoped analyzer exited 0 with **0 errors, 0 warnings and 66 informatio
 Coverage includes actual Hive Bookmark v10 membership/actor-hint preservation, actual signed initial Following subscription with disabled updates, identical-revision stability, persisted-mirror cold restart through the production recovery gate, corrupted-preimage rejection before authority, unsubscribe/resume dialog dispatch, 320dp/2x text publication, signature/schema/path failures, partial publication, retention and unknown-file preservation, future-child/exclusion provenance, deletion suppression and ancestor deduplication. Earlier failed fixture runs remain separate from the qualifying pass.
 
 JVM tests for staged SAF publication and exact retention paths are included under `android/app/src/test/kotlin/com/timberpile/boorusama/`. Their execution, actual Android SAF provider behavior, ordinary-main device acceptance and emulator restoration belong to the lead's remaining Android verification. These are not established by the Dart host tests. The complete combined local suite and exact-candidate independent re-review remain required by the rollout handoff.
+
+## Full-regression remediation qualification
+
+The later combined regression exposed test fixtures that still selected Material popup types after the Following cards switched to Kurumi. Those selectors now target the actual presenter and preserve disabled-action assertions. The profile-deletion fixture supplies the required real Hive misc store, and the standalone card fixture supplies a provider scope. Advanced Backup remains registered; its test now scrolls the destination's lazy list before selecting the initially unbuilt row. Narrow management fixtures retain the actual viewport size when enlarging text.
+
+Two production regressions were also corrected. Following overflow controls retain their prior 48dp target and localized tooltip. Kurumi popup content is scrollable and bounded to the larger available vertical side of its opener, accounting for safe padding and the keyboard; opener bounds are captured when opening, rather than reading an unfinished floating-header transform during overlay construction. The original unbounded Column placed the trailing Unfollow action outside a 320dp/2x viewport.
+
+Cached feeds now disable automatic remote continuation until the explicit history action, which remains reachable for both short and larger cached timelines. Once started, history uses shared continuation. Filtered and locally sorted modes keep automatic continuation disabled. The lead extended the actual viewer route's continuation policy as well, so opening cached posts in the mixed viewer cannot bypass the boundary. The real captured viewer route is covered by a transport counter, `hasMore` and attempted-dispatch checks. Tests exercise active routes; they do not suppress navigation activity.
+
+Final frozen-scope command:
+
+```sh
+fvm flutter test test/core/search/following_topics test/core/backups/folder_sync test/application/backup_restore_flow_test.dart test/core/configs/profile_delete_after_media_resolution_test.dart test/core/posts/links/share_saved_search_link_test.dart test/core/posts/listing test/core/bookmarks/bookmark_folder_ux_test.dart --no-pub --concurrency=6 --reporter expanded
+```
+
+Result: **1051 passed, exit 0** in `following-sync-cache-viewer-final-qualified.log`. The complete Kurumi package suite passed **206 tests, exit 0**, including new 320x640/2x popup checks with keyboard heights 0 and 180, in `kurumi-popup-viewport-full-suite.log`. The final scoped analyzer exited 0 with **0 errors, 0 warnings and 60 informational findings** in `following-popup-cache-viewer-analysis-final.log`. Scoped diff checks passed. All logs use the durable artifact directory identified above.
+
+The controlled pending Following repository-replacement test also passed without changing the notifier's existing repository read; no speculative dependency-tracking edit was made. The lead separately owns the broader Bookmark dependency/dispatch fixes, AnimeBoxes fixture qualification, complete combined regression, Android build/acceptance and independent exact-candidate re-review.

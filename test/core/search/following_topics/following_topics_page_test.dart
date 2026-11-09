@@ -1,3 +1,4 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
@@ -209,7 +210,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: card,
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: find.byType(KurumiPopupMenuButton),
       ),
     );
     await settle(tester);
@@ -295,7 +296,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: folderCard,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: find.byType(KurumiPopupMenuButton),
           ),
         );
         await settle(tester);
@@ -776,7 +777,7 @@ void main() {
       expect(find.text('2 items selected'), findsOneWidget);
       await drag.up();
       await settle(tester);
-      expect(find.byType(PopupMenuButton<FollowingTopicAction>), findsNothing);
+      expect(find.byType(KurumiPopupMenuButton), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -842,7 +843,7 @@ void main() {
           expect(find.text('Mark Read'), findsOneWidget);
         }
         expect(
-          find.byType(PopupMenuButton<FollowingTopicAction>),
+          find.byType(KurumiPopupMenuButton),
           findsNothing,
         );
         expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -1068,7 +1069,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: folderCard,
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: find.byType(KurumiPopupMenuButton),
       ),
     );
     await settle(tester);
@@ -1588,13 +1589,13 @@ void main() {
           (label: 'Move Up', enabled: c.moveUp),
           (label: 'Move Down', enabled: c.moveDown),
         ]) {
-          final item = tester.widget<PopupMenuItem<FollowingTopicAction>>(
+          final item = tester.widget<KurumiPopupMenuItem>(
             find.ancestor(
               of: find.text(action.label),
-              matching: find.byType(PopupMenuItem<FollowingTopicAction>),
+              matching: find.byType(KurumiPopupMenuItem),
             ),
           );
-          expect(item.enabled, action.enabled);
+          expect(item.onTap != null, action.enabled);
         }
         await tester.tapAt(const Offset(1, 1));
         await settle(tester);

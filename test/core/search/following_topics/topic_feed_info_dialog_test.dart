@@ -1,3 +1,4 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/feed_last_checked.dart';
 
 import 'dart:async';
@@ -60,7 +61,12 @@ void main() {
       expect(find.textContaining('Last Checked:'), findsNothing);
       expect(find.byType(FeedLastChecked), findsOneWidget);
       final before = await tester.runAsync(h.repository.getAll);
-      await tester.tap(find.byType(PopupMenuButton<String>).first);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(KurumiPopupMenuButton),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(find.text('Refresh'), findsOneWidget);
       expect(find.text('Feed Details'), findsNothing);

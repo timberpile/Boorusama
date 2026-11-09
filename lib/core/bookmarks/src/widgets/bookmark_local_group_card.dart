@@ -6,6 +6,7 @@ import '../../../configs/manage/providers.dart';
 import '../../../posts/post/types.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -74,12 +75,14 @@ final class BookmarkLocalGroupCard extends ConsumerWidget {
             );
     final borderRadius = BorderRadius.circular(12);
     final hasActions =
-        group != null ||
-        onMove != null ||
-        onRename != null ||
-        onDuplicate != null ||
-        onDelete != null;
-    return Semantics(
+        onTap != null &&
+        (group != null ||
+            onMove != null ||
+            onRename != null ||
+            onDuplicate != null ||
+            onDelete != null);
+    final card = Semantics(
+      container: true,
       enabled: onTap != null,
       child: Opacity(
         opacity: onTap == null ? .38 : 1,
@@ -248,7 +251,52 @@ final class BookmarkLocalGroupCard extends ConsumerWidget {
         ),
       ),
     );
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: hasActions ? _enterCardMenu : null,
+      child: card,
+    );
   }
+}
+
+// Directional traversal requires candidates beyond the focused rectangle's
+// edge. The nested menu lies inside the card, so enter it explicitly when a
+// bare arrow points toward it; its own arrows retain ordinary traversal.
+KeyEventResult _enterCardMenu(FocusNode card, KeyEvent event) {
+  final keyboard = HardwareKeyboard.instance;
+  if (event is! KeyDownEvent && event is! KeyRepeatEvent ||
+      keyboard.isShiftPressed ||
+      keyboard.isControlPressed ||
+      keyboard.isAltPressed ||
+      keyboard.isMetaPressed) {
+    return KeyEventResult.ignored;
+  }
+  final focused = FocusManager.instance.primaryFocus;
+  if (focused == null || focused.rect != card.rect) {
+    return KeyEventResult.ignored;
+  }
+  final menu = card.traversalDescendants
+      .where(
+        (node) =>
+            node.context
+                    ?.findAncestorWidgetOfExactType<KurumiPopupMenuButton>() !=
+                null &&
+            !visibleFocusRect(node).isEmpty,
+      )
+      .firstOrNull;
+  if (menu == null) return KeyEventResult.ignored;
+  final offset = menu.rect.center - focused.rect.center;
+  final towardMenu = switch (event.logicalKey) {
+    LogicalKeyboardKey.arrowUp => offset.dy < 0,
+    LogicalKeyboardKey.arrowDown => offset.dy > 0,
+    LogicalKeyboardKey.arrowLeft => offset.dx < 0,
+    LogicalKeyboardKey.arrowRight => offset.dx > 0,
+    _ => false,
+  };
+  if (!towardMenu) return KeyEventResult.ignored;
+  menu.requestFocus();
+  return KeyEventResult.handled;
 }
 
 class BookmarkGroupPreviewGrid extends StatelessWidget {

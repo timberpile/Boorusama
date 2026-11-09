@@ -66,6 +66,7 @@ class _NhentaiSearchPageState extends ConsumerState<NhentaiSearchPage> {
               access: access,
               queryIdentity: _search,
               pageMode: settings.pageMode,
+              allowPageModeChange: true,
               initialPage: widget.params.page ?? 1,
               onRefresh: () {
                 source!.invalidateAll();

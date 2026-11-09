@@ -1139,7 +1139,19 @@ void main() {
     (tester) async {
       harness.dispose();
       const presentation = _FeedPresentation();
+      var historyRequests = 0;
       harness = FollowingTopicHarness(
+        overrides: [
+          originAwarePostRepoProvider.overrideWith(
+            (ref, config) =>
+                TestSearchPostRepository((query, page, limit) async {
+                  historyRequests++;
+                  return Either.of(
+                    const PostResult<Post>(posts: [], total: 0, hasMore: false),
+                  );
+                }),
+          ),
+        ],
         profiles: [_feedConfig],
         postCapability: const BooruPostCapability<BooruPostData>(
           booruType: BooruType.gelbooruV2,
@@ -1232,6 +1244,9 @@ void main() {
       );
       expect(harness.requests, isEmpty);
 
+      final viewerGridController = tester
+          .widget<PostGrid<Post>>(find.byType(PostGrid<Post>))
+          .controller;
       await tester.tap(find.byType(ImageGridItem).first);
       await tester.pumpAndSettle();
 
@@ -1239,6 +1254,17 @@ void main() {
       expect(opened?.useMixedViewer, isTrue);
       expect(opened?.config, _feedConfig);
       expect(opened?.posts.length, 2);
+      final live = opened!.liveSource!;
+      expect(live.hasMore(), false);
+      final attemptedContinuation = live.fetchMore();
+      await tester.pump(viewerGridController.debounceDuration);
+      await attemptedContinuation;
+      await drain(tester);
+      expect(
+        historyRequests,
+        0,
+        reason: 'The actual cached-feed viewer route must not opt into remote history.',
+      );
       expect(
         opened!.posts.last.booruData,
         isA<UnknownPostData>(),

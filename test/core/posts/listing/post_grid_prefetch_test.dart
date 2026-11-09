@@ -72,6 +72,72 @@ void main() {
     });
   }
 
+  testWidgets('manual continuation renews one bounded automatic fill cycle', (
+    tester,
+  ) async {
+    final h = _Harness();
+    await h.mount(tester);
+    for (var page = 1; page <= 4; page++) {
+      await h.reply(tester, count: 0, more: true);
+      await h.advance(tester);
+    }
+    expect(h.pages, [1, 2, 3, 4]);
+    final manual = h.controller.fetchMore();
+    await h.advance(tester);
+    expect(h.pages.last, 5);
+    await h.reply(tester, count: 0, more: true);
+    await manual;
+    await h.advance(tester);
+    for (var page = 6; page <= 8; page++) {
+      expect(h.pages.last, page);
+      await h.reply(tester, count: 0, more: true);
+      await h.advance(tester);
+    }
+    expect(h.pages, [1, 2, 3, 4, 5, 6, 7, 8]);
+    await h.advance(tester);
+    expect(h.pages.last, 8, reason: 'Rebuilds cannot renew this fill budget.');
+  });
+
+  testWidgets(
+    'promoting the third debounced automatic request renews a bounded fill cycle',
+    (
+      tester,
+    ) async {
+      final h = _Harness();
+      await h.mount(tester);
+      for (var page = 1; page <= 3; page++) {
+        expect(h.pages.last, page);
+        await h.reply(tester, count: 0, more: true);
+        if (page < 3) await h.advance(tester);
+      }
+      expect(h.pages, [1, 2, 3]);
+      expect(
+        h.controller.loadingMore,
+        isTrue,
+        reason:
+            'The third automatic request is queued in its debounce interval.',
+      );
+      final manual = h.controller.fetchMore();
+      await h.advance(tester);
+      expect(h.pages, [1, 2, 3, 4]);
+      await h.reply(tester, count: 0, more: true);
+      await manual;
+      await h.advance(tester);
+      for (var page = 5; page <= 7; page++) {
+        expect(h.pages.last, page);
+        await h.reply(tester, count: 0, more: true);
+        await h.advance(tester);
+      }
+      expect(h.pages, [1, 2, 3, 4, 5, 6, 7]);
+      await h.advance(tester);
+      expect(
+        h.pages.last,
+        7,
+        reason: 'Promotion grants only one new fill budget.',
+      );
+    },
+  );
+
   testWidgets('programmatic scrolling renews an exhausted fill cycle', (
     tester,
   ) async {

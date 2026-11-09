@@ -205,6 +205,7 @@ void main() {
             harness.container.read(importFlowProvider).preflight!.isValid,
             true,
           );
+          await notifier.previewComplete;
           await notifier.apply(context);
           state = harness.container.read(importFlowProvider);
           expect(
@@ -460,6 +461,26 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      Future<void> selectAndWaitForPreview(String label) async {
+        final before = harness.container.read(importFlowProvider).resolved;
+        await tester.tap(find.text(label).last);
+        var completed = false;
+        // Navigator callbacks run on the fake widget clock; isolate replies use
+        // real event turns. Drive both until this selection's plan is complete.
+        for (var turn = 0; turn < 1000 && !completed; turn++) {
+          await tester.pump(const Duration(milliseconds: 16));
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+          final current = harness.container.read(importFlowProvider);
+          completed = current.resolved != before && !current.previewPending;
+        }
+        expect(
+          completed,
+          isTrue,
+          reason: 'The selected import plan must complete.',
+        );
+        await tester.pumpAndSettle();
+      }
+
       Future<void> action(String label) async {
         final selected = harness.container
             .read(importFlowProvider)
@@ -476,8 +497,7 @@ void main() {
         }[selected]!;
         await tester.tap(find.text(selectedLabel).first);
         await tester.pumpAndSettle();
-        await tester.tap(find.text(label).last);
-        await tester.pumpAndSettle();
+        await selectAndWaitForPreview(label);
       }
 
       await action('Merge into...');
@@ -529,8 +549,7 @@ void main() {
       Future<void> target(String label) async {
         await tester.tap(find.byType(DropdownButtonFormField<String>));
         await tester.pumpAndSettle();
-        await tester.tap(find.text(label).last);
-        await tester.pumpAndSettle();
+        await selectAndWaitForPreview(label);
       }
 
       await target('Other target');
@@ -675,6 +694,7 @@ void main() {
             expect(state.preflight!.errors, isEmpty);
             expect(state.preflight!.isValid, true);
             expect(state.preflight!.summary.deleted, 0);
+            await notifier.previewComplete;
             await notifier.apply(context);
             state = harness.container.read(importFlowProvider);
             expect(
@@ -770,6 +790,7 @@ void main() {
                   .created,
               3,
             );
+            await notifier.previewComplete;
             await notifier.apply(context);
             state = harness.container.read(importFlowProvider);
             expect(
@@ -872,6 +893,7 @@ void main() {
               harness.container.read(importFlowProvider).preflight!.isValid,
               true,
             );
+            await notifier.previewComplete;
             await notifier.apply(context);
             state = harness.container.read(importFlowProvider);
             expect(

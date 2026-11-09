@@ -15,7 +15,7 @@ import '../../../tags/tag/providers.dart';
 import '../../../tags/tag/types.dart';
 import '../../providers.dart';
 import '../types/bookmark_grid_entry.dart';
-import '../types/bookmark_view.dart';
+import '../types/content_group_bookmark.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
@@ -32,9 +32,16 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
 ) async {
   ref.cacheFor(const Duration(seconds: 3));
-  final library = await ref.watch(bookmarkProvider.future);
-  final bookmarks = library.items;
-  final pools = library.pools;
+  final (bookmarks, pools, records) = await ref.watch(
+    bookmarkProvider.selectAsync(
+      (library) => (library.items, library.pools, library.records),
+    ),
+  );
+  final nativeGroups = records.whereType<ContentGroupBookmark>().where(
+    (record) =>
+        !record.reference.sourceKey.startsWith('pool:') &&
+        !record.reference.sourceKey.startsWith('related:'),
+  );
 
   final result = bookmarks.fold<Map<String, int>>(
     {},
@@ -50,11 +57,7 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
       result.update(tag, (n) => n + 1, ifAbsent: () => 1);
     }
   }
-  for (final group in selectNativeGroupBookmarks(
-    state: library,
-    view: const BookmarkView.all(),
-    selectedTags: const [],
-  )) {
+  for (final group in nativeGroups) {
     for (final tag in nativeGroupBookmarkTags(group)) {
       result.update(tag, (count) => count + 1, ifAbsent: () => 1);
     }
@@ -74,9 +77,16 @@ final selectedBookmarkSortTypeProvider =
 final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   ref,
 ) async {
-  final library = await ref.watch(bookmarkProvider.future);
-  final bookmarks = library.items;
-  final pools = library.pools;
+  final (bookmarks, pools, records) = await ref.watch(
+    bookmarkProvider.selectAsync(
+      (library) => (library.items, library.pools, library.records),
+    ),
+  );
+  final nativeGroups = records.whereType<ContentGroupBookmark>().where(
+    (record) =>
+        !record.reference.sourceKey.startsWith('pool:') &&
+        !record.reference.sourceKey.startsWith('related:'),
+  );
 
   final hosts = bookmarks.fold(
     <String>{},
@@ -92,11 +102,7 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
         .nonNulls,
   );
   hosts.addAll(
-    selectNativeGroupBookmarks(
-      state: library,
-      view: const BookmarkView.all(),
-      selectedTags: const [],
-    ).map((group) => group.reference.site.host),
+    nativeGroups.map((group) => group.reference.site.host),
   );
   return hosts.toList();
 });

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_view_preferences.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
@@ -77,6 +79,79 @@ void main() {
     return container;
   }
 
+  test('snapshot waits for replacement loading before taking the storage coordinator', () async {
+    final generation = StateProvider((_) => 0);
+    final pending = Completer<BookmarkGroupRepository>();
+    final container = ProviderContainer(
+      overrides: [
+        miscDataStoreProvider.overrideWithValue(_Store()),
+        dataMutationCoordinatorProvider.overrideWithValue(coordinator),
+        bookmarkRepoProvider.overrideWith((_) => repository),
+        bookmarkGroupRepoProvider.overrideWith(
+          (ref) => ref.watch(generation) == 0
+              ? Future.value(groups)
+              : pending.future,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(bookmarkProvider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(bookmarkProvider.future);
+    container.read(generation.notifier).state = 1;
+    await container.pump();
+    expect(container.read(bookmarkProvider).isLoading, isTrue);
+    expect(container.read(bookmarkProvider).hasValue, isTrue);
+    final snapshot = container
+        .read(bookmarkProvider.notifier)
+        .snapshotForExport();
+    await container.pump();
+    pending.complete(groups);
+    final loaded = await snapshot.timeout(const Duration(seconds: 10));
+    expect(loaded.groups.single.isDefault, isTrue);
+  });
+
+  test('queued snapshot yields the coordinator if its repository is invalidated before dispatch', () async {
+    final generation = StateProvider((_) => 0);
+    final pending = Completer<BookmarkGroupRepository>();
+    final container = ProviderContainer(
+      overrides: [
+        miscDataStoreProvider.overrideWithValue(_Store()),
+        dataMutationCoordinatorProvider.overrideWithValue(coordinator),
+        bookmarkRepoProvider.overrideWith((_) => repository),
+        bookmarkGroupRepoProvider.overrideWith(
+          (ref) => ref.watch(generation) == 0
+              ? Future.value(groups)
+              : pending.future,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(bookmarkProvider, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(bookmarkProvider.future);
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final holder = coordinator.runExclusive(() async {
+      entered.complete();
+      await release.future;
+    });
+    await entered.future;
+    final snapshot = container
+        .read(bookmarkProvider.notifier)
+        .snapshotForExport();
+    container.read(generation.notifier).state = 1;
+    await container.pump();
+    expect(container.read(bookmarkProvider).isLoading, isTrue);
+    pending.complete(groups);
+    await container.pump();
+    release.complete();
+    await holder;
+    final loaded = await snapshot.timeout(const Duration(seconds: 10));
+    expect(loaded.groups.single.isDefault, isTrue);
+    expect(container.read(bookmarkProvider).isLoading, isFalse);
+  });
+
   for (final cacheFailure in [false, true]) {
     test(
       'confirmed hierarchy deletion prunes modes and Undo restores them, cacheFailure=$cacheFailure',
@@ -115,9 +190,10 @@ void main() {
           container
               .read(bookmarkProvider)
               .requireValue
-              .groupsById[child.id]!
-              .parentGroupId,
-          isNull,
+              .groupsById
+              .containsKey(child.id),
+          isFalse,
+          reason: 'Deleting a Group removes its complete descendant subtree.',
         );
         if (cacheFailure) {
           expect(

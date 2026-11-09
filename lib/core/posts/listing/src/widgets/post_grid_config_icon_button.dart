@@ -298,7 +298,8 @@ class PostGridActionSheet extends ConsumerWidget {
     required this.onGridChanged,
     required this.onImageListChanged,
     required this.onImageQualityChanged,
-    required this.postController,
+    this.postController,
+    this.showPageMode = true,
     super.key,
   });
 
@@ -307,7 +308,8 @@ class PostGridActionSheet extends ConsumerWidget {
   final void Function(ImageListType imageListType) onImageListChanged;
   final void Function(ImageQuality imageQuality) onImageQualityChanged;
 
-  final PostGridController<Post> postController;
+  final PostGridController<Post>? postController;
+  final bool showPageMode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -351,14 +353,17 @@ class PostGridActionSheet extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  KurumiSettingsTile<PageMode>(
-                    title: Text(context.t.settings.result_layout.result_layout),
-                    selectedOption: pageMode,
-                    items: const [...PageMode.values],
-                    onChanged: (value) => onModeChanged(value),
-                    optionBuilder: (value) => Text(value.localize(context)),
-                    visualDensity: VisualDensity.compact,
-                  ),
+                  if (showPageMode)
+                    KurumiSettingsTile<PageMode>(
+                      title: Text(
+                        context.t.settings.result_layout.result_layout,
+                      ),
+                      selectedOption: pageMode,
+                      items: const [...PageMode.values],
+                      onChanged: (value) => onModeChanged(value),
+                      optionBuilder: (value) => Text(value.localize(context)),
+                      visualDensity: VisualDensity.compact,
+                    ),
                   KurumiSettingsTile(
                     title: Text(
                       context.t.settings.image_grid.grid_size.grid_size,

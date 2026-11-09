@@ -30,7 +30,7 @@ void main() {
   });
 
   test(
-    'a removed hinted account cannot borrow another account on its site',
+    'a saved Pool read uses a unique compatible profile after hint removal',
     () {
       final original = config(poolProfile);
       final other = config(poolGroupB);
@@ -38,7 +38,7 @@ void main() {
         resolvePoolBookmarkProfile(testPool(), [original, other]),
         original,
       );
-      expect(resolvePoolBookmarkProfile(testPool(), [other]), isNull);
+      expect(resolvePoolBookmarkProfile(testPool(), [other]), other);
       expect(
         resolvePoolBookmarkProfile(testPool(), [
           config(poolProfile, host: 'other.example'),

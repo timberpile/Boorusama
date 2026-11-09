@@ -1,3 +1,4 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
@@ -99,12 +100,24 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FollowingTopicCard),
-            matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+            matching: find.byType(KurumiPopupMenuButton),
           ),
         );
         await tester.pumpAndSettle();
         expect(find.text('Delete'), findsNothing);
+        await tester.scrollUntilVisible(
+          find.text('Unfollow'),
+          120,
+          scrollable: find.descendant(
+            of: find.ancestor(
+              of: find.text('Unfollow'),
+              matching: find.byType(SingleChildScrollView),
+            ),
+            matching: find.byType(Scrollable),
+          ),
+        );
         await tester.tap(find.text('Unfollow'));
+        await settle(tester);
         await drain(tester);
         await tester.pump();
         expect(find.text('Topic unfollowed'), findsOneWidget);
@@ -151,7 +164,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byKey(ValueKey('following-topic-folder-${folder.id}')),
-          matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+          matching: find.byType(KurumiPopupMenuButton),
         ),
       );
       await tester.pumpAndSettle();

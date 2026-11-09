@@ -1,3 +1,5 @@
+import 'package:kurumi/kurumi.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/configs/config/types.dart';
@@ -35,7 +37,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: folderCard(folderId),
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: find.byType(KurumiPopupMenuButton),
       ),
     );
     await settle(tester);
@@ -52,15 +54,21 @@ void main() {
     await drain(tester);
   }
 
-  PopupMenuItem actionItem(WidgetTester tester, String label) =>
-      tester.widget<PopupMenuItem>(
-        find.ancestor(
-          of: find.text(label),
-          matching: find.byWidgetPredicate(
-            (widget) => widget is PopupMenuItem,
-          ),
+  bool actionEnabled(WidgetTester tester, String label) {
+    final item = tester.widget(
+      find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is KurumiPopupMenuItem || widget is PopupMenuItem,
         ),
-      );
+      ),
+    );
+    return switch (item) {
+      KurumiPopupMenuItem(:final onTap) => onTap != null,
+      PopupMenuItem(:final enabled) => enabled,
+      _ => throw StateError('Expected a menu action'),
+    };
+  }
 
   Future<void> dismissMenu(WidgetTester tester) async {
     await tester.tapAt(const Offset(1, 1));
@@ -457,8 +465,8 @@ void main() {
         (id: otherId, moveUp: true, moveDown: false),
       ]) {
         await openFolderMenu(tester, c.id);
-        expect(actionItem(tester, 'Move Up').enabled, c.moveUp);
-        expect(actionItem(tester, 'Move Down').enabled, c.moveDown);
+        expect(actionEnabled(tester, 'Move Up'), c.moveUp);
+        expect(actionEnabled(tester, 'Move Down'), c.moveDown);
         await dismissMenu(tester);
       }
 
@@ -475,12 +483,12 @@ void main() {
         await tester.tap(
           find.descendant(
             of: card,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: find.byType(KurumiPopupMenuButton),
           ),
         );
         await settle(tester);
-        expect(actionItem(tester, 'Move Up').enabled, c.moveUp);
-        expect(actionItem(tester, 'Move Down').enabled, c.moveDown);
+        expect(actionEnabled(tester, 'Move Up'), c.moveUp);
+        expect(actionEnabled(tester, 'Move Down'), c.moveDown);
         await dismissMenu(tester);
       }
     },
@@ -518,7 +526,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byType(FollowingTopicCard),
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: find.byType(KurumiPopupMenuButton),
         ),
       );
       await settle(tester);
@@ -804,11 +812,11 @@ void main() {
         );
         final folderMenu = find.descendant(
           of: folder,
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: find.byType(KurumiPopupMenuButton),
         );
         final searchMenu = find.descendant(
           of: search,
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: find.byType(KurumiPopupMenuButton),
         );
         final folderItemCount = find.descendant(
           of: folder,
@@ -922,13 +930,13 @@ void main() {
 
     await harness.pump(tester, const FollowingTopicsPage());
     await openFolderMenu(tester, folderId);
-    expect(actionItem(tester, 'Refresh').enabled, isFalse);
+    expect(actionEnabled(tester, 'Refresh'), isFalse);
     await dismissMenu(tester);
 
     await harness.pump(tester, FollowingTopicsPage(folderId: folderId));
     await tester.tap(pageOverflow());
     await settle(tester);
-    expect(actionItem(tester, 'Refresh').enabled, isFalse);
+    expect(actionEnabled(tester, 'Refresh'), isFalse);
   });
 
   testWidgets(
@@ -949,7 +957,7 @@ void main() {
 
       await harness.pump(tester, const FollowingTopicsPage());
       await openFolderMenu(tester, folderId);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionEnabled(tester, 'Refresh'), isFalse);
       await tester.tap(find.text('Refresh').last);
       await settle(tester);
       expect(harness.requests, isEmpty);
@@ -958,7 +966,7 @@ void main() {
       await harness.pump(tester, FollowingTopicsPage(folderId: folderId));
       await tester.tap(pageOverflow());
       await settle(tester);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionEnabled(tester, 'Refresh'), isFalse);
       await tester.tap(find.text('Refresh'));
       await settle(tester);
       expect(harness.requests, isEmpty);
@@ -1001,13 +1009,13 @@ void main() {
       expect(find.text('Refreshing… 2 left'), findsOneWidget);
 
       await openFolderMenu(tester, folderId);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionEnabled(tester, 'Refresh'), isFalse);
       await dismissMenu(tester);
 
       await harness.pump(tester, FollowingTopicsPage(folderId: folderId));
       await tester.tap(pageOverflow());
       await settle(tester);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionEnabled(tester, 'Refresh'), isFalse);
       expect(find.text('Topic updates'), findsNothing);
       await dismissMenu(tester);
 
@@ -1092,7 +1100,7 @@ void main() {
 
     await tester.tap(pageOverflow());
     await settle(tester);
-    expect(actionItem(tester, 'Refresh All').enabled, isFalse);
+    expect(actionEnabled(tester, 'Refresh All'), isFalse);
     expect(find.text('Refresh'), findsNothing);
   });
 

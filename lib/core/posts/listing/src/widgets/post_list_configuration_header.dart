@@ -21,6 +21,7 @@ class PostListConfigurationHeader extends StatefulWidget {
     this.onExpansionChanged,
     this.blacklistChanges,
     this.additionalControls = const [],
+    this.counterLabel,
   });
 
   final Widget? trailing;
@@ -33,6 +34,7 @@ class PostListConfigurationHeader extends StatefulWidget {
   final Widget blacklistControls;
   final Listenable? blacklistChanges;
   final List<Widget> additionalControls;
+  final String? counterLabel;
 
   @override
   State<PostListConfigurationHeader> createState() =>
@@ -111,7 +113,7 @@ class _PostListConfigurationHeaderState
       trailing: widget.trailing,
       children: [
         Text(
-          context.t.posts.counter(n: widget.postCount),
+          widget.counterLabel ?? context.t.posts.counter(n: widget.postCount),
           style: Theme.of(context).textTheme.titleLarge,
         ),
         if (widget.hasBlacklist) ...[

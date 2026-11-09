@@ -1,3 +1,5 @@
+import 'package:kurumi/kurumi.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/errors/types.dart';
@@ -667,7 +669,7 @@ void main() {
           expect(find.text(date.label), findsOneWidget);
           final overflow = find.descendant(
             of: find.byType(AppBar),
-            matching: find.byType(PopupMenuButton<String>),
+            matching: find.byType(KurumiPopupMenuButton),
           );
           expect(
             tester.getRect(overflow).left -

@@ -45,6 +45,7 @@ class PixivWorkGrid extends ConsumerWidget {
       queryIdentity: queryIdentity,
       initialPage: initialPage,
       pageMode: pageMode ?? ref.watch(imageListingSettingsProvider).pageMode,
+      allowPageModeChange: pageMode == null,
       header: header,
       sliverHeaders: sliverHeaders,
       onRefresh: source.invalidateAll,

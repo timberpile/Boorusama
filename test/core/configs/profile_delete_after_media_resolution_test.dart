@@ -1,3 +1,6 @@
+import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/cache/hive_misc_data_store.dart';
+
 import 'dart:io';
 
 import 'package:boorusama/boorus/registry.dart';
@@ -233,6 +236,9 @@ class _Fixture {
     }
     final profileBox = await Hive.openBox<String>('quality_profile_graph');
     final settingsBox = await Hive.openBox<String>('quality_settings_graph');
+    final misc = HiveMiscDataStore(
+      await Hive.openBox<String>('quality_misc_graph'),
+    );
     final profiles = HiveBooruConfigRepository(box: profileBox);
     final settings = SettingsRepositoryHive(Future.value(settingsBox));
     final original = _profile(BooruType.danbooru, 1).copyWith(
@@ -260,6 +266,7 @@ class _Fixture {
     );
     final container = ProviderContainer(
       overrides: [
+        miscDataStoreProvider.overrideWithValue(misc),
         booruEngineRegistryProvider.overrideWith(
           (ref) =>
               ref.watch(booruInitEngineProvider((db: db, registry: registry))),

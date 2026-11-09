@@ -16,6 +16,7 @@ import 'package:shelf/shelf.dart' as shelf;
 
 // Project imports:
 import 'package:boorusama/core/app_scope.dart';
+import 'package:boorusama/core/backups/export_import/export_import_page.dart';
 import 'package:boorusama/core/backups/preparation/version_checking.dart';
 import 'package:boorusama/core/backups/types/backup_data_source.dart';
 import 'package:boorusama/core/backups/widgets/backup_restore_tile.dart';
@@ -283,7 +284,16 @@ Future<void> _openAdvancedBackup(
     of: find.textContaining('Advanced'),
     matching: find.byType(ListTile),
   );
-  await tester.ensureVisible(advancedBackupTile);
+  // The destination list builds offscreen rows lazily. Find this entry by
+  // scrolling its own list, including when new export options precede it.
+  await tester.scrollUntilVisible(
+    advancedBackupTile,
+    160,
+    scrollable: find.descendant(
+      of: find.byType(ExportImportPage),
+      matching: find.byType(Scrollable),
+    ),
+  );
   await tester.pump();
   await tester.tap(advancedBackupTile);
   await tester.pump();

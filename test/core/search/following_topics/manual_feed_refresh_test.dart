@@ -1,3 +1,5 @@
+import 'package:kurumi/kurumi.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/errors/types.dart';
@@ -213,7 +215,12 @@ void main() {
         TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
       );
       await drain(tester);
-      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(KurumiPopupMenuButton),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Refresh'));
       await drain(tester);
@@ -244,7 +251,12 @@ void main() {
       TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
     );
 
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byType(KurumiPopupMenuButton),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Refresh'));
     await drain(tester);

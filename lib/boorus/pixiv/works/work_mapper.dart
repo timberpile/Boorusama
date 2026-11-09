@@ -106,6 +106,9 @@ ContentGroupSummary pixivWorkSummary(
         ? null
         : GroupCover(
             thumbnail: thumbnail,
+            sample: _safeUri(dto.imageUrls?.large),
+            width: (dto.width ?? 0) > 0 ? dto.width : null,
+            height: (dto.height ?? 0) > 0 ? dto.height : null,
             visibility: pixivWorkVisibility(dto),
           ),
     previewTags: pixivWorkTags(dto),

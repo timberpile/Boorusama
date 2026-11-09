@@ -15,7 +15,7 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
-  test('saved action snapshots do not borrow a replacement account on the same source', () {
+  test('saved reads may resolve a compatible profile but captured actions stay bound', () {
     final a = FakeBooruBackend().config;
     final b = BooruConfig.fromJson({
       ...a.toJson(),
@@ -34,8 +34,10 @@ void main() {
     expect(opened.commonConfig, a);
     expect(opened.accountsMatch([b]), isFalse);
     final fresh = PostActionSnapshot([saved], [b]);
-    expect(fresh.allResolved, isFalse);
-    expect(fresh.commonConfig, isNull);
+    expect(fresh.allResolved, isTrue);
+    expect(fresh.commonConfig, b);
+    expect(fresh.accountsMatch([b]), isTrue);
+    expect(fresh.accountsMatch([a]), isFalse);
     expect(fresh.canBookmark, isTrue);
     final portable = TestPost(
       id: 42,

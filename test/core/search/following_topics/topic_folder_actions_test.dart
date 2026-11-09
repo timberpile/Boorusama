@@ -1,7 +1,7 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
-import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_folder_card.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:material_ui/material_ui.dart';
@@ -60,7 +60,7 @@ void main() {
         );
         final overflow = find.descendant(
           of: folder('Enabled folder'),
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: find.byType(KurumiPopupMenuButton),
         );
         expect(feedButton, findsOneWidget);
         expect(

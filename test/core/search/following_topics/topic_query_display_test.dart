@@ -255,17 +255,19 @@ void main() {
       );
       var opened = false;
       await tester.pumpWidget(
-        BooruLocalization(
-          child: MaterialApp(
-            builder: (context, child) =>
-                MaterialUiCompatibilityBridge(child: child!),
-            home: Scaffold(
-              body: FollowingTopicCard(
-                topic: topic,
-                config: null,
-                refreshing: false,
-                onOpen: () => opened = true,
-                onAction: (_) {},
+        ProviderScope(
+          child: BooruLocalization(
+            child: MaterialApp(
+              builder: (context, child) =>
+                  MaterialUiCompatibilityBridge(child: child!),
+              home: Scaffold(
+                body: FollowingTopicCard(
+                  topic: topic,
+                  config: null,
+                  refreshing: false,
+                  onOpen: () => opened = true,
+                  onAction: (_) {},
+                ),
               ),
             ),
           ),

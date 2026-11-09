@@ -1,3 +1,4 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/topic_feed_management_page.dart';
@@ -44,7 +45,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FollowingTopicCard).first,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: find.byType(KurumiPopupMenuButton),
           ),
         );
         await settle(tester);

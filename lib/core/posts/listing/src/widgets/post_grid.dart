@@ -68,6 +68,7 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.scrollToTopButton,
     this.enablePullToRefresh,
     this.cacheExtent,
+    this.automaticContinuationEnabled = true,
   });
 
   final List<Widget>? sliverHeaders;
@@ -91,6 +92,7 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
   final double? cacheExtent;
+  final bool automaticContinuationEnabled;
 
   @override
   ConsumerState<PostGrid<T>> createState() => _PostGridState();
@@ -257,6 +259,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
       ),
     );
     return PostGridPrefetch(
+      enabled: widget.automaticContinuationEnabled,
       controller: widget.controller,
       scrollController: _autoScrollController,
       child: grid,

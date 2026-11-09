@@ -1,3 +1,5 @@
+import 'package:kurumi/kurumi.dart';
+
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -77,7 +79,7 @@ void main() {
         find
             .descendant(
               of: find.byType(FollowingTopicCard).first,
-              matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+              matching: find.byType(KurumiPopupMenuButton),
             )
             .first,
       );
@@ -99,7 +101,7 @@ void main() {
         find
             .descendant(
               of: find.byType(FollowingTopicCard).first,
-              matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+              matching: find.byType(KurumiPopupMenuButton),
             )
             .first,
       );
@@ -224,7 +226,7 @@ void main() {
           find
               .descendant(
                 of: find.byType(FollowingTopicCard).first,
-                matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+                matching: find.byType(KurumiPopupMenuButton),
               )
               .first,
         );
@@ -271,7 +273,7 @@ void main() {
         find
             .descendant(
               of: find.byType(FollowingTopicCard).first,
-              matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+              matching: find.byType(KurumiPopupMenuButton),
             )
             .first,
       );
@@ -307,12 +309,13 @@ void main() {
         find
             .descendant(
               of: find.byType(FollowingTopicCard).first,
-              matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+              matching: find.byType(KurumiPopupMenuButton),
             )
             .first,
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Refresh'));
+      await settle(tester);
       await drain(tester);
       expect(h.requests, hasLength(1));
       expect(h.requests.single.query, 'cat');
@@ -322,21 +325,21 @@ void main() {
         find
             .descendant(
               of: find.byType(FollowingTopicCard).first,
-              matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+              matching: find.byType(KurumiPopupMenuButton),
             )
             .first,
       );
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<PopupMenuItem<FollowingTopicAction>>(
+            .widget<KurumiPopupMenuItem>(
               find.widgetWithText(
-                PopupMenuItem<FollowingTopicAction>,
+                KurumiPopupMenuItem,
                 'Refresh',
               ),
             )
-            .enabled,
-        isFalse,
+            .onTap,
+        isNull,
       );
       await tester.tapAt(Offset.zero);
       await tester.pumpAndSettle();
@@ -359,7 +362,10 @@ void main() {
             MaterialApp(
               builder: themeBuilder,
               home: MediaQuery(
-                data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+                data: const MediaQueryData(
+                  size: Size(280, 1000),
+                  textScaler: TextScaler.linear(2),
+                ),
                 child: TopicFeedManagementPage(feedId: feed.id),
               ),
             ),
@@ -392,7 +398,7 @@ void main() {
           find
               .descendant(
                 of: find.byType(FollowingTopicCard).first,
-                matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+                matching: find.byType(KurumiPopupMenuButton),
               )
               .first,
         );
@@ -495,7 +501,7 @@ void main() {
           find
               .descendant(
                 of: find.byType(FollowingTopicCard).first,
-                matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+                matching: find.byType(KurumiPopupMenuButton),
               )
               .first,
         );

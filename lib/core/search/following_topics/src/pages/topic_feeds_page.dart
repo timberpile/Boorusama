@@ -971,6 +971,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       scrollController: scrollController,
       initialThumbnailUrl: post.thumbnailImageUrl,
       config: widget.config,
+      canContinue: () => mounted && _historyStarted && !widget.filter.isActive,
     );
   });
 
@@ -1035,6 +1036,10 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
         return Stack(
           children: [
             PostGrid<Post>(
+              // Reading the cached timeline does not opt into remote history.
+              // Once explicitly started, history uses the shared continuation.
+              automaticContinuationEnabled:
+                  _historyStarted && !widget.filter.isActive,
               controller: controller,
               body: widget.filter.isActive && _filteredSnapshots.isEmpty
                   ? SliverFillRemaining(
@@ -1092,8 +1097,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
             if (!widget.filter.isActive &&
                 (_hasUpdates ||
                     _historyCoverageIncomplete ||
-                    (widget.feed.posts.length < 12 &&
-                        !_historyStarted &&
+                    (!_historyStarted &&
                         !controller.refreshing &&
                         controller.hasMore)))
               Positioned(
@@ -1111,12 +1115,12 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                           context.t.following_topics.feed_updates_available,
                         ),
                       ),
-                    if (widget.feed.posts.length < 12 &&
-                        !_historyStarted &&
+                    if (!_historyStarted &&
                         !_historyCoverageIncomplete &&
                         !controller.refreshing &&
                         controller.hasMore)
                       FilledButton.icon(
+                        key: const ValueKey('start-feed-history'),
                         onPressed: _loadOlderPosts,
                         icon: const Icon(Icons.expand_more),
                         label: Text(

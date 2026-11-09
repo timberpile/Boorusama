@@ -317,17 +317,28 @@ void main() {
     expect(image.imageUrl, _cover.sample);
   });
 
-  testWidgets('a stale private source hint cannot borrow a same-host profile', (
-    tester,
-  ) async {
-    final profile = _config(_otherProfileId, _privateSite, login: 'other-user');
-    final mounted = await _pumpCover(
+  testWidgets(
+    'a saved private cover uses a unique compatible profile after hint removal',
+    (
       tester,
-      pool: _pool(site: _privateSite, profileHint: _profileId),
-      profiles: [profile],
-    );
-    addTearDown(() => _close(tester, mounted));
+    ) async {
+      final profile = _config(
+        _otherProfileId,
+        _privateSite,
+        login: 'other-user',
+      );
+      final mounted = await _pumpCover(
+        tester,
+        pool: _pool(site: _privateSite, profileHint: _profileId),
+        profiles: [profile],
+      );
+      addTearDown(() => _close(tester, mounted));
 
-    expect(find.byType(BooruImage), findsNothing);
-  });
+      expect(find.byType(BooruImage), findsOneWidget);
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).config.login,
+        profile.login,
+      );
+    },
+  );
 }

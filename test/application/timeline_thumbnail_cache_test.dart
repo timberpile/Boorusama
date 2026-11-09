@@ -45,7 +45,9 @@ void main() {
         tester.view.physicalSize = const Size(320, 600);
         await harness.settle(tester);
         expect(
-          tester.state<ScrollableState>(postGridScrollable()).position
+          tester
+              .state<ScrollableState>(postGridScrollable())
+              .position
               .viewportDimension,
           lessThan(initialViewport),
         );
@@ -58,10 +60,12 @@ void main() {
 
 void _expectViewportCache(WidgetTester tester) {
   final scrollView = tester.widget<CustomScrollView>(
-    find.descendant(
-      of: postGrid().first,
-      matching: find.byType(CustomScrollView),
-    ).first,
+    find
+        .descendant(
+          of: postGrid().first,
+          matching: find.byType(CustomScrollView),
+        )
+        .first,
   );
   expect(scrollView.scrollCacheExtent?.style, CacheExtentStyle.viewport);
   expect(scrollView.scrollCacheExtent?.value, 1);
@@ -71,10 +75,17 @@ void _expectViewportCache(WidgetTester tester) {
     of: postGrid().first,
     matching: find.byWidgetPredicate(
       (widget) => widget is SliverPostGridImageGridItem,
+      skipOffstage: false,
     ),
+    // Sliver onstage traversal excludes children laid out only in the cache.
+    // Those offscreen children are exactly the behavior asserted here.
+    skipOffstage: false,
   );
   final ahead = tiles.evaluate().where(
-    (element) => tester.getRect(find.byWidget(element.widget)).top >=
+    (element) =>
+        tester
+            .getRect(find.byWidget(element.widget, skipOffstage: false))
+            .top >=
         viewport.bottom,
   );
   expect(ahead, isNotEmpty, reason: 'Prepare thumbnails before visibility.');

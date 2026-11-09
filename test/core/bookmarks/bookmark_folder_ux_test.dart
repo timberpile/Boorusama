@@ -1355,7 +1355,13 @@ void main() {
         expect(path.data, 'Artists');
         expect(path.maxLines, 1);
         expect(path.overflow, TextOverflow.ellipsis);
-        expect(path.style, isNull);
+        final pathTheme = Theme.of(tester.element(pathFinder));
+        expect(
+          path.style,
+          pathTheme.textTheme.labelSmall?.copyWith(
+            color: pathTheme.colorScheme.onSurfaceVariant,
+          ),
+        );
         final back = tester.getRect(
           find.byKey(const ValueKey('bookmark-picker-back')),
         );

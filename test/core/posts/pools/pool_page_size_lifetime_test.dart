@@ -1,3 +1,4 @@
+import 'package:boorusama/core/navigation/destination_activity.dart';
 import 'package:booru_clients/danbooru.dart';
 import 'package:booru_clients/szurubooru.dart' as szuru;
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
@@ -109,15 +110,18 @@ void main() {
           .select(config);
       await harness.pump(
         tester,
-        Scaffold(
-          body: danbooru
-              ? DanbooruInfinitePostIdList(
-                  pool: DanbooruPool.empty().copyWith(id: 1, postIds: _ids),
-                )
-              : const SzurubooruPoolDetailPage(
-                  poolId: 1,
-                  initialPool: _szuruPool,
-                ),
+        NavigationActivity(
+          active: false,
+          child: Scaffold(
+            body: danbooru
+                ? DanbooruInfinitePostIdList(
+                    pool: DanbooruPool.empty().copyWith(id: 1, postIds: _ids),
+                  )
+                : const SzurubooruPoolDetailPage(
+                    poolId: 1,
+                    initialPool: _szuruPool,
+                  ),
+          ),
         ),
       );
       PostGridController<Post> controller() =>

@@ -81,7 +81,7 @@ void main() {
     );
   });
 
-  test('Related references never borrow another account when removed or imported unbound', () {
+  test('saved Related reads resolve a unique compatible profile after hint removal', () {
     final original = BooruConfig.fromJson({
       ...BooruConfig.defaultConfig(
         booruType: poolOrigin().booruType,
@@ -103,7 +103,7 @@ void main() {
       groupIds: pool.groupIds,
     );
     expect(resolvePoolBookmarkProfile(related, [original, other]), original);
-    expect(resolvePoolBookmarkProfile(related, [other]), isNull);
+    expect(resolvePoolBookmarkProfile(related, [other]), other);
     final unbound = related.copyWith(
       origin: PostOrigin.fromSource(
         booruType: pool.origin.booruType,
@@ -111,7 +111,7 @@ void main() {
         source: pool.origin.sourceHost,
       ),
     );
-    expect(resolvePoolBookmarkProfile(unbound, [other]), isNull);
+    expect(resolvePoolBookmarkProfile(unbound, [other]), other);
     expect(unbound.identity, related.identity);
     final binding = ViewerSourceBinding(original);
     expect(binding.resolve([other]), isNull);

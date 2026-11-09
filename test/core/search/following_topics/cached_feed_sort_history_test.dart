@@ -75,9 +75,12 @@ void main() {
         final descending = selector.optionLabel(
           CachedTopicFeedSort.scoreDescending,
         );
-        await tester.tap(
-          find.descendant(of: sort, matching: find.byType(Icon)).first,
+        final sortArrow = find.descendant(
+          of: sort,
+          matching: find.byIcon(Icons.arrow_drop_down),
         );
+        await tester.ensureVisible(sortArrow);
+        await tester.tapAt(tester.getCenter(sortArrow));
         await tester.pumpAndSettle();
         await tester.tap(find.text(descending).last);
         await tester.pumpAndSettle();
@@ -85,7 +88,7 @@ void main() {
 
         final sorted = tester.widget<PostGrid<Post>>(grid).controller;
         expect(sorted.items.map((post) => post.id), [2, 1, 3]);
-        expect(find.text('Load older posts'), findsNothing);
+        expect(find.text('Load More'), findsNothing);
         await _fetchMore(tester, sorted);
         expect(historyRequests, isEmpty);
         expect(sorted.items.map((post) => post.id), [2, 1, 3]);
@@ -96,9 +99,8 @@ void main() {
         );
 
         expect(find.text('Cached'), findsOneWidget);
-        await tester.tap(
-          find.descendant(of: sort, matching: find.byType(Icon)).first,
-        );
+        await tester.ensureVisible(sortArrow);
+        await tester.tapAt(tester.getCenter(sortArrow));
         await tester.pumpAndSettle();
         await tester.tap(
           find.text(selector.optionLabel(CachedTopicFeedSort.newest)).last,
@@ -113,6 +115,70 @@ void main() {
         expect(historyRequests, isEmpty);
         await _fetchMore(tester, restored);
         expect(historyRequests, [1]);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  for (final cachedCount in [3, 20]) {
+    testWidgets(
+      'active cached feed of $cachedCount posts starts history only on explicit action',
+      (tester) async {
+        final requests = <int>[];
+        final harness = FollowingTopicHarness(
+          overrides: [
+            originAwarePostRepoProvider.overrideWith(
+              (ref, config) => TestSearchPostRepository((
+                query,
+                page,
+                limit,
+              ) async {
+                requests.add(page);
+                return Either.of(
+                  const PostResult<Post>(posts: [], total: 0, hasMore: false),
+                );
+              }),
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        final source = topicFixture(query: 'cat');
+        await harness.seed([source]);
+        final feed = TopicFeed(
+          id: 'cached-boundary-$cachedCount',
+          profileId: testProfile.id,
+          name: 'Cached boundary',
+          sourceIds: [source.id],
+          initializedSourceIds: [source.id],
+          posts: [for (var id = 1; id <= cachedCount; id++) _snapshot(id, id)],
+        );
+        await harness.repository.restoreFeeds(testProfile.id, [feed]);
+        await harness.pump(
+          tester,
+          TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+        );
+        await drain(tester);
+        final grid = find.byType(PostGrid<Post>);
+        expect(
+          tester.widget<PostGrid<Post>>(grid).automaticContinuationEnabled,
+          false,
+        );
+        await tester.drag(grid, const Offset(0, -500));
+        await drain(tester);
+        expect(
+          requests,
+          isEmpty,
+          reason: 'Layout and scrolling through cached posts must not start remote history.',
+        );
+        await tester.tap(find.byKey(const ValueKey('start-feed-history')));
+        await tester.pump(
+          tester.widget<PostGrid<Post>>(grid).controller.debounceDuration,
+        );
+        await drain(tester);
+        expect(requests, [1]);
+        expect(
+          tester.widget<PostGrid<Post>>(grid).automaticContinuationEnabled,
+          true,
+        );
         expect(tester.takeException(), isNull);
       },
     );

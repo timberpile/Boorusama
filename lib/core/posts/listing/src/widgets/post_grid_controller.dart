@@ -78,6 +78,9 @@ class PostGridController<T extends Post> extends ChangeNotifier
 
   int _page = _kFirstPage;
   var _hasMore = true;
+  var _manualContinuationRevision = 0;
+  @override
+  int get manualContinuationRevision => _manualContinuationRevision;
   var _loading = false;
   Completer<void>? _pendingFetchMore;
   bool Function()? _pendingFetchMoreCanStart;
@@ -437,7 +440,11 @@ class PostGridController<T extends Post> extends ChangeNotifier
   }) {
     if (_disposed || _refreshing) return Future.value();
     if (_pendingFetchMore case final pending?) {
-      if (canStart == null) _pendingFetchMoreCanStart = null;
+      if (canStart == null) {
+        _pendingFetchMoreCanStart = null;
+        _manualContinuationRevision++;
+        notifyListeners();
+      }
       return pending.future;
     }
     if (_loading || !_hasMore || !(canStart?.call() ?? true)) {
@@ -446,6 +453,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
     // A successful empty filtered page may advance; a failed initial page may not.
     if (!_hasLoadedPage) return refresh(maintainPage: true);
 
+    if (canStart == null) _manualContinuationRevision++;
     final generation = _requestGeneration;
     final pending = _pendingFetchMore = Completer<void>();
     _pendingFetchMoreCanStart = canStart;

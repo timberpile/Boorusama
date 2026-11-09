@@ -40,70 +40,76 @@ class FollowingTopicSyncMenu extends ConsumerWidget {
                     s['kind'] == 'following_topics' && s['localId'] == localId,
               );
     }
-    return KurumiPopupMenuButton(
-      semanticLabel: context.t.generic.action.more,
-      icon: const Icon(Icons.more_vert),
-      items: [
-        for (final entry in entries)
-          if (entry is PopupMenuItem<FollowingTopicAction> &&
-              !(received &&
-                  const {
-                    FollowingTopicAction.edit,
-                    FollowingTopicAction.delete,
-                  }.contains(entry.value)))
+    return Tooltip(
+      message: context.t.generic.action.more,
+      child: KurumiPopupMenuButton(
+        semanticLabel: context.t.generic.action.more,
+        child: const SizedBox.square(
+          dimension: 48,
+          child: Icon(Icons.more_vert),
+        ),
+        items: [
+          for (final entry in entries)
+            if (entry is PopupMenuItem<FollowingTopicAction> &&
+                !(received &&
+                    const {
+                      FollowingTopicAction.edit,
+                      FollowingTopicAction.delete,
+                    }.contains(entry.value)))
+              KurumiPopupMenuItem(
+                title: entry.child ?? const SizedBox.shrink(),
+                onTap: entry.enabled && entry.value != null
+                    ? () => onAction(entry.value!)
+                    : null,
+              ),
+          if (received)
             KurumiPopupMenuItem(
-              title: entry.child ?? const SizedBox.shrink(),
-              onTap: entry.enabled && entry.value != null
-                  ? () => onAction(entry.value!)
-                  : null,
-            ),
-        if (received)
-          KurumiPopupMenuItem(
-            title: Text(context.t.generic.action.edit),
-            icon: const Icon(Icons.edit_outlined),
-            onTap: () async {
-              final notifier = ref.read(followingTopicsProvider.notifier);
-              final parentId = ref
-                  .read(followingTopicsProvider)
-                  .valueOrNull
-                  ?.organization
-                  .folders
-                  .where((f) => f.id == localId)
-                  .firstOrNull
-                  ?.parentId;
-              final name = await showBookmarkGroupNameDialog(
-                context,
-                title: context.t.folder_sync.local_name,
-              );
-              if (name == null || !context.mounted) return;
-              if (folder)
-                await notifier.renameSharedFolder(
-                  localId!,
-                  name,
-                  parentId: parentId,
+              title: Text(context.t.generic.action.edit),
+              icon: const Icon(Icons.edit_outlined),
+              onTap: () async {
+                final notifier = ref.read(followingTopicsProvider.notifier);
+                final parentId = ref
+                    .read(followingTopicsProvider)
+                    .valueOrNull
+                    ?.organization
+                    .folders
+                    .where((f) => f.id == localId)
+                    .firstOrNull
+                    ?.parentId;
+                final name = await showBookmarkGroupNameDialog(
+                  context,
+                  title: context.t.folder_sync.local_name,
                 );
-              else
-                await notifier.rename(localId!, name);
-            },
-          ),
-        if (enabledSync && localId != null)
-          KurumiPopupMenuItem(
-            title: Text(
-              collectionSyncActionLabel(
+                if (name == null || !context.mounted) return;
+                if (folder)
+                  await notifier.renameSharedFolder(
+                    localId!,
+                    name,
+                    parentId: parentId,
+                  );
+                else
+                  await notifier.rename(localId!, name);
+              },
+            ),
+          if (enabledSync && localId != null)
+            KurumiPopupMenuItem(
+              title: Text(
+                collectionSyncActionLabel(
+                  context,
+                  ref,
+                  kind: 'following_topics',
+                  localId: localId!,
+                ),
+              ),
+              icon: Icon(received ? Icons.sync : Icons.upload_outlined),
+              onTap: () => openFolderSyncForCollection(
                 context,
-                ref,
                 kind: 'following_topics',
                 localId: localId!,
               ),
             ),
-            icon: Icon(received ? Icons.sync : Icons.upload_outlined),
-            onTap: () => openFolderSyncForCollection(
-              context,
-              kind: 'following_topics',
-              localId: localId!,
-            ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

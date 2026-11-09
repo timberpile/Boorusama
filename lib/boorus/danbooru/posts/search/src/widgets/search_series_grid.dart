@@ -1,5 +1,4 @@
 import '../../../../../../core/content/types.dart';
-import '../../../../../../core/navigation/destination_activity.dart';
 import '../../../../../../core/posts/details/src/types/viewer_entry.dart';
 import '../../../../../../core/posts/details/src/routes/route_utils.dart';
 import '../../../../../../core/posts/details/src/routes/post_details_live_source.dart';
@@ -156,13 +155,8 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
   List<Post> _posts = const [];
   List<NeighboringSeriesEntry<Post>> _display = const [];
   var _lastFrozenFirstIndex = -1;
-  var _fillRequests = 0;
-  var _filling = false;
-  var _fillScheduled = false;
-  var _lastPage = 0;
   var _wasRefreshing = false;
   var _generation = 0;
-  static const _fillBudget = 3;
   final _admitted = <int>{};
   final _displayPools = <(int, int), RemoteBookmarkPool>{};
 
@@ -191,7 +185,6 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
       _display = const [];
       _lastFrozenFirstIndex = -1;
       _generation++;
-      _fillRequests = 0;
       _admitted.clear();
       _displayPools.clear();
     }
@@ -222,51 +215,6 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     });
   }
 
-  void _scheduleFill() {
-    final controller = widget.controller;
-    if (_fillScheduled ||
-        _filling ||
-        _fillRequests >= _fillBudget ||
-        controller.pageMode != PageMode.infinite ||
-        controller.refreshing ||
-        controller.loadingMore ||
-        !controller.hasMore ||
-        controller.errors.value != null)
-      return;
-    _fillScheduled = true;
-    final generation = _generation;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _fillScheduled = false;
-      if (!mounted ||
-          !NavigationActivity.of(context) ||
-          !(ModalRoute.of(context)?.isCurrent ?? true) ||
-          generation != _generation ||
-          SelectionMode.of(context).isActive ||
-          isExplicitSeriesSearch(widget.query) ||
-          controller.refreshing ||
-          controller.loadingMore ||
-          !controller.hasMore ||
-          controller.errors.value != null)
-        return;
-      _fillRequests++;
-      _filling = true;
-      try {
-        await controller.fetchMore();
-      } finally {
-        // The final controller notification can be coalesced until after this
-        // future completes. Record its page before releasing the automatic
-        // latch, so that rebuild cannot mistake it for a manual continuation.
-        if (mounted &&
-            generation == _generation &&
-            controller == widget.controller) {
-          _lastPage = controller.page;
-        }
-        _filling = false;
-        if (mounted) setState(() {});
-      }
-    });
-  }
-
   void _syncProjection() {
     final controller = widget.controller;
     if (controller.refreshing && !_wasRefreshing) {
@@ -275,13 +223,8 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
       _display = const [];
       _admitted.clear();
       _displayPools.clear();
-      _fillRequests = 0;
     }
     _wasRefreshing = controller.refreshing;
-    if (controller.page != _lastPage && !_filling) {
-      _fillRequests = 0;
-    }
-    _lastPage = controller.page;
     final posts = controller.items.toList();
     final samePrefix =
         _posts.length <= posts.length &&
@@ -289,7 +232,6 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     if (!samePrefix) {
       _lastFrozenFirstIndex = -1;
       _generation++;
-      _fillRequests = 0;
       _admitted.clear();
       _display = const [];
       _displayPools.clear();
@@ -489,23 +431,9 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
             );
           },
         );
-        return SliverMainAxisGroup(
-          slivers: [
-            grid,
-            SliverLayoutBuilder(
-              builder: (context, constraints) {
-                if (display.length < posts.length &&
-                    constraints.precedingScrollExtent <
-                        constraints.viewportMainAxisExtent &&
-                    !selection.isActive &&
-                    !isExplicitSeriesSearch(widget.query)) {
-                  _scheduleFill();
-                }
-                return const SliverToBoxAdapter(child: SizedBox.shrink());
-              },
-            ),
-          ],
-        );
+        // The surrounding PostGridPrefetch owns one shared continuation budget,
+        // including pages whose posts collapse into a single series card.
+        return grid;
       },
     );
   }

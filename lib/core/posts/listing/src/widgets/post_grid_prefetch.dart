@@ -13,11 +13,13 @@ class PostGridPrefetch extends StatefulWidget {
     required this.controller,
     required this.scrollController,
     required this.child,
+    this.enabled = true,
     super.key,
   });
   final TimelineContinuationController controller;
   final ScrollController scrollController;
   final Widget child;
+  final bool enabled;
   @override
   State<PostGridPrefetch> createState() => _PostGridPrefetchState();
 }
@@ -26,6 +28,8 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
     with WidgetsBindingObserver {
   var _scheduled = false;
   var _layoutRequests = 0;
+  Object? _automaticRequest;
+  late int _lastManualContinuation;
   var _attached = true;
   var _navigationActive = false;
   late bool _foreground;
@@ -42,6 +46,7 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
   }
 
   void _attach() {
+    _lastManualContinuation = widget.controller.manualContinuationRevision;
     widget.controller.addListener(_changed);
     widget.scrollController.addListener(_scrolled);
   }
@@ -66,7 +71,12 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
         widget.scrollController != oldWidget.scrollController) {
       _detach(oldWidget);
       _layoutRequests = 0;
+      _automaticRequest = null;
       _attach();
+      _schedule();
+    }
+    if (widget.enabled && !oldWidget.enabled) {
+      _layoutRequests = 0;
       _schedule();
     }
   }
@@ -91,7 +101,15 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
   }
 
   void _changed() {
-    if (widget.controller.refreshing) _layoutRequests = 0;
+    final manual = widget.controller.manualContinuationRevision;
+    if (manual != _lastManualContinuation ||
+        widget.controller.refreshing ||
+        (widget.controller.loadingMore && _automaticRequest == null)) {
+      // An explicit continuation starts a new fill cycle. Automatic completions
+      // retain the existing budget even when the visible page stays sparse.
+      _layoutRequests = 0;
+    }
+    _lastManualContinuation = manual;
     _schedule();
   }
 
@@ -118,6 +136,7 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
 
   bool _canStart() {
     if (!mounted ||
+        !widget.enabled ||
         !_attached ||
         !_foreground ||
         !_navigationActive ||
@@ -144,15 +163,21 @@ class _PostGridPrefetchState extends State<PostGridPrefetch>
     }
     _layoutRequests++;
     final scrollController = widget.scrollController;
+    final request = Object();
+    _automaticRequest = request;
     unawaited(
-      controller.fetchMore(
-        // Check again at dispatch, not only before the debounce interval.
-        canStart: () =>
-            mounted &&
-            identical(controller, widget.controller) &&
-            identical(scrollController, widget.scrollController) &&
-            _canStart(),
-      ),
+      controller
+          .fetchMore(
+            // Check again at dispatch, not only before the debounce interval.
+            canStart: () =>
+                mounted &&
+                identical(controller, widget.controller) &&
+                identical(scrollController, widget.scrollController) &&
+                _canStart(),
+          )
+          .whenComplete(() {
+            if (identical(_automaticRequest, request)) _automaticRequest = null;
+          }),
     );
   }
 

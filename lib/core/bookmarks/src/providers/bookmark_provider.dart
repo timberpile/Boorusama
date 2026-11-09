@@ -273,6 +273,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   @override
   FutureOr<BookmarkLibraryState> build() async {
+    // Keep cold initialization subscribed to repository replacement. Reading a
+    // cancelled Future alone can leave the library waiting forever when engine
+    // registration or storage dependencies invalidate it during startup.
+    final repositoryReady = ref.watch(bookmarkRepoProvider.future);
+    final groupsReady = ref.watch(bookmarkGroupRepoProvider.future);
+    await Future.wait<Object>([repositoryReady, groupsReady]);
     _pendingHydration.clear();
     _pendingHydrationRevision = null;
     _hydrationPublicationTimer?.cancel();
@@ -711,17 +717,26 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     // Provider initialization reads the durable repository in its own zone.
     // Finish it before taking the same coordinator for a mutation, otherwise
     // a cold first action can wait on a read queued behind its own lock.
-    if (state.isLoading && !state.hasValue) await future;
-    return ref.read(dataMutationCoordinatorProvider).runExclusive(
-      () {
-        beforeStart?.call();
-        return _serializeLocally(
-          operation,
-          publishHydration: publishHydration,
-          beforeStart: beforeStart,
+    while (true) {
+      if (state.isLoading) await future;
+      try {
+        return await ref.read(dataMutationCoordinatorProvider).runExclusive(
+          () {
+            beforeStart?.call();
+            // A dependency can be replaced after this operation queues. Yield
+            // the coordinator before awaiting its replacement initialization.
+            if (state.isLoading) throw const _LibraryInitializationPending();
+            return _serializeLocally(
+              operation,
+              publishHydration: publishHydration,
+              beforeStart: beforeStart,
+            );
+          },
         );
-      },
-    );
+      } on _LibraryInitializationPending {
+        await future;
+      }
+    }
   }
 
   Future<T> _serializeLocally<T>(
@@ -2229,4 +2244,9 @@ extension BookmarkCubitToastX on BookmarkNotifier {
 
 extension BookmarkNotifierX on WidgetRef {
   BookmarkNotifier get bookmarks => read(bookmarkProvider.notifier);
+}
+
+/// Internal admission retry; no domain mutation has started when this is thrown.
+final class _LibraryInitializationPending implements Exception {
+  const _LibraryInitializationPending();
 }

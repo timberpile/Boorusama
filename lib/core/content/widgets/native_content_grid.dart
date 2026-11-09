@@ -5,6 +5,8 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
+import 'package:sliver_masonry_grid/sliver_masonry_grid.dart';
 
 import '../../configs/manage/widgets.dart';
 import '../../configs/config/types.dart';
@@ -14,6 +16,11 @@ import '../../posts/details/routes.dart';
 import '../../posts/details/src/routes/post_details_live_source.dart';
 import '../../posts/details/src/types/viewer_entry.dart';
 import '../../posts/listing/src/types/page_mode.dart';
+import '../../posts/listing/src/types/grid_utils.dart';
+import '../../posts/listing/src/types/image_list_type.dart';
+import '../../posts/listing/src/widgets/timeline_header_sliver.dart';
+import '../../posts/listing/providers.dart';
+import '../../settings/providers.dart';
 import '../../posts/listing/src/types/timeline_continuation_controller.dart';
 import '../../posts/listing/src/widgets/post_grid_prefetch.dart';
 import '../../posts/listing/src/widgets/post_grid_item.dart';
@@ -21,6 +28,7 @@ import '../../posts/pools/pool_grid_item.dart';
 import '../../posts/post/types.dart';
 import '../content_access_provider.dart';
 import '../types.dart';
+import 'native_content_configuration_header.dart';
 
 final class NativeContentPage {
   NativeContentPage({
@@ -47,6 +55,7 @@ class NativeContentGrid extends ConsumerStatefulWidget {
     this.onRefresh,
     this.header,
     this.sliverHeaders = const [],
+    this.allowPageModeChange = false,
     super.key,
   });
   final ContentAccessContext access;
@@ -57,6 +66,7 @@ class NativeContentGrid extends ConsumerStatefulWidget {
   final VoidCallback? onRefresh;
   final Widget? header;
   final List<Widget> sliverHeaders;
+  final bool allowPageModeChange;
   @override
   ConsumerState<NativeContentGrid> createState() => _NativeContentGridState();
 }
@@ -107,6 +117,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
 
   @override
   Widget build(BuildContext context) {
+    final listing = ref.watch(imageListingSettingsProvider);
     final current = ref.watch(contentAccessContextProvider(widget.access.key));
     if (current == null || !current.hasSameAuthorization(widget.access)) {
       return Center(child: Text(context.t.navigation.unavailable_profile));
@@ -119,8 +130,8 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         animation: _controller,
         builder: (context, _) => LayoutBuilder(
           builder: (context, size) {
-            final columns = (size.maxWidth / 160).floor().clamp(2, 8);
-            return PostGridPrefetch(
+            final columns = calculateGridCount(size.maxWidth, listing.gridSize);
+            final timeline = PostGridPrefetch(
               controller: _controller,
               scrollController: _scroll,
               child: RefreshIndicator(
@@ -133,21 +144,73 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                     ...widget.sliverHeaders,
                     if (widget.header case final header?)
                       SliverToBoxAdapter(child: header),
-                    SliverPadding(
-                      padding: const EdgeInsets.all(6),
-                      sliver: SliverGrid.builder(
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          childAspectRatio: .72,
+                    if (_controller.entries.isNotEmpty)
+                      TimelineHeaderSliver(
+                        keepVisible: listing.keepTimelineToolbarVisible,
+                        reduceMotion: ref.watch(
+                          settingsProvider.select(
+                            (value) => value.reduceAnimations,
+                          ),
                         ),
-                        itemCount: _controller.entries.length,
-                        itemBuilder: (context, index) => _card(context, index),
+                        child: NativeContentConfigurationHeader(
+                          count: _controller.entries.length,
+                          allowPageModeChange: widget.allowPageModeChange,
+                        ),
                       ),
+                    SliverPadding(
+                      padding: EdgeInsets.all(listing.imageGridPadding),
+                      sliver: listing.imageListType == ImageListType.masonry
+                          ? SliverMasonryGrid.count(
+                              crossAxisCount: columns,
+                              mainAxisSpacing: listing.imageGridSpacing,
+                              crossAxisSpacing: listing.imageGridSpacing,
+                              childCount: _controller.entries.length,
+                              itemBuilder: (context, index) => _masonryCard(
+                                context,
+                                index,
+                                listing.imageGridAspectRatio,
+                              ),
+                            )
+                          : SliverGrid.builder(
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: columns,
+                                    childAspectRatio:
+                                        listing.imageGridAspectRatio,
+                                    mainAxisSpacing: listing.imageGridSpacing,
+                                    crossAxisSpacing: listing.imageGridSpacing,
+                                  ),
+                              itemCount: _controller.entries.length,
+                              itemBuilder: (context, index) =>
+                                  _card(context, index),
+                            ),
                     ),
                     SliverToBoxAdapter(child: _footer(context)),
                   ],
                 ),
               ),
+            );
+            final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+            final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
+            return Stack(
+              children: [
+                Positioned.fill(child: timeline),
+                Positioned(
+                  right: 12,
+                  bottom:
+                      (bottomInset > bottomPadding
+                          ? bottomInset
+                          : bottomPadding) +
+                      8,
+                  child: KurumiScrollToTop(
+                    scrollController: _scroll,
+                    layoutChanges: _controller,
+                    child: KurumiScrollToTopButton(
+                      onPressed: () => _scroll.jumpTo(0),
+                    ),
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -155,12 +218,65 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
     );
   }
 
+  Widget _masonryCard(BuildContext context, int index, double fallbackRatio) {
+    final entry = _controller.entries[index];
+    final ratio = switch (entry) {
+      PostContentEntry(:final post) => post.aspectRatio ?? fallbackRatio,
+      GroupContentEntry(:final summary)
+          when summary.cover?.width != null && summary.cover?.height != null =>
+        summary.cover!.width! / summary.cover!.height!,
+      _ => fallbackRatio,
+    };
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        var captionHeight = 0.0;
+        if (entry
+            case GroupContentEntry(
+              summary: ContentGroupSummary(title: final title?),
+            )
+            when title.isNotEmpty) {
+          // PoolGridItem keeps its two-line caption outside the cover. Reserve
+          // its measured height so narrow/enlarged text cannot squeeze the image.
+          final painter = TextPainter(
+            text: TextSpan(
+              text: title.replaceAll('_', ' '),
+              style: DefaultTextStyle.of(context).style
+                  .merge(const TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            maxLines: 2,
+            ellipsis: '…',
+            textDirection: Directionality.of(context),
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout(maxWidth: (width - 12).clamp(0, double.infinity));
+          captionHeight = painter.height;
+          painter.dispose();
+        }
+        return SizedBox(
+          height: width / (ratio > 0 ? ratio : 1) + captionHeight + 4,
+          child: _card(context, index),
+        );
+      },
+    );
+  }
+
   Widget _card(BuildContext context, int index) {
     final entry = _controller.entries[index];
     final group = entry is GroupContentEntry ? entry.summary : null;
     final post = entry is PostContentEntry ? entry.post : null;
-    final image =
-        group?.cover?.thumbnail.toString() ?? post?.thumbnailImageUrl ?? '';
+    final cover = group?.cover;
+    final image = cover == null
+        ? post?.thumbnailImageUrl ?? ''
+        : defaultStaticGridThumbnailUrl(
+            thumbnail: cover.thumbnail.toString(),
+            sample: (cover.sample ?? cover.thumbnail).toString(),
+            original: (cover.original ?? cover.sample ?? cover.thumbnail)
+                .toString(),
+            isVideo: false,
+            settings: ref.watch(
+              gridThumbnailSettingsProvider(widget.access.config!.auth),
+            ),
+          );
     if (post != null) {
       return PostGridItem(
         post: post,
@@ -180,8 +296,14 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
           : BooruImage(
               imageUrl: image,
               config: widget.access.config!.auth,
-              fit: BoxFit.cover,
-              forceCover: true,
+              fit:
+                  ref.watch(imageListingSettingsProvider).imageListType ==
+                      ImageListType.classic
+                  ? BoxFit.contain
+                  : BoxFit.cover,
+              forceCover:
+                  ref.watch(imageListingSettingsProvider).imageListType ==
+                  ImageListType.standard,
             ),
       onTap: () => _open(index, image),
     );
@@ -299,6 +421,9 @@ final class NativeContentController extends ChangeNotifier
   var refreshing = false;
   @override
   var loadingMore = false;
+  var _manualContinuationRevision = 0;
+  @override
+  int get manualContinuationRevision => _manualContinuationRevision;
   @override
   var hasMore = true;
   int page;
@@ -327,11 +452,17 @@ final class NativeContentController extends ChangeNotifier
     replace: !_loaded || pageMode == PageMode.paginated,
   );
   @override
-  Future<void> fetchMore({bool Function()? canStart}) => _load(
-    _loaded ? page + 1 : initialPage,
-    replace: pageMode == PageMode.paginated,
-    canStart: canStart,
-  );
+  Future<void> fetchMore({bool Function()? canStart}) {
+    if (canStart == null && !_disposed && !loadingMore && hasMore) {
+      _manualContinuationRevision++;
+      notifyListeners();
+    }
+    return _load(
+      _loaded ? page + 1 : initialPage,
+      replace: pageMode == PageMode.paginated,
+      canStart: canStart,
+    );
+  }
 
   Future<void> _load(
     int requested, {

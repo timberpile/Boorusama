@@ -9,6 +9,8 @@ import 'package:hive_ce/hive.dart';
 
 // Project imports:
 import 'package:boorusama/core/hive/hive_adapters.dart';
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
 import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
@@ -182,4 +184,60 @@ void main() {
       await directory.delete(recursive: true);
     }
   });
+  test(
+    'Following initialization tracks a replaced pending repository future',
+    () async {
+      final directory = await initializeHive();
+      final firstBox = await Hive.openBox<FollowingTopicHiveObject>(
+        'pending_topics',
+      );
+      final replacementBox = await Hive.openBox<FollowingTopicHiveObject>(
+        'replacement_topics',
+      );
+      final first = HiveFollowingTopicRepository(box: firstBox);
+      final replacement = HiveFollowingTopicRepository(box: replacementBox);
+      for (final pair in [(first, 'stale'), (replacement, 'replacement')]) {
+        await pair.$1.create(
+          profileId: '00000000-0000-4000-8000-000000000004',
+          query: pair.$2,
+          name: null,
+          id: pair.$2,
+        );
+      }
+      final opening = Completer<FollowingTopicRepository>();
+      var generations = 0;
+      final container = ProviderContainer(
+        overrides: [
+          followingTopicRepositoryProvider.overrideWith(
+            () => _PendingRepository(
+              () => generations++ == 0
+                  ? opening.future
+                  : Future.value(replacement),
+            ),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await Hive.close();
+        await directory.delete(recursive: true);
+      });
+      unawaited(container.read(followingTopicsProvider.future));
+      container.invalidate(followingTopicRepositoryProvider);
+      await container.read(followingTopicRepositoryProvider.future);
+      opening.complete(first);
+      final state = await container
+          .read(followingTopicsProvider.future)
+          .timeout(const Duration(seconds: 3));
+      expect(state.topics.map((topic) => topic.id), ['replacement']);
+      expect(generations, 2);
+    },
+  );
+}
+
+class _PendingRepository extends FollowingTopicRepositoryNotifier {
+  _PendingRepository(this.opening);
+  final Future<FollowingTopicRepository> Function() opening;
+  @override
+  Future<FollowingTopicRepository> build() => opening();
 }

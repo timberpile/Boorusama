@@ -36,6 +36,7 @@ class KurumiPopupMenuButton extends StatefulWidget {
 
 class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
   final _controller = AnchorController();
+  Rect _openerBounds = Rect.zero;
 
   @override
   void dispose() {
@@ -49,6 +50,12 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
 
     void toggleMenu() {
       if (!widget.enabled) return;
+      if (!_controller.isShowing) {
+        final reference = context.findRenderObject();
+        if (reference is RenderBox && reference.hasSize) {
+          _openerBounds = reference.localToGlobal(Offset.zero) & reference.size;
+        }
+      }
       menuFeedback?.call();
       _controller.toggle();
     }
@@ -76,19 +83,39 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
 
     return KurumiAnchor(
       controller: _controller,
-      overlayBuilder: (context) => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 8,
-        ),
-        constraints: BoxConstraints(
-          maxWidth: min(MediaQuery.widthOf(context), widget.maxWidth ?? 200),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: widget.items,
-        ),
-      ),
+      overlayBuilder: (overlayContext) {
+        final media = MediaQuery.of(overlayContext);
+        final safeTop = media.padding.top + 12;
+        final safeBottom =
+            media.size.height -
+            max(media.padding.bottom, media.viewInsets.bottom) -
+            12;
+        // The anchor may flip above its opener. Bound the scroll viewport to
+        // the larger side so either placement can remain fully on screen.
+        final availableHeight = max(
+          0.0,
+          max(
+            _openerBounds.top - safeTop - 4,
+            safeBottom - _openerBounds.bottom - 4,
+          ),
+        );
+        return Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 8,
+          ),
+          constraints: BoxConstraints(
+            maxWidth: min(media.size.width, widget.maxWidth ?? 200),
+            maxHeight: availableHeight,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: widget.items,
+            ),
+          ),
+        );
+      },
       child: Semantics(
         button: true,
         enabled: widget.enabled,
