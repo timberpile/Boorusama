@@ -2,7 +2,6 @@ import 'package:booru_clients/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/client_provider.dart';
 import 'package:boorusama/boorus/pixiv/works/work_source.dart';
 import 'package:boorusama/boorus/registry.dart';
-import 'package:boorusama/core/blacklists/src/data/providers.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -36,7 +35,7 @@ void main() {
             ),
           ),
           globalBlacklistedTagRepoProvider.overrideWith(
-            (ref) async => _Blacklist(),
+            (ref) => Future.value(_Blacklist()),
           ),
           pixivClientProvider.overrideWith(
             (ref, auth) => PixivClient(accessToken: 'fixture'),

@@ -27,7 +27,6 @@ import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/types.dart';
-import 'package:boorusama/core/blacklists/src/data/providers.dart';
 import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_native_group_card.dart';
 import 'package:boorusama/core/images/booru_image.dart';
@@ -226,6 +225,15 @@ void main() {
             tester,
             () => find.text('Work 140').evaluate().isNotEmpty,
             reason: 'Explore recommended with registered policy',
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Ranking'));
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => find.text('Work 120').evaluate().isNotEmpty,
+            reason: 'Explore returns to the ranking controls',
           ),
         );
         expect(tester.takeException(), isNull);

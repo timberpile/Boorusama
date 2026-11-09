@@ -2969,7 +2969,7 @@ class _GalleryRepository extends BooruRepositoryDefault {
 BooruGroupCapability _galleryGroupCapability() => BooruGroupCapability(
   engine: BooruType.danbooru,
   keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
-  createSource: _GalleryGroupSource.new,
+  createSource: (_, access) => _GalleryGroupSource(access),
   presentation: const _GalleryGroupPresentation(),
 );
 
