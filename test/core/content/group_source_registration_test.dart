@@ -287,7 +287,7 @@ BooruGroupCapability _capability(
 ) => BooruGroupCapability(
   engine: BooruType.danbooru,
   keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
-  createSource: create,
+  createSource: (_, access) => create(access),
   presentation: _Presentation(),
 );
 

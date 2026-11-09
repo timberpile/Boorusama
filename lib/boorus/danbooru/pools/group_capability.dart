@@ -28,7 +28,7 @@ BooruGroupCapability createDanbooruGroupCapability(
 ) => BooruGroupCapability(
   engine: BooruType.danbooru,
   keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
-  createSource: (access) {
+  createSource: (_, access) {
     final config = access.config;
     if (config == null)
       throw StateError('Group source has no authorized configuration');

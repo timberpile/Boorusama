@@ -270,6 +270,7 @@ class _Fixture {
       container.read(_ref),
     );
     source = capability.createSource(
+      container.read(_ref),
       ContentAccessContext.profile(
         config: config,
         authEpoch: 1,

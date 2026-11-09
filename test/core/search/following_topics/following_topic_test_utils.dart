@@ -145,6 +145,7 @@ class FollowingTopicHarness {
     this.repositoryReady,
     this.loadImages = false,
     this.supported = true,
+    bool stubBlacklist = true,
     bool Function(BooruConfigAuth)? trackingSupported,
     Settings? settings,
     ImageListingSettings? listingSettings,
@@ -286,7 +287,8 @@ class FollowingTopicHarness {
           ),
         ),
         automaticMediaLoadingEnabledProvider.overrideWithValue(loadImages),
-        blacklistTagsProvider.overrideWith((ref, config) => const {}),
+        if (stubBlacklist)
+          blacklistTagsProvider.overrideWith((ref, config) => const {}),
         if (listingSettings != null)
           imageListingSettingsProvider.overrideWithValue(listingSettings),
         deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),

@@ -153,17 +153,29 @@ class _PixivExploreSliverAppBar extends StatelessWidget {
         floating: true,
         bottom: PreferredSize(
           preferredSize: Size.fromHeight(height),
-          child: KurumiMeasureSize(
-            onChange: (size) {
-              if (size.height != headerHeight.value) {
-                headerHeight.value = size.height;
-              }
-            },
-            child: _HeaderControls(
-              feed: feed,
-              accountXRestrict: accountXRestrict,
-              onFeedKindChanged: onFeedKindChanged,
-              onControlsChanged: onControlsChanged,
+          child: SizedBox(
+            height: height,
+            child: ClipRect(
+              // Measure the controls at their natural height, including the
+              // first frame and feed/text-scale changes, before reserving it.
+              child: OverflowBox(
+                alignment: Alignment.bottomCenter,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: KurumiMeasureSize(
+                  onChange: (size) {
+                    if (size.height != headerHeight.value) {
+                      headerHeight.value = size.height;
+                    }
+                  },
+                  child: _HeaderControls(
+                    feed: feed,
+                    accountXRestrict: accountXRestrict,
+                    onFeedKindChanged: onFeedKindChanged,
+                    onControlsChanged: onControlsChanged,
+                  ),
+                ),
+              ),
             ),
           ),
         ),

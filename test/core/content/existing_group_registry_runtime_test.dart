@@ -20,6 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 import '../posts/links/boorusama_post_link_test.dart' show config;
 import '../search/following_topics/following_topic_test_utils.dart';
 
+final _sourceOwnerRef = Provider((ref) => ref);
+
 void main() {
   for (final key in ['pool:42', 'related:42']) {
     test(
@@ -88,6 +90,7 @@ void main() {
             .read(booruEngineRegistryProvider)
             .getGroupCapability(BooruType.danbooru)!;
         final source = capability.createSource(
+          container.read(_sourceOwnerRef),
           ContentAccessContext.profile(
             config: profile,
             authEpoch: 1,
@@ -208,6 +211,7 @@ void main() {
                 .read(booruEngineRegistryProvider)
                 .getGroupCapability(BooruType.danbooru)!
                 .createSource(
+                  container.read(_sourceOwnerRef),
                   ContentAccessContext.profile(
                     config: profile,
                     authEpoch: 1,
@@ -485,6 +489,7 @@ void main() {
         .read(booruEngineRegistryProvider)
         .getGroupCapability(BooruType.szurubooru)!
         .createSource(
+          container.read(_sourceOwnerRef),
           ContentAccessContext.profile(
             config: profile,
             authEpoch: 1,

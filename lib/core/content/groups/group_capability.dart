@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../boorus/booru/types.dart';
 import '../content_access.dart';
@@ -44,6 +45,10 @@ final class BooruGroupCapability {
   final BooruType engine;
   final ContentKeyCodec keyCodec;
   final BooruGroupDataCodec? dataCodec;
-  final ContentGroupSource Function(ContentAccessContext access) createSource;
+
+  /// Source preparation belongs to the caller's scope. Using the registration
+  /// Ref for registry-backed policy reads would make the registry depend on itself.
+  final ContentGroupSource Function(Ref ref, ContentAccessContext access)
+  createSource;
   final BooruGroupPresentation presentation;
 }

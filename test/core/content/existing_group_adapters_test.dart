@@ -276,6 +276,7 @@ class _Fixture {
     );
     expect(poolRequests, 0, reason: 'capability factory must be lazy');
     source = capability.createSource(
+      container.read(_ref),
       ContentAccessContext.profile(
         config: config,
         authEpoch: 1,

@@ -13,24 +13,23 @@ import '../../../core/posts/pools/pool_grid_item.dart';
 import '../client_provider.dart';
 import 'work_source.dart';
 
-BooruGroupCapability createPixivGroupCapability(Ref ref) =>
-    BooruGroupCapability(
-      engine: BooruType.pixiv,
-      keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
-      createSource: (access) {
-        final client = ref.read(pixivClientProvider(access.config!.auth));
-        return PixivWorkSource(
-          access: access,
-          blacklist: Set.unmodifiable(
-            ref
-                .read(contentEffectiveBlacklistProvider(access.key.profileId!))
-                .requireValue,
-          ),
-          fetchWork: (id) => client.getIllustDetail(illustId: id),
-        );
-      },
-      presentation: const PixivWorkPresentation(),
+BooruGroupCapability createPixivGroupCapability(Ref _) => BooruGroupCapability(
+  engine: BooruType.pixiv,
+  keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+  createSource: (ref, access) {
+    final client = ref.read(pixivClientProvider(access.config!.auth));
+    return PixivWorkSource(
+      access: access,
+      blacklist: Set.unmodifiable(
+        ref
+            .read(contentEffectiveBlacklistProvider(access.key.profileId!))
+            .requireValue,
+      ),
+      fetchWork: (id) => client.getIllustDetail(illustId: id),
     );
+  },
+  presentation: const PixivWorkPresentation(),
+);
 
 class PixivWorkPresentation implements BooruGroupPresentation {
   const PixivWorkPresentation();

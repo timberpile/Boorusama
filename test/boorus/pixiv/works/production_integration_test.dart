@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:booru_clients/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/client_provider.dart';
 import 'package:boorusama/boorus/pixiv/favorites/page.dart';
+import 'package:boorusama/boorus/pixiv/explore/widgets.dart';
 import 'package:boorusama/boorus/pixiv/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/works/favorites_session.dart';
 import 'package:boorusama/boorus/pixiv/works/search_page.dart';
@@ -25,17 +26,23 @@ import 'package:boorusama/core/posts/listing/src/widgets/post_grid_prefetch.dart
 import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
 import 'package:boorusama/core/router.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/blacklists/types.dart';
+import 'package:boorusama/core/blacklists/src/data/providers.dart';
 import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_native_group_card.dart';
 import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/search/search/routes.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../core/posts/details/progressive_image_test_utils.dart';
 import '../../../core/search/following_topics/following_topic_test_utils.dart';
 import 'work_test_fixtures.dart';
+import '../../../support/fakes/memory_repositories.dart';
+
+final _sourceOwnerRef = Provider((ref) => ref);
 
 class Client extends PixivClient {
   Client._(Dio dio) : super(accessToken: 'fixture', dio: dio);
@@ -50,13 +57,21 @@ class Client extends PixivClient {
             query: Map.of(request.queryParameters),
           ));
           if (request.path == '/v1/search/illust' ||
-              request.path == '/v1/illust/ranking') {
+              request.path == '/v1/illust/ranking' ||
+              request.path == '/v2/illust/follow' ||
+              request.path == '/v1/illust/recommended') {
             handler.resolve(
               Response<dynamic>(
                 requestOptions: request,
                 statusCode: 200,
                 data: {
-                  'illusts': [_wireWork(120)],
+                  'illusts': [
+                    _wireWork(switch (request.path) {
+                      '/v2/illust/follow' => 130,
+                      '/v1/illust/recommended' => 140,
+                      _ => 120,
+                    }),
+                  ],
                 },
               ),
             );
@@ -144,13 +159,27 @@ FollowingTopicHarness harness(
   );
   final h = FollowingTopicHarness(
     profiles: [config],
+    stubBlacklist: false,
     overrides: [
       booruEngineRegistryProvider.overrideWith(
         (ref) =>
             ref.watch(booruInitEngineProvider((db: db, registry: components))),
       ),
       pixivClientProvider.overrideWith((_, _) => client),
-      blacklistTagsProvider.overrideWith((_, _) async => blacklist),
+      globalBlacklistedTagRepoProvider.overrideWith((ref) async {
+        final repository = MemoryGlobalBlacklistedTagRepository();
+        await repository.replaceAll([
+          for (final (index, tag) in blacklist.indexed)
+            BlacklistedTag(
+              id: index,
+              name: tag,
+              isActive: true,
+              createdDate: DateTime.utc(2026),
+              updatedDate: DateTime.utc(2026),
+            ),
+        ]);
+        return repository;
+      }),
     ],
   );
   h.container.read(selectedTestProfileProvider.notifier).select(config);
@@ -158,6 +187,60 @@ FollowingTopicHarness harness(
 }
 
 void main() {
+  for (final viewport in [
+    (size: const Size(800, 600), scale: 1.0),
+    (size: const Size(320, 720), scale: 1.5),
+  ]) {
+    testWidgets(
+      'Explore builds all three feeds with the production blacklist chain at $viewport',
+      (tester) async {
+        tester.view.physicalSize = viewport.size;
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = viewport.scale;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final client = Client();
+        final h = harness(workAccess().config!, client, blacklist: {'blocked'});
+        addTearDown(h.dispose);
+        await h.pump(tester, const PixivExplorePage());
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => find.text('Work 120').evaluate().isNotEmpty,
+            reason: 'Explore ranking with registered policy',
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Following'));
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => find.text('Work 130').evaluate().isNotEmpty,
+            reason: 'Explore following with registered policy',
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.text('Recommended'));
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => find.text('Work 140').evaluate().isNotEmpty,
+            reason: 'Explore recommended with registered policy',
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        expect(
+          client.reads.map((r) => r.path),
+          containsAll([
+            '/v1/illust/ranking',
+            '/v2/illust/follow',
+            '/v1/illust/recommended',
+          ]),
+        );
+      },
+    );
+  }
+
   testWidgets(
     'native listing applies translated blacklist before seeding and preserves terminal raw continuation',
     (tester) async {
@@ -370,7 +453,7 @@ void main() {
       final source = h.container
           .read(booruEngineRegistryProvider)
           .getGroupCapability(BooruType.pixiv)!
-          .createSource(access);
+          .createSource(h.container.read(_sourceOwnerRef), access);
       addTearDown(source.dispose);
       final reference = pixivWorkReference(access, 120);
       for (final denied in [

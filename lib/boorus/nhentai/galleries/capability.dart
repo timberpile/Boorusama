@@ -24,7 +24,7 @@ BooruGroupCapability createNhentaiGroupCapability(Ref ref) =>
     BooruGroupCapability(
       engine: BooruType.nhentai,
       keyCodec: const BooruContentKeyCodec(BooruType.nhentai),
-      createSource: (access) {
+      createSource: (_, access) {
         final config = access.config!;
         final client = ref.read(nhentaiClientProvider(config.auth));
         return NhentaiGallerySource(

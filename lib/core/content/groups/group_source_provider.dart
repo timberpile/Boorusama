@@ -47,7 +47,7 @@ final contentGroupSourceProvider = Provider.autoDispose
         if (capability == null) throw _unavailable();
         final context = ref.watch(contentAccessContextProvider(key));
         if (context == null) throw _unavailable();
-        final source = capability.createSource(context);
+        final source = capability.createSource(ref, context);
         if (!context.hasSameAuthorization(source.access)) {
           source.dispose();
           throw _unavailable();
@@ -58,6 +58,7 @@ final contentGroupSourceProvider = Provider.autoDispose
       dependencies: [
         booruGroupCapabilityProvider,
         contentAccessContextProvider,
+        contentEffectiveBlacklistProvider,
       ],
     );
 
