@@ -7,6 +7,7 @@ import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
 import '../auto/widgets.dart';
 import '../folder_sync/pages.dart';
+import '../folder_sync/route_utils.dart';
 import '../transfer/route_utils.dart';
 import '../transfer/sync_data_page.dart';
 import '../utils/backup_file_picker.dart';
@@ -122,8 +123,9 @@ class ExportImportPage extends ConsumerWidget {
                 leading: const Icon(Icons.folder_shared_outlined),
                 title: Text(context.t.folder_sync.title),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const FolderSyncPage()),
+                onTap: () => pushFolderSyncPage(
+                  context,
+                  (_) => const FolderSyncPage(),
                 ),
               ),
             ),

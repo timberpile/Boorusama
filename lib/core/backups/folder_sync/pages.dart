@@ -11,6 +11,7 @@ import '../../bookmarks/src/routes/route_utils.dart';
 import '../../bookmarks/src/types/bookmark_view.dart';
 import '../auto/providers.dart';
 import 'providers.dart';
+import 'route_utils.dart';
 import 'service.dart';
 
 class FolderSyncPage extends ConsumerWidget {
@@ -123,9 +124,7 @@ class FolderSyncPage extends ConsumerWidget {
       leading: Icon(icon),
       title: Text(label),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () =>
-          Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => builder())),
+      onTap: () => pushFolderSyncPage(context, (_) => builder()),
     ),
   );
 }

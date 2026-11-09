@@ -6,6 +6,7 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import 'pages.dart';
+import 'route_utils.dart';
 import '../../bookmarks/providers.dart';
 import 'providers.dart';
 
@@ -220,22 +221,23 @@ Future<void> openFolderSyncForCollection(
         .firstOrNull;
     if (!context.mounted) return;
     if (received) {
-      await Navigator.of(
+      await pushFolderSyncPage(
         context,
-      ).push(MaterialPageRoute(builder: (_) => const FolderSyncReceivePage()));
+        (_) => const FolderSyncReceivePage(),
+      );
     } else if (!service.configured) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => FolderSyncPage(intendedPublication: source),
-        ),
+      await pushFolderSyncPage(
+        context,
+        (_) => FolderSyncPage(intendedPublication: source),
       );
     } else if (source != null) {
       final selection = service.publicationSelection(source, sources);
       if (!selection.direct && !selection.inherited)
         await service.setPublication(source, enabled: true);
       if (context.mounted) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const FolderSyncPublishPage()),
+        await pushFolderSyncPage(
+          context,
+          (_) => const FolderSyncPublishPage(),
         );
       }
     }
