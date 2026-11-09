@@ -4,6 +4,7 @@ import 'package:anchor_ui/anchor_ui.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/theme.dart';
+import '../foundation/platform.dart';
 import 'anchor.dart';
 
 class KurumiPopupMenuButton extends StatefulWidget {
@@ -34,12 +35,55 @@ class KurumiPopupMenuButton extends StatefulWidget {
   State<KurumiPopupMenuButton> createState() => _KurumiPopupMenuButtonState();
 }
 
-class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
+class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton>
+    with WidgetsBindingObserver {
   final _controller = AnchorController();
   Rect _openerBounds = Rect.zero;
+  var _geometryScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_visibilityChanged);
+  }
+
+  void _visibilityChanged() {
+    if (_controller.isShowing) {
+      WidgetsBinding.instance.addObserver(this);
+      _refreshGeometry();
+    } else {
+      WidgetsBinding.instance.removeObserver(this);
+    }
+  }
+
+  void _captureOpenerBounds() {
+    final reference = context.findRenderObject();
+    if (reference is RenderBox && reference.hasSize) {
+      _openerBounds = reference.localToGlobal(Offset.zero) & reference.size;
+    }
+  }
+
+  void _refreshGeometry() {
+    if (!mounted || !_controller.isShowing) return;
+    setState(() {});
+    if (_geometryScheduled) return;
+    _geometryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _geometryScheduled = false;
+      if (!mounted || !_controller.isShowing) return;
+      _captureOpenerBounds();
+      setState(() {});
+      _controller.recalculate();
+    });
+  }
+
+  @override
+  void didChangeMetrics() => _refreshGeometry();
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.removeListener(_visibilityChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -47,14 +91,24 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
   @override
   Widget build(BuildContext context) {
     final menuFeedback = KurumiTheme.maybeBehaviorOf(context)?.menuFeedback;
+    final media = MediaQuery.of(context);
+    final view = View.of(context);
+    final keyboard = max(
+      media.viewInsets.bottom,
+      view.viewInsets.bottom / view.devicePixelRatio,
+    );
+    // RawAnchor already adds inherited system insets. Restore only the gap
+    // consumed by a resizing page, while retaining its existing popup margin.
+    final missingKeyboard = max(
+      0.0,
+      keyboard - max(media.padding.bottom, media.viewInsets.bottom),
+    );
+    final margin = kurumiIsDesktopPlatform() ? 4.0 : 12.0;
 
     void toggleMenu() {
       if (!widget.enabled) return;
       if (!_controller.isShowing) {
-        final reference = context.findRenderObject();
-        if (reference is RenderBox && reference.hasSize) {
-          _openerBounds = reference.localToGlobal(Offset.zero) & reference.size;
-        }
+        _captureOpenerBounds();
       }
       menuFeedback?.call();
       _controller.toggle();
@@ -83,13 +137,22 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
 
     return KurumiAnchor(
       controller: _controller,
+      viewPadding: EdgeInsets.fromLTRB(
+        margin,
+        margin,
+        margin,
+        margin + missingKeyboard,
+      ),
       overlayBuilder: (overlayContext) {
         final media = MediaQuery.of(overlayContext);
+        final view = View.of(overlayContext);
+        final keyboard = max(
+          media.viewInsets.bottom,
+          view.viewInsets.bottom / view.devicePixelRatio,
+        );
         final safeTop = media.padding.top + 12;
         final safeBottom =
-            media.size.height -
-            max(media.padding.bottom, media.viewInsets.bottom) -
-            12;
+            media.size.height - max(media.padding.bottom, keyboard) - 12;
         // The anchor may flip above its opener. Bound the scroll viewport to
         // the larger side so either placement can remain fully on screen.
         final availableHeight = max(
