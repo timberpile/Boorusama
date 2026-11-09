@@ -1298,6 +1298,154 @@ void main() {
     },
   );
 
+  for (final inFolder in [false, true]) {
+    for (final reordered in [false, true]) {
+      test(
+        'populated ${inFolder ? 'folder' : 'Home'} preview preserves ${reordered ? 'reordered' : 'unchanged'} searches',
+        () {
+          const count = 2000;
+          final ids = [
+            for (var index = 0; index < count; index++) 'topic-$index',
+          ];
+          final nextIds = reordered ? ids.reversed.toList() : ids;
+          final summary = projector.followingTopics(
+            local: FollowingTopicImportLocalSnapshot(
+              searches: [
+                for (final id in ids) _search(id: id, query: 'query_$id'),
+              ],
+              organization: TopicOrganization(
+                folders: [
+                  if (inFolder)
+                    TopicFolder(
+                      id: 'folder',
+                      name: 'Large folder',
+                      searchIds: ids,
+                    ),
+                ],
+                homeSearchIds: inFolder ? [] : ids,
+              ),
+              feeds: [],
+            ),
+            incoming: FollowingTopicBackupData(
+              records: [
+                for (final (position, id) in ids.indexed)
+                  FollowingTopicBackupRecord(
+                    id: id,
+                    name: null,
+                    query: 'query_$id',
+                    position: position,
+                    profile: _profileReference,
+                  ),
+              ],
+              folders: [
+                if (inFolder)
+                  FollowingTopicFolderBackupRecord(
+                    id: 'folder',
+                    name: 'Large folder',
+                    position: 0,
+                    searchIds: nextIds,
+                  ),
+              ],
+              homeSearchIds: inFolder ? [] : nextIds,
+            ),
+            profileMappings: {
+              ProfileReferenceKey.fromReference(_profileReference):
+                  _profileReference.id,
+            },
+            resolution: _source('pinned_searches', ImportAction.replace),
+          )!;
+          if (!reordered) {
+            expect(summary.previewRows, isEmpty);
+            expect(summary.created + summary.updated + summary.deleted, 0);
+            return;
+          }
+          final container = summary.previewRows.single;
+          expect(container.label, inFolder ? 'Large folder' : '__home');
+          expect(container.entityChanged, isFalse);
+          expect(container.counts, const ImportChangeCounts(changed: count));
+          expect(container.children, hasLength(count));
+          expect(container.children.map((row) => row.kind).toSet(), {
+            ImportChangeKind.changed,
+          });
+          final order = container.details.single;
+          expect(order.presentation, ImportDetailPresentation.queryOrder);
+          expect(order.before, ids.map((id) => 'query_$id').join('\n'));
+          expect(order.after, nextIds.map((id) => 'query_$id').join('\n'));
+          final first = container.children.first;
+          expect(first.label, 'query_${ids.last}');
+          expect(first.details.single.before, '${count - 1}');
+          expect(first.details.single.after, '0');
+        },
+      );
+    }
+  }
+
+  for (final reordered in [false, true]) {
+    test(
+      'populated feed preview preserves ${reordered ? 'reordered' : 'unchanged'} queries',
+      () {
+        const count = 8000;
+        final queries = [
+          for (var index = 0; index < count; index++) 'query_$index',
+        ];
+        final nextQueries = reordered ? queries.reversed.toList() : queries;
+        final summary = projector.topicFeeds(
+          local: TopicFeedImportLocalSnapshot(
+            searches: [
+              for (final (index, query) in queries.indexed)
+                _search(id: 'source-$index', query: query),
+            ],
+            feeds: [
+              TopicFeed(
+                id: 'feed',
+                name: 'Large feed',
+                profileId: _profileReference.id,
+                sourceIds: [
+                  for (var index = 0; index < count; index++) 'source-$index',
+                ],
+              ),
+            ],
+          ),
+          incoming: TopicFeedBackupData(
+            feeds: [
+              TopicFeedBackupRecord(
+                id: 'feed',
+                name: 'Large feed',
+                position: 0,
+                queries: nextQueries,
+                profile: _profileReference,
+              ),
+            ],
+          ),
+          profileMappings: {
+            ProfileReferenceKey.fromReference(_profileReference):
+                _profileReference.id,
+          },
+          resolution: _source('following_feeds', ImportAction.replace),
+        )!;
+        if (!reordered) {
+          expect(summary.previewRows, isEmpty);
+          expect(summary.created + summary.updated + summary.deleted, 0);
+          return;
+        }
+        final feed = summary.previewRows.single;
+        expect(feed.entityChanged, isFalse);
+        expect(feed.counts, const ImportChangeCounts(changed: count));
+        expect(feed.children, hasLength(count));
+        expect(feed.children.map((row) => row.kind).toSet(), {
+          ImportChangeKind.changed,
+        });
+        final order = feed.details.single;
+        expect(order.presentation, ImportDetailPresentation.queryOrder);
+        expect(order.before, queries.join('\n'));
+        expect(order.after, nextQueries.join('\n'));
+        expect(feed.children.first.label, queries.last);
+        expect(feed.children.first.details.single.before, '${count - 1}');
+        expect(feed.children.first.details.single.after, '0');
+      },
+    );
+  }
+
   test(
     'folder reorder remains visible without fabricating search additions or removals',
     () {
@@ -1561,6 +1709,57 @@ void main() {
       const ImportChangeCounts(added: 5),
     );
   });
+
+  test(
+    'feed preview preserves first occurrence positions for duplicate queries',
+    () {
+      final summary = projector.topicFeeds(
+        local: TopicFeedImportLocalSnapshot(
+          searches: [
+            _search(id: 'first-cat', query: 'cat'),
+            _search(id: 'dog', query: 'dog'),
+            _search(id: 'last-cat', query: 'cat'),
+          ],
+          feeds: [
+            TopicFeed(
+              id: 'feed',
+              name: 'Feed',
+              profileId: _profileReference.id,
+              sourceIds: const ['first-cat', 'dog', 'last-cat'],
+            ),
+          ],
+        ),
+        incoming: TopicFeedBackupData(
+          feeds: [
+            TopicFeedBackupRecord(
+              id: 'feed',
+              name: 'Feed',
+              position: 0,
+              queries: const ['dog', 'cat'],
+              profile: _profileReference,
+            ),
+          ],
+        ),
+        profileMappings: {
+          ProfileReferenceKey.fromReference(_profileReference):
+              _profileReference.id,
+        },
+        resolution: _source('following_feeds', ImportAction.replace),
+      )!;
+      final feed = summary.previewRows.single;
+      expect(feed.counts, const ImportChangeCounts(removed: 1, changed: 2));
+      expect(feed.details, isEmpty);
+      expect(feed.children.map((row) => (row.kind, row.label)), [
+        (ImportChangeKind.removed, 'cat'),
+        (ImportChangeKind.changed, 'dog'),
+        (ImportChangeKind.changed, 'cat'),
+      ]);
+      expect(feed.children[1].details.single.before, '1');
+      expect(feed.children[1].details.single.after, '0');
+      expect(feed.children[2].details.single.before, '0');
+      expect(feed.children[2].details.single.after, '1');
+    },
+  );
 
   for (final scenario in [
     (

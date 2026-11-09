@@ -1219,6 +1219,15 @@ List<ImportChangePreviewRow> _previewRows(
   return List.unmodifiable(rows);
 }
 
+// Match List.indexOf semantics, including the first occurrence of duplicates.
+Map<String, int> _firstPositions(List<String> values) {
+  final positions = <String, int>{};
+  for (final (index, value) in values.indexed) {
+    positions.putIfAbsent(value, () => index);
+  }
+  return positions;
+}
+
 List<ImportChangePreviewRow> _feedQueryRows(
   _FeedValue? before,
   _FeedValue? after,
@@ -1226,8 +1235,12 @@ List<ImportChangePreviewRow> _feedQueryRows(
   final oldQueries = before?.queries ?? <String>[];
   final newQueries = after?.queries ?? <String>[];
   // Compare retained entries so inserting a query does not fabricate reorder changes.
-  final oldCommon = oldQueries.where(newQueries.contains).toList();
-  final newCommon = newQueries.where(oldQueries.contains).toList();
+  final oldPositions = _firstPositions(oldQueries);
+  final newPositions = _firstPositions(newQueries);
+  final oldCommon = oldQueries.where(newPositions.containsKey).toList();
+  final newCommon = newQueries.where(oldPositions.containsKey).toList();
+  final oldCommonPositions = _firstPositions(oldCommon);
+  final newCommonPositions = _firstPositions(newCommon);
   return [
     for (final (index, detail) in importQueryChanges(
       before?.queries ?? [],
@@ -1246,21 +1259,21 @@ List<ImportChangePreviewRow> _feedQueryRows(
               : after?.profileId,
         ),
     for (final query in newCommon)
-      if (oldCommon.indexOf(query) != newCommon.indexOf(query) ||
+      if (oldCommonPositions[query] != newCommonPositions[query] ||
           before?.profileId != after?.profileId)
         ImportChangePreviewRow(
           category: 'feed_queries',
-          id: 'changed-${newCommon.indexOf(query)}',
+          id: 'changed-${newCommonPositions[query]}',
           kind: ImportChangeKind.changed,
           label: safeImportDisplayValue('query', query),
           profileId: after?.profileId,
           details: importFieldChanges(
             {
-              'position': oldQueries.indexOf(query),
+              'position': oldPositions[query],
               'profileId': before?.profileId,
             },
             {
-              'position': newQueries.indexOf(query),
+              'position': newPositions[query],
               'profileId': after?.profileId,
             },
           ),
@@ -1280,6 +1293,7 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
     };
     final assigned = folders.values.expand((ids) => ids).toSet();
     final home = values[_key('topics-home', 'home')] as _HomeValue?;
+    final homeIds = home?.searchIds.toSet() ?? <String>{};
     folders[_key('topics-home', 'home')] = [
       for (final id in home?.searchIds ?? <String>[])
         if (!assigned.contains(id)) id,
@@ -1287,7 +1301,7 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
       for (final key in values.keys.cast<_EntityKey>())
         if (key.type == 'following-topic' &&
             !assigned.contains(key.id) &&
-            !(home?.searchIds.contains(key.id) ?? false))
+            !homeIds.contains(key.id))
           key.id.toString(),
     ];
     return folders;
@@ -1303,20 +1317,24 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
     final after = projected[key];
     final oldIds = oldContainers[key] ?? [];
     final newIds = newContainers[key] ?? [];
-    final oldCommon = oldIds.where(newIds.contains).toList();
-    final newCommon = newIds.where(oldIds.contains).toList();
+    final oldPositions = _firstPositions(oldIds);
+    final newPositions = _firstPositions(newIds);
+    final oldCommon = oldIds.where(newPositions.containsKey).toList();
+    final newCommon = newIds.where(oldPositions.containsKey).toList();
+    final oldCommonPositions = _firstPositions(oldCommon);
+    final newCommonPositions = _firstPositions(newCommon);
     final children = <ImportChangePreviewRow>[];
     for (final searchId in {...newIds, ...oldIds}) {
       final oldSearch =
           local[_key('following-topic', searchId)] as _SearchValue?;
       final newSearch =
           projected[_key('following-topic', searchId)] as _SearchValue?;
-      final wasHere = oldIds.contains(searchId) && oldSearch != null;
-      final isHere = newIds.contains(searchId) && newSearch != null;
+      final wasHere = oldPositions.containsKey(searchId) && oldSearch != null;
+      final isHere = newPositions.containsKey(searchId) && newSearch != null;
       final reordered =
           wasHere &&
           isHere &&
-          oldCommon.indexOf(searchId) != newCommon.indexOf(searchId);
+          oldCommonPositions[searchId] != newCommonPositions[searchId];
       if ((!wasHere && !isHere) ||
           (wasHere && isHere && oldSearch == newSearch && !reordered)) {
         continue;
@@ -1348,11 +1366,11 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
               ...importFieldChanges(
                 {
                   ..._searchJson(oldSearch!),
-                  if (reordered) 'position': oldIds.indexOf(searchId),
+                  if (reordered) 'position': oldPositions[searchId],
                 },
                 {
                   ..._searchJson(newSearch!),
-                  if (reordered) 'position': newIds.indexOf(searchId),
+                  if (reordered) 'position': newPositions[searchId],
                 },
               ),
             if (search.name != null && kind != ImportChangeKind.changed)
@@ -1410,17 +1428,15 @@ List<ImportChangePreviewRow> _pinnedPreviewRows(
               {'position': after.position},
             ),
           if (!const ListEquality<String>().equals(
-            oldIds.where(newIds.contains).toList(),
-            newIds.where(oldIds.contains).toList(),
+            oldCommon,
+            newCommon,
           ))
             ImportChangeDetail(
               key: 'queryOrder',
-              before: oldIds
-                  .where(newIds.contains)
+              before: oldCommon
                   .map((id) => _pinnedQueryLabel(id, local))
                   .join('\n'),
-              after: newIds
-                  .where(oldIds.contains)
+              after: newCommon
                   .map((id) => _pinnedQueryLabel(id, projected))
                   .join('\n'),
               presentation: ImportDetailPresentation.queryOrder,
