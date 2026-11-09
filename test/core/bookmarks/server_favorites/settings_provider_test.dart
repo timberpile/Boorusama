@@ -5,6 +5,7 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bookmarks/server_favorites.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 
 class _Store implements MiscDataStore {
   String? value;
@@ -25,6 +26,15 @@ class _Store implements MiscDataStore {
 class _Library extends BookmarkLibraryNotifier {
   bool fail = false;
   int reads = 0;
+  int admissions = 0;
+
+  @override
+  Future<T> runWithLibrary<T>(Future<T> Function() operation) =>
+      ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+        admissions++;
+        if (fail) throw StateError('library unavailable');
+        return operation();
+      });
 
   final snapshot = BookmarkLibraryState(
     bookmarks: const [],
@@ -152,12 +162,41 @@ void main() {
       final notifier = container.read(serverFavoriteSettingsProvider.notifier);
       await notifier.setGlobal('empty');
       final reads = library.reads;
+      final admissions = library.admissions;
       library.fail = true;
       await notifier.setGlobal(null);
       expect(library.reads, reads);
       expect(
+        library.admissions,
+        admissions,
+        reason:
+            'Disabling must not request admission to an unavailable library.',
+      );
+      expect(
         (await container.read(serverFavoriteSettingsProvider.future))
             .resolve('profile'),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'binding fails before writes when library admission is unavailable',
+    () async {
+      await container.read(serverFavoriteSettingsProvider.future);
+      library.fail = true;
+      await expectLater(
+        container
+            .read(serverFavoriteSettingsProvider.notifier)
+            .setGlobal('empty'),
+        throwsStateError,
+      );
+      expect(library.admissions, 1);
+      expect(library.reads, 0);
+      expect(store.writes, 0);
+      expect(
+        (await container.read(serverFavoriteSettingsProvider.future))
+            .globalGroupId,
         isNull,
       );
     },

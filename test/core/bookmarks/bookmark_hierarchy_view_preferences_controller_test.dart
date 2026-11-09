@@ -13,9 +13,86 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_objec
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_repository.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
+import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:hive_ce/hive.dart';
+
+class _OperationGate {
+  final entered = Completer<void>();
+  final release = Completer<void>();
+
+  Future<void> pause() async {
+    entered.complete();
+    await release.future;
+  }
+}
+
+class _GatedBookmarkHiveRepository extends BookmarkHiveRepository {
+  _GatedBookmarkHiveRepository(
+    Box<BookmarkHiveObject> posts, {
+    required super.groupPayloadBox,
+    required super.metadataBox,
+    required super.coordinator,
+    required super.legacyGroupBoxName,
+    required super.legacyOrganizationBoxName,
+  }) : super(posts);
+
+  _OperationGate? revisionGate;
+  _OperationGate? committedGate;
+  var admittedGroupCommits = 0;
+  var completedReadAll = 0;
+  final groupCommitCounts = <String, int>{};
+
+  @override
+  Future<List<Bookmark>> readAll() async {
+    final records = await super.readAll();
+    completedReadAll++;
+    return records;
+  }
+
+  @override
+  Future<int> readRevision() async {
+    final revision = await super.readRevision();
+    final gate = revisionGate;
+    revisionGate = null;
+    if (gate != null) await gate.pause();
+    return revision;
+  }
+
+  @override
+  Future<void> commitOrganization({
+    Iterable<Bookmark> records = const [],
+    Set<int> removeIds = const {},
+    List<BookmarkGroup> groups = const [],
+    Set<String> removeGroupIds = const {},
+    List<CollectionFolder>? folders,
+  }) async {
+    await super.commitOrganization(
+      records: records,
+      removeIds: removeIds,
+      groups: groups,
+      removeGroupIds: removeGroupIds,
+      folders: folders,
+    );
+    for (final group in groups) {
+      groupCommitCounts.update(
+        group.name,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    if (groups.any((group) => group.name == 'Admitted')) {
+      admittedGroupCommits++;
+      final gate = committedGate;
+      committedGate = null;
+      if (gate != null) await gate.pause();
+    }
+  }
+}
 
 class _Store implements MiscDataStore {
   final values = <String, String>{};
@@ -34,7 +111,7 @@ class _Store implements MiscDataStore {
 
 void main() {
   late Directory directory;
-  late BookmarkHiveRepository repository;
+  late _GatedBookmarkHiveRepository repository;
   late BookmarkGroupRepository groups;
   late DataMutationCoordinator coordinator;
   setUp(() async {
@@ -52,7 +129,7 @@ void main() {
     await organization.put('version', 1);
     await organization.put('poolBookmarks', []);
     coordinator = DataMutationCoordinator();
-    repository = BookmarkHiveRepository(
+    repository = _GatedBookmarkHiveRepository(
       posts,
       groupPayloadBox: payloads,
       metadataBox: metadata,
@@ -150,6 +227,185 @@ void main() {
     final loaded = await snapshot.timeout(const Duration(seconds: 10));
     expect(loaded.groups.single.isDefault, isTrue);
     expect(container.read(bookmarkProvider).isLoading, isFalse);
+  });
+
+  for (final afterCommit in [false, true]) {
+    test(
+      'admitted mutation survives dependency replacement ${afterCommit ? 'after durable domain commit' : 'after revision read'} without replay',
+      () async {
+        final generation = StateProvider((_) => 0);
+        final pendingGroups = Completer<BookmarkGroupRepository>();
+        final container = ProviderContainer(
+          overrides: [
+            miscDataStoreProvider.overrideWithValue(_Store()),
+            dataMutationCoordinatorProvider.overrideWithValue(coordinator),
+            bookmarkRepoProvider.overrideWith((_) => repository),
+            bookmarkGroupRepoProvider.overrideWith(
+              (ref) => ref.watch(generation) == 0
+                  ? Future.value(groups)
+                  : pendingGroups.future,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final subscription = container.listen(bookmarkProvider, (_, _) {});
+        addTearDown(subscription.close);
+        await container.read(bookmarkProvider.future);
+        final gate = _OperationGate();
+        if (afterCommit) {
+          repository.committedGate = gate;
+        } else {
+          repository.revisionGate = gate;
+        }
+        final operation = container
+            .read(bookmarkProvider.notifier)
+            .createGroup('Admitted');
+        await gate.entered.future.timeout(const Duration(seconds: 10));
+        expect(repository.admittedGroupCommits, afterCommit ? 1 : 0);
+
+        // This continuation belongs to the test's root zone, not the admitted
+        // operation. The new provider build must acquire the held coordinator.
+        container.read(generation.notifier).state = 1;
+        container.invalidate(bookmarkProvider);
+        await container.pump();
+        expect(container.read(bookmarkProvider).isLoading, true);
+        pendingGroups.complete(coordinator.runExclusive(() async => groups));
+        final rebuilt = container.read(bookmarkProvider.future);
+        gate.release.complete();
+        final result = await operation.timeout(const Duration(seconds: 10));
+        final current = await rebuilt.timeout(const Duration(seconds: 10));
+        expect(
+          current.groups
+              .where((group) => group.name == 'Admitted')
+              .map((group) => group.id),
+          [result.id],
+        );
+        expect(
+          (await groups.getGroups())
+              .where((group) => group.name == 'Admitted')
+              .map((group) => group.id),
+          [result.id],
+        );
+        expect(
+          repository.admittedGroupCommits,
+          1,
+          reason: 'An admitted domain operation must never be replayed after dependency invalidation.',
+        );
+      },
+    );
+  }
+
+  test('replacement initialization cannot borrow an admitted callback ownership zone', () async {
+    final container = createContainer(_Store());
+    final subscription = container.listen(bookmarkProvider, (_, _) {});
+    addTearDown(subscription.close);
+    final library = container.read(bookmarkProvider.notifier);
+    await container.read(bookmarkProvider.future);
+    final midway = Completer<void>();
+    final finish = Completer<void>();
+    late Future<BookmarkLibraryState> replacement;
+    late int readsBeforeReplacement;
+    final operation = library.runSerializedMutation(() async {
+      await groups.createGroup('FirstGroup');
+      readsBeforeReplacement = repository.completedReadAll;
+      container.invalidate(bookmarkProvider);
+      replacement = container.read(bookmarkProvider.future);
+      midway.complete();
+      await finish.future;
+      await groups.createGroup('SecondGroup');
+    });
+    await midway.future.timeout(const Duration(seconds: 10));
+    await container.pump();
+    try {
+      expect(container.read(bookmarkProvider).isLoading, true);
+      expect(
+        repository.completedReadAll,
+        readsBeforeReplacement,
+        reason: 'A replacement build must queue behind the admitted operation instead of borrowing its coordinator zone to read a half-committed domain.',
+      );
+    } finally {
+      finish.complete();
+    }
+    await operation.timeout(const Duration(seconds: 10));
+    final current = await replacement.timeout(const Duration(seconds: 10));
+    for (final name in ['FirstGroup', 'SecondGroup']) {
+      expect(current.groups.where((group) => group.name == name), hasLength(1));
+      expect(
+        (await groups.getGroups()).where((group) => group.name == name),
+        hasLength(1),
+      );
+      expect(repository.groupCommitCounts[name], 1);
+    }
+  });
+
+  test('outer library admission pins nested snapshots, creation and refresh across replacement', () async {
+    final generation = StateProvider((_) => 0);
+    final pendingGroups = Completer<BookmarkGroupRepository>();
+    final container = ProviderContainer(
+      overrides: [
+        miscDataStoreProvider.overrideWithValue(_Store()),
+        dataMutationCoordinatorProvider.overrideWithValue(coordinator),
+        bookmarkRepoProvider.overrideWith((_) => repository),
+        bookmarkGroupRepoProvider.overrideWith(
+          (ref) => ref.watch(generation) == 0
+              ? Future.value(groups)
+              : pendingGroups.future,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final subscription = container.listen(bookmarkProvider, (_, _) {});
+    addTearDown(subscription.close);
+    final library = container.read(bookmarkProvider.notifier);
+    await container.read(bookmarkProvider.future);
+    final entered = Completer<void>();
+    final release = Completer<void>();
+    final operation = library.runWithLibrary(() async {
+      expect(
+        coordinator.isCurrentOwner,
+        true,
+        reason: 'Admission must pin the actual outer critical section, rather than only warm the library.',
+      );
+      entered.complete();
+      await release.future;
+      expect(identical(await library.bookmarkGroupRepository, groups), true);
+      expect(identical(await library.bookmarkRepository, repository), true);
+      final before = await library.snapshotForExport();
+      expect(before.groups.where((group) => group.name == 'Nested'), isEmpty);
+      final created = await library.createGroup('Nested');
+      await library.refresh();
+      final after = await library.snapshotForExport();
+      expect(
+        after.groups
+            .where((group) => group.name == 'Nested')
+            .map((group) => group.id),
+        [created.id],
+      );
+      return created;
+    });
+    await entered.future.timeout(const Duration(seconds: 10));
+    container.read(generation.notifier).state = 1;
+    container.invalidate(bookmarkProvider);
+    await container.pump();
+    expect(container.read(bookmarkProvider).isLoading, true);
+    pendingGroups.complete(coordinator.runExclusive(() async => groups));
+    final rebuilt = container.read(bookmarkProvider.future);
+    release.complete();
+    final created = await operation.timeout(const Duration(seconds: 10));
+    final current = await rebuilt.timeout(const Duration(seconds: 10));
+    expect(
+      current.groups
+          .where((group) => group.name == 'Nested')
+          .map((group) => group.id),
+      [created.id],
+    );
+    expect(
+      (await groups.getGroups())
+          .where((group) => group.name == 'Nested')
+          .map((group) => group.id),
+      [created.id],
+    );
+    expect(repository.groupCommitCounts['Nested'], 1);
   });
 
   for (final cacheFailure in [false, true]) {

@@ -66,14 +66,14 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         },
         executor: (_, _) async {},
         resultExecutor: (data, uiContext) async {
-          final bookmarkRepository = await ref.read(
-            bookmarkRepoProvider.future,
-          );
-          final groupRepository = await ref.read(
-            bookmarkGroupRepoProvider.future,
-          );
           return ref.read(bookmarkProvider.notifier).runSerializedMutation(
             () async {
+              final bookmarkRepository = await ref
+                  .read(bookmarkProvider.notifier)
+                  .bookmarkRepository;
+              final groupRepository = await ref
+                  .read(bookmarkProvider.notifier)
+                  .bookmarkGroupRepository;
               final unifiedStore = unifiedBookmarkStorage(bookmarkRepository);
               final currentRecords = unifiedStore != null
                   ? await unifiedStore.readAll()

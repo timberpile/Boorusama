@@ -287,12 +287,6 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           credentialsIncluded: package.manifest.containsCredentials ?? false,
         );
         await wrapper.prepare(null);
-        if (manifest.id == 'bookmarks') {
-          // Provider initialization can run in a different zone and acquire
-          // this same coordinator. Finish cold storage/library startup before
-          // holding the lock while snapshot getters await those providers.
-          await ref.read(bookmarkProvider.future);
-        }
         final actualCredentials = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => profiles.any(
             profileContainsCredentials,
@@ -302,13 +296,11 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         containsCredentials = containsCredentials || actualCredentials;
         wrapper.credentialsIncluded =
             wrapper.credentialsIncluded || actualCredentials;
-        final capturedRevision = await ref
-            .read(dataMutationCoordinatorProvider)
-            .runExclusive(() async {
-              await wrapper.captureLocalSnapshot();
-              await wrapper.measureRollback();
-              return wrapper.revisionToken();
-            });
+        final capturedRevision = await _withDataLock(() async {
+          await wrapper.captureLocalSnapshot();
+          await wrapper.measureRollback();
+          return wrapper.revisionToken();
+        }, bookmarks: manifest.id == 'bookmarks');
         final itemPresentation = importItemPresentation(
           manifest.id,
           wrapper.preparedData,
@@ -672,6 +664,13 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     );
   }
 
+  Future<T> _withDataLock<T>(
+    Future<T> Function() operation, {
+    required bool bookmarks,
+  }) => bookmarks
+      ? ref.read(bookmarkProvider.notifier).runWithLibrary(operation)
+      : ref.read(dataMutationCoordinatorProvider).runExclusive(operation);
+
   Future<void> apply(BuildContext context) async {
     if (state.previewPending) return;
     final validated = state.preflight?.validatedPlan;
@@ -679,33 +678,39 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
     final applyTiming = Stopwatch()..start();
     state = state.copyWith(status: ImportFlowStatus.importing);
     try {
-      await ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
-        for (final sourcePlan in validated.plan.sources) {
-          if (sourcePlan.action != ImportAction.skip) {
-            await _sources[sourcePlan.id]!.prepare(context);
+      await _withDataLock(
+        () async {
+          for (final sourcePlan in validated.plan.sources) {
+            if (sourcePlan.action != ImportAction.skip) {
+              await _sources[sourcePlan.id]!.prepare(context);
+            }
           }
-        }
-        final fs = ref.read(appFileSystemProvider);
-        final root = await fs.getAppStoragePath();
-        await ref
-            .read(importCoordinatorProvider)
-            .apply(
-              plan: validated,
-              transaction: ImportTransaction(
-                store: ImportJournalStore(
+          final fs = ref.read(appFileSystemProvider);
+          final root = await fs.getAppStoragePath();
+          await ref
+              .read(importCoordinatorProvider)
+              .apply(
+                plan: validated,
+                transaction: ImportTransaction(
+                  store: ImportJournalStore(
+                    fs: fs,
+                    rootPath: '$root/import_transactions',
+                  ),
                   fs: fs,
-                  rootPath: '$root/import_transactions',
                 ),
-                fs: fs,
-              ),
-              sources: Map.unmodifiable(_sources),
-            );
-        for (final sourcePlan in validated.plan.sources) {
-          if (sourcePlan.action != ImportAction.skip) {
-            await _sources[sourcePlan.id]!.restart();
+                sources: Map.unmodifiable(_sources),
+              );
+          for (final sourcePlan in validated.plan.sources) {
+            if (sourcePlan.action != ImportAction.skip) {
+              await _sources[sourcePlan.id]!.restart();
+            }
           }
-        }
-      });
+        },
+        bookmarks: validated.plan.sources.any(
+          (source) =>
+              source.id == 'bookmarks' && source.action != ImportAction.skip,
+        ),
+      );
       state = state.copyWith(
         status: ImportFlowStatus.complete,
         bookmarkRefreshFailed:
@@ -1079,10 +1084,12 @@ final class PackageTransactionSource implements ImportTransactionSource {
         _localSnapshot = (await ref.read(booruConfigRepoProvider).getAll())
             .toList();
       case 'bookmarks':
-        final bookmarkRepository = await ref.read(bookmarkRepoProvider.future);
-        final groupRepository = await ref.read(
-          bookmarkGroupRepoProvider.future,
-        );
+        final bookmarkRepository = await ref
+            .read(bookmarkProvider.notifier)
+            .bookmarkRepository;
+        final groupRepository = await ref
+            .read(bookmarkProvider.notifier)
+            .bookmarkGroupRepository;
         ImageUrlResolver resolver(int? booruId) =>
             ref.read(bookmarkUrlResolverProvider(booruId));
         _localSnapshot = BookmarkImportLocalSnapshot(
@@ -1256,8 +1263,9 @@ final class PackageTransactionSource implements ImportTransactionSource {
   @override
   Future<void> durableSync() async {
     if (id == 'bookmarks') {
-      await unifiedBookmarkStorage(await ref.read(bookmarkRepoProvider.future))
-          ?.durableSync();
+      await unifiedBookmarkStorage(
+        await ref.read(bookmarkProvider.notifier).bookmarkRepository,
+      )?.durableSync();
     }
     final durability = ImportSourceDurability(fs);
     switch (source) {
@@ -1460,8 +1468,12 @@ final class PackageTransactionSource implements ImportTransactionSource {
       groups: incoming.groups,
       folders: incoming.folders,
     );
-    final bookmarkRepository = await ref.read(bookmarkRepoProvider.future);
-    final groupRepository = await ref.read(bookmarkGroupRepoProvider.future);
+    final bookmarkRepository = await ref
+        .read(bookmarkProvider.notifier)
+        .bookmarkRepository;
+    final groupRepository = await ref
+        .read(bookmarkProvider.notifier)
+        .bookmarkGroupRepository;
     ImageUrlResolver resolver(int? booruId) =>
         ref.read(bookmarkUrlResolverProvider(booruId));
     if (resolution.action == ImportAction.replace) {

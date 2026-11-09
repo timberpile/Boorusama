@@ -43,6 +43,13 @@ final class AppSyncCollectionPort implements SyncCollectionPort {
   final Ref ref;
   AppFileSystem get _fs => ref.read(appFileSystemProvider);
 
+  Future<T> _withCollectionLock<T>(
+    String kind,
+    Future<T> Function() operation,
+  ) => kind == 'bookmarks'
+      ? ref.read(bookmarkProvider.notifier).runWithLibrary(operation)
+      : ref.read(dataMutationCoordinatorProvider).runExclusive(operation);
+
   @override
   Future<List<SyncSourceCollection>> sources() async {
     final bookmarks = await ref
@@ -213,7 +220,7 @@ final class AppSyncCollectionPort implements SyncCollectionPort {
   @override
   Future<SyncCapturedCollection> capture(
     SyncSourceCollection source,
-  ) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+  ) => _withCollectionLock(source.kind, () async {
     final backup = _source(source.kind);
     final data = await _data(source);
     final facts = _facts(data, backup);
@@ -333,7 +340,7 @@ final class AppSyncCollectionPort implements SyncCollectionPort {
               revision.semanticHash) {
         throw const FormatException('Collection semantic hash mismatch');
       }
-      await ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
+      await _withCollectionLock(revision.collection.kind, () async {
         await wrapper.captureLocalSnapshot();
         final revisionToken = await wrapper.revisionToken();
         final transactionSource = _CollectionTransactionSource(
@@ -409,8 +416,12 @@ final class AppSyncCollectionPort implements SyncCollectionPort {
         )) {
       throw const FormatException('Sync Bookmark scope mismatch');
     }
-    final repository = await ref.read(bookmarkRepoProvider.future);
-    final groups = await ref.read(bookmarkGroupRepoProvider.future);
+    final repository = await ref
+        .read(bookmarkProvider.notifier)
+        .bookmarkRepository;
+    final groups = await ref
+        .read(bookmarkProvider.notifier)
+        .bookmarkGroupRepository;
     final store =
         unifiedBookmarkStorage(repository) ??
         (throw StateError('Unified storage required'));

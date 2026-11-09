@@ -9,7 +9,19 @@ final dataMutationCoordinatorProvider = Provider<DataMutationCoordinator>(
 final class DataMutationCoordinator {
   static final _zoneKey = Object();
 
+  /// Initialization triggered by an admitted callback must wait its turn rather
+  /// than inherit authority to observe an unfinished domain mutation.
+  static Future<T> withoutOwnership<T>(Future<T> Function() operation) =>
+      runZoned(operation, zoneValues: {_zoneKey: null});
+
   Future<void> _tail = Future.value();
+
+  bool get isCurrentOwner {
+    final scope = Zone.current[_zoneKey];
+    return scope is _MutationScope &&
+        scope.active &&
+        identical(scope.coordinator, this);
+  }
 
   Future<T> runExclusive<T>(Future<T> Function() operation) {
     final owner = Zone.current[_zoneKey];

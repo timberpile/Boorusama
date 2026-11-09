@@ -19,7 +19,7 @@ final bookmarkGroupRepositoryFactoryProvider =
     );
 
 final bookmarkGroupRepoProvider = FutureProvider<BookmarkGroupRepository>(
-  (ref) async {
+  (ref) => DataMutationCoordinator.withoutOwnership(() async {
     final factory = ref.watch(bookmarkGroupRepositoryFactoryProvider);
     final repository = switch (factory) {
       final SharedBookmarkRepositoryGroupFactory shared =>
@@ -32,7 +32,7 @@ final bookmarkGroupRepoProvider = FutureProvider<BookmarkGroupRepository>(
       await factory.dispose(repository);
     });
     return repository;
-  },
+  }),
   name: 'bookmarkGroupRepoProvider',
   dependencies: [bookmarkGroupRepositoryFactoryProvider, bookmarkRepoProvider],
 );
@@ -44,7 +44,7 @@ final bookmarkRepositoryFactoryProvider = Provider<BookmarkRepositoryFactory>(
 );
 
 final bookmarkRepoProvider = FutureProvider<BookmarkRepository>(
-  (ref) async {
+  (ref) => DataMutationCoordinator.withoutOwnership(() async {
     final factory = ref.watch(bookmarkRepositoryFactoryProvider);
     final registry = ref.watch(booruEngineRegistryProvider);
     final bookmarkRepo = await factory.create(
@@ -61,7 +61,7 @@ final bookmarkRepoProvider = FutureProvider<BookmarkRepository>(
     });
 
     return bookmarkRepo;
-  },
+  }),
   name: 'bookmarkRepoProvider',
   dependencies: [
     bookmarkRepositoryFactoryProvider,

@@ -8,6 +8,7 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/server_favorites.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/foundation/data_mutation_coordinator.dart';
 import 'package:boorusama/core/configs/config/src/data/booru_config_repository_hive.dart';
 import 'package:boorusama/core/configs/config/data.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -19,6 +20,10 @@ import 'package:hive_ce/hive.dart';
 import 'test_support.dart' show FavoriteTestStore;
 
 class _Library extends BookmarkLibraryNotifier {
+  @override
+  Future<T> runWithLibrary<T>(Future<T> Function() operation) =>
+      ref.read(dataMutationCoordinatorProvider).runExclusive(operation);
+
   @override
   Future<BookmarkLibraryState> build() async => await snapshotForExport();
   @override

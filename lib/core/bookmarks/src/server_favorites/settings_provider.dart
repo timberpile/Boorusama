@@ -1,3 +1,5 @@
+import '../../../../foundation/data_mutation_coordinator.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -6,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../boorus/pixiv/configs/extra_data.dart';
 import '../../../boorus/booru/types.dart';
 
-import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/loggers.dart';
 import '../../../cache/misc_data_store.dart';
 import '../../../configs/manage/providers.dart';
@@ -160,62 +161,83 @@ class ServerFavoriteSettingsNotifier
     FutureOr<ServerFavoriteSettings> Function(ServerFavoriteSettings) update,
     Iterable<String?> Function(ServerFavoriteSettings, ServerFavoriteSettings)
     groupsToBind,
-  ) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
-    var stage = 'settings_revision';
-    try {
-      final current = await future;
-      final updated = await update(current);
-      final groupIds = groupsToBind(current, updated).nonNulls.toSet();
-      if (groupIds.isNotEmpty) {
-        final library = await ref
-            .read(bookmarkLibraryProvider.notifier)
-            .snapshotForExport();
-        for (final groupId in groupIds) {
-          if (ref.exists(collectionMirrorGuardProvider) &&
-              ref.read(collectionMirrorGuardProvider).isReadOnly(groupId)) {
-            throw const CollectionMirrorReadOnly();
-          }
-          validateServerFavoriteBinding(
-            groupId: groupId,
-            groupIds: library.groupsById.keys.toSet(),
-          );
-        }
-      }
-      if (updated == current) return;
-      // Assignment only changes local settings. Existing Post and collection
-      // memberships, snapshots and dates are never cleared or rewritten here.
-      stage = 'settings_write';
-      await ref
-          .read(miscDataStoreProvider)
-          .put(
-            serverFavoriteSettingsStorageKey,
-            jsonEncode(updated.toJson()),
-          );
-      // Publish only a successful settings write. Explicit fetch actions are
-      // handled by the fetch controller, never by assigning a destination.
-      state = AsyncData(updated);
-    } catch (error, stack) {
-      final problem = error is ServerFavoriteException ? error.problem : null;
-      final category = switch (problem) {
-        ServerFavoriteProblem.accountChanged ||
-        ServerFavoriteProblem.ambiguousAccount => 'actor',
-        ServerFavoriteProblem.targetChanged => 'target_revision',
-        ServerFavoriteProblem.targetMissing ||
-        ServerFavoriteProblem.noTarget => 'target',
-        _ => stage,
-      };
+  ) async {
+    final coordinator = ref.read(dataMutationCoordinatorProvider);
+    Future<void> commit(bool admitted) => coordinator.runExclusive(() async {
+      var stage = 'settings_revision';
       try {
-        ref
-            .read(loggerProvider)
-            .handledError(
-              'FavoritesSync',
-              'settings; stage=$category',
-              error: error,
-              stackTrace: stack,
-              outcome: 'not_saved',
+        final current = await future;
+        final updated = await update(current);
+        final groupIds = groupsToBind(current, updated).nonNulls.toSet();
+        if (groupIds.isNotEmpty) {
+          if (!admitted) throw const _FavoriteLibraryAdmissionRequired();
+          final library = await ref
+              .read(bookmarkLibraryProvider.notifier)
+              .snapshotForExport();
+          for (final groupId in groupIds) {
+            if (ref.exists(collectionMirrorGuardProvider) &&
+                ref.read(collectionMirrorGuardProvider).isReadOnly(groupId)) {
+              throw const CollectionMirrorReadOnly();
+            }
+            validateServerFavoriteBinding(
+              groupId: groupId,
+              groupIds: library.groupsById.keys.toSet(),
             );
-      } catch (_) {}
-      rethrow;
+          }
+        }
+        if (updated == current) return;
+        // Assignment only changes local settings. Existing Post and collection
+        // memberships, snapshots and dates are never cleared or rewritten here.
+        stage = 'settings_write';
+        await ref
+            .read(miscDataStoreProvider)
+            .put(
+              serverFavoriteSettingsStorageKey,
+              jsonEncode(updated.toJson()),
+            );
+        // Publish only a successful settings write. Explicit fetch actions are
+        // handled by the fetch controller, never by assigning a destination.
+        state = AsyncData(updated);
+      } on _FavoriteLibraryAdmissionRequired {
+        rethrow;
+      } catch (error, stack) {
+        final problem = error is ServerFavoriteException ? error.problem : null;
+        final category = switch (problem) {
+          ServerFavoriteProblem.accountChanged ||
+          ServerFavoriteProblem.ambiguousAccount => 'actor',
+          ServerFavoriteProblem.targetChanged => 'target_revision',
+          ServerFavoriteProblem.targetMissing ||
+          ServerFavoriteProblem.noTarget => 'target',
+          _ => stage,
+        };
+        try {
+          ref
+              .read(loggerProvider)
+              .handledError(
+                'FavoritesSync',
+                'settings; stage=$category',
+                error: error,
+                stackTrace: stack,
+                outcome: 'not_saved',
+              );
+        } catch (_) {}
+        rethrow;
+      }
+    });
+    try {
+      // Clearing/disabling needs no library and remains available during a
+      // storage failure. Binding is revalidated only after library admission.
+      await commit(false);
+    } on _FavoriteLibraryAdmissionRequired {
+      await ref
+          .read(bookmarkLibraryProvider.notifier)
+          .runWithLibrary(
+            () => commit(true),
+          );
     }
-  });
+  }
+}
+
+final class _FavoriteLibraryAdmissionRequired implements Exception {
+  const _FavoriteLibraryAdmissionRequired();
 }
