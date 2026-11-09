@@ -13,6 +13,8 @@ void main() {
     testWidgets('production label $operation at 320dp 2x keyboard', (
       tester,
     ) async {
+      expect(tester.view.viewInsets.bottom, 0);
+      addTearDown(tester.view.resetViewInsets);
       tester.platformDispatcher.textScaleFactorTestValue = 1;
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       final repo = MemoryFavoriteTagRepository();
