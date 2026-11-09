@@ -430,6 +430,9 @@ class _MediaGroupLoadedState extends ConsumerState<_MediaGroupLoaded> {
 
   Future<void> _chooseBookmark() async {
     if (!_current()) return;
+    final parentRoute = ModalRoute.of(context);
+    final choiceOwner = Object();
+    PopupRoute<dynamic>? choiceRoute;
     final config = widget.access.config!;
     final post = _postAt(_index);
     final work = ContentGroupBookmarkPickerRequest(
@@ -447,26 +450,44 @@ class _MediaGroupLoadedState extends ConsumerState<_MediaGroupLoaded> {
           );
     final selected = await showDialog<BookmarkPickerRequest>(
       context: context,
-      builder: (context) => KurumiDialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            KurumiPopupMenuItem(
-              title: Text(context.t.content_viewer.bookmark_group),
-              icon: const Icon(Icons.bookmarks_outlined),
-              onTap: () => Navigator.pop(context, work),
-            ),
-            if (page != null)
-              KurumiPopupMenuItem(
-                title: Text(context.t.content_viewer.bookmark_page),
-                icon: const Icon(Icons.bookmark_outline),
-                onTap: () => Navigator.pop(context, page),
-              ),
-          ],
-        ),
+      routeSettings: RouteSettings(
+        name: 'native-bookmark-choice',
+        arguments: choiceOwner,
       ),
+      builder: (context) {
+        final route = ModalRoute.of(context);
+        // Adaptive window presenters may expose an unrelated inner PageRoute.
+        if (route is PopupRoute &&
+            !identical(route, parentRoute) &&
+            identical(route.settings.arguments, choiceOwner)) {
+          choiceRoute = route;
+        }
+        return KurumiDialog(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              KurumiPopupMenuItem(
+                title: Text(context.t.content_viewer.bookmark_group),
+                icon: const Icon(Icons.bookmarks_outlined),
+                onTap: () => Navigator.pop(context, work),
+              ),
+              if (page != null)
+                KurumiPopupMenuItem(
+                  title: Text(context.t.content_viewer.bookmark_page),
+                  icon: const Icon(Icons.bookmark_outline),
+                  onTap: () => Navigator.pop(context, page),
+                ),
+            ],
+          ),
+        );
+      },
     );
-    if (!mounted || selected == null || !_current()) return;
+    if (!mounted || selected == null) return;
+    // The result arrives before the popup exits and navigation activity rebuilds.
+    // Wait for that owned surface, then let the deferred activity update apply.
+    if (choiceRoute case final route?) await route.completed;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !_current()) return;
     await showBookmarkPickerDialog(context, request: selected);
   }
 

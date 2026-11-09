@@ -10,6 +10,9 @@ import 'package:boorusama/core/content/content_media_access.dart';
 import 'package:boorusama/core/content/groups/group_members_provider.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/navigation/destination_activity.dart';
+import 'package:boorusama/core/navigation/destination_id.dart';
+import 'package:boorusama/core/navigation/destination_router.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
 import 'package:boorusama/core/posts/details/src/widgets/group_viewer_scope.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_viewer.dart';
@@ -19,7 +22,9 @@ import 'package:boorusama/core/posts/media_preload/providers.dart';
 import 'package:boorusama/core/posts/media_preload/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart' show KurumiExtendedColorScheme;
 
 import '../../../boorus/nhentai/fixtures.dart';
 import '../../search/following_topics/following_topic_test_utils.dart';
@@ -197,7 +202,211 @@ Finder _button(String label) => find.byWidgetPredicate(
   (widget) => widget is IconButton && widget.tooltip == label,
 );
 
+/// Uses the same root-popup coverage and branch activity as normal navigation.
+class _NavigationFixture {
+  _NavigationFixture(this.fixture) {
+    final destination = DestinationId.browse(fixture.access.key.profileId!);
+    binding = DestinationRouterBinding(
+      rootObserver: coverage,
+      definitions: [
+        DestinationRouteDefinition(
+          id: destination,
+          builder: (_, _) => DestinationPageActivity(
+            child: Scaffold(
+              body: NativeMetadataSelectionScope(
+                child: PageStorage(
+                  bucket: fixture.bucket,
+                  child: fixture.viewer,
+                ),
+              ),
+            ),
+          ),
+        ),
+        DestinationRouteDefinition(
+          id: other,
+          builder: (_, _) => const DestinationPageActivity(
+            child: Scaffold(body: Text('Other destination')),
+          ),
+        ),
+      ],
+      shellBuilder: (_, _, shell) => shell,
+      navigatorWrapper: (_, id, selected, child) => DestinationActivityHost(
+        selected: selected,
+        coverage: coverage,
+        onActivityChanged: id == destination ? activity.add : null,
+        child: ProviderScope(
+          overrides: [
+            currentDestinationRouteObserverProvider.overrideWithValue(
+              binding.observerFor(id)!,
+            ),
+          ],
+          child: child,
+        ),
+      ),
+    );
+    router = GoRouter.routingConfig(
+      routingConfig: binding.routingConfig,
+      initialLocation: destination.location,
+      observers: [coverage],
+    );
+    binding.attach(router);
+    fixture.harness.router = router;
+  }
+
+  final _Fixture fixture;
+  final coverage = NavigationCoverageObserver();
+  final other = const DestinationId.app(AppDestination.bookmarks);
+  final activity = <bool>[];
+  late final DestinationRouterBinding binding;
+  late final GoRouter router;
+
+  Future<void> mount(WidgetTester tester) async {
+    await fixture.harness.pump(tester, const SizedBox());
+    await tester.pumpWidget(
+      fixture.harness.wrap(
+        MaterialApp.router(
+          routerConfig: router,
+          theme: ThemeData(extensions: const [KurumiExtendedColorScheme()]),
+          builder: themeBuilder,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> close(WidgetTester tester) async {
+    await fixture.close(tester);
+    router.dispose();
+    binding.dispose();
+    coverage.dispose();
+  }
+}
+
 void main() {
+  for (final choosePage in [false, true]) {
+    testWidgets(
+      'held bookmark choice resumes shared picker after real navigation coverage (Page=$choosePage)',
+      (tester) async {
+        final fixture = _Fixture(initialMemberKey: 'page-3');
+        final navigation = _NavigationFixture(fixture);
+        addTearDown(() => navigation.close(tester));
+        await navigation.mount(tester);
+        final viewer = tester.element(find.byType(MediaGroupViewer));
+        expect(NavigationActivity.of(viewer), isTrue);
+        expect(find.text('3 / 3'), findsOneWidget);
+        await tester.longPress(_button('Bookmark Work / Gallery'));
+        await tester.pumpAndSettle();
+        expect(NavigationActivity.of(viewer), isFalse);
+        expect(
+          fixture.harness.container.read(
+            contentAccessContextProvider(fixture.access.key),
+          ),
+          same(fixture.access),
+        );
+        expect(
+          navigation.coverage.routes.whereType<PopupRoute>(),
+          hasLength(1),
+        );
+        expect(find.byType(BookmarkGroupPicker), findsNothing);
+        if (choosePage) {
+          // Changing the hidden pager cannot retarget the already captured choice.
+          tester
+              .widget<PageView>(find.byType(PageView, skipOffstage: false))
+              .controller!
+              .jumpToPage(0);
+          await tester.pump();
+        }
+        navigation.activity.clear();
+        await tester.tap(
+          find
+              .text(
+                choosePage
+                    ? 'Bookmark current Page'
+                    : 'Bookmark Work / Gallery',
+              )
+              .last,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          navigation.activity,
+          contains(true),
+          reason: 'The chooser must release production navigation coverage',
+        );
+        expect(
+          fixture.harness.container.read(
+            contentAccessContextProvider(fixture.access.key),
+          ),
+          same(fixture.access),
+        );
+        expect(
+          find.byType(BookmarkGroupPicker),
+          findsOneWidget,
+          reason: 'A completed chooser must hand its captured target to the shared picker',
+        );
+        final picker = tester.widget<BookmarkGroupPicker>(
+          find.byType(BookmarkGroupPicker),
+        );
+        if (choosePage) {
+          final request = picker.request as PostBookmarkPickerRequest;
+          expect(request.access, fixture.access.key);
+          expect(
+            const ContentReferenceCodec()
+                .fromPost(
+                  request.post,
+                  site: Uri.parse(fixture.access.config!.url),
+                )!
+                .sourceKey,
+            'gallery-page:101:3',
+          );
+        } else {
+          final request = picker.request as ContentGroupBookmarkPickerRequest;
+          expect(request.access, fixture.access.key);
+          expect(request.draft.reference, fixture.details.summary.reference);
+        }
+        expect(
+          navigation.coverage.routes.whereType<PopupRoute>(),
+          hasLength(1),
+        );
+        expect(
+          fixture.harness.container.read(bookmarkProvider).requireValue.records,
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'held bookmark choice does not open a picker after its destination loses ownership',
+    (tester) async {
+      final fixture = _Fixture(initialMemberKey: 'page-3');
+      final navigation = _NavigationFixture(fixture);
+      addTearDown(() => navigation.close(tester));
+      await navigation.mount(tester);
+      await tester.longPress(_button('Bookmark Work / Gallery'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Bookmark current Page'));
+      navigation.binding.select(navigation.other);
+      await tester.pumpAndSettle();
+      expect(find.text('Other destination'), findsOneWidget);
+      expect(
+        find.byType(BookmarkGroupPicker, skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        fixture.harness.container.read(
+          contentAccessContextProvider(fixture.access.key),
+        ),
+        same(fixture.access),
+      );
+      expect(
+        fixture.harness.container.read(bookmarkProvider).requireValue.records,
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'single-Page image boundary stays in Work while details swipe changes outer Work',
     (tester) async {
