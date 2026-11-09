@@ -2,9 +2,6 @@ import 'dart:async';
 import 'dart:isolate';
 
 import '../../../bookmarks/src/data/stored_bookmark_codec.dart';
-import '../../../bookmarks/src/data/stored_group_codec.dart';
-import '../../../content/types.dart';
-import '../../../boorus/booru/types.dart';
 
 import 'package:i18n/i18n.dart';
 
@@ -29,6 +26,7 @@ import '../../../posts/post/types.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../preparation/version_checking.dart';
 import '../../sources/bookmark_backup_data.dart';
+import '../../sources/detached_bookmark_codec.dart';
 import '../../sources/bookmark_import_planner.dart';
 import '../../sources/bookmark_import_service.dart';
 import '../../sources/topic_feed_backup_data.dart';
@@ -287,6 +285,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           credentialsIncluded: package.manifest.containsCredentials ?? false,
         );
         await wrapper.prepare(null);
+        if (_disposed || revision != _planningRevision) return;
         final actualCredentials = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => profiles.any(
             profileContainsCredentials,
@@ -301,6 +300,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
           await wrapper.measureRollback();
           return wrapper.revisionToken();
         }, bookmarks: manifest.id == 'bookmarks');
+        if (_disposed || revision != _planningRevision) return;
         final itemPresentation = importItemPresentation(
           manifest.id,
           wrapper.preparedData,
@@ -528,6 +528,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
             preflight.summary.deleted,
       );
     } catch (error, stackTrace) {
+      if (_disposed || revision != _planningRevision) return;
       ref
           .read(loggerProvider)
           .handledError(
@@ -1174,7 +1175,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
       credentialsIncluded: credentialsIncluded,
       copyIds: copies,
       mappings: mappings,
-      codec: _detachedRecordCodec(codec),
+      codec: detachBookmarkRecordCodec(codec),
     );
     final projectionTiming = Stopwatch()..start();
     return _projection = Isolate.run(task.project).whenComplete(() {
@@ -1678,38 +1679,6 @@ final class PackageTransactionSource implements ImportTransactionSource {
     }
   }
 }
-
-StoredBookmarkCodec _detachedRecordCodec(StoredBookmarkCodec original) {
-  final metadata = original.groups.metadata;
-  final posts = {
-    for (final engine in BooruYamlConfigs.values.map((config) => config.type))
-      engine: original.postDataCodec?.call(engine),
-  };
-  final groups = {
-    for (final engine in BooruYamlConfigs.values.map((config) => config.type))
-      engine: metadata.dataCodecFor?.call(engine),
-  };
-  final keys = {
-    for (final engine in BooruYamlConfigs.values.map((config) => config.type))
-      if (engine != BooruType.unknown)
-        engine: metadata.references.codecFor(engine),
-  };
-  return _codecFromMaps(posts, groups, keys);
-}
-
-StoredBookmarkCodec _codecFromMaps(
-  Map<BooruType, BooruPostDataCodec?> posts,
-  Map<BooruType, BooruGroupDataCodec?> groups,
-  Map<BooruType, ContentKeyCodec> keys,
-) => StoredBookmarkCodec(
-  postDataCodec: (engine) => posts[engine],
-  groups: StoredGroupCodec(
-    metadata: GroupMetadataCodec(
-      references: ContentReferenceCodec(keyCodecFor: (engine) => keys[engine]),
-      dataCodecFor: (engine) => groups[engine],
-    ),
-  ),
-);
 
 final class _ImportProjectionTask {
   const _ImportProjectionTask({

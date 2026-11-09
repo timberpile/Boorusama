@@ -1,6 +1,3 @@
-// Dart imports:
-import 'dart:convert';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -14,6 +11,7 @@ import '../../bookmarks/providers.dart';
 import '../../bookmarks/types.dart';
 import '../../content/providers.dart';
 import '../preparation/preparation_pipeline.dart';
+import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
 import '../types/types.dart';
 import '../widgets/backup_restore_tile.dart';
@@ -21,6 +19,7 @@ import '../widgets/bookmark_group_conflict_dialog.dart';
 import '../widgets/bookmark_export_scope_dialog.dart';
 import 'bookmark_backup_codec.dart';
 import 'bookmark_backup_data.dart';
+import 'bookmark_backup_worker.dart';
 import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
@@ -126,23 +125,29 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         ref: ref,
       );
 
+  BookmarkBackupWorker get _worker =>
+      BookmarkBackupWorker(handler as BookmarkBackupCodec);
+
   @override
   Future<String> encodeRollbackSnapshot() async {
     final data = await dataGetter();
-    return converter.encode(
-      payload: (handler as BookmarkBackupCodec).encodeLocalRecovery(data),
-      extraFields: data.extraFields,
+    return _worker.encodeRollback(
+      data,
+      version: version,
+      exportVersion: appVersion,
+      exportDate: DateTime.now(),
     );
   }
 
   @override
   Future<String> encodeRevisionSnapshot() async {
     final data = await dataGetter();
-    return jsonEncode({
-      'data': (handler as BookmarkBackupCodec).encodeLocalRecovery(data),
-      ...data.extraFields,
-    });
+    return _worker.encodeRevision(data);
   }
+
+  @override
+  AsyncImportDecoder<BookmarkBackupData> get asyncImportDecoder =>
+      _worker.decode;
 
   @override
   String get displayName => 'Bookmarks';

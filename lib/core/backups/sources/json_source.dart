@@ -165,6 +165,9 @@ abstract class JsonBackupSource<T>
     return _prepareImport(data, uiContext);
   }
 
+  /// Sources may offload pure decoding while preparation and execution stay here.
+  AsyncImportDecoder<T>? get asyncImportDecoder => null;
+
   Future<ImportPreparation> _prepareImport(
     String data,
     BuildContext? uiContext,
@@ -173,6 +176,7 @@ abstract class JsonBackupSource<T>
     handler.parse,
     _executeImport,
     uiContext,
+    decode: asyncImportDecoder,
     approvedExecutor: switch (approvedResultExecutor) {
       final execute? => (parsed, context, approval) async {
         lastImportResult = await execute(parsed, context, approval);
