@@ -961,6 +961,23 @@ String _profileId(
 // carry ordering semantics and must still participate in import comparisons.
 bool _sameProjectedEntity(Object? before, Object? after) {
   if (identical(before, after)) return true;
+  if (before is _BookmarkGroupValue && after is _BookmarkGroupValue) {
+    // Equatable compares sets with nested scans. A populated default group can
+    // contain the entire library; use its hash-based identity lookup instead.
+    return before.name == after.name &&
+        before.folderId == after.folderId &&
+        before.parentGroupId == after.parentGroupId &&
+        before.position == after.position &&
+        const SetEquality<Object>().equals(
+          before.bookmarkIds,
+          after.bookmarkIds,
+        ) &&
+        const SetEquality<Object>().equals(before.poolIds, after.poolIds) &&
+        const MapEquality<Object, DateTime>().equals(
+          before.addedAt,
+          after.addedAt,
+        );
+  }
   if (before is CollectionBookmark && after is CollectionBookmark) {
     return const DeepCollectionEquality().equals(
       before.toJson()..remove('createdAt'),
