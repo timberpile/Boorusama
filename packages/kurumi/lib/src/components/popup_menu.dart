@@ -135,7 +135,7 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton>
           ),
         );
 
-    return KurumiAnchor(
+    final anchor = KurumiAnchor(
       controller: _controller,
       viewPadding: EdgeInsets.fromLTRB(
         margin,
@@ -196,6 +196,9 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton>
             : button,
       ),
     );
+    // Tooltip also uses an OverlayPortal. Keep its traversal identifier separate
+    // from this anchor's identifier so both popup semantics subtrees survive.
+    return Semantics(container: true, explicitChildNodes: true, child: anchor);
   }
 }
 
