@@ -1,4 +1,76 @@
-# Combined production rollout continuation
+# Final combined rollout qualification
+
+Branch: `maintenance/combined-testing-2026-11-08`.
+Runtime/test candidate: `ca66999c6523d6e3834484d5e0e70c847d4ed6fa`, tree `57e2512c866d71889dc4cf7e245db9edd16f233c`.
+
+The production implementation is connected through ordinary application routes. Automated qualification and available Android acceptance passed. Authenticated Pixiv/Gelbooru, a known Szurubooru Pool, and Penpot publication retain the explicit external limits below. This does not authorize develop integration, a PR, release or issue closure.
+
+## Exact build and automated qualification
+
+Both APKs use `lib/main.dart`, debug mode, pinned FVM Flutter 3.47.2 and `BOORUSAMA_REVISION=ca66999c6523d6e3834484d5e0e70c847d4ed6fa`. In-place installation verified each installed APK hash and preserved every preexisting data/user-cache file in both QA installations.
+
+- dev: `boorusama-combined-ca66999c6-dev-debug.apk`; SHA-256 `ed07d8e27cf8925d58b9d52dc79078bd7592250fdf7caab9b7b6386496149b54`.
+- prod: `sync-peer-ca66999c6-prod-debug.apk`; SHA-256 `2d7b14d012723afceb05f9733313c88e39c567da9c0e7d6dcccf876fbce9c349`.
+
+- `./scripts/run_regression_tests.sh`, concurrency 6: **8,773 Flutter/Dart passed, 3 skipped, zero failed**, plus **76 Python/tooling passed**. Both shell tooling suites passed. Application: 7,016 passed and one opt-in skip. The other two skips belong to go_router. All fourteen application/package/CLI segments completed, with clean unchanged source before/after (2026-11-09 06:59:59–07:14:10 UTC).
+- `fvm dart analyze`: exit zero; **0 errors, 0 warnings, 3,933 informational findings**.
+- Android `:app:testDevDebugUnitTest`, filtered to `FolderSyncDocumentPublicationTest` and `FolderSyncRetentionPathTest`: **5 passed, zero failed/errors/skips**.
+- The final scoped Recent regression reproduced the actual production Riverpod assertion before correction, then verified real Hive native Gallery/Page interactions and cold reopen. Recent/neighbors: 82 passed. The complete Pool flow file passed 58 cases, retaining its 90-record refresh case.
+
+The earlier complete pass at `00afce1cb` was superseded by later runtime edits. The c8 complete application run failed with 7,014 passed, one skipped and one fixture timeout; it is not reused as final qualification. The 90-record fixture had awaited an event-loop yield under an unadvanced widget-test clock before the harness could pump. The correction pumps completion, including worker messages, with a bounded hang guard; it preserves production yielding, record count and assertions. All unsuccessful/interrupted attempts remain in durable evidence.
+
+## Final Android evidence and limits
+
+Two isolated installations on leased `emulator-5554` exercised real source requests and real SAF storage. This emulator initially contained neither Boorusama package. The original user-data archive was only cloned into QA storage and remains immutable.
+
+- Registered nhentai Browse/Search obtained real service/CDN images. Gallery save created one Group record and no implicit Pages; saving a current Page created one independent Post record. Normal saved destinations, Overview, image-region Page changes, details-region Gallery changes and Page-return checkpoint were exercised. The final successor reopened both persisted records; its normal Work/Gallery picker and held Page picker both show the retained Recent section.
+- Current Page download produced 210,622 bytes; Download all Pages produced the three actual expected files (210,622 / 224,702 / 298,740 bytes) in the owned destination. Image sharing reached Android's decoded preview and was cancelled without sending. Earlier Group link sharing reached the genuine portable `.bslink` chooser; no external send occurred.
+- The final Following menu exposes real accessibility actions and semantic Edit opens Local name. First Back hides the keyboard, second Back closes its dialog, and Back dismisses the popup without leaving Following. Each Publish/Receive/Sync activity page returns to Sync with one hardware Back, then to Export and Import and Settings.
+- At 300dp and 150% system text, the shared picker and create-Group dialog retained visible actions above the keyboard. IME Back retained the dialog; normal Save created the test Group. Original font scale and geometry were restored and verified. Recent was initially missing despite two valid stored IDs because its provider omitted the direct scoped Group-repository dependency; the final APK shows it after cold restart.
+- Recursive deletion confirmed two Groups and two unique Bookmarks; Undo restored the child and both records. Complete outside-membership, timestamps and recovery cases also pass in host coverage. No child promotion returns.
+- Real two-dataset SAF publication/discovery/trust/receipt covered Bookmark Groups and Following definitions. Reverse receipt carried a native Gallery and an independent Page with receiver-local name/parent. Ancestor navigation retained incoming +2; opening the actual Group acknowledged it. Identical resync did not rewrite any of forty compared Bookmark Hive files. Local Following rename survived sync; mirrored content was disabled in the actual picker. Unsubscribe retained content, Subscribe resumed, and Detach as editable removed the write-protection marker. A withdrawn source retained its local copy with the explicit source-deleted status.
+- A QA-only helper running under the receiver's own Linux UID released only its exact owned persisted SAF tree grant. Grant presence/absence was checked. Normal Sync now reported failure and retained local collections; Android's ordinary chooser restored the grant and Ready state. Received content/local name remained. The helper was removed and its absence checked. This was an actual permission failure, not a fake filesystem test.
+- Final offline cold restart retained one native Group and one independent Page. Read-only ImageInfo inspection confirmed actual cached thumbnail and standalone Page pixels (two completed network-image providers) without data/cache clearing. Full Gallery manifest availability was not established offline; no complete offline Gallery reader is claimed. Wi-Fi/mobile data were restored and verified.
+
+## Large populated import
+
+The synthetic credential-free fixture is approximately 3.23 MB compressed: 18,000 Posts, 1.08 million tag references, 54,000 distinct tags and 2,000 Following topics. The final replacement skipped Profiles/Topics and added exactly one Group: preview 1 added/0 removed/0 changed; completion Created 1.
+
+| Evidence | Observed result |
+| --- | --- |
+| Original populated baseline | Did not reach review within the 60-second readiness wait; about 91 seconds total interaction observation, no proven crash |
+| Intermediate populated review/Apply | 60.7 / 90.4 seconds of automation; later worker-only checkpoint 48.4 / 96.5 seconds; these were not accepted responsiveness results |
+| Intermediate complete diagnostic window | Up to 28.35 seconds UI delay; separate actual Bookmark-only CPU samples located Hive serialization/normalization/hash work |
+| Final exact ca review / Apply | 57.565 / 50.420 seconds of selection-to-controls and Apply-request-to-confirmed-completion automation |
+| Final complete diagnostic window | 255.798 seconds; 2,627 retained frames, 675 over budget; max UI delay 2.300510 seconds, max frame latency 2.571140 seconds, max build 346,794 microseconds |
+| Final diagnostic coverage | Zero evicted events, unrecorded spans or interrupted spans; 23 frames rejected by timestamp/window validation; zero context-missing frames |
+| Final bounded memory samples | 65 samples; max sampled PSS 1,741,098 KiB; sampling covered load and early Apply, not the entire Apply or a continuous peak |
+
+These are debug-emulator observations with automation/file-picker overhead, not matched universal benchmarks or a smoothness claim. The final trace covers the complete workload below the five-minute cap; application tests/builds and CPU profiling were paused. Residual roughly two-second pauses remain. A mostly unchanged populated replacement does not establish timing for every genuinely all-changed large import; the atomic Hive journal still has a single-frame serialization boundary.
+
+Causal corrections include hash-based Group set/map comparison, linear Following comparisons preserving duplicate semantics, worker decoding/recovery encoding, one unified library snapshot, exact unchanged-record elision only after validation, cooperative normalization/64-record payload batches and detached journal hashing. The durable journal and late actor/ownership guards retain their original transaction ordering.
+
+## External limits
+
+- No valid authenticated Pixiv session exists in the preserved QA dataset. The ordinary OAuth login was opened; no token or password was fabricated/injected. Authenticated live Search/Explore/Favorites and Pixiv-specific Work/Page acceptance therefore remain unverified. Real production registration/wiring, authenticated policy/headers, actor rotation/revocation and Ugoira separation are covered by source review and production-boundary tests; nhentai exercises the shared native viewer/actions on Android. Likewise, no authenticated Gelbooru session was available for the exact account-specific live acceptance; controlled attachment/actor/Favorites cases pass. Public Danbooru maintenance 503 and Safebooru CAPTCHA 403 are recorded separately.
+- Szurubooru bounded read-only check: configured instance HEAD 200; anonymous `/api/pools` listing with limit 10 returned 403. The credential section provides no usable authentication or known Pool ID. No IDs were guessed. This does not establish that a known accessible Pool is denied, and no Android Pool viewing is claimed.
+- Fresh Penpot check returned `No Penpot instance connected for user token`. Editable selected Family A SVGs remain in `docs/designs/bookmark-view-icons/`; no Penpot component publication is claimed.
+
+## Independent review and restoration
+
+Actual independent gpt-6.1-sol High reviewed the cumulative source/test diff and resolved R1–R12, including storage admission, queued actor lifetime and linear Following projections. It retained exact `ca66999c6` source approval after the final three-file correction. Its final independent verdict approves exact `ca66999c6` for combined user-review delivery, with no unresolved source finding and with the authenticated live/design limits explicitly unverified. It independently parsed the complete host summaries, recomputed APK/trace/archive hashes, checked current-source device claims and verified the actual restored state and lease removal. Local evidence: `.worktrees/_artifacts/final-rollout-2026-11-08/final-sol-ca-final-verdict.md`. Earlier stage approvals are not substituted for this final audit.
+
+Restoration completed and was freshly reverified before lease release at **2026-11-09 07:34:18 UTC**. All nine recorded checks passed: exact original **259-package** inventory with no extras/missing packages; original settings and screen size/density; initial absence of both apps' external roots and the owned shared directory; removal of the six exact owned diagnostic files, owned ADB forwards and URI probe; and unchanged immutable original archive SHA-256 `5cff85b555fe4313c7f6194bc5e5a4ce610bbf8ceea8d100245497cdb9acc20b`. Both originally absent QA apps and the proven task-created Maestro packages were removed. Unknown shared directories/files were left untouched.
+
+Before cleanup, complete QA internal data/cache and device-encrypted roots plus the complete owned shared tree were preserved and byte-verified (722,138,112 bytes across five tar archives). Both installed APKs and six exact diagnostic outputs were also preserved and hash-verified (929,636,299 bytes). Fresh quiescent source hashes were checked again before cleanup. The first unsuccessful archive attempt and its full captures remain retained: two direct captures were byte-identical; a redundant outer `exec-out` shell quote produced a command error instead of the checksum. Correct argument passing restored the strict raw-byte gate without weakening it. No deletion occurred before the successful archive gate.
+
+The durable `android/final-restoration-state.json` has phase `released`, every verification flag true and the lease-release timestamp. Archives containing user data remain private and ignored. This verifies the recorded initial device state, not unrecorded unrelated storage/settings.
+
+Detailed implementation and superseded verification history follows in the existing report; artifacts are local, ignored, durable and private where they contain user data. No credentials, imported private data or image backgrounds are committed.
+
+## Implementation and superseded verification history
+
+The following narrative retains the earlier candidates and their failed, incomplete or superseded checks. Its checkpoint-level pending statements are superseded by the qualified final state above.
 
 Branch: `maintenance/combined-testing-2026-11-08`.
 
