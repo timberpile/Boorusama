@@ -2601,6 +2601,43 @@ DanbooruPool _pool({
   updatedAt: includeUpdated ? DateTime.utc(2026) : null,
 );
 
+Future<T> _pumpFixtureOperation<T>(
+  WidgetTester tester,
+  Future<T> operation,
+) async {
+  var complete = false;
+  late T value;
+  Object? failure;
+  StackTrace? failureStack;
+  unawaited(
+    operation.then<void>(
+      (result) {
+        value = result;
+        complete = true;
+      },
+      onError: (Object error, StackTrace stack) {
+        failure = error;
+        failureStack = stack;
+        complete = true;
+      },
+    ),
+  );
+  // Large writes yield controlled event turns and may hash on a worker. Keep
+  // the operation on its original clock; only the empty event turn runs outside
+  // fake async so worker messages can arrive. This is a generous hang guard,
+  // not a fixture performance budget.
+  final guard = Stopwatch()..start();
+  while (!complete && guard.elapsed < const Duration(seconds: 10)) {
+    await tester.pump(Duration.zero);
+    if (!complete) await tester.runAsync(() => Future<void>(() {}));
+  }
+  if (!complete) throw TestFailure('Bookmark fixture did not complete');
+  if (failure case final error?) {
+    Error.throwWithStackTrace(error, failureStack!);
+  }
+  return value;
+}
+
 Future<
   ({
     HeadlessAppHarness harness,
@@ -2843,20 +2880,22 @@ _mount(
           );
         })(),
     ];
-    final saved = await posts.addBookmarkWithBookmarks(bookmarks);
-    // Seed saved history explicitly; creating fixtures must not assign now to
-    // every Post membership and change the mixed viewer's chronological order.
-    await groups.replaceMemberships(
-      poolGroupA,
-      {
-        ...(await groups.getGroup(poolGroupA))!.bookmarkIds,
-        ...saved.map((b) => b.id),
-      },
-      addedAt: {
-        ...(await groups.getGroup(poolGroupA))!.addedAt,
-        for (final bookmark in saved) bookmark.id: bookmark.createdAt,
-      },
-    );
+    await _pumpFixtureOperation(tester, () async {
+      final saved = await posts.addBookmarkWithBookmarks(bookmarks);
+      // Seed saved history explicitly; creating fixtures must not assign now to
+      // every Post membership and change the mixed viewer's chronological order.
+      await groups.replaceMemberships(
+        poolGroupA,
+        {
+          ...(await groups.getGroup(poolGroupA))!.bookmarkIds,
+          ...saved.map((b) => b.id),
+        },
+        addedAt: {
+          ...(await groups.getGroup(poolGroupA))!.addedAt,
+          for (final bookmark in saved) bookmark.id: bookmark.createdAt,
+        },
+      );
+    }());
   }
   final adapter = _PoolAdapter(
     poolMemberCount: galleryMemberCount,
