@@ -1,0 +1,56 @@
+name: Package source preparation
+on:
+  push:
+    branches: [maintenance/package-extraction-2026-11-09]
+    paths: [.github/workflows/package-extraction.yml]
+permissions:
+  contents: read
+jobs:
+  snapshots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export immutable source snapshots without credentials or repository configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Boorusama package preparation'
+          git config user.email 'package-preparation@users.noreply.github.com'
+          mkdir -p .worktrees/_artifacts/package-preparation
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          refs = {
+            'develop': '1affa7dd315bf5838ee27d16f59908a248a4be78',
+            'p2-source': '32ebbcc6f41347f8f40275d4912a2f7012b75549',
+            'p3-source': 'f3bb2d30b92116dff44dac8fc6aceabbc67a3d14',
+            'p4-source': 'b9405fdbd5312a797d8165d556d48785d183881d',
+            'p5-source': '73b63f5fef4',
+            'p6-source': '73087ebf863',
+            'p7-source': '8672cf2ba235fbc810bbcf3296efef1eb4410a37',
+            'combined': '252e8954dab8c0842f83a2082c67f4841111c34e',
+          }
+          def git(*args):
+            return subprocess.check_output(['git', *args], text=True).strip()
+          mapping = {}
+          for name, ref in refs.items():
+            real = git('rev-parse', ref + '^{commit}')
+            tree = git('rev-parse', real + '^{tree}')
+            snap = git('commit-tree', tree, '-m', 'Source snapshot of ' + real)
+            git('update-ref', 'refs/heads/export-' + name, snap)
+            mapping[name] = {'source': real, 'tree': tree, 'snapshot': snap}
+          directory = Path('.worktrees/_artifacts/package-preparation')
+          (directory / 'sources.json').write_text(json.dumps(mapping, indent=2) + '\n')
+          subprocess.run(['git', 'bundle', 'create', str(directory / 'source.bundle'), *['refs/heads/export-' + name for name in refs]], check=True)
+          print(json.dumps(mapping, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-source-snapshots
+          path: .worktrees/_artifacts/package-preparation/
+          retention-days: 3
+          if-no-files-found: error
