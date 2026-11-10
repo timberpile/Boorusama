@@ -17,7 +17,8 @@ BookmarkGetError mapBoxErrorToBookmarkGetError(BoxError error) =>
       BoxError.unknown => BookmarkGetError.unknown,
     };
 
-Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
+Either<BookmarkGetError, List<PostBookmark>>
+tryMapBookmarkHiveObjectsToBookmarks(
   Iterable<BookmarkHiveObject> hiveObjects,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
@@ -26,14 +27,13 @@ Either<BookmarkGetError, List<Bookmark>> tryMapBookmarkHiveObjectsToBookmarks(
   () => performanceRecorder.measureSync(
     PerfOperation.bookmarkDecodeAll,
     () => hiveObjects
-        .where((row) => row.snapshotSchemaVersion == 2)
         .map((row) => _mapBookmark(row, postDataCodec, logger))
         .toList(),
   ),
   (_, _) => BookmarkGetError.nullField,
 );
 
-Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
+Either<BookmarkGetError, PostBookmark> tryMapBookmarkHiveObjectToBookmark(
   BookmarkHiveObject hiveObject,
   ImageUrlResolver Function(int? booruId) imageUrlResolver, [
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
@@ -43,13 +43,62 @@ Either<BookmarkGetError, Bookmark> tryMapBookmarkHiveObjectToBookmark(
   (_, _) => BookmarkGetError.nullField,
 );
 
-Bookmark _mapBookmark(
+PostBookmark _mapBookmark(
   BookmarkHiveObject row,
   BooruPostDataCodec? Function(BooruType type)? postDataCodec,
   Logger? logger,
 ) {
-  if (row.snapshotSchemaVersion != 2 || row.postSnapshot == null) {
+  final version = row.snapshotSchemaVersion;
+  if (version != null && version != 1 && version != 2) {
     throw const FormatException('Unsupported bookmark row');
+  }
+  final createdAt = row.createdAtMicros == null
+      ? row.createdAt
+      : DateTime.fromMicrosecondsSinceEpoch(
+          row.createdAtMicros!,
+          isUtc: row.createdAt?.isUtc ?? true,
+        );
+  final updatedAt = row.updatedAtMicros == null
+      ? row.updatedAt
+      : DateTime.fromMicrosecondsSinceEpoch(
+          row.updatedAtMicros!,
+          isUtc: row.updatedAt?.isUtc ?? true,
+        );
+  if (createdAt == null || updatedAt == null) {
+    throw const FormatException('Missing bookmark dates');
+  }
+  if (row.postSnapshot == null) {
+    if (version == 2) throw const FormatException('Missing Post snapshot');
+    // Old flat rows did not prove an installation locator. Retain their media
+    // and original source URL, without treating a page URL/local ID as identity.
+    final view = PostBookmark(
+      id: -1,
+      booruId: row.booruId ?? BooruType.unknown.id,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      thumbnailUrl: row.thumbnailUrl ?? '',
+      sampleUrl: row.sampleUrl ?? '',
+      originalUrl: row.originalUrl ?? '',
+      sourceUrl: '',
+      width: row.width ?? 0,
+      height: row.height ?? 0,
+      md5: row.md5 ?? '',
+      tags: row.tags?.toSet() ?? const {},
+      realSourceUrl: row.realSourceUrl,
+      format: row.format,
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: row.postId,
+      metadata: row.metadata ?? const {},
+    );
+    return PostBookmark.fromSnapshot(
+      id: row.key,
+      createdAt: view.createdAt,
+      updatedAt: view.updatedAt,
+      snapshot: view.snapshot,
+      post: view.post,
+      postId: null,
+      sourceUrl: row.sourceUrl,
+    );
   }
   final snapshot = StoredPostSnapshot.fromJson(
     Map<String, dynamic>.from(row.postSnapshot!),
@@ -60,31 +109,47 @@ Bookmark _mapBookmark(
     dataCodec: postDataCodec?.call(type),
   );
   if (decoded case StoredPostDecodeSuccess(:final post)) {
-    if (row.postId != post.id ||
-        BookmarkIdentity.tryFromPost(post) == null ||
+    // Keep readable legacy media without inventing an upstream identity.
+    // Unprovable identities stay out of deduplication; new writes stay strict.
+    if ((row.postId != null && row.postId != post.id) ||
         row.createdAt == null ||
         row.updatedAt == null) {
       throw const FormatException('Invalid bookmark snapshot identity');
     }
-    return Bookmark.fromSnapshot(
+    final identityProven = version == 2 && row.postId != null;
+    return PostBookmark.fromSnapshot(
       id: row.key,
-      createdAt: row.createdAt!,
-      updatedAt: row.updatedAt!,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       snapshot: snapshot,
-      post: post,
-      postId: row.postId,
+      post: identityProven
+          ? post
+          : post.copyWith(
+              origin: PostOrigin.fromSource(
+                booruType: post.origin.booruType,
+                booruId: post.origin.booruId,
+                source: '',
+                profileIdHint: post.origin.profileIdHint,
+              ),
+            ),
+      postId: identityProven ? row.postId : null,
       sourceUrl: row.sourceUrl,
     );
   }
   throw const FormatException('Invalid bookmark snapshot');
 }
 
-BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
-  bookmark.transferIdentity;
+BookmarkHiveObject favoriteToHiveObject(
+  PostBookmark bookmark, {
+  bool requireStableIdentity = true,
+}) {
+  if (requireStableIdentity) bookmark.transferIdentity;
   return BookmarkHiveObject(
     booruId: bookmark.booruId,
     createdAt: bookmark.createdAt,
     updatedAt: bookmark.updatedAt,
+    createdAtMicros: bookmark.createdAt.microsecondsSinceEpoch,
+    updatedAtMicros: bookmark.updatedAt.microsecondsSinceEpoch,
     thumbnailUrl: bookmark.thumbnailUrl,
     sampleUrl: bookmark.sampleUrl,
     originalUrl: bookmark.originalUrl,
@@ -105,7 +170,7 @@ BookmarkHiveObject favoriteToHiveObject(Bookmark bookmark) {
 BookmarkUniqueId bookmarkIdentityForPost(Post post, int booruId) =>
     BookmarkUniqueId.fromPost(post);
 
-extension BookmarkToPost on Bookmark {
+extension BookmarkToPost on PostBookmark {
   Post toPost() => post;
 
   PaginationSnapshot? toPaginationSnapshot() => switch (postId) {

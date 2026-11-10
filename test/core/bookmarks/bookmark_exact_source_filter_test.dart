@@ -82,9 +82,9 @@ void main() {
   });
 }
 
-Bookmark _bookmark(int id, String source) {
+PostBookmark _bookmark(int id, String source) {
   final base = testPoolPost(id, tags: {'allowed'});
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: base.id,
     createdAt: base.createdAt,
     updatedAt: base.updatedAt,

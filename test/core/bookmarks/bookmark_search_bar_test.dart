@@ -2,6 +2,10 @@ import 'package:boorusama/core/bookmarks/src/providers/suggestion_provider.dart'
 import 'package:boorusama/core/bookmarks/src/types/bookmark_tag_index.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_header_sliver.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
@@ -28,12 +32,17 @@ Widget _app(
   double scale = 1,
   BookmarkTagIndex? index,
   VoidCallback? onIndexRequested,
+  BookmarkView view = const BookmarkView.all(),
+  double leadingHeight = 0,
+  bool keepVisible = false,
+  ScrollController? scrollController,
 }) {
   final theme = ThemeData(
     extensions: const [KurumiExtendedColorScheme()],
   ).withBoorusamaColors();
   return ProviderScope(
     overrides: [
+      settingsProvider.overrideWithValue(Settings.defaultSettings),
       bookmarkTagIndexProvider.overrideWith((ref, view) {
         onIndexRequested?.call();
         return index ?? _index;
@@ -56,7 +65,33 @@ Widget _app(
           ),
         ),
         home: Scaffold(
-          body: BookmarkSearchBar(controller: query, postController: posts),
+          appBar: view.kind == BookmarkViewKind.all
+              ? null
+              : AppBar(title: const Text('Group')),
+          body: leadingHeight == 0 && scrollController == null
+              ? BookmarkSearchBar(
+                  controller: query,
+                  postController: posts,
+                  view: view,
+                )
+              : CustomScrollView(
+                  controller: scrollController,
+                  slivers: [
+                    SliverToBoxAdapter(child: SizedBox(height: leadingHeight)),
+                    TimelineHeaderSliver(
+                      keepVisible: keepVisible,
+                      child: BookmarkSearchBar(
+                        controller: query,
+                        postController: posts,
+                        view: view,
+                        revealTimelineOnFocus:
+                            view.kind == BookmarkViewKind.group &&
+                            leadingHeight > 0,
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 1000)),
+                  ],
+                ),
         ),
       ),
     ),
@@ -97,6 +132,141 @@ void main() {
     },
   );
 
+  testWidgets('group focus reveal stops when the field is removed', (
+    tester,
+  ) async {
+    query.clear();
+    await tester.pumpWidget(
+      _app(
+        query,
+        posts,
+        view: BookmarkView.group('11111111-1111-4111-8111-111111111111'),
+        leadingHeight: 220,
+      ),
+    );
+    await tester.tap(find.byType(TextField));
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final view in [
+    BookmarkView.group('11111111-1111-4111-8111-111111111111'),
+    BookmarkView.subtree('11111111-1111-4111-8111-111111111111'),
+    const BookmarkView.all(),
+  ]) {
+    for (final keepVisible in [false, true]) {
+      testWidgets(
+        'focusing search never rewinds an entered timeline in $view pinned=$keepVisible',
+        (
+          tester,
+        ) async {
+          query.clear();
+          final scroll = ScrollController();
+          addTearDown(scroll.dispose);
+          final leading = view.kind == BookmarkViewKind.group ? 220.0 : 0.0;
+          await tester.pumpWidget(
+            _app(
+              query,
+              posts,
+              view: view,
+              leadingHeight: leading,
+              keepVisible: keepVisible,
+              scrollController: scroll,
+            ),
+          );
+          await tester.pumpAndSettle();
+          scroll.jumpTo(leading + 200);
+          await tester.pumpAndSettle();
+          if (!keepVisible) {
+            await tester.drag(
+              find.byType(CustomScrollView),
+              const Offset(0, 36),
+            );
+            await tester.pumpAndSettle();
+          }
+          final before = scroll.offset;
+          await tester.tap(find.byType(TextField));
+          tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+          addTearDown(tester.view.resetViewInsets);
+          await tester.pumpAndSettle();
+          expect(scroll.offset, closeTo(before, .01));
+          expect(
+            tester
+                .widget<TextField>(find.byType(TextField))
+                .focusNode!
+                .hasFocus,
+            isTrue,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+  }
+
+  for (final keepVisible in [false, true]) {
+    for (final scale in [1.0, 2.0]) {
+      testWidgets(
+        'group suggestions survive typing below Structure cards at scale $scale, pinned=$keepVisible',
+        (tester) async {
+          tester.view.physicalSize = const Size(320, 640);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          query.clear();
+          await tester.pumpWidget(
+            _app(
+              query,
+              posts,
+              scale: scale,
+              view: BookmarkView.group('11111111-1111-4111-8111-111111111111'),
+              leadingHeight: 220,
+              keepVisible: keepVisible,
+            ),
+          );
+          await tester.tap(find.byType(TextField));
+          await tester.pumpAndSettle();
+          final viewportTop = tester
+              .getTopLeft(find.byType(CustomScrollView))
+              .dy;
+          expect(
+            tester.getTopLeft(find.byType(BookmarkSearchBar)).dy,
+            closeTo(viewportTop, .5),
+          );
+          tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+          await tester.pumpAndSettle();
+          expect(
+            tester.getTopLeft(find.byType(BookmarkSearchBar)).dy,
+            closeTo(viewportTop, .5),
+          );
+          for (final text in ['b', 'bl', 'blue']) {
+            await tester.enterText(find.byType(TextField), text);
+            await tester.pumpAndSettle();
+            expect(
+              find
+                  .byKey(const ValueKey('bookmark-suggestion-blue_hair'))
+                  .hitTestable(),
+              findsOneWidget,
+            );
+            expect(
+              tester
+                  .widget<TextField>(find.byType(TextField))
+                  .focusNode!
+                  .hasFocus,
+              isTrue,
+            );
+          }
+          await tester.tap(
+            find.byKey(const ValueKey('bookmark-suggestion-blue_hair')),
+          );
+          await tester.pumpAndSettle();
+          expect(query.text, 'blue_hair');
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+  }
   for (final scale in [1.0, 2.0]) {
     testWidgets(
       'browses and selects all tags from an empty field at scale $scale',

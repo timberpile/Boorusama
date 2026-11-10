@@ -86,7 +86,7 @@ void main() {
       );
       addTearDown(container.dispose);
       final result = container.read(
-        poolBookmarkDraftProvider((
+        poolBookmarkRefreshProvider((
           config,
           RemoteBookmarkPool(
             id: 10,

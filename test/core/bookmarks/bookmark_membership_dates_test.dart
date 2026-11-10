@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
+import 'package:boorusama/core/backups/sources/bookmarks_source.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_planner.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_plan.dart';
@@ -19,6 +20,9 @@ import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 
@@ -34,6 +38,7 @@ void main() {
   late Directory directory;
   late Box<BookmarkHiveObject> postsBox;
   late Box<BookmarkGroupHiveObject> groupsBox;
+  late BookmarkTestStorage storage;
   late BookmarkHiveRepository posts;
   late _Groups groups;
   late BookmarkLibraryService service;
@@ -43,9 +48,10 @@ void main() {
     groupRepository: groups,
     imageUrlResolver: resolver,
   );
-  Future<Bookmark> seed(int id) async => (await posts.addBookmarkWithBookmarks([
-    testPoolPost(id).copyWith(createdAt: old),
-  ])).single;
+  Future<PostBookmark> seed(int id) async =>
+      (await posts.addBookmarkWithBookmarks([
+        testPoolPost(id).copyWith(createdAt: old),
+      ])).single;
   Future<BookmarkGroup> group(String id) async => (await groups.getGroup(id))!;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('membership_dates_');
@@ -55,8 +61,9 @@ void main() {
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     postsBox = await Hive.openBox('membership_posts');
+    storage = await BookmarkTestStorage.open(postsBox);
     groupsBox = await Hive.openBox('membership_groups');
-    posts = BookmarkHiveRepository(postsBox);
+    posts = storage.repository(postsBox);
     now = first;
     groups = _Groups(
       groupsBox,
@@ -72,6 +79,7 @@ void main() {
     await groups.createGroup('B', id: poolGroupB);
   });
   tearDown(() async {
+    await storage.close();
     await postsBox.close();
     await groupsBox.close();
     await directory.delete(recursive: true);
@@ -155,7 +163,7 @@ void main() {
       final b = testPoolPost(2).copyWith(createdAt: first);
       final pool = testPool(groups: {poolGroupA})
           .copyWith(addedAt: {poolGroupA: second});
-      final related = RelatedBookmark(
+      final related = RelatedCollectionBookmark(
         family: RelatedFamilyReference(origin: poolOrigin(), anchorId: 42),
         localId: poolGroupB,
         createdAt: old,
@@ -259,7 +267,7 @@ void main() {
   });
 
   test(
-    'version 9 export/restore remaps local IDs and preserves membership dates',
+    'version 10 export/restore remaps local IDs and preserves membership dates',
     () async {
       final post = await seed(1);
       await service.addBookmarkToGroup(
@@ -286,7 +294,7 @@ void main() {
       final restored = codec.parse(
         decodeData(
           data: jsonEncode({
-            'version': 9,
+            'version': kBookmarksBackupVersion,
             'data': codec.encode(data),
             ...data.extraFields,
           }),
@@ -301,7 +309,7 @@ void main() {
         poolGroupA: first,
         poolGroupB: second,
       });
-      expect(saved.createdAt, first);
+      expect(saved.createdAt, post.createdAt);
     },
   );
 

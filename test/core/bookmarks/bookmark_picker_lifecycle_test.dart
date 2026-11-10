@@ -16,6 +16,7 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
 import 'package:flutter/material.dart' as legacy;
 import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
@@ -34,7 +35,7 @@ final _config = BooruConfig.defaultConfig(
   customDownloadFileNameFormat: null,
 );
 final _family = RelatedFamilyReference.fromPost(testRelatedPost(10));
-final _related = RelatedBookmark(
+final _related = RelatedCollectionBookmark(
   family: _family,
   localId: poolGroupB,
   createdAt: DateTime.utc(2026),
@@ -327,7 +328,14 @@ class _Profiles extends BooruConfigNotifier {
 }
 
 class _Library extends BookmarkLibraryNotifier {
-  final creations = <({List<Post> posts, List<CollectionBookmark> pools})>[];
+  final creations =
+      <
+        ({
+          List<Post> posts,
+          List<CollectionBookmark> pools,
+          String? parentGroupId,
+        })
+      >[];
   final toggles = <CollectionBookmark>[];
   @override
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
@@ -340,6 +348,7 @@ class _Library extends BookmarkLibraryNotifier {
   Future<BookmarkToggleOutcome> togglePoolTarget(
     CollectionBookmark draft, {
     required String groupId,
+    RelatedPostsOrder? initialRelatedOrder,
     void Function(BookmarkGroupRemovalResult)? onRemoved,
   }) async {
     toggles.add(draft);
@@ -352,11 +361,23 @@ class _Library extends BookmarkLibraryNotifier {
     BooruConfigAuth config,
     Iterable<Post> posts, {
     String? folderId,
+    String? parentGroupId,
     List<CollectionBookmark> pools = const [],
+    RelatedPostsOrder? initialRelatedOrder,
   }) async {
-    creations.add((posts: posts.toList(), pools: pools));
+    final parent = parentGroupId ?? folderId;
+    creations.add((
+      posts: posts.toList(),
+      pools: pools,
+      parentGroupId: parent,
+    ));
     return (
-      group: BookmarkGroup(id: poolGroupB, name: name, bookmarkIds: {}),
+      group: BookmarkGroup(
+        id: poolGroupB,
+        name: name,
+        bookmarkIds: {},
+        parentGroupId: parent,
+      ),
       addedCount: posts.length + pools.length,
     );
   }

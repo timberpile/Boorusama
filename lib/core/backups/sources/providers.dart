@@ -165,6 +165,9 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
         id: 'bookmarks',
         children: bookmarkExportNodes(
           buildBookmarkBackupData(
+            records: bookmarks?.hasUnifiedRecords == true
+                ? bookmarks!.records
+                : null,
             bookmarks: bookmarks?.items ?? [],
             pools: bookmarks?.pools ?? [],
             groups: bookmarks?.groups ?? [],
@@ -176,11 +179,18 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       scopeBuilder: (selection) => switch (selection.kind) {
         ExportNodeSelectionKind.all => const BookmarkExportScope.all(),
         ExportNodeSelectionKind.explicit => BookmarkExportScope.selected(
-          folderIds: selection.childIds
-              .where((id) => id.startsWith('group-folder:'))
-              .map((id) => id.substring(13)),
+          directGroupIds: selection.childIds
+              .map(ExportSelectionIds.bookmarkGroupDirectId)
+              .whereType<String>(),
           groupIds: selection.childIds
-              .map(ExportSelectionIds.bookmarkGroupId)
+              .map(
+                (id) =>
+                    ExportSelectionIds.bookmarkGroupId(id) ??
+                    bookmarks
+                        ?.legacyFolderGroupIds[ExportSelectionIds.bookmarkFolderId(
+                      id,
+                    )],
+              )
               .whereType<String>(),
           includeUngrouped: selection.childIds.contains(
             ExportSelectionIds.ungroupedBookmarks,

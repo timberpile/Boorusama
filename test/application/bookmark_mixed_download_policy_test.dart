@@ -64,7 +64,7 @@ void main() {
       final library = BookmarkLibraryState(
         bookmarks: [
           for (final post in posts)
-            Bookmark.fromSnapshot(
+            PostBookmark.fromSnapshot(
               id: post.id,
               createdAt: DateTime.utc(2026),
               updatedAt: DateTime.utc(2026),
@@ -185,7 +185,7 @@ void main() {
         final library = BookmarkLibraryState(
           bookmarks: [
             for (final (index, post) in selected.indexed)
-              Bookmark.fromSnapshot(
+              PostBookmark.fromSnapshot(
                 id: index + 1,
                 createdAt: DateTime.utc(2026),
                 updatedAt: DateTime.utc(2026),

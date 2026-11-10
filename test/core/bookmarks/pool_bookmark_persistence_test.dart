@@ -25,6 +25,8 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart
 import '../search/following_topics/topic_test_utils.dart';
 import 'pool_bookmark_test_utils.dart';
 
+import '../../support/fakes/bookmark_test_storage.dart';
+
 void main() {
   for (final related in [false, true]) {
     group(related ? 'Related references' : 'Pool references', () {
@@ -41,7 +43,7 @@ void main() {
           host: host,
         );
         return related
-            ? RelatedBookmark(
+            ? RelatedCollectionBookmark(
                 family: RelatedFamilyReference(
                   origin: pool.origin,
                   anchorId: id,
@@ -58,6 +60,8 @@ void main() {
       }
 
       late BookmarkHiveRepository posts;
+      late BookmarkTestStorage storage;
+      late Box<BookmarkHiveObject> postsBox;
       late Box<BookmarkGroupHiveObject> groupBox;
       late Directory testDirectory;
       late _OrganizationBox organization;
@@ -70,7 +74,7 @@ void main() {
         imageUrlResolver: resolver,
       );
 
-      Future<List<Bookmark>> allPosts() =>
+      Future<List<PostBookmark>> allPosts() =>
           posts.getAllBookmarksOrThrow(imageUrlResolver: resolver);
       setUp(() async {
         testDirectory = await Directory.systemTemp.createTemp(
@@ -81,9 +85,9 @@ void main() {
           Hive.registerAdapter(BookmarkHiveObjectAdapter());
         if (!Hive.isAdapterRegistered(5))
           Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
-        posts = BookmarkHiveRepository(
-          await Hive.openBox<BookmarkHiveObject>('service-posts'),
-        );
+        postsBox = await Hive.openBox<BookmarkHiveObject>('service-posts');
+        storage = await BookmarkTestStorage.open(postsBox);
+        posts = storage.repository(postsBox);
         groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
           'service-groups',
         );
@@ -101,7 +105,8 @@ void main() {
       });
 
       tearDown(() async {
-        await posts.close();
+        await postsBox.close();
+        await storage.close();
         await groupBox.close();
         await testDirectory.delete(recursive: true);
       });
@@ -117,8 +122,8 @@ void main() {
       });
 
       test('legacy Post library remains valid and Pool-only removal leaves Posts intact', () async {
-        final post = testPoolPost(1);
-        await posts.updateBookmark(post);
+        final post = (await posts.addBookmarkWithBookmarks([testPoolPost(1)]))
+            .single;
         await groups.addBookmarks(poolGroupA, {post.id});
         expect(
           (await service.load()).pools,
@@ -139,8 +144,8 @@ void main() {
       });
 
       test('mixed removal and Undo restores actual Post identities and one Pool reference', () async {
-        final post = testPoolPost(1);
-        await posts.updateBookmark(post);
+        final post = (await posts.addBookmarkWithBookmarks([testPoolPost(1)]))
+            .single;
         await groups.addBookmarks(poolGroupA, {post.id});
         await groups.writePoolBookmarks([reference()]);
         final result = await service.removeBookmarksFromGroup(
@@ -211,9 +216,9 @@ void main() {
       test(
         'failed typed write rolls back an already removed Post and memberships',
         () async {
-          final post = testPoolPost(1);
-          await posts.updateBookmark(post);
-          await groups.addBookmarks(poolGroupA, {1});
+          final post = (await posts.addBookmarkWithBookmarks([testPoolPost(1)]))
+              .single;
+          await groups.addBookmarks(poolGroupA, {post.id});
           await groups.writePoolBookmarks([reference()]);
           organization.failNext = true;
           await expectLater(
@@ -224,8 +229,12 @@ void main() {
             ),
             throwsStateError,
           );
-          expect((await allPosts()), [post]);
-          expect((await groups.getGroup(poolGroupA))!.bookmarkIds, {1});
+          final restoredPost = (await allPosts()).single;
+          expect(restoredPost.id, greaterThan(post.id));
+          expect(restoredPost.copyWith(id: post.id), post);
+          expect((await groups.getGroup(poolGroupA))!.bookmarkIds, {
+            restoredPost.id,
+          });
           expect(await groups.readPoolBookmarks(), [reference()]);
         },
       );
@@ -246,23 +255,36 @@ void main() {
           ],
           scope: BookmarkExportScope.selected(groupIds: {poolGroupA}),
         );
+        final legacyReference = reference(groups: {poolGroupA})
+            .copyWith(cover: cover);
+        final legacyGroups = [
+          for (final group in data.groups)
+            BookmarkGroupBackup(
+              id: group.id,
+              name: group.name,
+              bookmarkIds: [],
+            ).toJson(),
+        ];
         final codec = BookmarkBackupCodec();
         ExportDataPayload payload(Map<String, dynamic> extra) =>
             ExportDataPayload(
               version: related ? 7 : 6,
               exportDate: null,
               exportVersion: null,
-              data: codec.encode(data),
+              data: [],
               extraFields: extra,
             );
+        Map<String, dynamic> legacyExtra(CollectionBookmark value) => {
+          'groups': legacyGroups,
+          'folders': data.folders.map((folder) => folder.toJson()).toList(),
+          'collectionBookmarks': [
+            value.toJson()..remove('addedAt'),
+          ],
+        };
         final parsed = codec.parse(
-          payload({
-            ...data.extraFields,
-            'collectionBookmarks': data.pools
-                .map((pool) => pool.toJson())
-                .toList(),
-          }),
+          payload(legacyExtra(legacyReference)),
         );
+        expect(int.tryParse(parsed.pools.single.localId), isNotNull);
         expect(parsed.pools.single.groupIds, {poolGroupA});
         expect(parsed.bookmarks, isEmpty);
         expect(parsed.pools.single.total, 20);
@@ -270,9 +292,12 @@ void main() {
         expect(
           () => codec.parse(
             payload({
-              ...data.extraFields,
+              ...legacyExtra(legacyReference),
               'collectionBookmarks': [
-                {...data.pools.single.toJson(), 'kind': 'future'},
+                {
+                  ...(legacyReference.toJson()..remove('addedAt')),
+                  'kind': 'future',
+                },
               ],
             }),
           ),
@@ -280,12 +305,9 @@ void main() {
         );
         expect(
           () => codec.parse(
-            payload({
-              ...data.extraFields,
-              'collectionBookmarks': [
-                data.pools.single.withGroups({poolGroupB}).toJson(),
-              ],
-            }),
+            payload(
+              legacyExtra(legacyReference.withGroups({poolGroupB})),
+            ),
           ),
           throwsA(isA<InvalidBackupFormatException>()),
         );
@@ -359,9 +381,9 @@ void main() {
       test(
         'failed full replacement restores old typed entries and ordinary Posts',
         () async {
-          final post = testPoolPost(1);
-          await posts.updateBookmark(post);
-          await groups.addBookmarks(poolGroupA, {1});
+          final post = (await posts.addBookmarkWithBookmarks([testPoolPost(1)]))
+              .single;
+          await groups.addBookmarks(poolGroupA, {post.id});
           await groups.writePoolBookmarks([reference()]);
           organization.failPoolId = 99;
           await expectLater(

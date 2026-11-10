@@ -227,7 +227,7 @@ class PostGridItem extends ConsumerWidget {
         blockOverlay ?? resolvedAdditions.blockOverlay;
     final image =
         imageBuilder?.call(media) ??
-        _PostGridImage(
+        PostGridImage(
           media: media,
           imageCacheManager: imageCacheManager,
           config: imageConfig ?? config,
@@ -309,15 +309,23 @@ class PostGridItem extends ConsumerWidget {
   }
 }
 
-class _PostGridImage extends ConsumerWidget {
-  const _PostGridImage({
+/// Shared source-resolved image rendering for grid cells and saved group covers.
+class PostGridImage extends ConsumerWidget {
+  const PostGridImage({
     required this.media,
     required this.config,
+    super.key,
+    this.borderRadius,
+    this.forceCover,
+    this.fit,
     this.imageCacheManager,
     this.cachedImageBytes,
   });
 
   final GridThumbnailMedia media;
+  final BorderRadius? borderRadius;
+  final bool? forceCover;
+  final BoxFit? fit;
   final ImageCacheManager? imageCacheManager;
   final Uint8List? cachedImageBytes;
   final BooruConfigAuth config;
@@ -330,9 +338,12 @@ class _PostGridImage extends ConsumerWidget {
     final imageListType = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageListType),
     );
-    final borderRadius = BorderRadius.circular(imageBorderRadius);
-    final cover = imageListType == ImageListType.standard;
-    final fit = imageListType == ImageListType.classic ? BoxFit.contain : null;
+    final borderRadius =
+        this.borderRadius ?? BorderRadius.circular(imageBorderRadius);
+    final cover = forceCover ?? imageListType == ImageListType.standard;
+    final fit =
+        this.fit ??
+        (imageListType == ImageListType.classic ? BoxFit.contain : null);
     Widget normal(String url, {bool fallback = false}) => BooruImage(
       config: config,
       aspectRatio: media.aspectRatio,

@@ -92,7 +92,7 @@ class BookmarkPickerActions {
             await container.read(
               relatedBookmarkDraftProvider((source, family)).future,
             ),
-          PostBookmarkPickerRequest() => null,
+          PostBookmarkPickerRequest() || SavedBookmarkPickerRequest() => null,
         };
     _checkOwnership();
     return draft;
@@ -105,6 +105,16 @@ class BookmarkPickerActions {
     if (_pending) return null;
     _pending = true;
     try {
+      _checkOwnership();
+      if (request case SavedBookmarkPickerRequest(:final record)) {
+        return await container
+            .read(bookmarkProvider.notifier)
+            .toggleSavedBookmarkTarget(
+              record,
+              groupId: groupId,
+              onRemoved: onRemoved,
+            );
+      }
       final collection = await _resolveCollection();
       _checkOwnership();
       final notifier = container.read(bookmarkProvider.notifier);
@@ -112,6 +122,11 @@ class BookmarkPickerActions {
           ? await notifier.togglePoolTarget(
               collection,
               groupId: groupId,
+              initialRelatedOrder: switch (request) {
+                RelatedBookmarkPickerRequest(:final visibleOrder) =>
+                  visibleOrder,
+                _ => null,
+              },
               onRemoved: onRemoved,
             )
           : await notifier.togglePostTarget(
@@ -127,7 +142,7 @@ class BookmarkPickerActions {
 
   Future<void> createGroup(
     String name,
-    String? folderId, {
+    String? parentGroupId, {
     required void Function() beforeCommit,
   }) async {
     if (_pending) return;
@@ -136,6 +151,14 @@ class BookmarkPickerActions {
       final collection = await _resolveCollection();
       _checkOwnership();
       beforeCommit();
+      if (request case SavedBookmarkPickerRequest(:final record)) {
+        await container
+            .read(bookmarkProvider.notifier)
+            .createGroupWithSavedRecords(name, [
+              record,
+            ], parentGroupId: parentGroupId);
+        return;
+      }
       await container
           .read(bookmarkProvider.notifier)
           .createGroupWithPosts(
@@ -145,8 +168,12 @@ class BookmarkPickerActions {
               PostBookmarkPickerRequest(:final post) => [post],
               _ => [],
             },
-            folderId: folderId,
+            parentGroupId: parentGroupId,
             pools: [?collection],
+            initialRelatedOrder: switch (request) {
+              RelatedBookmarkPickerRequest(:final visibleOrder) => visibleOrder,
+              _ => null,
+            },
           );
     } finally {
       _pending = false;

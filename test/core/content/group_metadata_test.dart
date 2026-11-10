@@ -50,6 +50,58 @@ void main() {
     },
   );
 
+  test(
+    'partial Details merge unknown fields but keep authoritative empty values',
+    () {
+      final summary = ContentGroupSummary(reference: reference);
+      final previous = ContentGroupDetails(
+        summary: summary,
+        description: const GroupDescription(
+          text: 'Known',
+          format: GroupTextFormat.html,
+        ),
+        creators: [CreatorRef(displayName: 'Known creator')],
+        tags: GroupTags(
+          values: [GroupTag(name: 'known')],
+          coverage: MetadataCoverage.partial,
+        ),
+        sourceDates: GroupSourceDates(
+          createdAt: DateTime.utc(2020),
+          publishedAt: DateTime.utc(2021),
+          updatedAt: DateTime.utc(2022),
+        ),
+        sourceData: const _DetailsData(views: 7),
+      );
+      final partial = ContentGroupDetails(
+        summary: summary,
+        creators: const [],
+        tags: GroupTags(values: const [], coverage: MetadataCoverage.complete),
+        sourceDates: GroupSourceDates(updatedAt: DateTime.utc(2026)),
+      );
+      final merged = partial.mergeWithPrevious(previous);
+      expect(merged.description, previous.description);
+      expect(merged.creators, isEmpty);
+      expect(merged.tags!.values, isEmpty);
+      expect(merged.tags!.coverage, MetadataCoverage.complete);
+      expect(merged.sourceData, previous.sourceData);
+      expect(merged.sourceDates!.createdAt, DateTime.utc(2020));
+      expect(merged.sourceDates!.publishedAt, DateTime.utc(2021));
+      expect(merged.sourceDates!.updatedAt, DateTime.utc(2026));
+      expect(codec.decodeDetails(codec.encodeDetails(merged)), merged);
+      final other = ContentGroupDetails(
+        summary: ContentGroupSummary(
+          reference: references.parse(
+            engine: BooruType.pixiv,
+            site: reference.site,
+            kind: ContentKind.group,
+            sourceKey: 'work:121',
+          ),
+        ),
+      );
+      expect(() => partial.mergeWithPrevious(other), throwsFormatException);
+    },
+  );
+
   test('Summary refresh retains loaded Details and source-native tags', () {
     final old = ContentGroupDetails(
       summary: ContentGroupSummary(

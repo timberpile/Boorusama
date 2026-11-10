@@ -35,6 +35,9 @@ class _Library extends BookmarkLibraryNotifier {
   );
 
   @override
+  Future<T> runWithLibrary<T>(Future<T> Function() operation) => operation();
+
+  @override
   Future<BookmarkLibraryState> build() async => snapshot;
 
   @override

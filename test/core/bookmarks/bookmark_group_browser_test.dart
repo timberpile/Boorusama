@@ -10,7 +10,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 
 void main() {
   testWidgets('preview grid leaves missing cells transparent', (tester) async {
-    final previews = [Bookmark.empty.copyWith(id: 1)];
+    final previews = [PostBookmark.empty.copyWith(id: 1)];
 
     await tester.pumpWidget(
       MaterialApp(
@@ -28,8 +28,16 @@ void main() {
     );
 
     expect(find.byKey(const ValueKey(1)), findsOneWidget);
-    final grid = tester.widget<GridView>(find.byType(GridView));
-    expect(grid.childrenDelegate.estimatedChildCount, 4);
+    final empty = find.descendant(
+      of: find.byType(BookmarkGroupPreviewGrid),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is SizedBox &&
+            widget.width == double.infinity &&
+            widget.height == double.infinity,
+      ),
+    );
+    expect(empty, findsNWidgets(3));
   });
 
   testWidgets('preview grid separates all four square cells', (tester) async {
@@ -38,19 +46,36 @@ void main() {
         home: SizedBox.square(
           dimension: 200,
           child: BookmarkGroupPreviewGrid(
-            previews: [Bookmark.empty],
+            previews: [PostBookmark.empty],
             itemBuilder: (_, _) => const ColoredBox(color: Colors.red),
           ),
         ),
       ),
     );
 
-    final grid = tester.widget<GridView>(find.byType(GridView));
-    final delegate =
-        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
-    expect(grid.padding, const EdgeInsets.all(2));
-    expect(delegate.crossAxisSpacing, 2);
-    expect(delegate.mainAxisSpacing, 2);
+    final preview = find.byType(BookmarkGroupPreviewGrid);
+    final padding = tester.widget<Padding>(
+      find.descendant(of: preview, matching: find.byType(Padding)).first,
+    );
+    expect(padding.padding, const EdgeInsets.all(2));
+    expect(
+      find.descendant(
+        of: preview,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is SizedBox && widget.width == 2,
+        ),
+      ),
+      findsNWidgets(2),
+    );
+    expect(
+      find.descendant(
+        of: preview,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is SizedBox && widget.height == 2,
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('preview cells fill the square card', (
@@ -64,7 +89,7 @@ void main() {
             height: 200,
             child: BookmarkGroupPreviewGrid(
               previews: [
-                for (var i = 0; i < 4; i++) Bookmark.empty.copyWith(id: i),
+                for (var i = 0; i < 4; i++) PostBookmark.empty.copyWith(id: i),
               ],
               itemBuilder: (_, bookmark) =>
                   ColoredBox(key: ValueKey(bookmark.id), color: Colors.red),
@@ -84,12 +109,12 @@ void main() {
   });
 
   test('still previews use samples while video previews use thumbnails', () {
-    final still = Bookmark.empty.copyWith(
+    final still = PostBookmark.empty.copyWith(
       originalUrl: 'https://example.com/image.jpg',
       sampleUrl: 'https://example.com/sample.jpg',
       thumbnailUrl: 'https://example.com/thumb.jpg',
     );
-    final video = Bookmark.empty.copyWith(
+    final video = PostBookmark.empty.copyWith(
       originalUrl: 'https://example.com/video.mp4',
       sampleUrl: 'https://example.com/video-sample.jpg',
       thumbnailUrl: 'https://example.com/video-thumb.jpg',

@@ -64,7 +64,7 @@ void main() {
       );
       addTearDown(container.dispose);
       await container.read(bookmarkProvider.future);
-      Bookmark stored(BooruConfig config, int id, {String? orphanHost}) {
+      PostBookmark stored(BooruConfig config, int id, {String? orphanHost}) {
         final source = orphanHost ?? config.url;
         final post = TestPost(
           id: id,
@@ -81,7 +81,7 @@ void main() {
             custom: {},
           ),
         );
-        return Bookmark.fromSnapshot(
+        return PostBookmark.fromSnapshot(
           id: id,
           createdAt: DateTime.utc(2026),
           updatedAt: DateTime.utc(2026),
@@ -169,7 +169,7 @@ void main() {
         ];
         final bookmarks = [
           for (final post in posts)
-            Bookmark.fromSnapshot(
+            PostBookmark.fromSnapshot(
               id: post.id,
               createdAt: DateTime.utc(2026),
               updatedAt: DateTime.utc(2026),
@@ -243,7 +243,7 @@ void main() {
                   ),
                 );
             final post = postFor(42);
-            final bookmark = Bookmark.fromSnapshot(
+            final bookmark = PostBookmark.fromSnapshot(
               id: 1,
               createdAt: DateTime.utc(2026),
               updatedAt: DateTime.utc(2026),
@@ -292,7 +292,7 @@ void main() {
             final selection = [
               bookmark,
               if (bulk)
-                Bookmark.fromSnapshot(
+                PostBookmark.fromSnapshot(
                   id: 2,
                   createdAt: bookmark.createdAt,
                   updatedAt: bookmark.updatedAt,

@@ -41,7 +41,7 @@ void main() {
           .begin(sourceView: view);
       await container.pump();
       expect((await container.read(provider.future)).entries, isEmpty);
-      final row = Bookmark.empty.copyWith(
+      final row = PostBookmark.empty.copyWith(
         id: 1,
         sourceUrl: 'https://example.com',
         postId: () => 101,
@@ -84,13 +84,13 @@ void main() {
       const groupId = '550e8400-e29b-41d4-a716-446655440000';
       final view = BookmarkView.group(groupId);
       final rows = [
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: 1,
           sourceUrl: 'https://example.com',
           postId: () => 101,
           tags: {'one_piece'},
         ),
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: 2,
           sourceUrl: 'https://example.com',
           postId: () => 102,
@@ -166,13 +166,13 @@ void main() {
     () async {
       const groupId = '550e8400-e29b-41d4-a716-446655440000';
       final rows = [
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: 1,
           sourceUrl: 'https://a.test',
           postId: () => 101,
           tags: {'shared', 'a'},
         ),
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: 2,
           sourceUrl: 'https://b.test',
           postId: () => 102,
@@ -265,7 +265,7 @@ void main() {
 
   test('group metadata leaves tag counts, source URLs and unrelated buttons unchanged', () async {
     const groupId = '550e8400-e29b-41d4-a716-446655440000';
-    final row = Bookmark.empty.copyWith(
+    final row = PostBookmark.empty.copyWith(
       id: 1,
       sourceUrl: 'https://example.com',
       postId: () => 101,

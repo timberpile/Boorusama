@@ -36,7 +36,7 @@ void main() {
     origin: postOriginFromConfig(config),
     anchorId: 10,
   );
-  final reference = RelatedBookmark(
+  final reference = RelatedCollectionBookmark(
     family: family,
     localId: testPool().localId,
     createdAt: DateTime.utc(2025),
@@ -98,7 +98,7 @@ void main() {
       container.dispose();
       dio.close();
     });
-    final provider = relatedBookmarkDraftProvider((current, family));
+    final provider = relatedBookmarkRefreshProvider((current, family));
     container.listen(provider, (_, _) {});
     return (await Future.wait([
       for (var i = 0; i < readers; i++) container.read(provider.future),

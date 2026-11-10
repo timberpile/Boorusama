@@ -119,8 +119,8 @@ class BookmarkTagIndex {
   }
 
   factory BookmarkTagIndex.fromBookmarks(
-    Iterable<Bookmark> bookmarks, {
-    String Function(Bookmark bookmark)? siteUrl,
+    Iterable<PostBookmark> bookmarks, {
+    String Function(PostBookmark bookmark)? siteUrl,
   }) {
     final counts = <String, int>{};
     final sources = <String, Map<BookmarkTagSource, Set<String>>>{};
@@ -205,15 +205,15 @@ class BookmarkTagIndexBuilder {
     performanceRecorder.count(PerfCounter.bookmarkTagBuilderCreated, 1);
   }
 
-  final String Function(Bookmark bookmark)? siteUrl;
-  Map<int, Bookmark> _bookmarks = {};
+  final String Function(PostBookmark bookmark)? siteUrl;
+  Map<int, PostBookmark> _bookmarks = {};
   final _tags = <String, _TagReferences>{};
   var _index = BookmarkTagIndex(const []);
   var _built = false;
   Object? _lastRevision;
   Future<void> _pending = Future.value();
 
-  BookmarkTagIndex update(Iterable<Bookmark> bookmarks) =>
+  BookmarkTagIndex update(Iterable<PostBookmark> bookmarks) =>
       performanceRecorder.measureSync(PerfOperation.bookmarkTagUpdate, () {
         for (final _ in _steps(bookmarks)) {}
         return _index;
@@ -222,7 +222,7 @@ class BookmarkTagIndexBuilder {
   /// Serializes updates to this retained builder. Cancellation discards partial
   /// mutable work; a newer generation can never publish an older library.
   Future<BookmarkTagIndex?> updateAsync(
-    Iterable<Bookmark> bookmarks, {
+    Iterable<PostBookmark> bookmarks, {
     required bool Function() isCurrent,
     Future<void> Function()? yieldControl,
     Object? revision,
@@ -260,7 +260,7 @@ class BookmarkTagIndexBuilder {
   }
 
   Iterable<void> _steps(
-    Iterable<Bookmark> bookmarks, {
+    Iterable<PostBookmark> bookmarks, {
     Object? revision,
   }) sync* {
     // Only callers with an immutable revision may skip comparison. Generic
@@ -272,7 +272,7 @@ class BookmarkTagIndexBuilder {
           : PerfCounter.bookmarkTagFullBuild,
       1,
     );
-    final next = <int, Bookmark>{};
+    final next = <int, PostBookmark>{};
     for (final batch in _batches(bookmarks, 256)) {
       performanceRecorder.measureSync(PerfOperation.bookmarkTagCompare, () {
         for (final bookmark in batch) {
@@ -400,7 +400,7 @@ class BookmarkTagIndexBuilder {
     }
   }
 
-  int _adjust(Bookmark bookmark, int delta) {
+  int _adjust(PostBookmark bookmark, int delta) {
     final source = performanceRecorder.measureSync(
       PerfOperation.bookmarkTagResolveSource,
       () => BookmarkTagSource(

@@ -95,7 +95,7 @@ class BookmarkDetailsPage extends ConsumerWidget {
 
 Future<PostRecoveryResult> _recoverBookmarkPost(
   WidgetRef ref, {
-  required Bookmark bookmark,
+  required PostBookmark bookmark,
   required BooruConfig config,
 }) async {
   try {

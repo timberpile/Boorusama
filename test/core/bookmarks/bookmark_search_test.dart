@@ -12,8 +12,8 @@ void main() {
     'suggested canonical tags match readable stored tags and exclusions',
     () {
       final bookmarks = [
-        Bookmark.empty.copyWith(id: 1, tags: {'One Piece', 'blue hair'}),
-        Bookmark.empty.copyWith(id: 2, tags: {'one_piece', 'glasses'}),
+        PostBookmark.empty.copyWith(id: 1, tags: {'One Piece', 'blue hair'}),
+        PostBookmark.empty.copyWith(id: 2, tags: {'one_piece', 'glasses'}),
       ];
       final index = BookmarkTagIndex.fromBookmarks(bookmarks);
       final suggestion = index.suggestions('one piece').single.tag;
@@ -42,7 +42,7 @@ void main() {
       <String>{},
       {'BLUE_HAIR', 'SMILE'},
     ].indexed)
-      Bookmark.empty.copyWith(
+      PostBookmark.empty.copyWith(
         id: index + 1,
         postId: () => index + 1,
         sourceUrl:

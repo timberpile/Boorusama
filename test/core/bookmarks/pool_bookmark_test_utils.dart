@@ -45,14 +45,14 @@ PoolBookmark testPool({
   oldestUpload: oldest,
 );
 
-Bookmark testPoolPost(int id, {Set<String> tags = const {}}) {
+PostBookmark testPoolPost(int id, {Set<String> tags = const {}}) {
   final post = TestPost(
     id: id,
     tags: tags,
     origin: poolOrigin(),
     booruData: const LegacyPostData(typeKey: 'legacy_danbooru', custom: {}),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: id,
     createdAt: DateTime.utc(2026, 1, id),
     updatedAt: DateTime.utc(2026, 1, id),

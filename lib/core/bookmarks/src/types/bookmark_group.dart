@@ -13,6 +13,7 @@ class BookmarkGroup extends Equatable {
     required Set<int> bookmarkIds,
     Map<int, DateTime> addedAt = const {},
     this.folderId,
+    this.parentGroupId,
     this.position = 0,
   }) : bookmarkIds = Set.unmodifiable(bookmarkIds),
        addedAt = Map.unmodifiable({
@@ -27,7 +28,10 @@ class BookmarkGroup extends Equatable {
 
   final String id;
   final String name;
+
+  /// Compatibility input only; active hierarchy groups use parentGroupId.
   final String? folderId;
+  final String? parentGroupId;
   final int position;
   final Set<int> bookmarkIds;
   final Map<int, DateTime> addedAt;
@@ -37,6 +41,7 @@ class BookmarkGroup extends Equatable {
     Set<int>? bookmarkIds,
     Map<int, DateTime>? addedAt,
     String? folderId,
+    String? parentGroupId,
     bool home = false,
     int? position,
   }) {
@@ -46,6 +51,7 @@ class BookmarkGroup extends Equatable {
       bookmarkIds: bookmarkIds ?? this.bookmarkIds,
       addedAt: addedAt ?? this.addedAt,
       folderId: home ? null : folderId ?? this.folderId,
+      parentGroupId: home ? null : parentGroupId ?? this.parentGroupId,
       position: position ?? this.position,
     );
   }
@@ -57,6 +63,7 @@ class BookmarkGroup extends Equatable {
     bookmarkIds,
     addedAt,
     folderId,
+    parentGroupId,
     position,
   ];
 }
@@ -67,15 +74,36 @@ class BookmarkGroupDeletionPreview extends Equatable {
     required Set<int> orphanBookmarkIds,
     this.poolIds = const {},
     this.orphanPoolIds = const {},
-  }) : orphanBookmarkIds = Set.unmodifiable(orphanBookmarkIds);
+    List<BookmarkGroup> promotedChildren = const [],
+    List<BookmarkGroup> descendantGroups = const [],
+  }) : promotedChildren = List.unmodifiable(promotedChildren),
+       descendantGroups = List.unmodifiable(descendantGroups),
+       orphanBookmarkIds = Set.unmodifiable(orphanBookmarkIds);
 
+  final List<BookmarkGroup> promotedChildren;
+  final List<BookmarkGroup> descendantGroups;
   final BookmarkGroup group;
   final Set<int> orphanBookmarkIds;
   final Set<String> poolIds;
   final Set<String> orphanPoolIds;
 
-  int get bookmarkCount => group.bookmarkIds.length + poolIds.length;
+  int get bookmarkCount =>
+      {
+        ...group.bookmarkIds,
+        for (final child in descendantGroups) ...child.bookmarkIds,
+      }.length +
+      poolIds.length;
 
   @override
-  List<Object?> get props => [group, orphanBookmarkIds, poolIds, orphanPoolIds];
+  List<Object?> get props => [
+    group,
+    orphanBookmarkIds,
+    poolIds,
+    orphanPoolIds,
+    descendantGroups,
+    [
+      for (final child in promotedChildren)
+        (child.id, child.parentGroupId, child.position),
+    ],
+  ];
 }

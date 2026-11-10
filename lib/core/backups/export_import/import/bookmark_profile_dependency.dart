@@ -1,13 +1,15 @@
 import 'package:uuid/uuid.dart';
 
 import '../../../bookmarks/types.dart';
+import '../../../bookmarks/src/types/legacy_group_bookmark.dart';
 import '../../../posts/post/types.dart';
+import '../../../boorus/booru/types.dart';
 import '../../sources/bookmark_backup_data.dart';
 import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
 
-BackupProfileReference bookmarkProfileReference(Bookmark bookmark) =>
+BackupProfileReference bookmarkProfileReference(PostBookmark bookmark) =>
     bookmarkOriginProfileReference(bookmark.post.origin);
 
 BackupProfileReference poolBookmarkProfileReference(CollectionBookmark pool) =>
@@ -27,7 +29,7 @@ BackupProfileReference bookmarkOriginProfileReference(PostOrigin origin) {
   );
 }
 
-List<Bookmark> selectedProfileBookmarks(
+List<PostBookmark> selectedProfileBookmarks(
   BookmarkBackupData data,
   ResolvedImportSource resolution,
 ) {
@@ -48,7 +50,7 @@ List<Bookmark> selectedProfileBookmarks(
   return data.bookmarks.where((b) => selectedIds.contains(b.id)).toList();
 }
 
-Bookmark bookmarkWithProfileHint(Bookmark bookmark, String profileId) {
+PostBookmark bookmarkWithProfileHint(PostBookmark bookmark, String profileId) {
   final snapshot = bookmark.snapshot;
   final origin = snapshot.origin;
   final mappedOrigin = PostOriginSnapshot(
@@ -57,14 +59,28 @@ Bookmark bookmarkWithProfileHint(Bookmark bookmark, String profileId) {
     sourceHost: origin.sourceHost,
     profileIdHint: profileId,
   );
-  return bookmark.copyWith(
+  // A profile hint is not proof of an upstream ID. Preserve the retained
+  // nullable addressability and snapshot rather than rebuilding legacy data.
+  return PostBookmark.fromSnapshot(
+    id: bookmark.id,
+    createdAt: bookmark.createdAt,
+    updatedAt: bookmark.updatedAt,
+    postId: bookmark.postId,
+    sourceUrl: bookmark.sourceUrl,
     snapshot: StoredPostSnapshot(
       origin: mappedOrigin,
       common: snapshot.common,
       custom: snapshot.custom,
       codecVersion: snapshot.codecVersion,
     ),
-    post: bookmark.post.copyWith(origin: PostOrigin.fromSnapshot(mappedOrigin)),
+    post: bookmark.post.copyWith(
+      origin: PostOrigin.fromSource(
+        booruType: bookmark.post.origin.booruType,
+        booruId: bookmark.post.origin.booruId,
+        source: bookmark.post.origin.sourceHost,
+        profileIdHint: profileId,
+      ),
+    ),
   );
 }
 
@@ -93,3 +109,72 @@ CollectionBookmark poolBookmarkWithProfileHint(
     profileIdHint: profileId,
   ),
 );
+
+/// Source hints participate in the existing import dependency gate only. They
+/// never authorize a request or supply missing historical locator evidence.
+BackupProfileReference bookmarkRecordProfileReference(Bookmark record) {
+  final (engine, site, hint) = switch (record) {
+    PostBookmark() => (
+      BooruType.fromLegacyId(record.snapshot.origin.booruTypeId),
+      record.snapshot.origin.sourceHost,
+      record.snapshot.origin.profileIdHint,
+    ),
+    ContentGroupBookmark() => (
+      record.reference.engine,
+      record.reference.siteNamespace,
+      record.sourceProfileHint,
+    ),
+    LegacyGroupBookmark() => (
+      record.metadata.origin.booruType,
+      record.metadata.origin.sourceHost,
+      record.sourceProfileHint,
+    ),
+    _ => throw const FormatException('Unsupported Bookmark record'),
+  };
+  return BackupProfileReference(
+    id: hint ?? const Uuid().v5(Namespace.url.value, '${engine.name}:$site'),
+    booruType: engine.name,
+    url: site,
+    name: site,
+  );
+}
+
+String? bookmarkRecordProfileHint(Bookmark record) => switch (record) {
+  PostBookmark() => record.snapshot.origin.profileIdHint,
+  ContentGroupBookmark() => record.sourceProfileHint,
+  LegacyGroupBookmark() => record.sourceProfileHint,
+  _ => null,
+};
+
+Bookmark bookmarkRecordWithProfileHint(Bookmark record, String profileId) =>
+    switch (record) {
+      PostBookmark() => bookmarkWithProfileHint(record, profileId),
+      ContentGroupBookmark() => record.copyWith(
+        sourceProfileHint: () => profileId,
+      ),
+      LegacyGroupBookmark() => record.copyWith(
+        metadata: poolBookmarkWithProfileHint(record.metadata, profileId),
+      ),
+      _ => throw const FormatException('Unsupported Bookmark record'),
+    };
+
+List<Bookmark> selectedProfileRecords(
+  BookmarkBackupData data,
+  ResolvedImportSource resolution,
+) {
+  if (resolution.action == ImportAction.skip) return const [];
+  if (resolution.action == ImportAction.replace) return data.records;
+  final selected = {
+    for (final item in resolution.items)
+      if (item.action != ImportAction.skip) item.id,
+  };
+  final grouped = {for (final group in data.groups) ...group.bookmarkIds};
+  final ids = {
+    for (final group in data.groups)
+      if (selected.contains('group:${group.id}')) ...group.bookmarkIds,
+    if (selected.contains('ungrouped'))
+      for (final r in data.records)
+        if (!grouped.contains(r.id)) r.id,
+  };
+  return data.records.where((r) => ids.contains(r.id)).toList();
+}

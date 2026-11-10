@@ -124,13 +124,15 @@ class BookmarkHiveObjectAdapter extends TypeAdapter<BookmarkHiveObject> {
       metadata: (fields[14] as Map?)?.cast<String, String>(),
       snapshotSchemaVersion: (fields[15] as num?)?.toInt(),
       postSnapshot: (fields[16] as Map?)?.cast<String, dynamic>(),
+      createdAtMicros: (fields[17] as num?)?.toInt(),
+      updatedAtMicros: (fields[18] as num?)?.toInt(),
     );
   }
 
   @override
   void write(BinaryWriter writer, BookmarkHiveObject obj) {
     writer
-      ..writeByte(17)
+      ..writeByte(19)
       ..writeByte(0)
       ..write(obj.booruId)
       ..writeByte(1)
@@ -164,7 +166,11 @@ class BookmarkHiveObjectAdapter extends TypeAdapter<BookmarkHiveObject> {
       ..writeByte(15)
       ..write(obj.snapshotSchemaVersion)
       ..writeByte(16)
-      ..write(obj.postSnapshot);
+      ..write(obj.postSnapshot)
+      ..writeByte(17)
+      ..write(obj.createdAtMicros)
+      ..writeByte(18)
+      ..write(obj.updatedAtMicros);
   }
 
   @override
@@ -194,6 +200,7 @@ class BookmarkGroupHiveObjectAdapter
       name: fields[1] as String,
       bookmarkIds: (fields[2] as List).cast<int>(),
       folderId: fields[3] as String?,
+      parentGroupId: fields[6] as String?,
       position: fields[4] == null ? 0 : (fields[4] as num).toInt(),
       addedAt: (fields[5] as Map?)?.cast<dynamic, dynamic>(),
     );
@@ -202,7 +209,7 @@ class BookmarkGroupHiveObjectAdapter
   @override
   void write(BinaryWriter writer, BookmarkGroupHiveObject obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -214,7 +221,9 @@ class BookmarkGroupHiveObjectAdapter
       ..writeByte(4)
       ..write(obj.position)
       ..writeByte(5)
-      ..write(obj.addedAt);
+      ..write(obj.addedAt)
+      ..writeByte(6)
+      ..write(obj.parentGroupId);
   }
 
   @override

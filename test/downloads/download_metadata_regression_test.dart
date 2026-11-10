@@ -36,27 +36,28 @@ import '../application/support/fake_image_dio.dart';
 import '../application/support/headless_app_harness.dart';
 import '../support/boorusama_test_runtime.dart';
 
-Bookmark _bookmark(BooruConfig config, {bool video = false}) => Bookmark(
-  id: 1,
-  booruId: config.auth.booruIdHint,
-  postId: 101,
-  createdAt: DateTime.utc(2026, 10, 17),
-  updatedAt: DateTime.utc(2026, 10, 17),
-  thumbnailUrl: 'https://images.test/101-preview.jpg',
-  sampleUrl: 'https://images.test/101-sample.jpg',
-  originalUrl: video
-      ? 'https://images.test/101-original.mp4'
-      : 'https://images.test/101-original.jpg',
-  sourceUrl: config.url,
-  width: 100,
-  height: 100,
-  md5: '00000000000000000000000000000101',
-  tags: const {'cat', 'blue_hair'},
-  realSourceUrl: 'https://source.test/101',
-  format: video ? '.mp4' : '.jpg',
-  imageUrlResolver: const DefaultImageUrlResolver(),
-  metadata: const {},
-).copyWith(sourceUrl: '${config.url}posts/101');
+PostBookmark _bookmark(BooruConfig config, {bool video = false}) =>
+    PostBookmark(
+      id: 1,
+      booruId: config.auth.booruIdHint,
+      postId: 101,
+      createdAt: DateTime.utc(2026, 10, 17),
+      updatedAt: DateTime.utc(2026, 10, 17),
+      thumbnailUrl: 'https://images.test/101-preview.jpg',
+      sampleUrl: 'https://images.test/101-sample.jpg',
+      originalUrl: video
+          ? 'https://images.test/101-original.mp4'
+          : 'https://images.test/101-original.jpg',
+      sourceUrl: config.url,
+      width: 100,
+      height: 100,
+      md5: '00000000000000000000000000000101',
+      tags: const {'cat', 'blue_hair'},
+      realSourceUrl: 'https://source.test/101',
+      format: video ? '.mp4' : '.jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      metadata: const {},
+    ).copyWith(sourceUrl: '${config.url}posts/101');
 
 const _settings = Settings.defaultSettings;
 

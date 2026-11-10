@@ -1,4 +1,5 @@
 import '../search/following_topics/topic_test_utils.dart';
+
 // Dart imports:
 import 'dart:io';
 
@@ -18,6 +19,11 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/content/types.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
@@ -28,6 +34,7 @@ void main() {
   late Box<BookmarkGroupHiveObject> groupBox;
   late BookmarkHiveRepository bookmarks;
   late BookmarkGroupRepositoryHive groups;
+  late BookmarkTestStorage bookmarkStorage;
 
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('bookmark_import_test_');
@@ -39,8 +46,9 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox('bookmark_import_bookmarks');
+    bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox('bookmark_import_groups');
-    bookmarks = BookmarkHiveRepository(bookmarkBox);
+    bookmarks = bookmarkStorage.repository(bookmarkBox);
     groups = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -48,16 +56,98 @@ void main() {
   });
 
   tearDown(() async {
+    await bookmarkStorage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await directory.delete(recursive: true);
   });
 
+  for (final replace in [false, true]) {
+    test(
+      'legacy organization rejects a lossy native Group import (replace=$replace)',
+      () async {
+        final local = (await bookmarks.addBookmarkWithBookmarks([
+          PostBookmark.empty.copyWith(
+            postId: () => 99,
+            sourceUrl: 'https://example.com',
+            originalUrl: 'https://example.com/99.jpg',
+          ),
+        ])).single;
+        await groups.createGroup('Local', id: groupId);
+        await groups.addBookmarks(groupId, {local.id});
+        final originalGroups = await groups.getGroups();
+        final revision = await bookmarks.readRevision();
+        final reservation = bookmarkStorage.metadataBox.get('idReservation');
+        final summary = ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: BooruType.danbooru,
+            site: Uri.parse('https://danbooru.donmai.us'),
+            kind: ContentKind.group,
+            sourceKey: 'pool:42',
+          ),
+          title: 'Native Pool',
+        );
+        final data = BookmarkBackupData.unified(
+          records: [
+            ContentGroupBookmark(
+              id: 99,
+              snapshot: StoredGroupSnapshot(
+                summary: summary,
+                details: ContentGroupDetails(
+                  summary: summary,
+                  description: const GroupDescription(
+                    text: 'Preserve these details',
+                    format: GroupTextFormat.plainText,
+                  ),
+                ),
+              ),
+              createdAt: DateTime.utc(2020),
+              observedAt: DateTime.utc(2026),
+            ),
+          ],
+          groups: [
+            const BookmarkGroupBackup(
+              id: groupId,
+              name: 'Incoming',
+              bookmarkIds: [99],
+            ),
+          ],
+        );
+        final service = BookmarkImportService(
+          bookmarkRepository: bookmarks,
+          groupRepository: groups,
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
+        final plan = const BookmarkImportPlanner().plan(
+          data: data,
+          currentBookmarks: [local],
+          currentGroups: originalGroups,
+        );
+        await expectLater(
+          replace
+              ? service.replace(data)
+              : service.apply(
+                  plan.resolveActions({
+                    groupId: plan.groups.single.resolveAction(
+                      ImportAction.merge,
+                    ),
+                  }),
+                ),
+          throwsStateError,
+        );
+        expect(await bookmarks.readAll(), [local]);
+        expect(await groups.getGroups(), originalGroups);
+        expect(await bookmarks.readRevision(), revision);
+        expect(bookmarkStorage.metadataBox.get('idReservation'), reservation);
+      },
+    );
+  }
+
   test(
     'full Replace restores Default and legacy ungrouped imports preserve metadata',
     () async {
       final local = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           postId: () => 99,
           sourceUrl: 'https://example.com',
           originalUrl: 'https://example.com/99.jpg',
@@ -65,7 +155,7 @@ void main() {
       ])).single;
       await groups.createGroup('Default', id: defaultBookmarkGroupId);
       await groups.addBookmarks(defaultBookmarkGroupId, {local.id});
-      final incoming = Bookmark.empty.copyWith(
+      final incoming = PostBookmark.empty.copyWith(
         id: 40,
         postId: () => 40,
         sourceUrl: 'https://example.com',
@@ -104,7 +194,7 @@ void main() {
       'custom Default import with $action merges members without creating folders or a second system group',
       () async {
         final local = (await bookmarks.addBookmarkWithBookmarks([
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             postId: () => 99,
             sourceUrl: 'https://example.com',
             originalUrl: 'https://example.com/99.jpg',
@@ -113,7 +203,7 @@ void main() {
         await groups.createGroup('Default', id: defaultBookmarkGroupId);
         await groups.addBookmarks(defaultBookmarkGroupId, {local.id});
         final ordinary = await groups.createGroup('Default', id: groupId);
-        final incoming = Bookmark.empty.copyWith(
+        final incoming = PostBookmark.empty.copyWith(
           id: 40,
           postId: () => 40,
           sourceUrl: 'https://example.com',
@@ -181,7 +271,7 @@ void main() {
     test(
       '${testCase.choice.name} preserves the local name and applies expected memberships',
       () async {
-        final local = Bookmark.empty.copyWith(
+        final local = PostBookmark.empty.copyWith(
           id: 1,
           originalUrl: 'https://example.com/local.jpg',
           sourceUrl: 'https://example.com',
@@ -191,7 +281,7 @@ void main() {
         final storedLocal = (await _load(bookmarks)).single;
         await groups.createGroup('Cookie//Artists', id: groupId);
         await groups.addBookmarks(groupId, {storedLocal.id});
-        final imported = Bookmark.empty.copyWith(
+        final imported = PostBookmark.empty.copyWith(
           id: 200,
           originalUrl: 'https://example.com/imported.jpg',
           sourceUrl: 'https://example.com',
@@ -244,7 +334,7 @@ void main() {
         const copyId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
         await groups.createGroup('Cookie//Artists', id: groupId);
         await groups.createGroup('Target//Artists', id: otherId);
-        final imported = Bookmark.empty.copyWith(
+        final imported = PostBookmark.empty.copyWith(
           id: 200,
           sourceUrl: 'https://example.com',
           postId: () => 200,
@@ -298,7 +388,7 @@ void main() {
     await groups.createGroup('Artists', id: groupId);
     const newId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     final plan = const BookmarkImportPlanner().plan(
-      data: const BookmarkBackupData(
+      data: BookmarkBackupData(
         bookmarks: [],
         groups: [
           BookmarkGroupBackup(id: newId, name: 'Artists', bookmarkIds: []),
@@ -322,13 +412,13 @@ void main() {
   });
 
   test('updating a group deletes bookmarks that become orphaned', () async {
-    final removed = Bookmark.empty.copyWith(
+    final removed = PostBookmark.empty.copyWith(
       id: 1,
       originalUrl: 'https://example.com/removed.jpg',
       sourceUrl: 'https://example.com',
       postId: () => 1,
     );
-    final kept = Bookmark.empty.copyWith(
+    final kept = PostBookmark.empty.copyWith(
       id: 2,
       originalUrl: 'https://example.com/kept.jpg',
       sourceUrl: 'https://example.com',
@@ -376,7 +466,7 @@ void main() {
   test(
     'updating a group retains removed bookmarks used by another group',
     () async {
-      final shared = Bookmark.empty.copyWith(
+      final shared = PostBookmark.empty.copyWith(
         id: 1,
         originalUrl: 'https://example.com/shared.jpg',
         sourceUrl: 'https://example.com',
@@ -391,7 +481,7 @@ void main() {
       await groups.addBookmarks(otherGroupId, {stored.id});
       final plan = const BookmarkImportPlanner()
           .plan(
-            data: const BookmarkBackupData(
+            data: BookmarkBackupData(
               bookmarks: [],
               groups: [
                 BookmarkGroupBackup(
@@ -421,7 +511,7 @@ void main() {
     'a failed update restores the local group and removed bookmark',
     () async {
       final stored = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           id: 1,
           sourceUrl: 'https://example.com',
           postId: () => 1,
@@ -430,7 +520,7 @@ void main() {
       await groups.createGroup('Cookie//Artists', id: groupId);
       await groups.addBookmarks(groupId, {stored.id});
       final planned = const BookmarkImportPlanner().plan(
-        data: const BookmarkBackupData(
+        data: BookmarkBackupData(
           bookmarks: [],
           groups: [
             BookmarkGroupBackup(id: groupId, name: 'Artists', bookmarkIds: []),
@@ -441,7 +531,10 @@ void main() {
       );
       await expectLater(
         BookmarkImportService(
-          bookmarkRepository: _ThrowingRemovalBookmarkRepository(bookmarkBox),
+          bookmarkRepository: _ThrowingRemovalBookmarkRepository(
+            bookmarkBox,
+            bookmarkStorage,
+          ),
           groupRepository: groups,
           imageUrlResolver: (_) => const DefaultImageUrlResolver(),
         ).apply(
@@ -463,9 +556,9 @@ void main() {
 
   test('a bookmark read failure leaves every group unchanged', () async {
     await groups.createGroup('Existing', id: groupId);
-    const plan = BookmarkImportPlan(
-      bookmarks: [],
-      missingBookmarks: [],
+    final plan = BookmarkImportPlan(
+      records: [],
+      alreadyExistedCount: 0,
       groups: [
         BookmarkGroupImport(
           id: groupId,
@@ -479,7 +572,10 @@ void main() {
 
     await expectLater(
       BookmarkImportService(
-        bookmarkRepository: _FailingReadBookmarkRepository(bookmarkBox),
+        bookmarkRepository: _FailingReadBookmarkRepository(
+          bookmarkBox,
+          bookmarkStorage,
+        ),
         groupRepository: groups,
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       ).apply(plan),
@@ -491,13 +587,13 @@ void main() {
 
   test('a partially throwing bookmark write is fully rolled back', () async {
     final imported = [
-      Bookmark.empty.copyWith(
+      PostBookmark.empty.copyWith(
         id: 100,
         originalUrl: 'https://example.com/first.jpg',
         sourceUrl: 'https://example.com',
         postId: () => 100,
       ),
-      Bookmark.empty.copyWith(
+      PostBookmark.empty.copyWith(
         id: 101,
         originalUrl: 'https://example.com/second.jpg',
         sourceUrl: 'https://example.com',
@@ -505,14 +601,17 @@ void main() {
       ),
     ];
     final plan = BookmarkImportPlan(
-      bookmarks: imported,
-      missingBookmarks: imported,
+      records: imported,
+      alreadyExistedCount: 0,
       groups: const [],
     );
 
     await expectLater(
       BookmarkImportService(
-        bookmarkRepository: _PartiallyThrowingBookmarkRepository(bookmarkBox),
+        bookmarkRepository: _PartiallyThrowingBookmarkRepository(
+          bookmarkBox,
+          bookmarkStorage,
+        ),
         groupRepository: groups,
         imageUrlResolver: (_) => const DefaultImageUrlResolver(),
       ).apply(plan),
@@ -523,13 +622,18 @@ void main() {
   });
 }
 
-Future<List<Bookmark>> _load(BookmarkHiveRepository repository) =>
+Future<List<PostBookmark>> _load(BookmarkHiveRepository repository) =>
     repository.getAllBookmarksOrEmpty(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     );
 
 class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
-  const _FailingReadBookmarkRepository(super._box);
+  _FailingReadBookmarkRepository(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
   BookmarksOrError getAllBookmarks({
@@ -538,11 +642,16 @@ class _FailingReadBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
-  const _PartiallyThrowingBookmarkRepository(super._box);
+  _PartiallyThrowingBookmarkRepository(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   ) async {
     await super.addBookmarkWithBookmarks([bookmarks.first]);
     throw StateError('bookmark batch failed after a partial write');
@@ -550,10 +659,15 @@ class _PartiallyThrowingBookmarkRepository extends BookmarkHiveRepository {
 }
 
 class _ThrowingRemovalBookmarkRepository extends BookmarkHiveRepository {
-  const _ThrowingRemovalBookmarkRepository(super._box);
+  _ThrowingRemovalBookmarkRepository(super.box, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+      );
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
     await super.removeBookmarks(bookmarks);
     throw StateError('bookmark cleanup failed after removing the orphan');
   }

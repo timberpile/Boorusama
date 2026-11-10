@@ -220,7 +220,7 @@ void main() {
         }
         expect(
           MediaQuery.paddingOf(pageContext).bottom,
-          width < 1000 ? 88 : 24,
+          width < 1000 && !hiddenByScroll ? 88 : 24,
         );
       }
       if (width < 1000) {

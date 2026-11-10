@@ -32,6 +32,7 @@ final bookmarkRoutes = GoRoute(
           final view = switch ((kind, id)) {
             ('all', _) => const BookmarkView.all(),
             ('group', final String id) => BookmarkView.group(id),
+            ('subtree', final String id) => BookmarkView.subtree(id),
             _ => const BookmarkView.defaultGroup(),
           };
           return BookmarkPage(

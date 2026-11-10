@@ -266,6 +266,7 @@ class AppNavigationShell extends ConsumerWidget {
                                       .copyWith(
                                         bottom:
                                             wide ||
+                                                !barPositionVisible ||
                                                 keyboard ||
                                                 chrome.selectionActive ||
                                                 chrome.viewerOpen
@@ -277,6 +278,7 @@ class AppNavigationShell extends ConsumerWidget {
                                       .copyWith(
                                         bottom:
                                             wide ||
+                                                !barPositionVisible ||
                                                 keyboard ||
                                                 chrome.selectionActive ||
                                                 chrome.viewerOpen

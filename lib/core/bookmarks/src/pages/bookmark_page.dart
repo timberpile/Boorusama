@@ -10,6 +10,7 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 // Project imports:
 import '../../../widgets/widgets.dart';
 import '../widgets/bookmark_scroll_view.dart';
+import 'bookmark_group_browser_page.dart';
 import '../widgets/bookmark_appbar.dart';
 import '../types/bookmark_view.dart';
 
@@ -41,6 +42,9 @@ class _BookmarkPageState extends ConsumerState<BookmarkPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.view.kind != BookmarkViewKind.all) {
+      return BookmarkGroupBrowserPage(groupId: widget.view.groupId);
+    }
     return PerformanceScreenScope(
       screen: PerfScreen.bookmarks,
       priority: 2,

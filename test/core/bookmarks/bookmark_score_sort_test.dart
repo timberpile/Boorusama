@@ -83,7 +83,7 @@ void main() {
   }
 }
 
-Bookmark bookmark(int id, int score) {
+PostBookmark bookmark(int id, int score) {
   final post = Post(
     origin: PostOrigin.fromSource(
       booruType: BooruType.danbooru,
@@ -114,7 +114,7 @@ Bookmark bookmark(int id, int score) {
     ),
     booruData: const LegacyPostData(typeKey: 'test', custom: {}),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: id,
     createdAt: DateTime.utc(2026),
     updatedAt: DateTime.utc(2026),

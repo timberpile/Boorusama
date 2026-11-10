@@ -1,101 +1,155 @@
 # Bookmark groups
 
-Bookmark records remain in the `favorites` Hive box. Named groups are stored in
-the `bookmark_groups` box and contain a GUID, a display name, and a set of local
-bookmark keys. Display names are not identities and do not have to be unique.
-Ordinary bookmark UI shows display names only; GUIDs are reserved for import
-conflict identification and persistence.
+## Saved records and local organization
 
-`BookmarkLibraryState` is the shared snapshot for bookmark UI. It builds the
-membership indexes used by the group browser, filtered grids, post actions, and
-bulk actions. A nullable `activeBookmarkGroupId` setting stores the add/remove
-target. Missing, invalid, or legacy null targets resolve to the permanent Default
-group. `All` is a view and is never an assignment target.
+A Bookmark has a canonical local integer ID. Posts, native Content Groups,
+Related families, and retained legacy Collections share the durable allocator,
+record index, and mutation journal. Post payloads remain in `favorites`; other
+record payloads and their headers live in the corresponding content boxes.
+A saved remote Pool, Work, Gallery, or Related family is one Bookmark, distinct
+from a local Bookmark Group and from a separately saved member Post.
 
-## Default and membership removal
+Local groups have a stable UUID, display name, nullable `parentGroupId`, sibling
+`position`, direct `bookmarkIds`, and exact UTC direct-membership dates.
+Names may repeat. Parent pointers are authoritative: there is no persisted
+folder flag, child list, or descendant-membership list. `BookmarkGroupTree`
+provides immutable ordered adjacency, iterative traversal, and graph validation.
+Following Topics retain their independent folder model.
+Legacy folder aliases apply only to explicitly tagged folder references and
+old folder routes. Canonical Group UUIDs, including Default, are never remapped
+through that compatibility table.
 
-Default is a real, root-level group with reserved UUID
-`00000000-0000-0000-0000-000000000000` (the nil UUID). Its system role is derived from that
-identity, never its name. Repository APIs reject rename, deletion, and folder
-placement. At Home, All and Default appear side by side above a horizontal
-divider; user-created folders and groups appear below it. Ordinary groups may
-also be named Default. Loading repairs stale
-membership references, creates the system group, and assigns only bookmarks
-with no memberships to Default. This migration is idempotent and preserves
-snapshots and timestamps. Adding explicitly to another group never removes or
-adds a Default membership.
+`BookmarkLibraryState` publishes the canonical records and direct membership
+indexes. `.group(id)` is a direct read scope, `.subtree(id)` is a local union,
+and `.all()` is library-wide. Subtree deduplication uses local integer IDs;
+it never reconstructs an identity from a retained Post snapshot. Newest/oldest
+membership sorting considers only dates within the selected scope. A bounded
+snapshot cache retains recently used subtree projections rather than computing
+all descendant unions.
 
-Every bookmark belongs to at least one group. Add preserves other memberships;
-Remove targets exactly one group and deletes bookmarks losing their final
-membership. The All view requires source-group selection. Global deletion APIs
-remain internal to maintenance and replacement operations.
+## Default and direct mutations
 
-## Viewer removal feedback
+Default is the protected root group with nil UUID
+`00000000-0000-0000-0000-000000000000`. Its role comes from its identity,
+not its name. It cannot be renamed, moved, or deleted. An ordinary group may
+also be named Default. Home and All are navigation/read views, never writable
+parents or implicit assignment targets.
 
-Viewer toolbar removals persist immediately. The viewer keeps its post-list
-snapshot while the underlying grid refreshes after closing. Removal shows one
-localized Undo Snackbar for the successful operation, with removed and deleted
-counts. Undo runs through the shared serialized mutation queue, restores only
-the removed membership, and restores deleted snapshots using current local IDs.
-It preserves a newer snapshot or other memberships if the bookmark was added
-again. Missing source groups, a superseding removal, and import/restore
-boundaries invalidate Undo with feedback. Expiring feedback or terminating the
-app requires no cleanup of persisted orphan records.
+Each Bookmark belongs to at least one group. Adding to a group preserves other
+memberships. Removing targets an explicit direct membership and deletes a
+record only when it loses its final membership. An aggregate view asks for an
+actual source group; subtree removal choices are restricted to that subtree.
+The absence of a direct membership in its parent never authorizes global deletion.
+Favorites Sync remains additive and targets one group's direct memberships.
 
-## Backup compatibility
+Moving a group changes only its parent/order. Duplicating copies its entire
+subgroup hierarchy into a sibling branch with fresh group IDs. Each copied group
+retains its direct memberships, membership dates and relative sibling order;
+empty subgroups are retained and the saved records remain shared. Deleting a group preserves its surviving
+children by promoting them to the nearest surviving parent, while applying the
+existing orphan policy to the deleted group's own memberships. Bulk selections
+are validated together; ancestor/descendant moves do not repeat the subtree.
+The shared journal commits the complete organization change.
 
-Current export and import uses the `.bsexport` container. A Full export marks
-the bookmark source as complete and recommends category replacement. A custom
-export records whether all groups (including future groups) or exact current
-group UUIDs were selected. Per-group Update preserves the exact local name and
-UUID while replacing membership and removing newly orphaned bookmarks. Merge and Merge into preserve
-the local target name and keep local-only memberships. New groups and copies use
-the imported name. Full category Replace restores the imported group
-definitions. Import choices are validated before the durable package transaction
-starts.
+Hierarchy Undo retains only affected groups and records. It restores UUIDs,
+parent/order and exact membership dates, and reserves new monotonic IDs for
+orphan payloads that were deleted. It preserves newer child names, memberships
+and payload observations. Recreated group identities, newer child moves, or a
+later global deletion of an originally shared record reject Undo before writing.
+An explicitly deleted surviving child is not resurrected.
 
-Package imports write bookmark repositories directly, bypassing the bookmark
-provider mutation methods. After the durable transaction commits, the import
-flow must await a provider reload before showing completion; otherwise the
-group browser can keep displaying its stale pre-import snapshot.
+## Group screen and picker
 
-Bookmark backup version 5 includes folders, placements, and the Default group's
-`systemRole: "default"`. Compatible version-4 exports remain importable; imported
-bookmarks without memberships are assigned to Default. Full Replace restores one
-Default group. Custom import always merges incoming Default members, and never
-copies the system group into an import wrapper. Ordinary group import modes
-retain their existing semantics.
+Home and ordinary groups share one screen. Structure shows immediate child cards
+above the direct Bookmark timeline on one lazy vertical scroll surface.
+Content queries, sorting and source filters do not filter or reorder child cards.
+All Bookmarks hides the cards and shows the deduplicated subtree timeline.
+A truly empty direct section has a compact empty state; filtered-empty content
+retains its controls. The production measured floating timeline header returns
+to its natural position below the cards when scrolling upward through the boundary.
+Pinned controls retain their visibility setting when the measured header fits.
+If enlarged text, wrapped chips or a reduced viewport make the header taller
+than the usable viewport, it scrolls naturally so every control remains reachable.
+Pinning resumes as soon as the header fits again.
+Group search suggestions stay between the navigation Header and the keyboard.
+When that area cannot fit an interactive row, suggestions remain hidden until
+space is available; they never cover the mode or ancestor controls.
 
-Bookmark backup version 4 stores bookmarks in the top-level `data` array and
-groups in the top-level `groups` array. Each bookmark carries its full post
-snapshot and canonical `(site namespace, upstream post key)` identity. The site
-namespace is the lowercase host plus non-default port and installation path;
-scheme, credentials, query, fragment, and trailing slash do not affect it.
-Full URLs discard only the port default for their own scheme. Stored, scheme-less
-namespaces retain an explicit port, including `:80` or `:443`, so reloading
-cannot merge an HTTP `:443` installation with the HTTPS default. Changing an
-unusual installation between those two forms changes its namespace.
-The post key is a stable upstream ID, or a work/page key for Pixiv. Engine and
-profile metadata, media URLs, and local Hive keys are not identity components.
-The importer verifies each serialized identity against its decoded snapshot
-before any repository mutation. Group `bookmarkIds` refer to file-local bookmark
-IDs in `data`; references absent from `data` are rejected before import
-planning. Valid references are resolved to local keys during import.
+Local child cards and saved records use separate typed selection controllers.
+The card section binds its Group controller explicitly inside the shared
+timeline viewport. Entering either selection scope clears the other; hidden
+child cards in All Bookmarks are not keyboard-selection targets.
 
-Versions 1 through 3 are unsupported after this breaking schema change. Old
-local bookmark rows are ignored on ordinary loading, with no URL fallback.
-Posts without a stable upstream ID cannot be bookmarked; bookmark actions show
-an explanatory error instead. Native Sankaku string IDs are preserved in
-post snapshots and decoded from Hive's untyped nested map values on reload.
+The Header title opens a Kurumi ancestor menu; Back moves up one group level.
+The Header mode control preserves the committed query while changing scope,
+and selection/scroll state is scoped by group UUID and mode. Groups without
+children hide the mode control without discarding their stored choice.
+`bookmarkGroupViewModes` uses local misc-data storage and is excluded from
+Bookmark transfer and settings backups. Confirmed deletion prunes its UUID;
+Undo may restore a missing preference. Cache-write failure does not report a
+confirmed domain mutation as failed, and subsequent loading retries cleanup.
 
-Group objects carry a UUID `id`, name, and `bookmarkIds`. The UUID identifies a
-group for import conflicts; the name remains a display label.
+All picker presenters share hierarchy navigation and frozen action requests.
+A row's body performs its direct membership or target-selection action; its
+separate full-height 80-pixel trailing target opens that group, including leaves.
+A current-group row remains selectable. Recent rows use the same split actions.
+The top row keeps Back/path left and Add Group right. System Back and Escape
+move up one level, dismissing only at Home; anchored overlays delegate Back
+through their actual presenter. Child routes and their text input retain their
+normal ownership. Navigation performs no remote metadata/member requests and
+does not mutate membership or Recent ordering.
 
-Only matching GUIDs conflict; equal names or displayed paths do not match
-groups. The legacy per-group Replace conflict choice resolves to Update and
-therefore preserves the local name while replacing membership and removing
-newly orphaned bookmarks. All conflict choices are collected before storage is
-changed, so cancelling a conflict dialog cancels the whole import.
+## Storage upgrade and recovery
+
+`BookmarkStorageMigration` resolves pending unified journals before conversion.
+It supports legacy storage and an already active #155 unified-v2 generation,
+including subsequent writes and allocator reservations. The hierarchy is staged
+as an explicit organization-v3 generation and activated at one durable marker.
+A partially staged generation cannot become an ordinary writable facade.
+
+Former folders become ordinary initially empty groups. Existing group UUIDs,
+record IDs, memberships, dates, loaded details, Related ordering, tombstones and
+allocator continuity are preserved. Cross-namespace UUID collisions use a
+persisted deterministic folder-to-group map. Original legacy/v2 files remain
+available as recovery evidence. Compatibility aliases support old folder-based
+selection/template references without restoring a second canonical folder model.
+
+The Hive Post adapter preserves its type ID and existing field numbers. Optional
+fields 17/18 retain exact record timestamp microseconds; rows without those
+fields retain their original DateTime fallback and timezone flag. Group parent
+storage uses its own added field rather than reusing a legacy folder field.
+
+## Transfer compatibility
+
+The current `.bsexport` Bookmark source is version 10. Its single `data` array
+contains typed saved records; groups contain direct file-local member IDs,
+`parentGroupId`, position and exact membership dates. The writer marks
+`organizationSchema: "nestedGroups"` and emits no canonical `folders` array.
+Readers retain versions 4 through 9 and explicitly recognize the transitional
+#155-only v10 folder shape. Ambiguous, mixed, unmarked new shapes and invalid
+parent graphs are rejected before mutation. Versions 1 through 3 are unsupported.
+
+Transfer integer IDs are file-local references. Applying an import remaps them
+through durable local reservations; no imported number selects an existing
+payload slot. Proven source identities may deduplicate content, while readable
+unaddressable Posts and opaque legacy Collections remain independent records.
+Profile hints are not content identity and clearing a hint never infers a source
+ID from a retained snapshot. Loading preserved local media does not require a
+matching profile or successful remote request.
+
+Group conflict identity is its UUID, never its name or displayed path. Update
+replaces direct membership while preserving the existing name and placement;
+Merge retains local-only memberships. Copies use ordinary local groups and
+remap parents consistently. Full category Replace restores validated imported
+definitions. Preview and apply share the same normalized hierarchy preparation,
+and cancellation/preflight failure performs no partial import. After a durable
+import, provider reload completes before the UI reports completion.
+
+Scoped subtree export retains separate group definitions and empty structural
+ancestors without including unselected ancestor contents. Partial tree selection
+can retain a parent's direct records while excluding a child. Default retains
+its system role and is never copied into an import wrapper. Compatibility rules
+for older formats remain covered by the transfer suites.
 
 ## Automatic backup retention
 

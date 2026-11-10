@@ -24,6 +24,7 @@ import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/backups/utils/json_handler.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/data/hive/tag_repository.dart';
 import 'package:boorusama/core/blacklists/src/data/hive/tag_hive_object.dart';
@@ -40,6 +41,9 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
@@ -390,11 +394,7 @@ void main() {
           id: 'a0000000-0000-4000-8000-000000000004',
         );
         await harness.bookmarks.addBookmarkWithBookmarks([
-          Bookmark.empty.copyWith(
-            originalUrl: 'https://local.example/duplicate.jpg',
-            sourceUrl: 'https://danbooru.donmai.us',
-            postId: () => 42,
-          ),
+          _danbooruDuplicateBookmark(),
         ]);
         await harness.container.read(bookmarkProvider.notifier).refresh();
         final notifier = harness.container.read(importFlowProvider.notifier);
@@ -976,6 +976,7 @@ class _Harness {
     this.blacklist,
     this.container,
     this.boxes,
+    this.bookmarkStorage,
   );
   final Directory directory;
   final BookmarkHiveRepository bookmarks;
@@ -985,6 +986,7 @@ class _Harness {
   final HiveBlacklistedTagRepository blacklist;
   final ProviderContainer container;
   final List<Box> boxes;
+  final BookmarkTestStorage bookmarkStorage;
 
   static Future<_Harness> create({required bool populated}) async {
     final directory = await Directory.systemTemp.createTemp(
@@ -998,6 +1000,7 @@ class _Harness {
     _registerAdapter(SearchPostPreviewHiveObjectAdapter());
     _registerAdapter(RecentSearchPostHiveObjectAdapter());
     final bookmarkBox = await Hive.openBox<BookmarkHiveObject>('favorites');
+    final bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
     final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
       'bookmark_groups',
     );
@@ -1008,7 +1011,7 @@ class _Harness {
       'pinned_search_folders',
     );
     final profileBox = await Hive.openBox<String>('booru_configs');
-    final bookmarks = BookmarkHiveRepository(bookmarkBox);
+    final bookmarks = bookmarkStorage.repository(bookmarkBox);
     final groups = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -1032,7 +1035,7 @@ class _Harness {
     await blacklist.addTag('local_rule');
     if (populated) {
       final bookmark = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           originalUrl: 'https://local.example/99.jpg',
           sourceUrl: 'https://local.example',
           postId: () => 99,
@@ -1060,6 +1063,7 @@ class _Harness {
     }
     final container = ProviderContainer(
       overrides: [
+        ...bookmarkStorage.overrides,
         loggerProvider.overrideWithValue(AppLogger()),
         booruEngineRegistryProvider.overrideWith(_engineRegistry),
         bookmarkRepoProvider.overrideWith((ref) => bookmarks),
@@ -1104,17 +1108,53 @@ class _Harness {
         profileBox,
         Hive.box<BlacklistedTagHiveObject>('blacklisted_tags'),
       ],
+      bookmarkStorage,
     );
   }
 
   Future<void> close() async {
     container.dispose();
     // Staged package disposal is asynchronous; Hive handles are owned here.
+    await bookmarkStorage.close();
     for (final box in boxes) {
       await box.close();
     }
     await directory.delete(recursive: true);
   }
+}
+
+PostBookmark _danbooruDuplicateBookmark() {
+  final legacy = PostBookmark.empty.copyWith(
+    originalUrl: 'https://local.example/duplicate.jpg',
+    sourceUrl: 'https://danbooru.donmai.us',
+    postId: () => 42,
+  );
+  final origin = PostOrigin.fromSource(
+    booruType: BooruType.danbooru,
+    booruId: BooruType.danbooru.id,
+    source: 'https://danbooru.donmai.us',
+  );
+  final snapshot = const StoredPostCodec().encode(
+    legacy.post.copyWith(origin: origin),
+  );
+  final decodedPost = switch (const StoredPostCodec().decode(snapshot)) {
+    StoredPostDecodeSuccess(:final post) => post,
+    StoredPostDecodeFailure() => throw StateError(
+      'Could not decode the Danbooru duplicate fixture',
+    ),
+  };
+  if (decodedPost.origin != origin || decodedPost.id != legacy.postId) {
+    throw StateError('Danbooru duplicate fixture did not round-trip');
+  }
+  return PostBookmark.fromSnapshot(
+    id: legacy.id,
+    createdAt: legacy.createdAt,
+    updatedAt: legacy.updatedAt,
+    snapshot: snapshot,
+    post: decodedPost,
+    postId: legacy.postId,
+    sourceUrl: legacy.sourceUrl,
+  );
 }
 
 class _FileSystem extends IoFileSystem {

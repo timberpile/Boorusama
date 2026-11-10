@@ -30,8 +30,8 @@ class BookmarkReadCounter {
   };
 }
 
-class ReadCountedBookmark extends Bookmark {
-  ReadCountedBookmark(Bookmark value, this.counter)
+class ReadCountedBookmark extends PostBookmark {
+  ReadCountedBookmark(PostBookmark value, this.counter)
     : super.fromSnapshot(
         id: value.id,
         createdAt: value.createdAt,
@@ -61,7 +61,7 @@ class ReadCountedBookmark extends Bookmark {
   }
 }
 
-Bookmark scalabilityBookmark(
+PostBookmark scalabilityBookmark(
   int id, {
   int? upstreamId,
   DateTime? savedAt,
@@ -78,7 +78,7 @@ Bookmark scalabilityBookmark(
       profileIdHint: scalabilityProfileId,
     ),
   );
-  final value = Bookmark.fromSnapshot(
+  final value = PostBookmark.fromSnapshot(
     id: id,
     createdAt: savedAt ?? scalabilityEpoch.add(Duration(seconds: id % 31)),
     updatedAt: scalabilityEpoch,
@@ -91,7 +91,7 @@ Bookmark scalabilityBookmark(
 }
 
 BookmarkLibraryState scalabilityLibrary(
-  List<Bookmark> bookmarks, {
+  List<PostBookmark> bookmarks, {
   Set<int>? members,
 }) => BookmarkLibraryState(
   bookmarks: bookmarks,

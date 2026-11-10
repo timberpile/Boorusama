@@ -36,4 +36,76 @@ void main() {
 
     expect(events, ['outer', 'inner']);
   });
+
+  test(
+    'expired transaction zones cannot bypass a later active mutation',
+    () async {
+      final coordinator = DataMutationCoordinator();
+      late Zone expiredZone;
+      await coordinator.runExclusive(() async {
+        expiredZone = Zone.current;
+      });
+
+      final secondStarted = Completer<void>();
+      final releaseSecond = Completer<void>();
+      final second = coordinator.runExclusive(() async {
+        secondStarted.complete();
+        await releaseSecond.future;
+      });
+      await secondStarted.future;
+
+      var thirdStarted = false;
+      final third = expiredZone.run(
+        () => coordinator.runExclusive(() async {
+          thirdStarted = true;
+        }),
+      );
+
+      try {
+        expect(thirdStarted, isFalse);
+      } finally {
+        releaseSecond.complete();
+      }
+      await Future.wait([second, third]);
+      expect(thirdStarted, isTrue);
+    },
+  );
+
+  test(
+    'failed transaction zones cannot bypass a later active mutation',
+    () async {
+      final coordinator = DataMutationCoordinator();
+      late Zone expiredZone;
+      await expectLater(
+        coordinator.runExclusive<void>(() {
+          expiredZone = Zone.current;
+          return Future<void>.error(StateError('expected failure'));
+        }),
+        throwsA(isA<StateError>()),
+      );
+
+      final secondStarted = Completer<void>();
+      final releaseSecond = Completer<void>();
+      final second = coordinator.runExclusive(() async {
+        secondStarted.complete();
+        await releaseSecond.future;
+      });
+      await secondStarted.future;
+
+      var thirdStarted = false;
+      final third = expiredZone.run(
+        () => coordinator.runExclusive(() async {
+          thirdStarted = true;
+        }),
+      );
+
+      try {
+        expect(thirdStarted, isFalse);
+      } finally {
+        releaseSecond.complete();
+      }
+      await Future.wait([second, third]);
+      expect(thirdStarted, isTrue);
+    },
+  );
 }

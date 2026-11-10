@@ -261,6 +261,7 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
           booruRegistry: booruRegistry,
           bookmarkRepositoryFactory: HiveBookmarkRepositoryFactory(
             logger: logger,
+            fs: fileSystem,
           ),
           bookmarkGroupRepositoryFactory:
               const HiveBookmarkGroupRepositoryFactory(),

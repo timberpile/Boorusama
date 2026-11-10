@@ -157,32 +157,48 @@ class ServerFavoriteSettingsNotifier
     FutureOr<ServerFavoriteSettings> Function(ServerFavoriteSettings) update,
     Iterable<String?> Function(ServerFavoriteSettings, ServerFavoriteSettings)
     groupsToBind,
-  ) => ref.read(dataMutationCoordinatorProvider).runExclusive(() async {
-    final current = await future;
-    final updated = await update(current);
-    final groupIds = groupsToBind(current, updated).nonNulls.toSet();
-    if (groupIds.isNotEmpty) {
-      final library = await ref
-          .read(bookmarkLibraryProvider.notifier)
-          .snapshotForExport();
-      for (final groupId in groupIds) {
-        validateServerFavoriteBinding(
-          groupId: groupId,
-          groupIds: library.groupsById.keys.toSet(),
-        );
+  ) async {
+    final coordinator = ref.read(dataMutationCoordinatorProvider);
+    Future<void> commit(bool admitted) => coordinator.runExclusive(() async {
+      final current = await future;
+      final updated = await update(current);
+      final groupIds = groupsToBind(current, updated).nonNulls.toSet();
+      if (groupIds.isNotEmpty) {
+        if (!admitted) throw const _FavoriteLibraryAdmissionRequired();
+        final library = await ref
+            .read(bookmarkLibraryProvider.notifier)
+            .snapshotForExport();
+        for (final groupId in groupIds) {
+          validateServerFavoriteBinding(
+            groupId: groupId,
+            groupIds: library.groupsById.keys.toSet(),
+          );
+        }
       }
+      if (updated == current) return;
+      // Assignment only changes local settings. Existing Post and collection
+      // memberships, snapshots and dates are never cleared or rewritten here.
+      await ref
+          .read(miscDataStoreProvider)
+          .put(
+            serverFavoriteSettingsStorageKey,
+            jsonEncode(updated.toJson()),
+          );
+      // Publish only a successful settings write. Explicit fetch actions are
+      // handled by the fetch controller, never by assigning a destination.
+      state = AsyncData(updated);
+    });
+    try {
+      // Clearing and disabling remain available when Bookmark storage fails.
+      await commit(false);
+    } on _FavoriteLibraryAdmissionRequired {
+      await ref
+          .read(bookmarkLibraryProvider.notifier)
+          .runWithLibrary(() => commit(true));
     }
-    if (updated == current) return;
-    // Assignment only changes local settings. Existing Post and collection
-    // memberships, snapshots and dates are never cleared or rewritten here.
-    await ref
-        .read(miscDataStoreProvider)
-        .put(
-          serverFavoriteSettingsStorageKey,
-          jsonEncode(updated.toJson()),
-        );
-    // Publish only a successful settings write. Explicit fetch actions are
-    // handled by the fetch controller, never by assigning a destination.
-    state = AsyncData(updated);
-  });
+  }
+}
+
+final class _FavoriteLibraryAdmissionRequired implements Exception {
+  const _FavoriteLibraryAdmissionRequired();
 }

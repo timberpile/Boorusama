@@ -47,7 +47,7 @@ void main() {
             tags: const {},
             coverage: PoolTagCoverage.unknown,
           ),
-          RelatedBookmark(
+          RelatedCollectionBookmark(
             family: RelatedFamilyReference(origin: origin, anchorId: 99),
             localId: '00000000-0000-4000-8000-000000000099',
             createdAt: created,
@@ -109,6 +109,34 @@ void main() {
       },
     );
   }
+
+  test(
+    'cold target assignment admits storage before taking the coordinator',
+    () async {
+      final library = h.container.read(bookmarkLibraryProvider.notifier);
+      final target = await library.createGroup('Existing');
+      await library.addPostsToGroup(h.profile.auth, [h.post(3)], target.id);
+      final before = await library.snapshotForExport();
+      await h.restart(warmLibrary: false);
+      expect(h.container.exists(bookmarkLibraryProvider), isFalse);
+      final settings = h.container.read(
+        serverFavoriteSettingsProvider.notifier,
+      );
+      await settings.setGlobal(target.id).timeout(const Duration(seconds: 10));
+      expect(
+        (await h.container.read(serverFavoriteSettingsProvider.future))
+            .globalGroupId,
+        target.id,
+      );
+      expect(
+        await h.container
+            .read(bookmarkLibraryProvider.notifier)
+            .snapshotForExport(),
+        before,
+      );
+      expect(h.source.calls, 0);
+    },
+  );
 
   test(
     'a settings write failure leaves populated target contents untouched',

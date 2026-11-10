@@ -39,6 +39,8 @@ import 'package:hive_ce/hive.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 
+import '../test/support/fakes/bookmark_test_storage.dart';
+
 void main() {
   final profile = BooruConfig.fromJson({
     ...BooruConfig.defaultConfig(
@@ -105,9 +107,10 @@ void main() {
         }
         final metrics = _Metrics();
         final rows = await Hive.openBox<BookmarkHiveObject>('rows');
+        final bookmarkStorage = await BookmarkTestStorage.open(rows);
         final groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups');
         final organization = await Hive.openBox<dynamic>('organization');
-        final repository = _Bookmarks(rows, metrics);
+        final repository = _Bookmarks(rows, metrics, bookmarkStorage);
         final groups = _Groups(groupBox, organization, metrics);
         final saved = await repository.addBookmarks(
           profile.booruId,
@@ -122,6 +125,7 @@ void main() {
         await groups.addBookmarks(other.id, allIds);
         final container = ProviderContainer(
           overrides: [
+            ...bookmarkStorage.overrides,
             booruConfigProvider.overrideWith(
               () => BooruConfigNotifier(initialConfigs: [profile]),
             ),
@@ -141,6 +145,7 @@ void main() {
         addTearDown(() async {
           performanceRecorder.clear();
           container.dispose();
+          await bookmarkStorage.close();
           await rows.close();
           await groupBox.close();
           await organization.close();
@@ -400,8 +405,13 @@ class _Metrics {
 }
 
 class _Bookmarks extends BookmarkHiveRepository {
-  _Bookmarks(super._box, this.metrics)
-    : super(postDataCodec: (_) => const GelbooruV2PostCodec());
+  _Bookmarks(super.box, this.metrics, BookmarkTestStorage storage)
+    : super(
+        groupPayloadBox: storage.groupPayloadBox,
+        metadataBox: storage.metadataBox,
+        coordinator: storage.coordinator,
+        postDataCodec: (_) => const GelbooruV2PostCodec(),
+      );
   final _Metrics metrics;
   @override
   BookmarksOrError getAllBookmarks({
@@ -418,7 +428,7 @@ class _Bookmarks extends BookmarkHiveRepository {
     }
   });
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int?) imageUrlResolver,
@@ -432,16 +442,17 @@ class _Bookmarks extends BookmarkHiveRepository {
     ),
   );
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(List<Bookmark> bookmarks) =>
-      metrics.write(() => super.addBookmarkWithBookmarks(bookmarks));
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
+  ) => metrics.write(() => super.addBookmarkWithBookmarks(bookmarks));
   @override
-  Future<void> removeBookmark(Bookmark bookmark) =>
+  Future<void> removeBookmark(PostBookmark bookmark) =>
       metrics.write(() => super.removeBookmark(bookmark));
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) =>
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) =>
       metrics.write(() => super.removeBookmarks(bookmarks));
   @override
-  Future<void> updateBookmark(Bookmark bookmark) =>
+  Future<void> updateBookmark(PostBookmark bookmark) =>
       metrics.write(() => super.updateBookmark(bookmark));
 }
 
@@ -456,8 +467,12 @@ class _Groups extends BookmarkGroupRepositoryHive {
   Future<BookmarkGroup> removeBookmarks(String id, Set<int> ids) =>
       metrics.write(() => super.removeBookmarks(id, ids));
   @override
-  Future<BookmarkGroup> replaceMemberships(String id, Set<int> ids) =>
-      metrics.write(() => super.replaceMemberships(id, ids));
+  Future<BookmarkGroup> replaceMemberships(
+    String id,
+    Set<int> ids, {
+    Map<int, DateTime>? addedAt,
+  }) =>
+      metrics.write(() => super.replaceMemberships(id, ids, addedAt: addedAt));
   @override
   Future<bool> repair({required Set<int> validBookmarkIds}) {
     metrics.repairs++;

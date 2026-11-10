@@ -15,6 +15,7 @@ class BookmarkGroupRepositoryHive
         BookmarkGroupRepository,
         BookmarkFolderRepository,
         BookmarkRecentGroupRepository,
+        BookmarkHierarchyAliasRepository,
         PoolBookmarkRepository {
   BookmarkGroupRepositoryHive(
     this._box, {
@@ -58,6 +59,11 @@ class BookmarkGroupRepositoryHive
     final localIds = <String>{};
     final groups = (await getGroups()).map((g) => g.id).toSet();
     for (final bookmark in bookmarks) {
+      if (bookmark.loadedDetails != null) {
+        throw const FormatException(
+          'Loaded Details require unified Group storage',
+        );
+      }
       if (!Uuid.isValidUUID(fromString: bookmark.localId) ||
           !identities.add(bookmark.identity) ||
           !localIds.add(bookmark.localId) ||
@@ -71,6 +77,17 @@ class BookmarkGroupRepositoryHive
       bookmarks.map((b) => b.toJson()).toList(),
     );
   }
+
+  @override
+  Future<Map<String, String>> readLegacyFolderGroupIds() async =>
+      Map.unmodifiable({
+        for (final entry
+            in (_organizationBox?.get('legacyFolderGroupIds') as Map? ??
+                    const {})
+                .entries)
+          if (entry.key is String && entry.value is String)
+            entry.key as String: entry.value as String,
+      });
 
   @override
   Future<List<String>> readRecentGroupIds() async {
@@ -307,6 +324,7 @@ class BookmarkGroupRepositoryHive
       name: group.name,
       bookmarkIds: group.bookmarkIds.toList()..sort(),
       folderId: group.folderId,
+      parentGroupId: group.parentGroupId,
       position: group.position,
       addedAt: group.addedAt.map(
         (id, date) => MapEntry(id, date.toUtc().toIso8601String()),
@@ -331,6 +349,7 @@ class BookmarkGroupRepositoryHive
       name: _normalizeName(object.name),
       bookmarkIds: object.bookmarkIds.toSet(),
       folderId: object.folderId,
+      parentGroupId: object.parentGroupId,
       position: object.position,
       addedAt: {
         for (final entry in (object.addedAt ?? const {}).entries)

@@ -17,9 +17,12 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
+import '../../support/fakes/bookmark_test_storage.dart';
+
 void main() {
   late Directory tempDirectory;
   late Box<BookmarkHiveObject> box;
+  late BookmarkTestStorage storage;
 
   setUp(() async {
     tempDirectory = await Directory.systemTemp.createTemp(
@@ -30,42 +33,46 @@ void main() {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
     }
     box = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    storage = await BookmarkTestStorage.open(box);
   });
 
   tearDown(() async {
+    await storage.close();
     await box.close();
     await tempDirectory.delete(recursive: true);
   });
 
   test('unkeyable bookmarks cannot become current Hive rows', () {
     expect(
-      () => favoriteToHiveObject(Bookmark.empty),
+      () => favoriteToHiveObject(PostBookmark.empty),
       throwsFormatException,
     );
   });
 
   test('a batch with one missing upstream ID makes no writes', () {
-    final valid = Bookmark.empty
+    final valid = PostBookmark.empty
         .copyWith(
           sourceUrl: 'https://booru.example',
           postId: () => 42,
         )
         .toPost();
-    final invalid = Bookmark.empty.toPost();
+    final invalid = PostBookmark.empty.toPost();
 
     expect(
-      () => BookmarkHiveRepository(box).addBookmarks(
-        BooruType.gelbooruV2.id,
-        [valid, invalid],
-        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-        postLinkGenerator: (_) => const _TestLinkGenerator(),
-      ),
+      () => storage
+          .repository(box)
+          .addBookmarks(
+            BooruType.gelbooruV2.id,
+            [valid, invalid],
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+            postLinkGenerator: (_) => const _TestLinkGenerator(),
+          ),
       throwsFormatException,
     );
     expect(box.isEmpty, isTrue);
   });
 
-  test('old URL-only rows stay unread without changing stored data', () async {
+  test('old URL-only rows remain readable without guessing identity or changing storage', () async {
     await box.put(
       17,
       BookmarkHiveObject(
@@ -86,17 +93,25 @@ void main() {
         metadata: const {},
       ),
     );
-    final read = await BookmarkHiveRepository(box).getAllBookmarksOrThrow(
-      imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-    );
+    final read = await storage
+        .repository(box)
+        .getAllBookmarksOrThrow(
+          imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+        );
 
-    expect(read, isEmpty);
+    expect(read, hasLength(1));
+    expect(read.single.id, 17);
+    expect(read.single.originalUrl, 'https://img.example/original.jpg');
+    expect(read.single.sourceUrl, 'https://booru.example/posts/42');
+    expect(read.single.post.origin.sourceHost, isEmpty);
+    expect(read.single.uniqueId, isA<UnbookmarkablePostIdentity>());
+    expect(BookmarkIdentity.tryFromPost(read.single.post), isNull);
     expect(box.get(17)!.snapshotSchemaVersion, isNull);
     expect(box.get(17)!.postSnapshot, isNull);
   });
 
   test('native Sankaku string identity survives a Hive reload', () async {
-    final post = Bookmark.empty
+    final post = PostBookmark.empty
         .copyWith(
           id: 88,
           sourceUrl: 'https://sankaku.example/board',
@@ -121,7 +136,7 @@ void main() {
             metaDetailsTags: [],
           ),
         );
-    BookmarkHiveRepository repository() => BookmarkHiveRepository(
+    BookmarkHiveRepository repository() => storage.repository(
       box,
       postDataCodec: (type) =>
           type == BooruType.sankaku ? const SankakuPostCodec() : null,
@@ -135,6 +150,8 @@ void main() {
     );
     await box.close();
     box = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    await storage.close();
+    storage = await BookmarkTestStorage.open(box);
 
     final loaded = await repository().getAllBookmarksOrThrow(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
@@ -146,9 +163,9 @@ void main() {
   });
 
   test(
-    'old snapshot schema stays unread while the current row loads',
+    'old snapshot rows retain their IDs and payload without claiming identity',
     () async {
-      final bookmark = Bookmark(
+      final bookmark = PostBookmark(
         id: 42,
         booruId: BooruType.gelbooruV2.id,
         createdAt: DateTime.utc(2026),
@@ -171,14 +188,31 @@ void main() {
       await box.put(1, old);
       await box.put(2, favoriteToHiveObject(bookmark));
 
-      final read = await BookmarkHiveRepository(box).getAllBookmarksOrThrow(
-        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-      );
+      final read = await storage
+          .repository(box)
+          .getAllBookmarksOrThrow(
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+          );
 
-      expect(read, hasLength(1));
-      expect(read.single.id, 2);
-      expect(read.single.post.origin.sourceHost, 'booru.example/board');
-      expect(read.single.uniqueId, isA<BookmarkIdentity>());
+      expect(read.map((entry) => entry.id), [1, 2]);
+      expect(read.first.uniqueId, isA<UnbookmarkablePostIdentity>());
+      expect(read.first.post.origin.sourceHost, isEmpty);
+      expect(read.first.snapshot, bookmark.snapshot);
+      expect(read.last.post.origin.sourceHost, 'booru.example/board');
+      expect(read.last.uniqueId, isA<BookmarkIdentity>());
+      expect(box.get(1)!.snapshotSchemaVersion, 1);
+      expect(box.get(1)!.postSnapshot, bookmark.snapshot.toJson());
+      final future = favoriteToHiveObject(bookmark)..snapshotSchemaVersion = 99;
+      await box.put(3, future);
+      await expectLater(
+        storage
+            .repository(box)
+            .getAllBookmarksOrThrow(
+              imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+            ),
+        throwsA(isA<BookmarkRepositoryReadException>()),
+      );
+      expect(box.get(3)!.snapshotSchemaVersion, 99);
     },
   );
 }

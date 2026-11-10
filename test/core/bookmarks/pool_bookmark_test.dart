@@ -33,11 +33,10 @@ void main() {
     );
     expect(restored.cover, cover);
     expect(restored.withGroups({poolGroupB}).cover, cover);
-    final post = restored.cover!.asPost(restored.origin);
     const resolver = DanbooruGridThumbnailUrlGenerator();
     String url(ImageQuality quality) => resolver
-        .resolve(
-          post,
+        .resolveStaticCover(
+          restored.cover!,
           settings: GridThumbnailSettings(
             imageQuality: quality,
             animatedPostsDefaultState: AnimatedPostsDefaultState.static,
@@ -80,7 +79,7 @@ void main() {
 
   BookmarkLibraryState library(
     List<PoolBookmark> pools, {
-    List<Bookmark> posts = const [],
+    List<PostBookmark> posts = const [],
   }) => BookmarkLibraryState(
     bookmarks: posts,
     pools: pools,

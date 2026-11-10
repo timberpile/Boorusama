@@ -9,6 +9,9 @@ import 'package:boorusama/core/bookmarks/src/server_favorites/dialog.dart';
 import 'package:boorusama/core/bookmarks/src/server_favorites/feedback_banner.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_tree.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -27,6 +30,7 @@ import 'package:flutter/rendering.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../support/fakes/memory_repositories.dart';
 import 'test_support.dart';
@@ -36,6 +40,7 @@ void main() {
   late ProviderContainer container;
   late BookmarkLibraryNotifier library;
   late FavoriteTestStore store;
+  late Map<String, String> folderGroupIds;
   setUp(() async {
     h = FavoriteHarness();
     await h.open();
@@ -46,11 +51,30 @@ void main() {
     List<String>? order,
   }) async {
     final groups = MemoryBookmarkGroupRepository();
-    await groups.writeOrganization(folders, []);
+    folderGroupIds = {
+      for (final folder in folders)
+        folder.id: const Uuid().v5(
+          Namespace.url.value,
+          'boorusama/server-favorites-dialog/${folder.id}',
+        ),
+    };
+    await groups.writeOrganization(const [], [
+      for (final folder in folders)
+        BookmarkGroup(
+          id: folderGroupIds[folder.id]!,
+          name: folder.name,
+          bookmarkIds: const {},
+          parentGroupId: folder.parentId == null
+              ? null
+              : folderGroupIds[folder.parentId],
+          position: folder.position,
+        ),
+    ]);
     store = FavoriteTestStore();
     h.profiles.profiles = profiles ?? h.profiles.profiles;
     container = ProviderContainer(
       overrides: [
+        bookmarkLibraryProvider.overrideWith(_FavoritesDialogLibrary.new),
         currentReadOnlyBooruConfigProvider.overrideWithValue(h.profile),
         booruEngineRegistryProvider.overrideWith(
           (ref) => BooruEngineRegistry(),
@@ -245,6 +269,43 @@ void main() {
     await tap(tester, row);
   }
 
+  Future<void> enterGroup(WidgetTester tester, String label) async {
+    final row = find
+        .ancestor(
+          of: find.descendant(
+            of: find.byType(BookmarkFolderPickerContents),
+            matching: find.text(label),
+          ),
+          matching: find.byType(BookmarkPickerSplitRow),
+        )
+        .first;
+    final scrollable = find.descendant(
+      of: find.byKey(const ValueKey('bookmark-picker-hierarchy')),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    await tester.scrollUntilVisible(
+      row,
+      tester.getSize(scrollable).height / 2,
+      scrollable: scrollable,
+    );
+    final rect = tester.getRect(row);
+    await tester.tapAt(Offset(rect.right - rect.width * .1, rect.center.dy));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> createGroupAtCurrent(WidgetTester tester, String name) async {
+    await tap(
+      tester,
+      find.byTooltip(_strings(tester).bookmark.groups.create_new),
+    );
+    await tester.enterText(find.byType(TextField), name);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+  }
+
   Future<ServerFavoriteSettings> saved() =>
       container.read(serverFavoriteSettingsProvider.future);
 
@@ -383,12 +444,15 @@ void main() {
         profiles: [h.profile, second],
         folders: [const CollectionFolder(id: 'folder', name: 'Collections')],
       );
-      final global = await library.createGroup('Favorites', folderId: 'folder');
+      final global = await library.createGroup(
+        'Favorites',
+        parentGroupId: folderGroupIds['folder'],
+      );
       final custom = await library.createGroup('Personal');
       await mount(tester);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Collections');
+      await enterGroup(tester, 'Collections');
       await pick(tester, 'Favorites');
       expect(
         find.text('Use default · Collections / Favorites'),
@@ -550,7 +614,10 @@ void main() {
       for (var i = 0; i < 32; i++) {
         await library.createGroup('Group ${i.toString().padLeft(2, '0')}');
       }
-      await library.createGroup('Nested target', folderId: 'nested');
+      await library.createGroup(
+        'Nested target',
+        parentGroupId: folderGroupIds['nested'],
+      );
       await mount(tester);
       await open(tester);
       for (final global in [true, false]) {
@@ -565,9 +632,9 @@ void main() {
         } else {
           await setMode(tester, 'group');
         }
-        for (final name in ['Folder 00', 'Nested', 'Nested target']) {
-          await pick(tester, name);
-        }
+        await enterGroup(tester, 'Folder 00');
+        await enterGroup(tester, 'Nested');
+        await pick(tester, 'Nested target');
         expect(find.byType(BookmarkFolderPickerContents), findsNothing);
       }
       expect(
@@ -592,10 +659,7 @@ void main() {
       await mount(tester, legacyBridge: false);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Group');
-      await tester.enterText(find.byType(TextField), 'New target');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
+      await createGroupAtCurrent(tester, 'New target');
       expect(
         find.descendant(of: getGlobal(), matching: find.text('New target')),
         findsOneWidget,
@@ -658,13 +722,23 @@ void main() {
     'group creation fits narrow width enlarged text and the open keyboard',
     (tester) async {
       await prepare(
-        folders: [const CollectionFolder(id: 'folder', name: 'Saved')],
+        folders: [
+          const CollectionFolder(id: 'folder', name: 'Saved'),
+          const CollectionFolder(
+            id: 'child',
+            name: 'Existing child',
+            parentId: 'folder',
+          ),
+        ],
       );
       await mount(tester);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Saved');
-      await pick(tester, 'Group');
+      await enterGroup(tester, 'Saved');
+      await tap(
+        tester,
+        find.byTooltip(_strings(tester).bookmark.groups.create_new),
+      );
       tester.view.viewInsets = const FakeViewPadding(bottom: 280);
       addTearDown(tester.view.resetViewInsets);
       await tester.pumpAndSettle();
@@ -678,7 +752,7 @@ void main() {
       final group = (await library.snapshotForExport()).groups.singleWhere(
         (g) => g.name == 'New favorites',
       );
-      expect(group.folderId, 'folder');
+      expect(group.parentGroupId, folderGroupIds['folder']);
       expect((await saved()).globalGroupId, group.id);
       expect(h.source.calls, 0);
       expect(tester.takeException(), isNull);
@@ -1239,6 +1313,46 @@ void main() {
       expect(find.textContaining('The server action succeeded'), findsNothing);
     },
   );
+}
+
+Translations _strings(WidgetTester tester) =>
+    tester.element(find.byType(Navigator).first).t;
+
+/// The in-memory legacy service has no unified organization journal. Keep
+/// nested creation local to this UI test while exercising the real picker and
+/// refreshing the same provider snapshot that production observes.
+final class _FavoritesDialogLibrary extends BookmarkLibraryNotifier {
+  @override
+  Future<BookmarkGroup> createGroup(
+    String name, {
+    String? folderId,
+    String? parentGroupId,
+  }) async {
+    if (parentGroupId == null) {
+      return super.createGroup(name, folderId: folderId);
+    }
+
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final groups = await repository.getGroups();
+    if (!groups.any((group) => group.id == parentGroupId)) {
+      throw StateError('Parent Bookmark Group no longer exists');
+    }
+    final created = await repository.createGroup(name);
+    final position = groups
+        .where((group) => group.parentGroupId == parentGroupId)
+        .fold(
+          0,
+          (next, group) => group.position >= next ? group.position + 1 : next,
+        );
+    final nested = created.copyWith(
+      parentGroupId: parentGroupId,
+      position: position,
+    );
+    BookmarkGroupTree([...groups, nested]);
+    await repository.replaceFolderOrganization(const [], [...groups, nested]);
+    await refresh();
+    return nested;
+  }
 }
 
 class _Links extends PostLinkGenerator<Post> {

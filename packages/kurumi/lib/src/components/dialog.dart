@@ -16,8 +16,11 @@ class KurumiDialog extends StatelessWidget {
     this.barrierColor,
     this.dismissible = true,
     this.semanticLabel,
+    this.screenInset,
   });
 
+  /// Opt-in safe-screen gutter; defaults retain the established 80% width.
+  final double? screenInset;
   final Color? color;
   final double? width;
   final double? height;
@@ -62,7 +65,14 @@ class KurumiDialog extends StatelessWidget {
               child: Container(
                 constraints: BoxConstraints(
                   maxWidth: min(
-                    size.width * 0.8,
+                    screenInset == null
+                        ? size.width * 0.8
+                        : max(
+                            0,
+                            size.width -
+                                MediaQuery.paddingOf(context).horizontal -
+                                screenInset! * 2,
+                          ),
                     width ?? 500,
                   ),
                   maxHeight: min(

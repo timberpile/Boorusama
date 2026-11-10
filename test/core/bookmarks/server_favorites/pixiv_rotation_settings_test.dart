@@ -20,6 +20,9 @@ import 'test_support.dart' show FavoriteTestStore;
 
 class _Library extends BookmarkLibraryNotifier {
   @override
+  Future<T> runWithLibrary<T>(Future<T> Function() operation) => operation();
+
+  @override
   Future<BookmarkLibraryState> build() async => await snapshotForExport();
   @override
   Future<BookmarkLibraryState> snapshotForExport() async =>

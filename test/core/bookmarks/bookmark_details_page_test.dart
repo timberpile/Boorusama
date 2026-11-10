@@ -1,4 +1,6 @@
-import 'package:boorusama/core/bookmarks/src/widgets/bookmark_appbar.dart';
+import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_hierarchy_conversion.dart';
+import 'package:uuid/uuid.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 
@@ -82,6 +84,9 @@ import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 import 'package:boorusama/core/premiums/providers.dart';
@@ -106,7 +111,7 @@ void main() {
             );
             final adapter = ControlledImageAdapter();
             final dio = Dio()..httpClientAdapter = adapter;
-            final bookmark = Bookmark(
+            final bookmark = PostBookmark(
               id: 42,
               postId: 42,
               createdAt: DateTime(2026),
@@ -241,7 +246,7 @@ void main() {
   }
 
   testWidgets(
-    'nested bookmark groups render literal leaf names and restore breadcrumb history',
+    'nested bookmark groups render literal leaf names and restore ancestor navigation',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(320, 700));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -289,6 +294,14 @@ void main() {
         findsNothing,
       );
       expect(tester.takeException(), isNull);
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is KurumiPopupMenuButton &&
+              widget.semanticLabel == 'Go to ancestor',
+        ),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Home'));
       await tester.pumpAndSettle();
       expect(find.text('Bookmark Groups'), findsOneWidget);
@@ -313,9 +326,17 @@ void main() {
             controller: controller,
             bookmarkNotifier: _CacheBookmarkNotifier(
               BookmarkLibraryState(
-                bookmarks: const [],
+                bookmarks: [
+                  PostBookmark.empty.copyWith(
+                    id: 1,
+                    postId: () => 42,
+                    sourceUrl: _config.url,
+                    width: 1200,
+                    height: 1200,
+                  ),
+                ],
                 groups: [
-                  BookmarkGroup(id: id, name: title, bookmarkIds: const {}),
+                  BookmarkGroup(id: id, name: title, bookmarkIds: const {1}),
                 ],
               ),
             ),
@@ -345,7 +366,7 @@ void main() {
         expect(titleRect.bottom, lessThanOrEqualTo(24 + kToolbarHeight));
         expect(searchRect.top, 24 + kToolbarHeight);
         expect(titleRect.overlaps(searchRect), isFalse);
-        final appBar = find.byType(BookmarkAppBar);
+        final appBar = find.byType(KurumiAppBar);
         expect(tester.getSize(appBar).height, 24 + kToolbarHeight);
         expect(tester.getRect(appBar).bottom, searchRect.top);
         expect(tester.takeException(), isNull);
@@ -373,7 +394,7 @@ void main() {
 
       final bookmarks = List.generate(
         8,
-        (index) => Bookmark.empty.copyWith(
+        (index) => PostBookmark.empty.copyWith(
           id: index + 1,
           postId: () => index + 1,
           sourceUrl: _config.url,
@@ -416,7 +437,17 @@ void main() {
       expect(search, findsOneWidget);
       expect(find.text('Source: All'), findsOneWidget);
       expect(find.text('Newest'), findsOneWidget);
-      expect(tester.widget<AppBar>(find.byType(AppBar).first).actions, isNull);
+      if (view.kind == BookmarkViewKind.all) {
+        expect(
+          tester.widget<AppBar>(find.byType(AppBar).first).actions,
+          isNull,
+        );
+      } else {
+        expect(
+          tester.widget<AppBar>(find.byType(AppBar).first).actions,
+          isNotEmpty,
+        );
+      }
       final pageContext = tester.element(find.byType(BookmarkSearchBar));
       final container = ProviderScope.containerOf(pageContext);
       final controller = PostScope.of<Post>(pageContext);
@@ -559,7 +590,7 @@ void main() {
         final cache = DefaultImageCacheManager(
           cacheRootPathProvider: () => root.path,
         );
-        final bookmark = Bookmark(
+        final bookmark = PostBookmark(
           id: 42,
           postId: 42,
           createdAt: DateTime(2026),
@@ -1031,11 +1062,25 @@ void main() {
     (tester) async {
       await tester.runAsync(() async {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        Future<void> pumpUntilRecoveredPostIsVisible() async {
+          final deadline = DateTime.now().add(const Duration(seconds: 5));
+          while (find.text('post:91').evaluate().isEmpty &&
+              DateTime.now().isBefore(deadline)) {
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          expect(
+            find.text('post:91'),
+            findsOneWidget,
+            reason: 'recovered post did not render',
+          );
+        }
+
         late Directory directory;
         late Box<BookmarkHiveObject> bookmarkBox;
         late Box<BookmarkGroupHiveObject> groupBox;
         late BookmarkHiveRepository bookmarkRepository;
         late BookmarkGroupRepositoryHive groupRepository;
+        late BookmarkTestStorage storage;
         final legacy = _legacyBookmark();
         directory = await Directory.systemTemp.createTemp(
           'bookmark_silent_recovery_',
@@ -1051,7 +1096,8 @@ void main() {
           'silent_bookmarks',
         );
         groupBox = await Hive.openBox<BookmarkGroupHiveObject>('silent_groups');
-        bookmarkRepository = BookmarkHiveRepository(
+        storage = await BookmarkTestStorage.open(bookmarkBox);
+        bookmarkRepository = storage.repository(
           bookmarkBox,
           postDataCodec: (_) => const GelbooruV2PostCodec(),
         );
@@ -1079,25 +1125,40 @@ void main() {
             controller: controller,
             bookmarkRepository: bookmarkRepository,
             groupRepository: groupRepository,
+            bookmarkStorage: storage,
             recoveryRepository: repository,
           ),
         );
         expect(find.byType(PostPresentationFallbackWarning), findsNothing);
-        // Hive uses real IO; allow provider loading and recovery writes to settle.
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        await tester.pumpAndSettle();
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        // Wait for the real repository write to finish before asserting the UI.
+        final recoveryDeadline = DateTime.now().add(const Duration(seconds: 5));
+        var recovered = false;
+        while (!recovered && DateTime.now().isBefore(recoveryDeadline)) {
+          final saved = await bookmarkRepository.getAllBookmarksOrEmpty(
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+          );
+          recovered = saved.any(
+            (bookmark) => bookmark.post.booruData is GelbooruV2PostData,
+          );
+          if (!recovered) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+        }
+        expect(recovered, isTrue, reason: 'recovery write did not complete');
+        await pumpUntilRecoveredPostIsVisible();
         await tester.pumpAndSettle();
         expect(find.text('post:91'), findsOneWidget);
         expect(find.byType(PostPresentationFallbackWarning), findsNothing);
         expect(repository.requests, hasLength(1));
         await tester.pumpWidget(const SizedBox.shrink());
-        late Bookmark persisted;
+        await storage.close();
+        late PostBookmark persisted;
         await bookmarkBox.close();
         bookmarkBox = await Hive.openBox<BookmarkHiveObject>(
           'silent_bookmarks',
         );
-        bookmarkRepository = BookmarkHiveRepository(
+        storage = await BookmarkTestStorage.open(bookmarkBox);
+        bookmarkRepository = storage.repository(
           bookmarkBox,
           postDataCodec: (_) => const GelbooruV2PostCodec(),
         );
@@ -1124,15 +1185,17 @@ void main() {
             controller: reopened,
             bookmarkRepository: bookmarkRepository,
             groupRepository: groupRepository,
+            bookmarkStorage: storage,
             recoveryRepository: repository,
           ),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+        await pumpUntilRecoveredPostIsVisible();
         await tester.pumpAndSettle();
         expect(find.text('post:91'), findsOneWidget);
         expect(repository.requests, hasLength(1));
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
+        await storage.close();
         await bookmarkBox.close();
         await groupBox.close();
         await directory.delete(recursive: true);
@@ -1240,6 +1303,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
     this.repositoryConfigs,
     this.bookmarkRepository,
     this.groupRepository,
+    this.bookmarkStorage,
     this.home,
     this.commonCache,
     this.imageDio,
@@ -1253,6 +1317,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
   final List<BooruConfig>? repositoryConfigs;
   final BookmarkHiveRepository? bookmarkRepository;
   final BookmarkGroupRepositoryHive? groupRepository;
+  final BookmarkTestStorage? bookmarkStorage;
   final Widget? home;
   final ImageCacheManager? commonCache;
   final Dio? imageDio;
@@ -1261,6 +1326,8 @@ class _BookmarkViewerHarness extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ProviderScope(
     overrides: [
+      miscDataStoreProvider.overrideWith((ref) => _ViewModeStore()),
+      ...?bookmarkStorage?.overrides,
       settingsNotifierProvider.overrideWith(
         () =>
             previewSettingsNotifier ??
@@ -1435,7 +1502,7 @@ PostGridController<Post> _controller(List<Post> posts) {
   return controller;
 }
 
-Bookmark _legacyBookmark({int? postId = 91}) => Bookmark(
+PostBookmark _legacyBookmark({int? postId = 91}) => PostBookmark(
   id: 501,
   booruId: BooruType.gelbooruV2.id,
   createdAt: DateTime.utc(2025),
@@ -1455,7 +1522,7 @@ Bookmark _legacyBookmark({int? postId = 91}) => Bookmark(
   metadata: const {},
 );
 
-Bookmark _malformedBookmark() {
+PostBookmark _malformedBookmark() {
   final legacy = _legacyBookmark();
   final post = _post(
     id: 91,
@@ -1467,7 +1534,7 @@ Bookmark _malformedBookmark() {
       reason: UnknownPostDataReason.malformedData,
     ),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: legacy.id,
     createdAt: legacy.createdAt,
     updatedAt: legacy.updatedAt,
@@ -1481,7 +1548,7 @@ Bookmark _malformedBookmark() {
 final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   _RecoveryBookmarkNotifier(this.bookmark, this.group);
 
-  final Bookmark bookmark;
+  final PostBookmark bookmark;
   final BookmarkGroup group;
   var upgrades = 0;
 
@@ -1492,13 +1559,13 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   );
 
   @override
-  Future<void> upgradeBookmarkSnapshot(Bookmark bookmark, Post post) async {
+  Future<void> upgradeBookmarkSnapshot(PostBookmark bookmark, Post post) async {
     upgrades++;
     final snapshot = const StoredPostCodec().encode(
       post,
       dataCodec: const GelbooruV2PostCodec(),
     );
-    final upgraded = Bookmark.fromSnapshot(
+    final upgraded = PostBookmark.fromSnapshot(
       id: bookmark.id,
       createdAt: bookmark.createdAt,
       updatedAt: DateTime.utc(2026),
@@ -1608,7 +1675,8 @@ final class _CodecRegistry extends BooruEngineRegistry {
 }
 
 class _CacheBookmarkNotifier extends BookmarkLibraryNotifier {
-  _CacheBookmarkNotifier(this.library);
+  _CacheBookmarkNotifier(BookmarkLibraryState input)
+    : library = _hierarchyFixture(input);
   final BookmarkLibraryState library;
   @override
   FutureOr<BookmarkLibraryState> build() => library;
@@ -1638,4 +1706,59 @@ class _PreviewSettingsNotifier extends SettingsNotifier {
     state = selector(state);
     return true;
   }
+}
+
+class _ViewModeStore implements MiscDataStore {
+  final _values = <String, String>{};
+  @override
+  String? get(String key) => _values[key];
+  @override
+  Future<void> put(String key, String value) async {
+    _values[key] = value;
+  }
+}
+
+BookmarkLibraryState _hierarchyFixture(BookmarkLibraryState input) {
+  if (input.folders.isEmpty) return input;
+  final ids = {
+    for (final folder in input.folders)
+      folder.id: Uuid.isValidUUID(fromString: folder.id)
+          ? folder.id
+          : const Uuid().v5(
+              Namespace.url.value,
+              'details-hierarchy-fixture/${folder.id}',
+            ),
+  };
+  final converted = BookmarkHierarchyConversion.convert(
+    folders: [
+      for (final folder in input.folders)
+        CollectionFolder(
+          id: ids[folder.id]!,
+          name: folder.name,
+          parentId: ids[folder.parentId],
+          position: folder.position,
+        ),
+    ],
+    groups: [
+      for (final group in input.groups)
+        BookmarkGroup(
+          id: group.id,
+          name: group.name,
+          bookmarkIds: group.bookmarkIds,
+          addedAt: group.addedAt,
+          folderId: ids[group.folderId],
+          position: group.position,
+        ),
+    ],
+  );
+  return BookmarkLibraryState(
+    bookmarks: input.items,
+    records: input.hasUnifiedRecords ? input.records : null,
+    groups: converted.groups,
+    pools: input.pools,
+    legacyFolderGroupIds: {
+      for (final entry in ids.entries)
+        entry.key: converted.folderIdMapping[entry.value]!,
+    },
+  );
 }

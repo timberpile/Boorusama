@@ -25,21 +25,21 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/tags/favorites/types.dart';
 
 final class MemoryBookmarkRepository implements BookmarkRepository {
-  final _bookmarks = <Bookmark>[];
+  final _bookmarks = <PostBookmark>[];
   var _nextId = 0;
   BooruPostDataCodec? Function(BooruType type)? postDataCodec;
 
-  List<Bookmark> get bookmarks => List.of(_bookmarks);
+  List<PostBookmark> get bookmarks => List.of(_bookmarks);
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
     required PostLinkGenerator Function(int? booruId) postLinkGenerator,
   }) async {
     final now = DateTime.now();
-    final bookmark = Bookmark.fromSnapshot(
+    final bookmark = PostBookmark.fromSnapshot(
       id: _nextId++,
       createdAt: now,
       updatedAt: now,
@@ -56,7 +56,7 @@ final class MemoryBookmarkRepository implements BookmarkRepository {
   }
 
   @override
-  Future<List<Bookmark>> addBookmarks(
+  Future<List<PostBookmark>> addBookmarks(
     int booruId,
     Iterable<Post> posts, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -73,26 +73,26 @@ final class MemoryBookmarkRepository implements BookmarkRepository {
   );
 
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   ) async {
     _bookmarks.addAll(bookmarks);
     return List.unmodifiable(bookmarks);
   }
 
   @override
-  Future<void> removeBookmark(Bookmark favorite) async {
+  Future<void> removeBookmark(PostBookmark favorite) async {
     _bookmarks.removeWhere((bookmark) => bookmark.id == favorite.id);
   }
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> favorites) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> favorites) async {
     final ids = favorites.map((favorite) => favorite.id).toSet();
     _bookmarks.removeWhere((bookmark) => ids.contains(bookmark.id));
   }
 
   @override
-  Future<void> updateBookmark(Bookmark favorite) async {
+  Future<void> updateBookmark(PostBookmark favorite) async {
     final index = _bookmarks.indexWhere(
       (bookmark) => bookmark.id == favorite.id,
     );
@@ -114,6 +114,7 @@ final class MemoryBookmarkRepositoryFactory
   @override
   Future<BookmarkRepository> create({
     BooruPostDataCodec? Function(BooruType)? postDataCodec,
+    BookmarkStorageContext? storage,
   }) async {
     if (repository case final MemoryBookmarkRepository memoryRepository) {
       memoryRepository.postDataCodec = postDataCodec;

@@ -373,7 +373,7 @@ Future<void> _pumpActions(
         source: targetConfig.url,
         profileIdHint: targetConfig.id,
       ),
-      core: Bookmark.empty
+      core: PostBookmark.empty
           .copyWith(postId: () => index + 1, width: 100, height: 100)
           .toPost()
           .core,

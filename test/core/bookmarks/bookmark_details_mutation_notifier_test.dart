@@ -17,7 +17,7 @@ import 'package:boorusama/core/posts/post/types.dart';
 
 void main() {
   final config = BooruConfig.empty.auth;
-  final bookmark = Bookmark.empty.copyWith(
+  final bookmark = PostBookmark.empty.copyWith(
     originalUrl: 'https://example.com/deferred.jpg',
     sourceUrl: 'https://example.com',
     postId: () => 1,
@@ -158,7 +158,7 @@ void main() {
         .presentationFor(grouped, bookmark.uniqueId);
     expect(presentation.namedGroupCount, 1);
     expect(presentation.isBookmarked, isTrue);
-    final otherPost = Bookmark.empty
+    final otherPost = PostBookmark.empty
         .copyWith(sourceUrl: 'https://example.com', postId: () => 99)
         .toPost();
     expect(
@@ -256,7 +256,7 @@ void main() {
       final notifier = container.read(
         bookmarkDetailsMutationProvider.notifier,
       );
-      final addedBookmark = Bookmark.empty.copyWith(
+      final addedBookmark = PostBookmark.empty.copyWith(
         originalUrl: 'https://example.com/added.jpg',
         sourceUrl: 'https://example.com',
         postId: () => 2,

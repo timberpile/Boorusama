@@ -7,12 +7,21 @@ import 'package:test/test.dart';
 
 // Project imports:
 import 'package:boorusama/core/blacklists/src/data/hive/factory.dart';
+import 'package:boorusama/core/bookmarks/src/data/bookmark_convert.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/factory.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_factory_hive.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/unified_bookmark_store.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bulk_downloads/src/data/repo_io.dart';
 import 'package:boorusama/core/cache/hive_misc_data_store.dart';
 import 'package:boorusama/core/cache/hive_persistent_cache_store.dart';
 import 'package:boorusama/core/debug/data.dart';
+import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/histories/src/data/repo_io.dart';
@@ -20,6 +29,9 @@ import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/tags/favorites/src/data/favorite_tag_repository_factory_hive.dart';
 import 'package:boorusama/core/tags/local/src/data/repo_io.dart';
 import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/data_mutation_coordinator.dart';
+
+import 'core/bookmarks/pool_bookmark_test_utils.dart';
 
 void main() {
   late Directory root;
@@ -30,6 +42,7 @@ void main() {
     Hive.registerAdapter(FavoriteTagHiveObjectAdapter());
     Hive.registerAdapter(BlacklistedTagHiveObjectAdapter());
     Hive.registerAdapter(BookmarkHiveObjectAdapter());
+    Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
   });
 
   tearDownAll(() async {
@@ -91,16 +104,210 @@ void main() {
     const bookmarkFactory = HiveBookmarkRepositoryFactory(
       boxName: 'bookmark_factory_test',
     );
-    final bookmarks = await bookmarkFactory.create();
+    final context = BookmarkStorageContext(
+      coordinator: DataMutationCoordinator(),
+    );
+    final bookmarks = await bookmarkFactory.create(storage: context);
     await bookmarks.addBookmarkWithBookmarks([_bookmark()]);
     await bookmarkFactory.dispose(bookmarks);
-    final reopenedBookmarks = await bookmarkFactory.create();
+    final reopenedBookmarks = await bookmarkFactory.create(storage: context);
     final values = await reopenedBookmarks.getAllBookmarksOrEmpty(
       imageUrlResolver: (_) => const DefaultImageUrlResolver(),
     );
     expect(values.single.tags, contains('cat'));
     expect(values.single.postId, 101);
     await bookmarkFactory.dispose(reopenedBookmarks);
+  });
+
+  test('production bookmark factory completes legacy organization migration before exposure', () async {
+    const boxName = 'bookmark_factory_cutover_test';
+    final groupsId = poolGroupA;
+    const parentFolderId = '550e8400-e29b-41d4-a716-446655440010';
+    const childFolderId = '550e8400-e29b-41d4-a716-446655440011';
+    final postDate = DateTime.utc(2024, 3, 4, 5, 6, 7, 123, 456);
+    final poolDate = DateTime.utc(2025, 6, 7, 8, 9, 10, 789, 123);
+    final originalPost = testPoolPost(7).copyWith(id: 0);
+    final originalPool = testPool(groups: {groupsId}).withGroups(
+      {groupsId},
+      addedAt: {groupsId: poolDate},
+    );
+
+    final oldPosts = await Hive.openBox<BookmarkHiveObject>(boxName);
+    final oldGroups = await Hive.openBox<BookmarkGroupHiveObject>(
+      '${boxName}_bookmark_groups',
+    );
+    final oldOrganization = await Hive.openBox<dynamic>(
+      '${boxName}_bookmark_folders',
+    );
+    await oldPosts.put(0, favoriteToHiveObject(originalPost));
+    await oldGroups.put(
+      groupsId,
+      BookmarkGroupHiveObject(
+        id: groupsId,
+        name: 'Legacy group',
+        bookmarkIds: [0],
+        folderId: childFolderId,
+        addedAt: {0: postDate.toIso8601String()},
+      ),
+    );
+    await oldOrganization.put('version', 1);
+    await oldOrganization.put('poolBookmarks', [originalPool.toJson()]);
+    await oldOrganization.put('folders', [
+      const CollectionFolder(
+        id: parentFolderId,
+        name: 'Parent',
+        position: 0,
+      ).toJson(),
+      const CollectionFolder(
+        id: childFolderId,
+        name: 'Child',
+        parentId: parentFolderId,
+        position: 0,
+      ).toJson(),
+    ]);
+
+    const factory = HiveBookmarkRepositoryFactory(boxName: boxName);
+    final storage = BookmarkStorageContext(
+      coordinator: DataMutationCoordinator(),
+    );
+    final bookmarkRepository = await factory.create(storage: storage);
+    expect(bookmarkRepository, isA<UnifiedBookmarkStore>());
+    final organization = await const HiveBookmarkGroupRepositoryFactory()
+        .createWithBookmarkRepository(bookmarkRepository);
+    expect(organization, isA<UnifiedBookmarkOrganization>());
+    expect(
+      identical(
+        (organization as UnifiedBookmarkOrganization).bookmarks,
+        bookmarkRepository,
+      ),
+      isTrue,
+    );
+
+    final metadata = await Hive.openBox<dynamic>(
+      '${boxName}_content_metadata',
+    );
+    final activeOrganization = metadata.get(
+      BookmarkStorageMigration.activeKey,
+    ) as Map;
+    expect(activeOrganization['version'], 3);
+    expect(activeOrganization['generation'], {
+      'groups': '${boxName}_bookmark_groups_hierarchy_v3',
+      'organization': '${boxName}_bookmark_folders_hierarchy_v3',
+    });
+
+    final store = bookmarkRepository as UnifiedBookmarkStore;
+    final migratedRecords = await store.readAll();
+    final migratedPost = migratedRecords.whereType<PostBookmark>().single;
+    final migratedPoolId = migratedRecords
+        .where((record) => record is! PostBookmark)
+        .single
+        .id;
+    final migratedGroup = (await organization.getGroup(groupsId))!;
+    expect(migratedPost.id, 0);
+    expect(migratedGroup.bookmarkIds, {migratedPost.id, migratedPoolId});
+    expect(migratedGroup.addedAt[migratedPost.id], postDate);
+    expect(migratedGroup.addedAt[migratedPoolId], poolDate);
+    final migratedParent = (await organization.getGroup(parentFolderId))!;
+    expect(migratedParent.name, 'Parent');
+    expect(migratedParent.position, 0);
+    expect(migratedParent.parentGroupId, isNull);
+    expect(migratedParent.bookmarkIds, isEmpty);
+    final migratedChild = (await organization.getGroup(childFolderId))!;
+    expect(migratedChild.name, 'Child');
+    expect(migratedChild.position, 0);
+    expect(migratedChild.parentGroupId, parentFolderId);
+    expect(migratedChild.bookmarkIds, isEmpty);
+    expect(migratedGroup.parentGroupId, childFolderId);
+    expect(await organization.getFolders(), isEmpty);
+    final poolView = (organization as PoolBookmarkRepository).readPoolBookmarks;
+    expect((await poolView()).single.bookmarkId, migratedPoolId);
+
+    await factory.dispose(bookmarkRepository);
+    await Hive.close();
+    Hive.init(root.path);
+    final reopenedRepository = await factory.create(storage: storage);
+    final reopenedOrganization =
+        await const HiveBookmarkGroupRepositoryFactory()
+            .createWithBookmarkRepository(reopenedRepository);
+    final reopenedStore = reopenedRepository as UnifiedBookmarkStore;
+    final reopenedRecords = await reopenedStore.readAll();
+    final reopenedGroup = (await reopenedOrganization.getGroup(groupsId))!;
+    final reopenedParent = (await reopenedOrganization.getGroup(
+      parentFolderId,
+    ))!;
+    final reopenedChild = (await reopenedOrganization.getGroup(childFolderId))!;
+    expect(
+      reopenedRecords.map((record) => record.id).toSet(),
+      {migratedPost.id, migratedPoolId},
+    );
+    expect(reopenedGroup.bookmarkIds, migratedGroup.bookmarkIds);
+    expect(reopenedGroup.addedAt, migratedGroup.addedAt);
+    expect(reopenedGroup.parentGroupId, childFolderId);
+    expect(reopenedParent.bookmarkIds, isEmpty);
+    expect(reopenedParent.parentGroupId, isNull);
+    expect(reopenedChild.bookmarkIds, isEmpty);
+    expect(reopenedChild.parentGroupId, parentFolderId);
+    expect(await reopenedOrganization.getFolders(), isEmpty);
+    expect(
+      (Hive.box<dynamic>('${boxName}_content_metadata').get(
+        BookmarkStorageMigration.activeKey,
+      ) as Map)['version'],
+      3,
+    );
+    expect(
+      (await (reopenedOrganization as PoolBookmarkRepository)
+              .readPoolBookmarks())
+          .single
+          .bookmarkId,
+      migratedPoolId,
+    );
+    await factory.dispose(reopenedRepository);
+  });
+
+  test('production bookmark factory rejects unsupported legacy organization before exposing repository', () async {
+    const boxName = 'bookmark_factory_future_org_test';
+    final oldPost = testPoolPost(7).copyWith(id: 0);
+    final pool = testPool(groups: {poolGroupA});
+    final oldPosts = await Hive.openBox<BookmarkHiveObject>(boxName);
+    final oldGroups = await Hive.openBox<BookmarkGroupHiveObject>(
+      '${boxName}_bookmark_groups',
+    );
+    final oldOrganization = await Hive.openBox<dynamic>(
+      '${boxName}_bookmark_folders',
+    );
+    await oldPosts.put(0, favoriteToHiveObject(oldPost));
+    await oldGroups.put(
+      poolGroupA,
+      BookmarkGroupHiveObject(
+        id: poolGroupA,
+        name: 'Legacy group',
+        bookmarkIds: [0],
+        addedAt: {0: DateTime.utc(2024).toIso8601String()},
+      ),
+    );
+    await oldOrganization.put('version', 99);
+    await oldOrganization.put('poolBookmarks', [pool.toJson()]);
+    final groupsBefore = oldGroups.toMap();
+    final organizationBefore = oldOrganization.toMap();
+
+    const factory = HiveBookmarkRepositoryFactory(boxName: boxName);
+    await expectLater(
+      factory.create(
+        storage: BookmarkStorageContext(
+          coordinator: DataMutationCoordinator(),
+        ),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+
+    expect(oldPosts.get(0), isNotNull);
+    expect(oldGroups.toMap(), groupsBefore);
+    expect(oldOrganization.toMap(), organizationBefore);
+    final metadata = await Hive.openBox<dynamic>(
+      '${boxName}_content_metadata',
+    );
+    expect(metadata.get(BookmarkStorageMigration.activeKey), isNull);
+    expect(metadata.get(BookmarkStorageMigration.pendingKey), isNull);
   });
 
   test(
@@ -154,7 +361,7 @@ void main() {
   });
 }
 
-Bookmark _bookmark() => Bookmark(
+PostBookmark _bookmark() => PostBookmark(
   id: 1,
   booruId: 1,
   createdAt: DateTime.utc(2020),

@@ -101,7 +101,7 @@ void main() {
       'id': poolGroupB,
     });
     final pool = testPool();
-    final related = RelatedBookmark(
+    final related = RelatedCollectionBookmark(
       family: RelatedFamilyReference(origin: pool.origin, anchorId: 10),
       localId: pool.localId,
       createdAt: pool.createdAt,
@@ -132,9 +132,9 @@ void main() {
     );
   });
 
-  test('v7 preserves Related identity and rejects malformed, duplicate and older envelopes', () {
+  test('legacy v7-v9 preserves Related identity and rejects malformed, duplicate and older envelopes', () {
     final pool = testPool();
-    final reference = RelatedBookmark(
+    final reference = RelatedCollectionBookmark(
       family: RelatedFamilyReference.fromPost(testRelatedPost(10)),
       localId: pool.localId,
       createdAt: pool.createdAt,
@@ -151,31 +151,41 @@ void main() {
     expect(reference.total, isNull);
     expect(reference.withGroups({poolGroupB}).family, reference.family);
     final codec = BookmarkBackupCodec();
-    final data = BookmarkBackupData(
-      bookmarks: [],
-      pools: [reference],
-      groups: [
-        const BookmarkGroupBackup(id: poolGroupA, name: 'A', bookmarkIds: []),
-      ],
-    );
-    ExportDataPayload payload(int version, {List<Object?>? rows}) =>
-        ExportDataPayload(
-          version: version,
-          exportDate: null,
-          exportVersion: null,
-          data: [],
-          extraFields: {
-            ...data.extraFields,
-            if (version < 9)
-              'collectionBookmarks': data.pools
-                  .map((pool) => pool.toJson())
-                  .toList(),
-            if (rows != null) 'collectionBookmarks': rows,
-          },
-        );
-    expect(codec.parse(payload(7)).pools, [reference]);
-    expect(codec.parse(payload(8)).pools, [reference]);
-    expect(codec.parse(payload(9)).pools, [reference]);
+    ExportDataPayload payload(int version, {List<Object?>? rows}) {
+      final legacyRow = reference.toJson();
+      if (version < 9) legacyRow.remove('addedAt');
+      return ExportDataPayload(
+        version: version,
+        exportDate: null,
+        exportVersion: null,
+        data: [],
+        extraFields: {
+          'groups': [
+            const BookmarkGroupBackup(
+              id: poolGroupA,
+              name: 'A',
+              bookmarkIds: [],
+            ).toJson(),
+          ],
+          'folders': const [],
+          'collectionBookmarks': rows ?? [legacyRow],
+        },
+      );
+    }
+
+    for (final version in [7, 8, 9]) {
+      final restored = codec.parse(payload(version)).pools.single;
+      expect(restored.identity, reference.identity);
+      expect(int.tryParse(restored.localId), isNotNull);
+      expect(restored.groupIds, reference.groupIds);
+      expect(restored.addedAt, reference.addedAt);
+      expect(restored.createdAt, reference.createdAt);
+      expect(restored.observedAt, reference.observedAt);
+      expect(
+        (restored as RelatedCollectionBookmark).family,
+        reference.family,
+      );
+    }
     for (final version in [4, 5, 6, 10]) {
       expect(
         () => codec.parse(payload(version)),

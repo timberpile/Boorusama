@@ -3,6 +3,7 @@ import '../../../posts/related/related_family.dart';
 import '../../../posts/details/routes.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../posts/listing/providers.dart';
+import '../../../posts/listing/types.dart';
 import '../../../posts/post/types.dart';
 import '../../../config_widgets/website_logo.dart';
 
@@ -178,7 +179,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   Future<void> _refresh() => _perform((profile, capability) async {
     if (widget.pool.family case final family?) {
       final summary = await ref.read(
-        relatedBookmarkDraftProvider((profile, family)).future,
+        relatedBookmarkRefreshProvider((profile, family)).future,
       );
       if (!mounted ||
           resolvePoolBookmarkProfile(
@@ -196,7 +197,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     );
     if (remote == null || !mounted) throw StateError('Pool unavailable');
     final summary = await ref.read(
-      poolBookmarkDraftProvider((profile, remote)).future,
+      poolBookmarkRefreshProvider((profile, remote)).future,
     );
     if (!mounted) return;
     if (resolvePoolBookmarkProfile(
@@ -297,8 +298,8 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
           ? null
           : ref
                 .watch(gridThumbnailUrlGeneratorProvider(profile.auth))
-                .resolve(
-                  cover.asPost(pool.origin),
+                .resolveStaticCover(
+                  cover,
                   settings: ref.watch(
                     gridThumbnailSettingsProvider(profile.auth),
                   ),

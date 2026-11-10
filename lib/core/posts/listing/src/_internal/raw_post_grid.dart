@@ -910,7 +910,7 @@ class _CustomScrollViewState extends State<_CustomScrollView> {
   }
 }
 
-class _SliverBottomGridPadding extends StatelessWidget {
+class _SliverBottomGridPadding extends ConsumerWidget {
   const _SliverBottomGridPadding({
     required this.selectionModeController,
     required this.pageMode,
@@ -920,11 +920,20 @@ class _SliverBottomGridPadding extends StatelessWidget {
   final PageMode pageMode;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
+    // A bottom page indicator already consumes the inset through SafeArea.
+    // Top-only pagination needs its own scrollable clearance beneath the grid.
+    final hasInsetFooter =
+        pageMode == PageMode.paginated &&
+        ref.watch(
+          imageListingSettingsProvider.select(
+            (settings) => settings.pageIndicatorPosition.isVisibleAtBottom,
+          ),
+        );
 
     return SliverSizedBox(
-      height: pageMode == PageMode.infinite ? bottomPadding : 0,
+      height: hasInsetFooter ? 0 : bottomPadding,
     );
   }
 }

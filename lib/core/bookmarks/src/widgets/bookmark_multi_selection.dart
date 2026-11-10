@@ -10,7 +10,6 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../navigation/app_navigation.dart';
 import 'bookmark_group_label.dart';
-import '../../../groups/folder_tree.dart';
 import 'bookmark_batch_dialog.dart';
 import '../providers/bookmark_provider.dart';
 import '../data/bookmark_convert.dart';
@@ -26,7 +25,7 @@ import 'bookmark_folder_picker_contents.dart';
 Future<bool> showBookmarkMultiSelectionActions(
   BuildContext context, {
   required WidgetRef ref,
-  required List<Bookmark> bookmarks,
+  required List<PostBookmark> bookmarks,
 }) async {
   final container = ProviderScope.containerOf(context, listen: false);
   final action = await Kurumi.showAppModalBottomSheet<String>(
@@ -62,7 +61,7 @@ Future<bool> showBookmarkMultiSelectionActions(
 Future<bool> _add(
   BuildContext context,
   ProviderContainer container,
-  List<Bookmark> bookmarks,
+  List<PostBookmark> bookmarks,
 ) async {
   final groupId = await _selectGroup(context, bookmarks, allowCreate: true);
   if (groupId == null) return false;
@@ -75,7 +74,7 @@ Future<bool> _add(
 Future<bool> _remove(
   BuildContext context,
   ProviderContainer container,
-  List<Bookmark> bookmarks,
+  List<PostBookmark> bookmarks,
 ) async {
   final groupId = await _selectGroup(context, bookmarks);
   if (groupId == null) return false;
@@ -96,7 +95,7 @@ Future<bool> _remove(
 
 Future<String?> _selectGroup(
   BuildContext context,
-  List<Bookmark> bookmarks, {
+  List<PostBookmark> bookmarks, {
   bool allowCreate = false,
 }) {
   return showDialog<String>(
@@ -114,7 +113,7 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
     required this.bookmarks,
   });
   final bool allowCreate;
-  final List<Bookmark> bookmarks;
+  final List<PostBookmark> bookmarks;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
@@ -146,7 +145,7 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
                 try {
                   final group = await ref
                       .read(bookmarkProvider.notifier)
-                      .createGroup(name, folderId: folderId);
+                      .createGroup(name, parentGroupId: folderId);
                   if (context.mounted) Navigator.pop(context, group.id);
                 } catch (_) {
                   if (context.mounted) {
@@ -180,16 +179,23 @@ class BookmarkGroupSelectionSummary {
     final counts = <String, int>{};
     for (final post in posts) {
       final id = bookmarkIdentityForPost(post, booruId);
-      if (state?.bookmarksByUniqueId[id] == null) continue;
+      final record = state?.storedBookmarkForPost(post);
+      if (record == null) continue;
       bookmarked++;
-      final memberships = state?.membershipsFor(id) ?? const <String>{};
+      final memberships = state!.hasUnifiedRecords
+          ? state.membershipsForId(record.id)
+          : state.membershipsFor(id);
       for (final groupId in memberships) {
         counts.update(groupId, (value) => value + 1, ifAbsent: () => 1);
       }
     }
     for (final pool in pools) {
       final current = state?.pools
-          .where((p) => p.identity == pool.identity)
+          .where(
+            (p) => pool.bookmarkId != null
+                ? p.bookmarkId == pool.bookmarkId
+                : p.localId == pool.localId,
+          )
           .firstOrNull;
       if (current == null) continue;
       bookmarked++;
@@ -231,6 +237,7 @@ class BookmarkMultiSelectionMenu extends ConsumerStatefulWidget {
     required this.config,
     required this.onCompleted,
     this.currentGroupId,
+    this.sourceGroupIds,
     this.pools = const [],
     super.key,
   });
@@ -243,6 +250,9 @@ class BookmarkMultiSelectionMenu extends ConsumerStatefulWidget {
   /// The listing's actual group, not the globally active bookmark target.
   /// Null keeps All Bookmarks and ordinary post selections unchanged.
   final String? currentGroupId;
+
+  /// Aggregate views require an explicit direct source within this set.
+  final Set<String>? sourceGroupIds;
 
   @override
   ConsumerState<BookmarkMultiSelectionMenu> createState() =>
@@ -325,6 +335,9 @@ class _BookmarkMultiSelectionMenuState
             posts: selectedPosts,
             pools: selectedPools,
             config: config,
+            allowedGroupIds: operation == BookmarkMultiSelectionOperation.remove
+                ? widget.sourceGroupIds
+                : null,
           )
         : BookmarkGroupSelectionTarget(directGroupId, '');
     if (target == null || !navigator.mounted) return;
@@ -377,6 +390,7 @@ Future<BookmarkGroupSelectionTarget?> showBookmarkGroupSelectionDialog(
   required List<Post> posts,
   required BooruConfigAuth config,
   List<CollectionBookmark> pools = const [],
+  Set<String>? allowedGroupIds,
 }) => showDialog<BookmarkGroupSelectionTarget>(
   context: context,
   builder: (_) => _BookmarkGroupSelectionDialog(
@@ -384,6 +398,7 @@ Future<BookmarkGroupSelectionTarget?> showBookmarkGroupSelectionDialog(
     posts: posts,
     pools: pools,
     config: config,
+    allowedGroupIds: allowedGroupIds,
   ),
 );
 
@@ -393,11 +408,13 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     required this.posts,
     required this.config,
     required this.pools,
+    this.allowedGroupIds,
   });
 
   final BookmarkMultiSelectionOperation operation;
   final List<Post> posts;
   final List<CollectionBookmark> pools;
+  final Set<String>? allowedGroupIds;
   final BooruConfigAuth config;
 
   @override
@@ -411,26 +428,28 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
       pools: pools,
     );
     final add = operation == BookmarkMultiSelectionOperation.add;
-    final visibleGroups = groups
-        .where((group) => add || summary.countFor(group.id) > 0)
-        .toList();
-    final allFolders = state?.folders ?? const <CollectionFolder>[];
-    final tree = FolderTree(allFolders);
-    final relevantFolderIds = {
-      for (final group in visibleGroups)
-        for (final folder in tree.ancestors(group.folderId)) folder.id,
+    final applicable = {
+      for (final group in groups)
+        if (add ||
+            (summary.countFor(group.id) > 0 &&
+                (allowedGroupIds?.contains(group.id) ?? true)))
+          group.id,
     };
-    final visibleFolders = add
-        ? allFolders
-        : allFolders
-              .where((folder) => relevantFolderIds.contains(folder.id))
-              .toList();
+    final visibleIds = {
+      ...applicable,
+      for (final id in applicable)
+        ...?state?.groupTree.ancestors(id).map((group) => group.id),
+    };
+    final visibleGroups = groups
+        .where((group) => visibleIds.contains(group.id))
+        .toList();
     return BookmarkBatchDialog(
       title: add
           ? context.t.bookmark.bulk.add_title
           : context.t.bookmark.bulk.remove_title,
       child: BookmarkFolderPickerContents(
-        folders: visibleFolders,
+        folders: const [],
+        selectableGroupIds: applicable,
         groups: visibleGroups,
         membershipGroupIds: posts.length + pools.length == 1
             ? pools.isNotEmpty
@@ -460,7 +479,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     );
   }
 
-  Widget _tile(
+  BookmarkPickerMenuItem _tile(
     BuildContext context,
     BookmarkGroupSelectionTarget target,
     int count,
@@ -494,7 +513,7 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
             name,
             config,
             posts,
-            folderId: folderId,
+            parentGroupId: folderId,
             pools: pools,
           );
       if (context.mounted) {

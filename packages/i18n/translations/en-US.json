@@ -1987,6 +1987,20 @@
     "groups": {
       "recent": "Recent",
       "all": "All",
+      "deleted": {
+        "one": "1 group deleted",
+        "other": "$n groups deleted"
+      },
+      "structure": "Structure",
+      "all_bookmarks": "Unified",
+      "search_direct": "Search bookmarks in this group",
+      "search_subtree": "Search this group and subgroups",
+      "save_here": "Save here",
+      "remove_here": "Remove from this group",
+      "open_group": "Open group",
+      "choose_ancestor": "Go to ancestor",
+      "deleted_subgroups": "Subgroups will also be deleted.",
+      "promoted_children": "Subgroups will be kept at the parent level.",
       "ungrouped": "No Group",
       "default_group": "Default",
       "selector": "Bookmark Groups",

@@ -4,11 +4,12 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Bookmark bookmark(int storageId, int postId) => Bookmark.empty.copyWith(
-    id: storageId,
-    sourceUrl: 'https://example.com',
-    postId: () => postId,
-  );
+  PostBookmark bookmark(int storageId, int postId) =>
+      PostBookmark.empty.copyWith(
+        id: storageId,
+        sourceUrl: 'https://example.com',
+        postId: () => postId,
+      );
 
   BookmarkGroup group(String id, Set<int> members) => BookmarkGroup(
     id: id,
@@ -17,7 +18,7 @@ void main() {
   );
 
   BookmarkLibraryState library(
-    List<Bookmark> rows,
+    List<PostBookmark> rows,
     List<BookmarkGroup> groups,
   ) => BookmarkLibraryState(
     bookmarks: rows,

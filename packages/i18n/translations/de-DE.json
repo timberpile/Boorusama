@@ -1278,6 +1278,9 @@
   },
   "bookmark": {
     "groups": {
+      "all_bookmarks": "Alle Lesezeichen",
+      "structure": "Struktur",
+      "deleted_subgroups": "Untergruppen werden ebenfalls gelöscht.",
       "add_folder": "Gruppenordner hinzufügen",
       "add": "Gruppe hinzufügen",
       "move_here": "Hierher verschieben",

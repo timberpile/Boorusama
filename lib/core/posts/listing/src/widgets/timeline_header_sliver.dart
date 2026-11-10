@@ -50,7 +50,10 @@ class TimelineHeaderSliver extends StatelessWidget {
                 0.0,
                 MediaQuery.paddingOf(context).top - leading,
               );
-              return PinnedHeaderSliver(child: surface(topInset: inset));
+              return _MeasuredPinnedHeader(
+                bottomObstruction: MediaQuery.paddingOf(context).bottom,
+                child: surface(topInset: inset),
+              );
             },
           )
         : _AvoidHeaderOverlap(
@@ -59,6 +62,92 @@ class TimelineHeaderSliver extends StatelessWidget {
               child: surface(),
             ),
           );
+  }
+}
+
+class _MeasuredPinnedHeader extends SingleChildRenderObjectWidget {
+  const _MeasuredPinnedHeader({
+    required this.bottomObstruction,
+    required super.child,
+  });
+
+  final double bottomObstruction;
+
+  @override
+  RenderSliverToBoxAdapter createRenderObject(BuildContext context) =>
+      _RenderMeasuredPinnedHeader(bottomObstruction: bottomObstruction);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderMeasuredPinnedHeader renderObject,
+  ) {
+    renderObject.bottomObstruction = bottomObstruction;
+  }
+}
+
+/// A header taller than the unobstructed viewport must scroll so its actions remain
+/// reachable. Measure on every layout to handle chip wrapping, IME and rotation
+/// without replacing the child or waiting for another frame.
+class _RenderMeasuredPinnedHeader extends RenderSliverToBoxAdapter {
+  _RenderMeasuredPinnedHeader({required double bottomObstruction})
+    : _bottomObstruction = bottomObstruction;
+
+  double _bottomObstruction;
+  double get bottomObstruction => _bottomObstruction;
+  set bottomObstruction(double value) {
+    if (_bottomObstruction == value) return;
+    _bottomObstruction = value;
+    markNeedsLayout();
+  }
+
+  bool _pinned = false;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final current = geometry!;
+    final overlap = math.max(0.0, constraints.overlap);
+    final available = math.max(
+      0.0,
+      constraints.viewportMainAxisExtent - overlap - _bottomObstruction,
+    );
+    _pinned = child != null && current.scrollExtent <= available;
+    if (!_pinned) return;
+
+    final extent = current.scrollExtent;
+    final remaining = math.max(
+      0.0,
+      constraints.remainingPaintExtent - overlap,
+    );
+    geometry = SliverGeometry(
+      scrollExtent: extent,
+      paintOrigin: overlap,
+      paintExtent: math.min(extent, remaining),
+      layoutExtent: (extent - constraints.scrollOffset).clamp(
+        0.0,
+        remaining,
+      ),
+      maxPaintExtent: extent,
+      maxScrollObstructionExtent: extent,
+      cacheExtent: calculateCacheOffset(constraints, from: 0, to: extent),
+      hasVisualOverflow: true,
+    );
+    // The scrolling adapter's parent data includes the scroll translation.
+    // A pinned child stays at the sliver's painted leading edge instead.
+    (child!.parentData! as SliverPhysicalParentData).paintOffset = Offset.zero;
+  }
+
+  @override
+  double childMainAxisPosition(covariant RenderBox child) =>
+      _pinned ? 0 : super.childMainAxisPosition(child);
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    if (_pinned && geometry!.layoutExtent < geometry!.scrollExtent) {
+      config.addTagForChildren(RenderViewport.excludeFromScrolling);
+    }
   }
 }
 
