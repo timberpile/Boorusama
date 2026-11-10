@@ -30,21 +30,55 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .worktrees/_artifacts/offline-toolchain
+          out="$PWD/.worktrees/_artifacts/offline-toolchain"
+          mkdir -p "$out"
           sdk="$(dirname "$(dirname "$(readlink -f .fvm/flutter_sdk/bin/flutter)")")"
-          # Only public SDK and package payloads; never repository .git, secrets,
-          # credentials.json, SSH configuration, SDK Android keys or user files.
-          tar --zstd -cf .worktrees/_artifacts/offline-toolchain/flutter.tar.zst \
+          tar --zstd -cf "$out/flutter.tar.zst" \
             --exclude='.git/config' --exclude='credentials.json' \
-            --exclude='*.credentials.json' -C "$sdk" .
-          tar --zstd -cf .worktrees/_artifacts/offline-toolchain/pub-cache.tar.zst \
+            --exclude='*.credentials.json' \
+            --exclude='./bin/cache/artifacts/engine/android*' \
+            --exclude='./bin/cache/artifacts/engine/ios*' \
+            --exclude='./bin/cache/flutter_web_sdk' -C "$sdk" .
+          tar --zstd -cf "$out/pub-cache.tar.zst" \
             --exclude='credentials.json' --exclude='*.credentials.json' \
             --exclude='git/cache/*/config' -C "$HOME/.pub-cache" .
-          printf '%s\n' 'Flutter 3.47.2; FVM 4.3.1; public package payloads only.' > .worktrees/_artifacts/offline-toolchain/README.txt
+          printf '%s\n' 'Flutter 3.47.2; FVM 4.3.1; public package payloads only.' > "$out/README.txt"
+          ls -lh "$out"
+          tar -cf - -C "$out" flutter.tar.zst pub-cache.tar.zst README.txt | split -d -b 400M - "$out/toolchain.part-"
       - uses: actions/upload-artifact@v4
         with:
-          name: pinned-offline-toolchain
-          path: .worktrees/_artifacts/offline-toolchain/
+          name: offline-toolchain-00
+          path: .worktrees/_artifacts/offline-toolchain/toolchain.part-00
           retention-days: 2
           compression-level: 0
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-toolchain-01
+          path: .worktrees/_artifacts/offline-toolchain/toolchain.part-01
+          retention-days: 2
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-toolchain-02
+          path: .worktrees/_artifacts/offline-toolchain/toolchain.part-02
+          retention-days: 2
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-toolchain-03
+          path: .worktrees/_artifacts/offline-toolchain/toolchain.part-03
+          retention-days: 2
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-toolchain-04
+          path: .worktrees/_artifacts/offline-toolchain/toolchain.part-04
+          retention-days: 2
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: offline-toolchain-05
+          path: .worktrees/_artifacts/offline-toolchain/toolchain.part-05
+          retention-days: 2
+          compression-level: 0
