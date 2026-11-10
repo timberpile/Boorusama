@@ -28,6 +28,31 @@ jobs:
         run: |
           mkdir -p .worktrees/_artifacts/165-verification
           git rev-parse HEAD > .worktrees/_artifacts/165-verification/candidate.sha
+      - name: Install native decoder build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes meson nasm
+      - name: Observe public CDN behavior without credentials (non-gating)
+        shell: bash
+        run: |
+          set +e
+          {
+            for url in \
+              'https://i.pximg.net/c/600x1200_90_webp/img-master/img/2026/11/08/00/00/19/151801969_p0_master1200.jpg' \
+              'https://i.pximg.net/img-original/img/2026/11/09/00/00/34/151845793_p0.jpg'; do
+              for mode in absent pixiv; do
+                headers=()
+                if [[ "$mode" == pixiv ]]; then headers=(-H 'Referer: https://www.pixiv.net/'); fi
+                printf '\nvariant=%s referer=%s\n' "$url" "$mode"
+                curl --silent --show-error --max-time 20 --range 0-1023 \
+                  --user-agent 'PixivAndroidApp/5.0.234 (Android 11; Pixel 5)' \
+                  "${headers[@]}" --output /dev/null \
+                  --write-out 'status=%{http_code} bytes=%{size_download} type=%{content_type}\n' "$url"
+                printf 'transport_exit=%s\n' "$?"
+              done
+            done
+          } > .worktrees/_artifacts/165-verification/live-cdn.log 2>&1
+          cat .worktrees/_artifacts/165-verification/live-cdn.log
       - name: Install pinned native FVM
         shell: bash
         run: |
@@ -51,6 +76,7 @@ jobs:
             /home/runner/.cache/fvm
             ~/.pub-cache
           key: audit-fvm-3.47.2-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/boorusama_cli/pubspec.lock') }}
+          save-always: true
       - name: Initialize pinned workspace
         shell: bash
         run: |
