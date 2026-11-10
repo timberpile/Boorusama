@@ -686,7 +686,7 @@ void main() {
   );
 
   testWidgets(
-    'the concise first-use warning can be cancelled without clearing or saving',
+    'closing an unsaved populated target choice preserves contents and settings',
     (tester) async {
       await prepare();
       final group = await library.createGroup('Existing favorites');
@@ -696,17 +696,9 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
-      await tap(tester, getSave());
-      expect(
-        find.text('First use will clear all bookmarks in Existing favorites.'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('Bookmarks in other groups will be kept.'),
-        findsNothing,
-      );
-      await tap(tester, find.text('Cancel'));
-      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+      expect(find.text('Clear existing bookmarks?'), findsNothing);
+      await tap(tester, find.byKey(const ValueKey('server-favorites-close')));
+      expect(find.byType(ServerFavoritesDialog), findsNothing);
       expect(await library.snapshotForExport(), before);
       expect((await saved()).globalGroupId, isNull);
       expect(h.source.calls, 0);
@@ -714,22 +706,22 @@ void main() {
   );
 
   testWidgets(
-    'confirmed clearing saves and closes while an already assigned group is never cleared',
+    'saving a populated first or shared target never prompts or clears',
     (tester) async {
       await prepare();
       final group = await library.createGroup('Existing favorites');
       await library.addPostsToGroup(h.profile.auth, [h.post(3)], group.id);
+      final initial = await library.snapshotForExport();
       await mount(tester);
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
       await tap(tester, getSave());
-      await tap(tester, find.text('Clear & Save'));
+      expect(find.text('Clear existing bookmarks?'), findsNothing);
+      expect(find.text('Clear & Save'), findsNothing);
       expect(find.byType(ServerFavoritesDialog), findsNothing);
-      expect(
-        (await library.snapshotForExport()).groupsById[group.id]!.bookmarkIds,
-        isEmpty,
-      );
+      expect(await library.snapshotForExport(), initial);
+      expect((await saved()).globalGroupId, group.id);
       await library.addPostsToGroup(h.profile.auth, [h.post(4)], group.id);
       final before = await library.snapshotForExport();
       await open(tester);
@@ -743,7 +735,7 @@ void main() {
   );
 
   testWidgets(
-    'an account change during confirmation prevents clearing any target',
+    'an account change before saving a populated target preserves all contents',
     (tester) async {
       await prepare();
       final group = await library.createGroup('Existing favorites');
@@ -753,16 +745,17 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
-      await tap(tester, getSave());
+      // The durable account changes before the UI provider has refreshed.
+      // saveAll must still reject the captured account rather than save it.
       h.profiles.profiles = [
         BooruConfig.fromJson({...h.profile.toJson(), 'login': 'changed'}),
       ];
-      await container.read(booruConfigProvider.notifier).fetch();
-      await tap(tester, find.text('Clear & Save'));
+      await tap(tester, getSave());
       expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       expect(find.textContaining('The account changed.'), findsWidgets);
       expect(await library.snapshotForExport(), before);
       expect((await saved()).globalGroupId, isNull);
+      expect(h.source.calls, 0);
     },
   );
 

@@ -97,12 +97,14 @@ class FavoriteHarness {
   late final FavoriteTestProfiles profiles;
   late final FavoriteTestSource source;
   final sources = <String, FavoriteTestSource>{};
-  late final ProviderContainer container;
-  late final BookmarkHiveRepository bookmarks;
-  late final BookmarkGroupRepositoryHive groups;
+  late ProviderContainer container;
+  late BookmarkHiveRepository bookmarks;
+  late BookmarkGroupRepositoryHive groups;
   late final Directory directory;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<BookmarkGroupHiveObject> groupBox;
+  late Box<dynamic> organizationBox;
+  List<Override> Function(BooruConfig)? _extraOverrides;
   late BooruConfig profile;
 
   Future<void> open({
@@ -135,16 +137,22 @@ class FavoriteHarness {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    _extraOverrides = extraOverrides;
+    await _openRepositories();
+  }
+
+  Future<void> _openRepositories() async {
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('favorites-posts');
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('favorites-groups');
+    organizationBox = await Hive.openBox<dynamic>('favorites-organization');
     bookmarks = BookmarkHiveRepository(bookmarkBox);
     groups = BookmarkGroupRepositoryHive(
       groupBox,
-      organizationBox: MemoryBox<dynamic>(),
+      organizationBox: organizationBox,
     );
     container = ProviderContainer(
       overrides: [
-        ...?extraOverrides?.call(profile),
+        ...?_extraOverrides?.call(profile),
         miscDataStoreProvider.overrideWithValue(store),
         booruConfigRepoProvider.overrideWithValue(profiles),
         booruConfigProvider.overrideWith(
@@ -174,10 +182,21 @@ class FavoriteHarness {
     DateTime.utc(2026),
   ).copyWith(origin: postOriginFromConfig(profile));
 
+  /// Dispose providers and reopen every Hive file, including mixed membership
+  /// storage, so preservation checks cannot pass from retained memory state.
+  Future<void> restart() async {
+    container.dispose();
+    await bookmarkBox.close();
+    await groupBox.close();
+    await organizationBox.close();
+    await _openRepositories();
+  }
+
   Future<void> close() async {
     container.dispose();
     await bookmarkBox.close();
     await groupBox.close();
+    await organizationBox.close();
     await directory.delete(recursive: true);
   }
 }

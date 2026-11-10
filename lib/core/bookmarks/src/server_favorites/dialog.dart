@@ -12,9 +12,7 @@ import '../../../configs/config/types.dart';
 import '../../../groups/folder_tree.dart';
 import '../../../navigation/navigation_catalog_provider.dart';
 import '../providers/bookmark_provider.dart';
-import '../types/bookmark_group.dart';
 import '../widgets/bookmark_group_label.dart';
-import 'binding.dart';
 import 'controller.dart';
 import 'fetch_runner.dart';
 import 'presentation.dart';
@@ -521,10 +519,7 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
       _problem = null;
     });
     try {
-      final newlyBound = updated.assignedGroupIds.difference(
-        baseline.assignedGroupIds,
-      );
-      final snapshot = newlyBound.isNotEmpty || fetch != null
+      final snapshot = fetch != null
           ? await ref.read(bookmarkLibraryProvider.notifier).snapshotForExport()
           : null;
       final sessions = <ServerFavoriteSession>[];
@@ -538,46 +533,13 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
         }
         sessions.add(ServerFavoriteSession(profile, groupId));
       }
-      final clears = snapshot == null
-          ? <BookmarkGroup>[]
-          : serverFavoriteGroupsToClear(baseline, updated, snapshot.groups);
       if (!mounted) return;
-      if (clears.isNotEmpty) {
-        final t = context.t.bookmark.server_favorites;
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            scrollable: true,
-            title: Text(t.clear_title),
-            content: Text(
-              t.clear_warning.replaceAll(
-                '{groups}',
-                clears.map((g) => _groupLabel(g.id)).join(', '),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(context.t.generic.action.cancel),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(
-                  fetch == null ? t.clear_confirm : t.clear_fetch_confirm,
-                ),
-              ),
-            ],
-          ),
-        );
-        if (confirmed != true || !mounted) return;
-      }
       await ref
           .read(serverFavoriteSettingsProvider.notifier)
           .saveAll(
             profiles: _accounts,
             expected: baseline,
             updated: updated,
-            confirmedClears: clears,
           );
       if (!mounted) return;
       if (fetch == null) {

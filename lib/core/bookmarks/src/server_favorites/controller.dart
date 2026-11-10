@@ -122,9 +122,7 @@ class ServerFavoriteFetchNotifier
         final session = job.session;
         if (session == null) continue;
         if (!configs.any(
-          (config) =>
-              config.id == session.config.id &&
-              config.auth == session.config.auth,
+          (config) => serverFavoriteActorMatches(session.config, config),
         )) {
           job.cancellation.cancel();
         }
@@ -192,8 +190,10 @@ class ServerFavoriteFetchNotifier
       final session = await job.cancellation.wait(_capture(profileId));
       job.cancellation.throwIfCancelled();
       if (expectedSession != null) {
-        if (session.config.id != expectedSession.config.id ||
-            session.config.auth != expectedSession.config.auth) {
+        if (!serverFavoriteActorMatches(
+          expectedSession.config,
+          session.config,
+        )) {
           throw const ServerFavoriteException(
             ServerFavoriteProblem.accountChanged,
           );
@@ -305,8 +305,7 @@ class ServerFavoriteFetchNotifier
     final configs = await ref.read(booruConfigRepoProvider).getAll();
     if (_disposed) throw const ServerFavoriteCancelled();
     final exists = configs.any(
-      (config) =>
-          config.id == session.config.id && config.auth == session.config.auth,
+      (config) => serverFavoriteActorMatches(session.config, config),
     );
     if (!exists) {
       throw const ServerFavoriteException(ServerFavoriteProblem.accountChanged);

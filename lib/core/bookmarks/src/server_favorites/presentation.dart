@@ -17,7 +17,6 @@ String serverFavoriteProblemText(
     ServerFavoriteProblem.ambiguousAccount => t.ambiguousAccount,
     ServerFavoriteProblem.noTarget => t.noTarget,
     ServerFavoriteProblem.targetMissing => t.targetMissing,
-    ServerFavoriteProblem.confirmationRequired => t.confirmationRequired,
     ServerFavoriteProblem.targetChanged => t.targetChanged,
     ServerFavoriteProblem.accountChanged => t.accountChanged,
     ServerFavoriteProblem.missingPostIdentity => t.missingPostIdentity,
