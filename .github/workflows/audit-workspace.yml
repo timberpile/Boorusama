@@ -13,26 +13,28 @@ permissions:
 jobs:
   source:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
-      - name: Check out pinned audit source
+      - name: Check out pinned audit source and shared history
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: 2e2ea428ba323706e37a65e45903d3959df439d4
+          fetch-depth: 0
           persist-credentials: false
-      - name: Archive clean source for isolated review
+      - name: Preserve source history for isolated review
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = 2e2ea428ba323706e37a65e45903d3959df439d4
-          git archive --format=tar.gz --output="$RUNNER_TEMP/develop-source.tar.gz" HEAD
-          git rev-parse HEAD > "$RUNNER_TEMP/develop-source.sha"
+          mkdir -p .worktrees/_artifacts/audit-source
+          git bundle create .worktrees/_artifacts/audit-source/repository.bundle --all HEAD
+          git bundle verify .worktrees/_artifacts/audit-source/repository.bundle
+          git for-each-ref --format='%(refname) %(objectname)' > .worktrees/_artifacts/audit-source/refs.txt
+          git rev-parse HEAD > .worktrees/_artifacts/audit-source/develop-source.sha
       - name: Preserve review source
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: pinned-develop-source
-          path: |
-            ${{ runner.temp }}/develop-source.tar.gz
-            ${{ runner.temp }}/develop-source.sha
+          name: audit-source-history
+          path: .worktrees/_artifacts/audit-source/
           if-no-files-found: error
           retention-days: 7
