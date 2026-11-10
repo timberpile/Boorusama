@@ -22,6 +22,17 @@ enum BookmarkSortType {
   scoreAscending,
 }
 
+/// Transfer omits local-only sourceUrl, so imported records use portable origins.
+String? bookmarkSourceHost(PostBookmark bookmark) {
+  for (final source in [bookmark.sourceUrl, bookmark.post.origin.sourceHost]) {
+    final uri = Uri.tryParse(
+      source.contains('://') ? source : 'https://$source',
+    );
+    if (uri != null && uri.host.isNotEmpty) return uri.host.toLowerCase();
+  }
+  return null;
+}
+
 /// The source picker supplies hosts, independent of URL paths and ports.
 bool bookmarkSourceMatchesHost(String source, String selectedHost) {
   final uri = Uri.tryParse(source.contains('://') ? source : 'https://$source');
@@ -76,6 +87,7 @@ List<PostBookmark> selectBookmarks({
   String? selectedBooruUrl,
   BookmarkShuffleState? shuffleState,
   Map<int, DateTime>? addedAt,
+  Set<int>? availablePostIds,
 }) {
   return performanceRecorder.measureSync(PerfOperation.bookmarkSelect, () {
     final groupIds = view.kind == BookmarkViewKind.all
@@ -96,7 +108,11 @@ List<PostBookmark> selectBookmarks({
     };
 
     return filterBookmarks(
-      bookmarks: inView,
+      bookmarks: availablePostIds == null
+          ? inView
+          : inView
+                .where((bookmark) => availablePostIds.contains(bookmark.id))
+                .toList(),
       selectedTags: selectedTags,
       sortType: sortType,
       selectedBooruUrl: selectedBooruUrl,
@@ -117,6 +133,7 @@ List<PostBookmark> selectBookmarkPreviews({
   required BookmarkView view,
   required BookmarkSortType sortType,
   BookmarkShuffleState? shuffleState,
+  Set<int>? availablePostIds,
 }) {
   // Malformed rows retain the full selector's legacy behavior. All-view random
   // ordering still belongs to the full selector; group covers sample members.
@@ -129,17 +146,24 @@ List<PostBookmark> selectBookmarkPreviews({
       selectedTags: const [],
       sortType: sortType,
       shuffleState: shuffleState,
+      availablePostIds: availablePostIds,
     ).take(4).toList();
   }
 
   final groupIds = view.kind == BookmarkViewKind.all
       ? const <int>{}
       : state.bookmarkIdsForView(view);
-  final candidates = switch (view.kind) {
-    BookmarkViewKind.all => state.items,
-    BookmarkViewKind.group || BookmarkViewKind.subtree =>
-      groupIds.map((id) => state.bookmarksById[id]).whereType<PostBookmark>(),
-  };
+  final candidates =
+      switch (view.kind) {
+        BookmarkViewKind.all => state.items,
+        BookmarkViewKind.group || BookmarkViewKind.subtree =>
+          groupIds
+              .map((id) => state.bookmarksById[id])
+              .whereType<PostBookmark>(),
+      }.where(
+        (bookmark) =>
+            availablePostIds == null || availablePostIds.contains(bookmark.id),
+      );
   return performanceRecorder.measureSync(
     PerfOperation.bookmarkSelect,
     () {
@@ -226,6 +250,25 @@ List<PostBookmark> filterBookmarks({
   BookmarkShuffleState? shuffleState,
   Map<int, DateTime>? addedAt,
 }) {
+  final sorted = matchingBookmarks(
+    bookmarks: bookmarks,
+    selectedTags: selectedTags,
+    selectedBooruUrl: selectedBooruUrl,
+  ).sorted(_bookmarkComparator(sortType, addedAt: addedAt));
+
+  if (sortType != BookmarkSortType.random) return sorted;
+  final activeShuffleState = shuffleState?.seed != null
+      ? shuffleState!
+      : const BookmarkShuffleState().withNewShuffle();
+  return activeShuffleState.applyShuffleToList(sorted);
+}
+
+/// The same source/tag scope without sorting or shuffling, for summary counts.
+Iterable<PostBookmark> matchingBookmarks({
+  required Iterable<PostBookmark> bookmarks,
+  required List<String> selectedTags,
+  String? selectedBooruUrl,
+}) {
   final filters = selectedTags
       .map(BookmarkSearchToken.parse)
       .where((token) => token.tag.isNotEmpty)
@@ -237,28 +280,17 @@ List<PostBookmark> filterBookmarks({
     );
   }
 
-  final filtered = selectedBooruUrl == null && selectedTags.isEmpty
+  return selectedBooruUrl == null && selectedTags.isEmpty
       ? bookmarks
-      : bookmarks
-            .where(
-              (bookmark) =>
-                  (selectedBooruUrl == null ||
-                      bookmarkSourceMatchesHost(
-                        bookmark.sourceUrl,
-                        selectedBooruUrl,
-                      )) &&
-                  (filters.isEmpty || matchesTags(bookmark)),
-            )
-            .toList();
-  final sorted = filtered.sorted(
-    _bookmarkComparator(sortType, addedAt: addedAt),
-  );
-
-  if (sortType != BookmarkSortType.random) return sorted;
-  final activeShuffleState = shuffleState?.seed != null
-      ? shuffleState!
-      : const BookmarkShuffleState().withNewShuffle();
-  return activeShuffleState.applyShuffleToList(sorted);
+      : bookmarks.where(
+          (bookmark) =>
+              (selectedBooruUrl == null ||
+                  bookmarkSourceMatchesHost(
+                    bookmarkSourceHost(bookmark) ?? '',
+                    selectedBooruUrl,
+                  )) &&
+              (filters.isEmpty || matchesTags(bookmark)),
+        );
 }
 
 Comparator<PostBookmark> _bookmarkComparator(

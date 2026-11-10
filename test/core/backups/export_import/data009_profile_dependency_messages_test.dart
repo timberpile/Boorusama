@@ -87,12 +87,10 @@ void main() {
       }
 
       await review([...references, references.first]);
-      const searches =
-          'first.example: Select a matching profile for the selected Topics, or skip those items.';
-      const feeds =
-          'second.example: Create a profile for this website in profile management, then import again, or skip the selected Topic feeds.';
+      const searches = 'first.example: Select a profile to import Topics.';
+      const feeds = 'second.example: Profile required to import Topic feeds.';
       const both =
-          'third.example: Create a profile for this website in profile management, then import again, or skip the selected Topics, Topic feeds.';
+          'third.example: Profile required to import Topics, Topic feeds.';
       expect(find.text(searches), findsOneWidget);
       expect(find.text(feeds), findsOneWidget);
       expect(find.text(both), findsOneWidget);

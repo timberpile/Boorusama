@@ -267,14 +267,14 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
       bookmark.post.origin,
       ref.watch(booruConfigProvider),
     );
-    final config = profile?.auth ?? BooruConfig.empty.auth;
+    if (profile == null) return const SizedBox.expand();
+    final config = profile.auth;
     // Preserve the established GIF sample/poster contract while static source
     // thumbnails use the same quality and fallback policy as the timeline.
     final media = isGif
         ? GridThumbnailMedia(url: preview, aspectRatio: null)
-        : (profile == null
-                  ? const DefaultGridThumbnailUrlGenerator()
-                  : ref.watch(gridThumbnailUrlGeneratorProvider(config)))
+        : ref
+              .watch(gridThumbnailUrlGeneratorProvider(config))
               .resolve(
                 bookmark.post,
                 settings: ref.watch(gridThumbnailSettingsProvider(config)),

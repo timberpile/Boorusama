@@ -527,6 +527,32 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   @override
   Future<List<int>> reserveIds(int count) =>
       _ready(() => _allocator.reserve(count));
+
+  @override
+  Future<void> restoreLocalOrganization({
+    required List<Bookmark> records,
+    required List<BookmarkGroup> groups,
+    required List<CollectionFolder> folders,
+  }) => _ready(() async {
+    final (groupBox, _) = await _organizationBoxes();
+    final recordIds = records.map((record) => record.id).toSet();
+    final groupIds = groups.map((group) => group.id).toSet();
+    if (!groupIds.contains(defaultBookmarkGroupId)) {
+      throw const FormatException('Local recovery snapshot is missing Default');
+    }
+    final current = await readAll();
+    await _mutate(
+      records,
+      current.map((record) => record.id).toSet().difference(recordIds),
+      organizationGroups: groups,
+      removedOrganizationGroups: groupBox.keys
+          .cast<String>()
+          .toSet()
+          .difference(groupIds),
+      organizationFolders: folders,
+      restoreLocalPreimage: true,
+    );
+  });
   @override
   Future<List<Bookmark>> readAll() => _ready(() async {
     final ids =
@@ -591,6 +617,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     List<BookmarkGroup> organizationGroups = const [],
     Set<String> removedOrganizationGroups = const {},
     List<CollectionFolder>? organizationFolders,
+    bool restoreLocalPreimage = false,
   }) async {
     final deletes = <Map<String, Object?>>[];
     final previous = <String, Object?>{};
@@ -606,6 +633,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     final normalized = <Bookmark>[];
     final headers = <String, Object?>{};
     final identities = <ContentIdentity, int>{};
+    final restoredIds = <int>{};
     final bound = (await _ids.readNextId())!;
     final floor = _metadata.get(_floor) as int;
     for (final original in records) {
@@ -618,15 +646,21 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       final header = _header(record);
       final before = _storedHeader(id);
       if (before == null) {
-        if (id < floor || id >= bound) {
+        if (restoreLocalPreimage || id < floor || id >= bound) {
           throw const FormatException('Bookmark ID was not reserved');
         }
       } else {
         if (before['kind'] == 'deleted') {
-          throw const FormatException('Deleted Bookmark IDs cannot be reused');
+          if (!restoreLocalPreimage || id >= bound) {
+            throw const FormatException(
+              'Deleted Bookmark IDs cannot be reused',
+            );
+          }
+          restoredIds.add(id);
+        } else {
+          _read(id);
+          _compatible(before, header, record);
         }
-        _read(id);
-        _compatible(before, header, record);
       }
       final identity = _identity(header);
       if (identity != null) {
@@ -666,9 +700,14 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       'expectedRevision': revision,
       'targetRevision': revision + 1,
       'organization': ?organization,
+      if (restoreLocalPreimage) 'restoredIds': restoredIds.toList()..sort(),
     };
     final journal = {
-      'version': organization == null ? 1 : 2,
+      'version': restoreLocalPreimage
+          ? 3
+          : organization == null
+          ? 1
+          : 2,
       'hash': _hash(plan),
       'plan': plan,
     };
@@ -692,8 +731,9 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       if (raw == null) return;
       final journal = contentMap(raw);
       final plan = contentMap(journal['plan']);
-      if (!const {1, 2}.contains(journal['version']) ||
-          (journal['version'] == 2) != plan.containsKey('organization') ||
+      if (!const {1, 2, 3}.contains(journal['version']) ||
+          (journal['version'] != 1) != plan.containsKey('organization') ||
+          (journal['version'] == 3) != plan.containsKey('restoredIds') ||
           journal['hash'] != _hash(plan)) {
         throw const FormatException('Invalid Bookmark mutation journal');
       }
@@ -723,6 +763,16 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         .map((value) => _codec.decode(value))
         .toList();
     final deletes = (plan['deletes']! as List).map(contentMap).toList();
+    final restoredIds = <int>{};
+    if (plan['restoredIds'] case final raw?) {
+      if (raw is! List)
+        throw const FormatException('Invalid local recovery IDs');
+      for (final value in raw) {
+        if (!restoredIds.add(_localId(value))) {
+          throw const FormatException('Duplicate local recovery ID');
+        }
+      }
+    }
     final bound = await _ids.readNextId();
     final floor = _metadata.get(_floor);
     if (bound == null ||
@@ -767,15 +817,21 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       check(id, header);
       final old = previous['$id'];
       if (old == null) {
-        if (id < floor || id >= bound) {
+        if (plan.containsKey('restoredIds') || id < floor || id >= bound) {
           throw const FormatException('Journal ID was not reserved');
         }
       } else {
         final before = contentMap(old);
         if (before['kind'] == 'deleted') {
-          throw const FormatException('Journal reused a deleted ID');
+          if (!restoredIds.contains(id) || id >= bound) {
+            throw const FormatException('Journal reused a deleted ID');
+          }
+        } else {
+          if (restoredIds.contains(id)) {
+            throw const FormatException('Local recovery ID was not deleted');
+          }
+          _compatible(before, header, record);
         }
-        _compatible(before, header, record);
       }
       if (_identity(header) case final identity?) {
         final owner = _content(identity);
@@ -820,7 +876,13 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         groupDeletes.add(id);
       }
     }
-    if (previous.length != seen.length || headers.length != records.length) {
+    if (previous.length != seen.length ||
+        headers.length != records.length ||
+        !restoredIds.every(
+          (id) =>
+              headers.containsKey('$id') &&
+              contentMap(previous['$id'])['kind'] == 'deleted',
+        )) {
       throw const FormatException('Incomplete mutation journal');
     }
     // Everything is decoded and bound to its intended index before any write.

@@ -874,7 +874,11 @@
         "preview_position": "Position",
         "preview_query": "Suchabfrage",
         "preview_query_order": "Reihenfolge der Suchabfragen",
-        "preview_global": "Global"
+        "preview_global": "Global",
+        "issues": {
+          "unresolved_profile_site": "{site}: Profil zum Import von {sources} auswählen.",
+          "missing_profile_site": "{site}: Profil für den Import von {sources} nötig."
+        }
       },
       "backup_and_restore": "Sichern und Wiederherstellen",
       "import": "Importieren",
@@ -1277,6 +1281,13 @@
     }
   },
   "bookmark": {
+    "unavailable_count": {
+      "one": "Nicht verfügbar: $n",
+      "other": "Nicht verfügbar: $n"
+    },
+    "unavailable_title": "Nicht verfügbare Posts",
+    "unavailable_account": "Ein passendes Profil ist erforderlich.",
+    "unavailable_unknown_site": "Unbekannte Website",
     "groups": {
       "all_bookmarks": "Alle Lesezeichen",
       "structure": "Struktur",

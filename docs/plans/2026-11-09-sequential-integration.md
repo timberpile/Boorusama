@@ -10,8 +10,8 @@ The combined branch `maintenance/combined-testing-2026-11-08` is a **reference a
 | P2 | Additive Favorites Sync and durable target assignment | #132 | Existing group memberships preserved; targets survive restart/token refresh; non-destructive Save & Fetch |
 | P3 | Shared Post/Group references and capabilities | #154 | Group contracts without source UI changes; isolation/codec roundtrips |
 | P4 | Unified Bookmark storage, hierarchy and UX | #155, #158 | Atomic v10 migration/rollback, direct and subtree views, exact old-style picker, subtree-delete Undo |
-| P5 | Profile-independent Bookmark import | #142 | v4–v10 readers; exact self-backup Replace preview reports zero semantic changes |
-| P6 | Public/offline Bookmark access | #143 | Cached media on restart; Gelbooru reattachment; Realbooru media, favicon, explanatory unavailable-by-site display |
+| P5 | Profile-independent Bookmark import | #142 | v4–v10 readers; exact self-backup Replace preview reports zero semantic changes; timeline-toolbar missing-profile totals and per-site counts |
+| P6 | Public/offline Bookmark access | #143 | Cached media on restart; Gelbooru reattachment; Realbooru media and favicon; anonymous/offline access updates the existing P5 availability indicator |
 | P7 | Existing remote source groups | #156 | Danbooru Pool/Related + Szurubooru identities, pagination and saved covers; genuine live acceptance |
 | P8 | Pixiv Works, independent Page saves and Explore pagination | #140, #141, #161 | Browse/Search/Explore show Works; only two viewer presentation modes; Page/Work actions + downloads/shares |
 | P9 | Folder collection sync | #144 | Read-only service/UI, direct Publish, named devices, hierarchical Receive, signed Stop Publishing withdrawal deletion |
@@ -31,6 +31,7 @@ Old task branches may contain obsolete intermediate code. Do not merge their hea
 - Folder Sync: sender sets an editable device name; receiver defaults to that name and may set a local override. A signed Stop Publishing withdrawal deletes the receiver's mirror only when no other effective publication/subscription keeps it; unreachable shared storage never signals deletion. Other local memberships survive. Mirror contents are not removable, duplicable or selectable as Bookmark destinations; local renaming/moving remain allowed. Direct Publish should not detour to the global checklist. Keep versioned storage but eliminate the redundant `BoorusamaSync` parent for new directories and safely handle existing publications.
 - Picker: same icon for all groups; trailing chevron alone indicates children, with a subtle rounded surface for the right 20% navigation target; derive a subtle nested-membership indicator. Retain existing compact rows, Recent and `+ Group`.
 - Persistent image cache retains ordinary URL/custom keys, not transient session or auth/policy epochs.
+- P5 includes the Bookmark timeline toolbar's total number of Posts unavailable because a profile is missing, with affected sites and their respective Post counts. Successfully imported Posts must not disappear without an explanation. P6 adds viewing through an eligible anonymous reader on supported sites without creating a local profile; those viewable Posts no longer count as blocked by a missing profile.
 
 ## Acceptance evidence
 

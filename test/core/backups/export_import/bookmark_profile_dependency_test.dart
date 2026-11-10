@@ -24,7 +24,8 @@ void main() {
     ResolvedImportSource? resolution,
     Map<ProfileSiteKey, String> choices = const {},
   }) => const ProfileDependencyPlanner().plan(
-    references: [reference],
+    references: const [],
+    optionalReferences: [reference],
     dependentSources: {
       key: {'bookmarks'},
     },
@@ -49,10 +50,11 @@ void main() {
       profiles: [_profile(first, reference.url, BooruType.danbooru)],
     ),
   ]) {
-    test('${c.name} leaves the bookmark dependency unresolved', () {
+    test('${c.name} retains an optional unresolved Bookmark hint', () {
       final result = plan(local: c.profiles);
       expect(result.mappings.single.candidateIds, isEmpty);
-      expect(result.errors.single.profileDependency!.sourceIds, {'bookmarks'});
+      expect(result.errors, isEmpty);
+      expect(result.mappings.single.isRequired, isFalse);
       expect(result.profileIdFor(reference), isNull);
     });
   }
@@ -63,16 +65,20 @@ void main() {
     expect(result.errors, isEmpty);
     expect(result.profileIdFor(reference), first);
   });
-  test('multiple accounts require a choice and reject wrong-site choices', () {
+  test('multiple accounts remain optional and reject wrong-site choices', () {
     final profiles = [
       _profile(first, reference.url),
       _profile(second, reference.url),
       _profile(groupId, 'https://other.example'),
     ];
-    expect(plan(local: profiles).errors, isNotEmpty);
+    expect(plan(local: profiles).errors, isEmpty);
+    expect(plan(local: profiles).profileIdFor(reference), isNull);
     expect(
-      plan(local: profiles, choices: {siteKey: groupId}).errors,
-      isNotEmpty,
+      plan(
+        local: profiles,
+        choices: {siteKey: groupId},
+      ).profileIdFor(reference),
+      isNull,
     );
     expect(
       plan(local: profiles, choices: {siteKey: second}).profileIdFor(reference),
@@ -85,7 +91,8 @@ void main() {
       final hinted = bookmarkWithProfileHint(bookmark, second);
       final ref = bookmarkProfileReference(hinted);
       final result = const ProfileDependencyPlanner().plan(
-        references: [ref],
+        references: const [],
+        optionalReferences: [ref],
         dependentSources: {
           ProfileReferenceKey.fromReference(ref): {'bookmarks'},
         },
@@ -125,7 +132,7 @@ void main() {
     );
     expect(result.projectedProfiles, isEmpty);
     expect(result.profileIdFor(reference), isNull);
-    expect(result.errors, isNotEmpty);
+    expect(result.errors, isEmpty);
   });
   test(
     'a stale origin UUID for another website cannot be remapped silently',
@@ -133,7 +140,8 @@ void main() {
       final hinted = bookmarkWithProfileHint(bookmark, first);
       final ref = bookmarkProfileReference(hinted);
       final result = const ProfileDependencyPlanner().plan(
-        references: [ref],
+        references: const [],
+        optionalReferences: [ref],
         dependentSources: {
           ProfileReferenceKey.fromReference(ref): {'bookmarks'},
         },
@@ -143,11 +151,53 @@ void main() {
         ],
         choices: {ProfileSiteKey.fromReference(ref): second},
       );
-      expect(
-        result.errors.map((e) => e.code),
-        contains('profile_identity_conflict'),
-      );
+      expect(result.errors, isEmpty);
       expect(result.mappings.single.isResolved, isFalse);
+    },
+  );
+  test('a Bookmark hint cannot select an account for a required Topic', () {
+    final hinted = bookmarkProfileReference(
+      bookmarkWithProfileHint(bookmark, second),
+    );
+    final result = const ProfileDependencyPlanner().plan(
+      references: [reference],
+      optionalReferences: [hinted],
+      dependentSources: {
+        key: {'pinned_searches'},
+        ProfileReferenceKey.fromReference(hinted): {'bookmarks'},
+      },
+      localProfiles: [
+        _profile(first, reference.url),
+        _profile(second, reference.url),
+      ],
+    );
+    expect(result.profileIdFor(reference), isNull);
+    expect(result.mappings.single.isRequired, isTrue);
+    expect(result.errors.single.code, 'unresolved_profile_dependency');
+    expect(result.errors.single.profileDependency!.sourceIds, {
+      'pinned_searches',
+    });
+  });
+  test(
+    'a conflicting optional hint cannot invalidate a required Topic account',
+    () {
+      final topic = bookmarkProfileReference(
+        bookmarkWithProfileHint(bookmark, second),
+      );
+      final optional = bookmarkProfileReference(
+        bookmarkWithProfileHint(bookmark, first),
+      );
+      final result = const ProfileDependencyPlanner().plan(
+        references: [topic],
+        optionalReferences: [optional],
+        localProfiles: [
+          _profile(first, 'https://other.example'),
+          _profile(second, reference.url),
+        ],
+      );
+      expect(result.errors, isEmpty);
+      expect(result.profileIdFor(topic), second);
+      expect(result.mappings.single.isRequired, isTrue);
     },
   );
   test(

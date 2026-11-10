@@ -7,6 +7,7 @@ import '../../bookmarks/src/types/legacy_group_bookmark.dart';
 import '../../groups/folder_tree.dart';
 import '../export_import/models/import_action.dart';
 import 'bookmark_import_plan.dart';
+import 'bookmark_import_record_matches.dart';
 import '../export_import/import/bookmark_profile_dependency.dart';
 
 /// A validated, allocation-free import. Temporary IDs are internal placeholders
@@ -109,6 +110,22 @@ final class BookmarkImportPreparation {
       for (final r in currentRecords)
         if (bookmarkContentIdentity(r) case final identity?) identity: r,
     };
+    final opaqueMatches = replace
+        ? matchUnaddressableBookmarkRecords(
+            incoming: incomingPlan.records,
+            local: currentRecords,
+            incomingGroups: [
+              for (final group in incomingPlan.groups)
+                BookmarkGroup(
+                  id: group.id,
+                  name: group.name,
+                  bookmarkIds: group.bookmarkIds,
+                  addedAt: group.addedAt,
+                ),
+            ],
+            localGroups: localGroups,
+          )
+        : const <int, Bookmark>{};
     final source = <int, Bookmark>{};
     final identities = <Object>{};
     for (final candidate in incomingPlan.records) {
@@ -121,10 +138,15 @@ final class BookmarkImportPreparation {
       }
       // Validate every record, including records whose container may be skipped.
       // A file ID never addresses a local slot, even for an opaque record.
-      final previous = identity == null ? null : byIdentity[identity];
+      final previous = identity == null
+          ? opaqueMatches[candidate.id]
+          : byIdentity[identity];
       if (previous != null)
         validateBookmarkImportCompatibility(previous, candidate);
-      source[candidate.id] = normalize(candidate, previous: previous);
+      final normalized = normalize(candidate, previous: previous);
+      source[candidate.id] = opaqueMatches.containsKey(candidate.id)
+          ? bookmarkWithId(previous!, candidate.id)
+          : normalized;
     }
     final sourceIds = source.keys.toSet();
     final groupIds = <String>{};
@@ -160,7 +182,9 @@ final class BookmarkImportPreparation {
       if (!selected.contains(entry.key)) continue;
       final incoming = entry.value;
       final identity = bookmarkContentIdentity(incoming);
-      final existing = identity == null ? null : byIdentity[identity];
+      final existing = identity == null
+          ? opaqueMatches[entry.key]
+          : byIdentity[identity];
       if (existing != null) {
         mapped[entry.key] = existing.id;
         existingCount++;

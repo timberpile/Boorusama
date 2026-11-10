@@ -20,6 +20,52 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const projector = ImportPlannedChangeProjector();
 
+  test('populated library projection compares complete group memberships', () {
+    final records = [
+      for (var id = 1; id <= 18000; id++) _bookmark(localId: id, postId: id),
+    ];
+    final date = DateTime.utc(2026);
+    final ids = records.map((record) => record.id).toList();
+    final local = BookmarkImportLocalSnapshot(
+      bookmarks: records,
+      groups: [
+        BookmarkGroup(
+          id: defaultBookmarkGroupId,
+          name: 'Default',
+          bookmarkIds: ids.toSet(),
+          addedAt: {for (final id in ids) id: date},
+        ),
+      ],
+    );
+    PlannedChangeSummary project({bool changeDate = false}) =>
+        projector.bookmarks(
+          local: local,
+          incoming: BookmarkBackupData(
+            bookmarks: records,
+            groups: [
+              BookmarkGroupBackup(
+                id: defaultBookmarkGroupId,
+                name: 'Default',
+                bookmarkIds: ids.reversed.toList(),
+                addedAt: {
+                  for (final id in ids.reversed)
+                    id: changeDate && id == ids.last
+                        ? date.add(const Duration(days: 1))
+                        : date,
+                },
+              ),
+            ],
+          ),
+          resolution: _source('bookmarks', ImportAction.replace),
+        )!;
+    final same = project();
+    expect(same.created + same.updated + same.deleted, 0);
+    expect(same.unchanged, records.length + 1);
+    final changed = project(changeDate: true);
+    expect(changed.updated, 1);
+    expect(changed.unchanged, records.length);
+  });
+
   test('membership timestamp updates are visible while merges preserve local dates', () {
     final bookmark = _bookmark(localId: 1, postId: 101);
     final before = DateTime.utc(2020), incoming = DateTime.utc(2022);

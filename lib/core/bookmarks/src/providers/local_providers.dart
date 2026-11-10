@@ -67,18 +67,16 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
     bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
   );
 
-  final hosts = bookmarks.fold(
-    <String>{},
-    (hosts, bookmark) {
-      final uri = Uri.tryParse(bookmark.sourceUrl);
-      if (uri?.host != null) hosts.add(uri!.host);
-      return hosts;
-    },
-  );
+  final hosts = <String>{
+    for (final bookmark in bookmarks)
+      if (bookmarkSourceHost(bookmark) case final host?) host,
+  };
   hosts.addAll(
     pools
         .map((p) => Uri.tryParse('https://${p.origin.sourceHost}')?.host)
-        .nonNulls,
+        .nonNulls
+        .where((host) => host.isNotEmpty)
+        .map((host) => host.toLowerCase()),
   );
   return hosts.toList();
 });

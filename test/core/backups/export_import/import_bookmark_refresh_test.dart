@@ -1,4 +1,6 @@
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/foundation/loggers.dart';
 
 import '../../search/following_topics/topic_test_utils.dart';
@@ -82,6 +84,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         ...bookmarkStorage.overrides,
+        booruEngineRegistryProvider.overrideWith(
+          (ref) => BooruEngineRegistry(),
+        ),
         loggerProvider.overrideWithValue(AppLogger()),
         bookmarkRepoProvider.overrideWith((ref) => bookmarkRepository),
         bookmarkGroupRepoProvider.overrideWith((ref) => groupRepository),

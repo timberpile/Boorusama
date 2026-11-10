@@ -7,6 +7,9 @@ import '../types/types.dart';
 import '../utils/data_converter.dart';
 import 'preparation_pipeline.dart';
 
+typedef AsyncImportDecoder<T> =
+    Future<({ExportDataPayload metadata, T parsed})> Function(String data);
+
 enum VersionCheckResult {
   compatible,
   needsUserConfirmation,
@@ -79,12 +82,18 @@ class ImportPreparationBuilder<T> {
     T Function(ExportDataPayload payload) parser,
     Future<void> Function(T data, BuildContext? uiContext) executor,
     BuildContext? uiContext, {
+    AsyncImportDecoder<T>? decode,
     Future<void> Function()? restartApp,
     Future<void> Function(T parsed, BuildContext? context, Object approval)?
     approvedExecutor,
   }) async {
-    final metadata = converter.decode(data: data);
-    final parsed = parser(metadata);
+    final (metadata: metadata, parsed: parsed) = switch (decode) {
+      final decoder? => await decoder(data),
+      null => () {
+        final metadata = converter.decode(data: data);
+        return (metadata: metadata, parsed: parser(metadata));
+      }(),
+    };
 
     final initialContext = PreparationContext<T>(
       metadata: metadata,

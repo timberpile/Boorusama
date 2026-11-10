@@ -81,12 +81,28 @@ void main() {
       );
     }
   }
+  testWidgets('group cover skips media without a matching origin profile', (
+    tester,
+  ) async {
+    final bookmark = _preview(config).copyWith(
+      sourceUrl: 'https://unconfigured.example',
+      thumbnailUrl: thumbnail,
+      format: () => 'jpg',
+    );
+    await tester.pumpWidget(
+      _app(bookmark, config, Settings.defaultSettings.listing),
+    );
+    expect(find.byType(BooruImage), findsNothing);
+    expect(find.byType(BooruImageCandidates), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final format in ['GIF', 'jpg']) {
     for (final staticPoster in [false, true]) {
       testWidgets(
         'disabled group autoplay recognizes $format with static poster $staticPoster',
         (tester) async {
-          final bookmark = PostBookmark.empty.copyWith(
+          final bookmark = _preview(config).copyWith(
             format: () => format,
             thumbnailUrl: staticPoster
                 ? 'https://media.test/thumb.PNG'
@@ -118,6 +134,26 @@ void main() {
     }
   }
 }
+
+PostBookmark _preview(BooruConfig config) => PostBookmark(
+  id: 1,
+  booruId: config.booruId,
+  createdAt: DateTime.utc(2026),
+  updatedAt: DateTime.utc(2026),
+  thumbnailUrl: '',
+  sampleUrl: '',
+  originalUrl: '',
+  sourceUrl: config.url,
+  width: 100,
+  height: 100,
+  md5: '',
+  tags: const {},
+  realSourceUrl: null,
+  format: 'jpg',
+  imageUrlResolver: const DefaultImageUrlResolver(),
+  postId: 123,
+  metadata: const {},
+);
 
 Widget _app(
   PostBookmark bookmark,

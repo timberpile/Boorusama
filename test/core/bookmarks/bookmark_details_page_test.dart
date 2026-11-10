@@ -394,7 +394,7 @@ void main() {
 
       final bookmarks = List.generate(
         8,
-        (index) => PostBookmark.empty.copyWith(
+        (index) => _legacyBookmark().copyWith(
           id: index + 1,
           postId: () => index + 1,
           sourceUrl: _config.url,

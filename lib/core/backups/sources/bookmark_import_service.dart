@@ -227,6 +227,39 @@ class BookmarkImportService {
     }
   }
 
+  /// Only local journal rollback uses exact local slots. Portable imports keep
+  /// their ordinary compatible-identity mapping and monotonic reservation path.
+  Future<void> restoreLocalSnapshot(BookmarkBackupData data) async {
+    final store = _unified;
+    if (store == null) return replace(data);
+    await store.runReadWriteScope(() async {
+      final records = data.records.map(store.normalizeRecord).toList();
+      final groups = <BookmarkGroup>[];
+      for (final group in data.groups) {
+        final id = group.id;
+        if (id == null) {
+          throw const FormatException('Local recovery Group is missing its ID');
+        }
+        groups.add(
+          BookmarkGroup(
+            id: id,
+            name: group.name,
+            bookmarkIds: group.bookmarkIds.toSet(),
+            addedAt: group.addedAt,
+            parentGroupId: group.parentGroupId,
+            folderId: group.folderId,
+            position: group.position,
+          ),
+        );
+      }
+      await store.restoreLocalOrganization(
+        records: records,
+        groups: groups,
+        folders: data.folders,
+      );
+    });
+  }
+
   Future<BookmarkImportResult> apply(
     BookmarkImportPlan plan, {
     Set<int> removeIds = const {},

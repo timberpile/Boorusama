@@ -31,6 +31,7 @@ import '../../../posts/listing/src/_internal/sliver_post_grid.dart';
 import '../../../errors/providers.dart';
 import '../../../settings/providers.dart';
 import '../types/bookmark_grid_entry.dart';
+import '../providers/bookmark_profile_availability.dart';
 import '../services/bookmark_series_projection.dart';
 import 'bookmark_pool_card.dart';
 import '../../../posts/listing/widgets.dart';
@@ -47,6 +48,7 @@ import '../routes/route_utils.dart';
 import 'bookmark_list_controls.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_multi_selection.dart';
+import 'bookmark_unavailable_indicator.dart';
 
 class BookmarkScrollView extends ConsumerStatefulWidget {
   const BookmarkScrollView({
@@ -79,6 +81,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   List<BookmarkGridEntry> _fetchedEntries = const [];
   List<BookmarkGridEntry> _entries = const [];
   Map<Object, int> _rawPostIndices = const {};
+  Object? _unavailableInputs;
+  Map<String, int> _unavailableSiteCounts = const {};
 
   late String _selectionQuery = widget.searchController.text;
   @override
@@ -189,6 +193,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
             final shuffleState = ref.read(bookmarkShuffleProvider);
             final library = await ref.read(bookmarkProvider.future);
+            final availability =
+                ref.read(bookmarkProfileAvailabilityProvider) ??
+                BookmarkProfileAvailability(
+                  library,
+                  ref.read(booruConfigProvider),
+                );
             final entries = selectBookmarkGridEntries(
               state: library,
               view: widget.view,
@@ -196,6 +206,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               sortType: sortType,
               selectedBooruUrl: selectedBooruUrl,
               shuffleState: shuffleState,
+              availablePostIds: availability.postIds,
+              availableCollectionIds: availability.collectionIds,
             );
             final posts = performanceRecorder.measureSync(
               PerfOperation.bookmarkProject,
@@ -287,7 +299,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               bookmark: false,
               selectedPostsBuilder: (_) => [
                 for (final entry in _entries.whereType<BookmarkPostEntry>())
-                  if (_selectionModeController.selectedKeys.contains(entry.key))
+                  if (_entryAvailable(entry, ref.read(booruConfigProvider)) &&
+                      _selectionModeController.selectedKeys.contains(entry.key))
                     controller.items.toList()[_rawPostIndices[entry.key]!],
               ],
               // Shared actions resolve each post's source profile and use the
@@ -356,6 +369,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       valueListenable: controller.itemsNotifier,
                       builder: (_, posts, _) => BookmarkListControls(
                         count: _entries.length,
+                        unavailableIndicator: BookmarkUnavailableIndicator(
+                          counts: _unavailableCounts(),
+                        ),
                         gridConfig: PostGridConfigIconButton(
                           postController: controller,
                           showBlacklist: false,
@@ -384,10 +400,44 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     return _entries.map((e) => e.key).toList();
   }
 
+  Map<String, int> _unavailableCounts() {
+    final library = ref.watch(bookmarkProvider).valueOrNull;
+    final availability = ref.watch(bookmarkProfileAvailabilityProvider);
+    if (library == null || availability == null) return const {};
+    final tags = widget.searchController.text;
+    final source = ref.watch(selectedBooruUrlProvider);
+    // Availability changes identity with the library or profiles. Compare it
+    // first to avoid deep membership equality when a library snapshot changes.
+    final inputs = (availability, widget.view, tags, source);
+    if (_unavailableInputs != inputs) {
+      _unavailableInputs = inputs;
+      _unavailableSiteCounts = availability.unavailablePostsBySite(
+        library: library,
+        view: widget.view,
+        selectedTags: _parseTagsFromText(tags),
+        selectedBooruUrl: source,
+      );
+    }
+    return _unavailableSiteCounts;
+  }
+
   List<CollectionBookmark> _selectedPools() => [
     for (final entry in _entries.whereType<BookmarkPoolEntry>())
-      if (_selectionModeController.selectedKeys.contains(entry.key)) entry.pool,
+      if (_entryAvailable(entry, ref.read(booruConfigProvider)) &&
+          _selectionModeController.selectedKeys.contains(entry.key))
+        entry.pool,
   ];
+
+  bool _entryAvailable(BookmarkGridEntry entry, List<BooruConfig> profiles) =>
+      switch (entry) {
+        BookmarkPostEntry(:final bookmark) =>
+          resolveBookmarkOriginProfile(bookmark.post.origin, profiles) != null,
+        BookmarkPoolEntry(:final pool) =>
+          resolvePoolBookmarkProfile(pool, profiles) != null,
+      };
+
+  bool _hasUnavailableEntries(List<BooruConfig> profiles) =>
+      _entries.any((entry) => !_entryAvailable(entry, profiles));
 
   Widget _mixedGrid(PostGridController<Post> controller) => ListenableBuilder(
     listenable: _selectionModeController,
@@ -395,6 +445,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       valueListenable: controller.itemsNotifier,
       builder: (context, posts, _) {
         final settings = ref.watch(imageListingSettingsProvider);
+        final profiles = ref.watch(booruConfigProvider);
+        // Keep stale entries out of the grid and viewer until refresh catches up.
+        // Retaining their indices while hiding the sliver also prevents selection
+        // and viewer navigation from addressing a different record.
+        if (_hasUnavailableEntries(profiles)) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
         return SliverPostGrid<Post>(
           postController: controller,
           displayItemCount: _entries.length,
@@ -417,6 +474,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     pool: pool,
                     index: index,
                     onOpen: () {
+                      if (_hasUnavailableEntries(
+                        ref.read(booruConfigProvider),
+                      )) {
+                        return;
+                      }
                       _endLocalGroupSelection();
                       goToBookmarkDetailsPage(
                         ref,
@@ -497,17 +559,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
         final post = posts[index];
-        final config = switch (const PostOriginResolver().resolve(
+        final config = resolveBookmarkOriginProfile(
           post.origin,
           ref.watch(booruConfigProvider),
-        )) {
-          ResolvedPostOrigin(:final config) => config,
-          _ => null,
-        };
-        final presentation = config == null
-            ? const GenericPostPresentation()
-            : null;
-        final effectiveAuth = config?.auth ?? BooruConfig.empty.auth;
+        );
+        if (config == null) return const SizedBox.shrink();
+        final effectiveAuth = config.auth;
 
         return PostGridContextMenu(
           index: index,
@@ -520,25 +577,21 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             controller: controller,
             useHero: false,
             config: effectiveAuth,
-            imageConfig: config?.auth,
-            presentation: presentation,
+            imageConfig: config.auth,
             leadingIcons: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: config == null
-                    ? ConfigAwareWebsiteLogo.fromBooruType(
-                        post.origin.booruType,
-                        post.origin.sourceHost,
-                        fit: BoxFit.contain,
-                      )
-                    : ConfigAwareWebsiteLogo.fromConfig(
-                        config.auth,
-                        customIconUrl: config.profileIcon?.url,
-                        fit: BoxFit.contain,
-                      ),
+                child: ConfigAwareWebsiteLogo.fromConfig(
+                  config.auth,
+                  customIconUrl: config.profileIcon?.url,
+                  fit: BoxFit.contain,
+                ),
               ),
             ],
             onTap: () {
+              if (_hasUnavailableEntries(ref.read(booruConfigProvider))) {
+                return;
+              }
               _endLocalGroupSelection();
               goToBookmarkDetailsPage(
                 ref,

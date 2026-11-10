@@ -201,6 +201,7 @@ void main() {
             ),
             _localProfileId,
           );
+          await notifier.previewComplete;
           expect(
             harness.container.read(importFlowProvider).preflight!.isValid,
             true,
@@ -387,6 +388,7 @@ void main() {
     'Merge into retains unresolved selection and applies the chosen group',
     (tester) async {
       late _Harness harness;
+      Future<void>? pendingPreview;
       await tester.runAsync(() async {
         harness = await _Harness.create(populated: true);
         await harness.groups.createGroup(
@@ -405,6 +407,7 @@ void main() {
             .sources
             .singleWhere((s) => s.id == 'pinned_searches');
         notifier.replaceSource(topics.copyWith(action: ImportAction.skip));
+        await notifier.previewComplete;
       });
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox());
@@ -429,9 +432,15 @@ void main() {
                             (s) => s.id == 'bookmarks',
                           ),
                           resolved: source,
-                          onChanged: ref
-                              .read(importFlowProvider.notifier)
-                              .replaceSource,
+                          onChanged: (source) {
+                            pendingPreview = tester.runAsync(() async {
+                              final notifier = ref.read(
+                                importFlowProvider.notifier,
+                              );
+                              notifier.replaceSource(source);
+                              await notifier.previewComplete;
+                            });
+                          },
                           sourceLabel: (_) => 'Bookmark groups',
                           itemLabel: (_) => 'AnimeBoxes',
                           targetLabel: (id) => id == 'group:$_localGroupId'
@@ -440,6 +449,7 @@ void main() {
                         ),
                         ImportReviewValidation(
                           preflight: state.preflight!,
+                          previewPending: state.previewPending,
                           sourceNames: const {'bookmarks': 'Bookmark groups'},
                           itemLabels: state.itemLabels,
                           onWarningsAcknowledged: ref
@@ -460,6 +470,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      Future<void> finishPreview() async {
+        await tester.pump();
+        expect(pendingPreview, isNotNull);
+        await pendingPreview;
+        await tester.pumpAndSettle();
+      }
+
       Future<void> action(String label) async {
         final selected = harness.container
             .read(importFlowProvider)
@@ -477,7 +494,7 @@ void main() {
         await tester.tap(find.text(selectedLabel).first);
         await tester.pumpAndSettle();
         await tester.tap(find.text(label).last);
-        await tester.pumpAndSettle();
+        await finishPreview();
       }
 
       await action('Merge into...');
@@ -530,7 +547,7 @@ void main() {
         await tester.tap(find.byType(DropdownButtonFormField<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text(label).last);
-        await tester.pumpAndSettle();
+        await finishPreview();
       }
 
       await target('Other target');
@@ -671,6 +688,7 @@ void main() {
               ),
               _localProfileId,
             );
+            await notifier.previewComplete;
             state = harness.container.read(importFlowProvider);
             expect(state.preflight!.errors, isEmpty);
             expect(state.preflight!.isValid, true);
@@ -753,6 +771,7 @@ void main() {
               ),
               _localProfileId,
             );
+            await notifier.previewComplete;
             expect(
               harness.container
                   .read(importFlowProvider)
@@ -862,12 +881,14 @@ void main() {
                 ],
               ),
             );
+            await notifier.previewComplete;
             notifier.chooseProfileMapping(
               ProfileSiteKey.fromReference(
                 state.profileMappings.single.reference,
               ),
               _localProfileId,
             );
+            await notifier.previewComplete;
             expect(
               harness.container.read(importFlowProvider).preflight!.isValid,
               true,

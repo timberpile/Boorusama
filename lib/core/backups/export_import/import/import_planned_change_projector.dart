@@ -20,6 +20,7 @@ import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
 import 'bookmark_profile_dependency.dart';
+import 'bookmark_profile_mapping.dart';
 import 'import_change_preview.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
@@ -257,6 +258,7 @@ final class ImportPlannedChangeProjector {
     required BookmarkBackupData incoming,
     required ResolvedImportSource resolution,
     Map<ProfileReferenceKey, String> profileMappings = const {},
+    Set<ProfileReferenceKey> explicitProfileMappings = const {},
     StoredBookmarkCodec recordCodec = const StoredBookmarkCodec(),
   }) {
     final localData =
@@ -370,14 +372,16 @@ final class ImportPlannedChangeProjector {
     );
     if (resolution.action == ImportAction.skip)
       return PlannedChangeSummary(preserved: localEntities.length);
-    final mapped = <int, Bookmark>{};
-    for (final r in selectedProfileRecords(incoming, resolution)) {
-      final hint =
-          profileMappings[ProfileReferenceKey.fromReference(
-            bookmarkRecordProfileReference(r),
-          )];
-      if (hint != null) mapped[r.id] = bookmarkRecordWithProfileHint(r, hint);
-    }
+    final mapped = mapBookmarkImportProfiles(
+      incoming: selectedProfileRecords(incoming, resolution),
+      local: localData.records,
+      mappings: profileMappings,
+      explicitMappings: explicitProfileMappings,
+      replace: resolution.action == ImportAction.replace,
+      incomingGroups: incoming.groups,
+      localGroups: localGroups,
+      codec: recordCodec,
+    );
     final data = BookmarkBackupData.unified(
       records: [for (final r in incoming.records) mapped[r.id] ?? r],
       groups: incoming.groups,
@@ -961,6 +965,22 @@ String _profileId(
 // carry ordering semantics and must still participate in import comparisons.
 bool _sameProjectedEntity(Object? before, Object? after) {
   if (identical(before, after)) return true;
+  if (before is _BookmarkGroupValue && after is _BookmarkGroupValue) {
+    // Equatable's nested set scans make a full-library group quadratic.
+    return before.name == after.name &&
+        before.folderId == after.folderId &&
+        before.parentGroupId == after.parentGroupId &&
+        before.position == after.position &&
+        const SetEquality<Object>().equals(
+          before.bookmarkIds,
+          after.bookmarkIds,
+        ) &&
+        const SetEquality<Object>().equals(before.poolIds, after.poolIds) &&
+        const MapEquality<Object, DateTime>().equals(
+          before.addedAt,
+          after.addedAt,
+        );
+  }
   if (before is CollectionBookmark && after is CollectionBookmark) {
     return const DeepCollectionEquality().equals(
       before.toJson()..remove('createdAt'),

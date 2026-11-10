@@ -67,7 +67,7 @@ BookmarkTagIndexBuilder _tagBuilder(List<BooruConfig> configs) =>
         configs,
       )) {
         ResolvedPostOrigin(:final config) => config.auth.url,
-        _ => bookmark.sourceUrl,
+        _ => bookmarkSourceHost(bookmark) ?? '',
       },
     );
 
@@ -104,8 +104,10 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
             source == null
                 ? bookmarks
                 : bookmarks.where(
-                    (bookmark) =>
-                        bookmarkSourceMatchesHost(bookmark.sourceUrl, source),
+                    (bookmark) => bookmarkSourceMatchesHost(
+                      bookmarkSourceHost(bookmark) ?? '',
+                      source,
+                    ),
                   ),
             isCurrent: () => !obsolete,
             revision: view.kind == BookmarkViewKind.all && source == null

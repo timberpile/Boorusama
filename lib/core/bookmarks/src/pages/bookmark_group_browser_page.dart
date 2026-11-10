@@ -19,6 +19,7 @@ import '../../../widgets/widgets.dart';
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_group_view_preferences.dart';
 import '../providers/bookmark_provider.dart';
+import '../providers/bookmark_profile_availability.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
@@ -62,7 +63,12 @@ class _BookmarkGroupBrowserPageState
   final _scrolls = <Object, AutoScrollController>{};
   final _previews = <String, List<PostBookmark>>{};
   final _poolPreviews = <String, List<CollectionBookmark>>{};
-  (BookmarkLibraryState, BookmarkSortType, BookmarkShuffleState)?
+  (
+    BookmarkLibraryState,
+    BookmarkSortType,
+    BookmarkShuffleState,
+    BookmarkProfileAvailability?,
+  )?
   _previewInputs;
 
   @override
@@ -320,7 +326,7 @@ class _BookmarkGroupBrowserPageState
                     error: (_, _) =>
                         const Center(child: Icon(Icons.error_outline)),
                     data: (state) {
-                      _updatePreviewInputs(state);
+                      _updatePreviewInputs(state, visible: visible);
                       final genuinelyEmpty =
                           view != null &&
                           state.bookmarkIdsForView(view).isEmpty &&
@@ -448,17 +454,24 @@ class _BookmarkGroupBrowserPageState
     );
   }
 
-  void _updatePreviewInputs(BookmarkLibraryState state) {
+  void _updatePreviewInputs(
+    BookmarkLibraryState state, {
+    required bool visible,
+  }) {
     final inputs = (
       state,
       ref.watch(selectedBookmarkSortTypeProvider),
       ref.watch(bookmarkShuffleProvider),
+      visible
+          ? ref.watch(bookmarkProfileAvailabilityProvider)
+          : _previewInputs?.$4 ?? ref.read(bookmarkProfileAvailabilityProvider),
     );
     final old = _previewInputs;
     if (old == null ||
         !identical(old.$1, state) ||
         old.$2 != inputs.$2 ||
-        old.$3 != inputs.$3) {
+        old.$3 != inputs.$3 ||
+        !identical(old.$4, inputs.$4)) {
       _previewInputs = inputs;
       _previews.clear();
       _poolPreviews.clear();
@@ -517,6 +530,7 @@ class _BookmarkGroupBrowserPageState
                 view: previewView,
                 sortType: _previewInputs!.$2,
                 shuffleState: _previewInputs!.$3,
+                availablePostIds: _previewInputs!.$4?.postIds ?? const {},
               ),
             );
             final pools = _poolPreviews.putIfAbsent(
@@ -524,8 +538,12 @@ class _BookmarkGroupBrowserPageState
               () => state.pools
                   .where(
                     (pool) =>
-                        previewGroups == null ||
-                        pool.groupIds.any(previewGroups.contains),
+                        (_previewInputs!.$4?.collectionIds.contains(
+                              pool.localId,
+                            ) ??
+                            false) &&
+                        (previewGroups == null ||
+                            pool.groupIds.any(previewGroups.contains)),
                   )
                   .take(4)
                   .toList(),

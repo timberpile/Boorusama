@@ -1,6 +1,7 @@
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_shuffle_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_unavailable_indicator.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
@@ -23,6 +24,7 @@ void main() {
     double scale = 1,
     bool showCount = true,
     List<String> sources = const ['one.example', _longSource],
+    Widget? unavailableIndicator,
   }) async {
     final container = ProviderContainer(
       overrides: [
@@ -57,12 +59,13 @@ void main() {
                 child: child!,
               ),
             ),
-            home: const Scaffold(
+            home: Scaffold(
               body: Align(
                 alignment: Alignment.topLeft,
                 child: BookmarkListControls(
                   count: 12,
-                  gridConfig: Icon(Icons.settings),
+                  gridConfig: const Icon(Icons.settings),
+                  unavailableIndicator: unavailableIndicator,
                 ),
               ),
             ),
@@ -73,6 +76,27 @@ void main() {
     await tester.pumpAndSettle();
     return container;
   }
+
+  testWidgets(
+    'unavailable-post indicator stays visible when ordinary counts are hidden',
+    (tester) async {
+      await pumpControls(
+        tester,
+        showCount: false,
+        unavailableIndicator: const BookmarkUnavailableIndicator(
+          counts: {'rule34.xxx': 2},
+        ),
+      );
+      expect(find.text('12 bookmarks'), findsNothing);
+      final button = find.byKey(const ValueKey('bookmark-unavailable-button'));
+      expect(button, findsOneWidget);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(find.text('rule34.xxx'), findsOneWidget);
+      expect(find.text('A matching profile is required.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'count visibility follows the global preference without hiding source controls',

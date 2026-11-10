@@ -1,5 +1,7 @@
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/core/content/providers.dart';
+import 'package:boorusama/core/content/types.dart';
 
 import 'dart:io';
 import 'dart:convert';
@@ -174,6 +176,7 @@ void main() {
             );
           }
           final beforeSearches = (await searchRepository.getAll()).toList();
+          var failPreviewCodec = false;
           final container = ProviderContainer(
             overrides: [
               ...bookmarkStorage.overrides,
@@ -181,6 +184,12 @@ void main() {
               booruEngineRegistryProvider.overrideWith(
                 (ref) => BooruEngineRegistry(),
               ),
+              groupMetadataCodecProvider.overrideWith((ref) {
+                if (failPreviewCodec) {
+                  throw StateError('Controlled preview codec failure');
+                }
+                return const GroupMetadataCodec();
+              }),
               bookmarkRepoProvider.overrideWith((ref) => bookmarks),
               bookmarkGroupRepoProvider.overrideWith((ref) => groups),
               bookmarkUrlResolverProvider.overrideWith(
@@ -332,7 +341,9 @@ void main() {
           );
           expect(
             state.preflight!.errors.map((issue) => issue.code),
-            contains('unresolved_profile_dependency'),
+            crossCategories
+                ? contains('unresolved_profile_dependency')
+                : isEmpty,
           );
           if (canonicalBoundary) {
             expect(
@@ -346,6 +357,7 @@ void main() {
             (source) => source.id == 'bookmarks',
           );
           notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          await notifier.previewComplete;
           expect(
             container.read(importFlowProvider).profileMappings,
             crossCategories ? hasLength(1) : isEmpty,
@@ -361,7 +373,62 @@ void main() {
             );
           }
           notifier.replaceSource(original);
+          await notifier.previewComplete;
+          final planningRuns = notifier.dependencyPlanningRuns;
+          notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          expect(container.read(importFlowProvider).previewPending, isTrue);
+          notifier.replaceSource(original);
+          notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          notifier.replaceSource(original);
           await notifier.apply(context);
+          await notifier.previewComplete;
+          expect(container.read(importFlowProvider).previewPending, isFalse);
+          expect(
+            container
+                .read(importFlowProvider)
+                .resolved!
+                .sources
+                .singleWhere(
+                  (source) => source.id == 'bookmarks',
+                ),
+            original,
+          );
+          expect(notifier.dependencyPlanningRuns - planningRuns, lessThan(4));
+          if (accounts == 0 &&
+              !crossCategories &&
+              sourceUrl == 'https://site.example') {
+            expect(
+              container.read(importFlowProvider).preflight!.isValid,
+              isTrue,
+            );
+            failPreviewCodec = true;
+            container.invalidate(groupMetadataCodecProvider);
+            notifier.replaceSource(
+              original.copyWith(action: ImportAction.skip),
+            );
+            await notifier.previewComplete;
+            final failed = container.read(importFlowProvider).preflight!;
+            expect(failed.errors.map((issue) => issue.code), [
+              'preview_failed',
+            ]);
+            notifier.acknowledgeWarnings(true);
+            expect(container.read(importFlowProvider).preflight, same(failed));
+            expect(
+              container.read(importFlowProvider).preflight!.isValid,
+              isFalse,
+            );
+            failPreviewCodec = false;
+            container.invalidate(groupMetadataCodecProvider);
+            notifier.replaceSource(original);
+            await notifier.previewComplete;
+            expect(
+              container.read(importFlowProvider).preflight!.isValid,
+              isTrue,
+            );
+          }
+          // Only the selected Topics remain blocking. Bookmark-only mappings
+          // are optional; previewing them must still leave storage untouched.
+          if (crossCategories) await notifier.apply(context);
           expect(bookmarkBox.length, 1);
           expect((await groups.getGroup(groupId))!.name, 'Original');
           final bookmarkKey = ProfileReferenceKey.fromReference(
@@ -397,8 +464,10 @@ void main() {
             );
           } else {
             notifier.chooseProfileMapping(key, firstId);
+            await notifier.previewComplete;
             final previous = container.read(importFlowProvider).preflight;
             notifier.chooseProfileMapping(key, secondId);
+            await notifier.previewComplete;
             expect(
               identical(previous, container.read(importFlowProvider).preflight),
               isFalse,
@@ -555,23 +624,21 @@ void main() {
             imageUrlResolver: (_) => const DefaultImageUrlResolver(),
           );
           expect(saved, hasLength(2));
+          final savedExisting = saved.singleWhere((b) => b.postId == 1);
+          final savedNew = saved.singleWhere((b) => b.postId == 2);
           expect(
-            saved.every((b) => b.snapshot.origin.profileIdHint == finalId),
-            isTrue,
+            savedExisting.snapshot.origin.profileIdHint,
+            accounts == 0 ? existing.snapshot.origin.profileIdHint : finalId,
           );
+          expect(savedExisting.sourceUrl, existing.sourceUrl);
+          expect(savedNew.snapshot.origin.profileIdHint, finalId);
           if (canonicalBoundary) {
             expect(saved.map((b) => b.snapshot.origin.sourceHost).toSet(), {
               expectedSite,
             });
-            expect(saved.map((b) => b.snapshot.origin.profileIdHint).toSet(), {
-              secondId,
-            });
           }
-          expect(saved.singleWhere((b) => b.postId == 1).id, existing.id);
-          expect(
-            saved.singleWhere((b) => b.postId == 1).identity,
-            existing.identity,
-          );
+          expect(savedExisting.id, existing.id);
+          expect(savedExisting.identity, existing.identity);
           expect(
             (await groups.getGroup(groupId))!.bookmarkIds,
             saved.map((b) => b.id).toSet(),

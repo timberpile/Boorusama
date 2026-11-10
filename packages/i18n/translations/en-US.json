@@ -1257,6 +1257,7 @@
         },
         "profile_credentials_replaced": "Exported credentials will be applied to created and updated profiles.",
         "profile_credentials_preserved": "Existing profile credentials stay unchanged.",
+        "bookmark_profiles_optional": "Bookmarks can be imported without a matching profile. Remote access may remain unavailable.",
         "bookmark_orphan_policy": "Updating a group removes bookmarks that no longer belong to any group.",
         "ungrouped_removal_policy": "Updating No group removes local ungrouped bookmarks absent from the export.",
         "invalid_export": "This export could not be opened: {error}",
@@ -1334,9 +1335,10 @@
           "invalid_target": "Choose a valid target for {item}.",
           "insufficient_storage": "There is not enough free storage to import safely and keep a rollback checkpoint.",
           "unresolved_profile_dependency": "{profile}: Choose a target profile or create a new profile for the selected searches and feeds.",
-          "unresolved_profile_site": "{site}: Select a matching profile for the selected {sources}, or skip those items.",
-          "missing_profile_site": "{site}: Create a profile for this website in profile management, then import again, or skip the selected {sources}.",
+          "unresolved_profile_site": "{site}: Select a profile to import {sources}.",
+          "missing_profile_site": "{site}: Profile required to import {sources}.",
           "unknown_site": "Unknown website",
+          "select_profile_optional": "Matching profile (optional)",
           "select_profile_target": "Select a matching profile",
           "unresolved_profile_bookmarks": "{profile}: Choose a matching website profile or create a new profile for the selected {sources}, or skip those items.",
           "unresolved_profile_searches": "{profile}: Choose a target profile or create a new profile for the selected searches.",
@@ -1922,6 +1924,13 @@
     }
   },
   "bookmark": {
+    "unavailable_count": {
+      "one": "Unavailable: $n",
+      "other": "Unavailable: $n"
+    },
+    "unavailable_title": "Unavailable posts",
+    "unavailable_account": "A matching profile is required.",
+    "unavailable_unknown_site": "Unknown website",
     "related": "Related",
     "bookmark_related": "Bookmark Related",
     "related_unavailable": "Related family unavailable",
