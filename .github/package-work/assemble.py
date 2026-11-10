@@ -12,6 +12,11 @@ def git(*args, data=None):
 
 
 spec = json.loads(Path('.github/package-work/spec.json').read_text())
+extra = [json.loads(path.read_text()) for path in
+         sorted(Path('.github/package-work').glob('p*-stage.json'))]
+spec['stages'].extend(extra)
+if len({stage['id'] for stage in spec['stages']}) != len(spec['stages']):
+    raise RuntimeError('Duplicate package stage')
 ops = git('rev-parse', 'HEAD')
 git('config', 'user.name', 'Boorusama package preparation')
 git('config', 'user.email', 'package-preparation@users.noreply.github.com')
@@ -49,5 +54,8 @@ for stage in spec['stages']:
 git('checkout', '--detach', ops)
 Path('package-assembly.json').write_text(json.dumps(results, indent=2) + '\n')
 print(json.dumps(results, indent=2))
+# Prior unchanged packages already have qualification artifacts; verify only
+# the latest added candidate on ordinary continuation runs.
+selected = results[-1:] if extra else results
 with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-    output.write('matrix=' + json.dumps({'include': results}, separators=(',', ':')) + '\n')
+    output.write('matrix=' + json.dumps({'include': selected}, separators=(',', ':')) + '\n')
