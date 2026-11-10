@@ -1,0 +1,38 @@
+name: Prepare audit workspace
+
+on:
+  push:
+    branches:
+      - maintenance/develop-comprehensive-audit-20261110
+    paths:
+      - .github/workflows/audit-workspace.yml
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out pinned audit source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 2e2ea428ba323706e37a65e45903d3959df439d4
+          persist-credentials: false
+      - name: Archive clean source for isolated review
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 2e2ea428ba323706e37a65e45903d3959df439d4
+          git archive --format=tar.gz --output="$RUNNER_TEMP/develop-source.tar.gz" HEAD
+          git rev-parse HEAD > "$RUNNER_TEMP/develop-source.sha"
+      - name: Preserve review source
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pinned-develop-source
+          path: |
+            ${{ runner.temp }}/develop-source.tar.gz
+            ${{ runner.temp }}/develop-source.sha
+          if-no-files-found: error
+          retention-days: 7
