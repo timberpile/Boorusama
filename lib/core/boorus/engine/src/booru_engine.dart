@@ -1,6 +1,7 @@
 // Project imports:
 import '../../booru/types.dart';
 import '../../../posts/post/types.dart';
+import '../../../content/groups/group_capability.dart';
 import 'booru_builder.dart';
 import 'booru_repository.dart';
 
@@ -9,11 +10,13 @@ class BooruEngine {
     required this.booru,
     required this.builder,
     required this.repository,
+    this.groupCapability,
   });
 
   final Booru booru;
   final BooruBuilder builder;
   final BooruRepository repository;
+  final BooruGroupCapability? groupCapability;
 
   BooruPostCapability<BooruPostData> get postCapability =>
       BooruPostCapability<BooruPostData>(
@@ -38,6 +41,14 @@ class BooruEngineRegistry {
 
   BooruPostCapability<BooruPostData>? getPostCapability(BooruType type) =>
       _engines[type]?.postCapability;
+
+  BooruGroupCapability? getGroupCapability(BooruType type) {
+    final capability = _engines[type]?.groupCapability;
+    if (capability != null && capability.engine != type) {
+      throw const FormatException('Incompatible registered Group capability');
+    }
+    return capability;
+  }
 
   List<Booru> getAllBoorus() {
     return _engines.values.map((e) => e.booru).toList();
