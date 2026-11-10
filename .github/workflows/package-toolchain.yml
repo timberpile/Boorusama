@@ -1,0 +1,50 @@
+name: Package verification toolchain
+on:
+  push:
+    branches: [maintenance/package-extraction-2026-11-09]
+    paths: [.github/workflows/package-toolchain.yml]
+permissions:
+  contents: read
+jobs:
+  toolchain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BOORUSAMA_USE_FVM: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 054652c4ebc5f9e567fe77920c7e20905bb78c8a
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.47.2'
+          cache: true
+      - name: Resolve public package dependencies and pinned FVM
+        run: |
+          dart pub global activate fvm 4.3.1
+          export PATH="$HOME/.pub-cache/bin:$PATH"
+          ./init.sh
+          fvm flutter precache --linux
+      - name: Export public toolchain without runner credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .worktrees/_artifacts/offline-toolchain
+          sdk="$(dirname "$(dirname "$(readlink -f .fvm/flutter_sdk/bin/flutter)")")"
+          # Only public SDK and package payloads; never repository .git, secrets,
+          # credentials.json, SSH configuration, SDK Android keys or user files.
+          tar --zstd -cf .worktrees/_artifacts/offline-toolchain/flutter.tar.zst \
+            --exclude='.git/config' --exclude='credentials.json' \
+            --exclude='*.credentials.json' -C "$sdk" .
+          tar --zstd -cf .worktrees/_artifacts/offline-toolchain/pub-cache.tar.zst \
+            --exclude='credentials.json' --exclude='*.credentials.json' \
+            --exclude='git/cache/*/config' -C "$HOME/.pub-cache" .
+          printf '%s\n' 'Flutter 3.47.2; FVM 4.3.1; public package payloads only.' > .worktrees/_artifacts/offline-toolchain/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pinned-offline-toolchain
+          path: .worktrees/_artifacts/offline-toolchain/
+          retention-days: 2
+          compression-level: 0
+          if-no-files-found: error
