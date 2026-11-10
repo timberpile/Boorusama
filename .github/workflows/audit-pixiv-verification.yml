@@ -8,22 +8,23 @@ permissions:
 jobs:
   regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    permissions:
+      contents: write
     env:
       BOORUSAMA_USE_FVM: "true"
       CI: "true"
       FVM_CACHE_PATH: /home/runner/.cache/fvm
+      CANDIDATE_BASE: bc4763d1b264504d3fa448ac3ef28b6a0173daf3
+      TASK_BRANCH: bug/165-pixiv-media-loading
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: b28185e1e9fd829fdef965c9d310e728fd0b6d2f
+          ref: bc4763d1b264504d3fa448ac3ef28b6a0173daf3
           fetch-depth: 0
           persist-credentials: false
-      - name: Prepare exact-candidate evidence
-        run: |
-          mkdir -p .worktrees/_artifacts/165-verification
-          git rev-parse HEAD > .worktrees/_artifacts/165-verification/candidate.sha
-          git bundle create .worktrees/_artifacts/165-verification/candidate.bundle HEAD ^2e2ea428ba323706e37a65e45903d3959df439d4
+      - name: Prepare evidence
+        run: mkdir -p .worktrees/_artifacts/165-verification
       - name: Install native decoder build dependencies
         run: |
           sudo apt-get update
@@ -56,33 +57,68 @@ jobs:
           cp .env.example .env
           ./init.sh 2>&1 | tee .worktrees/_artifacts/165-verification/init.log
           fvm flutter --version
-      - name: Save initialized toolchain before the expected red test
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            /home/runner/.cache/fvm
-            ~/.pub-cache
-          key: audit-fvm-3.47.2-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/boorusama_cli/pubspec.lock') }}
-      - name: Run regression reproducer
+      - name: Apply the reproduced diagnostics correction and format the task delta
         shell: bash
         run: |
           set -euo pipefail
-          fvm flutter test --no-pub --concurrency="$(python3 scripts/physical_core_count.py)" --reporter expanded test/core/content/pixiv_media_request_regression_test.dart test/core/images/image_failure_diagnostics_test.dart 2>&1 | tee .worktrees/_artifacts/165-verification/regression.log
-      - name: Preserve FVM-formatted sources
-        if: always()
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_BASE"
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('lib/core/images/booru_image.dart')
+          text = p.read_text()
+          old = '  // Nothing we can do about it, just ignore the error to avoid spamming the logs\n  silent: true,\n'
+          assert text.count(old) == 1
+          p.write_text(text.replace(old, ''))
+          p = Path('lib/core/images/booru_image_candidates.dart')
+          text = p.read_text()
+          old = 'fetchStrategy: const FetchStrategyBuilder(silent: true)'
+          assert text.count(old) == 1
+          p.write_text(text.replace(old, 'fetchStrategy: const FetchStrategyBuilder()'))
+          PY
+          fvm dart format \
+            lib/core/configs/network/src/types/media_request.dart \
+            lib/core/http/client/src/data/source_media_http_adapter.dart \
+            lib/core/images/booru_image.dart lib/core/images/booru_image_candidates.dart \
+            test/core/content/pixiv_media_request_regression_test.dart \
+            test/core/images/image_failure_diagnostics_test.dart
+          git diff --check
+          git add lib/core/configs/network/src/types/media_request.dart lib/core/http/client/src/data/source_media_http_adapter.dart lib/core/images/booru_image.dart lib/core/images/booru_image_candidates.dart test/core/content/pixiv_media_request_regression_test.dart test/core/images/image_failure_diagnostics_test.dart
+          git -c user.name=Timber -c user.email=timberpile@proton.me commit -m 'fix: preserve media failure diagnostics (#165)' -m 'Retain HTTP status and retry failure details rather than converting rejected image requests into Empty response. Candidate probing remains quiet through printError: false. Format the new regression fixtures with the pinned FVM toolchain.' -m 'Refs #165'
+          git rev-parse HEAD > .worktrees/_artifacts/165-verification/candidate.sha
+          git bundle create .worktrees/_artifacts/165-verification/candidate.bundle HEAD ^2e2ea428ba323706e37a65e45903d3959df439d4
+      - name: Preserve the authorized task branch without overwriting concurrent work
+        shell: bash
+        env:
+          PUSH_TOKEN: ${{ github.token }}
         run: |
-          fvm dart format test/core/content/pixiv_media_request_regression_test.dart test/core/images/image_failure_diagnostics_test.dart
-          mkdir -p .worktrees/_artifacts/165-verification/formatted
-          cp test/core/content/pixiv_media_request_regression_test.dart test/core/images/image_failure_diagnostics_test.dart .worktrees/_artifacts/165-verification/formatted/
+          set -euo pipefail
+          test "$(git ls-remote origin "refs/heads/$TASK_BRANCH" | cut -f1)" = "$CANDIDATE_BASE"
+          header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$header" push origin "HEAD:refs/heads/$TASK_BRANCH"
+      - name: Run media boundary and rendering regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          fvm flutter test --no-pub --concurrency="$(python3 scripts/physical_core_count.py)" --reporter expanded test/core/content test/core/configs/network test/core/images test/boorus/pixiv_auth_origin_test.dart 2>&1 | tee .worktrees/_artifacts/165-verification/focused.log
+      - name: Analyze affected production and regression sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          fvm flutter analyze --no-pub --no-fatal-infos lib/core/configs/network/src/types/media_request.dart lib/core/http/client/src/data/source_media_http_adapter.dart lib/core/images/booru_image.dart lib/core/images/booru_image_candidates.dart test/core/content/pixiv_media_request_regression_test.dart test/core/images/image_failure_diagnostics_test.dart 2>&1 | tee .worktrees/_artifacts/165-verification/analysis.log
+      - name: Run complete repository regression on the exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/run_regression_tests.sh 2>&1 | tee .worktrees/_artifacts/165-verification/full-regression.log
+          git status --short > .worktrees/_artifacts/165-verification/final-status.log
       - name: Preserve exact-candidate evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: pixiv-reproducer-evidence
+          name: pixiv-correction-evidence
           path: |
             .worktrees/_artifacts/165-verification/*.log
             .worktrees/_artifacts/165-verification/*.sha
             .worktrees/_artifacts/165-verification/*.bundle
-            .worktrees/_artifacts/165-verification/formatted/
           if-no-files-found: error
           retention-days: 14
