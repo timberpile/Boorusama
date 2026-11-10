@@ -29,10 +29,13 @@ jobs:
             'p2-source': '32ebbcc6f41347f8f40275d4912a2f7012b75549',
             'p3-source': 'f3bb2d30b92116dff44dac8fc6aceabbc67a3d14',
             'p4-source': 'b9405fdbd5312a797d8165d556d48785d183881d',
-            'p5-source': '73b63f5fef4',
-            'p6-source': '73087ebf863',
+            'p5-source': '73b63f5fef412800d6106dd78cf5dc3848d28784',
+            'p6-source': '73087ebf863c4f97a769a2f014e5f2831f4054a6',
             'p7-source': '8672cf2ba235fbc810bbcf3296efef1eb4410a37',
             'combined': '252e8954dab8c0842f83a2082c67f4841111c34e',
+            'p2-candidate': '60f0750315938b53201afc682bcb4e2af8bf5894',
+            'p3-candidate': '054652c4ebc5f9e567fe77920c7e20905bb78c8a',
+            'package-spec': '30ea0231f7dbe1d72ba75934c5b7662c7553100f',
           }
           def git(*args):
             return subprocess.check_output(['git', *args], text=True).strip()
