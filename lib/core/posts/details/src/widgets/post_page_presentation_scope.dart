@@ -10,21 +10,15 @@ import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
+import '../../../../content/content_access.dart';
+import '../providers/viewer_source_access_provider.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
 import '../types/post_presentation_context.dart';
+import '../types/post_presentation_fallback_reason.dart';
 
-enum PostPresentationFallbackReason {
-  missingProfile,
-  ambiguousProfile,
-  unavailableEngine,
-  malformedData,
-  unsupportedVersion,
-  removedUpstreamPost,
-  refreshFailed,
-  incompatiblePresentation,
-}
+export '../types/post_presentation_fallback_reason.dart';
 
 final class PostPagePresentation {
   const PostPagePresentation({
@@ -65,11 +59,18 @@ class PostPagePresentationScope extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final presentation = post == null ? null : _resolve(ref);
+    final binding = sourceBinding;
+    final access = binding == null
+        ? null
+        : ref.watch(viewerSourceAccessProvider(binding));
+    final presentation = post == null ? null : _resolve(ref, access);
     final config = presentation?.effectiveConfig ?? BooruConfig.empty;
 
     return CurrentBooruConfigScope(
       config: config,
+      accessKey: access?.key,
+      requireAccess: binding != null,
+      bookmarkId: binding?.bookmarkId,
       child: InheritedPost(
         presentationContext: presentation?.context,
         child: _PostPagePresentationBuilder(
@@ -81,11 +82,11 @@ class PostPagePresentationScope extends ConsumerWidget {
     );
   }
 
-  PostPagePresentation _resolve(WidgetRef ref) {
+  PostPagePresentation _resolve(WidgetRef ref, ContentAccessContext? access) {
     final post = this.post!;
     const resolver = PostOriginResolver();
     final profiles = ref.watch(booruConfigProvider);
-    final bound = sourceBinding?.resolve(profiles);
+    final bound = access?.config;
     if (sourceBinding != null && bound == null) {
       return PostPagePresentation(
         context: PostPresentationContext.generic(post),
@@ -93,10 +94,12 @@ class PostPagePresentationScope extends ConsumerWidget {
         fallbackReason: PostPresentationFallbackReason.missingProfile,
       );
     }
-    final originResolution = resolver.resolve(
-      post.origin,
-      bound == null ? profiles : [bound],
-    );
+    final originResolution = bound?.anonymousReadScope != null
+        ? ResolvedPostOrigin(bound!)
+        : resolver.resolve(
+            post.origin,
+            bound == null ? profiles : [bound],
+          );
     final resolvedConfig = switch (originResolution) {
       ResolvedPostOrigin(:final config) => config,
       _ => null,

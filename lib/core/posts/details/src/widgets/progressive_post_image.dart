@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cache_manager/cache_manager.dart';
+import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,9 @@ import 'package:kurumi/material.dart';
 import '../../../../../foundation/info/device_info.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/network/providers.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_media_dio.dart';
+import '../../../../content/content_media_failures.dart';
 import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
@@ -18,6 +22,8 @@ import '../../../../images/providers.dart';
 import '../../../../images/booru_image.dart'
     show ErrorPlaceholder, ImageRetryButton;
 import '../../../listing/types.dart';
+import '../../../post/types.dart';
+import '../types/post_presentation_fallback_reason.dart';
 
 /// A candidate never becomes the displayed source until its first frame decodes.
 class ProgressivePostImage extends ConsumerWidget {
@@ -30,12 +36,14 @@ class ProgressivePostImage extends ConsumerWidget {
     required this.geometryAspectRatio,
     super.key,
     this.fit,
+    this.post,
     this.imageCacheManager,
     this.controller,
     this.onRepresentationChanged,
     this.intermediateImageUrls = const [],
   });
 
+  final Post? post;
   final Object mediaIdentity;
   final BooruConfigAuth config;
   final String imageUrl;
@@ -53,31 +61,120 @@ class ProgressivePostImage extends ConsumerWidget {
     if (!ref.watch(automaticMediaLoadingEnabledProvider)) {
       return const BlockedMediaPlaceholder(borderRadius: BorderRadius.zero);
     }
-    final dio = ref.watch(dioForWidgetProvider(config));
+    final access = watchContentMediaAccess(ref, config, post: post);
+    final publicSource = config.anonymousReadScope?.source;
+    bool permitted(String? value) {
+      if (value == null || value.isEmpty) return false;
+      if (publicSource == null) return true;
+      final uri = Uri.tryParse(value);
+      return uri != null && publicSource.allowsMedia(uri);
+    }
+
+    if (!access.allowed) {
+      return const KurumiImagePlaceholder(borderRadius: BorderRadius.zero);
+    }
+    final safeLower = publicSource == null
+        ? lowerMedia
+        : GridThumbnailMedia(
+            url: permitted(lowerMedia.url) ? lowerMedia.url : '',
+            aspectRatio: lowerMedia.aspectRatio,
+            placeholderUrl: permitted(lowerMedia.placeholderUrl)
+                ? lowerMedia.placeholderUrl
+                : null,
+            fallbackUrl: permitted(lowerMedia.fallbackUrl)
+                ? lowerMedia.fallbackUrl
+                : null,
+            fallbackUrls: lowerMedia.fallbackUrls.where(permitted).toList(),
+            probeImageFormats: lowerMedia.probeImageFormats,
+            placeholderAspectRatio: lowerMedia.placeholderAspectRatio,
+            placeholderFit: lowerMedia.placeholderFit,
+          );
+    final safeIntermediate = intermediateImageUrls.where(permitted).toList();
+    final safeCandidates = <String>{
+      safeLower.url,
+      ...safeLower.fallbackUrls,
+      if (safeLower.fallbackUrl case final value?) value,
+      if (safeLower.placeholderUrl case final value?) value,
+      ...safeIntermediate,
+    }.where((url) => url.isNotEmpty).toList();
+    final safeImageUrl = permitted(imageUrl)
+        ? imageUrl
+        : safeCandidates.firstOrNull;
+    if (safeImageUrl == null) {
+      return const ErrorPlaceholder(
+        borderRadius: BorderRadius.zero,
+        reason: PostPresentationFallbackReason.unavailableEngine,
+      );
+    }
+    final effectiveLower = permitted(imageUrl)
+        ? safeLower
+        : GridThumbnailMedia(
+            url: safeCandidates.first,
+            aspectRatio: safeLower.aspectRatio,
+            fallbackUrls: safeCandidates.skip(1).toList(),
+            probeImageFormats: safeLower.probeImageFormats,
+            placeholderAspectRatio: safeLower.placeholderAspectRatio,
+            placeholderFit: safeLower.placeholderFit,
+          );
+    final effectiveIntermediate = safeIntermediate
+        .where((url) => url != safeImageUrl)
+        .toList();
+
+    final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
+    final delegate = imageCacheManager ?? fallbackManager;
+    final manager = access.key == null
+        ? delegate
+        : ref.watch(
+            contentMediaCacheManagerProvider((
+              manager: delegate,
+              access: access.key!,
+            )),
+          );
+    final dio = access.key == null
+        ? ref.watch(dioForWidgetProvider(config))
+        : ref.watch(contentMediaDioProvider(access.key!));
     final headers = ref.watch(httpHeadersProvider(config));
     final network = ref.watch(networkSettingsProvider(config));
-    final overrideDio = network.activeMediaHostOverrides.isEmpty
-        ? dio
-        : ref.watch(mediaOverrideDioProvider(config));
+    final requests = [
+      safeImageUrl,
+      effectiveLower.url,
+      ...effectiveLower.fallbackUrls,
+      ?effectiveLower.fallbackUrl,
+      ?effectiveLower.placeholderUrl,
+      ...effectiveIntermediate,
+    ];
+    final needsOverride = requests
+        .where((url) => url.isNotEmpty)
+        .any(
+          (url) => network
+              .resolveMedia(url, headers: headers, sourceUrl: config.url)
+              .overridden,
+        );
+    final overrideDio = needsOverride && access.key == null
+        ? ref.watch(mediaOverrideDioProvider(config))
+        : dio;
     return RawProgressivePostImage(
       resolveRequest: (url) {
-        final request = network.resolveMedia(url, headers: headers);
+        final request = network.resolveMedia(
+          url,
+          headers: headers,
+          sourceUrl: config.url,
+        );
         return (
           url: request.url,
           dio: request.overridden ? overrideDio : dio,
           headers: request.headers,
         );
       },
-      key: ValueKey((mediaIdentity, config)),
+      key: ValueKey((mediaIdentity, config, access.key)),
       dio: dio,
       headers: headers,
-      imageUrl: imageUrl,
-      lowerMedia: lowerMedia,
+      imageUrl: safeImageUrl,
+      lowerMedia: effectiveLower,
       aspectRatio: aspectRatio,
       geometryAspectRatio: geometryAspectRatio,
       fit: fit,
-      cacheManager:
-          imageCacheManager ?? ref.watch(defaultImageCacheManagerProvider),
+      cacheManager: manager,
       controller: controller,
       platform: Kurumi.themeOf(context).platform,
       androidVersion: ref
@@ -86,7 +183,7 @@ class ProgressivePostImage extends ConsumerWidget {
           ?.version
           .sdkInt,
       onRepresentationChanged: onRepresentationChanged,
-      intermediateImageUrls: intermediateImageUrls,
+      intermediateImageUrls: effectiveIntermediate,
     );
   }
 }
@@ -404,54 +501,59 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
             )
           : const KurumiImagePlaceholder(borderRadius: BorderRadius.zero);
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) => ExtendedImage(
-            image: displayed,
-            controller: _controller,
-            width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
-            height: constraints.maxHeight.isFinite
-                ? constraints.maxHeight
-                : null,
-            borderRadius: BorderRadius.zero,
-            gaplessPlayback: true,
-            // Cropped previews belong at the top of tall content: AutoComic already
-            // positions that content at its top before a full representation decodes.
-            alignment:
-                _compatible(_displayedRatio, widget.aspectRatio) ||
-                    (widget.aspectRatio ?? 1) >= 1
-                ? Alignment.center
-                : Alignment.topCenter,
-            fit: _compatible(_displayedRatio, widget.aspectRatio)
-                ? widget.fit ?? BoxFit.contain
-                : BoxFit.contain,
-            placeholderWidget: const KurumiImagePlaceholder(
+    return ContentMediaOutcome(
+      failed: false,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) => ExtendedImage(
+              image: displayed,
+              controller: _controller,
+              width: constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : null,
+              height: constraints.maxHeight.isFinite
+                  ? constraints.maxHeight
+                  : null,
               borderRadius: BorderRadius.zero,
-            ),
-            errorWidget: ErrorPlaceholder(
-              borderRadius: BorderRadius.zero,
-              onRetry: _retryFailed,
-            ),
-          ),
-        ),
-        if (_targetFailed)
-          Align(
-            alignment: Alignment.topCenter,
-            // Unknown geometry fills the viewer: its bottom edge lies behind
-            // the action footer. Keep retry below the standard top controls.
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(top: kToolbarHeight + 8),
-                child: ImageRetryButton(
-                  onRetry: _retrying ? null : _retryFailed,
-                ),
+              gaplessPlayback: true,
+              // Cropped previews belong at the top of tall content: AutoComic already
+              // positions that content at its top before a full representation decodes.
+              alignment:
+                  _compatible(_displayedRatio, widget.aspectRatio) ||
+                      (widget.aspectRatio ?? 1) >= 1
+                  ? Alignment.center
+                  : Alignment.topCenter,
+              fit: _compatible(_displayedRatio, widget.aspectRatio)
+                  ? widget.fit ?? BoxFit.contain
+                  : BoxFit.contain,
+              placeholderWidget: const KurumiImagePlaceholder(
+                borderRadius: BorderRadius.zero,
+              ),
+              errorWidget: ErrorPlaceholder(
+                borderRadius: BorderRadius.zero,
+                onRetry: _retryFailed,
               ),
             ),
           ),
-      ],
+          if (_targetFailed)
+            Align(
+              alignment: Alignment.topCenter,
+              // Unknown geometry fills the viewer: its bottom edge lies behind
+              // the action footer. Keep retry below the standard top controls.
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: kToolbarHeight + 8),
+                  child: ImageRetryButton(
+                    onRetry: _retrying ? null : _retryFailed,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

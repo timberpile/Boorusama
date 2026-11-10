@@ -12,6 +12,8 @@ import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/content/content_media_dio.dart';
+import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:dio/dio.dart';
@@ -469,6 +471,16 @@ class _Harness {
       currentReadOnlyBooruConfigProvider.overrideWith(
         (ref) => ref.watch(_current),
       ),
+      contentMediaDioProvider.overrideWith((ref, key) {
+        final dio = Dio()..httpClientAdapter = _MediaAdapter(onMediaRequest);
+        ref.onDispose(dio.close);
+        return dio;
+      }),
+      mediaOverrideDioProvider.overrideWith((ref, auth) {
+        final dio = Dio()..httpClientAdapter = _MediaAdapter(onMediaRequest);
+        ref.onDispose(dio.close);
+        return dio;
+      }),
       pixivClientProvider.overrideWith((ref, auth) {
         final dio = Dio(BaseOptions(baseUrl: kPixivApiBaseUrl));
         clients.add(dio);
@@ -553,6 +565,24 @@ class _Adapter implements HttpClientAdapter {
     final call = _Request(options, cancellation);
     calls.add(call);
     return call.response.future;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class _MediaAdapter implements HttpClientAdapter {
+  _MediaAdapter(this.onRequest);
+  final void Function(RequestOptions)? onRequest;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancellation,
+  ) async {
+    onRequest?.call(options);
+    return ResponseBody.fromString('', 404);
   }
 
   @override

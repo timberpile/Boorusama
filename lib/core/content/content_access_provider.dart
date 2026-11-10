@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../posts/cross_profile_lookup/src/data/post_lookup_visibility.dart';
+
 import '../blacklists/providers.dart';
 import '../bookmarks/src/providers/pool_bookmark_provider.dart'
     show poolCoverPolicy;
@@ -9,11 +11,12 @@ import '../errors/types.dart';
 import '../posts/details/src/types/viewer_entry.dart';
 import '../posts/post/types.dart';
 import 'content_access.dart';
+import 'anonymous_access_provider.dart';
 
 /// Reuse the established non-secret visibility policy and effective blacklist.
 /// A loading/failed policy cannot authorize cached Group metadata or media.
-final contentEffectivePolicyProvider = Provider.autoDispose
-    .family<AsyncValue<String>, String>((ref, profileId) {
+final contentEffectiveBlacklistProvider = Provider.autoDispose
+    .family<AsyncValue<Set<String>>, String>((ref, profileId) {
       final matches = ref
           .watch(booruConfigProvider)
           .where((p) => p.id == profileId)
@@ -27,11 +30,23 @@ final contentEffectivePolicyProvider = Provider.autoDispose
           StackTrace.current,
         );
       }
-      final config = matches.single;
-      return ref
-          .watch(blacklistTagsProvider(config.filter))
-          .whenData((tags) => poolCoverPolicy(config, tags));
+      return ref.watch(blacklistTagsProvider(matches.single.filter));
     }, dependencies: [booruConfigProvider, blacklistTagsProvider]);
+
+final contentEffectivePolicyProvider = Provider.autoDispose
+    .family<AsyncValue<String>, String>((ref, id) {
+      final profiles = ref
+          .watch(booruConfigProvider)
+          .where((config) => config.id == id);
+      if (profiles.length != 1)
+        return AsyncError(
+          StateError('Content profile unavailable'),
+          StackTrace.current,
+        );
+      return ref
+          .watch(contentEffectiveBlacklistProvider(id))
+          .whenData((tags) => poolCoverPolicy(profiles.single, tags));
+    }, dependencies: [booruConfigProvider, contentEffectiveBlacklistProvider]);
 
 /// Only current profiles and monotonic counters are retained. Policy/client work
 /// is deferred to the one profile actually requested by a visible consumer.
@@ -71,13 +86,12 @@ class ContentAccessScopes extends Notifier<Map<String, ContentProfileScope>> {
     for (final config in profiles) {
       if (counts[config.id] != 1) continue;
       final old = _previous[config.id];
-      final sameAuth = old?.config.auth == config.auth;
+      final sameAuth = old != null && old.config.auth == config.auth;
       final sameBinding =
-          old != null &&
-          ViewerSourceBinding(old.config).resolve([config]) != null;
+          sameAuth && ViewerSourceBinding(old.config).resolve([config]) != null;
       next[config.id] = (
         config: config,
-        authEpoch: sameAuth ? old!.authEpoch : nextEpoch(),
+        authEpoch: sameAuth ? old.authEpoch : nextEpoch(),
         bindingEpoch: sameBinding ? old.bindingEpoch : nextEpoch(),
       );
     }
@@ -86,8 +100,12 @@ class ContentAccessScopes extends Notifier<Map<String, ContentProfileScope>> {
   }
 }
 
-final contentProfileAccessProvider = NotifierProvider.autoDispose
-    .family<ContentProfileAccess, ContentAccessContext?, String>(
+final contentProfileAccessProvider =
+    NotifierProvider.family<
+      ContentProfileAccess,
+      ContentAccessContext?,
+      String
+    >(
       ContentProfileAccess.new,
       dependencies: [
         contentAccessScopesProvider,
@@ -96,7 +114,7 @@ final contentProfileAccessProvider = NotifierProvider.autoDispose
     );
 
 class ContentProfileAccess
-    extends AutoDisposeFamilyNotifier<ContentAccessContext?, String> {
+    extends FamilyNotifier<ContentAccessContext?, String> {
   ContentAccessContext? _previous;
   String? _policy;
   int? _bindingEpoch;
@@ -148,7 +166,14 @@ final contentAccessContextProvider = Provider.autoDispose
     .family<ContentAccessContext?, ContentAccessKey>(
       (ref, key) {
         final id = key.profileId;
-        if (id == null) return null;
+        if (id == null) {
+          final source = ref
+              .watch(anonymousSourcePolicyProvider)
+              .forNamespace(key.engine, key.siteNamespace);
+          if (source == null) return null;
+          final context = ref.watch(anonymousContentAccessProvider(source));
+          return context?.key == key ? context : null;
+        }
         final scope = ref.watch(
           contentAccessScopesProvider.select((values) => values[id]),
         );
@@ -161,23 +186,100 @@ final contentAccessContextProvider = Provider.autoDispose
         final context = ref.watch(contentProfileAccessProvider(id));
         return context?.key == key ? context : null;
       },
-      dependencies: [contentAccessScopesProvider, contentProfileAccessProvider],
+      dependencies: [
+        contentAccessScopesProvider,
+        contentProfileAccessProvider,
+        anonymousSourcePolicyProvider,
+        anonymousContentAccessProvider,
+      ],
     );
 
 final contentAccessForReferenceProvider = Provider.autoDispose
-    .family<ContentAccessContext?, ContentAccessRequest>((ref, request) {
-      final profiles = ref.watch(booruConfigProvider);
-      final origin = PostOrigin.fromSource(
-        booruType: request.reference.engine,
-        booruId: 0,
-        source: request.reference.site.toString(),
-        profileIdHint: request.profileIdHint,
-      );
-      final resolved = const PostOriginResolver().resolve(origin, profiles);
-      return switch (resolved) {
-        ResolvedPostOrigin(:final config) => ref.watch(
-          contentProfileAccessProvider(config.id),
-        ),
-        _ => null,
-      };
-    }, dependencies: [booruConfigProvider, contentProfileAccessProvider]);
+    .family<ContentAccessContext?, ContentAccessRequest>(
+      (ref, request) {
+        final profiles = ref.watch(booruConfigProvider);
+        final origin = PostOrigin.fromSource(
+          booruType: request.reference.engine,
+          booruId: 0,
+          source: request.reference.site.toString(),
+          profileIdHint: request.profileIdHint,
+        );
+        final resolved = const PostOriginResolver().resolve(
+          origin,
+          profiles,
+          allowProfileHintFallback: request.allowProfileHintFallback,
+        );
+        return switch (resolved) {
+          ResolvedPostOrigin(:final config) => ref.watch(
+            contentProfileAccessProvider(config.id),
+          ),
+          AmbiguousPostOrigin() => null,
+          MissingPostOrigin() => switch (ref
+              .watch(anonymousSourcePolicyProvider)
+              .resolve(request.reference.engine, request.reference.site)) {
+            final source? => ref.watch(anonymousContentAccessProvider(source)),
+            _ => null,
+          },
+        };
+      },
+      dependencies: [
+        booruConfigProvider,
+        contentProfileAccessProvider,
+        anonymousSourcePolicyProvider,
+        anonymousContentAccessProvider,
+      ],
+    );
+
+// Fresh listings may reattach to a compatible profile. Already-bound viewers,
+// requests and saved download actors still validate their captured access key.
+final contentAccessForOriginProvider = Provider.autoDispose
+    .family<ContentAccessContext?, PostOrigin>(
+      (ref, origin) {
+        final resolution = const PostOriginResolver().resolve(
+          origin,
+          ref.watch(booruConfigProvider),
+          allowProfileHintFallback: true,
+        );
+        return switch (resolution) {
+          ResolvedPostOrigin(:final config) => ref.watch(
+            contentProfileAccessProvider(config.id),
+          ),
+          AmbiguousPostOrigin() => null,
+          MissingPostOrigin() => switch (ref
+              .watch(anonymousSourcePolicyProvider)
+              .forNamespace(origin.booruType, origin.sourceHost)) {
+            final source? => ref.watch(anonymousContentAccessProvider(source)),
+            _ => null,
+          },
+        };
+      },
+      dependencies: [
+        booruConfigProvider,
+        contentProfileAccessProvider,
+        anonymousSourcePolicyProvider,
+        anonymousContentAccessProvider,
+      ],
+    );
+
+/// Check saved Post facts against the same current policy used to admit media.
+final contentPostVisibilityProvider = Provider.autoDispose
+    .family<AsyncValue<bool>, ({ContentAccessKey access, Post post})>(
+      (ref, request) {
+        final access = ref.watch(contentAccessContextProvider(request.access));
+        final config = access?.config;
+        if (config == null) return const AsyncData(false);
+        final tags = request.access.profileId == null
+            ? ref
+                  .watch(globalBlacklistedTagsProvider)
+                  .whenData((rows) => rows.map((e) => e.name).toSet())
+            : ref.watch(contentEffectiveBlacklistProvider(config.id));
+        return tags.whenData(
+          (tags) => isExactLookupPostVisible(request.post, config, tags),
+        );
+      },
+      dependencies: [
+        contentAccessContextProvider,
+        globalBlacklistedTagsProvider,
+        contentEffectiveBlacklistProvider,
+      ],
+    );

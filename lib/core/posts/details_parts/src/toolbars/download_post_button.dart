@@ -10,6 +10,9 @@ import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
+import '../../../../content/content_access_provider.dart';
+import '../../../../content/content_media_access.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../../downloads/urls/providers.dart';
 import '../../../../downloads/urls/types.dart';
@@ -40,6 +43,30 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = ref.watchConfigAuth;
+    if (auth.anonymousReadScope != null) {
+      return const SizedBox.shrink();
+    }
+    final access = watchContentMediaAccess(ref, auth, post: widget.post);
+    if (!access.allowed) return const SizedBox.shrink();
+    final key = access.key;
+    bool current() =>
+        key == null ||
+        (mounted &&
+            ref.read(currentContentAccessKeyProvider) == key &&
+            ref.read(contentAccessContextProvider(key))?.config?.auth == auth &&
+            (ref
+                    .read(
+                      contentPostVisibilityProvider((
+                        access: key,
+                        post: widget.post,
+                      )),
+                    )
+                    .asData
+                    ?.value ==
+                true));
+    final guard = key == null ? null : current;
+
     final notifier = ref.watch(
       downloadNotifierProvider(
         ref.watch(
@@ -71,6 +98,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
                 widget.post,
                 quality: e.quality,
                 overrideUrl: e.url,
+                isCurrent: guard,
               );
             },
           ),
@@ -82,7 +110,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
             ? IconButton(
                 splashRadius: 16,
                 onPressed: () {
-                  notifier.download(widget.post);
+                  notifier.download(widget.post, isCurrent: guard);
                 },
                 onLongPress: () {
                   _controller.show();
@@ -96,7 +124,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
                 color: Colors.transparent,
                 child: InkWell(
                   onTap: () {
-                    notifier.download(widget.post);
+                    notifier.download(widget.post, isCurrent: guard);
                   },
                   onLongPress: () {},
                   child: Padding(

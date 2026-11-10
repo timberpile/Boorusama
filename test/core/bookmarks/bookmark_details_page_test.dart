@@ -1,4 +1,12 @@
 import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/content/content_access.dart';
+import 'package:boorusama/core/content/anonymous_read_scope.dart';
+import 'package:boorusama/core/content/anonymous_source_policy.dart';
+import 'package:boorusama/core/content/content_media_access.dart';
+import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_hierarchy_conversion.dart';
 import 'package:uuid/uuid.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
@@ -86,6 +94,7 @@ import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
 import '../../support/fakes/bookmark_test_storage.dart';
+import '../../support/fakes/test_post.dart';
 
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
@@ -97,6 +106,108 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  testWidgets(
+    'bookmark grid scopes a retained null-postId row to its local record ID',
+    (tester) async {
+      const policy = AnonymousSourcePolicy();
+      final source = policy.resolve(
+        BooruType.danbooru,
+        Uri.parse('https://safebooru.donmai.us'),
+      )!;
+      final key = ContentAccessKey(
+        engine: source.engine,
+        siteNamespace: source.site.host,
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final scope = AnonymousReadScope(
+        source: source,
+        key: key,
+        createDio: () => throw StateError('The test does not load media'),
+        current: () => true,
+      );
+      addTearDown(scope.dispose);
+      final config = BooruConfig.fromJson({
+        ...BooruConfig.empty.toJson(),
+        'id': '11111111-1111-4111-8111-111111111111',
+        'booruId': BooruType.danbooru.id,
+        'booruIdHint': BooruType.danbooru.id,
+        'url': source.site.toString(),
+      }).copyWith(anonymousReadScope: scope);
+      final access = ContentAccessContext.anonymous(
+        config: config,
+        scope: scope,
+      );
+      final origin = PostOrigin.fromSource(
+        booruType: BooruType.danbooru,
+        booruId: BooruType.danbooru.id,
+        source: source.site.toString(),
+      );
+      Post rowPost() => TestPost(
+        id: 91,
+        origin: origin,
+        booruData: const LegacyPostData(
+          typeKey: 'legacy_danbooru',
+          custom: {},
+        ),
+        thumbnailImageUrl: 'https://cdn.donmai.us/sample/91.jpg',
+        sampleImageUrl: 'https://foreign.example.test/91-sample.jpg',
+        originalImageUrl: 'https://foreign.example.test/91-original.jpg',
+      );
+      PostBookmark record(int id, Post post, int? postId) =>
+          PostBookmark.fromSnapshot(
+            id: id,
+            createdAt: DateTime.utc(2024),
+            updatedAt: DateTime.utc(2024),
+            snapshot: const StoredPostCodec().encode(post),
+            post: post,
+            postId: postId,
+          );
+
+      final known = record(101, rowPost(), 91);
+      final retained = record(202, rowPost(), null);
+      final group = BookmarkGroup(
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Retained row',
+        bookmarkIds: {retained.id},
+      );
+      final library = BookmarkLibraryState(
+        bookmarks: [known, retained],
+        records: [known, retained],
+        groups: [
+          BookmarkGroup(
+            id: '33333333-3333-4333-8333-333333333333',
+            name: 'Known row',
+            bookmarkIds: {known.id},
+          ),
+          group,
+        ],
+      );
+      final controller = _controller([known.post, retained.post]);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          home: BookmarkGroupBrowserPage(groupId: group.id),
+          bookmarkNotifier: _CacheBookmarkNotifier(library),
+          fixedAccess: access,
+          fixedEpochs: ContentAccessEpochs(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final tileImage = find.byType(BooruImage);
+      expect(tileImage, findsOneWidget);
+      final tileContainer = ProviderScope.containerOf(
+        tester.element(tileImage),
+      );
+      expect(
+        tileContainer.read(currentContentBookmarkIdProvider),
+        retained.id,
+      );
+      expect(tester.takeException(), isNull);
+      controller.dispose();
+    },
+  );
+
   for (final folder in [false, true]) {
     for (final hasPoster in [false, true]) {
       testWidgets(
@@ -580,7 +691,7 @@ void main() {
   }
 
   testWidgets(
-    'bookmark grid group previews and viewer decode from the same ordinary cache without a download',
+    'bookmark grid group previews and viewer decode from the same scoped cache without a download',
     (tester) async {
       await tester.runAsync(() async {
         VisibilityDetectorController.instance.updateInterval = Duration.zero;
@@ -609,12 +720,20 @@ void main() {
           sampleUrl: 'https://bookmark-cache.test/sample.png',
           originalUrl: 'https://bookmark-cache.test/original.png',
         );
+        final epochs = ContentAccessEpochs();
+        final fixedAccess = ContentAccessContext.profile(
+          config: _config,
+          authEpoch: 1,
+          policyEpoch: 2,
+        );
         for (final url in [
           bookmark.thumbnailUrl,
           bookmark.sampleUrl,
           bookmark.originalUrl,
         ]) {
-          await cache.saveFile(cache.generateCacheKey(url), lowerPng);
+          final key = cache.generateCacheKey(url);
+          await cache.saveFile(key, lowerPng);
+          expect(await cache.getCachedFileBytes(key), lowerPng);
         }
         final favicon = PostSource.from(
           _config.url,
@@ -652,6 +771,8 @@ void main() {
                 bookmarkNotifier: _CacheBookmarkNotifier(state),
                 commonCache: cache,
                 imageDio: dio,
+                fixedAccess: fixedAccess,
+                fixedEpochs: epochs,
               ),
             );
             final deadline = DateTime.now().add(const Duration(seconds: 10));
@@ -687,8 +808,7 @@ void main() {
             expect(
               adapter.requests,
               isEmpty,
-              reason:
-                  'all bookmark surfaces reuse ordinary URL-keyed cache files',
+              reason: 'all bookmark surfaces reuse ordinary URL cache files',
             );
             for (final image in tester.widgetList<BooruRawImage>(
               find.byType(BooruRawImage),
@@ -1308,6 +1428,8 @@ class _BookmarkViewerHarness extends StatelessWidget {
     this.commonCache,
     this.imageDio,
     this.previewSettingsNotifier,
+    this.fixedAccess,
+    this.fixedEpochs,
   });
 
   final PostGridController<Post> controller;
@@ -1322,6 +1444,8 @@ class _BookmarkViewerHarness extends StatelessWidget {
   final ImageCacheManager? commonCache;
   final Dio? imageDio;
   final SettingsNotifier? previewSettingsNotifier;
+  final ContentAccessContext? fixedAccess;
+  final ContentAccessEpochs? fixedEpochs;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -1350,6 +1474,21 @@ class _BookmarkViewerHarness extends StatelessWidget {
       initialSettingsBooruConfigProvider.overrideWithValue(_config),
       booruConfigProvider.overrideWith(
         () => BooruConfigNotifier(initialConfigs: [_config]),
+      ),
+      if (fixedAccess case final access?) ...[
+        contentAccessEpochsProvider.overrideWithValue(fixedEpochs!),
+        contentAccessForOriginProvider.overrideWith((ref, origin) => access),
+        contentAccessContextProvider.overrideWith(
+          (ref, key) => key == access.key ? access : null,
+        ),
+        viewerSourceAccessProvider.overrideWith((ref, binding) => access),
+        contentProfileAccessProvider.overrideWith(
+          () => _FixedProfileAccess(access),
+        ),
+      ],
+      globalBlacklistedTagsProvider.overrideWith(_EmptyBlacklist.new),
+      contentEffectivePolicyProvider.overrideWith(
+        (ref, profileId) => const AsyncData('test-empty-policy'),
       ),
       booruEngineRegistryProvider.overrideWithValue(_CodecRegistry()),
       if (bookmarkRepository == null)
@@ -1394,8 +1533,10 @@ class _BookmarkViewerHarness extends StatelessWidget {
       externalUrlLauncherProvider.overrideWithValue(
         RecordingExternalUrlLauncher(),
       ),
-      if (imageDio case final dio?)
+      if (imageDio case final dio?) ...[
         dioForWidgetProvider.overrideWith((ref, config) => dio),
+        mediaOverrideDioProvider.overrideWith((ref, config) => dio),
+      ],
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
       hasPremiumLayoutProvider.overrideWithValue(false),
       showPremiumFeatsProvider.overrideWithValue(false),
@@ -1559,7 +1700,12 @@ final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
   );
 
   @override
-  Future<void> upgradeBookmarkSnapshot(PostBookmark bookmark, Post post) async {
+  Future<void> upgradeBookmarkSnapshot(
+    PostBookmark bookmark,
+    Post post, {
+    bool Function()? canUpgrade,
+  }) async {
+    if (canUpgrade?.call() == false) return;
     upgrades++;
     final snapshot = const StoredPostCodec().encode(
       post,
@@ -1761,4 +1907,17 @@ BookmarkLibraryState _hierarchyFixture(BookmarkLibraryState input) {
         entry.key: converted.folderIdMapping[entry.value]!,
     },
   );
+}
+
+class _EmptyBlacklist extends GlobalBlacklistedTagsNotifier {
+  @override
+  IList<BlacklistedTag> build() => <BlacklistedTag>[].lock;
+}
+
+class _FixedProfileAccess extends ContentProfileAccess {
+  _FixedProfileAccess(this.access);
+  final ContentAccessContext access;
+  @override
+  ContentAccessContext? build(String profileId) =>
+      profileId == access.key.profileId ? access : null;
 }

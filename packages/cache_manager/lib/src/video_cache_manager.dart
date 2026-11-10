@@ -36,6 +36,13 @@ class VideoCacheManager implements ImageCacheManager {
   Future<Directory>? _cacheDirFuture;
   final _activeLeases = <String, int>{};
   final _pendingDeletes = <String>{};
+  final _guardedTokens = <CancelToken>{};
+  Future<void> _guardedQueue = Future.value();
+  bool _disposed = false;
+  int _stageSerial = 0;
+  int _guardedWaiters = 0;
+  int _clearsInProgress = 0;
+  final _guardedTransfers = <CancelToken, (String, Future<void>)>{};
 
   static const String defaultSubPath = 'cachevideo';
   static const String videoCacheGroup = 'video_cache';
@@ -191,6 +198,177 @@ class VideoCacheManager implements ImageCacheManager {
     return VideoCacheLease._(file.path, () => _releaseVideo(key, file));
   }
 
+  /// Prepares a source-scoped local file using only the supplied transport.
+  Future<VideoCacheLease> acquireGuardedVideo(
+    String url, {
+    required String namespace,
+    required Dio transport,
+    required bool Function() isCurrent,
+    required CancelToken cancelToken,
+    Map<String, String>? headers,
+    bool retain = true,
+  }) async {
+    if (_disposed || _clearsInProgress > 0 || _guardedWaiters >= 64) {
+      throw const VideoCacheException('Guarded video queue unavailable');
+    }
+    _guardedWaiters++;
+    final previous = _guardedQueue;
+    final finished = Completer<void>();
+    _guardedQueue = finished.future;
+    final ownedToken = CancelToken();
+    final key = generateCacheKey('$namespace\n$url');
+    _guardedTokens.add(ownedToken);
+    _guardedTransfers[ownedToken] = (key, finished.future);
+    cancelToken.whenCancel.then((error) {
+      if (!ownedToken.isCancelled) ownedToken.cancel(error);
+    });
+    void check() {
+      if (_disposed ||
+          cancelToken.isCancelled ||
+          ownedToken.isCancelled ||
+          !isCurrent()) {
+        throw const VideoCacheException(
+          'Guarded video access cancelled or stale',
+        );
+      }
+    }
+
+    File? stage;
+    IOSink? sink;
+    try {
+      await previous;
+      check();
+      final dir = await getCacheDirectory();
+      check();
+      final limit = maxItemSize < 0 || maxItemSize > 100 * 1024 * 1024
+          ? 100 * 1024 * 1024
+          : maxItemSize;
+      final cached = _getValidFile(dir, key, null);
+      if (cached != null) {
+        final size = cached.lengthSync();
+        if (size > limit ||
+            (maxTotalCacheSize >= 0 && size > maxTotalCacheSize)) {
+          throw const VideoCacheException('Video exceeds cache size limit');
+        }
+        _activeLeases[key] = (_activeLeases[key] ?? 0) + 1;
+        if (!retain) _pendingDeletes.add(key);
+        final lease = VideoCacheLease._(
+          cached.path,
+          () => _releaseVideo(key, cached),
+        );
+        await _touchFile(cached);
+        try {
+          check();
+          return lease;
+        } catch (_) {
+          await lease.release();
+          rethrow;
+        }
+      }
+      if (_pendingDeletes.contains(key) || (_activeLeases[key] ?? 0) > 0) {
+        throw const VideoCacheException(
+          'Video cache entry is pending deletion',
+        );
+      }
+      final response = await transport.get<ResponseBody>(
+        url,
+        cancelToken: ownedToken,
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: headers,
+          extra: const {'boorusama.request.media': true},
+        ),
+      );
+      check();
+      final length = int.tryParse(
+        response.headers.value('content-length') ?? '',
+      );
+      if (length != null &&
+          (length > limit ||
+              (maxTotalCacheSize >= 0 && length > maxTotalCacheSize))) {
+        throw const VideoCacheException('Video exceeds cache size limit');
+      }
+      final body = response.data;
+      if (body == null)
+        throw const VideoCacheException('Missing video response body');
+      stage = File(
+        join(dir.path, '$key.${identityHashCode(this)}.${_stageSerial++}.part'),
+      );
+      sink = stage.openWrite();
+      var size = 0;
+      final iterator = StreamIterator(body.stream);
+      final cancelled = ownedToken.whenCancel.then<bool>(
+        (_) => throw const VideoCacheException('Guarded video cancelled'),
+      );
+      try {
+        while (await Future.any([
+          iterator.moveNext(),
+          cancelled,
+        ])) {
+          check();
+          final chunk = iterator.current;
+          size += chunk.length;
+          if (size > limit ||
+              (maxTotalCacheSize >= 0 && size > maxTotalCacheSize)) {
+            throw const VideoCacheException('Video exceeds cache size limit');
+          }
+          sink.add(chunk);
+        }
+      } finally {
+        await iterator.cancel();
+      }
+      await sink.flush();
+      check();
+      await sink.close();
+      sink = null;
+      check();
+      if (maxTotalCacheSize >= 0) {
+        await _ensureSpaceAvailable(size);
+        check();
+        final used = dir
+            .listSync()
+            .whereType<File>()
+            .where((file) => !file.path.endsWith('.part'))
+            .fold<int>(0, (total, file) => total + file.lengthSync());
+        if (used + size > maxTotalCacheSize) {
+          throw const VideoCacheException('Video cache quota is occupied');
+        }
+      }
+      check();
+      final destination = File(join(dir.path, key));
+      if (destination.existsSync() ||
+          _pendingDeletes.contains(key) ||
+          (_activeLeases[key] ?? 0) > 0) {
+        throw const VideoCacheException(
+          'Video cache entry changed during preparation',
+        );
+      }
+      stage.renameSync(destination.path);
+      stage = null;
+      _activeLeases[key] = (_activeLeases[key] ?? 0) + 1;
+      if (!retain) _pendingDeletes.add(key);
+      return VideoCacheLease._(
+        destination.path,
+        () => _releaseVideo(key, destination),
+      );
+    } finally {
+      try {
+        if (!ownedToken.isCancelled)
+          ownedToken.cancel('Guarded transfer finished');
+        try {
+          if (sink != null) await sink.close();
+        } finally {
+          if (stage != null && await stage.exists()) await stage.delete();
+        }
+      } finally {
+        _guardedTokens.remove(ownedToken);
+        _guardedTransfers.remove(ownedToken);
+        _guardedWaiters--;
+        finished.complete();
+      }
+    }
+  }
+
   Future<void> _releaseVideo(String key, File file) async {
     final remaining = (_activeLeases[key] ?? 1) - 1;
     if (remaining > 0) {
@@ -303,7 +481,15 @@ class VideoCacheManager implements ImageCacheManager {
 
   @override
   Future<void> clearCache(String key) async {
+    _clearsInProgress++;
+    final matching = _guardedTransfers.entries
+        .where((entry) => entry.value.$1 == key)
+        .toList();
+    for (final entry in matching) {
+      entry.key.cancel('Video cache cleared');
+    }
     try {
+      await Future.wait(matching.map((entry) => entry.value.$2));
       final cacheDir = await getCacheDirectory();
       final cacheFile = File(join(cacheDir.path, key));
 
@@ -317,6 +503,8 @@ class VideoCacheManager implements ImageCacheManager {
       _pendingDeletes.remove(key);
     } catch (e) {
       _log('Error clearing video cache: $e');
+    } finally {
+      _clearsInProgress--;
     }
   }
 
@@ -326,7 +514,12 @@ class VideoCacheManager implements ImageCacheManager {
   }
 
   Future<void> clearAllVideos() async {
+    _clearsInProgress++;
+    for (final token in _guardedTokens.toList()) {
+      token.cancel('Video cache cleared');
+    }
     try {
+      await _guardedQueue;
       final cacheDir = await getCacheDirectory();
       if (cacheDir.existsSync()) {
         if (_activeLeases.isEmpty) {
@@ -348,6 +541,8 @@ class VideoCacheManager implements ImageCacheManager {
       }
     } catch (e) {
       _log('Error clearing all video cache: $e');
+    } finally {
+      _clearsInProgress--;
     }
   }
 
@@ -362,6 +557,11 @@ class VideoCacheManager implements ImageCacheManager {
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
+    for (final token in _guardedTokens.toList()) {
+      token.cancel('Video cache disposed');
+    }
+    await _guardedQueue;
     _cacheDir = null;
     _cacheDirFuture = null;
   }
@@ -394,7 +594,11 @@ class VideoCacheManager implements ImageCacheManager {
     final cacheDir = await getCacheDirectory();
     final targetThreshold = (maxTotalCacheSize * evictionThreshold).round();
 
-    final files = cacheDir.listSync().whereType<File>().toList();
+    final files = cacheDir
+        .listSync()
+        .whereType<File>()
+        .where((file) => !file.path.endsWith('.part'))
+        .toList();
     var currentSize = 0;
 
     final fileStats = <_FileWithStats>[];
@@ -415,7 +619,7 @@ class VideoCacheManager implements ImageCacheManager {
     for (final fileWithStat in fileStats) {
       if (currentSize <= maxAllowedSize) break;
       final key = basename(fileWithStat.file.path);
-      if ((_activeLeases[key] ?? 0) > 0) continue;
+      if (key.endsWith('.part') || (_activeLeases[key] ?? 0) > 0) continue;
 
       try {
         await fileWithStat.file.delete();

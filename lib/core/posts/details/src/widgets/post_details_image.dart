@@ -174,6 +174,7 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
     );
     final placeholderMedia = placeholderMediaBuilder?.call(post) ?? gridMedia;
     final image = ProgressivePostImage(
+      post: post,
       mediaIdentity: postViewerIdentity(post),
       config: config,
       imageUrl: imageUrl,

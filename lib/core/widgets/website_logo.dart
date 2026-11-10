@@ -10,6 +10,9 @@ import 'package:kurumi/material.dart';
 import '../developer_options/blocked_media_placeholder.dart';
 import '../developer_options/providers.dart';
 import '../images/providers.dart';
+import '../posts/sources/types.dart';
+import '../content/content_media_access.dart';
+import '../content/content_access_provider.dart';
 
 const _unknownSize = 26.0;
 const kFaviconSize = 32.0;
@@ -42,6 +45,31 @@ class WebsiteLogo extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final required = ref.watch(contentAccessRequiredProvider);
+    final key = ref.watch(currentContentAccessKeyProvider);
+    final access = key == null
+        ? null
+        : ref.watch(contentAccessContextProvider(key));
+    final publicSource = access?.config?.anonymousReadScope?.source;
+    final trustedPublicIcon =
+        publicSource != null &&
+        PostSource.from(publicSource.site.toString()).whenWeb(
+          (source) => source.faviconUrl == this.url,
+          () => false,
+        );
+    // Reuse the registered site's existing favicon through the dedicated,
+    // credential-free icon client. Imported/custom icon URLs grant no access.
+    if (required &&
+        (access == null || (key?.profileId == null && !trustedPublicIcon))) {
+      return SizedBox.square(dimension: size, child: _buildFallback());
+    }
+    final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
+    final delegate = cacheManager ?? fallbackManager;
+    final scopedCache = key == null || access == null
+        ? delegate
+        : ref.watch(
+            contentMediaCacheManagerProvider((manager: delegate, access: key)),
+          );
     final url = this.url;
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,
@@ -72,8 +100,7 @@ class WebsiteLogo extends ConsumerWidget {
               strokeWidth: 1.5,
             ),
           ),
-          cacheManager:
-              cacheManager ?? ref.watch(defaultImageCacheManagerProvider),
+          cacheManager: scopedCache,
           errorWidget: _buildFallback(),
         ),
         (final String _, false) => BlockedMediaPlaceholder(

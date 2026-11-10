@@ -34,12 +34,19 @@ class DefaultImagePreviewQuickActions extends ConsumerWidget {
     final artist = (post.artistTags?.isNotEmpty ?? false)
         ? chooseArtistTag(post.artistTags!)
         : null;
+    final isPublicActor = config.anonymousReadScope != null;
     final buttons = <Widget>[];
     for (final action in actions.actions) {
       final button = switch (action) {
         ThumbnailAction.defaultAction =>
-          defaultActionButton ??
-              builder?.quickFavoriteButtonBuilder?.call(context, ref, post),
+          isPublicActor
+              ? null
+              : defaultActionButton ??
+                    builder?.quickFavoriteButtonBuilder?.call(
+                      context,
+                      ref,
+                      post,
+                    ),
         ThumbnailAction.bookmark => _CompactActionBackground(
           diameter: 33,
           child: KurumiTooltip(
@@ -47,12 +54,14 @@ class DefaultImagePreviewQuickActions extends ConsumerWidget {
             child: BookmarkPostLikeButtonButton(post: post),
           ),
         ),
-        ThumbnailAction.download => _CompactActionBackground(
-          diameter: 32,
-          child: _ThumbnailDownloadButton(post: post, config: config),
-        ),
+        ThumbnailAction.download when !isPublicActor =>
+          _CompactActionBackground(
+            diameter: 32,
+            child: _ThumbnailDownloadButton(post: post, config: config),
+          ),
+        ThumbnailAction.download => null,
         ThumbnailAction.artist =>
-          artist == null
+          isPublicActor || artist == null
               ? null
               : _CompactActionBackground(
                   diameter: 32,

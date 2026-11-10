@@ -16,6 +16,11 @@ import '../../../../foundation/loggers.dart';
 import '../../../config_widgets/website_logo.dart';
 import '../../../../foundation/platform.dart';
 import '../../../configs/config/types.dart';
+import '../../../configs/network/providers.dart';
+import '../../../content/content_access.dart';
+import '../../../content/content_access_provider.dart';
+import '../../../content/content_media_access.dart';
+import '../../../content/content_media_dio.dart';
 import '../../../settings/types.dart';
 import '../../../ddos/handler/providers.dart';
 import '../../../http/client/providers.dart';
@@ -52,6 +57,8 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     required this.auth,
     required this.viewer,
     required this.imageCacheManager,
+    this.accessKey,
+    this.requireAccess = false,
     this.postQuality = PostQuality.high,
     this.shareAdapter,
     this.imageClipboardWriter,
@@ -61,6 +68,8 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     super.key,
   });
 
+  final ContentAccessKey? accessKey;
+  final bool requireAccess;
   final PostQuality postQuality;
   final Post post;
   final BooruConfigAuth auth;
@@ -97,6 +106,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   Post? _imageMetadataPost;
   String? _cachedImageDescription;
   var _imageMetadataRevision = 0;
+  ContentAccessKey? _boundKey;
+  var _accessRequired = false;
 
   @override
   void initState() {
@@ -131,25 +142,60 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     }
   }
 
-  void _beginImageMetadataLookup(String imageUrl) {
+  bool _accessCurrent() {
+    if (!mounted) return false;
+    final key =
+        _boundKey ?? widget.accessKey ?? widget.auth.anonymousReadScope?.key;
+    if (key == null) return !_accessRequired;
+    final context = ref.read(contentAccessContextProvider(key));
+    return context != null &&
+        (ref
+                .read(
+                  contentPostVisibilityProvider((
+                    access: key,
+                    post: widget.post,
+                  )),
+                )
+                .asData
+                ?.value ==
+            true) &&
+        context.config?.auth == widget.auth &&
+        (widget.auth.anonymousReadScope?.isCurrent ?? true);
+  }
+
+  void _checkAccess() {
+    if (!_accessCurrent())
+      throw const ShareMediaException(ShareMediaFailure.cancelled);
+  }
+
+  bool _permittedMedia(String url) {
+    final source = widget.auth.anonymousReadScope?.source;
+    if (source == null) return true;
+    final uri = Uri.tryParse(url);
+    return uri != null && source.allowsMedia(uri);
+  }
+
+  void _beginImageMetadataLookup(String imageUrl, ImageCacheManager manager) {
     if (_imageMetadataUrl == imageUrl &&
-        identical(_imageMetadataCacheManager, widget.imageCacheManager) &&
+        identical(_imageMetadataCacheManager, manager) &&
         identical(_imageMetadataAuth, widget.auth) &&
         identical(_imageMetadataPost, widget.post)) {
       return;
     }
 
     _imageMetadataUrl = imageUrl;
-    _imageMetadataCacheManager = widget.imageCacheManager;
+    _imageMetadataCacheManager = manager;
     _imageMetadataAuth = widget.auth;
     _imageMetadataPost = widget.post;
     _cachedImageDescription = null;
     final revision = ++_imageMetadataRevision;
-    if (!widget.post.isVideo && imageUrl.isNotEmpty) {
+    if (!widget.post.isVideo &&
+        imageUrl.isNotEmpty &&
+        _permittedMedia(imageUrl)) {
       unawaited(
         _loadCachedImageDescription(
           imageUrl,
-          widget.imageCacheManager,
+          manager,
           revision,
         ),
       );
@@ -170,13 +216,57 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       return;
     }
 
-    if (mounted && revision == _imageMetadataRevision && description != null) {
+    if (mounted &&
+        _accessCurrent() &&
+        revision == _imageMetadataRevision &&
+        description != null) {
       setState(() => _cachedImageDescription = description);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final access = watchContentMediaAccess(
+      ref,
+      widget.auth,
+      key: widget.accessKey ?? _boundKey,
+      post: widget.post,
+    );
+    _boundKey ??= access.key;
+    _accessRequired =
+        widget.requireAccess ||
+        ref.watch(contentAccessRequiredProvider) ||
+        _boundKey != null;
+    final allowed = access.allowed && (!_accessRequired || access.key != null);
+    final key = access.key;
+    if (key != null) {
+      ref.listen(contentAccessContextProvider(key), (_, next) {
+        if (next == null ||
+            next.config?.auth != widget.auth ||
+            !(widget.auth.anonymousReadScope?.isCurrent ?? true)) {
+          _cancelToken?.cancel();
+          _imageMetadataRevision++;
+        }
+      });
+    }
+    if (!allowed) {
+      _cancelToken?.cancel();
+      _imageMetadataRevision++;
+      return Material(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(context.t.post.action.unavailable),
+        ),
+      );
+    }
+    final manager = key == null
+        ? widget.imageCacheManager
+        : ref.watch(
+            contentMediaCacheManagerProvider((
+              manager: widget.imageCacheManager,
+              access: key,
+            )),
+          );
     final post = widget.post;
     final imageUrl = resolveShareImageUrl(
       post: post,
@@ -184,7 +274,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           .watch(mediaUrlResolverProvider(widget.auth))
           .resolveMediaUrl(post, widget.viewer),
     );
-    _beginImageMetadataLookup(imageUrl);
+    _beginImageMetadataLookup(imageUrl, manager);
     final booruLink = ref
         .watch(postLinkGeneratorProvider(widget.auth))
         .getLink(post);
@@ -431,6 +521,9 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   }
 
   Widget _leadingIcon(SharePayloadId id, String? sourceLink) => switch (id) {
+    SharePayloadId.booruLink || SharePayloadId.sourceLink
+        when widget.auth.anonymousReadScope != null =>
+      const Icon(Icons.link),
     SharePayloadId.image => const Icon(Icons.image_outlined),
     SharePayloadId.original => const Icon(Icons.photo_outlined),
     SharePayloadId.video => const Icon(Icons.movie_outlined),
@@ -467,12 +560,21 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     required bool share,
     bool asGif = false,
   }) async {
-    if (_active != null || !payload.available) return;
+    if (_active != null || !payload.available || !_accessCurrent()) return;
     final isLinkFile = payload.id == SharePayloadId.boorusamaLink;
     if (isLinkFile && !share) return;
     final post = widget.post;
     final auth = widget.auth;
-    final imageCacheManager = widget.imageCacheManager;
+    final accessKey =
+        _boundKey ?? widget.accessKey ?? widget.auth.anonymousReadScope?.key;
+    final imageCacheManager = accessKey == null
+        ? widget.imageCacheManager
+        : ref.read(
+            contentMediaCacheManagerProvider((
+              manager: widget.imageCacheManager,
+              access: accessKey,
+            )),
+          );
     final token = payload.isMedia || isLinkFile ? CancelToken() : null;
     _progressVisibilityTimer?.cancel();
     setState(() {
@@ -511,7 +613,10 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           cancelToken: token,
         );
         checkShareCancellation(token);
+        _checkAccess();
         if (!mounted) return;
+        if (!_permittedMedia(request.url))
+          throw const ShareMediaException(ShareMediaFailure.unavailable);
         _beginClipboardHandoff();
         await AppClipboard.copy(request.url);
       } else if (payload.isMedia) {
@@ -528,6 +633,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           throw const ShareMediaException(ShareMediaFailure.storage);
         }
         checkShareCancellation(token);
+        _checkAccess();
         if (!mounted) return;
         if (rootPath == null) {
           throw const ShareMediaException(ShareMediaFailure.storage);
@@ -539,38 +645,61 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           cancelToken: token,
         );
         checkShareCancellation(token);
+        _checkAccess();
         if (!mounted) return;
-        Map<String, String> bypassHeaders;
-        try {
-          bypassHeaders = await awaitShareOrCancellation(
-            ref.read(bypassDdosHeadersProvider(request.url).future),
-            token,
-          );
-        } on ShareMediaException {
-          rethrow;
-        } on DioException catch (error) {
-          if (CancelToken.isCancel(error)) {
-            throw const ShareMediaException(ShareMediaFailure.cancelled);
+        if (!_permittedMedia(request.url)) {
+          throw const ShareMediaException(ShareMediaFailure.unavailable);
+        }
+        final public = auth.anonymousReadScope != null;
+        final baseHeaders = ref.read(httpHeadersProvider(auth));
+        final media = ref
+            .read(networkSettingsProvider(auth))
+            .resolveMedia(
+              request.url,
+              headers: baseHeaders,
+              sourceUrl: accessKey == null ? null : auth.url,
+            );
+        if (!_permittedMedia(media.url)) {
+          throw const ShareMediaException(ShareMediaFailure.unavailable);
+        }
+        Map<String, String> bypassHeaders = const {};
+        if (!public) {
+          try {
+            bypassHeaders = await awaitShareOrCancellation(
+              ref.read(bypassDdosHeadersProvider(media.url).future),
+              token,
+            );
+          } on ShareMediaException {
+            rethrow;
+          } on DioException catch (error) {
+            if (CancelToken.isCancel(error))
+              throw const ShareMediaException(ShareMediaFailure.cancelled);
+            if (error.response?.statusCode == 401 ||
+                error.response?.statusCode == 403)
+              throw const ShareMediaException(ShareMediaFailure.authentication);
+            throw const ShareMediaException(ShareMediaFailure.network);
+          } on Exception {
+            throw const ShareMediaException(ShareMediaFailure.network);
           }
-          if (error.response?.statusCode == 401 ||
-              error.response?.statusCode == 403) {
-            throw const ShareMediaException(ShareMediaFailure.authentication);
-          }
-          throw const ShareMediaException(ShareMediaFailure.network);
-        } on Exception {
-          throw const ShareMediaException(ShareMediaFailure.network);
         }
         checkShareCancellation(token);
+        _checkAccess();
         if (!mounted) return;
         final requestHeaders = {
-          ...ref.read(httpHeadersProvider(auth)),
+          ...media.headers,
           ...bypassHeaders,
-          if (request.cookie != null)
+          if (!public && !media.overridden && request.cookie != null)
             AppHttpHeaders.cookieHeader: request.cookie!,
         };
         final service = ShareMediaPreparation(
           rootPath: rootPath,
-          dio: ref.read(dioForWidgetProvider(auth)),
+          dio: accessKey != null
+              ? ref.read(contentMediaDioProvider(accessKey))
+              : public
+              ? ref.read(dioForWidgetProvider(auth))
+              : media.overridden
+              ? ref.read(mediaOverrideDioProvider(auth))
+              : ref.read(dioForWidgetProvider(auth)),
           cachedBytes: (url) async => imageCacheManager.getCachedFileBytes(
             imageCacheManager.generateCacheKey(url),
           ),
@@ -582,7 +711,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
             backend: ref.read(gifEncoderBackendProvider),
           );
           final prepared = await converter.prepareSource(
-            sourceUrl: request.url,
+            sourceUrl: media.url,
             headers: requestHeaders,
             cancelToken: token!,
             onProgress: (value) {
@@ -591,6 +720,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           );
           try {
             checkShareCancellation(token);
+            _checkAccess();
             if (!mounted) return;
             _cancelToken = null;
             _progressVisibilityTimer?.cancel();
@@ -602,6 +732,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                   service: converter,
                   fileName: 'boorusama_${post.id}.gif',
                   share: (output) async {
+                    _checkAccess();
                     if (isAndroid() && widget.shareAdapter == null) {
                       await AppClipboard.shareImageFile(
                         output.path,
@@ -622,7 +753,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           return;
         }
         lease = await service.prepare(
-          url: request.url,
+          url: media.url,
           kind: switch (payload.id) {
             SharePayloadId.video => ShareMediaKind.video,
             SharePayloadId.original => ShareMediaKind.original,
@@ -636,6 +767,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           },
         );
         checkShareCancellation(token);
+        _checkAccess();
         if (!mounted) return;
         // Preparation commits cache bytes before returning. Reuse them without
         // delaying the native handoff or fetching media just for the subtitle.
@@ -644,7 +776,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           unawaited(
             _loadCachedImageDescription(
               request.url,
-              widget.imageCacheManager,
+              imageCacheManager,
               _imageMetadataRevision,
             ),
           );
@@ -701,6 +833,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
               throw const ShareMediaException(ShareMediaFailure.storage);
             }
             checkShareCancellation(token);
+            _checkAccess();
             _beginClipboardHandoff();
             await (widget.imageClipboardWriter ?? AppClipboard.copyImageBytes)(
               bytes,
@@ -708,6 +841,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           }
         }
       } else if (share) {
+        _checkAccess();
         final adapter =
             widget.shareAdapter ?? ShareActionAdapter(SharePlus.instance.share);
         final outcome = payload.id == SharePayloadId.postId
@@ -715,6 +849,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
             : await adapter.shareLink(Uri.parse(value!));
         _handleShareOutcome(payload, share, outcome);
       } else {
+        _checkAccess();
         await AppClipboard.copy(value!);
       }
       if (mounted && !share) {
@@ -825,6 +960,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       sharePositionOrigin: origin,
       beforeHandoff: () {
         checkShareCancellation(token);
+        _checkAccess();
         if (!mounted) {
           throw const ShareMediaException(ShareMediaFailure.cancelled);
         }

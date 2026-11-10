@@ -35,6 +35,7 @@ final eshuushuuDioProvider = Provider.family<Dio, BooruConfigAuth>((
   ref,
   config,
 ) {
+  if (config.anonymousReadScope case final scope?) return scope.dio;
   final ddosProtectionHandler = ref.watch(httpDdosProtectionBypassProvider);
   final loggerService = ref.watch(loggerProvider);
 

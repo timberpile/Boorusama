@@ -1,4 +1,5 @@
 import 'package:boorusama/boorus/gelbooru_v2/posts/grid_thumbnail_url.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -23,11 +24,13 @@ import 'package:kurumi/material.dart';
 void main() {
   const thumbnail =
       'https://realbooru.com/thumbnails/ab/cd/thumbnail_0123456789abcdef0123456789abcdef.jpg';
-  final config = BooruConfig.defaultConfig(
-    booruType: BooruType.gelbooruV2,
-    url: 'https://realbooru.com',
-    customDownloadFileNameFormat: null,
-  );
+  final config = BooruConfig.fromJson({
+    ...BooruConfig.empty.toJson(),
+    'id': '11111111-1111-4111-8111-111111111111',
+    'booruId': BooruType.gelbooruV2.id,
+    'booruIdHint': BooruType.gelbooruV2.id,
+    'url': 'https://realbooru.com',
+  });
   for (final quality in [ImageQuality.low, ImageQuality.high]) {
     for (final sample in [
       '',
@@ -62,6 +65,7 @@ void main() {
           await tester.pumpWidget(
             _app(bookmark, config, listing),
           );
+          await tester.pumpAndSettle();
           final fallback = tester.widget<BooruImage>(find.byType(BooruImage));
           expect(fallback.imageUrl, thumbnail);
           expect(fallback.config, config.auth);
@@ -119,6 +123,7 @@ void main() {
               ),
             ),
           );
+          await tester.pumpAndSettle();
           expect(find.byType(BooruImageCandidates), findsNothing);
           if (staticPoster) {
             expect(
@@ -161,6 +166,7 @@ Widget _app(
   ImageListingSettings listing,
 ) => ProviderScope(
   overrides: [
+    blacklistTagsProvider.overrideWith((ref, filter) async => <String>{}),
     booruConfigProvider.overrideWith(
       () => BooruConfigNotifier(initialConfigs: [config]),
     ),

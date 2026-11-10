@@ -219,6 +219,7 @@ void main() {
                   mediaOverrides: [
                     defaultImageCacheManagerProvider.overrideWithValue(cache),
                     dioForWidgetProvider.overrideWith((ref, config) => dio),
+                    mediaOverrideDioProvider.overrideWith((ref, config) => dio),
                     httpHeadersProvider.overrideWith((ref, config) => const {}),
                     deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
                   ],

@@ -35,6 +35,7 @@ import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/content/content_media_dio.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/favorites/providers.dart';
@@ -338,6 +339,14 @@ class _Harness extends StatelessWidget {
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
       if (imageAdapter case final adapter?)
         dioForWidgetProvider.overrideWith(
+          (_, _) => Dio()..httpClientAdapter = adapter,
+        ),
+      if (imageAdapter case final adapter?)
+        mediaOverrideDioProvider.overrideWith(
+          (_, _) => Dio()..httpClientAdapter = adapter,
+        ),
+      if (imageAdapter case final adapter?)
+        contentMediaDioProvider.overrideWith(
           (_, _) => Dio()..httpClientAdapter = adapter,
         ),
       if (imageCache case final cache?)

@@ -105,6 +105,9 @@ class HiveBooruConfigRepository implements BooruConfigRepository {
 
   @override
   Future<List<BooruConfig>> addAll(List<BooruConfig> booruConfigs) async {
+    if (booruConfigs.any((config) => config.anonymousReadScope != null)) {
+      throw StateError('Public read contexts cannot become saved profiles');
+    }
     final configs = <BooruConfig>[];
 
     for (final booruConfig in booruConfigs) {

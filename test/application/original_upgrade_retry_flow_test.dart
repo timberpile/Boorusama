@@ -53,6 +53,7 @@ void main() {
           runtime: backend.createRuntime(settings: settings),
           additionalOverrides: [
             dioForWidgetProvider.overrideWith((_, _) => dio),
+            mediaOverrideDioProvider.overrideWith((_, _) => dio),
             defaultImageCacheManagerProvider.overrideWithValue(cache),
             deterministicFaviconDioOverride(),
           ],

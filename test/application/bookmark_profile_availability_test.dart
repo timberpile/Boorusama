@@ -2,6 +2,12 @@ import 'package:boorusama/core/app_scope.dart';
 import 'package:boorusama/core/themes/theme/widgets.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_profile_availability.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
+import 'package:boorusama/core/content/anonymous_source_policy.dart';
+import 'package:boorusama/core/posts/details/src/types/post_presentation_fallback_reason.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
@@ -14,6 +20,7 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/types.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -109,6 +116,113 @@ BookmarkLibraryState _library(BooruConfig config, {required bool hinted}) {
 }
 
 void main() {
+  test('local availability requires a profile or registered safe media', () {
+    final config = FakeBooruBackend().config;
+    final publicConfig = BooruConfig.fromJson({
+      ...config.toJson(),
+      'url': 'https://danbooru.donmai.us',
+      'booruId': BooruType.danbooru.id,
+      'booruIdHint': BooruType.danbooru.id,
+    });
+    final library = _library(publicConfig, hinted: false);
+    final original = library.items.single;
+    PostBookmark withUrl(String url) => PostBookmark(
+      id: original.id,
+      booruId: BooruType.danbooru.id,
+      createdAt: original.createdAt,
+      updatedAt: original.updatedAt,
+      thumbnailUrl: url,
+      sampleUrl: '',
+      originalUrl: '',
+      sourceUrl: publicConfig.url,
+      width: 100,
+      height: 100,
+      md5: '',
+      tags: const {'cat'},
+      realSourceUrl: null,
+      format: 'jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: 101,
+      metadata: const {},
+    );
+    BookmarkLibraryState withPost(PostBookmark post) => BookmarkLibraryState(
+      bookmarks: [post],
+      records: [
+        post,
+        ...library.records.where((record) => record.id != post.id),
+      ],
+      groups: library.groups,
+    );
+    final safe = withPost(withUrl('https://cdn.donmai.us/sample/1.jpg'));
+    final projection = BookmarkProfileAvailability(safe, []);
+    expect(projection.postIds, {101});
+    expect(projection.collectionIds, isEmpty);
+    expect(safe.records, hasLength(2));
+    expect(
+      BookmarkProfileAvailability(
+        safe,
+        [],
+        policy: const AnonymousSourcePolicy(enabled: false),
+      ).postIds,
+      isEmpty,
+    );
+    final unsafe = withPost(withUrl('https://localhost/1.jpg'));
+    expect(BookmarkProfileAvailability(unsafe, []).postIds, isEmpty);
+    expect(BookmarkProfileAvailability(unsafe, [publicConfig]).postIds, {101});
+    final second = BooruConfig.fromJson({
+      ...publicConfig.toJson(),
+      'id': '00000000-0000-4000-8000-000000000002',
+    });
+    final ambiguous = BookmarkProfileAvailability(safe, [publicConfig, second]);
+    expect(ambiguous.postIds, isEmpty);
+    expect(
+      ambiguous.unavailableReasons[101],
+      PostPresentationFallbackReason.ambiguousProfile,
+    );
+    final unavailable = BookmarkProfileAvailability(unsafe, []);
+    List<BookmarkGridEntry> selected(
+      String group,
+      String source,
+      List<String> tags,
+    ) => selectBookmarkGridEntries(
+      state: unsafe,
+      view: BookmarkView.group(group),
+      selectedTags: tags,
+      selectedBooruUrl: source,
+      sortType: BookmarkSortType.newest,
+    );
+    expect(
+      unavailable.countsForEntries(
+        selected(_parent, 'danbooru.donmai.us', ['cat']),
+      ),
+      {PostPresentationFallbackReason.unavailableEngine: 1},
+    );
+    expect(
+      unavailable.countsForEntries(selected(_parent, 'other.example', ['cat'])),
+      isEmpty,
+    );
+    expect(
+      unavailable.countsForEntries(
+        selected(_parent, 'danbooru.donmai.us', ['dog']),
+      ),
+      isEmpty,
+    );
+    expect(
+      unavailable.countsForEntries(
+        selected(defaultBookmarkGroupId, 'danbooru.donmai.us', ['cat']),
+      ),
+      isEmpty,
+    );
+
+    expect(
+      unavailable.countsForEntries([
+        BookmarkPostEntry(unsafe.items.single),
+        BookmarkPostEntry(unsafe.items.single),
+      ]),
+      {PostPresentationFallbackReason.unavailableEngine: 1},
+    );
+  });
+
   for (final hinted in [true, false]) {
     testWidgets(
       'saved media availability follows compatible profiles (hinted=$hinted)',
@@ -171,7 +285,8 @@ void main() {
           expect(state.groupsById[_child]!.bookmarkIds, {101, 102});
         }
 
-        void media({required bool visible}) {
+        void media({required bool visible, bool? poolsVisible}) {
+          final visiblePools = poolsVisible ?? visible;
           final unavailable = find.byType(BookmarkUnavailableIndicator);
           expect(unavailable, findsOneWidget);
           expect(
@@ -185,7 +300,7 @@ void main() {
           expect(postTile(101), visible ? findsOneWidget : findsNothing);
           expect(
             find.byType(BookmarkPoolCard),
-            visible ? findsOneWidget : findsNothing,
+            visiblePools ? findsOneWidget : findsNothing,
           );
           final child = tester.widget<BookmarkLocalGroupCard>(
             find.byWidgetPredicate(
@@ -194,7 +309,7 @@ void main() {
             ),
           );
           expect(child.previews.length, visible ? 1 : 0);
-          expect(child.pools.length, visible ? 1 : 0);
+          expect(child.pools.length, visiblePools ? 1 : 0);
           retained();
         }
 
@@ -210,28 +325,32 @@ void main() {
           });
           await setProfiles([backend.config, otherAccount]);
           media(visible: true);
+          final captured = container
+              .read(
+                contentAccessForOriginProvider(
+                  initial.items.single.post.origin,
+                ),
+              )!
+              .key;
           configs.replace([otherAccount]);
           await tester.pump();
-          expect(postTile(101), findsNothing);
-          expect(find.byType(BookmarkPoolCard), findsNothing);
-          final childAfterRevocation = tester.widget<BookmarkLocalGroupCard>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is BookmarkLocalGroupCard && widget.title == 'Child',
-            ),
+          expect(
+            container.read(contentAccessContextProvider(captured)),
+            isNull,
           );
-          expect(childAfterRevocation.previews, isEmpty);
-          expect(childAfterRevocation.pools, isEmpty);
+          await harness.settle(tester);
+          // A fresh listing can use the sole compatible account; the revoked
+          // originating actor above cannot retarget its pending work. Pool
+          // references retain their strict account binding until P7.
+          media(visible: true, poolsVisible: false);
           expect(
             find.byWidgetPredicate(
               (widget) =>
                   widget is DefaultImageGridItem &&
                   widget.config.login == 'other-account',
             ),
-            findsNothing,
+            findsOneWidget,
           );
-          await harness.settle(tester);
-          media(visible: false);
           await setProfiles([]);
           media(visible: false);
           final wrongPath = BooruConfig.fromJson({

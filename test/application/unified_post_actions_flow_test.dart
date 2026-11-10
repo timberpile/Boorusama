@@ -15,6 +15,38 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
+  test('saved action snapshots do not borrow a replacement account on the same source', () {
+    final a = FakeBooruBackend().config;
+    final b = BooruConfig.fromJson({
+      ...a.toJson(),
+      'id': '22222222-2222-4222-8222-222222222222',
+    });
+    final saved = TestPost(
+      id: 42,
+      origin: PostOrigin.fromSource(
+        booruType: a.auth.booruType,
+        booruId: a.booruId,
+        source: a.url,
+        profileIdHint: a.id,
+      ),
+    );
+    final opened = PostActionSnapshot([saved], [a, b]);
+    expect(opened.commonConfig, a);
+    expect(opened.accountsMatch([b]), isFalse);
+    final fresh = PostActionSnapshot([saved], [b]);
+    expect(fresh.allResolved, isFalse);
+    expect(fresh.commonConfig, isNull);
+    expect(fresh.canBookmark, isTrue);
+    final portable = TestPost(
+      id: 42,
+      origin: PostOrigin.fromSource(
+        booruType: a.auth.booruType,
+        booruId: a.booruId,
+        source: a.url,
+      ),
+    );
+    expect(PostActionSnapshot([portable], [b]).commonConfig, b);
+  });
   testWidgets(
     'mixed-source equal IDs dispatch through each source without changing the active profile',
     (tester) async {

@@ -10,8 +10,12 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../content/content_access_provider.dart';
+import '../../../content/content_media_access.dart';
+import '../../../content/content_media_failures.dart';
 import '../../../downloads/filename/types.dart';
 import '../../../posts/details/types.dart';
+import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
 import '../../../posts/details_parts/types.dart';
 import '../../../posts/details_parts/widgets.dart';
 import '../../../posts/details/widgets.dart';
@@ -25,7 +29,7 @@ import '../providers/bookmark_hydration_provider.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../types/bookmark.dart';
 
-class BookmarkDetailsPage extends ConsumerWidget {
+class BookmarkDetailsPage extends ConsumerStatefulWidget {
   BookmarkDetailsPage({
     required this.initialIndex,
     required this.initialThumbnailUrl,
@@ -40,14 +44,41 @@ class BookmarkDetailsPage extends ConsumerWidget {
   final List<ViewerEntry>? entries;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookmarkDetailsPage> createState() =>
+      _BookmarkDetailsPageState();
+}
+
+class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
+  late final List<ViewerEntry> _entries;
+
+  @override
+  void initState() {
+    super.initState();
+    // Capture the actor once, including for legacy callers without entries.
+    // Later profile changes revoke this route instead of borrowing an account.
+    _entries =
+        widget.entries ??
+        List.unmodifiable([
+          for (final (index, post) in widget.posts.indexed)
+            PostViewerEntry(
+              post: post,
+              occurrenceId: ('bookmark-route', index),
+              source:
+                  bindViewerOrigin(ref, post.origin) ??
+                  const ViewerSourceBinding(BooruConfig.empty),
+            ),
+        ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
 
     return MixedPostDetailsPage(
-      posts: posts,
-      entries: entries,
-      initialIndex: initialIndex,
-      initialThumbnailUrl: initialThumbnailUrl,
+      posts: widget.posts,
+      entries: _entries,
+      initialIndex: widget.initialIndex,
+      initialThumbnailUrl: widget.initialThumbnailUrl,
       scrollController: null,
       disclaimer: null,
       fallbackUiBuilderDecorator: _withBookmarkToolbar,
@@ -98,15 +129,35 @@ Future<PostRecoveryResult> _recoverBookmarkPost(
   required PostBookmark bookmark,
   required BooruConfig config,
 }) async {
+  final started =
+      config.anonymousReadScope?.key ??
+      ref.read(contentProfileAccessProvider(config.id))?.key;
+  bool current() =>
+      ref.context.mounted &&
+      started != null &&
+      ref.read(contentAccessContextProvider(started))?.config?.auth ==
+          config.auth;
+  if (!current())
+    return const PostRecoveryFailure(
+      PostPresentationFallbackReason.refreshFailed,
+    );
   try {
     final result = await ref
         .read(bookmarkRecoveryServiceProvider)
         .recover(bookmark, config);
     switch (result) {
       case BookmarkRecoverySuccess(:final post):
+        if (!current())
+          return const PostRecoveryFailure(
+            PostPresentationFallbackReason.refreshFailed,
+          );
         await ref
             .read(bookmarkProvider.notifier)
-            .upgradeBookmarkSnapshot(bookmark, post);
+            .upgradeBookmarkSnapshot(bookmark, post, canUpgrade: current);
+        if (!current())
+          return const PostRecoveryFailure(
+            PostPresentationFallbackReason.refreshFailed,
+          );
         return PostRecoverySuccess(post);
       case BookmarkRecoveryRemoved():
         return const PostRecoveryFailure(
@@ -157,13 +208,37 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         .watch(bookmarkProvider)
         .valueOrNull
         ?.storedBookmarkForPost(post);
-    final config = switch (const PostOriginResolver().resolve(
-      post.origin,
-      ref.watch(booruConfigProvider),
-    )) {
-      ResolvedPostOrigin(:final config) => config,
-      _ => null,
-    };
+    final required = ref.watch(contentAccessRequiredProvider);
+    final access = ref.watch(currentContentAccessKeyProvider);
+    final resolvedConfig = required
+        ? access == null
+              ? null
+              : ref.watch(contentAccessContextProvider(access))?.config
+        : switch (const PostOriginResolver().resolve(
+            post.origin,
+            ref.watch(booruConfigProvider),
+            allowProfileHintFallback: false,
+          )) {
+            ResolvedPostOrigin(:final config) => config,
+            _ => null,
+          };
+    final failed =
+        access != null &&
+        bookmark != null &&
+        ref.watch(contentMediaFailuresProvider).containsKey((
+          access: access,
+          bookmarkId: bookmark.id,
+        ));
+    final visible =
+        access == null ||
+        ref
+                .watch(
+                  contentPostVisibilityProvider((access: access, post: post)),
+                )
+                .asData
+                ?.value ==
+            true;
+    final config = failed || !visible ? null : resolvedConfig;
 
     return SliverToBoxAdapter(
       child: CommonPostButtonsBuilder(
@@ -186,7 +261,9 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
                 ),
                 title: context.t.post.action.bookmark,
               ),
-            if (config != null && bookmark != null)
+            if (config != null &&
+                config.anonymousReadScope == null &&
+                bookmark != null)
               ButtonData(
                 required: true,
                 widget: IconButton(

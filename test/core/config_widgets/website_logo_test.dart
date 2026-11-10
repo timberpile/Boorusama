@@ -4,8 +4,37 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
+import 'package:boorusama/core/widgets/website_logo.dart';
+import 'package:boorusama/core/content/content_media_access.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:dio/dio.dart';
 
 void main() {
+  testWidgets('revoked source scopes do not probe or read imported favicons', (
+    tester,
+  ) async {
+    final dio = Dio();
+    addTearDown(() => dio.close(force: true));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          contentAccessRequiredProvider.overrideWithValue(true),
+          defaultImageCacheManagerProvider.overrideWith(
+            (ref) => throw StateError('No imported favicon cache access'),
+          ),
+        ],
+        child: MaterialApp(
+          home: WebsiteLogo(
+            url: 'https://127.0.0.1/private/icon.png',
+            dio: dio,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(WebsiteLogo), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   final cases = [
     (
       type: BooruType.danbooru,

@@ -68,12 +68,13 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
               title: context.t.post.action.bookmark,
               icon: const Icon(Icons.bookmark_border),
             ),
-            ButtonData(
-              required: true,
-              widget: DownloadPostButton(post: post),
-              title: context.t.download.download,
-              icon: const Icon(Icons.download),
-            ),
+            if (auth.anonymousReadScope == null)
+              ButtonData(
+                required: true,
+                widget: DownloadPostButton(post: post),
+                title: context.t.download.download,
+                icon: const Icon(Icons.download),
+              ),
             ButtonData(
               required: true,
               widget: SharePostButton(

@@ -32,6 +32,7 @@ final apiRequestCoordinatorProvider = Provider<ApiRequestCoordinator>((ref) {
 });
 
 final defaultDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
+  if (config.anonymousReadScope case final scope?) return scope.dio;
   final ddosProtectionHandler = ref.watch(httpDdosProtectionBypassProvider);
   final loggerService = ref.watch(loggerProvider);
 
@@ -77,6 +78,7 @@ final genericDioProvider = Provider<Dio>(
 // interceptors, cookies or default credentials.
 final mediaOverrideDioProvider = Provider.autoDispose
     .family<Dio, BooruConfigAuth>((ref, config) {
+      if (config.anonymousReadScope case final scope?) return scope.dio;
       final dio = newDio(
         options: DioOptions(
           ddosProtectionHandler: ref.watch(httpDdosProtectionBypassProvider),
@@ -103,6 +105,7 @@ final mediaOverrideDioProvider = Provider.autoDispose
 // It is only used for widget only to prevent circular dependencies.
 final dioForWidgetProvider = Provider.family<Dio, BooruConfigAuth>(
   (ref, config) {
+    if (config.anonymousReadScope case final scope?) return scope.dio;
     final repository = ref
         .watch(booruEngineRegistryProvider)
         .getRepository(config.booruType);
@@ -133,6 +136,12 @@ final userAgentProvider = Provider.family<String, BooruConfigAuth>(
 final httpHeadersProvider =
     Provider.family<Map<String, String>, BooruConfigAuth>(
       (ref, config) {
+        if (config.anonymousReadScope case final scope?) {
+          return {
+            AppHttpHeaders.userAgentHeader: ref.watch(defaultUserAgentProvider),
+            'Referer': scope.source.site.toString(),
+          };
+        }
         return {
           AppHttpHeaders.userAgentHeader: ref.watch(userAgentProvider(config)),
           ...ref.watch(extraHttpHeaderProvider(config)),

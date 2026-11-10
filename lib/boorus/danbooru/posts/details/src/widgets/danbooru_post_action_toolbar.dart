@@ -125,11 +125,12 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                 title: context.t.post.action.bookmark,
                 icon: const Icon(Icons.bookmark_border),
               ),
-              ButtonData(
-                widget: DownloadPostButton(post: post),
-                title: context.t.download.download,
-                icon: const Icon(Icons.download),
-              ),
+              if (config.anonymousReadScope == null)
+                ButtonData(
+                  widget: DownloadPostButton(post: post),
+                  title: context.t.download.download,
+                  icon: const Icon(Icons.download),
+                ),
               ButtonData(
                 widget: SharePostButton(
                   post: post,

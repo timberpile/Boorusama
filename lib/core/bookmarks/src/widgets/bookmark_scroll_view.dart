@@ -26,6 +26,12 @@ import '../../../config_widgets/website_logo.dart';
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../configs/manage/widgets.dart';
+import '../../../content/content_access_provider.dart';
+import '../../../content/content_media_failures.dart';
+import '../../../content/anonymous_access_provider.dart';
+import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
+import '../../../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/listing/src/_internal/sliver_post_grid.dart';
 import '../../../errors/providers.dart';
@@ -46,9 +52,9 @@ import '../providers/bookmark_shuffle_provider.dart';
 import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import 'bookmark_list_controls.dart';
+import 'bookmark_unavailable_indicator.dart';
 import 'bookmark_search_bar.dart';
 import 'bookmark_multi_selection.dart';
-import 'bookmark_unavailable_indicator.dart';
 
 class BookmarkScrollView extends ConsumerStatefulWidget {
   const BookmarkScrollView({
@@ -78,11 +84,15 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   );
   final _refreshGate = BookmarkViewRefreshGate();
   var _refreshScheduled = false;
+  var _mediaRetryRevision = 0;
   List<BookmarkGridEntry> _fetchedEntries = const [];
   List<BookmarkGridEntry> _entries = const [];
   Map<Object, int> _rawPostIndices = const {};
   Object? _unavailableInputs;
-  Map<String, int> _unavailableSiteCounts = const {};
+  BookmarkUnavailableSummary _unavailableSummary =
+      const BookmarkUnavailableSummary();
+  Map<int, PostPresentationFallbackReason> _activeUnavailableFailures =
+      const {};
 
   late String _selectionQuery = widget.searchController.text;
   @override
@@ -244,6 +254,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 if (mounted) controller.refresh();
               });
             })
+            ..listen(anonymousSourcePolicyProvider, (_, _) {
+              _scheduleRefresh(controller);
+            })
             ..listen(selectedBooruUrlProvider, (_, _) {
               _selectionModeController.disable();
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -371,6 +384,8 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                         count: _entries.length,
                         unavailableIndicator: BookmarkUnavailableIndicator(
                           counts: _unavailableCounts(),
+                          reasons: _unavailableSummary.reasons,
+                          onRetry: _retryObservedMedia,
                         ),
                         gridConfig: PostGridConfigIconButton(
                           postController: controller,
@@ -403,22 +418,65 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   Map<String, int> _unavailableCounts() {
     final library = ref.watch(bookmarkProvider).valueOrNull;
     final availability = ref.watch(bookmarkProfileAvailabilityProvider);
-    if (library == null || availability == null) return const {};
+    if (library == null || availability == null) {
+      _unavailableSummary = const BookmarkUnavailableSummary();
+      return const {};
+    }
+    final activeFailures = <int, PostPresentationFallbackReason>{};
+    for (final failure in ref.watch(contentMediaFailuresProvider).entries) {
+      final id = failure.key.bookmarkId;
+      final bookmark = library.bookmarksById[id];
+      if (bookmark == null || availability.unavailableReasons.containsKey(id))
+        continue;
+      if (ref
+              .watch(contentAccessForOriginProvider(bookmark.post.origin))
+              ?.key !=
+          failure.key.access)
+        continue;
+      activeFailures.putIfAbsent(id, () => failure.value);
+    }
     final tags = widget.searchController.text;
     final source = ref.watch(selectedBooruUrlProvider);
-    // Availability changes identity with the library or profiles. Compare it
-    // first to avoid deep membership equality when a library snapshot changes.
+    // Availability has identity equality and changes with the library/profiles.
+    // Only the bounded failure map needs a value comparison.
     final inputs = (availability, widget.view, tags, source);
-    if (_unavailableInputs != inputs) {
+    if (_unavailableInputs != inputs ||
+        !const MapEquality<int, PostPresentationFallbackReason>().equals(
+          _activeUnavailableFailures,
+          activeFailures,
+        )) {
       _unavailableInputs = inputs;
-      _unavailableSiteCounts = availability.unavailablePostsBySite(
+      _activeUnavailableFailures = activeFailures;
+      _unavailableSummary = availability.summarizeUnavailablePosts(
         library: library,
         view: widget.view,
         selectedTags: _parseTagsFromText(tags),
         selectedBooruUrl: source,
+        observedFailures: activeFailures,
       );
     }
-    return _unavailableSiteCounts;
+    return _unavailableSummary.sites;
+  }
+
+  void _retryObservedMedia() {
+    final library = ref.read(bookmarkProvider).valueOrNull;
+    if (library == null) return;
+    final selected = selectBookmarkGridEntries(
+      state: library,
+      view: widget.view,
+      selectedTags: _parseTagsFromText(widget.searchController.text),
+      sortType: ref.read(selectedBookmarkSortTypeProvider),
+      selectedBooruUrl: ref.read(selectedBooruUrlProvider),
+    );
+    final ids = {
+      for (final entry in selected.whereType<BookmarkPostEntry>())
+        entry.bookmark.id,
+    };
+    ref.read(contentMediaFailuresProvider.notifier).retry([
+      for (final key in ref.read(contentMediaFailuresProvider).keys)
+        if (ids.contains(key.bookmarkId)) key,
+    ]);
+    setState(() => _mediaRetryRevision++);
   }
 
   List<CollectionBookmark> _selectedPools() => [
@@ -431,7 +489,13 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   bool _entryAvailable(BookmarkGridEntry entry, List<BooruConfig> profiles) =>
       switch (entry) {
         BookmarkPostEntry(:final bookmark) =>
-          resolveBookmarkOriginProfile(bookmark.post.origin, profiles) != null,
+          resolveBookmarkOriginProfile(bookmark.post.origin, profiles) !=
+                  null ||
+              (ref
+                      .read(bookmarkProfileAvailabilityProvider)
+                      ?.postIds
+                      .contains(bookmark.id) ??
+                  false),
         BookmarkPoolEntry(:final pool) =>
           resolvePoolBookmarkProfile(pool, profiles) != null,
       };
@@ -498,7 +562,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     controller,
                     selectionIndex: index,
                   );
-            return KeyedSubtree(key: ValueKey(item.key), child: child);
+            return KeyedSubtree(
+              key: ValueKey((item.key, _mediaRetryRevision)),
+              child: child,
+            );
           },
         );
       },
@@ -513,20 +580,23 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           BookmarkPostEntry(:final bookmark) => PostViewerEntry(
             post: bookmark.post,
             occurrenceId: entry.key,
-            source: switch (resolveBookmarkOriginProfile(
-              bookmark.post.origin,
-              profiles,
-            )) {
-              final config? => ViewerSourceBinding(config),
-              _ => null,
-            },
+            source:
+                bindViewerOrigin(
+                  ref,
+                  bookmark.post.origin,
+                  bookmarkId: bookmark.id,
+                ) ??
+                const ViewerSourceBinding(BooruConfig.empty),
           ),
           BookmarkPoolEntry(:final pool) when pool.family != null =>
             RelatedViewerEntry(
               family: pool.family!,
               occurrenceId: entry.key,
               source: switch (resolvePoolBookmarkProfile(pool, profiles)) {
-                final config? => ViewerSourceBinding(config),
+                final config? => ViewerSourceBinding(
+                  config,
+                  bookmarkId: pool.bookmarkId,
+                ),
                 _ => null,
               },
             ),
@@ -541,7 +611,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             ),
             occurrenceId: entry.key,
             source: switch (resolvePoolBookmarkProfile(pool, profiles)) {
-              final config? => ViewerSourceBinding(config),
+              final config? => ViewerSourceBinding(
+                config,
+                bookmarkId: pool.bookmarkId,
+              ),
               _ => null,
             },
           ),
@@ -559,59 +632,67 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       valueListenable: controller.itemsNotifier,
       builder: (_, posts, _) {
         final post = posts[index];
-        final config = resolveBookmarkOriginProfile(
-          post.origin,
-          ref.watch(booruConfigProvider),
-        );
+        final access = ref.watch(contentAccessForOriginProvider(post.origin));
+        final config = access?.config;
         if (config == null) return const SizedBox.shrink();
         final effectiveAuth = config.auth;
 
-        return PostGridContextMenu(
-          index: index,
-          selectionIndex: selectionIndex,
-          controller: controller,
-          child: DefaultImageGridItem(
+        return CurrentBooruConfigScope(
+          config: config,
+          accessKey: access!.key,
+          requireAccess: true,
+          bookmarkId: ref
+              .watch(bookmarkProvider)
+              .valueOrNull
+              ?.storedBookmarkForPost(post)
+              ?.id,
+          child: PostGridContextMenu(
             index: index,
             selectionIndex: selectionIndex,
-            autoScrollController: widget.scrollController,
             controller: controller,
-            useHero: false,
-            config: effectiveAuth,
-            imageConfig: config.auth,
-            leadingIcons: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: ConfigAwareWebsiteLogo.fromConfig(
-                  config.auth,
-                  customIconUrl: config.profileIcon?.url,
-                  fit: BoxFit.contain,
+            child: DefaultImageGridItem(
+              index: index,
+              selectionIndex: selectionIndex,
+              autoScrollController: widget.scrollController,
+              controller: controller,
+              useHero: false,
+              config: effectiveAuth,
+              imageConfig: config.auth,
+              leadingIcons: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: ConfigAwareWebsiteLogo.fromConfig(
+                    config.auth,
+                    customIconUrl: config.profileIcon?.url,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-              ),
-            ],
-            onTap: () {
-              if (_hasUnavailableEntries(ref.read(booruConfigProvider))) {
-                return;
-              }
-              _endLocalGroupSelection();
-              goToBookmarkDetailsPage(
-                ref,
-                selectionIndex ?? index,
-                entries: _viewerEntries(),
-                sourceView: widget.view,
-                initialThumbnailUrl: ref
-                    .read(
-                      gridThumbnailUrlGeneratorProvider(effectiveAuth),
-                    )
-                    .resolve(
-                      post,
-                      settings: ref.read(
-                        gridThumbnailSettingsProvider(effectiveAuth),
-                      ),
-                    )
-                    .url,
-                controller: controller,
-              );
-            },
+              ],
+              onTap: () {
+                if (_hasUnavailableEntries(ref.read(booruConfigProvider))) {
+                  return;
+                }
+                _endLocalGroupSelection();
+                goToBookmarkDetailsPage(
+                  ref,
+                  selectionIndex ?? index,
+                  entries: _viewerEntries(),
+                  sourceView: widget.view,
+                  initialThumbnailUrl: ref
+                      .read(
+                        gridThumbnailUrlGeneratorProvider(effectiveAuth),
+                      )
+                      .resolve(
+                        post,
+                        settings: ref.read(
+                          gridThumbnailSettingsProvider(effectiveAuth),
+                        ),
+                      )
+                      .url,
+                  controller: controller,
+                );
+              },
+            ),
           ),
         );
       },

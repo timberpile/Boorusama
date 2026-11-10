@@ -25,6 +25,8 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/create/routes.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_access_provider.dart';
 import '../../../../configs/search/types.dart';
 import '../../../../errors/providers.dart';
 import '../../../../settings/providers.dart';
@@ -344,17 +346,25 @@ class PostGridContextMenu extends StatelessWidget {
     builder: (context, posts, _) => Consumer(
       builder: (context, ref, _) {
         final post = index < posts.length ? posts[index] : null;
+        final required = ref.watch(contentAccessRequiredProvider);
+        final accessKey = ref.watch(currentContentAccessKeyProvider);
+        final access = accessKey == null
+            ? null
+            : ref.watch(contentAccessContextProvider(accessKey));
         final originResolution = switch (post) {
           final Post post => const PostOriginResolver().resolve(
             post.origin,
             ref.watch(booruConfigProvider),
+            allowProfileHintFallback: false,
           ),
           _ => null,
         };
-        final config = switch (originResolution) {
-          ResolvedPostOrigin(:final config) => config,
-          _ => null,
-        };
+        final config = required
+            ? access?.config
+            : switch (originResolution) {
+                ResolvedPostOrigin(:final config) => config,
+                _ => null,
+              };
         final presentation = switch ((post, config)) {
           (final Post post, final BooruConfig _) => ref.watch(
             booruPostPresentationProvider(

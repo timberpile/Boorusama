@@ -6,6 +6,7 @@ import '../posts/details/src/types/viewer_entry.dart';
 import '../posts/links/boorusama_post_link.dart';
 import '../posts/post/types.dart';
 import 'content_reference.dart';
+import 'anonymous_read_scope.dart';
 
 /// Monotonic revisions are transient counters, never credentials or their hashes.
 final class ContentAccessKey extends Equatable {
@@ -52,6 +53,9 @@ final class ContentAccessContext {
     required int policyEpoch,
     Uri? baseUrl,
   }) {
+    if (config.anonymousReadScope != null) {
+      throw const FormatException('A public read scope is not a user profile');
+    }
     final site = BoorusamaPostLink.parseSourceSite(config.url);
     return ContentAccessContext._(
       key: ContentAccessKey(
@@ -68,6 +72,30 @@ final class ContentAccessContext {
     );
   }
 
+  factory ContentAccessContext.anonymous({
+    required BooruConfig config,
+    required AnonymousReadScope scope,
+  }) {
+    final auth = config.auth;
+    if (!identical(config.anonymousReadScope, scope) ||
+        auth.booruType != scope.source.engine ||
+        config.url != scope.source.site.toString() ||
+        auth.apiKey != null ||
+        auth.login != null ||
+        auth.passHash != null ||
+        config.proxySettings != null ||
+        config.networkSettings != null) {
+      throw const FormatException(
+        'Public read contexts cannot inherit account settings',
+      );
+    }
+    return ContentAccessContext._(
+      key: scope.key,
+      baseUrl: scope.source.site,
+      config: config,
+    );
+  }
+
   final ContentAccessKey key;
 
   /// The endpoint belongs to the authorized profile/adapter, not an imported URL.
@@ -77,11 +105,19 @@ final class ContentAccessContext {
   /// Registered adapters may map an authorized installation to their verified
   /// API endpoint. The account/policy binding is preserved; no imported address
   /// can grant access or substitute another configuration.
-  ContentAccessContext withEndpoint(Uri endpoint) => ContentAccessContext._(
-    key: key,
-    baseUrl: BoorusamaPostLink.parseSourceSite(endpoint.toString()),
-    config: config,
-  );
+  ContentAccessContext withEndpoint(Uri endpoint) {
+    final publicScope = config?.anonymousReadScope;
+    if (publicScope != null &&
+        endpoint != publicScope.source.site &&
+        !publicScope.source.allowsApi(endpoint)) {
+      throw const FormatException('Endpoint is outside public read permission');
+    }
+    return ContentAccessContext._(
+      key: key,
+      baseUrl: BoorusamaPostLink.parseSourceSite(endpoint.toString()),
+      config: config,
+    );
+  }
 
   bool hasSameAuthorization(ContentAccessContext other) =>
       key == other.key && identical(config, other.config);
@@ -90,10 +126,15 @@ final class ContentAccessContext {
       reference.engine == key.engine &&
       reference.siteNamespace == key.siteNamespace;
 
-  bool matchesProfiles(Iterable<BooruConfig> profiles) => switch (config) {
-    final config? => ViewerSourceBinding(config).resolve(profiles) != null,
-    _ => false,
-  };
+  bool matchesProfiles(Iterable<BooruConfig> profiles) {
+    if (key.profileId == null) {
+      return config?.anonymousReadScope?.isCurrent ?? false;
+    }
+    return switch (config) {
+      final config? => ViewerSourceBinding(config).resolve(profiles) != null,
+      _ => false,
+    };
+  }
 }
 
 final class GroupLoadKey extends Equatable {
@@ -127,9 +168,21 @@ final class GroupMetadataKey extends Equatable {
 }
 
 final class ContentAccessRequest extends Equatable {
-  const ContentAccessRequest({required this.reference, this.profileIdHint});
+  const ContentAccessRequest({
+    required this.reference,
+    this.profileIdHint,
+    this.allowProfileHintFallback = true,
+  });
   final ContentReference reference;
   final String? profileIdHint;
+
+  /// Unbound references retain compatible-account resolution. Saved Bookmark
+  /// consumers opt out so a removed originating account cannot borrow another.
+  final bool allowProfileHintFallback;
   @override
-  List<Object?> get props => [reference, profileIdHint];
+  List<Object?> get props => [
+    reference,
+    profileIdHint,
+    allowProfileHintFallback,
+  ];
 }

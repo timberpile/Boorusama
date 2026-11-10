@@ -8,3 +8,4 @@ export 'src/widgets/post_details_page_view_scope.dart';
 export 'src/types/preview_limit.dart';
 export 'src/types/uploader_query.dart';
 export 'src/types/post_filter_query.dart';
+export 'src/types/post_presentation_fallback_reason.dart';

@@ -1,3 +1,4 @@
+import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:boorusama/boorus/pixiv/pixiv.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -37,11 +38,14 @@ void main() {
           BooruType.pixiv: createPixiv().parser.parse(),
         },
       )..registry.register(BooruType.pixiv, createPixiv());
-      final config = BooruConfig.defaultConfig(
-        booruType: BooruType.pixiv,
-        url: 'https://www.pixiv.net',
-        customDownloadFileNameFormat: null,
-      );
+      final config = BooruConfig.fromJson({
+        ...BooruConfig.defaultConfig(
+          booruType: BooruType.pixiv,
+          url: 'https://www.pixiv.net',
+          customDownloadFileNameFormat: null,
+        ).toJson(),
+        'id': '00000000-0000-4000-8000-000000000003',
+      });
       final downloads = MemoryDownloadService();
       final posts = [
         for (final id in [101, 202])
@@ -92,6 +96,7 @@ void main() {
           downloadService: downloads,
         ),
         additionalOverrides: [
+          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
           bookmarkProvider.overrideWith(() => _SavedBookmarks(library)),
           bypassDdosHeadersProvider.overrideWith(
             (_, _) => Future.value(<String, String>{}),
@@ -207,6 +212,7 @@ void main() {
             downloadService: downloads,
           ),
           additionalOverrides: [
+            blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
             bookmarkProvider.overrideWith(
               () => _SavedBookmarks(library),
             ),
@@ -229,11 +235,15 @@ void main() {
           MaterialPageRoute<void>(
             builder: (_) => Consumer(
               builder: (context, ref, _) {
-                final action = postActionDefinitions(
-                  context,
-                  ref,
-                  snapshot,
-                ).firstWhere((action) => action.id == PostActionId.download);
+                final actions = postActionDefinitions(context, ref, snapshot);
+                final downloads = actions.where(
+                  (action) => action.id == PostActionId.download,
+                );
+                if (orphan) {
+                  expect(downloads, isEmpty);
+                  return const Scaffold(body: Text('Download unavailable'));
+                }
+                final action = downloads.single;
                 return Scaffold(
                   body: TextButton(
                     onPressed: action.execute,
@@ -245,6 +255,11 @@ void main() {
           ),
         );
         await harness.settle(tester);
+        if (orphan) {
+          expect(find.text('Download unavailable'), findsOneWidget);
+          expect(downloads.requests, isEmpty);
+          return;
+        }
         await tester.tap(find.text('Download'));
         await harness.pumpUntil(
           tester,

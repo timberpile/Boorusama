@@ -5,13 +5,19 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../posts/details/src/types/post_presentation_fallback_reason.dart';
+
 class BookmarkUnavailableIndicator extends StatefulWidget {
   const BookmarkUnavailableIndicator({
     required this.counts,
+    this.reasons = const {},
+    this.onRetry,
     super.key,
   });
 
   final Map<String, int> counts;
+  final Map<PostPresentationFallbackReason, int> reasons;
+  final VoidCallback? onRetry;
 
   @override
   State<BookmarkUnavailableIndicator> createState() =>
@@ -43,6 +49,39 @@ class _BookmarkUnavailableIndicatorState
     super.dispose();
   }
 
+  List<(String, int)> _countGroups(BuildContext context) {
+    final counts = widget.reasons;
+    final accountCount = _positive(
+      counts[PostPresentationFallbackReason.missingProfile],
+    );
+    final ambiguousCount = _positive(
+      counts[PostPresentationFallbackReason.ambiguousProfile],
+    );
+    final readerCount =
+        _positive(
+          counts[PostPresentationFallbackReason.unavailableEngine],
+        ) +
+        _positive(counts[PostPresentationFallbackReason.malformedData]) +
+        _positive(counts[PostPresentationFallbackReason.unsupportedVersion]) +
+        _positive(
+          counts[PostPresentationFallbackReason.incompatiblePresentation],
+        ) +
+        _positive(counts[PostPresentationFallbackReason.removedUpstreamPost]);
+    final temporaryCount = _positive(
+      counts[PostPresentationFallbackReason.refreshFailed],
+    );
+
+    return [
+      if (accountCount > 0)
+        (context.t.bookmark.unavailable_account, accountCount),
+      if (ambiguousCount > 0)
+        (context.t.bookmark.unavailable_ambiguous, ambiguousCount),
+      if (readerCount > 0) (context.t.bookmark.unavailable_reader, readerCount),
+      if (temporaryCount > 0)
+        (context.t.bookmark.unavailable_temporary, temporaryCount),
+    ];
+  }
+
   Widget _popup(BuildContext context) {
     final media = MediaQuery.of(context);
     final availableHeight = math.max(
@@ -53,6 +92,8 @@ class _BookmarkUnavailableIndicatorState
     final groups =
         widget.counts.entries.where((entry) => entry.value > 0).toList()
           ..sort((a, b) => a.key.compareTo(b.key));
+    final reasons = _countGroups(context);
+    final titleStyle = Theme.of(context).textTheme.titleMedium;
 
     return ConstrainedBox(
       constraints: BoxConstraints(
@@ -65,12 +106,39 @@ class _BookmarkUnavailableIndicatorState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              context.t.bookmark.unavailable_title,
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    context.t.bookmark.unavailable_title,
+                    style: titleStyle,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '$_totalCount',
+                  key: const ValueKey('bookmark-unavailable-total'),
+                  style: titleStyle,
+                ),
+              ],
             ),
             const SizedBox(height: 8),
-            Text(context.t.bookmark.unavailable_account),
+            if (widget.reasons.isEmpty)
+              Text(context.t.bookmark.unavailable_account),
+            for (final (label, count) in reasons)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: reasons.length == 1
+                    ? Text(label)
+                    : Row(
+                        children: [
+                          Expanded(child: Text(label)),
+                          const SizedBox(width: 12),
+                          Text('$count'),
+                        ],
+                      ),
+              ),
             const SizedBox(height: 8),
             for (final MapEntry(key: site, value: count) in groups)
               Padding(
@@ -87,6 +155,20 @@ class _BookmarkUnavailableIndicatorState
                     const SizedBox(width: 12),
                     Text('$count'),
                   ],
+                ),
+              ),
+            if ((widget.reasons[PostPresentationFallbackReason.refreshFailed] ??
+                        0) >
+                    0 &&
+                widget.onRetry != null)
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton(
+                  onPressed: () {
+                    _anchor.hide();
+                    widget.onRetry?.call();
+                  },
+                  child: Text(context.t.generic.action.retry),
                 ),
               ),
           ],
@@ -130,3 +212,5 @@ class _BookmarkUnavailableIndicatorState
 
 int _countTotal(Map<String, int> counts) =>
     counts.values.fold(0, (total, count) => total + math.max(0, count));
+
+int _positive(int? count) => math.max(0, count ?? 0);

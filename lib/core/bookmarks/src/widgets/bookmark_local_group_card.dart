@@ -3,11 +3,11 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../configs/manage/widgets.dart';
+import '../../../content/content_access_provider.dart';
 import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/listing/src/widgets/post_grid_item.dart';
-import '../providers/pool_bookmark_provider.dart';
 import '../../../posts/listing/types.dart';
 import '../../../settings/providers.dart';
 import '../types/bookmark.dart';
@@ -263,10 +263,10 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
     if (isGif && preview.isEmpty) {
       return const SizedBox.expand();
     }
-    final profile = resolveBookmarkOriginProfile(
-      bookmark.post.origin,
-      ref.watch(booruConfigProvider),
+    final access = ref.watch(
+      contentAccessForOriginProvider(bookmark.post.origin),
     );
+    final profile = access?.config;
     if (profile == null) return const SizedBox.expand();
     final config = profile.auth;
     // Preserve the established GIF sample/poster contract while static source
@@ -279,12 +279,19 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
                 bookmark.post,
                 settings: ref.watch(gridThumbnailSettingsProvider(config)),
               );
-    return PostGridImage(
-      media: media,
-      config: config,
-      forceCover: true,
-      fit: BoxFit.cover,
-      borderRadius: BorderRadius.zero,
+    return CurrentBooruConfigScope(
+      config: profile,
+      accessKey: access!.key,
+      requireAccess: true,
+      bookmarkId: bookmark.id,
+      child: PostGridImage(
+        post: bookmark.post,
+        media: media,
+        config: config,
+        forceCover: true,
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.zero,
+      ),
     );
   }
 }

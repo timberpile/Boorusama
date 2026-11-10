@@ -79,6 +79,34 @@ void main() {
     });
   });
 
+  test('source credentials stay inside the configured installation', () {
+    const source = 'https://private.example/install/';
+    for (final target in [
+      'https://foreign.example/file.jpg',
+      'https://private.example/other/file.jpg',
+      'https://private.example/install%2f..%2fother/file.jpg',
+      'http://private.example/install/file.jpg',
+    ]) {
+      final request = MediaRequest.resolve(
+        target,
+        overrides: const [],
+        sourceUrl: source,
+        headers: sourceHeaders,
+      );
+      expect(request.headers, {'User-Agent': 'ua', 'Range': 'bytes=0-'});
+      expect(request.overridden, isTrue);
+    }
+    final own = MediaRequest.resolve(
+      '$source'
+      'file.jpg?signature=a%2Fb',
+      overrides: const [],
+      sourceUrl: source,
+      headers: sourceHeaders,
+    );
+    expect(own.headers, sourceHeaders);
+    expect(own.overridden, isFalse);
+  });
+
   group('stored network settings', () {
     final cases = [
       (

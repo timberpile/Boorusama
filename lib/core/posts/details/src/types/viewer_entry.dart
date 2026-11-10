@@ -23,20 +23,34 @@ final class ViewerContentIdentity extends Equatable {
 
 /// Transient authorization binding. It must never be serialized for restoration.
 final class ViewerSourceBinding {
-  const ViewerSourceBinding(this.config);
+  const ViewerSourceBinding(this.config, {this.bookmarkId})
+    : publicOrigin = null;
+
+  /// Pins the public actor. Adding a saved profile cannot upgrade an already
+  /// open public viewer to that account; policy changes still get fresh keys.
+  ViewerSourceBinding.publicRead(PostOrigin origin, {this.bookmarkId})
+    : config = BooruConfig.empty,
+      publicOrigin = origin;
 
   final BooruConfig config;
+  final PostOrigin? publicOrigin;
 
-  BooruConfig? resolve(Iterable<BooruConfig> profiles) => profiles
-      .where(
-        (candidate) =>
-            candidate.id == config.id &&
-            candidate.auth == config.auth &&
-            candidate.filter == config.filter &&
-            BooruConfigSearchFilter.fromConfig(candidate) ==
-                BooruConfigSearchFilter.fromConfig(config),
-      )
-      .firstOrNull;
+  /// Local saved-record identity; never an upstream Post or member identity.
+  final int? bookmarkId;
+
+  BooruConfig? resolve(Iterable<BooruConfig> profiles) {
+    if (publicOrigin != null) return null;
+    return profiles
+        .where(
+          (candidate) =>
+              candidate.id == config.id &&
+              candidate.auth == config.auth &&
+              candidate.filter == config.filter &&
+              BooruConfigSearchFilter.fromConfig(candidate) ==
+                  BooruConfigSearchFilter.fromConfig(config),
+        )
+        .firstOrNull;
+  }
 }
 
 /// An engine may add another immutable entry without changing the Post model.

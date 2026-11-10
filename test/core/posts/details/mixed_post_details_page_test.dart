@@ -6,6 +6,9 @@ import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/core/boorus/defaults/types.dart';
 import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
 
 import 'progressive_image_test_utils.dart';
 
@@ -2259,6 +2262,10 @@ class _Harness {
            booruConfigProvider.overrideWith(
              () => BooruConfigNotifier(initialConfigs: _configs),
            ),
+           globalBlacklistedTagsProvider.overrideWith(_EmptyBlacklist.new),
+           contentEffectivePolicyProvider.overrideWith(
+             (ref, profileId) => const AsyncData('test-empty-policy'),
+           ),
            booruEngineRegistryProvider.overrideWith(_createEngineRegistry),
            booruPostPresentationProvider.overrideWith((ref, request) {
              return switch (request.data) {
@@ -2284,6 +2291,11 @@ class _Harness {
                  Dio(BaseOptions(baseUrl: 'https://images.example/'))
                    ..httpClientAdapter =
                        imageAdapter ?? _TestImageAdapter(invalidImage),
+           ),
+           mediaOverrideDioProvider.overrideWith(
+             (ref, config) => Dio()
+               ..httpClientAdapter =
+                   imageAdapter ?? _TestImageAdapter(invalidImage),
            ),
            defaultImageCacheManagerProvider.overrideWithValue(
              imageCache ??
@@ -2365,6 +2377,11 @@ class _Harness {
   );
 
   void dispose() => container.dispose();
+}
+
+class _EmptyBlacklist extends GlobalBlacklistedTagsNotifier {
+  @override
+  IList<BlacklistedTag> build() => <BlacklistedTag>[].lock;
 }
 
 Finder _comicButton(String label) => find.byWidgetPredicate(

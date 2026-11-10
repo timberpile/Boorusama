@@ -1,3 +1,4 @@
+import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/app_scope.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
@@ -38,6 +39,7 @@ void main() {
       final initial = runtime.initialState;
       final container = ProviderContainer(
         overrides: [
+          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
           ...buildBoorusamaOverrides(
             runtime,
             RebootData(
@@ -102,20 +104,98 @@ void main() {
           stored(backend.configB, 43),
         ],
       );
-      expect(downloads.requests, hasLength(2));
+      expect(downloads.requests, hasLength(1));
       final owner = downloads.requests[0];
-      final orphan = downloads.requests[1];
       expect(owner.url, '${backend.config.url}/sample.jpg');
-      expect(orphan.url, 'https://orphan.test/sample.jpg');
-      expect(owner.filename, isNot(orphan.filename));
       expect(owner.headers?['Authorization'], 'fixture-${backend.config.url}');
-      expect(orphan.headers?['Authorization'], isNull);
       expect(owner.sidecar!.postUrl, '${backend.config.url}/posts/42');
-      expect(orphan.sidecar!.postUrl, 'https://orphan.test/posts/42');
       expect(
         downloads.requests.every((r) => r.sidecar!.quality == 'sample'),
         isTrue,
       );
+    },
+  );
+  test(
+    'removed profile hint cannot borrow another profile; unhinted can',
+    () async {
+      final backend = FakeBooruBackend();
+      final downloads = MemoryDownloadService();
+      final runtime = backend.createRuntime(
+        configs: [backend.configB],
+        downloadService: downloads,
+      );
+      final initial = runtime.initialState;
+      var extractorReads = 0;
+      var headerReads = 0;
+      final container = ProviderContainer(
+        overrides: [
+          ...buildBoorusamaOverrides(
+            runtime,
+            RebootData(
+              config: initial.initialConfig,
+              configs: initial.configs,
+              settings: initial.settings,
+            ),
+          ),
+          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          downloadFileUrlExtractorProvider.overrideWith((_, _) {
+            extractorReads++;
+            return const UrlInsidePostExtractor();
+          }),
+          httpHeadersProvider.overrideWith((_, _) {
+            headerReads++;
+            return {'Authorization': 'profile-b'};
+          }),
+          bypassDdosHeadersProvider.overrideWith(
+            (_, _) => Future.value(<String, String>{}),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(bookmarkProvider.future);
+      PostBookmark saved(String? hint) {
+        final post = TestPost(
+          id: 42,
+          origin: PostOrigin.fromSource(
+            booruType: backend.configB.auth.booruType,
+            booruId: backend.configB.booruId,
+            source: backend.configB.url,
+            profileIdHint: hint,
+          ),
+          originalImageUrl: '${backend.configB.url}/original.jpg',
+          booruData: const LegacyPostData(
+            typeKey: 'legacy_fixture',
+            custom: {},
+          ),
+        );
+        return PostBookmark.fromSnapshot(
+          id: 42,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          snapshot: const StoredPostCodec().encode(post),
+          post: post,
+          postId: 42,
+        );
+      }
+
+      final notifier = container.read(bookmarkProvider.notifier);
+      await notifier.downloadBookmarks(
+        backend.configB.auth,
+        backend.configB.download,
+        [saved('removed-profile-a')],
+      );
+      expect(downloads.requests, isEmpty);
+      expect(extractorReads, 0);
+      expect(headerReads, 0);
+      await notifier.downloadBookmarks(
+        backend.configB.auth,
+        backend.configB.download,
+        [saved(null)],
+      );
+      expect(downloads.requests, hasLength(1));
+      expect(downloads.requests.single.headers?['Authorization'], 'profile-b');
+      expect(extractorReads, greaterThan(0));
+      expect(headerReads, greaterThan(0));
     },
   );
   for (final bulkAllowed in [true, false]) {
@@ -137,6 +217,7 @@ void main() {
         final initial = runtime.initialState;
         final container = ProviderContainer(
           overrides: [
+            blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
             ...buildBoorusamaOverrides(
               runtime,
               RebootData(
@@ -266,6 +347,7 @@ void main() {
             final initial = runtime.initialState;
             final container = ProviderContainer(
               overrides: [
+                blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
                 ...buildBoorusamaOverrides(
                   runtime,
                   RebootData(
@@ -309,6 +391,10 @@ void main() {
               backend.configB.download,
               selection,
             );
+            if (orphan) {
+              expect(downloads.requests, isEmpty);
+              return;
+            }
             expect(downloads.requests, hasLength(bulk ? 2 : 1));
             final request = downloads.requests.first;
             expect(

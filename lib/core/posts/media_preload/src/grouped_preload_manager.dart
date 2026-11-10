@@ -10,9 +10,12 @@ typedef GroupedPreloadMedia<K> = ({K group, PreloadMedia media});
 class GroupedPreloadManager<K extends Object> {
   GroupedPreloadManager({
     required PreloadManager Function(K group) managerBuilder,
-  }) : _managerBuilder = managerBuilder;
+    void Function(K group)? onGroupRemoved,
+  }) : _managerBuilder = managerBuilder,
+       _onGroupRemoved = onGroupRemoved;
 
   final PreloadManager Function(K group) _managerBuilder;
+  final void Function(K group)? _onGroupRemoved;
   final _managers = <K, PreloadManager>{};
 
   void preloadWithStrategy({
@@ -35,6 +38,7 @@ class GroupedPreloadManager<K extends Object> {
     for (final group in _managers.keys.toList()) {
       if (!groups.contains(group)) {
         _managers.remove(group)?.cancelAll();
+        _onGroupRemoved?.call(group);
       }
     }
 
@@ -56,9 +60,10 @@ class GroupedPreloadManager<K extends Object> {
   }
 
   void cancelAll() {
-    for (final manager in _managers.values) {
+    for (final entry in _managers.entries) {
       // Managers can be provider-owned: cancel work, but do not dispose them.
-      manager.cancelAll();
+      entry.value.cancelAll();
+      _onGroupRemoved?.call(entry.key);
     }
     _managers.clear();
   }

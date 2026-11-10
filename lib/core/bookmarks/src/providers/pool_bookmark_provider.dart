@@ -185,16 +185,22 @@ BooruConfig? resolvePoolBookmarkProfile(
     (pool.isRelated && pool.origin.profileIdHint == null) ||
         pool.sourceTypeId != pool.origin.booruType.id
     ? null
-    : resolveBookmarkOriginProfile(pool.origin, configs);
+    : switch (const PostOriginResolver().resolve(
+        pool.origin,
+        configs,
+        allowProfileHintFallback: false,
+      )) {
+        ResolvedPostOrigin(:final config) => config,
+        _ => null,
+      };
 
 BooruConfig? resolveBookmarkOriginProfile(
   PostOrigin origin,
   List<BooruConfig> configs,
 ) => switch (const PostOriginResolver().resolve(
   origin,
-  origin.profileIdHint == null
-      ? configs
-      : configs.where((c) => c.id == origin.profileIdHint),
+  configs,
+  allowProfileHintFallback: true,
 )) {
   ResolvedPostOrigin(:final config) => config,
   _ => null,

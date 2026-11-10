@@ -13,10 +13,15 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../foundation/info/device_info.dart';
 import '../configs/config/types.dart';
+import '../content/content_access.dart';
+import '../content/content_media_failures.dart';
 import '../configs/network/providers.dart';
+import '../content/content_media_access.dart';
+import '../content/content_media_dio.dart';
 import '../developer_options/blocked_media_placeholder.dart';
 import '../developer_options/providers.dart';
 import '../http/client/providers.dart';
+import '../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../settings/providers.dart';
 import 'image_quality.dart';
 import 'providers.dart';
@@ -48,6 +53,7 @@ class BooruImage extends ConsumerWidget {
     this.controller,
     this.imageCacheManager,
     this.cachedImageBytes,
+    this.cachedImageAccessKey,
   });
 
   final BooruConfigAuth config;
@@ -73,6 +79,7 @@ class BooruImage extends ConsumerWidget {
   final ExtendedImageController? controller;
   final ImageCacheManager? imageCacheManager;
   final Uint8List? cachedImageBytes;
+  final ContentAccessKey? cachedImageAccessKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -87,17 +94,79 @@ class BooruImage extends ConsumerWidget {
       );
     }
 
-    final dio = ref.watch(dioForWidgetProvider(config));
+    final access = watchContentMediaAccess(ref, config);
+    final publicSource = config.anonymousReadScope?.source;
+    bool permitted(String? value) {
+      if (value == null || value.isEmpty) return false;
+      if (publicSource == null) return true;
+      final uri = Uri.tryParse(value);
+      return uri != null && publicSource.allowsMedia(uri);
+    }
+
+    if (!access.allowed) {
+      return NullableAspectRatio(
+        aspectRatio: forceCover || fit == BoxFit.contain ? null : aspectRatio,
+        child:
+            placeholderWidget ??
+            KurumiImagePlaceholder(
+              borderRadius: borderRadius ?? _defaultRadius,
+            ),
+      );
+    }
+    if (publicSource != null && !permitted(imageUrl)) {
+      final safeCandidates = <String>{
+        ...fallbackUrls,
+        if (fallbackUrl case final value?) value,
+        if (placeholderUrl case final value?) value,
+      }.where(permitted).toList();
+      if (safeCandidates.isEmpty) {
+        return ErrorPlaceholder(
+          borderRadius: borderRadius,
+          reason: PostPresentationFallbackReason.unavailableEngine,
+        );
+      }
+      return BooruImage(
+        config: config,
+        imageUrl: safeCandidates.first,
+        fallbackUrls: safeCandidates.skip(1).toList(),
+        placeholderAspectRatio: placeholderAspectRatio,
+        placeholderFit: placeholderFit,
+        borderRadius: borderRadius,
+        fit: fit,
+        aspectRatio: aspectRatio,
+        imageWidth: imageWidth,
+        imageHeight: imageHeight,
+        forceCover: forceCover,
+        forceFill: forceFill,
+        forceLoadPlaceholder: forceLoadPlaceholder,
+        hideMismatchedPlaceholder: hideMismatchedPlaceholder,
+        placeholderWidget: placeholderWidget,
+        errorWidget: errorWidget,
+        controller: controller,
+        imageCacheManager: imageCacheManager,
+      );
+    }
+    final safePlaceholder = permitted(placeholderUrl) ? placeholderUrl : null;
+    final safeFallback = permitted(fallbackUrl) ? fallbackUrl : null;
+    final dio = access.key == null
+        ? ref.watch(dioForWidgetProvider(config))
+        : ref.watch(contentMediaDioProvider(access.key!));
     final network = ref.watch(networkSettingsProvider(config));
     final headers = ref.watch(httpHeadersProvider(config));
-    final imageRequest = network.resolveMedia(imageUrl, headers: headers);
-    final fallbackRequest = network.resolveMedia(
-      fallbackUrl ?? '',
+    final imageRequest = network.resolveMedia(
+      imageUrl,
       headers: headers,
+      sourceUrl: config.url,
+    );
+    final fallbackRequest = network.resolveMedia(
+      safeFallback ?? '',
+      headers: headers,
+      sourceUrl: config.url,
     );
     final placeholderRequest = network.resolveMedia(
-      placeholderUrl ?? '',
+      safePlaceholder ?? '',
       headers: headers,
+      sourceUrl: config.url,
     );
     final imageQualitySettings = ref.watch(
       imageListingSettingsProvider.select((value) => value.imageQuality),
@@ -111,23 +180,39 @@ class BooruImage extends ConsumerWidget {
     final fallbackCacheManager = ref.watch(
       defaultImageCacheManagerProvider,
     );
+    final manager = imageCacheManager ?? fallbackCacheManager;
+    final scopedManager = access.key == null
+        ? manager
+        : ref.watch(
+            contentMediaCacheManagerProvider((
+              manager: manager,
+              access: access.key!,
+            )),
+          );
     final alternates = fallbackUrls
-        .where((url) => url.isNotEmpty && url != imageUrl)
+        .where((url) => permitted(url) && url != imageUrl)
         .toSet()
         .toList();
 
     return BooruRawImage(
-      dio: imageRequest.overridden
+      key: ValueKey((access.key, imageUrl)),
+      dio: imageRequest.overridden && access.key == null
           ? ref.watch(mediaOverrideDioProvider(config))
           : dio,
       imageUrl: imageRequest.url,
-      placeholderUrl: placeholderUrl == null ? null : placeholderRequest.url,
-      placeholderDio: placeholderRequest.overridden
+      placeholderUrl: safePlaceholder == null ? null : placeholderRequest.url,
+      placeholderDio:
+          safePlaceholder != null &&
+              placeholderRequest.overridden &&
+              access.key == null
           ? ref.watch(mediaOverrideDioProvider(config))
           : dio,
       placeholderHeaders: placeholderRequest.headers,
-      fallbackUrl: fallbackUrl == null ? null : fallbackRequest.url,
-      fallbackDio: fallbackRequest.overridden
+      fallbackUrl: safeFallback == null ? null : fallbackRequest.url,
+      fallbackDio:
+          safeFallback != null &&
+              fallbackRequest.overridden &&
+              access.key == null
           ? ref.watch(mediaOverrideDioProvider(config))
           : dio,
       fallbackHeaders: fallbackRequest.headers,
@@ -137,8 +222,8 @@ class BooruImage extends ConsumerWidget {
               config: config,
               imageUrl: alternates.first,
               fallbackUrls: alternates.skip(1).toList(),
-              fallbackUrl: fallbackUrl,
-              placeholderUrl: placeholderUrl,
+              fallbackUrl: safeFallback,
+              placeholderUrl: safePlaceholder,
               placeholderAspectRatio: placeholderAspectRatio,
               placeholderFit: placeholderFit,
               borderRadius: borderRadius,
@@ -171,8 +256,10 @@ class BooruImage extends ConsumerWidget {
       errorWidget: errorWidget,
       controller: controller,
       androidVersion: deviceInfo.androidDeviceInfo?.version.sdkInt,
-      imageCacheManager: imageCacheManager ?? fallbackCacheManager,
-      cachedImageBytes: cachedImageBytes,
+      imageCacheManager: scopedManager,
+      cachedImageBytes: access.key == null || access.key == cachedImageAccessKey
+          ? cachedImageBytes
+          : null,
     );
   }
 }
@@ -256,145 +343,151 @@ class BooruRawImage extends StatelessWidget {
           imageCacheManager!.generateCacheKey(imageUrl),
         );
       },
-      builder: (effectiveController, retry) => NullableAspectRatio(
-        aspectRatio: forceCover || fit == BoxFit.contain ? null : aspectRatio,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth.roundToDouble();
-            final height = constraints.maxHeight.roundToDouble();
-            final fit =
-                this.fit ??
-                // If the image is larger than the layout, just fill it to prevent distortion
-                (forceFill &&
-                        _shouldForceFill(
-                          constraints.biggest,
-                          imageWidth,
-                          imageHeight,
-                        )
-                    ? BoxFit.fill
-                    // Cover is for the standard grid that crops the image to fit the aspect ratio
-                    : forceCover
-                    ? BoxFit.cover
-                    : BoxFit.contain);
-            final borderRadius = this.borderRadius ?? _defaultRadius;
+      builder: (effectiveController, retry) => _ContentMediaImageState(
+        controller: effectiveController,
+        child: NullableAspectRatio(
+          aspectRatio: forceCover || fit == BoxFit.contain ? null : aspectRatio,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth.roundToDouble();
+              final height = constraints.maxHeight.roundToDouble();
+              final fit =
+                  this.fit ??
+                  // If the image is larger than the layout, just fill it to prevent distortion
+                  (forceFill &&
+                          _shouldForceFill(
+                            constraints.biggest,
+                            imageWidth,
+                            imageHeight,
+                          )
+                      ? BoxFit.fill
+                      // Cover is for the standard grid that crops the image to fit the aspect ratio
+                      : forceCover
+                      ? BoxFit.cover
+                      : BoxFit.contain);
+              final borderRadius = this.borderRadius ?? _defaultRadius;
 
-            if (cachedImageBytes case final bytes?) {
-              return ExtendedImage(
-                image: MemoryImage(bytes),
-                borderRadius: borderRadius,
-                width: width,
-                height: height,
-                fit: fit,
-                controller: effectiveController,
-                placeholderWidget: placeholderWidget ?? imagePlaceHolder,
-                errorWidget: placeholderWidget ?? imagePlaceHolder,
-              );
-            }
+              if (cachedImageBytes case final bytes?) {
+                return ExtendedImage(
+                  image: MemoryImage(bytes),
+                  borderRadius: borderRadius,
+                  width: width,
+                  height: height,
+                  fit: fit,
+                  controller: effectiveController,
+                  placeholderWidget: placeholderWidget ?? imagePlaceHolder,
+                  errorWidget: placeholderWidget ?? imagePlaceHolder,
+                );
+              }
 
-            return imageUrl.isNotEmpty
-                ? ExtendedImage.network(
-                    imageUrl,
-                    dio: dio,
-                    headers: headers,
-                    borderRadius: borderRadius,
-                    width: width,
-                    height: height,
-                    fit: fit,
-                    gaplessPlayback: gaplessPlayback,
-                    fetchStrategy: _fetchStrategy,
-                    controller: effectiveController,
-                    platform: Kurumi.themeOf(context).platform,
-                    androidVersion: androidVersion,
-                    cacheManager: imageCacheManager,
-                    placeholderWidget:
-                        placeholderWidget ??
-                        placeholderUrl.toOption().fold(
-                          () => imagePlaceHolder,
-                          (url) => Builder(
-                            builder: (context) {
-                              final hasNetworkPlaceholder =
-                                  _shouldLoadPlaceholderUrl(
-                                    placeholderUrl: url,
-                                    imageUrl: imageUrl,
-                                    isLargeImage: isLargeImage,
-                                    forceLoadPlaceholder: forceLoadPlaceholder,
-                                  );
-                              final hasMismatchedPlaceholder =
-                                  hideMismatchedPlaceholder &&
-                                  _hasAspectRatioMismatch(
-                                    placeholderAspectRatio,
-                                    aspectRatio,
-                                  );
+              return imageUrl.isNotEmpty
+                  ? ExtendedImage.network(
+                      imageUrl,
+                      dio: dio,
+                      headers: headers,
+                      borderRadius: borderRadius,
+                      width: width,
+                      height: height,
+                      fit: fit,
+                      gaplessPlayback: gaplessPlayback,
+                      fetchStrategy: _fetchStrategy,
+                      controller: effectiveController,
+                      platform: Kurumi.themeOf(context).platform,
+                      androidVersion: androidVersion,
+                      cacheManager: imageCacheManager,
+                      placeholderWidget:
+                          placeholderWidget ??
+                          placeholderUrl.toOption().fold(
+                            () => imagePlaceHolder,
+                            (url) => Builder(
+                              builder: (context) {
+                                final hasNetworkPlaceholder =
+                                    _shouldLoadPlaceholderUrl(
+                                      placeholderUrl: url,
+                                      imageUrl: imageUrl,
+                                      isLargeImage: isLargeImage,
+                                      forceLoadPlaceholder:
+                                          forceLoadPlaceholder,
+                                    );
+                                final hasMismatchedPlaceholder =
+                                    hideMismatchedPlaceholder &&
+                                    _hasAspectRatioMismatch(
+                                      placeholderAspectRatio,
+                                      aspectRatio,
+                                    );
 
-                              return hasNetworkPlaceholder &&
-                                      !hasMismatchedPlaceholder
-                                  ? _wrapPlaceholderAspectRatio(
-                                      ExtendedImage.network(
-                                        url,
-                                        dio: placeholderDio ?? dio,
-                                        headers: placeholderHeaders ?? headers,
-                                        borderRadius: borderRadius,
-                                        width: placeholderAspectRatio == null
-                                            ? width
-                                            : null,
-                                        height: placeholderAspectRatio == null
-                                            ? height
-                                            : null,
-                                        fit: placeholderFit ?? fit,
-                                        fetchStrategy: _fetchStrategy,
-                                        placeholderWidget: imagePlaceHolder,
-                                        platform: Kurumi.themeOf(
-                                          context,
-                                        ).platform,
-                                        androidVersion: androidVersion,
-                                        cacheManager: imageCacheManager,
-                                      ),
-                                    )
-                                  : imagePlaceHolder;
-                            },
-                          ),
-                        ),
-                    errorWidget:
-                        errorWidget ??
-                        fallbackWidget ??
-                        switch (fallbackUrl) {
-                          final String url
-                              when url.isNotEmpty && url != imageUrl =>
-                            _ImageRetryControllerScope(
-                              beforeRetry: () async {
-                                await imageCacheManager?.clearCache(
-                                  imageCacheManager!.generateCacheKey(url),
-                                );
+                                return hasNetworkPlaceholder &&
+                                        !hasMismatchedPlaceholder
+                                    ? _wrapPlaceholderAspectRatio(
+                                        ExtendedImage.network(
+                                          url,
+                                          dio: placeholderDio ?? dio,
+                                          headers:
+                                              placeholderHeaders ?? headers,
+                                          borderRadius: borderRadius,
+                                          width: placeholderAspectRatio == null
+                                              ? width
+                                              : null,
+                                          height: placeholderAspectRatio == null
+                                              ? height
+                                              : null,
+                                          fit: placeholderFit ?? fit,
+                                          fetchStrategy: _fetchStrategy,
+                                          placeholderWidget: imagePlaceHolder,
+                                          platform: Kurumi.themeOf(
+                                            context,
+                                          ).platform,
+                                          androidVersion: androidVersion,
+                                          cacheManager: imageCacheManager,
+                                        ),
+                                      )
+                                    : imagePlaceHolder;
                               },
-                              builder: (fallbackController, retryFallback) =>
-                                  ExtendedImage.network(
-                                    url,
-                                    dio: fallbackDio ?? dio,
-                                    controller: fallbackController,
-                                    headers: fallbackHeaders ?? headers,
-                                    borderRadius: borderRadius,
-                                    width: width,
-                                    height: height,
-                                    fit: fit,
-                                    fetchStrategy: _fetchStrategy,
-                                    platform: Kurumi.themeOf(context).platform,
-                                    androidVersion: androidVersion,
-                                    cacheManager: imageCacheManager,
-                                    placeholderWidget: imagePlaceHolder,
-                                    errorWidget: ErrorPlaceholder(
-                                      borderRadius: borderRadius,
-                                      onRetry: retryFallback,
-                                    ),
-                                  ),
                             ),
-                          _ => ErrorPlaceholder(
-                            onRetry: retry,
-                            borderRadius: borderRadius,
                           ),
-                        },
-                  )
-                : imagePlaceHolder;
-          },
+                      errorWidget:
+                          errorWidget ??
+                          fallbackWidget ??
+                          switch (fallbackUrl) {
+                            final String url
+                                when url.isNotEmpty && url != imageUrl =>
+                              _ImageRetryControllerScope(
+                                beforeRetry: () async {
+                                  await imageCacheManager?.clearCache(
+                                    imageCacheManager!.generateCacheKey(url),
+                                  );
+                                },
+                                builder: (fallbackController, retryFallback) =>
+                                    ExtendedImage.network(
+                                      url,
+                                      dio: fallbackDio ?? dio,
+                                      controller: fallbackController,
+                                      headers: fallbackHeaders ?? headers,
+                                      borderRadius: borderRadius,
+                                      width: width,
+                                      height: height,
+                                      fit: fit,
+                                      fetchStrategy: _fetchStrategy,
+                                      platform: Kurumi.themeOf(context)
+                                          .platform,
+                                      androidVersion: androidVersion,
+                                      cacheManager: imageCacheManager,
+                                      placeholderWidget: imagePlaceHolder,
+                                      errorWidget: ErrorPlaceholder(
+                                        borderRadius: borderRadius,
+                                        onRetry: retryFallback,
+                                      ),
+                                    ),
+                              ),
+                            _ => ErrorPlaceholder(
+                              onRetry: retry,
+                              borderRadius: borderRadius,
+                            ),
+                          },
+                    )
+                  : imagePlaceHolder;
+            },
+          ),
         ),
       ),
     );
@@ -472,26 +565,80 @@ class ErrorPlaceholder extends StatelessWidget {
     super.key,
     this.borderRadius,
     this.onRetry,
+    this.reason = PostPresentationFallbackReason.refreshFailed,
+    this.video = false,
   });
 
   final VoidCallback? onRetry;
   final BorderRadiusGeometry? borderRadius;
+  final PostPresentationFallbackReason reason;
+  final bool video;
 
   @override
-  Widget build(BuildContext context) => KurumiImageErrorPlaceholder(
-    borderRadius: borderRadius,
-    child: Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset(
-          'assets/images/error.png',
-          color: Kurumi.themeOf(context).colorScheme.surface,
-        ),
-        if (onRetry case final retry?)
-          Center(child: ImageRetryButton(onRetry: retry)),
-      ],
+  Widget build(BuildContext context) => ContentMediaOutcome(
+    failed: true,
+    reason: reason,
+    video: video,
+    child: KurumiImageErrorPlaceholder(
+      borderRadius: borderRadius,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/error.png',
+            color: Kurumi.themeOf(context).colorScheme.surface,
+          ),
+          if (onRetry case final retry?)
+            Center(child: ImageRetryButton(onRetry: retry)),
+        ],
+      ),
     ),
   );
+}
+
+class _ContentMediaImageState extends StatefulWidget {
+  const _ContentMediaImageState({
+    required this.controller,
+    required this.child,
+  });
+  final ExtendedImageController controller;
+  final Widget child;
+  @override
+  State<_ContentMediaImageState> createState() =>
+      _ContentMediaImageStateState();
+}
+
+class _ContentMediaImageStateState extends State<_ContentMediaImageState> {
+  void _completed() {
+    if (widget.controller.loadState.value == LoadState.completed) {
+      reportContentMediaOutcome(context, failed: false);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.loadState.addListener(_completed);
+    _completed();
+  }
+
+  @override
+  void didUpdateWidget(_ContentMediaImageState oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    oldWidget.controller.loadState.removeListener(_completed);
+    widget.controller.loadState.addListener(_completed);
+    _completed();
+  }
+
+  @override
+  void dispose() {
+    widget.controller.loadState.removeListener(_completed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class ImageRetryButton extends StatelessWidget {

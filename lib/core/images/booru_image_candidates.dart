@@ -10,8 +10,13 @@ import 'package:kurumi/material.dart';
 import '../../foundation/info/device_info.dart';
 import '../configs/config/types.dart';
 import '../configs/network/providers.dart';
+import '../content/content_media_access.dart';
+import '../content/content_media_dio.dart';
+import '../content/content_media_failures.dart';
 import '../developer_options/providers.dart';
 import '../http/client/providers.dart';
+import '../posts/details/src/types/post_presentation_fallback_reason.dart';
+import 'booru_image.dart' show ErrorPlaceholder;
 import 'image_candidate_picker.dart';
 import 'providers.dart';
 
@@ -38,12 +43,45 @@ class BooruImageCandidates extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (!ref.watch(automaticMediaLoadingEnabledProvider)) return placeholder;
+    final access = watchContentMediaAccess(ref, config);
+    if (!access.allowed) return placeholder;
+    final publicSource = config.anonymousReadScope?.source;
+    final allowedUrls = publicSource == null
+        ? urls
+        : urls.where((url) {
+            final uri = Uri.tryParse(url);
+            return uri != null && publicSource.allowsMedia(uri);
+          }).toList();
+    if (allowedUrls.isEmpty) {
+      return publicSource == null
+          ? placeholder
+          : const ErrorPlaceholder(
+              reason: PostPresentationFallbackReason.unavailableEngine,
+            );
+    }
     final network = ref.watch(networkSettingsProvider(config));
     final headers = ref.watch(httpHeadersProvider(config));
-    final dio = ref.watch(dioForWidgetProvider(config));
-    final overrideDio = ref.watch(mediaOverrideDioProvider(config));
-    final manager =
-        imageCacheManager ?? ref.watch(defaultImageCacheManagerProvider);
+    final dio = access.key == null
+        ? ref.watch(dioForWidgetProvider(config))
+        : ref.watch(contentMediaDioProvider(access.key!));
+    final needsOverride = allowedUrls.any(
+      (url) => network
+          .resolveMedia(url, headers: headers, sourceUrl: config.url)
+          .overridden,
+    );
+    final overrideDio = needsOverride && access.key == null
+        ? ref.watch(mediaOverrideDioProvider(config))
+        : dio;
+    final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
+    final delegate = imageCacheManager ?? fallbackManager;
+    final manager = access.key == null
+        ? delegate
+        : ref.watch(
+            contentMediaCacheManagerProvider((
+              manager: delegate,
+              access: access.key!,
+            )),
+          );
     final platform = Kurumi.themeOf(context).platform;
     final androidVersion = ref
         .watch(deviceInfoProvider)
@@ -52,7 +90,7 @@ class BooruImageCandidates extends ConsumerWidget {
         .sdkInt;
     final identity = (
       config,
-      urls.join('\n'),
+      allowedUrls.join('\n'),
       network,
       jsonEncode(headers),
       manager,
@@ -66,15 +104,20 @@ class BooruImageCandidates extends ConsumerWidget {
       placeholder: placeholder,
       builder: builder,
       onSelected: (index) {
+        reportContentMediaOutcome(context, failed: index == null);
         history.remove(identity);
         if (index == null) return;
         if (history.length >= 256) history.remove(history.keys.first);
         history[identity] = index;
       },
       candidates: [
-        for (final url in urls)
+        for (final url in allowedUrls)
           () {
-            final request = network.resolveMedia(url, headers: headers);
+            final request = network.resolveMedia(
+              url,
+              headers: headers,
+              sourceUrl: config.url,
+            );
             final token = CancelToken();
             return ImageCandidate(
               image: ExtendedImage.network(

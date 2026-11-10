@@ -10,6 +10,8 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_access.dart';
 import '../../../../images/booru_image.dart';
 import '../../../../images/booru_image_candidates.dart';
 import '../../../../images/providers.dart';
@@ -122,6 +124,19 @@ class PostGridItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = watchContentMediaAccess(
+      ref,
+      imageConfig ?? config,
+      post: post,
+    );
+    if (!access.allowed) return const KurumiImagePlaceholder();
+    final publicSource = (imageConfig ?? config).anonymousReadScope?.source;
+    bool safeMedia(String url) {
+      final uri = Uri.tryParse(url);
+      return publicSource == null ||
+          (uri != null && publicSource.allowsMedia(uri));
+    }
+
     final gridThumbnailUrlBuilder = ref.watch(
       gridThumbnailUrlGeneratorProvider(config),
     );
@@ -140,7 +155,8 @@ class PostGridItem extends ConsumerWidget {
             settings: thumbnailSettings,
           );
     Uint8List? cachedGif;
-    if (imageUrl == null &&
+    if (access.allowed &&
+        imageUrl == null &&
         imageBuilder == null &&
         isOriginalGridGif(post) &&
         post.fileSize > maxAutoplayGridGifBytes &&
@@ -160,6 +176,7 @@ class PostGridItem extends ConsumerWidget {
         ),
       );
       if (candidate.url.isNotEmpty &&
+          safeMedia(candidate.url) &&
           (candidate.url != resolvedMedia.url ||
               candidate.url == post.originalImageUrl)) {
         final sourceConfig = imageConfig ?? config;
@@ -168,13 +185,22 @@ class PostGridItem extends ConsumerWidget {
             .resolveMedia(
               candidate.url,
               headers: ref.watch(httpHeadersProvider(sourceConfig)),
+              sourceUrl: sourceConfig.url,
             );
+        final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
+        final delegate = imageCacheManager ?? fallbackManager;
+        final manager = access.key == null
+            ? delegate
+            : ref.watch(
+                contentMediaCacheManagerProvider((
+                  manager: delegate,
+                  access: access.key!,
+                )),
+              );
         cachedGif = ref
             .watch(
               cachedGridGifProvider((
-                manager:
-                    imageCacheManager ??
-                    ref.watch(defaultImageCacheManagerProvider),
+                manager: manager,
                 url: request.url,
                 originalSize: candidate.url == post.originalImageUrl
                     ? post.fileSize
@@ -228,10 +254,12 @@ class PostGridItem extends ConsumerWidget {
     final image =
         imageBuilder?.call(media) ??
         PostGridImage(
+          post: post,
           media: media,
           imageCacheManager: imageCacheManager,
           config: imageConfig ?? config,
           cachedImageBytes: cachedGif,
+          cachedImageAccessKey: access.key,
         );
 
     final item = SliverPostGridImageGridItem(
@@ -320,18 +348,24 @@ class PostGridImage extends ConsumerWidget {
     this.fit,
     this.imageCacheManager,
     this.cachedImageBytes,
+    this.cachedImageAccessKey,
+    this.post,
   });
 
   final GridThumbnailMedia media;
+  final Post? post;
   final BorderRadius? borderRadius;
   final bool? forceCover;
   final BoxFit? fit;
   final ImageCacheManager? imageCacheManager;
   final Uint8List? cachedImageBytes;
+  final ContentAccessKey? cachedImageAccessKey;
   final BooruConfigAuth config;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = watchContentMediaAccess(ref, config, post: post);
+    if (!access.allowed) return const KurumiImagePlaceholder();
     final imageBorderRadius = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageBorderRadius),
     );
@@ -358,6 +392,7 @@ class PostGridImage extends ConsumerWidget {
       placeholderFit: media.placeholderFit,
       imageCacheManager: imageCacheManager,
       cachedImageBytes: cachedImageBytes,
+      cachedImageAccessKey: cachedImageAccessKey,
     );
     if (!media.probeImageFormats || cachedImageBytes != null) {
       return normal(media.url);
