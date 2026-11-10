@@ -1,0 +1,237 @@
+name: Prepare Pixiv pagination candidate
+on:
+  push:
+    branches: [maintenance/develop-comprehensive-audit-20261110]
+    paths: [.github/workflows/audit-pixiv-pagination.yml]
+permissions:
+  contents: read
+jobs:
+  pagination:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      BOORUSAMA_USE_FVM: "true"
+      CI: "true"
+      FVM_CACHE_PATH: /home/runner/.cache/fvm
+      TASK_BRANCH: bug/161-pixiv-explore-pagination
+      ORIGINAL_HEAD: db54e43bb38e3d997136c52c3434c35342737df3
+      DEVELOP_BASE: 2e2ea428ba323706e37a65e45903d3959df439d4
+    defaults:
+      run:
+        shell: bash
+        working-directory: .worktrees/161
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 2e2ea428ba323706e37a65e45903d3959df439d4
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reconcile the existing issue branch in its own worktree
+        working-directory: .
+        run: |
+          set -euo pipefail
+          git config user.name Timber
+          git config user.email timberpile@proton.me
+          mkdir -p .worktrees/_artifacts/161-verification
+          git worktree add --detach .worktrees/161 "$ORIGINAL_HEAD"
+          git -C .worktrees/161 switch -c task-161
+          git -C .worktrees/161 merge --no-ff "$DEVELOP_BASE" -m 'chore: reconcile current develop for Pixiv pagination (#161)' -m 'Refs #161'
+          python3 - <<'PY'
+          import subprocess
+          expected = {'docs/handoffs/161-pixiv-explore-pagination.md', 'lib/boorus/pixiv/explore/providers.dart', 'test/boorus/pixiv_explore_pagination_test.dart'}
+          actual = set(subprocess.check_output(['git', '-C', '.worktrees/161', 'diff', '--name-only', '2e2ea428ba323706e37a65e45903d3959df439d4', 'HEAD'], text=True).splitlines())
+          assert actual == expected, actual
+          PY
+      - name: Install native decoder build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes meson nasm
+      - name: Install pinned native FVM
+        run: |
+          set -euo pipefail
+          tools="$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification/tools"
+          mkdir -p "$tools"
+          curl --fail --location --retry 3 https://github.com/btwld/fvm/releases/download/4.3.1/fvm-4.3.1-linux-x64.tar.gz --output "$tools/fvm.tar.gz"
+          echo "ad59c861bdbef80c9f262d30ab28debd374afad0ef4b10b99a47bbab77e08bde  $tools/fvm.tar.gz" | sha256sum --check
+          tar -xzf "$tools/fvm.tar.gz" -C "$tools"
+          binary="$(find "$tools" -type f -name fvm -print -quit)"
+          chmod +x "$binary"
+          dirname "$binary" >> "$GITHUB_PATH"
+          "$binary" --version
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /home/runner/.cache/fvm
+            ~/.pub-cache
+          key: audit-fvm-3.47.2-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/boorusama_cli/pubspec.lock') }}
+      - name: Initialize and format the exact candidate
+        run: |
+          set -euo pipefail
+          evidence="$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification"
+          cp .env.example .env
+          ./init.sh 2>&1 | tee "$evidence/init.log"
+          fvm dart format lib/boorus/pixiv/explore/providers.dart test/boorus/pixiv_explore_pagination_test.dart 2>&1 | tee "$evidence/format.log"
+          git diff --check
+          git add lib/boorus/pixiv/explore/providers.dart test/boorus/pixiv_explore_pagination_test.dart
+          if ! git diff --cached --quiet; then
+            git commit -m 'style: format Pixiv pagination regression coverage (#161)' -m 'Refs #161'
+          fi
+          git rev-parse HEAD | tee "$evidence/candidate.sha"
+          git bundle create "$evidence/candidate.bundle" HEAD ^"$DEVELOP_BASE"
+      - name: Publish only the existing authorized task branch
+        id: publish
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin "refs/heads/$TASK_BRANCH" | cut -f1)" = "$ORIGINAL_HEAD"
+          header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$header" push origin "HEAD:refs/heads/$TASK_BRANCH"
+      - name: Reproduce the defect with the unchanged develop implementation
+        id: red
+        run: |
+          set -euo pipefail
+          evidence="$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification"
+          source=lib/boorus/pixiv/explore/providers.dart
+          trap 'git restore --source=HEAD -- lib/boorus/pixiv/explore/providers.dart' EXIT
+          git show "$DEVELOP_BASE:$source" > "$source"
+          set +e
+          fvm flutter test --no-pub --reporter expanded test/boorus/pixiv_explore_pagination_test.dart > "$evidence/red.log" 2>&1
+          status=$?
+          set -e
+          cat "$evidence/red.log"
+          printf '%s\n' "$status" > "$evidence/red.exit"
+          test "$status" -ne 0
+          grep -q 'Expected:' "$evidence/red.log"
+          if grep -qE 'Compilation failed|Error: Not found|Failed to load.*test.dart' "$evidence/red.log"; then exit 1; fi
+          git restore --source=HEAD -- "$source"
+          trap - EXIT
+          git diff --exit-code
+      - name: Run Pixiv and shared listing regression coverage
+        id: focused
+        run: |
+          set -euo pipefail
+          evidence="$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification"
+          mapfile -t tests < <(find test/boorus -maxdepth 1 -type f -name '*pixiv*_test.dart' | sort)
+          test "${#tests[@]}" -gt 0
+          if [[ -d test/core/posts/listing ]]; then tests+=(test/core/posts/listing); fi
+          fvm flutter test --no-pub --concurrency="$(python3 scripts/physical_core_count.py)" --reporter expanded "${tests[@]}" 2>&1 | tee "$evidence/focused.log"
+      - name: Analyze the task delta
+        id: analysis
+        run: |
+          set -euo pipefail
+          fvm flutter analyze --no-pub --no-fatal-infos lib/boorus/pixiv/explore/providers.dart test/boorus/pixiv_explore_pagination_test.dart 2>&1 | tee "$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification/analysis.log"
+      - name: Run the complete repository regression
+        id: full
+        run: |
+          set -euo pipefail
+          evidence="$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification"
+          ./scripts/run_regression_tests.sh 2>&1 | tee "$evidence/full-regression.log"
+          git diff --exit-code
+          git status --short > "$evidence/final-status.log"
+      - name: Preserve exact verification results in the owning handoff
+        if: always() && steps.publish.outcome == 'success'
+        env:
+          PUSH_TOKEN: ${{ github.token }}
+          RED_OUTCOME: ${{ steps.red.outcome }}
+          FOCUSED_OUTCOME: ${{ steps.focused.outcome }}
+          ANALYSIS_OUTCOME: ${{ steps.analysis.outcome }}
+          FULL_OUTCOME: ${{ steps.full.outcome }}
+        run: |
+          set -euo pipefail
+          evidence="$GITHUB_WORKSPACE/.worktrees/_artifacts/161-verification"
+          export EVIDENCE="$evidence"
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          e = Path(os.environ['EVIDENCE'])
+          sha = (e / 'candidate.sha').read_text().strip()
+          def summaries(name):
+              p = e / name
+              if not p.exists(): return 'Not executed or no result log was produced.'
+              text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', p.read_text(errors='replace'))
+              lines = [line.strip() for line in re.split(r'[\r\n]+', text) if any(word in line for word in ('All tests passed!', 'Some tests failed.', 'Ran ', 'issues found.', 'No issues found!'))]
+              return '\n'.join(lines[-20:]) or 'See the exact-candidate artifact; no completion summary was found.'
+          run = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          body = f'''# Pixiv Explore pagination — issue #161
+
+          ## Candidate and authorization
+
+          Branch: `bug/161-pixiv-explore-pagination`.
+          Runtime/test candidate: `{sha}`.
+          Develop prerequisite: `2e2ea428ba323706e37a65e45903d3959df439d4`.
+
+          The original implementation was published as `6c26e5cabc8723049bda8f6cf1121694fb8adb5a`, followed by handoff `db54e43bb38e3d997136c52c3434c35342737df3`. This preparation preserves that history, merges only the pinned develop prerequisite into the existing task branch and formats the task files with FVM. It does not merge anything into develop. The delta against the prerequisite is exactly the Explore repository, its new regression test and this handoff.
+
+          This is a standalone pagination component of P8, not the Work/Page viewer cutover. Neither #165 nor #140/#141/#164 is included. The branch consequently still inherits develop's independent Pixiv media regression until that separately approved correction is reconciled.
+
+          ## Behavior and review focus
+
+          Use `pixivIllustListResultToPostResult` so Ranking, Following and Recommended retain the API's explicit continuation/end signal after filtering. Remove repository-level exhaustion caching: the grid controller owns the feed session, and refresh or an old response must not poison a new session. Preserve Post origin and existing error/cooldown mapping.
+
+          The regression fixture exercises the actual Pixiv client, Explore repository and shared PostGridController. It covers empty and hidden-only pages with continuation, nonempty terminal pages, refresh after exhaustion, retry at the same offset, independent feeds and late terminal responses. The shared listing tests cover the surrounding pagination machinery. No new automatic polling or unbounded pagination loop is introduced.
+
+          ## Recorded verification
+
+          [Exact verification run]({run}). Toolchain: FVM 4.3.1, pinned Flutter 3.47.2.
+
+          | Check | Actual workflow outcome |
+          | --- | --- |
+          | Unchanged develop repository with the new regression test: expected assertion failures | {os.environ['RED_OUTCOME']} |
+          | Pixiv and adjacent shared listing tests | {os.environ['FOCUSED_OUTCOME']} |
+          | Scoped analyzer | {os.environ['ANALYSIS_OUTCOME']} |
+          | Complete `./scripts/run_regression_tests.sh` | {os.environ['FULL_OUTCOME']} |
+
+          `success` in the first row means the controlled negative test failed on assertions as required, not that baseline develop passed. A skipped or failed later row is not qualification. The unmodified candidate implementation is restored before positive tests.
+
+          Focused result:
+          ```text
+          {summaries('focused.log')}
+          ```
+
+          Analyzer result:
+          ```text
+          {summaries('analysis.log')}
+          ```
+
+          Full-regression completion summaries:
+          ```text
+          {summaries('full-regression.log')}
+          ```
+
+          Raw logs and the exact candidate SHA are retained in the `pixiv-pagination-evidence` artifact. These results are hosted Linux automation, not Android acceptance or an independent reviewer pass. This subsequent handoff-only commit does not change the tested runtime tree.
+
+          ## Remaining acceptance
+
+          An independent reviewer has not been invoked; no independent Astra XHigh execution interface is available in this session. Android/real-account verification has not been performed. Inspect profile/account, privacy, ranking-mode/date and refresh isolation as part of that review; use the repository's exclusive emulator lease before device work.
+
+          On Android, exercise Ranking, Following and Recommended, including filtered/empty pages, terminal feeds, refresh and retry. Confirm bounded loading and correct scope when switching accounts, ranking mode/date and Following privacy. Complete the local final-candidate regression required by repository policy before requesting integration approval, particularly after a prerequisite or runtime change.
+
+          No PR, release, issue closure or merge is authorized. Keep #161 separate from the image-loading fix and retain its ID in the eventual approved integration commit. GitHub Issues remain the task tracker.
+          '''
+          # Normalize only the document template's indentation, not test evidence.
+          body = '\n'.join(line[10:] if line.startswith('          ') else line for line in body.splitlines()) + '\n'
+          Path('docs/handoffs/161-pixiv-explore-pagination.md').write_text(body)
+          PY
+          git diff --check
+          git add docs/handoffs/161-pixiv-explore-pagination.md
+          git commit -m 'docs: record exact Pixiv pagination qualification (#161)' -m 'Refs #161'
+          candidate="$(cat "$evidence/candidate.sha")"
+          test "$(git ls-remote origin "refs/heads/$TASK_BRANCH" | cut -f1)" = "$candidate"
+          header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PUSH_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$header" push origin "HEAD:refs/heads/$TASK_BRANCH"
+          git rev-parse HEAD > "$evidence/handoff.sha"
+      - name: Preserve logs and exact source identity
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pixiv-pagination-evidence
+          path: |
+            .worktrees/_artifacts/161-verification/*.log
+            .worktrees/_artifacts/161-verification/*.sha
+            .worktrees/_artifacts/161-verification/*.exit
+            .worktrees/_artifacts/161-verification/*.bundle
+          if-no-files-found: error
+          retention-days: 14
