@@ -1,0 +1,162 @@
+name: Preserve Pixiv verification evidence
+on:
+  push:
+    branches: [maintenance/develop-comprehensive-audit-20261110]
+    paths: [.github/workflows/audit-pixiv-evidence.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERIFY_RUN: "42926187330"
+      CANDIDATE: 40f306ea5d035ebfac454700b60a3692129745a0
+      TASK_BRANCH: bug/165-pixiv-media-loading
+      AUDIT_BRANCH: maintenance/develop-comprehensive-audit-20261110
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Wait for the already-running verification and record its real outcome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .worktrees/_artifacts/165-evidence
+          # This job records evidence; it is not a replacement verification gate.
+          set +e
+          gh run watch "$VERIFY_RUN" --repo "$GITHUB_REPOSITORY" --exit-status > .worktrees/_artifacts/165-evidence/watch.log 2>&1
+          watch_status=$?
+          set -e
+          printf '%s\n' "$watch_status" > .worktrees/_artifacts/165-evidence/watch.exit
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFY_RUN" > .worktrees/_artifacts/165-evidence/run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFY_RUN/jobs?per_page=100" > .worktrees/_artifacts/165-evidence/jobs.json
+      - name: Read the original candidate's result artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: pixiv-correction-evidence
+          run-id: 42926187330
+          github-token: ${{ github.token }}
+          path: .worktrees/_artifacts/165-evidence/results
+      - name: Write an attributed handoff and append the consolidated report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name Timber
+          git config user.email timberpile@proton.me
+          git worktree add --detach .worktrees/165 "$CANDIDATE"
+          python3 - <<'PY'
+          import hashlib, json, os, re
+          from pathlib import Path
+          evidence = Path('.worktrees/_artifacts/165-evidence')
+          results = evidence / 'results'
+          candidate = (results / 'candidate.sha').read_text().strip()
+          assert candidate == os.environ['CANDIDATE'], candidate
+          run = json.loads((evidence / 'run.json').read_text())
+          assert run['status'] == 'completed', run['status']
+          assert run['head_sha'] == '3c37df9b9c64cdbea28b6f2d9772a5172099ea8c'
+          jobs = json.loads((evidence / 'jobs.json').read_text())['jobs']
+          job = next(job for job in jobs if job['name'] == 'regression')
+          outcomes = {step['name']: step['conclusion'] for step in job['steps']}
+          checks = [
+              'Check formatting and patch whitespace',
+              'Run media boundary and rendering regressions',
+              'Analyze affected production and regression sources',
+              'Run complete repository regression on the exact candidate',
+          ]
+          rows = '\n'.join(f'| {check} | {outcomes.get(check, "not recorded")} |' for check in checks)
+          def summary(name):
+              path = results / name
+              if not path.exists(): return 'No result log was produced; this check is not established as passed.'
+              text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', path.read_text(errors='replace'))
+              selected = [line.strip() for line in re.split(r'[\r\n]+', text) if any(token in line for token in ('All tests passed!', 'Some tests failed.', 'Ran ', 'issues found.', 'No issues found!'))]
+              return '\n'.join(selected[-24:]) or 'No completion summary found; inspect the original artifact.'
+          digests = '\n'.join(f'- `{p.name}`: `{hashlib.sha256(p.read_bytes()).hexdigest()}`' for p in sorted(results.glob('*.log')))
+          url = run['html_url']
+          report = f'''# Pixiv media loading regression — issue #165
+
+          ## Candidate and authorization
+
+          Branch: `bug/165-pixiv-media-loading`.
+          Verified runtime/test candidate: `{candidate}`.
+          Develop prerequisite: `2e2ea428ba323706e37a65e45903d3959df439d4`.
+          Working-master source comparison: `422aeae087c1108e655d85d1a3dac25120456cd6`.
+
+          This handoff-only commit does not alter the candidate's runtime, tests or dependencies. Do not interpret publication or automated results as integration approval. No PR, release, merge into develop or issue closure is authorized. The correction is independent of P7–P10 and #164/#161; those changes are not in this branch.
+
+          ## Demonstrated cause and correction
+
+          Commit `2e2ea428` introduced exact-origin public-Referer filtering in both `MediaRequest.resolve` and `SourceMediaHttpClientAdapter`. The catalog configures `https://pixiv.net/`, but the existing Pixiv engine supplies `https://www.pixiv.net/`. Both boundaries consequently remove the engine's public image Referer for the ordinary catalog profile. Master did not apply this new filtering to ordinary image URLs. No persisted profile identity or media URL should be rewritten to work around the mismatch.
+
+          Controlled requests to the user's reported thumbnail and original URLs, without credentials, returned HTTP 403/HTML without the Referer and HTTP 206/image data with the existing Pixiv Referer. These were 1,024-byte range checks, not a full-file decode or an authenticated Android UI test. The live observations are recorded in run 42921812249.
+
+          `bc4763d1b264504d3fa448ac3ef28b6a0173daf3` adds one shared public-root predicate at URL resolution and each transport redirect hop. Its narrow alias permission covers only the canonical HTTPS Pixiv root, the existing HTTPS `www.pixiv.net` root Referer and `i.pximg.net`/`s.pximg.net` over port 443. It is not a general www normalization or credential-origin exception. Source installation checks and explicit media-host override stripping remain unchanged. Foreign hosts, lookalikes, private/query/fragment Referers, insecure aliases and nondefault ports are not granted this permission.
+
+          `9b52df7b6aa4728cc84067a57f2599cd4d1da9c1` removes `silent: true` from the two application image-fetch strategies. Previously a rejected request became null and was logged as `Empty response`; the original HTTP status is now retained. Expected candidate probes remain quiet through their existing `printError: false`. Retry policy, cache identity, cancellation and persisted data formats are unchanged. `40f306ea5d035ebfac454700b60a3692129745a0` restores the diagnostic test's captured debug callback before Flutter's binding invariants.
+
+          ## Scope and actual evidence
+
+          Four production files change: the shared media-request predicate, final scoped adapter, raw-image strategy and candidate-image strategy. Two new regression files exercise the actual engine-header provider, URL resolver, scoped media provider/adapter, fetcher and rendered failure widget. Only the remote server is replaced with controlled fixtures. The tests cover canonical and www profiles, thumbnail/preview/original variants, both independent header boundaries, unbound requests, explicit overrides, redirects, rejected aliases and credential stripping. Existing adjacent tests cover revocation, cache/preload behavior, rendering and API-origin separation.
+
+          Red evidence: test-only candidate `b28185e1e9fd829fdef965c9d310e728fd0b6d2f` in run 42922922442 passed three tests and failed five on their intended assertions. The earlier diagnostic fixture timeout was corrected and is not counted as an app defect. The first corrected candidate passed 193 adjacent tests; its only failure was test cleanup occurring after binding invariants, fixed in the final candidate.
+
+          [Final exact-candidate verification]({url}); actual workflow conclusion: **{run['conclusion']}**.
+          Toolchain: FVM 4.3.1, Flutter 3.47.2, Dart 3.13.2 on hosted Linux.
+
+          | Check | Actual outcome |
+          | --- | --- |
+          {rows}
+
+          Focused summary:
+          ```text
+          {summary('focused.log')}
+          ```
+
+          Analyzer summary:
+          ```text
+          {summary('analysis.log')}
+          ```
+
+          Complete-regression summaries:
+          ```text
+          {summary('full-regression.log')}
+          ```
+
+          A skipped, failed or absent check is not a pass. The complete command is `./scripts/run_regression_tests.sh`, covering the application, all discovered package/CLI suites and repository shell/Python tooling. Formatting used `fvm dart format --output=none --set-exit-if-changed`; analysis used `fvm flutter analyze --no-pub --no-fatal-infos` on the six changed Dart files. Informational diagnostics are not silently reported as zero findings.
+
+          The original `pixiv-correction-evidence` artifact retains raw logs and candidate identity. Result-log digests:
+          {digests}
+
+          ## Review and remaining acceptance
+
+          Source inspection and re-review were performed by the author, not an independent subagent. No independent Astra XHigh reviewer was available or invoked; no independent model/effort result is claimed. No Android/Maestro verification or real-account UI acceptance was performed. The local container later stopped accepting execution calls during toolchain transfer; hosted verification remained available. These are separate limitations, not waived gates.
+
+          Before integration, obtain independent review of the final delta, particularly the two header boundaries, public-versus-credential authority and diagnostic propagation. Reconcile with any newly approved develop changes and run the repository's required complete local final-candidate gate. Follow the exclusive Android emulator lease and restore the original test environment afterward.
+
+          Manual acceptance must exercise Browse, Explore and Following thumbnails; viewer preview and original quality; Favorites; saved images and offline reopening; refresh, retry, cancellation and preloading. Check canonical and existing www-root profiles without changing their identities. Verify neighboring engines and profile switching. Do not mutate the only copy of user data or publish account credentials. The user builds the APK; no APK delivery is required.
+
+          The next authorized step is review and scoped acceptance, not merge. Keep #165 independent of the Work/Page viewer package, retain the issue ID in the eventual approved integration commit, and leave the issue open until its completion criteria and explicit integration approval are satisfied.
+          '''
+          report = '\n'.join(line[10:] if line.startswith('          ') else line for line in report.splitlines()) + '\n'
+          Path('.worktrees/165/docs/handoffs/165-pixiv-media-loading-2026-11-10.md').write_text(report)
+          audit = Path('docs/handoffs/develop-audit-2026-11-10.md')
+          audit.write_text(audit.read_text() + f'''\n## Updated #165 qualification evidence\n\nThis section supersedes the earlier #165 in-progress checkpoint, but does not turn the partial audit or remaining feature packages into completed work. Runtime/test candidate: `{candidate}` on `bug/165-pixiv-media-loading`. Final verification run: [42926187330]({url}); conclusion: **{run['conclusion']}**.\n\n| Check | Actual outcome |\n| --- | --- |\n{rows}\n\nFocused result:\n```text\n{summary('focused.log')}\n```\n\nFull-regression completion summaries:\n```text\n{summary('full-regression.log')}\n```\n\nThe owning handoff is `docs/handoffs/165-pixiv-media-loading-2026-11-10.md` on the bugfix branch. It records root cause, exact commits, negative/positive evidence, log digests and remaining review/Android requirements. The handoff-only branch update preserves the checked runtime tree. No independent reviewer or Android acceptance has been performed, and no integration is authorized.\n\n#161 is being reconciled and qualified separately on its existing `bug/161-pixiv-explore-pagination` branch. Its own handoff, not this #165 result, must establish its eventual candidate and test outcomes. The larger #164/P8/P9/P10 implementations and the requested nine-domain independent audit remain unfinished. P7's unchanged-runtime evidence remains as recorded above.\n''')
+          PY
+          git -C .worktrees/165 diff --check
+          git -C .worktrees/165 add docs/handoffs/165-pixiv-media-loading-2026-11-10.md
+          git -C .worktrees/165 commit -m 'docs: preserve Pixiv media verification and acceptance handoff (#165)' -m 'Refs #165'
+          git diff --check
+          git add docs/handoffs/develop-audit-2026-11-10.md
+          git commit -m 'docs: consolidate exact Pixiv media qualification evidence (#165)' -m 'Refs #165'
+      - name: Publish only the two owned documentation updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin "refs/heads/$TASK_BRANCH" | cut -f1)" = "$CANDIDATE"
+          test "$(git ls-remote origin "refs/heads/$AUDIT_BRANCH" | cut -f1)" = "$GITHUB_SHA"
+          task_head="$(git -C .worktrees/165 rev-parse HEAD)"
+          header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c "http.https://github.com/.extraheader=$header" push --atomic origin "$task_head:refs/heads/$TASK_BRANCH" "HEAD:refs/heads/$AUDIT_BRANCH"
