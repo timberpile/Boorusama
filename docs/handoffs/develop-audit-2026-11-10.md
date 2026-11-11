@@ -80,3 +80,28 @@ The complete nine-domain independent repository audit requested by the user has 
 ## Acceptance boundaries
 
 All packages and #165 remain separate approval units. New production/test/dependency changes invalidate qualification of the changed candidate and require appropriate re-verification. Do not merge this audit branch, its toolchain archives or temporary workflows into develop. No APK delivery is required. Authenticated Android verification, actual independent re-review and package-specific user acceptance must be reported separately from automated results.
+
+## Updated #165 qualification evidence
+
+This section supersedes the earlier #165 in-progress checkpoint, but does not turn the partial audit or remaining feature packages into completed work. Runtime/test candidate: `40f306ea5d035ebfac454700b60a3692129745a0` on `bug/165-pixiv-media-loading`. Final verification run: [42926187330](https://github.com/timberpile/Boorusama/actions/runs/42926187330); conclusion: **failure**.
+
+| Check | Actual outcome |
+| --- | --- |
+| Check formatting and patch whitespace | success |
+| Run media boundary and rendering regressions | success |
+| Analyze affected production and regression sources | success |
+| Run complete repository regression on the exact candidate | failure |
+
+Focused result:
+```text
+00:26 +194: All tests passed!
+```
+
+Full-regression completion summaries:
+```text
+No completion summary found; inspect the original artifact.
+```
+
+The owning handoff is `docs/handoffs/165-pixiv-media-loading-2026-11-10.md` on the bugfix branch. It records root cause, exact commits, negative/positive evidence, log digests and remaining review/Android requirements. The handoff-only branch update preserves the checked runtime tree. No independent reviewer or Android acceptance has been performed, and no integration is authorized.
+
+#161 is being reconciled and qualified separately on its existing `bug/161-pixiv-explore-pagination` branch. Its own handoff, not this #165 result, must establish its eventual candidate and test outcomes. The larger #164/P8/P9/P10 implementations and the requested nine-domain independent audit remain unfinished. P7's unchanged-runtime evidence remains as recorded above.
