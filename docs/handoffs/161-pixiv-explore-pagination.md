@@ -1,5 +1,9 @@
 # Pixiv Explore pagination — issue #161
 
+Historical qualification checkpoint. The final combined review, owner acceptance
+and integration are recorded in the [P7 qualification handoff](p7-pixiv-qualification-2026-11-11.md).
+Outstanding gates below describe this earlier checkpoint.
+
 ## Candidate and authorization
 
 - Branch: `bug/161-pixiv-explore-pagination`.

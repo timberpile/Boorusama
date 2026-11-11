@@ -1,5 +1,9 @@
 # P7: existing source Groups on shared contracts
 
+Historical qualification checkpoint. The final combined review, owner acceptance
+and integration are recorded in the [P7 qualification handoff](p7-pixiv-qualification-2026-11-11.md).
+Outstanding gates below describe this earlier checkpoint.
+
 Issue: #156. Base: published P6 `2e2ea428ba323706e37a65e45903d3959df439d4`.
 The owner authorized P6 publication and subsequent P7 implementation. P6 is
 published, #143 is closed, and its completed package branch/worktree is removed.
