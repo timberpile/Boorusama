@@ -1,0 +1,80 @@
+name: Native media candidate verification
+on:
+  push:
+    branches: [maintenance/develop-comprehensive-audit-20261110]
+    paths: [.github/workflows/audit-native-media-verification.yml]
+permissions:
+  contents: read
+jobs:
+  native:
+    name: Native media issue ${{ matrix.issue }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - issue: 165
+            candidate: 40f306ea5d035ebfac454700b60a3692129745a0
+          - issue: 161
+            candidate: e9a2a2e06e987173f40f84fad14b73084a4207f5
+    env:
+      BOORUSAMA_USE_FVM: "true"
+      CI: "true"
+      FVM_CACHE_PATH: /home/runner/.cache/fvm
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ matrix.candidate }}
+          persist-credentials: false
+      - name: Install the real native media tools and record the candidate
+        run: |
+          mkdir -p .worktrees/_artifacts/native-verification
+          git rev-parse HEAD > .worktrees/_artifacts/native-verification/candidate.sha
+          sudo apt-get update
+          sudo apt-get install --yes meson nasm ripgrep ffmpeg
+          ffmpeg -version
+          ffprobe -version
+      - name: Install pinned native FVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$PWD/.worktrees/_artifacts/native-verification/tools"
+          mkdir -p "$tools"
+          curl --fail --location --retry 3 https://github.com/btwld/fvm/releases/download/4.3.1/fvm-4.3.1-linux-x64.tar.gz --output "$tools/fvm.tar.gz"
+          echo "ad59c861bdbef80c9f262d30ab28debd374afad0ef4b10b99a47bbab77e08bde  $tools/fvm.tar.gz" | sha256sum --check
+          tar -xzf "$tools/fvm.tar.gz" -C "$tools"
+          binary="$(find "$tools" -type f -name fvm -print -quit)"
+          test -n "$binary"
+          chmod +x "$binary"
+          dirname "$binary" >> "$GITHUB_PATH"
+          "$binary" --version
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /home/runner/.cache/fvm
+            ~/.pub-cache
+          key: audit-fvm-3.47.2-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/boorusama_cli/pubspec.lock') }}
+      - name: Initialize pinned generated outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          ./init.sh 2>&1 | tee .worktrees/_artifacts/native-verification/init.log
+          git diff --exit-code
+      - name: Exercise the native backend, including previously skipped cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          fvm flutter test --no-pub --concurrency="$(python3 scripts/physical_core_count.py)" --reporter expanded test/core/posts/shares/gif_ffmpeg_backend_test.dart 2>&1 | tee .worktrees/_artifacts/native-verification/native.log
+          git diff --exit-code
+      - name: Preserve supplemental exact-candidate evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: native-media-${{ matrix.issue }}
+          path: |
+            .worktrees/_artifacts/native-verification/*.log
+            .worktrees/_artifacts/native-verification/*.sha
+          if-no-files-found: error
+          retention-days: 14
