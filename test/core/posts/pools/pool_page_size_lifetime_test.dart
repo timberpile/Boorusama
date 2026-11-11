@@ -1,3 +1,14 @@
+import 'package:booru_clients/danbooru.dart';
+import 'package:booru_clients/szurubooru.dart' as szuru;
+import 'package:boorusama/boorus/danbooru/client_provider.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/src/providers.dart';
+import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
+import 'package:boorusama/boorus/szurubooru/pools/group_capability.dart';
+import 'package:boorusama/boorus/szurubooru/posts/providers.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/content/groups/group_source_provider.dart';
+import 'package:dio/dio.dart';
 import 'package:boorusama/boorus/danbooru/pools/details/src/providers/filter_provider.dart';
 import 'package:boorusama/boorus/danbooru/pools/details/src/widgets/danbooru_infinite_post_id_list.dart';
 import 'package:boorusama/boorus/danbooru/pools/pool/types.dart';
@@ -39,18 +50,64 @@ void main() {
       tester,
     ) async {
       final repository = _Repository();
+      final type = danbooru ? BooruType.danbooru : BooruType.szurubooru;
+      final config = BooruConfig.fromJson({
+        ...testProfile.toJson(),
+        'booruId': type.id,
+        'booruIdHint': type.id,
+      });
+      final dio = Dio()
+        ..interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (request, handler) {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: request,
+                  data: {
+                    'id': 1,
+                    'post_ids': _ids,
+                    'post_count': 7,
+                    'name': 'Pool',
+                  },
+                ),
+              );
+            },
+          ),
+        );
+      addTearDown(() => dio.close(force: true));
       final harness = FollowingTopicHarness(
+        profiles: [config],
         overrides: [
           originAwarePostRepoProvider.overrideWith((ref, config) => repository),
+          danbooruPostRepoProvider.overrideWith(
+            (ref, config) => repository,
+          ),
+          szurubooruPostRepoProvider.overrideWith(
+            (ref, config) => repository,
+          ),
           imageListingSettingsProvider.overrideWith(
             (ref) => Settings.defaultSettings.listing.copyWith(
               postsPerPage: ref.watch(_pageSize),
             ),
           ),
-          szurubooruPoolProvider.overrideWith((ref, params) => _szuruPool),
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, engine) => switch (engine) {
+              BooruType.danbooru => createDanbooruGroupCapability(ref),
+              BooruType.szurubooru => createSzurubooruGroupCapability(ref),
+              _ => null,
+            },
+          ),
+          danbooruClientProvider(config.auth).overrideWithValue(
+            DanbooruClient(baseUrl: config.url, dio: dio),
+          ),
+          szurubooruPoolRepoProvider(config.auth)
+              .overrideWithValue(_SzuruRepository()),
         ],
       );
       addTearDown(harness.dispose);
+      harness.container
+          .read(selectedTestProfileProvider.notifier)
+          .select(config);
       await harness.pump(
         tester,
         // Keep automatic continuation inactive while checking explicit slice
@@ -62,7 +119,10 @@ void main() {
                 ? DanbooruInfinitePostIdList(
                     pool: DanbooruPool.empty().copyWith(id: 1, postIds: _ids),
                   )
-                : const SzurubooruPoolDetailPage(poolId: 1),
+                : const SzurubooruPoolDetailPage(
+                    poolId: 1,
+                    initialPool: _szuruPool,
+                  ),
           ),
         ),
       );
@@ -78,11 +138,11 @@ void main() {
       final resized = controller();
       expect(resized, isNot(same(original)));
       expect(repository.queries.last, 'id:1,2,3');
-      await resized.refresh();
+      final refresh = resized.refresh();
+      await _complete(tester, refresh);
       expect(repository.queries.last, 'id:1,2,3');
       final load = resized.fetchMore();
-      await tester.pump(const Duration(milliseconds: 500));
-      await load;
+      await _complete(tester, load);
       expect(repository.queries.last, 'id:4,5,6');
 
       if (danbooru) {
@@ -90,10 +150,9 @@ void main() {
             .read(poolFilterProvider.notifier)
             .setOrder(PoolDetailsOrder.latest);
       } else {
-        harness.container
-                .read(szurubooruPoolDetailsOrderProvider(1).notifier)
-                .state =
-            PoolDetailsOrder.latest;
+        tester
+            .widget<PoolOrderToggle>(find.byType(PoolOrderToggle))
+            .onChanged(PoolDetailsOrder.latest);
       }
       await tester.pump();
       await tester.pump();
@@ -103,6 +162,16 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }
+}
+
+Future<void> _complete(WidgetTester tester, Future<void> future) async {
+  var complete = false;
+  future.whenComplete(() => complete = true);
+  for (var i = 0; i < 100 && !complete; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  expect(complete, isTrue, reason: 'Pool request did not complete');
+  await future;
 }
 
 class _Repository implements PostRepository<Post> {
@@ -122,4 +191,11 @@ class _Repository implements PostRepository<Post> {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _SzuruRepository extends SzurubooruPoolRepository {
+  _SzuruRepository()
+    : super(szuru.SzurubooruClient(baseUrl: 'https://active.example'));
+  @override
+  Future<SzurubooruPool?> getPool(int id) async => _szuruPool;
 }

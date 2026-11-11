@@ -55,7 +55,7 @@ extension DestinationRoutingRef on WidgetRef {
       router.go(location, extra: extra);
       return Future.value();
     }
-    final source = switch (extra) {
+    final requestedSource = switch (extra) {
       SearchRouteContext(:final config) => config.id,
       LazyPostDetailsRouteContext(:final config) => config.id,
       final BooruConfig config => config.id,
@@ -71,6 +71,12 @@ extension DestinationRoutingRef on WidgetRef {
       DetailsRouteContext(:final config) => config,
       _ => null,
     };
+    // Public member viewers carry an existing, revocable read scope rather
+    // than a saved profile UUID. Never serialize its synthetic configuration
+    // as an account route or permit an already revoked scope to navigate.
+    final publicScope = sourceConfig?.anonymousReadScope;
+    if (publicScope != null && !publicScope.isCurrent) return Future.value();
+    final source = publicScope == null ? requestedSource : null;
     final live = read(booruConfigProvider)
         .where((c) => c.id == source)
         .firstOrNull;

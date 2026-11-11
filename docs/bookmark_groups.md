@@ -150,13 +150,30 @@ preflight acquires its snapshot lock. Provider initialization runs in its own
 zone and may need that same coordinator; awaiting it inside the locked snapshot
 section can otherwise block a first import indefinitely.
 
-Ordinary timelines and local group covers omit media without a usable existing
-source/profile binding. The complete saved records and membership counts remain
-available to storage and export. Profile changes recompute this local projection
-without importing again or rewriting snapshots. Existing account, engine and
-installation-path isolation still applies; an unrelated selected profile is
-never a cover fallback. This stage adds no anonymous requests or unavailable-item
-indicator.
+Ordinary timelines and local group covers require a usable source binding. The
+complete saved records and membership counts remain available to storage and
+export. Profile changes recompute the local projection without importing again
+or rewriting snapshots. Existing account, engine and installation-path isolation
+still applies; an unrelated selected profile is never a cover fallback.
+
+Native saved Danbooru Pool/Related and Szurubooru Pool records open through the
+registered shared Group source and mixed-viewer entry. `CollectionBookmark`
+remains a thin UI/old-wire projection over the canonical saved records, without
+another allocator or durable membership store. Unproven legacy installation URLs
+are never reconstructed as HTTPS. An approved public installation with a
+registered Group reader can open without a saved profile; ambiguous accounts and
+unsupported readers remain unavailable while their saved records are retained.
+Local saving reuses the generic Kurumi picker and rechecks the captured access
+before and after asynchronous draft creation. It creates no anonymous profile.
+
+Saved Group covers are static URL/variant/geometry descriptors, resolved through
+the existing thumbnail resolver and media cache with live access admission. The effective
+visibility-policy digest and exact permitted source are checked before media
+requests or cached rendering. A rejected descriptor cannot fall back to its raw
+URL. Cover descriptors confer no Post identity or media-action capabilities.
+Explicit refresh retains local IDs, direct memberships and membership dates,
+uses the captured actor, and checks that access again before publishing. Related
+order remains the saved local preference rather than refreshed source metadata.
 
 Group conflict identity is its UUID, never its name or displayed path. Update
 replaces direct membership while preserving the existing name and placement;

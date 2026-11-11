@@ -234,12 +234,16 @@ class AppNavigationShell extends ConsumerWidget {
                 (chrome.menuOpen || chrome.barVisible);
             final viewerCoversBar = chrome.viewerOpen && !chrome.viewerClosing;
             final barShown = barPositionVisible && !viewerCoversBar;
+            // A root operation may temporarily use another source branch.
+            // Return to its caller before falling back to remembered Browse.
+            final rootCanPop = ModalRoute.canPopOf(context) ?? false;
             return PopScope(
-              canPop: !chrome.menuOpen && active == browse,
+              canPop: !chrome.menuOpen && (active == browse || rootCanPop),
               onPopInvokedWithResult: (didPop, _) {
                 if (!didPop && chrome.menuOpen) {
                   controller.setMenuOpen(false);
                 } else if (!didPop &&
+                    !rootCanPop &&
                     active != browse &&
                     !chrome.selectionActive) {
                   unawaited(select(browse));

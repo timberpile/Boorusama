@@ -21,6 +21,9 @@ class PostScope<T extends Post> extends ConsumerStatefulWidget {
     this.duplicateCheckMode = DuplicateCheckMode.id,
     this.pageMode,
     this.initialPage,
+    this.duplicateIdentity,
+    this.onRefresh,
+    this.selectionKeysBuilder,
   });
 
   final PostGridFetcher<T> fetcher;
@@ -29,6 +32,9 @@ class PostScope<T extends Post> extends ConsumerStatefulWidget {
     PostGridController<T> controller,
   )
   builder;
+  final Object? Function(T item)? duplicateIdentity;
+  final VoidCallback? onRefresh;
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final PageMode? pageMode;
   final int? initialPage;
   final DuplicateCheckMode duplicateCheckMode;
@@ -66,6 +72,7 @@ class _PostScopeState<T extends Post> extends ConsumerState<PostScope<T>> {
       fetcher: widget.fetcher,
       duplicateTracker: PostDuplicateTracker<T>(
         mode: widget.duplicateCheckMode,
+        identityExtractor: widget.duplicateIdentity,
       ),
       blacklistedTagsFetcher: () {
         if (!mounted) return Future.value({});
@@ -97,6 +104,8 @@ class _PostScopeState<T extends Post> extends ConsumerState<PostScope<T>> {
       mountedChecker: () => mounted,
       forcedPageMode: widget.pageMode != null,
       initialPage: widget.initialPage,
+      onRefresh: widget.onRefresh,
+      selectionKeysBuilder: widget.selectionKeysBuilder,
       onError: (message) {
         ref.read(loggerProvider).error('Posts', message);
       },

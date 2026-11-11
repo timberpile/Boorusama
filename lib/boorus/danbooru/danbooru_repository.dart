@@ -1,11 +1,3 @@
-import '../../core/posts/related/related_family.dart';
-import 'posts/related/related_gallery.dart';
-
-import 'package:flutter/widgets.dart';
-
-import '../../core/posts/details/src/types/viewer_entry.dart';
-import '../../core/posts/details/src/widgets/viewer_entry_content.dart';
-import 'pools/details/src/pool_viewer_content.dart';
 import '../../core/bookmarks/src/types/pool_bookmark_capability.dart';
 import 'pools/bookmarks.dart';
 import '../../core/search/search/src/types/search_option.dart';
@@ -80,20 +72,11 @@ import 'tags/user_metatags/providers.dart';
 import 'text_markup/providers.dart';
 
 class DanbooruRepository extends BooruRepositoryDefault
-    implements
-        SearchOptionsCapability,
-        PoolBookmarkCapability,
-        ViewerEntryContentCapability {
+    implements SearchOptionsCapability, PoolBookmarkCapability {
   const DanbooruRepository({
     required this.ref,
   });
 
-  @override
-  Widget buildViewerEntry(ViewerEntry entry) => switch (entry) {
-    final RelatedViewerEntry related => RelatedGallery(entry: related),
-    final PoolViewerEntry pool => DanbooruPoolViewerContent(entry: pool),
-    _ => const SizedBox.shrink(),
-  };
   @override
   Future<RemoteBookmarkPool?> getBookmarkPool(BooruConfig config, int id) =>
       DanbooruPoolBookmarks(ref).getBookmarkPool(config, id);

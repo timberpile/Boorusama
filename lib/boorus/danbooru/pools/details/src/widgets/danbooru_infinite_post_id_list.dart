@@ -1,19 +1,20 @@
+import '../../../../../../core/content/types.dart';
+import '../../../../../../core/configs/config/types.dart';
+import '../../../../../../core/posts/pools/group_post_scope.dart';
+import '../../../content_group_source.dart';
 import 'pool_gallery_checkpoint.dart';
 import '../../../../../../core/posts/details/src/routes/route_utils.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
 // Project imports:
 import '../../../../../../core/configs/config/providers.dart';
-import '../../../../../../core/errors/types.dart';
 import '../../../../../../core/posts/listing/widgets.dart';
 import '../../../../../../core/posts/pools/widgets.dart';
-import '../../../../../../core/posts/post/providers.dart';
 import '../../../../../../core/settings/providers.dart';
 import '../../../../../../core/widgets/widgets.dart';
 import '../../../../posts/listing/widgets.dart';
@@ -31,7 +32,6 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     this.scrollController,
     this.onSelectionChanged,
     this.orderControl,
-    this.useHero = true,
   });
 
   final DanbooruPool pool;
@@ -39,7 +39,6 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
   final Object? checkpointIdentity;
   final AutoScrollController? scrollController;
   final ValueChanged<bool>? onSelectionChanged;
-  final bool useHero;
   final Widget? orderControl;
   final List<Widget>? sliverHeaders;
 
@@ -50,23 +49,25 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     );
     final config = ref.watchConfig;
     final selectedOrder = order ?? ref.watch(poolFilterProvider).order;
-    final repo = ref.watch(originAwarePostRepoProvider(config));
+    final reference = const ContentReferenceCodec().parse(
+      engine: config.auth.booruType,
+      site: Uri.parse(config.url),
+      kind: ContentKind.group,
+      sourceKey: 'pool:${pool.id}',
+    );
 
     return CustomContextMenuOverlay(
-      child: PostScope<Post>(
-        key: ValueKey((selectedOrder, perPage)),
-        fetcher: (page) => TaskEither.tryCatch(
-          () => repo.fetchPostIds(
-            ids: pool.postIds ?? const [],
-            page: page,
-            perPage: perPage,
-            order: selectedOrder,
-          ),
-          (error, stackTrace) => UnknownError(
-            error: error,
-            message: error.toString(),
-          ),
-        ),
+      child: GroupPostScope(
+        scrollController: scrollController,
+        key: ValueKey((pool.id, selectedOrder, perPage)),
+        reference: reference,
+        orderKey: selectedOrder.name,
+        perPage: perPage,
+        prepareSource: (source) {
+          if (source is DanbooruGroupSource && pool.postIds != null) {
+            source.seedPool(reference, pool);
+          }
+        },
         builder: (context, controller) {
           final grid = PostGrid(
             safeArea: false,
@@ -85,19 +86,17 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
                     index: index,
                     autoScrollController: scrollController,
                     controller: controller,
-                    useHero: this.useHero && useHero,
-                    // Back must preserve the gallery viewport, rather than apply
-                    // the ordinary originating-grid scroll-to-current behavior.
-                    onTap: this.useHero
-                        ? null
-                        : () => goToPostDetailsPageFromController(
-                            ref: ref,
-                            initialIndex: index,
-                            controller: controller,
-                            initialThumbnailUrl: null,
-                            config: config,
-                            hero: false,
-                          ),
+                    // A Pool can contain the same Post more than once, so
+                    // Post-identity Hero tags are not unique in this gallery.
+                    useHero: false,
+                    onTap: () => goToPostDetailsPageFromController(
+                      ref: ref,
+                      initialIndex: index,
+                      controller: controller,
+                      initialThumbnailUrl: null,
+                      config: config,
+                      hero: false,
+                    ),
                   ),
                 ),
             sliverHeaders: [

@@ -50,20 +50,28 @@ class PostResult<T extends Post> extends Equatable {
     required this.total,
     this.maxPage,
     this.hasMore,
+    this.rawPostCount,
   });
 
-  PostResult.empty() : posts = <T>[], total = 0, maxPage = null, hasMore = null;
+  PostResult.empty()
+    : posts = <T>[],
+      total = 0,
+      maxPage = null,
+      hasMore = null,
+      rawPostCount = null;
 
   PostResult<T> copyWith({
     List<T>? posts,
     int? Function()? total,
     int? Function()? maxPage,
     bool? Function()? hasMore,
+    int? Function()? rawPostCount,
   }) => PostResult(
     posts: posts ?? this.posts,
     total: total != null ? total() : this.total,
     maxPage: maxPage != null ? maxPage() : this.maxPage,
     hasMore: hasMore != null ? hasMore() : this.hasMore,
+    rawPostCount: rawPostCount != null ? rawPostCount() : this.rawPostCount,
   );
 
   final List<T> posts;
@@ -71,8 +79,12 @@ class PostResult<T extends Post> extends Equatable {
   final int? maxPage;
   final bool? hasMore;
 
+  /// Number returned by the source before repository visibility transforms.
+  /// Consumers needing raw page progress must not infer it from filtered Posts.
+  final int? rawPostCount;
+
   @override
-  List<Object?> get props => [posts, total, maxPage, hasMore];
+  List<Object?> get props => [posts, total, maxPage, hasMore, rawPostCount];
 }
 
 extension PostResultX<T extends Post> on List<T> {
@@ -80,11 +92,13 @@ extension PostResultX<T extends Post> on List<T> {
     int? total,
     int? maxPage,
     bool? hasMore,
+    int? rawPostCount,
   }) => PostResult(
     posts: this,
     total: total,
     maxPage: maxPage,
     hasMore: hasMore,
+    rawPostCount: rawPostCount,
   );
 }
 

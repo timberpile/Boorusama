@@ -64,12 +64,49 @@ page so adjacent posts from different engines cannot inherit stale settings.
 
 ### Mixed viewer entries
 
-`ViewerEntry` separates content identity (engine, normalized host, content kind
-and upstream ID), transient source authorization, and occurrence identity in a
-displayed sequence. `PostViewerEntry` carries a real Post; `PoolViewerEntry`
-carries bounded Pool metadata. Series and Collections retain their existing Pool
-category. Engine repositories implement `ViewerEntryContentCapability` to supply
-non-Post content without importing engine implementation classes into Core.
+`ViewerEntry` separates semantic `ContentIdentity`, validated source address,
+transient source authorization, and occurrence identity in a displayed sequence.
+`PostViewerEntry` carries a real Post; `GroupViewerEntry` carries a
+`ContentGroupSummary`. Danbooru Pools and direct Related families, and Szurubooru
+Pools, register one `BooruGroupCapability` in the existing engine registry.
+`ContentGroupPage` is the shared source/metadata/presentation dispatch for mixed
+entries and stable native routes. Legacy Pool/Related entry classes and the
+repository-specific viewer dispatch have no runtime callers.
+
+Each authorized `ContentGroupSource` reuses existing HTTP clients and Post
+repositories. Summary, Details and member manifests share an access-scoped
+single-flight envelope where the API already combines them. Native Pool category
+is metadata, never identity; unknown manifests remain unknown. The manifest
+assigns original zero-based positions before display sorting or filtering,
+retains repeated memberships, and restores batched responses to source order.
+Missing Posts preserve their positions. Real, already loaded Posts are reused
+in `GroupMemberBatch.resolved`; no synthetic cover Post enters the viewer.
+Related retains the canonical direct-family query and existing oldest/newest
+sort without claiming authored chronology. Raw source cursors progress through
+filtered empty batches; stalled or missing continuation fails explicitly.
+The native Related repository captures `PostResult.rawPostCount` before
+banned/Flash visibility filtering and preserves it through origin binding. The
+Group adapter uses that raw progress alongside exact counts; ordinary Search
+keeps its existing nullable `hasMore` completeness contract. Existing numeric page selectors use the optional
+`IndexedGroupMemberSource` capability for one bounded native page request;
+cursor-only sources retain their sequential contract. Explicit refresh invalidates
+the source envelope and resolved Posts on every page, while page navigation
+preserves the current source snapshot.
+
+Refresh revisions belong to the exact access context and Group reference.
+Other occurrences of that Group discard their old pager before admitting fresh
+metadata and members; late results cannot enter the new projection. Numeric
+pagination retains its selected page, while infinite pagination restarts from
+the first page and viewport. Inactive occurrences defer requests until active.
+Refreshing one Pool does not revoke unrelated Pool reads.
+
+The Group grid deduplicates source member keys instead of Post identities, so
+repeated Pool memberships survive ingestion. Selection reconciles those same
+membership keys through filtered projections and appends; changing filter rules
+retains the established selection-reset policy. Content actions collapse selected
+repetitions to one target per engine/site/Post identity; the persisted bookmark
+identity and each displayed occurrence remain unchanged. Native Pool grids disable
+Post-identity Heroes and pass the exact clicked index to the normal member route.
 
 `ViewerEntrySequence` owns the route snapshot and explicitly maps displayed page
 indices to its compact list of real Posts. Repeated content may occupy distinct
@@ -81,9 +118,9 @@ regroups the viewer's raw Posts. Explicit Pool searches remain ordinary Post
 sequences.
 
 One `PostDetailsPageView` and scaffold own horizontal navigation. Post controllers
-are optional for Pool-only sequences; their `postAtPage` lookup returns null for
+are optional for Group-only sequences; their `postAtPage` lookup returns null for
 groups. The retained `currentPost` notifier is for real Post consumers only.
-Pool pages have no inherited current Post, details sheet, zoom transformation,
+Group pages have no inherited current Post, details sheet, zoom transformation,
 playback controls or vertical dismiss gesture. Preloading resolves only real
 Posts in the existing bounded displayed-index window. Slideshow advancement
 pauses before entering a group.
@@ -91,8 +128,9 @@ pauses before entering a group.
 Danbooru's standalone Pool route and embedded pages use `PoolDetailContent`.
 Pool entries declare content-owned navigation through
 `usesContentNavigationHeader`; the outer Post overlay is omitted for those
-entries. The shared 56dp floating action bar contains Back, Bookmark, Search
-and Download and owns the status-bar inset. Loading and error states retain
+entries. The shared 56dp floating action bar retains Back, Bookmark and Search,
+adds portable Group-link sharing, and offers Download only for saved-account
+access. It owns the status-bar inset. Loading and error states retain
 that navigation; a missing source offers Back without source-dependent actions.
 The title and description scroll with the grid. A `TimelineOptionSelector`
 supplies local Pool order through the timeline's optional `additionalControls`,
@@ -122,7 +160,25 @@ the originating-grid exit scroll adjustment or competing Hero transitions. Back
 therefore preserves the gallery offset and outer page. Inactive grids do not
 respond to refresh shortcuts or automatic scroll pagination. Entries, source
 bindings, live callbacks and controllers are transient; persisted Post/Pool
-snapshots and backup formats remain unchanged.
+snapshots retain their established codecs and backup compatibility. Member routes
+retain their gallery's actor, including explicitly allowed public access; adding
+another profile cannot upgrade that route. A public read scope is never encoded
+as a synthetic account UUID in navigation.
+
+An imperative source shell with a root caller lets Back return to that caller,
+even when its reader differs from the remembered Browse profile. A child veto
+for selection or an expanded details sheet is consumed locally. Root-level
+Browse fallback applies only when no root caller exists; opening a Group or its
+members does not change the globally selected profile or navigation preferences.
+
+Portable `boorusama://group/open` links and v1 `.bslink` documents contain only a
+validated engine, full installation URL and canonical Group key. They reuse the
+existing strict outer link grammar and Group reference codec, never local IDs,
+account hints, credentials or cached metadata. Opening chooses a compatible
+profile explicitly when ambiguous, or uses the existing anonymous source allow
+list for an exact approved public installation. Unknown/custom HTTP addresses
+require a configured profile. Stable native Pool links continue to use the same
+registered dispatch; member sharing retains ordinary Post links.
 
 For sites whose listings expose only thumbnails, keep that thumbnail as the
 provisional media URL instead of deriving an original path that the listing

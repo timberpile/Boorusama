@@ -1,9 +1,12 @@
+import '../../../content/groups/group_source_provider.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../content/anonymous_source_policy.dart';
 import '../../../content/anonymous_access_provider.dart';
+import '../../../content/types.dart';
 import '../../../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark_grid_entry.dart';
@@ -19,6 +22,8 @@ class BookmarkProfileAvailability {
     BookmarkLibraryState library,
     List<BooruConfig> profiles, {
     AnonymousSourcePolicy policy = const AnonymousSourcePolicy(),
+    bool Function(ContentReference reference)? supportsGroup,
+    ContentReferenceCodec references = const ContentReferenceCodec(),
   }) {
     final posts = <int>{};
     final collections = <String>{};
@@ -61,24 +66,59 @@ class BookmarkProfileAvailability {
       }
     }
     for (final collection in library.pools) {
-      if (resolvePoolBookmarkProfile(collection, profiles) != null) {
+      final profile = resolvePoolBookmarkProfile(collection, profiles);
+      final resolution = const PostOriginResolver().resolve(
+        collection.origin,
+        profiles,
+        allowProfileHintFallback: false,
+      );
+      final key = collection.bookmarkId ?? ('pool', collection.localId);
+      if (resolution is AmbiguousPostOrigin) {
+        reasons[key] = PostPresentationFallbackReason.ambiguousProfile;
+        continue;
+      }
+      ContentReference? reference;
+      final site =
+          collection.sourceSite ??
+          (profile == null ? null : Uri.tryParse(profile.url));
+      if (site != null &&
+          collection.sourceTypeId == collection.origin.booruType.id &&
+          normalizePostSourceHost(site.toString()) ==
+              collection.origin.sourceHost) {
+        try {
+          reference = references.parse(
+            engine: collection.origin.booruType,
+            site: site,
+            kind: ContentKind.group,
+            sourceKey:
+                '${collection.isRelated ? 'related' : 'pool'}:${collection.referenceId}',
+          );
+        } on FormatException {
+          reference = null;
+        }
+      }
+      // A registry-free caller retains its legacy private projection. Public
+      // display always requires both a proven locator and registered reader.
+      final supported = supportsGroup == null
+          ? profile != null
+          : reference != null && supportsGroup(reference);
+      final public = reference == null
+          ? null
+          : policy.resolve(reference.engine, reference.site);
+      if (supported && (profile != null || public != null)) {
         collections.add(collection.localId);
       } else {
-        final resolution = const PostOriginResolver().resolve(
-          collection.origin,
-          profiles,
-          allowProfileHintFallback: true,
-        );
-        reasons[collection.bookmarkId ??
-            ('pool', collection.localId)] = resolution is AmbiguousPostOrigin
-            ? PostPresentationFallbackReason.ambiguousProfile
-            : policy.forNamespace(
-                    collection.origin.booruType,
-                    collection.origin.sourceHost,
-                  ) ==
-                  null
-            ? PostPresentationFallbackReason.missingProfile
-            : PostPresentationFallbackReason.unavailableEngine;
+        reasons[key] =
+            profile != null ||
+                (supportsGroup == null
+                    ? policy.forNamespace(
+                            collection.origin.booruType,
+                            collection.origin.sourceHost,
+                          ) !=
+                          null
+                    : public != null)
+            ? PostPresentationFallbackReason.unavailableEngine
+            : PostPresentationFallbackReason.missingProfile;
       }
     }
     postIds = Set.unmodifiable(posts);
@@ -191,11 +231,22 @@ final bookmarkProfileAvailabilityProvider =
                 library,
                 profiles,
                 policy: ref.watch(anonymousSourcePolicyProvider),
+                references: library.pools.isEmpty
+                    ? const ContentReferenceCodec()
+                    : ref.watch(contentReferenceCodecProvider),
+                supportsGroup: (reference) =>
+                    ref
+                        .watch(booruGroupCapabilityProvider(reference.engine))
+                        ?.presentation
+                        .supports(ContentGroupSummary(reference: reference)) ??
+                    false,
               );
       },
       dependencies: [
         bookmarkProvider,
         booruConfigProvider,
         anonymousSourcePolicyProvider,
+        contentReferenceCodecProvider,
+        booruGroupCapabilityProvider,
       ],
     );

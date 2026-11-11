@@ -6,7 +6,7 @@ import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import 'package:boorusama/core/configs/config/types.dart';
-import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
@@ -15,6 +15,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'pool_bookmark_test_utils.dart';
 
 void main() {
+  GroupViewerEntry groupEntry(String sourceKey, Object occurrenceId) =>
+      GroupViewerEntry(
+        summary: ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: poolOrigin().booruType,
+            site: Uri.parse('https://danbooru.donmai.us'),
+            kind: ContentKind.group,
+            sourceKey: sourceKey,
+          ),
+          title: sourceKey,
+        ),
+        occurrenceId: occurrenceId,
+        source: null,
+      );
+
   test(
     'parent, child and siblings share a source-scoped direct-family identity',
     () {
@@ -47,34 +62,13 @@ void main() {
   );
 
   test('repeat families retain separate occurrences in a mixed sequence', () {
-    final family = RelatedFamilyReference.fromPost(testRelatedPost(10));
     final sequence = ViewerEntrySequence([
       PostViewerEntry(post: testRelatedPost(1), occurrenceId: 0),
-      PoolViewerEntry(
-        origin: poolOrigin(),
-        pool: const RemoteBookmarkPool(
-          id: 1,
-          title: '',
-          category: BookmarkedPoolCategory.series,
-          total: null,
-        ),
-        occurrenceId: 1,
-        source: null,
-      ),
-      RelatedViewerEntry(family: family, occurrenceId: 2, source: null),
-      PoolViewerEntry(
-        origin: poolOrigin(),
-        pool: const RemoteBookmarkPool(
-          id: 2,
-          title: '',
-          category: BookmarkedPoolCategory.collection,
-          total: null,
-        ),
-        occurrenceId: 3,
-        source: null,
-      ),
+      groupEntry('pool:1', 1),
+      groupEntry('related:10', 2),
+      groupEntry('pool:2', 3),
       PostViewerEntry(post: testRelatedPost(2), occurrenceId: 4),
-      RelatedViewerEntry(family: family, occurrenceId: 5, source: null),
+      groupEntry('related:10', 5),
     ]);
     expect(sequence.entries, hasLength(6));
     expect(

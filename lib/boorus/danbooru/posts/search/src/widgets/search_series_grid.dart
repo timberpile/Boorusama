@@ -1,3 +1,5 @@
+import '../../../../../../core/content/types.dart';
+import '../../../../../../core/content/content_access_provider.dart';
 import '../../../../../../core/posts/details/src/types/viewer_entry.dart';
 import '../../../../../../core/posts/details/src/routes/route_utils.dart';
 import '../../../../../../core/posts/details/src/routes/post_details_live_source.dart';
@@ -259,13 +261,32 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
   List<ViewerEntry> _viewerEntries() {
     _syncProjection();
     if (_display.isNotEmpty) _lastFrozenFirstIndex = _display.last.firstIndex;
-    final source = ViewerSourceBinding(widget.config);
+    final source = widget.config.anonymousReadScope == null
+        ? ViewerSourceBinding(widget.config)
+        : ViewerSourceBinding.publicRead(
+            PostOrigin.fromSource(
+              booruType: widget.config.auth.booruType,
+              booruId: widget.config.auth.booruType.id,
+              source: widget.config.url,
+            ),
+          );
     return [
       for (final entry in _display)
         if (_displayPools[(entry.firstIndex, entry.seriesId)] case final pool?)
-          PoolViewerEntry(
-            origin: entry.posts.first.origin,
-            pool: pool,
+          GroupViewerEntry(
+            summary:
+                pool.loadedDetails?.summary ??
+                ContentGroupSummary(
+                  reference: const ContentReferenceCodec().parse(
+                    engine: widget.config.auth.booruType,
+                    site: Uri.parse(widget.config.url),
+                    kind: ContentKind.group,
+                    sourceKey: 'pool:${pool.id}',
+                  ),
+                  title: pool.title,
+                  memberCount: pool.total,
+                  displayCategory: pool.category.name,
+                ),
             occurrenceId: (_generation, entry.firstIndex, 'pool', pool.id),
             source: source,
           )
@@ -283,12 +304,22 @@ class _SearchSeriesGridState extends ConsumerState<SearchSeriesGrid> {
     final generation = _generation;
     final controller = widget.controller;
     final config = widget.config;
+    bool sourceCurrent() {
+      final public = config.anonymousReadScope;
+      if (public == null) return ref.read(booruConfigProvider).contains(config);
+      return public.isCurrent &&
+          identical(
+            ref.read(contentAccessContextProvider(public.key))?.config,
+            config,
+          );
+    }
+
     bool valid() =>
         mounted &&
         generation == _generation &&
         controller == widget.controller &&
         config == widget.config &&
-        ref.read(booruConfigProvider).contains(config);
+        sourceCurrent();
     final pagination = PostDetailsLiveSource(
       changes: controller,
       posts: () => controller.items,

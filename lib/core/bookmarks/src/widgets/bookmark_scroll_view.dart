@@ -1,7 +1,6 @@
-import '../../../posts/related/related_family.dart';
+import 'bookmark_group_viewer_entry.dart';
 import '../providers/pool_bookmark_provider.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
-import '../types/pool_bookmark_capability.dart';
 
 import 'package:collection/collection.dart';
 
@@ -497,7 +496,11 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       .contains(bookmark.id) ??
                   false),
         BookmarkPoolEntry(:final pool) =>
-          resolvePoolBookmarkProfile(pool, profiles) != null,
+          ref
+                  .read(bookmarkProfileAvailabilityProvider)
+                  ?.collectionIds
+                  .contains(pool.localId) ??
+              false,
       };
 
   bool _hasUnavailableEntries(List<BooruConfig> profiles) =>
@@ -573,7 +576,6 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   );
 
   List<ViewerEntry> _viewerEntries() {
-    final profiles = ref.read(booruConfigProvider);
     return List.unmodifiable(
       _entries.map(
         (entry) => switch (entry) {
@@ -588,35 +590,10 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 ) ??
                 const ViewerSourceBinding(BooruConfig.empty),
           ),
-          BookmarkPoolEntry(:final pool) when pool.family != null =>
-            RelatedViewerEntry(
-              family: pool.family!,
-              occurrenceId: entry.key,
-              source: switch (resolvePoolBookmarkProfile(pool, profiles)) {
-                final config? => ViewerSourceBinding(
-                  config,
-                  bookmarkId: pool.bookmarkId,
-                ),
-                _ => null,
-              },
-            ),
-          BookmarkPoolEntry(:final pool) => PoolViewerEntry(
-            origin: pool.origin,
-            pool: RemoteBookmarkPool(
-              id: pool.referenceId,
-              title: pool.title,
-              category: pool.category,
-              total: pool.total,
-              supportsUploadOrder: true,
-            ),
+          BookmarkPoolEntry(:final pool) => groupViewerEntryForBookmark(
+            ref,
+            pool,
             occurrenceId: entry.key,
-            source: switch (resolvePoolBookmarkProfile(pool, profiles)) {
-              final config? => ViewerSourceBinding(
-                config,
-                bookmarkId: pool.bookmarkId,
-              ),
-              _ => null,
-            },
           ),
         },
       ),

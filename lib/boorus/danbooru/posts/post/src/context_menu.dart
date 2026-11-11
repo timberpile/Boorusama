@@ -35,7 +35,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
-    final snapshot = PostActionSnapshot([post], ref.watch(booruConfigProvider));
+    final snapshot = PostActionSnapshot.watch(ref, [post]);
     final selectionModeController = SelectionMode.maybeOf(context);
 
     return KurumiContextMenu(
@@ -74,7 +74,7 @@ List<Widget> buildDanbooruSinglePostActions(
 }) {
   final profile = ref.watchConfig;
   final login = ref.watch(danbooruLoginDetailsProvider(profile.auth));
-  final snapshot = PostActionSnapshot([post], ref.watch(booruConfigProvider));
+  final snapshot = PostActionSnapshot.watch(ref, [post]);
   void execute(VoidCallback action) {
     if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
       Kurumi.showErrorToast(context, context.t.post.action.operation_failed);

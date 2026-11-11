@@ -8,12 +8,66 @@ import 'package:foundation/foundation.dart';
 // Project imports:
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
 import '../../../support/fakes/test_post.dart';
 
 void main() {
+  test(
+    'initial paginated ordinal is used once, then refresh resets normally',
+    () async {
+      final pages = <int>[];
+      final controller = PostGridController<Post>(
+        fetcher: (page) {
+          pages.add(page);
+          return TaskEither.right(testPostResult([TestPost(id: page)]));
+        },
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => true,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        pageMode: PageMode.paginated,
+        initialPage: 3,
+      );
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      expect(controller.page, 3);
+      await controller.refresh();
+      expect(controller.page, 1);
+      expect(pages, [3, 1]);
+    },
+  );
+
+  test(
+    'explicit refresh invalidates source while page navigation does not',
+    () async {
+      var invalidations = 0;
+      final pages = <int>[];
+      final controller = PostGridController<Post>(
+        fetcher: (page) {
+          pages.add(page);
+          return TaskEither.right(testPostResult([TestPost(id: page)]));
+        },
+        blacklistedTagsFetcher: () async => const {},
+        mountedChecker: () => true,
+        duplicateTracker: PostDuplicateTracker(),
+        onError: (_) {},
+        pageMode: PageMode.paginated,
+        onRefresh: () => invalidations++,
+      );
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      await controller.jumpToPage(3);
+      expect(invalidations, 1);
+      expect(pages, [1, 3]);
+      await controller.refresh(maintainPage: true);
+      expect(invalidations, 2);
+      expect(pages, [1, 3, 3]);
+    },
+  );
+
   test('a refresh requested mid-fetch replaces the stale result', () async {
     final listing = _GatedListing();
     final controller = listing.controller;

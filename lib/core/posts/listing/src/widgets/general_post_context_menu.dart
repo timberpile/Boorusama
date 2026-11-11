@@ -1,4 +1,3 @@
-import '../../../../configs/manage/providers.dart';
 import '../types/post_action_snapshot.dart';
 import 'post_actions.dart';
 
@@ -40,9 +39,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
       builder: (context, posts, _) {
         if (index >= posts.length) return child;
         final post = posts[index];
-        final snapshot = PostActionSnapshot([
-          post,
-        ], ref.watch(booruConfigProvider));
+        final snapshot = PostActionSnapshot.watch(ref, [post]);
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
             PostContextMenuActions(

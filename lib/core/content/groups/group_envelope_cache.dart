@@ -18,6 +18,32 @@ final class GroupEnvelopeCache<T> {
   final int maxEntries;
   final _entries = <ContentReference, _Envelope<T>>{};
   var _disposed = false;
+  final _invalidatedSeeds = <ContentReference>{};
+
+  /// Admit a real envelope already fetched by the same source route. This does
+  /// not replace pending work or grant access to an imported metadata snapshot.
+  bool seed(ContentReference reference, T value) {
+    if (_disposed || _invalidatedSeeds.contains(reference)) return false;
+    if (reference.kind != ContentKind.group ||
+        reference.engine != access.engine ||
+        reference.siteNamespace != access.siteNamespace) {
+      throw const FormatException('Foreign Group envelope');
+    }
+    final existing = _entries[reference];
+    if (existing != null) return false;
+    while (_entries.length >= maxEntries) {
+      final completed = _entries.entries
+          .where((entry) => entry.value.done)
+          .firstOrNull;
+      if (completed == null) return false;
+      _entries.remove(completed.key);
+    }
+    final entry = _Envelope<T>()..done = true;
+    entry.result.complete(value);
+    unawaited(entry.changes.close());
+    _entries[reference] = entry;
+    return true;
+  }
 
   Future<T> load(ContentReference reference, Future<T> Function() loader) {
     if (_disposed) return Future.error(RequestCancelledError());
@@ -166,6 +192,7 @@ final class GroupEnvelopeCache<T> {
   }
 
   void invalidate(ContentReference reference) {
+    _invalidatedSeeds.add(reference);
     final entry = _entries[reference];
     if (entry != null) _abort(reference, entry);
   }

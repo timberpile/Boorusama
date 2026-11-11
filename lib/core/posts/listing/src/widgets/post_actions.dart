@@ -91,6 +91,7 @@ List<PostActionDefinition> postActionDefinitions(
   Future<void> Function()? downloadOverride,
 }) {
   final feedback = Navigator.of(context, rootNavigator: true).context;
+  bool current() => snapshot.accountsMatch(ref.read(booruConfigProvider));
   Future<void> run(Future<void> Function() action) async {
     try {
       if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
@@ -112,7 +113,9 @@ List<PostActionDefinition> postActionDefinitions(
     for (final post in snapshot.posts) library?.storedBookmarkForPost(post),
   ];
   final canUseStoredDownload =
-      snapshot.allResolved && stored.every((p) => p != null);
+      !snapshot.accessRequired &&
+      snapshot.allResolved &&
+      stored.every((p) => p != null);
   final fallbackAuth = ref.watchConfigAuth;
   final fallbackDownload = ref.watchConfigDownload;
   final groups = <BooruConfig, List<Post>>{};
@@ -208,9 +211,15 @@ List<PostActionDefinition> postActionDefinitions(
             ];
             for (final operation in operations) {
               if (operation.posts.length == 1) {
-                await operation.notifier.download(operation.posts.single);
+                await operation.notifier.download(
+                  operation.posts.single,
+                  isCurrent: current,
+                );
               } else {
-                await operation.notifier.bulkDownload(operation.posts);
+                await operation.notifier.bulkDownload(
+                  operation.posts,
+                  isCurrent: current,
+                );
               }
             }
           }
@@ -240,6 +249,7 @@ List<PostActionDefinition> postActionDefinitions(
           ];
           final result = await runFavoriteAction(feedback, () async {
             for (final operation in operations) {
+              if (!current()) throw StateError('Post action access changed');
               final success = removeFavorites
                   ? await operation.notifier.remove(
                       operation.postId,

@@ -69,9 +69,11 @@ final danbooruPostRepoProvider =
 
           int? total;
           bool? hasMore;
+          int? rawPostCount;
           if (tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
-            // The ordinary count may be estimated or cached. Only a fresh
-            // exact count can prove that every raw member was received.
+            // Preserve the existing exact-completeness contract for ordinary
+            // Search. Groups additionally need raw progress before filtering.
+            rawPostCount = posts.length;
             final count = await client.countPosts(
               tags: [
                 ...tags,
@@ -88,7 +90,11 @@ final danbooruPostRepoProvider =
               if (page == 1 && uniqueCount == count) hasMore = false;
             }
           }
-          final result = posts.toResult(total: total, hasMore: hasMore);
+          final result = posts.toResult(
+            total: total,
+            hasMore: hasMore,
+            rawPostCount: rawPostCount,
+          );
           return (options?.cascadeRequest ?? true)
               ? transformPosts(ref, result, config)
               : result;

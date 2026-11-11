@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
+import '../../../content/content_access_provider.dart';
 import '../types/bookmark_picker_request.dart';
 import '../services/bookmark_library_service.dart';
 import '../types/bookmark_target.dart';
@@ -65,7 +66,17 @@ class BookmarkPickerActions {
   void _checkOwnership() {
     if (_disposed || !isActive()) throw StateError('Bookmark picker dismissed');
     if (request.source case final source?) {
-      if (!container.read(booruConfigProvider).contains(source)) {
+      final public = source.anonymousReadScope;
+      if (public != null) {
+        if (!public.isCurrent)
+          throw StateError('Bookmark picker source changed');
+        final access = container.read(contentAccessContextProvider(public.key));
+        if (access == null ||
+            access.key.profileId != null ||
+            !identical(access.config, source)) {
+          throw StateError('Bookmark picker source changed');
+        }
+      } else if (!container.read(booruConfigProvider).contains(source)) {
         throw StateError('Bookmark picker source changed');
       }
     }

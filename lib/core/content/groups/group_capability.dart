@@ -20,6 +20,15 @@ abstract interface class BooruGroupPresentation {
   Widget buildDetails(BuildContext context, ContentGroupDetails details);
 }
 
+/// Optional source-owned Group actions which remain valid before Details load.
+/// These are never inherited Post download/favorite/media actions.
+abstract interface class BooruGroupStatusPresentation {
+  List<Widget> buildStatusActions(
+    BuildContext context,
+    ContentGroupSummary summary,
+  );
+}
+
 final class BooruGroupCapability {
   BooruGroupCapability({
     required this.engine,

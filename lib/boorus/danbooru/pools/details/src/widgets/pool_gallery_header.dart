@@ -1,3 +1,6 @@
+import '../../../../../../core/posts/links/share_group_link_button.dart';
+import '../../../../../../core/configs/config/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -21,18 +24,21 @@ class PoolGalleryHeader extends ConsumerWidget {
 
 List<Widget> poolGalleryActions(WidgetRef ref, RemoteBookmarkPool pool) => [
   PoolBookmarkButton(pool: pool),
+  const GroupLinkShareButton(),
   IconButton(
     tooltip: ref.context.t.generic.action.search,
     icon: const Icon(Symbols.search),
-    onPressed: () => goToSearchPage(ref, tag: 'pool:${pool.id}'),
+    onPressed: () =>
+        goToSearchPage(ref, tag: 'pool:${pool.id}', config: ref.readConfig),
   ),
-  IconButton(
-    tooltip: ref.context.t.download.download,
-    icon: const Icon(Symbols.download),
-    onPressed: () => goToBulkDownloadPage(
-      ref.context,
-      ['pool:${pool.id}'],
-      ref: ref,
+  if (ref.watchConfig.anonymousReadScope == null)
+    IconButton(
+      tooltip: ref.context.t.download.download,
+      icon: const Icon(Symbols.download),
+      onPressed: () => goToBulkDownloadPage(
+        ref.context,
+        ['pool:${pool.id}'],
+        ref: ref,
+      ),
     ),
-  ),
 ];

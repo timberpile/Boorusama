@@ -1,5 +1,6 @@
 import 'viewer_navigation_scope.dart';
 import '../types/viewer_entry.dart';
+import '../widgets/group_viewer_scope.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,38 @@ void goToPostDetailsPageFromController<T extends Post>({
     projection.open(initialIndex, initialThumbnailUrl);
     return;
   }
+  final group = GroupViewerScope.maybeOf(ref.context);
+  final sourceConfig = config ?? ref.readConfig;
+  final binding =
+      group?.entry.source ??
+      (sourceConfig.anonymousReadScope == null
+          ? null
+          : ViewerSourceBinding.publicRead(
+              PostOrigin.fromSource(
+                booruType: sourceConfig.auth.booruType,
+                booruId: 0,
+                source: sourceConfig.url,
+              ),
+            ));
+  List<ViewerEntry> boundEntries() => [
+    for (final (index, post) in controller.items.indexed)
+      PostViewerEntry(post: post, occurrenceId: index, source: binding),
+  ];
+  final live = PostDetailsLiveSource(
+    changes: controller,
+    posts: () => controller.items,
+    hasMore: () =>
+        (canContinue?.call() ?? true) &&
+        controller.pageMode == PageMode.infinite &&
+        controller.hasMore,
+    loading: () => controller.loadingMore,
+    failed: () => controller.errors.value != null,
+    fetchMore: () async {
+      if (canContinue?.call() ?? true) {
+        await controller.fetchMore(canStart: canContinue);
+      }
+    },
+  );
   goToPostDetailsPageCore(
     ref: ref,
     posts: controller.items.toList(),
@@ -58,21 +91,15 @@ void goToPostDetailsPageFromController<T extends Post>({
     initialThumbnailUrl: initialThumbnailUrl,
     hero: hero,
     config: config,
-    liveSource: PostDetailsLiveSource(
-      changes: controller,
-      posts: () => controller.items,
-      hasMore: () =>
-          (canContinue?.call() ?? true) &&
-          controller.pageMode == PageMode.infinite &&
-          controller.hasMore,
-      loading: () => controller.loadingMore,
-      failed: () => controller.errors.value != null,
-      fetchMore: () async {
-        if (canContinue?.call() ?? true) {
-          await controller.fetchMore(canStart: canContinue);
-        }
-      },
-    ),
+    liveSource: binding == null ? live : null,
+    entries: binding == null ? null : boundEntries(),
+    entrySource: binding == null
+        ? null
+        : ViewerEntryLiveSource(
+            changes: controller,
+            entries: boundEntries,
+            pagination: live,
+          ),
   );
 }
 

@@ -12,10 +12,11 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/pools/widgets.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_details_page.dart';
 import 'package:material_symbols_icons/symbols.dart';
-import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_content.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/details_pageview/widgets.dart';
-import 'package:boorusama/boorus/danbooru/danbooru_repository.dart';
+import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/content/groups/group_source_provider.dart';
 
 import 'dart:io';
 
@@ -31,11 +32,15 @@ import 'package:boorusama/boorus/danbooru/posts/search/src/widgets/search_series
 import 'package:boorusama/core/search/following_topics/src/widgets/feed_post_thumbnail.dart';
 
 import 'dart:async';
+
+import 'package:boorusama/core/posts/links/share_group_link_button.dart';
+
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:booru_clients/danbooru.dart' as api;
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
+import 'package:boorusama/boorus/danbooru/posts/post/src/providers.dart';
 import 'package:boorusama/boorus/danbooru/pools/bookmarks.dart';
 import 'package:boorusama/boorus/danbooru/pools/details/src/pool_detail_page.dart';
 import 'package:boorusama/boorus/danbooru/pools/pool/types.dart';
@@ -120,7 +125,8 @@ void main() {
       await harness.settle(tester);
       Finder familyGallery() => find.byWidgetPredicate(
         (widget) =>
-            widget is RelatedGallery && widget.entry.family.anchorId == 10,
+            widget is RelatedGallery &&
+            widget.entry.summary.reference.sourceKey == 'related:10',
       );
       PostGrid<Post>? maybeGallery() {
         if (familyGallery().evaluate().isEmpty) return null;
@@ -214,7 +220,8 @@ void main() {
       await harness.settle(tester);
       Finder familyGallery() => find.byWidgetPredicate(
         (widget) =>
-            widget is RelatedGallery && widget.entry.family.anchorId == 10,
+            widget is RelatedGallery &&
+            widget.entry.summary.reference.sourceKey == 'related:10',
       );
       PostGrid<Post>? maybeGallery() {
         if (familyGallery().evaluate().isEmpty) return null;
@@ -790,7 +797,8 @@ void main() {
                       ),
                     )
                     .toList();
-            expect(targets, hasLength(4));
+            expect(inside(find.byType(GroupLinkShareButton)), findsOneWidget);
+            expect(targets, hasLength(5));
             for (var i = 0; i < targets.length; i++) {
               expect(targets[i].width, greaterThanOrEqualTo(48));
               expect(targets[i].height, greaterThanOrEqualTo(48));
@@ -2482,6 +2490,7 @@ void main() {
         tester,
         initialOtherProfile: true,
         seedReference: true,
+        longGallery: true,
       );
       final harness = setup.harness;
       await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
@@ -2493,7 +2502,20 @@ void main() {
         find.byType(PoolDetailContent),
       );
       expect(page.pool.id, 10);
-      expect(page.pool.postIds, hasLength(20));
+      expect(page.pool.postCount, 20);
+      final gallery = tester.widget<PostGrid<Post>>(
+        find.descendant(
+          of: find.byType(PoolDetailContent),
+          matching: find.byType(PostGrid<Post>),
+        ),
+      );
+      await harness.pumpUntil(
+        tester,
+        () => gallery.controller.items.length == 20,
+      );
+      expect(gallery.controller.items.map((post) => post.id), [
+        for (var id = 101; id <= 120; id++) id,
+      ]);
       final scoped = ProviderScope.containerOf(
         tester.element(find.byType(PoolDetailContent)),
         listen: false,
@@ -2905,8 +2927,13 @@ _mount(
         booruBuilderProvider.overrideWith(
           (ref, auth) => _SeriesSearchBuilder(),
         ),
-      viewerEntryContentCapabilityProvider.overrideWith(
-        (ref, config) => DanbooruRepository(ref: ref),
+      booruGroupCapabilityProvider.overrideWith(
+        (ref, type) => type == BooruType.danbooru
+            ? createDanbooruGroupCapability(ref)
+            : null,
+      ),
+      danbooruPostRepoProvider.overrideWith(
+        (ref, config) => ref.read(postRepoProvider(config)),
       ),
       deterministicImageDioOverride(),
       deterministicFaviconDioOverride(),

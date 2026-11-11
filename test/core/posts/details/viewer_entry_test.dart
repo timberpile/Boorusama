@@ -1,6 +1,6 @@
-import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
-import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_capability.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,13 +16,19 @@ void main() {
     'login': 'original',
   });
   final source = ViewerSourceBinding(profile);
-  PoolViewerEntry group(String occurrence, {int id = 10}) => PoolViewerEntry(
-    origin: poolOrigin(),
-    pool: RemoteBookmarkPool(
-      id: id,
+  ContentReference groupReference(int id) =>
+      const ContentReferenceCodec().parse(
+        engine: BooruType.danbooru,
+        site: Uri.parse(profile.url),
+        kind: ContentKind.group,
+        sourceKey: 'pool:$id',
+      );
+  GroupViewerEntry group(String occurrence, {int id = 10}) => GroupViewerEntry(
+    summary: ContentGroupSummary(
+      reference: groupReference(id),
       title: 'Pool',
-      category: BookmarkedPoolCategory.series,
-      total: 20,
+      memberCount: 20,
+      displayCategory: 'series',
     ),
     occurrenceId: occurrence,
     source: source,

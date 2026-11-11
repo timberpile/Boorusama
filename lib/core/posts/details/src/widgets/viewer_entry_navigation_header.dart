@@ -3,6 +3,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../router.dart';
+
 /// Content-owned navigation shares the gallery's viewport and scroll lifetime.
 class ViewerEntryNavigationHeader extends StatelessWidget {
   const ViewerEntryNavigationHeader({this.actions = const [], super.key});
@@ -27,7 +29,11 @@ class ViewerEntryNavigationHeader extends StatelessWidget {
           padding: EdgeInsets.only(left: 8),
           child: Icon(Symbols.arrow_back_ios),
         ),
-        onPressed: Navigator.of(context).maybePop,
+        onPressed: () async {
+          if (!await Navigator.of(context).maybePop() && context.mounted) {
+            GoRouter.maybeOf(context)?.go('/');
+          }
+        },
       ),
     ),
     actions: actions,

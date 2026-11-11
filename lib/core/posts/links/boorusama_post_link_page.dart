@@ -14,6 +14,7 @@ import '../post/types.dart';
 import 'boorusama_post_link.dart';
 import 'boorusama_artist_link_page.dart';
 import 'boorusama_search_link_page.dart';
+import 'boorusama_group_link_page.dart';
 import 'linked_post_provider.dart';
 
 typedef LinkedPostBuilder = Widget Function(
@@ -262,6 +263,10 @@ class _BoorusamaPostLinkPageState extends ConsumerState<BoorusamaPostLinkPage> {
 GoRoute boorusamaPostLinkRoute() => GoRoute(
   path: BoorusamaPostLink.routePath.substring(1),
   builder: (context, state) => switch ((state.uri.scheme, state.uri.host)) {
+    ('boorusama', 'group') => BoorusamaGroupLinkPage(
+      key: ValueKey(state.uri.toString()),
+      uri: state.uri.toString(),
+    ),
     ('boorusama', 'artist') => BoorusamaArtistLinkPage(
       key: ValueKey(state.uri.toString()),
       uri: state.uri.toString(),

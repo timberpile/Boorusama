@@ -23,6 +23,15 @@ void main() {
     sourceKey: 'pool:$id',
   );
 
+  test('explicit invalidation cannot accept a stale route seed', () async {
+    final cache = GroupEnvelopeCache<int>(access: access);
+    addTearDown(cache.dispose);
+    expect(cache.seed(reference(1), 1), isTrue);
+    cache.invalidate(reference(1));
+    expect(cache.seed(reference(1), 1), isFalse);
+    expect(await cache.load(reference(1), () async => 2), 2);
+  });
+
   test(
     'shared raw envelope survives cancellation of only one observer',
     () async {

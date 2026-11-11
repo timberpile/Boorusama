@@ -43,6 +43,8 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     this.forcedPageMode = false,
     this.initialPage,
     this.blacklistCounter,
+    this.onRefresh,
+    this.selectionKeysBuilder,
   }) : _pageMode = pageMode,
        _duplicateTracker = duplicateTracker,
        _eventController = StreamController<PostControllerEvent>.broadcast() {
@@ -52,7 +54,11 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     }
   }
 
+  /// Invalidates source caches for explicit refresh, but not page navigation.
+  final VoidCallback? onRefresh;
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final int? initialPage;
+  var _initialPagePending = true;
   final PostBlacklistCounter? blacklistCounter;
   var _blacklistGeneration = 0;
   var _rulesRevision = 0;
@@ -81,6 +87,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   var _refreshPending = false;
   var _pendingMaintainPage = false;
   var _pendingPreserveSelection = false;
+  var _pendingInvalidateSource = false;
   var _disposed = false;
   final _queuedRefreshWaiters = <Completer<void>>[];
   var _requestGeneration = 0;
@@ -289,6 +296,16 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   Future<void> refresh({
     bool maintainPage = false,
     bool preserveSelection = false,
+  }) => _refresh(
+    maintainPage: maintainPage,
+    preserveSelection: preserveSelection,
+    invalidateSource: true,
+  );
+
+  Future<void> _refresh({
+    required bool maintainPage,
+    bool preserveSelection = false,
+    required bool invalidateSource,
   }) async {
     if (_disposed) return;
     // Cancel a queued load and revoke every older request's publication rights.
@@ -302,6 +319,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           : maintainPage;
       _pendingPreserveSelection =
           _pendingPreserveSelection || preserveSelection;
+      _pendingInvalidateSource = _pendingInvalidateSource || invalidateSource;
       final waiter = Completer<void>();
       _queuedRefreshWaiters.add(waiter);
       return waiter.future;
@@ -309,14 +327,17 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     Object? lastPassError;
     StackTrace? lastPassStackTrace;
     try {
+      var nextInvalidateSource = invalidateSource;
       var nextMaintainPage = maintainPage;
       var nextPreserveSelection = preserveSelection;
       do {
         _refreshPending = false;
         _pendingMaintainPage = false;
         _pendingPreserveSelection = false;
+        _pendingInvalidateSource = false;
         try {
           await _performRefresh(
+            invalidateSource: nextInvalidateSource,
             maintainPage: nextMaintainPage,
             preserveSelection: nextPreserveSelection,
           );
@@ -326,6 +347,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
           lastPassError = error;
           lastPassStackTrace = stackTrace;
         }
+        nextInvalidateSource = _pendingInvalidateSource;
         nextMaintainPage = _pendingMaintainPage;
         nextPreserveSelection = _pendingPreserveSelection;
       } while (_refreshPending && !_disposed);
@@ -351,6 +373,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
   }
 
   Future<void> _performRefresh({
+    required bool invalidateSource,
     required bool maintainPage,
     required bool preserveSelection,
   }) async {
@@ -360,14 +383,20 @@ class PostGridController<T extends Post> extends ChangeNotifier {
     try {
       _setRefreshing(true);
       _eventController.add(const PostControllerRefreshStarted());
+      final useInitialPage =
+          _initialPagePending && initialPage != null && initialPage! > 0;
+      _initialPagePending = false;
       _setPage(switch (_pageMode) {
         PageMode.infinite => _kFirstPage,
         PageMode.paginated =>
-          (maintainPage || forcedPageMode) ? _page : _kFirstPage,
+          (maintainPage || forcedPageMode || useInitialPage)
+              ? _page
+              : _kFirstPage,
       });
       count.value = null;
       maxPage.value = null;
       notifyListeners();
+      if (invalidateSource) onRefresh?.call();
       final newItems = await _fetchPosts(_page, generation);
       if (!_isCurrentRequest(generation)) return;
       _clear();
@@ -485,7 +514,7 @@ class PostGridController<T extends Post> extends ChangeNotifier {
       return;
     }
     _setPage(targetPage > 0 ? targetPage : _kFirstPage);
-    await refresh(maintainPage: true);
+    await _refresh(maintainPage: true, invalidateSource: false);
   }
 
   Future<void> goToPreviousPage() async {
