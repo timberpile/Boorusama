@@ -1,0 +1,105 @@
+name: Complete isolated candidate regression
+on:
+  push:
+    branches: [maintenance/develop-comprehensive-audit-20261110]
+    paths: [.github/workflows/audit-final-regression.yml]
+permissions:
+  contents: read
+jobs:
+  regression:
+    name: Regression issue ${{ matrix.issue }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - issue: 165
+            candidate: 40f306ea5d035ebfac454700b60a3692129745a0
+          - issue: 161
+            candidate: e9a2a2e06e987173f40f84fad14b73084a4207f5
+    env:
+      BOORUSAMA_USE_FVM: "true"
+      CI: "true"
+      FVM_CACHE_PATH: /home/runner/.cache/fvm
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ matrix.candidate }}
+          persist-credentials: false
+      - name: Record immutable candidate and install required tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .worktrees/_artifacts/final-verification
+          git rev-parse HEAD > .worktrees/_artifacts/final-verification/candidate.sha
+          sudo apt-get update
+          sudo apt-get install --yes meson nasm ripgrep
+          command -v meson nasm rg python3
+      - name: Install pinned native FVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools="$PWD/.worktrees/_artifacts/final-verification/tools"
+          mkdir -p "$tools"
+          curl --fail --location --retry 3 https://github.com/btwld/fvm/releases/download/4.3.1/fvm-4.3.1-linux-x64.tar.gz --output "$tools/fvm.tar.gz"
+          echo "ad59c861bdbef80c9f262d30ab28debd374afad0ef4b10b99a47bbab77e08bde  $tools/fvm.tar.gz" | sha256sum --check
+          tar -xzf "$tools/fvm.tar.gz" -C "$tools"
+          binary="$(find "$tools" -type f -name fvm -print -quit)"
+          test -n "$binary"
+          chmod +x "$binary"
+          dirname "$binary" >> "$GITHUB_PATH"
+          "$binary" --version
+      - name: Restore FVM and dependencies
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            /home/runner/.cache/fvm
+            ~/.pub-cache
+          key: audit-fvm-3.47.2-${{ runner.os }}-${{ hashFiles('pubspec.lock', 'packages/boorusama_cli/pubspec.lock') }}
+      - name: Initialize the pinned workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env.example .env
+          ./init.sh 2>&1 | tee .worktrees/_artifacts/final-verification/init.log
+          fvm flutter --version
+          git diff --exit-code
+      - name: Execute the complete regression without altering the candidate
+        id: full
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/run_regression_tests.sh 2>&1 | tee .worktrees/_artifacts/final-verification/full-regression.log
+          git diff --exit-code
+          git status --short > .worktrees/_artifacts/final-verification/final-status.log
+      - name: Summarize actual evidence, including any failure
+        if: always()
+        shell: bash
+        env:
+          TEST_OUTCOME: ${{ steps.full.outcome }}
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          evidence = Path('.worktrees/_artifacts/final-verification')
+          source = evidence / 'full-regression.log'
+          text = source.read_text(errors='replace') if source.exists() else ''
+          text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', text)
+          lines = re.split(r'[\r\n]+', text)
+          selected = [line for line in lines if any(token in line for token in ('tests passed', 'tests failed', 'All tests passed!', 'Some tests failed.', 'Ran ', 'PASS', 'OK', 'command not found', 'Error:', '[E]'))]
+          output = f"Actual complete-suite outcome: {os.environ['TEST_OUTCOME']}\n\n" + '\n'.join(selected[-100:]) + '\n\nFinal output:\n' + '\n'.join(lines[-60:]) + '\n'
+          (evidence / 'summary.txt').write_text(output)
+          print(output)
+          PY
+      - name: Preserve exact-candidate results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: final-regression-${{ matrix.issue }}
+          path: |
+            .worktrees/_artifacts/final-verification/*.log
+            .worktrees/_artifacts/final-verification/*.sha
+            .worktrees/_artifacts/final-verification/*.txt
+          if-no-files-found: error
+          retention-days: 14
