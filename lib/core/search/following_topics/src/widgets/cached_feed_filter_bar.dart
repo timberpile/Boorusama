@@ -114,6 +114,11 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
   String _sortLabel(CachedTopicFeedSort value) =>
       bookmarkSortLabel(context, _bookmarkSort(value));
 
+  Widget _loadedPostCount(int count) => Text(
+    context.t.posts.counter(n: count),
+    style: Theme.of(context).textTheme.titleLarge,
+  );
+
   @override
   Widget build(BuildContext context) {
     final strings = context.t.following_topics;
@@ -327,6 +332,14 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
                     ? null
                     : PostGridConfigIconButton(postController: postController),
                 children: [
+                  if (postController case final controller?)
+                    ListenableBuilder(
+                      listenable: controller,
+                      builder: (_, _) => _loadedPostCount(controller.total),
+                    )
+                  else
+                    _loadedPostCount(widget.snapshots.length),
+                  const SizedBox(width: 12),
                   if (showSource) ...[
                     BookmarkOptionSelector<String?>(
                       label: _sourceHost ?? context.t.bookmark.groups.all,

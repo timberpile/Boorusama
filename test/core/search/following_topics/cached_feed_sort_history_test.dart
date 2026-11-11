@@ -75,9 +75,7 @@ void main() {
         final descending = selector.optionLabel(
           CachedTopicFeedSort.scoreDescending,
         );
-        await tester.tap(
-          find.descendant(of: sort, matching: find.byType(Icon)).first,
-        );
+        await _openSort(tester, sort);
         await tester.pumpAndSettle();
         await tester.tap(find.text(descending).last);
         await tester.pumpAndSettle();
@@ -96,9 +94,7 @@ void main() {
         );
 
         expect(find.text('Cached'), findsOneWidget);
-        await tester.tap(
-          find.descendant(of: sort, matching: find.byType(Icon)).first,
-        );
+        await _openSort(tester, sort);
         await tester.pumpAndSettle();
         await tester.tap(
           find.text(selector.optionLabel(CachedTopicFeedSort.newest)).last,
@@ -140,7 +136,12 @@ void main() {
       await drain(tester);
       final sort = find.byKey(const ValueKey('cached-feed-sort'));
       final grid = find.byType(PostGrid<Post>);
-      expect(sort.hitTestable(), findsOneWidget);
+      expect(
+        sort.hitTestable(),
+        findsOneWidget,
+        reason:
+            'Sort bounds: ${tester.getRect(sort)}; toolbar: ${tester.getRect(find.byType(TimelineToolbar))}',
+      );
       expect(find.byType(TimelineToolbar), findsOneWidget);
       final input = find
           .byKey(const ValueKey('cached-feed-filter-input'))
@@ -154,7 +155,12 @@ void main() {
       expect(sort.hitTestable(), findsNothing);
       await tester.drag(grid, const Offset(0, 32));
       await tester.pumpAndSettle();
-      expect(sort.hitTestable(), findsOneWidget);
+      expect(
+        sort.hitTestable(),
+        findsOneWidget,
+        reason:
+            'Sort bounds: ${tester.getRect(sort)}; toolbar: ${tester.getRect(find.byType(TimelineToolbar))}',
+      );
       final vertical = find.descendant(
         of: grid,
         matching: find.byWidgetPredicate(
@@ -205,6 +211,20 @@ StoredPostSnapshot _snapshot(int id, int score) =>
         booruData: const LegacyPostData(typeKey: 'test', custom: {}),
       ),
     );
+
+Future<void> _openSort(WidgetTester tester, Finder sort) async {
+  await tester.ensureVisible(sort);
+  await tester.pumpAndSettle();
+  // At enlarged text the label can exceed the viewport. Tap its visible part
+  // inside the scrolling controls, rather than its offscreen center.
+  final visible = tester
+      .getRect(sort)
+      .intersect(
+        tester.getRect(find.byKey(const ValueKey('timeline-toolbar-content'))),
+      );
+  expect(visible.isEmpty, isFalse);
+  await tester.tapAt(visible.center);
+}
 
 Future<void> _fetchMore(
   WidgetTester tester,
