@@ -1,107 +1,118 @@
 # Develop audit and package evidence — 2026-11-10
 
-## Scope and authorization
+## Scope, baseline and authorization
 
-This is an incremental engineering report, not a completed repository-wide audit or a parallel task queue. GitHub Issues own task status. The reviewed production baseline is `2e2ea428ba323706e37a65e45903d3959df439d4` on `develop`; the working `master` comparison is `422aeae087c1108e655d85d1a3dac25120456cd6`. P1–P6 are already integrated. No feature combination is being described as a develop audit.
+This is an **incremental, incomplete audit and preparation report**, not a completed repository-wide audit or a parallel task queue. GitHub Issues own task state. The production baseline is `2e2ea428ba323706e37a65e45903d3959df439d4` on `develop`; the working-master comparison is `422aeae087c1108e655d85d1a3dac25120456cd6`. P1–P6 are integrated. Develop was rechecked and remains unchanged. No feature combination is described as a develop review.
 
-The user authorized isolated task/review branches, real commits and publication to origin. There is no authorization to merge into develop, close issues, open pull requests or publish releases. The workflows on this audit branch are temporary review infrastructure and are not a product integration source.
+The user authorized isolated task/review branches, actual commits and pushes. There is no authorization to merge into develop, close issues, open PRs or publish releases. This audit branch's temporary workflows are verification infrastructure, **not a product integration source**. No APK delivery is required.
 
-The current author has no independent Astra XHigh execution interface or Android/Maestro session. Historical reviewer/device evidence below is attributed to its actual source and candidate; it is not a new review or device pass by this author.
+This session implemented the independent #165 media correction and reconciled/verified the existing #161 pagination correction. It did **not** implement #164, finish the remaining P8/P9/P10 packages or complete the requested nine-domain independent audit. No independent Astra XHigh execution interface or authenticated Android/Maestro session was available or used. Historical independent-review and device evidence below is explicitly attributed to its original candidate and handoff.
 
-## Confirmed develop findings
+## Confirmed develop findings and remediation
 
-### #165 — Pixiv's public image Referer is removed (high priority)
+### #165 — Pixiv public media Referer removed: high severity
 
-**Impact:** On the catalog's normal `https://pixiv.net/` profile, Pixiv thumbnails, previews and originals are rejected while API metadata remains available. The user reports Browse, Explore and Following failures on develop and working images on master. No authenticated Android reproduction has been performed in this session.
+**Impact:** The user reports working API metadata but failed thumbnails/originals in Browse, Explore and Following on develop, with working images on master. The catalog's normal source URL is `https://pixiv.net/`; `PixivRepository.extraHttpHeaders` supplies the existing `https://www.pixiv.net/` image Referer.
 
-**Locations and root cause:**
+**Locations:** `packages/booru_clients/boorus.yaml`; `packages/booru_clients/lib/src/pixiv/pixiv_constants.dart`; `lib/boorus/pixiv/pixiv_repository.dart`; `lib/core/configs/network/src/types/media_request.dart`; `lib/core/http/client/src/data/source_media_http_adapter.dart`.
 
-- `packages/booru_clients/boorus.yaml` configures the Pixiv site as `https://pixiv.net/`.
-- `lib/boorus/pixiv/pixiv_repository.dart:111` supplies `kPixivImageReferer`, whose value is `https://www.pixiv.net/` in `packages/booru_clients/lib/src/pixiv/pixiv_constants.dart`.
-- `lib/core/configs/network/src/types/media_request.dart:37–48` and `:80–91` require an exact source hostname before retaining a public root Referer.
-- `lib/core/http/client/src/data/source_media_http_adapter.dart:77–79` and `:177–203` independently apply the same exact-host check.
+**Demonstrated cause:** Commit `2e2ea428` introduced exact-source hostname checks at both URL resolution and the scoped transport boundary. Both independently remove the public root Referer because `pixiv.net` and `www.pixiv.net` differ. Master did not apply this new source-origin filtering to ordinary image URLs. This is not an assumption based solely on the error text.
 
-Commit `2e2ea428` introduced both relevant filters. Master did not apply this new source-origin filter to ordinary Pixiv image URLs. The configured `pixiv.net` and engine-owned `www.pixiv.net` mismatch therefore drops the header at two separate boundaries. This is not inferred solely from the server's error message.
+**Evidence:** Real request-path tests exercise the engine's header provider, resolver, scoped media provider/adapter and ImageFetcher; only the remote server is simulated. The canonical profile fails while the www profile passes on the unchanged runtime. Controlled credential-free requests to the user's thumbnail and original URLs returned 403/HTML without the Referer and 206/image data with it. Those live checks read 1,024-byte ranges; they do not establish full decoding or Android acceptance.
 
-**Reproduction:** The new tests exercise the actual engine header provider, `MediaRequest.resolve`, `contentMediaDioProvider`, scoped HTTP adapter and `ImageFetcher`; only the remote server is simulated. The canonical profile fails with HTTP 403 while the `www` profile passes. Direct scoped-transport and unbound-resolved-header cases independently reproduce the two boundaries.
+**Published correction:** `bc4763d1b264504d3fa448ac3ef28b6a0173daf3` shares a narrow public-header predicate between both boundaries. Only the canonical HTTPS Pixiv root, its existing HTTPS www-root Referer and exact HTTPS/443 `i.pximg.net`/`s.pximg.net` destinations receive the alias permission. Credential-origin authorization, installation boundaries, explicit overrides and persisted profile identities are unchanged.
 
-Controlled live requests to the two reported URLs supplied no credentials. Without a Referer, both returned HTTP 403 and 146 bytes of HTML. With the existing Pixiv public Referer, the thumbnail returned HTTP 206/image-webp and the original returned HTTP 206/image-jpeg; each range request returned 1,024 image bytes. These are CDN observations, not an Android UI acceptance or a full-file decode.
+**Compatibility checks:** Tests cover both source spellings, thumbnail/preview/original variants, unbound resolved requests, both independent filters, explicit replacement hosts, redirects, malicious lookalikes, nondefault ports, insecure/non-root Referers, credential stripping and absence of account interceptors. Existing adjacent tests exercise revocation, cancellation, caching, rendering and other consumers. Android/account acceptance and independent review remain outstanding.
 
-**Correction published:** `bc4763d1b264504d3fa448ac3ef28b6a0173daf3` on `bug/165-pixiv-media-loading` preserves only the exact public Pixiv root alias for `i.pximg.net` and `s.pximg.net` over HTTPS/443. Both boundaries share the predicate. Source credential authorization, installation-path checks and explicit override stripping remain unchanged. Foreign redirects, lookalike hosts, nondefault ports, insecure schemes and non-root Referers are not granted the new exception.
+### #165 — HTTP rejection concealed as Empty response: medium severity
 
-**Compatibility risks and checks:** Cover both profile spellings, thumbnail/preview/original variants, explicit replacement hosts, redirects, rejected aliases, credential removal and omission of account interceptors. Existing revocation, cancellation, caching, preloading, download, saved-media and other-engine consumers require adjacent/full regression. Final qualification is still in progress at this checkpoint.
+**Locations:** The image strategies in `lib/core/images/booru_image.dart` and `lib/core/images/booru_image_candidates.dart`, with propagation through `packages/retriable/lib/src/retry_utils.dart` and `packages/extended_image/lib/src/image_fetcher.dart`.
 
-### #165 — Rejected image requests lose their useful diagnostics
+**Cause/evidence:** `silent: true` converts a rejected request into null, which the fetcher reports as `Empty response`. A real BooruRawImage widget regression reproduces loss of HTTP 403 diagnostics. A successful zero-byte body has a different error path and was not established by the user's message.
 
-`lib/core/images/booru_image.dart:512–516` supplies `FetchStrategyBuilder(silent: true)`. The retry wrapper consequently returns null after a rejected request. `packages/extended_image/lib/src/image_fetcher.dart:33–35` then reports `Empty response`, concealing the actual HTTP status. A zero-length successful body has a different error and is not established by the reported message.
+**Published correction:** `9b52df7b6aa4728cc84067a57f2599cd4d1da9c1` removes the two silent flags without changing retry policy. Candidate probes remain quiet through their existing `printError: false`. `40f306ea5d035ebfac454700b60a3692129745a0` fixes the new diagnostic fixture's callback cleanup before binding invariants. Earlier fixture timeout/cleanup failures were test defects, not separate application findings.
 
-The corrected widget regression observes an actual `BooruRawImage` failure and its diagnostic output. On the unchanged develop runtime it receives the misleading `Empty response` message rather than HTTP 403. The separate candidate-probing path uses the same silent strategy; its existing `printError: false` is the appropriate mechanism for quiet expected probes without erasing the failure cause.
+### #161 — Explore drops continuation and caches stale exhaustion: medium severity
 
-The diagnostics correction is being prepared and verified separately from the already-published Referer correction. No retry policy, cancellation rule or provider error contract is being replaced.
+**Location:** `lib/boorus/pixiv/explore/providers.dart`, with existing shared conversion in `lib/boorus/pixiv/posts/parser.dart` and continuation ownership in PostGridController.
 
-## Exact regression evidence
+**Cause:** Explore discards the API's explicit continuation metadata when converting filtered posts, and its repository-level terminal-page cache survives refreshes/late responses. Empty or hidden-only pages can appear terminal, while a refreshed feed can retain an obsolete end state.
 
-| Run | Runtime/test candidate | Actual result |
+**Prepared existing correction:** Continue the existing `bug/161-pixiv-explore-pagination` branch; preserve original implementation `6c26e5cabc8723049bda8f6cf1121694fb8adb5a`, reconcile the pinned develop base and format with FVM. Use the already-existing `pixivIllustListResultToPostResult` helper and let the grid controller own session exhaustion. Origin and error/cooldown handling remain unchanged. The delta against develop is exactly one production file, its test and its handoff.
+
+**Evidence:** New tests against the unchanged develop implementation produce three passes and 14 intended assertion failures. The candidate passes 257 focused Pixiv/shared-listing tests, including filtering, explicit end signals, refresh, retry, independent feeds and late terminal responses. No Work/Page cutover or #165 media change is hidden in this branch; it still inherits the independent image bug until that separately approved prerequisite is reconciled.
+
+## Candidate identity and actual verification
+
+| Issue | Runtime/test candidate | Published documentation checkpoint |
 | --- | --- | --- |
-| [42921162950](https://github.com/timberpile/Boorusama/actions/runs/42921162950) | `1c014e59ef45dc56dc1b0dc30882a3eb9df6219d` | Initialization succeeded; tests did not execute because the native libavif build lacked Meson. Not red-test evidence. |
-| [42921812249](https://github.com/timberpile/Boorusama/actions/runs/42921812249) | `1c014e59ef45dc56dc1b0dc30882a3eb9df6219d` | Three tests passed; four media assertions failed as expected. The diagnostic fixture timed out and was corrected; that timeout is not an application finding. Includes the controlled live CDN observations. |
-| [42922922442](https://github.com/timberpile/Boorusama/actions/runs/42922922442) | `b28185e1e9fd829fdef965c9d310e728fd0b6d2f` | Three tests passed and five failed on the intended assertions, including the corrected diagnostic widget test. No production correction is present in this candidate. |
+| #165 | `40f306ea5d035ebfac454700b60a3692129745a0` | `650b79fff19758031f0e5e08ce0350957756f48b` on `bug/165-pixiv-media-loading` |
+| #161 | `e9a2a2e06e987173f40f84fad14b73084a4207f5` | `22e52295dae2d75a7da878d63e617988dbd4d5b1` on `bug/161-pixiv-explore-pagination` |
 
-Pinned toolchain: FVM 4.3.1, Flutter 3.47.2, Dart 3.13.2. Test artifacts retain candidate SHA and command output. CI evidence does not by itself replace the repository's final local integration gate.
+FVM 4.3.1 / Flutter 3.47.2 / Dart 3.13.2 were used on hosted Linux. Handoff-only commits do not alter these runtime candidates.
 
-The red-test artifact digests are `ce56e558634c72e95d2a6fdc28d1876c5281556f0213232082d132dfbc6c52a7` for run 42921812249 and `53a9cf5424a4cd54a6c012434d6637209264969ac0d8cde16ac7b3ba6e503245` for run 42922922442. Retrieved archives were checked against these digests before use. Raw logs remain in ignored workspace evidence and GitHub Actions artifacts, not in the repository.
-
-## Revalidated package baseline
-
-These are source/evidence observations, not a declaration that all remaining packages are prepared.
-
-| Package | Current source ref | Evidence and actual preparation state |
+| Check | #165 | #161 |
 | --- | --- | --- |
-| P7 / #156 | `maintenance/156-shared-source-groups-package` at `01c69f6bb7aae98f23ce7cd7d515b48ab5e078e5` | Its handoff records full regression and Android acceptance on runtime candidate `fbefa7c248e93f02ca0d83a7c956bd4e6e888946`. The subsequent delta is documentation only, verified by comparison. Reuse that unchanged-runtime evidence; owner acceptance/integration remains separate. The baseline also inherits #165 until that independent correction is reconciled. |
-| Viewer / #164 | `feature/164-redesign-shared-post-viewer-modes` at `36123effd9d49d14a1107ae38f0e775b8d660732` | Approved specification and standalone HTML, not an implemented viewer. The approved contract supersedes the older coordination handoff's single-tap mode-toggle description. |
-| P8 / #140 | `feature/140-pixiv-work-viewer` at `d7298c5a06883977966421aec0d11ecf4d2564e4` | Reviewed source foundation; production listing/viewer cutover and current-package qualification are not complete. Historical Combined UI is not the approved #164 viewer. |
-| P8 / #141 | `feature/141-pixiv-work-page-bookmarks` at `01fa085840f8442246505b1ad1d883e01a4fecdb` | Reviewed independent Work/Page target foundation. Generic unsaved-group picker, production actions and final integration remain distinct from that foundation evidence. |
-| P8 / #161 | `bug/161-pixiv-explore-pagination` at `db54e43bb38e3d997136c52c3434c35342737df3` | Existing source branch; no new package candidate qualified in this session. |
-| P9 / #144 | `feature/144-folder-based-collection-sync` at `4dbc9f08adb8bcbce17877d71d80a57ba475243c` | Design-only branch. Runtime reference exists in Combined; its historical qualification does not qualify an extracted candidate. See the behavioral mismatch below. |
-| P10 / #157 | `feature/157-native-nhentai-galleries` at `cf71fb22e142564d96a1f25cce85a48898ec52fc` | Reviewed native client/source foundation, not a completed production engine or approved shared Gallery viewer. Prepare last after the shared viewer/P8 foundation. |
+| Focused adjacent tests | 194 passed | 257 passed |
+| Formatting / whitespace | Passed | Passed |
+| Scoped analyzer | Zero errors/warnings; eight informational diagnostics | No issues |
+| App suite in first complete-run attempt | 6,782 passed; ten FFmpeg skips | 6,791 passed; ten FFmpeg skips |
+| Why that complete-run attempt stopped | Missing `rg` after the app suite; package/tooling stages not reached | Same missing `rg` after the app suite |
+| Supplemental real FFmpeg suite on the same candidate | 16 passed; zero skipped | 16 passed; zero skipped |
+| Fresh complete runner with dependency corrected | Final result not yet established at this checkpoint | Final result not yet established at this checkpoint |
+| Additional local tooling | Both shell suites passed; Python attempts interrupted by tool timeouts, not counted as passes | Same |
 
-P7's existing handoff attributes independent review to actual GPT-6.1 Sol High, not Astra. Its documented results are 6,899 app tests, 1,686 package/CLI tests, 76 Python tests, two shell suites and scoped Android acceptance. These counts have not been rerun here. The exact handoff is `docs/handoffs/156-shared-source-groups-package-2026-11-10.md` on its package branch.
+The supplemental FFmpeg run covers **all ten cases skipped in each original app run**. Its 16 cases include six already executed in the root suite; do not double-count them as 16 newly covered cases. Nothing in the product or tests was changed to remove those skips; FFmpeg/FFprobe were installed in the supplemental environment.
 
-P9's Combined handoff records retaining a receiver collection after source withdrawal. The later sequential-rollout handoff requires a verified signed Stop Publishing to delete the received mirror when no other valid subscription retains it, while missing/offline files must never delete content. Preserve unrelated memberships and rollback protections when reconciling this difference. The later handoff also requires hierarchy/direct-publication UX corrections and says to discuss unresolved UX choices before finalization. Do not silently declare the historical behavior accepted for the new package.
+Exact evidence:
 
-P10's source handoff records live public v2 JSON and media checks from November 8, plus its exact source-foundation tests. Those observations are historical and limited to the endpoints/hosts tested; they are not fresh compatibility evidence for a new app candidate.
+- #165 red test: [42922922442](https://github.com/timberpile/Boorusama/actions/runs/42922922442), test-only candidate `b28185e1e9fd829fdef965c9d310e728fd0b6d2f`.
+- #165 focused/analyzer/first full attempt: [42926187330](https://github.com/timberpile/Boorusama/actions/runs/42926187330).
+- #161 red/positive/analyzer/first full attempt: [42927539360](https://github.com/timberpile/Boorusama/actions/runs/42927539360).
+- Fresh complete runner: [42930406283](https://github.com/timberpile/Boorusama/actions/runs/42930406283), separate jobs/artifacts for the two immutable candidates.
+- Native-media supplement: [42931390172](https://github.com/timberpile/Boorusama/actions/runs/42931390172), both jobs successful.
 
-## Review coverage at this checkpoint
+Read the complete-run outcome and exact artifact before calling either candidate fully qualified. Do not substitute a completed app suite for package/CLI and tooling coverage. Downloaded evidence archives were verified against published SHA-256 digests. Raw output stays in Actions artifacts and ignored `.worktrees/_artifacts/` evidence, not large committed logs.
 
-Production source inspection has concentrated on image URL resolution, engine headers, Pixiv API/media separation, scoped transport, redirects, retry diagnostics, access identity and revocation, image widgets and their existing tests. Package source histories, approved design documents and the cited qualification handoffs have also been reconciled. The shared viewer's pager/controller/composition is being inspected for #164.
+Separate owning handoffs:
 
-The complete nine-domain independent repository audit requested by the user has **not** been completed. In particular, this report does not certify every storage/migration/backup path, every feed/pagination implementation, all platform integrations, all UI behavior or the complete CI/tooling surface. A green test suite would not establish that claim. No unrelated speculative issue is counted as a confirmed defect.
+- [#165 media handoff](https://github.com/timberpile/Boorusama/blob/bug/165-pixiv-media-loading/docs/handoffs/165-pixiv-media-loading-2026-11-10.md).
+- [#161 pagination handoff](https://github.com/timberpile/Boorusama/blob/bug/161-pixiv-explore-pagination/docs/handoffs/161-pixiv-explore-pagination.md).
 
-## Acceptance boundaries
+## Remaining rollout packages: observed source and readiness
 
-All packages and #165 remain separate approval units. New production/test/dependency changes invalidate qualification of the changed candidate and require appropriate re-verification. Do not merge this audit branch, its toolchain archives or temporary workflows into develop. No APK delivery is required. Authenticated Android verification, actual independent re-review and package-specific user acceptance must be reported separately from automated results.
+| Package | Preserved source ref | Actual state |
+| --- | --- | --- |
+| P7 / #156 | `maintenance/156-shared-source-groups-package` — `01c69f6bb7aae98f23ce7cd7d515b48ab5e078e5` | Existing full regression/Android evidence applies to runtime `fbefa7c248e93f02ca0d83a7c956bd4e6e888946`; the later delta was verified as documentation only. Owner acceptance/integration remains separate. It still inherits #165 on its current prerequisite. |
+| Viewer / #164 | `feature/164-redesign-shared-post-viewer-modes` — `36123effd9d49d14a1107ae38f0e775b8d660732` | Approved specification and standalone HTML, not an implemented or qualified viewer. |
+| P8 / #140 | `feature/140-pixiv-work-viewer` — `d7298c5a06883977966421aec0d11ecf4d2564e4` | Reviewed source foundation; production listing/shared-viewer cutover not complete. |
+| P8 / #141 | `feature/141-pixiv-work-page-bookmarks` — `01fa085840f8442246505b1ad1d883e01a4fecdb` | Reviewed Work/Page target foundation; generic unsaved-group picker, production actions and final package qualification remain. |
+| P8 / #161 | Runtime `e9a2a2e06e987173f40f84fad14b73084a4207f5` on its existing bug branch | Isolated pagination component prepared as described above; not completion of P8. |
+| P9 / #144 | `feature/144-folder-based-collection-sync` — `4dbc9f08adb8bcbce17877d71d80a57ba475243c` | Design branch. Runtime remains in historical Combined; no new standalone extraction or qualification is claimed. |
+| P10 / #157 | `feature/157-native-nhentai-galleries` — `cf71fb22e142564d96a1f25cce85a48898ec52fc` | Reviewed native client/source foundation; not the completed production engine or approved shared Gallery viewer. Prepare last after the viewer/P8 foundation. |
 
-## Updated #165 qualification evidence
+### Evidence and approved decisions that must survive preparation
 
-This section supersedes the earlier #165 in-progress checkpoint, but does not turn the partial audit or remaining feature packages into completed work. Runtime/test candidate: `40f306ea5d035ebfac454700b60a3692129745a0` on `bug/165-pixiv-media-loading`. Final verification run: [42926187330](https://github.com/timberpile/Boorusama/actions/runs/42926187330); conclusion: **failure**.
+P7's existing `docs/handoffs/156-shared-source-groups-package-2026-11-10.md` attributes independent review to **GPT-6.1 Sol High**, not Astra. It records 6,899 app tests, 1,686 package/CLI tests, 76 Python tests, two shell suites and scoped Android acceptance. These are historical unchanged-candidate results, not reruns or new reviews by this author. Do not extend #156 into unrelated Gelbooru/Rule34 support. A changed develop combination requires requalification even when P7's feature delta itself is unchanged.
 
-| Check | Actual outcome |
-| --- | --- |
-| Check formatting and patch whitespace | success |
-| Run media boundary and rendering regressions | success |
-| Analyze affected production and regression sources | success |
-| Run complete repository regression on the exact candidate | failure |
+For #164, read `docs/designs/2026-11-10-unified-post-viewer.md` and `docs/designs/mockups/2026-11-10-unified-viewer.html` on its branch. The approved Immersive/Details interactions supersede older coordination notes, including their single-tap mode-toggle description. Do not revive the Combined experimental viewer or introduce a separate unrelated fullscreen implementation.
 
-Focused result:
-```text
-00:26 +194: All tests passed!
-```
+The approved #140 gesture decision is already recorded: horizontal media gestures navigate Pages; horizontal Details-content gestures navigate Works; reaching the final Page does not automatically switch Work. Preserve genuine Work/Page identities, independent bookmark targets, missing-page slots, profile isolation, downloads/sharing, preload and restoration. The #141 issue dependency text was corrected: #137/#138 are completed prerequisites; #140 uses #164; #124 concerns remote Favorites rather than local bookmarks.
 
-Full-regression completion summaries:
-```text
-No completion summary found; inspect the original artifact.
-```
+P9's historical production handoff retains the received collection after withdrawal. The later rollout handoff requires **verified signed Stop Publishing to remove the received mirror unless another valid subscription retains it**. Missing/offline files must never delete content. This mismatch was recorded in #144; it has not been corrected in an extracted runtime. Preserve outside memberships, hierarchy, strict read-only enforcement, rollback, identity/signature checks and anti-resurrection behavior. Resolve genuinely open UX choices rather than inventing replacements.
 
-The owning handoff is `docs/handoffs/165-pixiv-media-loading-2026-11-10.md` on the bugfix branch. It records root cause, exact commits, negative/positive evidence, log digests and remaining review/Android requirements. The handoff-only branch update preserves the checked runtime tree. No independent reviewer or Android acceptance has been performed, and no integration is authorized.
+P10's foundation handoff records November 8 public-v2 JSON/media observations. They are historical, endpoint-specific evidence, not fresh live compatibility proof for a new app candidate. Reconcile the native foundation with the approved shared Gallery/Page viewer rather than importing Combined wholesale.
 
-#161 is being reconciled and qualified separately on its existing `bug/161-pixiv-explore-pagination` branch. Its own handoff, not this #165 result, must establish its eventual candidate and test outcomes. The larger #164/P8/P9/P10 implementations and the requested nine-domain independent audit remain unfinished. P7's unchanged-runtime evidence remains as recorded above.
+The later coordination source is `maintenance/package-extraction-2026-11-09` at `4f921668dc96e3a99bbd104cb96bd20216942289`, particularly `docs/handoffs/sequential-rollout-local-acceptance-2026-11-10.md`. Historical Combined at `252e8954dab8c0842f83a2082c67f4841111c34e` is evidence/reference only, not an authorized integration source.
+
+## Review coverage and remaining gates
+
+Inspected source concentrates on engine/media headers, URL resolution, public versus credential authority, redirects, access/revocation, retry diagnostics, media widgets, Pixiv Explore continuation and shared grid state. Relevant tests, package histories, approved designs and qualification handoffs were reconciled. Source re-review was performed by the author, not independent agents.
+
+The full nine-domain independent audit is **unfinished**. This report does not certify all storage/migrations/backups, authentication paths, feeds, platform integrations, UI/accessibility, performance/concurrency or CI/tooling. No speculative concern has been promoted to a confirmed defect. A green suite would not establish a bug-free application or flawless UI.
+
+Independent review, authenticated Android acceptance and owner approval remain separate gates for #165/#161 and each package. Preserve existing user/agent changes and evidence. Do not merge, close issues, publish releases or open PRs. Reuse valid results on an unchanged candidate across documentation/status updates; repeat the full gate when runtime/tests/dependencies or the develop combination change.
+
+## Local-agent start prompt
+
+> Read current AGENTS.md and the repository skills/workflows first. Resume from the pinned evidence in this report and the separate #165/#161 handoffs; fetch refs and preserve all existing worktrees/edits. Establish the final complete-regression results, obtain actual independent reviews and perform scoped Android acceptance with the exclusive emulator lease. Keep the media correction separate from pagination and all feature packages. Do not merge without explicit owner approval; prefer accepting #165 before reconciling dependent candidates. Preserve valid unchanged P7 evidence. Implement the approved #164 shared viewer before P8's final Work/Page cutover, reconcile P9 against the later signed-withdrawal/read-only/hierarchy requirements, and prepare P10 last. Then complete the independent audit of the actual latest published develop, pinning its SHA and triaging evidence-backed findings through GitHub Issues. Continue real commits and pushes on owning branches; never substitute an audit/Combined branch as an integration source or claim unavailable reviewer/device results.
