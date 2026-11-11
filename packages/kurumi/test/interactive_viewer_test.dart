@@ -223,6 +223,69 @@ void main() {
     expect(controller.value.isIdentity(), isTrue);
   });
 
+  testWidgets('fit residuals do not enable zoom panning', (tester) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(800, 800),
+      constrainPanToContent: false,
+    );
+    controller.value = Matrix4.diagonal3Values(1.000001, 1.000001, 1)
+      ..setTranslationRaw(0.25, -0.125, 0);
+    await tester.pump();
+    expect(
+      tester
+          .widget<vendor.InteractiveViewer>(
+            find.byType(vendor.InteractiveViewer),
+          )
+          .panEnabled,
+      isFalse,
+    );
+    controller.value = Matrix4.diagonal3Values(1.01, 1.01, 1);
+    await tester.pump();
+    expect(
+      tester
+          .widget<vendor.InteractiveViewer>(
+            find.byType(vendor.InteractiveViewer),
+          )
+          .panEnabled,
+      isTrue,
+    );
+  });
+
+  testWidgets('a same-frame return to fit cannot publish stale zoom state', (
+    tester,
+  ) async {
+    final controller = await _pumpViewer(
+      tester,
+      contentSize: const Size(800, 800),
+      constrainPanToContent: false,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) {
+            controller.value = Matrix4.diagonal3Values(2, 2, 1);
+            controller.value = Matrix4.identity();
+            return KurumiInteractiveViewer(
+              controller: controller,
+              contentSize: const Size(800, 800),
+              child: const SizedBox.expand(),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(
+      tester
+          .widget<vendor.InteractiveViewer>(
+            find.byType(vendor.InteractiveViewer),
+          )
+          .panEnabled,
+      isFalse,
+    );
+  });
+
   testWidgets('Classic restores a pre-existing Comic reading position', (
     tester,
   ) async {
@@ -250,6 +313,74 @@ void main() {
     expect(controller.value.entry(0, 0), closeTo(widthFit, 0.001));
     _expectTranslation(controller, x: -150, y: -500);
   });
+
+  testWidgets('unchanged presentation cancels an in-flight Classic zoom', (
+    tester,
+  ) async {
+    final controller = KurumiTransformationController();
+    addTearDown(controller.dispose);
+    await _pumpViewer(
+      tester,
+      controller: controller,
+      contentSize: const Size(1000, 6000),
+    );
+    final detector = tester.widget<GestureDetector>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is GestureDetector &&
+            widget.onDoubleTapDown != null &&
+            widget.onDoubleTap != null,
+      ),
+    );
+    detector.onDoubleTapDown!(
+      TapDownDetails(localPosition: const Offset(500, 500)),
+    );
+    detector.onDoubleTap!();
+    final displayed = controller.value.clone();
+    controller.setPresentationValue(displayed.clone());
+    await tester.pumpAndSettle();
+    expect(controller.value, displayed);
+  });
+
+  for (final presentationOnly in [false, true]) {
+    testWidgets(
+      'Classic return checkpoint survives presentation only=$presentationOnly',
+      (tester) async {
+        final controller = KurumiTransformationController();
+        addTearDown(controller.dispose);
+        await _pumpViewer(
+          tester,
+          controller: controller,
+          contentSize: const Size(1000, 10000),
+          viewportSize: const Size(400, 880),
+          constrainPanToContent: false,
+        );
+        final reading = _transformation(
+          scale: (400 / 880) / 0.1,
+          x: -150,
+          y: -500,
+        );
+        controller.value = reading;
+        await tester.pump();
+        await _doubleTap(tester, position: const Offset(200, 440));
+        final zoomed = controller.value.clone();
+        if (presentationOnly) {
+          controller.setPresentationValue(Matrix4.identity());
+          controller.setPresentationValue(zoomed);
+        } else {
+          controller.value = Matrix4.identity();
+          controller.value = zoomed;
+        }
+        await tester.pump();
+        await _doubleTap(tester, position: const Offset(200, 440));
+        if (presentationOnly) {
+          expect(controller.value, reading);
+        } else {
+          expect(controller.value.isIdentity(), isTrue);
+        }
+      },
+    );
+  }
 
   testWidgets('Classic restores Comic position after the image size changes', (
     tester,

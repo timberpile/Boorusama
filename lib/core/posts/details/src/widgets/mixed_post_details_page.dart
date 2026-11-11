@@ -364,6 +364,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     PostDetailsData<Post>? details,
   ) => PostDetailsPageScaffold<Post>(
     sequence: widget.sequence,
+    pageWrapperBuilder: (context, index, child) =>
+        _wrapPage(context, index, child, details),
     controller: details?.controller,
     posts: details?.posts ?? const [],
     transformController: _transformController,
@@ -385,6 +387,37 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       return _buildPostItem(context, index, details!);
     },
   );
+
+  Widget _wrapPage(
+    BuildContext context,
+    int index,
+    Widget child,
+    PostDetailsData<Post>? details,
+  ) {
+    final post = widget.sequence == null
+        ? details?.posts.elementAtOrNull(index)
+        : widget.sequence!.postAt(index);
+    if (post == null) return child;
+    return PostPagePresentationScope(
+      post: post,
+      sourceBinding: widget.sequence?.entries[index].source,
+      fallbackConfig: widget.fallbackConfig,
+      builder: (context, ref, presentation) {
+        final ui = presentation.usesGenericPresentation
+            ? widget.fallbackUiBuilderDecorator?.call(
+                    _genericPostDetailsUiBuilder,
+                    post,
+                  ) ??
+                  _genericPostDetailsUiBuilder
+            : presentation.context.presentation.detailsBuilder(post);
+        return PostDetailsPageConfiguration(
+          uiBuilder: ui,
+          layout: presentation.effectiveConfig.layout,
+          child: child,
+        );
+      },
+    );
+  }
 
   Widget _buildPostItem(
     BuildContext context,
@@ -481,6 +514,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
 
     final scaffold = PostDetailsPageScaffold<Post>(
       sequence: widget.sequence,
+      pageWrapperBuilder: (context, index, child) =>
+          _wrapPage(context, index, child, details),
       transformController: _transformController,
       isInitPage: _isInitPage,
       controller: controller,

@@ -1,39 +1,30 @@
-// Dart imports:
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show lerpDouble;
 
-// Package imports:
+import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/scheduler.dart' show SchedulerPhase, SchedulerBinding;
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-// Project imports:
 import '../../../../foundation/mobile.dart';
 import '../../../../foundation/platform.dart';
 import '../../slideshow/widgets.dart';
-import 'constants.dart';
-import 'details_page_swipe_detector.dart';
-import 'drag_sheet.dart';
 import 'page_nav_button.dart';
 import 'pointer_count_on_screen.dart';
 import 'post_details_overlay.dart';
 import 'post_details_page_view_controller.dart';
 import 'post_details_shortcuts.dart';
 import 'sheet_state_storage.dart';
-import 'side_sheet.dart';
 import 'zoom_page_navigation_scope.dart';
 
-// Dart imports:
-// ignore_for_file: prefer_int_literals
-
-const _kBottomPreviewSwipeThreshold = 32.0;
-const _kBottomPreviewVerticalDominance = 1.5;
-const _kExpandedMediaSwipeThreshold = 32.0;
-const _kExpandedMediaVerticalDominance = 1.5;
-
+/// One outer pager owns media, its overlay and its scrolling Details content.
 class PostDetailsPageView extends StatefulWidget {
   const PostDetailsPageView({
-    required this.sheetBuilder,
+    required this.detailsSliversBuilder,
     required this.itemCount,
     required this.itemBuilder,
     required this.checkIfLargeScreen,
@@ -49,6 +40,10 @@ class PostDetailsPageView extends StatefulWidget {
     this.actions = const [],
     this.leftActions = const [],
     this.bottomSheet,
+    this.bottomPreviewBuilder,
+    this.pageWrapperBuilder,
+    this.mediaSizeBuilder,
+    this.occurrenceKeyBuilder,
     this.sheetStateStorage,
     this.disableAnimation = false,
     this.mainContentBuilder,
@@ -62,29 +57,28 @@ class PostDetailsPageView extends StatefulWidget {
     this.isPostPage,
   });
 
-  final Widget Function(BuildContext, ScrollController? scrollController)
-  sheetBuilder;
+  final List<Widget> Function(BuildContext, int) detailsSliversBuilder;
   final int itemCount;
   final bool detailsEnabled;
   final bool overlayEnabled;
   final bool Function(int)? isPostPage;
   final IndexedWidgetBuilder itemBuilder;
+  final IndexedWidgetBuilder? bottomPreviewBuilder;
+  final Widget Function(BuildContext, int, Widget)? pageWrapperBuilder;
+  final Size? Function(int)? mediaSizeBuilder;
+  final Object Function(int)? occurrenceKeyBuilder;
   final double maxSize;
   final double swipeDownThreshold;
-
   final List<Widget> actions;
   final List<Widget> leftActions;
   final Widget? bottomSheet;
-
-  final void Function()? onSwipeDownThresholdReached;
-  final void Function()? onExit;
-  final void Function()? onExpanded;
-  final void Function()? onShrink;
-  final void Function(int page)? onPageChanged;
-
+  final VoidCallback? onSwipeDownThresholdReached;
+  final VoidCallback? onExit;
+  final VoidCallback? onExpanded;
+  final VoidCallback? onShrink;
+  final ValueChanged<int>? onPageChanged;
   final PostDetailsPageViewController? controller;
   final SheetStateStorage? sheetStateStorage;
-
   final bool disableAnimation;
   final bool Function() checkIfLargeScreen;
   final bool nextLoading;
@@ -92,9 +86,7 @@ class PostDetailsPageView extends StatefulWidget {
   final bool nextCanLoad;
   final VoidCallback? onRetryNext;
   final VoidCallback? onLoadMoreNext;
-
-  // Terrible hack to allow wrapping main content with MouseRegion from outside
-  final Widget Function(BuildContext context, Widget child)? mainContentBuilder;
+  final Widget Function(BuildContext, Widget)? mainContentBuilder;
 
   @override
   State<PostDetailsPageView> createState() => _PostDetailsPageViewState();
@@ -102,152 +94,69 @@ class PostDetailsPageView extends StatefulWidget {
 
 class _PostDetailsPageViewState extends State<PostDetailsPageView>
     with TickerProviderStateMixin {
-  final _pointerCount = ValueNotifier(0);
   final _interacting = ValueNotifier(false);
-  var _freestyleMoveStartOffset = Offset.zero;
-  var _freestyleMoveScale = 1.0;
-  var _handledExpandedMediaSwipe = false;
-  var _bottomPreviewHeight = 0.0;
-
+  final _scrollOffsets = <Object, double>{};
+  EdgeInsets _safeInsets = EdgeInsets.zero;
+  Size? _viewportSize;
   static const _edgeSlideDistance = 24.0;
   static const _edgeSlideHalfDuration = Duration(milliseconds: 100);
   late final _edgeSlideController = AnimationController(vsync: this);
   int? _edgeExpectedPage;
   double? _edgeDragDirection;
   var _edgeSlideSerial = 0;
-
   late final PostDetailsPageViewController _controller;
-
-  late final _overlayAnimController = !widget.disableAnimation
-      ? AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 150),
-        )
-      : null;
-
-  late final _overlayCurvedAnimation = _overlayAnimController != null
-      ? CurvedAnimation(
-          parent: _overlayAnimController,
-          curve: Curves.easeOutCirc,
-        )
-      : null;
-
-  late final _bottomInfoAnimController = !widget.disableAnimation
-      ? AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 150),
-        )
-      : null;
-
-  late final _bottomInfoCurvedAnimation = _bottomInfoAnimController != null
-      ? CurvedAnimation(
-          parent: _bottomInfoAnimController,
-          curve: Curves.easeOutCirc,
-        )
-      : null;
-
-  final _isSheetAnimating = ValueNotifier(false);
-
-  late AnimationController _sheetAnimController;
-  late Animation<double> _displacementAnim;
-  late Animation<Offset> _sideSheetSlideAnim;
-
+  late final _overlayAnimController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 150),
+  );
+  late final _bottomInfoAnimController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 150),
+  );
+  late final _overlayAnimation = CurvedAnimation(
+    parent: _overlayAnimController,
+    curve: Curves.easeOutCirc,
+  );
+  late final _previewAnimation = CurvedAnimation(
+    parent: _bottomInfoAnimController,
+    curve: Curves.easeOutCirc,
+  );
   bool get isLargeScreen => widget.checkIfLargeScreen();
 
   @override
   void initState() {
     super.initState();
-
-    // Single animation controller to sync displacement and side sheet slide
-    _sheetAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-
-    // Animate the displacement box width
-    _displacementAnim =
-        Tween<double>(
-          begin: 0.0,
-          end: kSideSheetWidth,
-        ).animate(
-          CurvedAnimation(
-            parent: _sheetAnimController,
-            curve: Curves.easeInOut,
-          ),
-        );
-
-    // Animate the side sheet's position from offscreen to onscreen
-    _sideSheetSlideAnim =
-        Tween<Offset>(
-          begin: const Offset(1.0, 0.0),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: _sheetAnimController,
-            curve: Curves.easeInOut,
-          ),
-        );
-
     _controller =
         widget.controller ??
         PostDetailsPageViewController(
           initialPage: 0,
-          checkIfLargeScreen: widget.checkIfLargeScreen,
           totalPage: widget.itemCount,
+          checkIfLargeScreen: widget.checkIfLargeScreen,
+          disableAnimation: widget.disableAnimation,
         );
-
     _controller.pageController.addListener(_onPageChanged);
-    _controller.sheetController.addListener(_onSheetChanged);
-    _controller.verticalPosition.addListener(_onVerticalPositionChanged);
-    _controller.sheetState.addListener(_onSheetStateChanged);
-    _controller
-      ..attachOverlayAnimController(_overlayAnimController)
-      ..attachBottomSheetAnimController(_bottomInfoAnimController);
-    if (!widget.detailsEnabled) {
-      _controller.showOverlay(includeSystemStatus: false);
+    _controller.sheetState.addListener(_onModeChanged);
+    _controller.attachOverlayAnimController(_overlayAnimController);
+    _controller.attachBottomSheetAnimController(_bottomInfoAnimController);
+    if (!widget.detailsEnabled) _controller.showOverlay();
+    if (widget.detailsEnabled &&
+        isLargeScreen &&
+        (widget.sheetStateStorage?.loadExpandedState() ?? false)) {
+      _controller.expandToSnapPoint();
     }
-    _bottomInfoAnimController?.addListener(_syncBottomObstruction);
-    _controller.forceHideBottomSheet.addListener(_syncBottomObstruction);
-    _controller.bottomSheet.addListener(_syncBottomObstruction);
-
-    _isSheetAnimating.addListener(_onSheetAnimatingChanged);
-
-    final currentExpanded = _controller.sheetState.value.isExpanded;
-
-    // auto expand side sheet if it was expanded before
-    if (widget.detailsEnabled && isLargeScreen && !currentExpanded) {
-      final expanded = widget.sheetStateStorage?.loadExpandedState();
-
-      if (expanded ?? false) {
-        _controller.sheetState.value = SheetState.expanded;
-        // Set the controller value immediately to skip the opening animation
-        _sheetAnimController.value = 1;
-      }
-    }
-
+    _controller.presentationProgress.value = _controller.isExpanded ? 1 : 0;
     if (_controller.initialHideOverlay && widget.detailsEnabled) {
-      Future.delayed(
-        const Duration(milliseconds: 250),
-        () {
-          if (!mounted || !widget.detailsEnabled) return;
-          hideSystemStatus();
-        },
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_controller.overlay.value) hideSystemStatus();
+      });
     }
   }
 
   @override
-  void didUpdateWidget(PostDetailsPageView oldWidget) {
+  void didUpdateWidget(covariant PostDetailsPageView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.detailsEnabled && !widget.detailsEnabled) {
-      _controller.animating.value = true;
-      if (_controller.sheetController.isAttached) {
-        _controller.sheetController.jumpTo(0);
-      }
       _controller.sheetState.value = SheetState.collapsed;
-      _controller.verticalPosition.value = 0;
-      _controller.setDisplacement(0);
-      _controller.animating.value = false;
       _controller.stopSlideshow();
       _controller.disableHoverToControlOverlay();
       _controller.showOverlay();
@@ -256,6 +165,50 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
         oldWidget.disableAnimation != widget.disableAnimation) {
       _cancelEdgeSlide();
     }
+  }
+
+  void _onModeChanged() {
+    _controller.bottomObstruction.value = 0;
+    if (_controller.isExpanded) {
+      widget.onExpanded?.call();
+    } else {
+      widget.onShrink?.call();
+    }
+    if (isLargeScreen) {
+      widget.sheetStateStorage?.persistExpandedState(_controller.isExpanded);
+    }
+  }
+
+  void _onPageChanged() {
+    final page = _controller.pageController.page;
+    if (_edgeExpectedPage case final expected?) {
+      if (page == null || (page - expected).abs() > 0.001) _cancelEdgeSlide();
+    }
+    _controller.precisePage.value = page;
+    final number = page?.round();
+    if (number == null || number == _controller.page) return;
+    _controller.currentPage.value = number;
+    widget.onPageChanged?.call(number);
+    // Transform ownership belongs to the settled occurrence, not its neighbor.
+    _controller.zoom.value = false;
+    _controller.enableAllSwiping();
+    if (!(widget.isPostPage?.call(number) ?? true)) {
+      _controller.bottomObstruction.value = 0;
+      _controller.showOverlay();
+    } else if (!_controller.isExpanded && _controller.initialHideOverlay) {
+      _controller.hideAllUI();
+    }
+  }
+
+  void _onPop() {
+    if (Kurumi.enableHeroTransition && !widget.disableAnimation) {
+      _controller.forceHideOverlay.value = true;
+      _controller.forceHideBottomSheet.value = true;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.restoreSystemStatus();
+      widget.onExit?.call();
+    });
   }
 
   void _cancelEdgeSlide() {
@@ -328,489 +281,127 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     }
   }
 
-  void _onPop() {
-    if (Kurumi.enableHeroTransition && !widget.disableAnimation) {
-      _controller.forceHideOverlay.value = true;
-      _controller.forceHideBottomSheet.value = true;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.restoreSystemStatus();
-      widget.onExit?.call();
-    });
-  }
-
-  void _onSheetAnimatingChanged() {
-    // Only control overlay when in expanded state
-    if (!_controller.sheetState.value.isExpanded) return;
-  }
-
-  void _onPageChanged() {
-    final page = _controller.pageController.page;
-    if (_edgeExpectedPage case final expected?) {
-      if (page == null || (page - expected).abs() > 0.001) {
-        _cancelEdgeSlide();
-      }
-    }
-
-    _controller.precisePage.value = page;
-
-    final pageNum = page?.round();
-
-    if (pageNum == null) return;
-
-    if (pageNum != _controller.page) {
-      _controller.currentPage.value = pageNum;
-
-      if (_controller.isExpanded && !isLargeScreen) {
-        // Do not let the new post inherit the previous post's open details.
-        // Collapse synchronously so an outstanding sheet animation cannot
-        // briefly expose the next post with the old expanded layout.
-        _controller.sheetState.value = SheetState.collapsed;
-        _controller.sheetMaxSize.value = _controller.maxSize;
-        if (_controller.sheetController.isAttached) {
-          _controller.sheetController.jumpTo(0);
-        }
-        _controller.verticalPosition.value = 0.0;
-        _controller.setDisplacement(0.0);
-        _controller.showBottomSheet();
-      } else {
-        _controller.sheetState.value = switch (_controller.sheetState.value) {
-          SheetState.expanded => SheetState.expanded,
-          SheetState.collapsed => SheetState.collapsed,
-          SheetState.hidden => SheetState.collapsed,
-        };
-      }
-
-      widget.onPageChanged?.call(pageNum);
-
-      // Hide UI elements when page changes
-      final isPost = widget.isPostPage?.call(pageNum) ?? true;
-      if (_controller.initialHideOverlay && !isLargeScreen && isPost) {
-        _controller.hideAllUI();
-      } else if (!isPost) {
-        _controller.showOverlay();
-      }
-    }
-  }
-
-  void _onVerticalPositionChanged() {
-    if (_controller.animating.value || _controller.isExpanded) return;
-
-    final dy = _controller.verticalPosition.value;
-
-    if (dy > 0) return;
-
-    final size = _controller.sheetController.pixelsToSize(dy.abs());
-
-    _controller.sheetController.jumpTo(size);
-  }
-
-  void _onSheetChanged() {
-    final size = _controller.sheetController.size;
-
-    if (size > widget.maxSize) {
-      return;
-    }
-
-    final dis = _clampToZero(_controller.sheetController.sizeToPixels(size));
-
-    _controller.setDisplacement(dis);
-
-    // Handle case when sheet is closed by dragging down, this is not handled by the controller
-    if (dis <= 0 && _controller.isExpanded) {
-      _controller.sheetState.value = SheetState.hidden;
-    }
-
-    if (dis <= 200 && _controller.isExpanded) {
-      if (!_controller.previouslyForcedShowUIByDrag) {
-        // Delay to next frame to wait for the sheet state to change before showing the overlay
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _controller.showBottomSheet();
-        });
-      } else {
-        // UI was previously forced to show by drag, so we don't want to show it again here
-      }
-    }
-  }
-
-  void _onSheetStateChanged() {
-    if (_controller.isExpanded) {
-      widget.onExpanded?.call();
-    } else {
-      if (_controller.sheetState.value == SheetState.hidden) {
-        widget.onShrink?.call();
-      }
-
-      // Hide UI elements when sheet is collapsed if it was previously forced to show by drag
-      if (_controller.previouslyForcedShowUIByDrag) {
-        _controller
-          ..hideOverlay()
-          ..previouslyForcedShowUIByDrag = false;
-      }
-    }
-
-    if (isLargeScreen) {
-      widget.sheetStateStorage?.persistExpandedState(_controller.isExpanded);
-    }
-
-    // sync the side sheet slide animation with the sheet state
-    _sheetAnimController.value = _controller.isExpanded ? 1 : 0;
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncBottomObstruction();
-  }
-
-  void _syncBottomObstruction() {
-    if (!mounted) return;
-    final visible =
-        _bottomInfoAnimController?.value ??
-        (_controller.bottomSheet.value ? 1.0 : 0.0);
-    _controller.bottomObstruction.value =
-        widget.bottomSheet == null ||
-            isLargeScreen ||
-            _controller.forceHideBottomSheet.value
-        ? 0
-        : _bottomPreviewHeight * visible;
-  }
-
-  void _onBottomPreviewSize(Size size) {
-    if (!mounted) return;
-    _bottomPreviewHeight = size.height;
-    _syncBottomObstruction();
-  }
-
   @override
   void dispose() {
-    _bottomInfoAnimController?.removeListener(_syncBottomObstruction);
-    _controller.forceHideBottomSheet.removeListener(_syncBottomObstruction);
-    _controller.bottomSheet.removeListener(_syncBottomObstruction);
-    _controller.bottomObstruction.value = 0;
-    _controller.sheetState.removeListener(_onSheetStateChanged);
     _controller.pageController.removeListener(_onPageChanged);
-    _controller.sheetController.removeListener(_onSheetChanged);
-
-    _controller
-      ..detachOverlayAnimController()
-      ..detachBottomSheetAnimController();
-
-    _isSheetAnimating.removeListener(_onSheetAnimatingChanged);
-
-    _pointerCount.dispose();
+    _controller.sheetState.removeListener(_onModeChanged);
+    _controller.detachOverlayAnimController();
+    _controller.detachBottomSheetAnimController();
+    _controller.scrollDetailsToTop = null;
+    _controller.bottomObstruction.value = 0;
     _interacting.dispose();
-    _isSheetAnimating.dispose();
+    _overlayAnimation.dispose();
+    _previewAnimation.dispose();
+    _overlayAnimController.dispose();
+    _bottomInfoAnimController.dispose();
     _edgeSlideController.dispose();
-
-    _overlayCurvedAnimation?.dispose();
-    _overlayAnimController?.dispose();
-    _sheetAnimController.dispose();
-    _bottomInfoAnimController?.dispose();
-    _bottomInfoCurvedAnimation?.dispose();
-
-    if (widget.controller == null) {
-      _controller.dispose();
-    }
-
+    if (widget.controller == null) _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return PostDetailsShortcuts(
-      controller: _controller,
-      isLargeScreen: isLargeScreen,
-      child: Stack(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: SlideshowOverlay(
-                  controller: _controller.slideshowController,
-                  onStop: _controller.stopSlideshow,
-                  child: switch (widget.mainContentBuilder) {
-                    null => _buildMain(),
-                    final builder => builder(
-                      context,
-                      _buildMain(),
-                    ),
-                  },
-                ),
-              ),
-              if (!widget.detailsEnabled || !isLargeScreen)
-                const SizedBox.shrink()
-              else if (!widget.disableAnimation)
-                AnimatedBuilder(
-                  animation: _displacementAnim,
-                  builder: (context, child) {
-                    return SizedBox(width: _displacementAnim.value);
-                  },
-                )
-              else
-                _buildSideSheet(),
-              ValueListenableBuilder(
-                valueListenable: _controller.sheetState,
-                builder: (_, state, _) => PopScope(
-                  canPop: switch (isLargeScreen) {
-                    true => true,
-                    false => !state.isExpanded,
-                  },
-                  onPopInvokedWithResult: (didPop, _) {
-                    if (didPop) {
-                      _onPop();
-                    } else {
-                      if (_controller.isExpanded) {
-                        _controller.resetSheet();
-                        return;
-                      }
-                    }
-                  },
-                  child: const SizedBox.shrink(),
-                ),
-              ),
-            ],
-          ),
-          if (widget.detailsEnabled &&
-              isLargeScreen &&
-              !widget.disableAnimation)
-            Align(
-              alignment: Alignment.centerRight,
-              child: SlideTransition(
-                position: _sideSheetSlideAnim,
-                child: _buildSideSheet(),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSideSheet() {
-    return ValueListenableBuilder(
-      valueListenable: _controller.forceHideOverlay,
-      builder: (_, hide, child) => hide ? const SizedBox.shrink() : child!,
-      child: SideSheet(
-        controller: _controller,
-        sheetBuilder: widget.sheetBuilder,
-        animationController: _sheetAnimController,
-      ),
-    );
-  }
-
-  Widget _buildMain() {
-    final bottomSheet = widget.bottomSheet;
-    final measuredBottomSheet = KurumiMeasureSize(
-      onChange: _onBottomPreviewSize,
-      child: bottomSheet ?? const SizedBox.shrink(),
-    );
-
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: Column(
-            children: [
-              Expanded(
-                child: ValueListenableBuilder(
-                  valueListenable: _interacting,
-                  builder: (_, interacting, _) => ValueListenableBuilder(
-                    valueListenable: _controller.swipe,
-                    builder: (_, swipe, _) => _buildPageView(
-                      swipe,
-                      interacting,
-                    ),
-                  ),
-                ),
-              ),
-              _buildBottomDisplacement(),
-            ],
-          ),
-        ),
-        if (bottomSheet != null && !isLargeScreen)
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: ValueListenableBuilder(
-              valueListenable: _controller.forceHideBottomSheet,
-              builder: (_, hide, _) => hide
-                  ? const SizedBox.shrink()
-                  : _BottomPreviewSwipeDetector(
-                      onSwipeUp: _expandFromBottomPreview,
-                      child: _bottomInfoAnimController != null
-                          ? SlideTransition(
-                              position: Tween(
-                                begin: const Offset(0, 1),
-                                end: Offset.zero,
-                              ).animate(_bottomInfoAnimController),
-                              child: ColoredBox(
-                                color: Kurumi.themeOf(
-                                  context,
-                                ).colorScheme.surface,
-                                child: FadeTransition(
-                                  opacity:
-                                      Tween(
-                                        begin: 0.0,
-                                        end: 1.0,
-                                      ).animate(
-                                        CurvedAnimation(
-                                          parent: _bottomInfoAnimController,
-                                          curve: Curves.easeInCubic,
-                                        ),
-                                      ),
-                                  child: measuredBottomSheet,
-                                ),
-                              ),
-                            )
-                          : measuredBottomSheet,
-                    ),
-            ),
-          ),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: widget.detailsEnabled && !isLargeScreen
-              ? DragSheet(
-                  sheetBuilder: (context, scrollController) =>
-                      ListenableBuilder(
-                        listenable: Listenable.merge([
-                          _controller.sheetState,
-                          _controller.swipe,
-                          _controller.zoom,
-                          _controller.animating,
-                          _isSheetAnimating,
-                          _interacting,
-                        ]),
-                        builder: (_, child) => DetailsPageSwipeDetector(
-                          enabled: _canPageFromDetails,
-                          onSwipe: _pageFromDetails,
-                          child: child!,
-                        ),
-                        child: widget.sheetBuilder(context, scrollController),
-                      ),
-                  pageViewController: _controller,
-                  isSheetAnimating: _isSheetAnimating,
-                )
-              : const SizedBox.shrink(),
-        ),
-        if (widget.overlayEnabled)
-          PostDetailsOverlay(
-            controller: _controller,
-            leftActions: widget.leftActions,
-            actions: widget.actions,
-            detailsEnabled: widget.detailsEnabled,
-            isLargeScreen: isLargeScreen,
-            sheetAnimController: _sheetAnimController,
-            overlayCurvedAnimation: _overlayCurvedAnimation,
-            disableAnimation: widget.disableAnimation,
-          ),
-      ],
-    );
-  }
-
-  bool get _canPageFromDetails =>
-      !isLargeScreen &&
-      _controller.isExpanded &&
-      _controller.swipe.value &&
-      !_controller.zoom.value &&
-      !_controller.animating.value &&
-      !_isSheetAnimating.value &&
-      !_interacting.value &&
-      widget.itemCount > 1;
-
-  void _pageFromDetails(int direction) {
-    if (!_canPageFromDetails) return;
-    final target = _controller.page + direction;
-    if (target < 0 || target >= widget.itemCount) return;
-    if (widget.disableAnimation) {
-      _controller.jumpToPage(target);
-    } else {
-      unawaited(_controller.animateToPage(target));
+    final query = MediaQuery.of(context);
+    final physicalInsets = MediaQueryData.fromView(View.of(context))
+        .viewPadding;
+    if (_viewportSize != query.size) {
+      _viewportSize = query.size;
+      _safeInsets = EdgeInsets.zero;
     }
-  }
-
-  void _expandFromBottomPreview() {
-    if (_controller.isExpanded || _controller.animating.value) return;
-
-    _controller
-      ..hideBottomSheet()
-      ..expandToSnapPoint();
-  }
-
-  Widget _buildBottomDisplacement() {
-    return widget.detailsEnabled && !isLargeScreen
-        ? ValueListenableBuilder(
-            valueListenable: _controller.sheetMaxSize,
-            builder: (_, maxSize, _) => ValueListenableBuilder(
-              valueListenable: _controller.sheetState,
-              builder: (_, state, _) => ValueListenableBuilder(
-                valueListenable: _controller.displacement,
-                builder: (context, dis, child) {
-                  final maxSheetSize =
-                      maxSize * MediaQuery.sizeOf(context).longestSide;
-
-                  return state.isExpanded &&
-                          dis >
-                              maxSheetSize -
-                                  0.01 // 0.01 is for rounding error e.g: 419.99999999999
-                      ? SizedBox(
-                          height: maxSheetSize,
-                        )
-                      : ValueListenableBuilder(
-                          valueListenable: _pointerCount,
-                          builder: (_, count, _) => SizedBox(
-                            height: dis,
-                          ),
-                        );
-                },
+    // The navigation shell can briefly supply its app-bar obstruction here.
+    // Bound it to actual system insets, respecting any already consumed edges.
+    // Keep the last physical inset only while Android's bars are hidden.
+    double inset(double physical, double inherited, double previous) =>
+        physical > 0 ? math.min(physical, inherited) : previous;
+    _safeInsets = EdgeInsets.fromLTRB(
+      inset(physicalInsets.left, query.viewPadding.left, _safeInsets.left),
+      inset(physicalInsets.top, query.viewPadding.top, _safeInsets.top),
+      inset(physicalInsets.right, query.viewPadding.right, _safeInsets.right),
+      inset(
+        physicalInsets.bottom,
+        query.viewPadding.bottom,
+        _safeInsets.bottom,
+      ),
+    );
+    final pager = SlideshowOverlay(
+      controller: _controller.slideshowController,
+      onStop: _controller.stopSlideshow,
+      child: _buildPager(),
+    );
+    return MediaQuery(
+      data: query.copyWith(padding: _safeInsets, viewPadding: _safeInsets),
+      child: PostDetailsShortcuts(
+        controller: _controller,
+        isLargeScreen: isLargeScreen,
+        child: PopScope(
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) _onPop();
+          },
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: widget.mainContentBuilder?.call(context, pager) ?? pager,
               ),
-            ),
-          )
-        : const SizedBox.shrink();
+              if (widget.overlayEnabled)
+                PostDetailsOverlay(
+                  controller: _controller,
+                  leftActions: widget.leftActions,
+                  actions: widget.actions,
+                  detailsEnabled: widget.detailsEnabled,
+                  isLargeScreen: isLargeScreen,
+                  overlayCurvedAnimation: widget.disableAnimation
+                      ? null
+                      : _overlayAnimation,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
-  Widget _buildPageView(
-    bool swipe,
-    bool interacting,
-  ) {
-    final isPortrait = !context.isLargeScreen;
-
-    return ListenableBuilder(
+  Widget _buildPager() => PointerCountOnScreen(
+    enable: true,
+    onCountChanged: (count) => _interacting.value = count > 1,
+    child: ListenableBuilder(
       listenable: Listenable.merge([
+        _controller.swipe,
+        _controller.zoom,
         _controller.sheetState,
         _controller.animating,
-        _controller.zoom,
+        _interacting,
       ]),
-      builder: (_, _) {
-        final state = _controller.sheetState.value;
-        final blockSwipe =
-            !swipe ||
-            interacting ||
-            _controller.animating.value ||
+      builder: (context, _) {
+        final blocked =
+            _interacting.value ||
+            !_controller.swipe.value ||
             _controller.zoom.value ||
-            (state.isExpanded && isLargeScreen);
-
+            _controller.animating.value;
         return AnimatedBuilder(
           animation: _edgeSlideController,
           builder: (context, child) {
-            final dragDirection = _edgeDragDirection;
-            final isSliding = dragDirection != null;
-
+            final direction = _edgeDragDirection;
             final value = _edgeSlideController.value;
             final outgoing = value <= 0.5;
             final progress = outgoing ? value * 2 : (value - 0.5) * 2;
-            final offset = outgoing
-                ? _edgeSlideDistance * progress * (dragDirection ?? 0)
-                : -_edgeSlideDistance * (1 - progress) * (dragDirection ?? 0);
-            final opacity = isSliding
-                ? (outgoing ? 1 - progress : progress)
-                : 1.0;
-
             return ClipRect(
               child: IgnorePointer(
-                ignoring: isSliding,
+                ignoring: direction != null,
                 child: Opacity(
-                  opacity: opacity,
+                  opacity: direction == null
+                      ? 1
+                      : outgoing
+                      ? 1 - progress
+                      : progress,
                   child: Transform.translate(
-                    offset: Offset(offset, 0),
+                    offset: Offset(
+                      direction == null
+                          ? 0
+                          : outgoing
+                          ? _edgeSlideDistance * progress * direction
+                          : -_edgeSlideDistance * (1 - progress) * direction,
+                      0,
+                    ),
                     child: child,
                   ),
                 ),
@@ -818,60 +409,53 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
             );
           },
           child: PageView.builder(
-            onPageChanged: blockSwipe && !isPortrait
-                ? (_) => _controller.startCooldownTimer()
-                : null,
             controller: _controller.pageController,
-            physics: blockSwipe || widget.itemCount < 2
+            allowImplicitScrolling: true,
+            physics: blocked || widget.itemCount < 2
                 ? const NeverScrollableScrollPhysics()
                 : const _PostDetailsPagePhysics(),
             itemCount: widget.itemCount,
-            itemBuilder: (context, index) => _buildItem(index, blockSwipe),
+            itemBuilder: (context, index) {
+              final key = widget.occurrenceKeyBuilder?.call(index) ?? index;
+              final page = _ViewerPage(
+                key: ValueKey(key),
+                index: index,
+                interacting: _interacting,
+                controller: _controller,
+                previewAnimation: _previewAnimation,
+                isPost: widget.isPostPage?.call(index) ?? widget.detailsEnabled,
+                disableAnimation: widget.disableAnimation,
+                mediaSize: widget.mediaSizeBuilder?.call(index),
+                itemBuilder: (context) => _buildMedia(context, index),
+                detailsBuilder: (context) =>
+                    widget.detailsSliversBuilder(context, index),
+                previewBuilder: (context) =>
+                    widget.bottomPreviewBuilder?.call(context, index) ??
+                    widget.bottomSheet,
+                savedOffset: () => _scrollOffsets[key] ?? 0,
+                saveOffset: (value) => _scrollOffsets[key] = value,
+                onSwipeDown: widget.onSwipeDownThresholdReached,
+                swipeDownThreshold: widget.swipeDownThreshold,
+              );
+              return widget.pageWrapperBuilder?.call(context, index, page) ??
+                  page;
+            },
           ),
         );
       },
-    );
-  }
+    ),
+  );
 
-  final _dummyAlwaysFalse = ValueNotifier(false);
-
-  Widget _buildItem(int index, bool blockSwipe) {
-    List<Widget> buildNavButtons() {
-      return [
-        PageNavButton(
-          alignment: Alignment.centerRight,
-          controller: _controller,
-          visibleWhen: (page) => page < widget.itemCount - 1,
-          icon: const Icon(Symbols.arrow_forward),
-          onPressed: () => _controller.nextPage(duration: Duration.zero),
-        ),
-        PageNavButton(
-          alignment: Alignment.centerLeft,
-          controller: _controller,
-          visibleWhen: (page) => page > 0,
-          icon: const Icon(Symbols.arrow_back),
-          onPressed: () => _controller.previousPage(duration: Duration.zero),
-        ),
-      ];
-    }
-
-    final isSmall = !isLargeScreen;
-
-    final lastKnownPage = widget.itemCount - 1;
-    final loadingNext = widget.nextLoading && index == lastKnownPage;
-    final failedNext =
-        !loadingNext && widget.nextFailed && index == lastKnownPage;
-    final loadMoreNext =
-        !loadingNext &&
-        !failedNext &&
-        widget.nextCanLoad &&
-        index == lastKnownPage;
-
+  Widget _buildMedia(BuildContext context, int index) {
+    final last = widget.itemCount - 1;
+    final loading = widget.nextLoading && index == last;
+    final failed = !loading && widget.nextFailed && index == last;
+    final more = !loading && !failed && widget.nextCanLoad && index == last;
     final navigation = ZoomPageNavigationScope(
       previousLabel: context.t.infinite_scroll.previous_page,
-      nextLabel: failedNext
+      nextLabel: failed
           ? context.t.generic.action.retry
-          : loadMoreNext
+          : more
           ? context.t.infinite_scroll.load_more
           : context.t.infinite_scroll.next_page,
       onPrevious: index > 0
@@ -881,434 +465,782 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
           ? () => _navigateFromEdge(index, index - 1)
           : null,
       previousActionId: index > 0 ? (index - 1, widget.itemCount) : null,
-      nextEdgeAction: failedNext
+      nextEdgeAction: failed
           ? ZoomPageEdgeAction.retry
-          : loadMoreNext
+          : more
           ? ZoomPageEdgeAction.loadMore
           : ZoomPageEdgeAction.page,
-      nextActionId: failedNext
+      nextActionId: failed
           ? ('retry', widget.onRetryNext)
-          : loadMoreNext
+          : more
           ? ('load-more', widget.onLoadMoreNext)
-          : loadingNext || index >= lastKnownPage
+          : loading || index == last
           ? null
           : (index + 1, widget.itemCount),
-      onNext: failedNext
+      onNext: failed
           ? widget.onRetryNext
-          : loadMoreNext
+          : more
           ? widget.onLoadMoreNext
-          : loadingNext || index >= lastKnownPage
+          : loading || index == last
           ? null
           : () => _controller.nextPage(duration: Duration.zero),
-      onEdgeNext: index < lastKnownPage
+      onEdgeNext: index < last
           ? () => _navigateFromEdge(index, index + 1)
           : null,
       child: widget.itemBuilder(context, index),
     );
-
-    if (!(widget.isPostPage?.call(index) ?? true)) {
-      return Stack(
-        children: [
-          Positioned.fill(child: navigation),
-          if (isDesktopPlatform()) ...buildNavButtons(),
-        ],
-      );
-    }
     return Stack(
       children: [
-        Positioned.fill(
-          child: ValueListenableBuilder(
-            valueListenable: !isSmall ? _dummyAlwaysFalse : _controller.canPull,
-            builder: (_, canPull, _) => PointerCountOnScreen(
-              enable: isSmall,
-              onCountChanged: (count) {
-                _pointerCount.value = count;
-                _interacting.value = count > 1;
-              },
-              child: ValueListenableBuilder(
-                valueListenable: !isSmall
-                    ? _dummyAlwaysFalse
-                    : _controller.pulling,
-                builder: (_, pulling, _) => GestureDetector(
-                  onVerticalDragStart: canPull && !_interacting.value
-                      ? _onVerticalDragStart
-                      : null,
-                  onVerticalDragUpdate: pulling ? _onVerticalDragUpdate : null,
-                  onVerticalDragEnd: pulling ? _onVerticalDragEnd : null,
-                  child: AnimatedBuilder(
-                    animation: Listenable.merge([
-                      _controller.freestyleMoveOffset,
-                      _controller.sheetState,
-                    ]),
-                    builder: (context, childAb) => Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.identity()
-                        ..translateByDouble(
-                          _controller.freestyleMoveOffset.value.dx,
-                          _controller.freestyleMoveOffset.value.dy,
-                          0,
-                          1,
-                        )
-                        ..scaledByDouble(
-                          _freestyleMoveScale,
-                          _freestyleMoveScale,
-                          _freestyleMoveScale,
-                          1,
-                        ),
-                      child: childAb,
-                    ),
-                    child: isSmall
-                        ? _ExpandedMediaSwipeDetector(
-                            controller: _controller,
-                            onSwipeDown: () {
-                              _handledExpandedMediaSwipe = true;
-                              _controller.resetSheet();
-                            },
-                            onSwipeEnded: () =>
-                                _handledExpandedMediaSwipe = false,
-                            child: navigation,
-                          )
-                        : navigation,
-                  ),
-                ),
-              ),
-            ),
+        Positioned.fill(child: navigation),
+        if (isDesktopPlatform()) ...[
+          PageNavButton(
+            alignment: Alignment.centerRight,
+            controller: _controller,
+            visibleWhen: (page) => page < widget.itemCount - 1,
+            icon: const Icon(Symbols.arrow_forward),
+            onPressed: () => _controller.nextPage(duration: Duration.zero),
           ),
-        ),
-        if (isDesktopPlatform())
-          ...buildNavButtons()
-        else if (!isSmall)
-          if (blockSwipe) ...buildNavButtons(),
+          PageNavButton(
+            alignment: Alignment.centerLeft,
+            controller: _controller,
+            visibleWhen: (page) => page > 0,
+            icon: const Icon(Symbols.arrow_back),
+            onPressed: () => _controller.previousPage(duration: Duration.zero),
+          ),
+        ],
       ],
     );
   }
+}
 
-  void _onVerticalDragStart(DragStartDetails details) {
-    _controller.pulling.value = true;
+class _ViewerPage extends StatefulWidget {
+  const _ViewerPage({
+    required this.index,
+    required this.interacting,
+    required this.controller,
+    required this.previewAnimation,
+    required this.isPost,
+    required this.disableAnimation,
+    required this.mediaSize,
+    required this.itemBuilder,
+    required this.detailsBuilder,
+    required this.previewBuilder,
+    required this.savedOffset,
+    required this.saveOffset,
+    required this.onSwipeDown,
+    required this.swipeDownThreshold,
+    super.key,
+  });
+  final int index;
+  final ValueListenable<bool> interacting;
+  final PostDetailsPageViewController controller;
+  final Animation<double> previewAnimation;
+  final bool isPost;
+  final bool disableAnimation;
+  final Size? mediaSize;
+  final WidgetBuilder itemBuilder;
+  final List<Widget> Function(BuildContext) detailsBuilder;
+  final Widget? Function(BuildContext) previewBuilder;
+  final double Function() savedOffset;
+  final ValueChanged<double> saveOffset;
+  final VoidCallback? onSwipeDown;
+  final double swipeDownThreshold;
+  @override
+  State<_ViewerPage> createState() => _ViewerPageState();
+}
 
-    if (!_controller.isExpanded) {
-      _freestyleMoveStartOffset = details.globalPosition;
-      _freestyleMoveScale = 1.0;
-    }
+class _ViewerPageState extends State<_ViewerPage>
+    with SingleTickerProviderStateMixin {
+  late var _current = widget.controller.page == widget.index;
+  late final _mode = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 165),
+    value: _details ? 1 : 0,
+  );
+  late final _scroll = ScrollController(
+    initialScrollOffset: _details ? widget.savedOffset() : 0,
+  );
+  late bool _mountedDetails = _details;
+  final _pointers = <int>{};
+  Offset? _dragOrigin;
+  Offset? _pointerPosition;
+  Offset _dismissOffset = Offset.zero;
+  var _dragging = false;
+  var _cancelledMediaDrag = false;
+  var _overlayWasVisible = false;
+  var _startedInDetails = false;
+  var _fromOverlay = false;
+  var _scrubbing = false;
+  var _rootScrollOwnsDrag = false;
+  var _startedAtTop = false;
+  double _transitionDistance = 1;
+  double _dragStartProgress = 0;
+
+  void _onInteractionChanged() {
+    if (widget.interacting.value) _cancelPointerGesture();
   }
 
-  void _onVerticalDragUpdate(DragUpdateDetails details) {
-    if (_handledExpandedMediaSwipe) return;
-    _controller.dragUpdate(details);
-
-    if (_controller.freestyleMoving.value) {
-      if (_controller.verticalPosition.value <= 0) return;
-
-      // Calculate scale first
-      final movePercent =
-          details.globalPosition.dy - _freestyleMoveStartOffset.dy;
-      final normalizedPercent = movePercent / widget.swipeDownThreshold;
-      _freestyleMoveScale =
-          1.0 -
-          (normalizedPercent * _kSwipeDownScaleFactor).clamp(
-            0.0,
-            _kSwipeDownScaleFactor,
-          );
-
-      // Adjust translation based on scale
-      final scaledOffset = details.globalPosition - _freestyleMoveStartOffset;
-      // Apply scale compensation to keep the image centered
-      final scaleCompensation =
-          (1 - _freestyleMoveScale) *
-          (_freestyleMoveStartOffset.dy - details.globalPosition.dy) /
-          2;
-
-      _controller.freestyleMoveOffset.value = Offset(
-        scaledOffset.dx,
-        scaledOffset.dy + scaleCompensation,
-      );
-    }
-  }
-
-  void _onVerticalDragEnd(DragEndDetails details) {
-    _controller.pulling.value = false;
-    if (_handledExpandedMediaSwipe) {
-      _handledExpandedMediaSwipe = false;
+  void _pointerDown(PointerDownEvent event, {bool fromOverlay = false}) {
+    _pointers.add(event.pointer);
+    if (_pointers.length != 1) {
+      _cancelPointerGesture();
       return;
     }
+    _dragOrigin = _pointerPosition = event.position;
+    _cancelledMediaDrag = widget.interacting.value || !_current;
+    _overlayWasVisible = widget.controller.overlay.value;
+    _startedInDetails = _details;
+    _dragStartProgress = _mode.value;
+    _startedAtTop = _scroll.hasClients && _scroll.offset <= 0;
+    _rootScrollOwnsDrag = false;
+    _fromOverlay = fromOverlay;
+  }
 
-    // Check if drag distance exceeds threshold for dismissal
-    if (_controller.freestyleMoveOffset.value.dy.abs() >
-        widget.swipeDownThreshold) {
-      if (widget.onSwipeDownThresholdReached != null) {
-        widget.onSwipeDownThresholdReached?.call();
-      } else {
-        Navigator.of(context).maybePop();
+  void _pointerMove(PointerMoveEvent event) =>
+      _updateVerticalDrag(event.position);
+
+  void _updateVerticalDrag(Offset position) {
+    _pointerPosition = position;
+    final origin = _dragOrigin;
+    if (_cancelledMediaDrag || origin == null || _pointers.length != 1) {
+      return;
+    }
+    final delta = position - origin;
+    if (!_scrubbing && !_dragging) {
+      if (delta.distance < kTouchSlop) return;
+      if (delta.dy.abs() <= delta.dx.abs() * 1.5 ||
+          (!_fromOverlay && widget.controller.zoom.value)) {
+        _cancelledMediaDrag = true;
         return;
       }
-      // scale back to 1.0
-      _freestyleMoveScale = 1.0;
-    } else {
-      // Animate back to original position
-      _animateBackToPosition();
-      _freestyleMoveScale = 1.0;
+      if (_startedInDetails) {
+        // Only the root scrollable may authorize a top-edge pull. Nested text,
+        // sliders and scrollables keep their own gesture arena ownership.
+        if (!_rootScrollOwnsDrag ||
+            delta.dy <= 0 ||
+            (_scroll.hasClients && _scroll.offset > 0)) {
+          return;
+        }
+      } else if (delta.dy > 0) {
+        if (_fromOverlay) return;
+        _dragging = true;
+      }
+      if (!_dragging) {
+        _mode.stop();
+        _scrubbing = true;
+        _mountedDetails = true;
+        if (_current) widget.controller.animating.value = true;
+      }
     }
-
-    _controller.freestyleMoveOffset.value = Offset.zero;
-
-    _controller.dragEnd();
+    if (_scrubbing) {
+      _mode.value = (_dragStartProgress - delta.dy / _transitionDistance).clamp(
+        0.0,
+        1.0,
+      );
+      // Starting the gesture must rebuild even if it is already at an endpoint.
+      setState(() {});
+    } else if (_dragging) {
+      widget.controller.freestyleMoving.value = true;
+      widget.controller.hideOverlay(includeSystemStatus: false);
+      widget.controller.hideBottomSheet();
+      setState(() => _dismissOffset = delta);
+    }
   }
 
-  void _animateBackToPosition() {
-    final startOffset = _controller.freestyleMoveOffset.value;
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (!_startedInDetails || !_startedAtTop || notification.depth != 0) {
+      return false;
+    }
+    final started =
+        notification is ScrollStartNotification &&
+        notification.dragDetails != null;
+    final overscrolled =
+        notification is OverscrollNotification &&
+        notification.dragDetails != null &&
+        notification.overscroll < 0;
+    if ((started || overscrolled) && !_cancelledMediaDrag) {
+      _rootScrollOwnsDrag = true;
+      final position = _pointerPosition;
+      if (position != null) {
+        _updateVerticalDrag(position);
+      }
+    }
+    return false;
+  }
 
-    final animController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
+  void _cancelPointerGesture() {
+    _cancelledMediaDrag = true;
+    if (_scrubbing) {
+      _scrubbing = false;
+      // Restore synchronously before the scale recognizer handles a second
+      // pointer. No competing vertical recognizer has claimed the image.
+      _mode.value = _startedInDetails ? 1 : 0;
+      if (_current) widget.controller.animating.value = false;
+    }
+    _resetDismiss();
+  }
 
-    final animation =
-        Tween(
-          begin: startOffset,
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(
-            parent: animController,
-            curve: Curves.easeOut,
-          ),
-        );
+  void _resetDismiss() {
+    widget.controller.freestyleMoving.value = false;
+    if (_dragging && mounted) {
+      setState(() {
+        _dragging = false;
+        _dismissOffset = Offset.zero;
+      });
+      if (!_details && _overlayWasVisible) widget.controller.showAllUI();
+    }
+  }
 
-    animation.addListener(() {
-      if (mounted) {
-        _controller.freestyleMoveOffset.value = animation.value;
+  void _pointerUp(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.isNotEmpty) return;
+    if (_scrubbing) {
+      _scrubbing = false;
+      final threshold = math.min(80, _transitionDistance * 0.25);
+      final travelled =
+          (_mode.value - (_startedInDetails ? 1 : 0)).abs() *
+          _transitionDistance;
+      final expand = travelled >= threshold
+          ? !_startedInDetails
+          : _startedInDetails;
+      if (expand != _details) {
+        if (expand) {
+          widget.controller.expandToSnapPoint();
+        } else {
+          widget.controller.resetSheet();
+        }
+      } else {
+        _settleMode();
+      }
+    } else if (!_cancelledMediaDrag &&
+        _dragging &&
+        _dismissOffset.dy > widget.swipeDownThreshold) {
+      _resetDismiss();
+      if (widget.onSwipeDown != null) {
+        widget.onSwipeDown!();
+      } else {
+        Navigator.of(context).maybePop();
+      }
+    } else {
+      _resetDismiss();
+    }
+    _dragOrigin = _pointerPosition = null;
+  }
+
+  void _pointerCancel(PointerCancelEvent event) {
+    _cancelPointerGesture();
+    _pointerUp(event);
+  }
+
+  double _previewHeight = 0;
+  void _reportObstruction(double visibility) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.controller.page == widget.index && !_details) {
+        widget.controller.bottomObstruction.value = _previewHeight * visibility;
       }
     });
-
-    // Start animation
-    animController.forward().then((_) {
-      animController.dispose();
-    });
   }
-}
 
-class _ExpandedMediaSwipeDetector extends StatefulWidget {
-  const _ExpandedMediaSwipeDetector({
-    required this.controller,
-    required this.onSwipeDown,
-    required this.onSwipeEnded,
-    required this.child,
-  });
-
-  final PostDetailsPageViewController controller;
-  final VoidCallback onSwipeDown;
-  final VoidCallback onSwipeEnded;
-  final Widget child;
-
-  @override
-  State<_ExpandedMediaSwipeDetector> createState() =>
-      _ExpandedMediaSwipeDetectorState();
-}
-
-class _ExpandedMediaSwipeDetectorState
-    extends State<_ExpandedMediaSwipeDetector> {
-  final _pointers = <int>{};
-  int? _activePointer;
-  Offset? _startPosition;
-  var _cancelled = false;
-  var _swipeHandled = false;
-
-  bool get _canSwipe =>
-      widget.controller.isExpanded &&
-      !widget.controller.zoom.value &&
-      !widget.controller.animating.value;
+  bool get _details => widget.isPost && widget.controller.isExpanded;
+  bool get _reduceMotion =>
+      widget.disableAnimation || MediaQuery.disableAnimationsOf(context);
 
   @override
   void initState() {
     super.initState();
-    widget.controller.sheetState.addListener(_onEligibilityChanged);
-    widget.controller.zoom.addListener(_onEligibilityChanged);
+    _mode.addListener(_publishProgress);
+    widget.controller.sheetState.addListener(_modeChanged);
+    widget.controller.zoom.addListener(_zoomChanged);
+    widget.interacting.addListener(_onInteractionChanged);
+    widget.controller.currentPage.addListener(_pageChanged);
+    _scroll.addListener(_saveScroll);
+    _pageChanged();
+  }
+
+  void _publishProgress() {
+    void publish() {
+      if (mounted && _current) {
+        widget.controller.presentationProgress.value = _mode.value;
+      }
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => publish());
+    } else {
+      publish();
+    }
+  }
+
+  void _saveScroll() {
+    if (_details && !_scrubbing && !_mode.isAnimating && _scroll.hasClients) {
+      widget.saveOffset(_scroll.offset);
+    }
+  }
+
+  void _zoomChanged() {
+    if (widget.controller.zoom.value && !_fromOverlay) _cancelPointerGesture();
+  }
+
+  void _pageChanged() {
+    final current = widget.controller.page == widget.index;
+    if (current != _current) setState(() => _current = current);
+    if (widget.controller.page == widget.index) {
+      _publishProgress();
+      widget.controller.scrollDetailsToTop = _scrollToTop;
+      _reportObstruction(
+        _details || !widget.controller.bottomSheet.value
+            ? 0
+            : widget.disableAnimation
+            ? 1
+            : widget.previewAnimation.value,
+      );
+    }
+  }
+
+  void _scrollToTop() {
+    if (!_scroll.hasClients) return;
+    if (_reduceMotion) {
+      _scroll.jumpTo(0);
+    } else {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 165),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _modeChanged() {
+    if (!mounted || !widget.isPost) return;
+    if (_pointers.isNotEmpty) _cancelPointerGesture();
+    if (_details) {
+      _mountedDetails = true;
+    } else if (_scroll.hasClients) {
+      widget.saveOffset(_scroll.offset);
+      _scroll.jumpTo(0);
+    }
+    setState(() {});
+    _settleMode();
+  }
+
+  void _settleMode() {
+    if (_current) widget.controller.animating.value = true;
+    if (_reduceMotion) {
+      _mode.value = _details ? 1 : 0;
+      _restoreOffset();
+      if (_current) widget.controller.animating.value = false;
+    } else {
+      _mode
+          .animateTo(
+            _details ? 1 : 0,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+          )
+          .orCancel
+          .then(
+            (_) {
+              if (!mounted) return;
+              _restoreOffset();
+              if (_current) widget.controller.animating.value = false;
+            },
+            onError: (Object error) {
+              if (error is! TickerCanceled) {
+                Error.throwWithStackTrace(error, StackTrace.current);
+              }
+            },
+          );
+    }
+  }
+
+  void _restoreOffset() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_details || !_scroll.hasClients) return;
+      _scroll.jumpTo(
+        widget.savedOffset().clamp(0, _scroll.position.maxScrollExtent),
+      );
+    });
   }
 
   @override
   void dispose() {
-    widget.controller.sheetState.removeListener(_onEligibilityChanged);
-    widget.controller.zoom.removeListener(_onEligibilityChanged);
+    widget.controller.sheetState.removeListener(_modeChanged);
+    widget.controller.zoom.removeListener(_zoomChanged);
+    widget.interacting.removeListener(_onInteractionChanged);
+    widget.controller.currentPage.removeListener(_pageChanged);
+    _saveScroll();
+    _scroll.removeListener(_saveScroll);
+    _scroll.dispose();
+    _mode.removeListener(_publishProgress);
+    _mode.dispose();
     super.dispose();
   }
 
-  void _onEligibilityChanged() {
-    if (_pointers.isNotEmpty && !_canSwipe) {
-      _cancelled = true;
-      _activePointer = null;
-      _startPosition = null;
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeFocus(excluding: !_current, child: _buildPage(context));
+  }
+
+  Widget _buildPage(BuildContext context) {
+    if (!widget.isPost) return widget.itemBuilder(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final padding = MediaQuery.viewPaddingOf(context);
+        final safeWidth = constraints.maxWidth - padding.horizontal;
+        final usable = math.max(0, constraints.maxHeight - padding.vertical);
+        final ceiling = usable * 0.6;
+        final size = widget.mediaSize;
+        final ratio = size != null && size.width > 0 && size.height > 0
+            ? size.width / size.height
+            : double.nan;
+        final natural = ratio.isFinite && ratio > 0
+            ? safeWidth / ratio
+            : ceiling;
+        final minimum = math.min(
+          ceiling,
+          (usable * 0.2).clamp(158.0, 188.0),
+        );
+        final detailsHeight = natural.clamp(minimum, ceiling);
+        final contentSize = size != null && ratio.isFinite && ratio > 0
+            ? size
+            : constraints.biggest;
+        final immersiveFit = applyBoxFit(
+          BoxFit.contain,
+          contentSize,
+          constraints.biggest,
+        ).destination;
+        final detailsFit = applyBoxFit(
+          BoxFit.contain,
+          contentSize,
+          Size(safeWidth, math.max(1, detailsHeight)),
+        ).destination;
+        final targetScale = immersiveFit.width > 0
+            ? detailsFit.width / immersiveFit.width
+            : 1.0;
+        final targetOffset =
+            Offset(
+              safeWidth / 2,
+              ratio > 3
+                  ? detailsHeight - detailsFit.height / 2
+                  : detailsHeight / 2,
+            ) -
+            Offset(constraints.maxWidth / 2, constraints.maxHeight / 2) *
+                targetScale;
+        _transitionDistance = math.max(
+          1,
+          constraints.maxHeight - padding.top - detailsHeight,
+        );
+        final media = widget.itemBuilder(context);
+        final preview = widget.previewBuilder(context);
+        return AnimatedBuilder(
+          animation: _mode,
+          builder: (context, _) {
+            final progress = _mode.value;
+            return Stack(
+              children: [
+                Positioned(
+                  left: padding.left * progress,
+                  top: padding.top * progress,
+                  right: padding.right * progress,
+                  bottom: padding.bottom * progress,
+                  child: ClipRect(
+                    key: ValueKey(('viewer-safe-viewport', widget.index)),
+                    child: Listener(
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: _pointerDown,
+                      onPointerMove: _pointerMove,
+                      onPointerUp: _pointerUp,
+                      onPointerCancel: _pointerCancel,
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: _onScrollNotification,
+                        child: CustomScrollView(
+                          key: ValueKey((
+                            'viewer-details-scroll',
+                            widget.index,
+                          )),
+                          controller: _scroll,
+                          // Stretching overscroll would add a second transform
+                          // to the same finger-driven top-edge transition.
+                          scrollBehavior: ScrollConfiguration.of(context)
+                              .copyWith(overscroll: false),
+                          physics: _details
+                              ? _ViewerDetailsPhysics(hold: () => _scrubbing)
+                              : const NeverScrollableScrollPhysics(),
+                          slivers: [
+                            SliverToBoxAdapter(
+                              child: SizedBox(
+                                key: ValueKey(('viewer-media', widget.index)),
+                                height: lerpDouble(
+                                  constraints.maxHeight,
+                                  detailsHeight,
+                                  progress,
+                                ),
+                                child: ClipRect(
+                                  child: OverflowBox(
+                                    alignment: Alignment.topLeft,
+                                    minWidth: constraints.maxWidth,
+                                    maxWidth: constraints.maxWidth,
+                                    minHeight: constraints.maxHeight,
+                                    maxHeight: constraints.maxHeight,
+                                    child: Transform(
+                                      alignment: Alignment.topLeft,
+                                      transform: Matrix4.identity()
+                                        ..translateByDouble(
+                                          targetOffset.dx * progress,
+                                          targetOffset.dy * progress,
+                                          0,
+                                          1,
+                                        )
+                                        ..scaleByDouble(
+                                          lerpDouble(1, targetScale, progress)!,
+                                          lerpDouble(1, targetScale, progress)!,
+                                          1,
+                                          1,
+                                        ),
+                                      child: TweenAnimationBuilder<Offset>(
+                                        tween: Tween(
+                                          begin: Offset.zero,
+                                          end: _dismissOffset,
+                                        ),
+                                        duration: _dragging || _reduceMotion
+                                            ? Duration.zero
+                                            : const Duration(milliseconds: 165),
+                                        builder: (context, offset, child) =>
+                                            Transform.translate(
+                                              offset: offset,
+                                              child: Transform.scale(
+                                                scale:
+                                                    1 -
+                                                    (offset.dy.abs() /
+                                                            widget
+                                                                .swipeDownThreshold *
+                                                            0.2)
+                                                        .clamp(0.0, 0.2),
+                                                child: child,
+                                              ),
+                                            ),
+                                        child: ViewerPresentationTransition(
+                                          progress: progress,
+                                          child: media,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_mountedDetails)
+                              SliverOffstage(
+                                offstage: progress == 0,
+                                sliver: ExcludeFocus(
+                                  excluding: !_details || progress == 0,
+                                  child: SliverOpacity(
+                                    opacity: progress,
+                                    sliver: SliverMainAxisGroup(
+                                      slivers: [
+                                        ...widget.detailsBuilder(context),
+                                        const SliverToBoxAdapter(
+                                          child: SizedBox(
+                                            height: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                if (preview != null && progress < 1)
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([
+                        widget.controller.bottomSheet,
+                        widget.controller.forceHideBottomSheet,
+                        widget.previewAnimation,
+                      ]),
+                      builder: (context, _) {
+                        final visible =
+                            !widget.controller.forceHideBottomSheet.value &&
+                            widget.controller.bottomSheet.value;
+                        final visibility =
+                            (widget.disableAnimation
+                                ? (visible ? 1.0 : 0.0)
+                                : widget.previewAnimation.value) *
+                            (1 - progress * 2).clamp(0.0, 1.0);
+                        _reportObstruction(visibility);
+                        return IgnorePointer(
+                          ignoring: !visible || _details || visibility == 0,
+                          child: ExcludeFocus(
+                            excluding: !visible || _details || visibility == 0,
+                            child: FractionalTranslation(
+                              translation: Offset(0, 1 - visibility),
+                              child: Listener(
+                                onPointerDown: (event) =>
+                                    _pointerDown(event, fromOverlay: true),
+                                onPointerMove: _pointerMove,
+                                onPointerUp: _pointerUp,
+                                onPointerCancel: _pointerCancel,
+                                child: _OverlayDragSurface(
+                                  controller: widget.controller,
+                                  child: KurumiMeasureSize(
+                                    onChange: (size) {
+                                      _previewHeight = size.height;
+                                      if (mounted &&
+                                          widget.controller.page ==
+                                              widget.index &&
+                                          !_details) {
+                                        widget
+                                                .controller
+                                                .bottomObstruction
+                                                .value =
+                                            size.height * visibility;
+                                      }
+                                    },
+                                    child: SafeArea(
+                                      top: false,
+                                      bottom: false,
+                                      child: preview,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/// The same progress drives the media's zoom return and its outer layout.
+class ViewerPresentationTransition extends InheritedWidget {
+  const ViewerPresentationTransition({
+    required this.progress,
+    required super.child,
+    super.key,
+  });
+  final double progress;
+  static double of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<ViewerPresentationTransition>()
+          ?.progress ??
+      0;
+  @override
+  bool updateShouldNotify(ViewerPresentationTransition oldWidget) =>
+      progress != oldWidget.progress;
+}
+
+/// A toolbar drag participates in the arena, cancelling button taps, and drives
+/// the same outer ScrollPosition even when zoom owns drags on the image itself.
+class _OverlayDragSurface extends StatefulWidget {
+  const _OverlayDragSurface({required this.controller, required this.child});
+  final PostDetailsPageViewController controller;
+  final Widget child;
+  @override
+  State<_OverlayDragSurface> createState() => _OverlayDragSurfaceState();
+}
+
+class _OverlayDragSurfaceState extends State<_OverlayDragSurface> {
+  Drag? _drag;
+  final _pointers = <int>{};
+  var _cancelled = false;
+  int? _startPage;
+
+  void _cancelDrag() {
+    final drag = _drag;
+    _drag = null;
+    drag?.cancel();
+    if (drag != null && _startPage != null) {
+      final page = _startPage!;
+      widget.controller.animateToPage(page);
     }
+  }
+
+  @override
+  void dispose() {
+    _drag?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) => Listener(
-    onPointerDown: _onPointerDown,
-    onPointerMove: _onPointerMove,
-    onPointerUp: _onPointerEnd,
-    onPointerCancel: _onPointerEnd,
-    child: widget.child,
+    onPointerDown: (event) {
+      _pointers.add(event.pointer);
+      if (_pointers.length > 1) {
+        _cancelled = true;
+        _cancelDrag();
+      }
+    },
+    onPointerUp: _endPointer,
+    onPointerCancel: (event) {
+      _cancelDrag();
+      _endPointer(event);
+    },
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: (details) {
+        if (_cancelled) return;
+        _startPage = widget.controller.page;
+        _drag = widget.controller.pageController.position.drag(
+          details,
+          () => _drag = null,
+        );
+      },
+      onHorizontalDragUpdate: (details) {
+        if (!_cancelled) _drag?.update(details);
+      },
+      onHorizontalDragEnd: (details) {
+        final drag = _drag;
+        _drag = null;
+        if (!_cancelled) drag?.end(details);
+      },
+      onHorizontalDragCancel: _cancelDrag,
+      // Claim a vertical toolbar drag so its buttons do not tap/hold. The page's
+      // pointer observer drives presentation directly, without claiming media.
+      onVerticalDragUpdate: (_) {},
+      child: widget.child,
+    ),
   );
 
-  void _onPointerDown(PointerDownEvent event) {
-    _pointers.add(event.pointer);
-    if (_pointers.length > 1 || !_canSwipe) {
-      _cancelled = true;
-      _activePointer = null;
-      _startPosition = null;
-      return;
-    }
-
-    _activePointer = event.pointer;
-    _startPosition = event.position;
-    _cancelled = false;
-  }
-
-  void _onPointerMove(PointerMoveEvent event) {
-    if (_cancelled || event.pointer != _activePointer) return;
-    if (!_canSwipe) {
-      _onEligibilityChanged();
-      return;
-    }
-
-    final startPosition = _startPosition;
-    if (startPosition == null) return;
-
-    final offset = event.position - startPosition;
-    if (offset.dy < _kExpandedMediaSwipeThreshold ||
-        offset.dy < offset.dx.abs() * _kExpandedMediaVerticalDominance) {
-      return;
-    }
-
-    _cancelled = true;
-    _swipeHandled = true;
-    _activePointer = null;
-    _startPosition = null;
-    widget.onSwipeDown();
-  }
-
-  void _onPointerEnd(PointerEvent event) {
+  void _endPointer(PointerEvent event) {
     _pointers.remove(event.pointer);
     if (_pointers.isEmpty) {
-      _activePointer = null;
-      _startPosition = null;
-      _cancelled = false;
-      if (_swipeHandled) {
-        _swipeHandled = false;
-        scheduleMicrotask(widget.onSwipeEnded);
-      }
+      // Up is delivered to the recognizer after this Listener.
+      scheduleMicrotask(() {
+        if (mounted && _pointers.isEmpty) _cancelled = false;
+      });
     }
   }
 }
 
-class _BottomPreviewSwipeDetector extends StatefulWidget {
-  const _BottomPreviewSwipeDetector({
-    required this.onSwipeUp,
-    required this.child,
-  });
-
-  final VoidCallback onSwipeUp;
-  final Widget child;
+class _ViewerDetailsPhysics extends ClampingScrollPhysics {
+  const _ViewerDetailsPhysics({required this.hold, super.parent});
+  final bool Function() hold;
 
   @override
-  State<_BottomPreviewSwipeDetector> createState() =>
-      _BottomPreviewSwipeDetectorState();
-}
+  _ViewerDetailsPhysics applyTo(ScrollPhysics? ancestor) =>
+      _ViewerDetailsPhysics(hold: hold, parent: buildParent(ancestor));
 
-class _BottomPreviewSwipeDetectorState
-    extends State<_BottomPreviewSwipeDetector> {
-  final _pointers = <int>{};
-  int? _activePointer;
-  Offset? _startPosition;
-  Offset? _currentPosition;
-  var _cancelled = false;
+  // A top-edge mode pull is available even when the metadata fit on screen.
+  @override
+  bool shouldAcceptUserOffset(ScrollMetrics position) => true;
 
   @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: _onPointerDown,
-      onPointerMove: _onPointerMove,
-      onPointerUp: _onPointerUp,
-      onPointerCancel: _onPointerCancel,
-      child: widget.child,
-    );
-  }
-
-  void _onPointerDown(PointerDownEvent event) {
-    _pointers.add(event.pointer);
-
-    if (_pointers.length > 1) {
-      _cancelled = true;
-      return;
-    }
-
-    _activePointer = event.pointer;
-    _startPosition = event.position;
-    _currentPosition = event.position;
-    _cancelled = false;
-  }
-
-  void _onPointerMove(PointerMoveEvent event) {
-    if (event.pointer != _activePointer || _cancelled) return;
-
-    _currentPosition = event.position;
-    if (_isQualifyingSwipe()) {
-      _clearCandidate();
-      widget.onSwipeUp();
-    }
-  }
-
-  void _onPointerUp(PointerUpEvent event) {
-    _pointers.remove(event.pointer);
-    if (event.pointer != _activePointer) {
-      if (_pointers.isEmpty) _resetGesture();
-      return;
-    }
-
-    final cancelled = _cancelled;
-    final isQualifyingSwipe = _isQualifyingSwipe();
-    _clearCandidate();
-    if (_pointers.isEmpty) _cancelled = false;
-
-    if (!cancelled && isQualifyingSwipe) widget.onSwipeUp();
-  }
-
-  bool _isQualifyingSwipe() {
-    final startPosition = _startPosition;
-    final currentPosition = _currentPosition;
-    if (_cancelled || startPosition == null || currentPosition == null) {
-      return false;
-    }
-
-    final offset = currentPosition - startPosition;
-    final upwardDistance = -offset.dy;
-    final isUpward = upwardDistance >= _kBottomPreviewSwipeThreshold;
-    final isVertical =
-        upwardDistance >= offset.dx.abs() * _kBottomPreviewVerticalDominance;
-
-    return isUpward && isVertical;
-  }
-
-  void _onPointerCancel(PointerCancelEvent event) {
-    _pointers.remove(event.pointer);
-    if (event.pointer == _activePointer) {
-      _clearCandidate();
-    }
-
-    if (_pointers.isEmpty) {
-      _resetGesture();
-    }
-  }
-
-  void _clearCandidate() {
-    _activePointer = null;
-    _startPosition = null;
-    _currentPosition = null;
-  }
-
-  void _resetGesture() {
-    _pointers.clear();
-    _clearCandidate();
-    _cancelled = false;
-  }
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) =>
+      hold() ? 0 : super.applyPhysicsToUserOffset(position, offset);
 }
 
 // Disables deferred image loading during page transitions.
@@ -1337,14 +1269,4 @@ class _PostDetailsPagePhysics extends ScrollPhysics {
     ScrollMetrics metrics,
     BuildContext context,
   ) => false;
-}
-
-const _kSwipeDownScaleFactor = 0.2;
-
-double _clampToZero(
-  double value, {
-  double threshold = 0.01,
-}) {
-  if (value.isNaN) return 0.0;
-  return value.abs() < threshold ? 0.0 : value;
 }

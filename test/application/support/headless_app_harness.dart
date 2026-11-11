@@ -1,3 +1,5 @@
+import 'package:boorusama/core/posts/details/src/widgets/post_details_page_view_scope.dart';
+
 // Dart imports:
 import 'dart:io';
 
@@ -308,7 +310,10 @@ final class HeadlessAppHarness {
         'tasks=$taskStatuses';
   }
 
-  Future<void> openFirstPost(WidgetTester tester) async {
+  Future<void> openFirstPost(
+    WidgetTester tester, {
+    bool showControls = true,
+  }) async {
     await pumpUntilFound(
       tester,
       find.byType(SliverPostGridImageGridItem),
@@ -316,6 +321,24 @@ final class HeadlessAppHarness {
     await tester.tap(find.byType(SliverPostGridImageGridItem).first);
     await tester.pump();
     await pumpUntilFound(tester, find.byType(PostDetailsPageScaffold));
+    if (showControls) await showViewerControls(tester);
+  }
+
+  /// Reveals actions with the same single tap used in the hidden Immersive UI.
+  Future<void> showViewerControls(WidgetTester tester) async {
+    await settle(tester);
+    if (find.byType(PostDetailsPageScaffold).evaluate().isEmpty) return;
+    final view = PostDetailsPageViewScope.of(
+      tester.element(find.byType(PostDetailsPageScaffold).first),
+    );
+    if (view.overlay.value) return;
+    await tester.tap(find.byKey(ValueKey(('viewer-media', view.page))));
+    await pumpUntil(
+      tester,
+      () => view.overlay.value,
+      description: 'viewer overlay to appear after a media tap',
+    );
+    await settle(tester);
   }
 
   void dispose() {

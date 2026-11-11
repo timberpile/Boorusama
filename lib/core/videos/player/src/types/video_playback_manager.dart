@@ -52,9 +52,10 @@ class VideoPlaybackManager extends ChangeNotifier {
       return;
     }
 
-    // If playback was requested before registration, play now
-    if (_pendingPlayback.contains(id)) {
-      _pendingPlayback.remove(id);
+    // Registration can also announce a replaced native source. Honor current
+    // intent even if the play request reached its previous controller already.
+    _pendingPlayback.remove(id);
+    if (_requestedPlayback.contains(id)) {
       unawaited(_playIfActive(player, id));
     }
   }

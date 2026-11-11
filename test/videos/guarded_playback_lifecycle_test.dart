@@ -31,10 +31,14 @@ class _Player extends Fake implements BooruPlayer {
   VideoSource? source;
   VideoConfig? config;
   var disposed = false;
+  var initializes = 0;
+  var switches = 0;
+  var looping = false;
   @override
   bool isPlatformSupported() => true;
   @override
   Future<void> initialize(VideoSource source, {VideoConfig? config}) async {
+    initializes++;
     this.source = source;
     this.config = config;
     if (!initializeEntered.isCompleted) initializeEntered.complete();
@@ -46,7 +50,20 @@ class _Player extends Fake implements BooruPlayer {
   @override
   Future<void> setPlaybackSpeed(double speed) async {}
   @override
-  Future<void> setLooping(bool loop) async {}
+  Future<void> setLooping(bool loop) async {
+    looping = loop;
+  }
+
+  @override
+  Future<void> switchUrl(VideoSource source, {VideoConfig? config}) async {
+    switches++;
+    this.source = source;
+    looping = false;
+  }
+
+  @override
+  bool get isPlaying => false;
+
   @override
   Future<void> pause() async {}
   @override
@@ -71,6 +88,122 @@ Widget _app(Widget child) => ProviderScope(
 );
 
 void main() {
+  testWidgets(
+    'reactivating a retained video preserves its initialized looping player',
+    (tester) async {
+      final player = _Player();
+      Widget video(bool active) => _app(
+        BooruVideo(
+          url: 'https://example.test/video.mp4',
+          aspectRatio: 1,
+          shouldInitialize: active,
+          playerFactory: (_) => player,
+        ),
+      );
+      await tester.pumpWidget(video(true));
+      await tester.pumpAndSettle();
+      expect(player.initializes, 1);
+      expect(player.looping, isTrue);
+      await tester.pumpWidget(video(false));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(video(true));
+      await tester.pumpAndSettle();
+      expect(player.initializes, 1);
+      expect(player.switches, 0);
+      expect(player.looping, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'reactivating a changed inactive source still loads its new URL',
+    (tester) async {
+      final player = _Player();
+      Widget video(int id, bool active) => _app(
+        BooruVideo(
+          url: 'https://example.test/video-$id.mp4',
+          aspectRatio: 1,
+          shouldInitialize: active,
+          playerFactory: (_) => player,
+        ),
+      );
+      await tester.pumpWidget(video(1, true));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(video(1, false));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(video(2, false));
+      await tester.pumpAndSettle();
+      expect(player.switches, 0);
+      await tester.pumpWidget(video(2, true));
+      await tester.pumpAndSettle();
+      expect(player.switches, 1);
+      expect(player.source?.url, 'https://example.test/video-2.mp4');
+      expect(player.looping, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'inactive source replacement cannot register a late initialized player',
+    (tester) async {
+      final gate = Completer<void>();
+      final previous = _Player(initializeGate: gate.future);
+      final replacement = _Player();
+      final created = <BooruPlayer>[];
+      var factories = 0;
+      Widget video(int id, bool active) => _app(
+        BooruVideo(
+          url: 'https://example.test/video-$id.mp4',
+          aspectRatio: 1,
+          shouldInitialize: active,
+          playerFactory: (_) => factories++ == 0 ? previous : replacement,
+          onVideoPlayerCreated: created.add,
+        ),
+      );
+      await tester.pumpWidget(video(1, true));
+      await tester.pump();
+      expect(previous.initializeEntered.isCompleted, isTrue);
+      await tester.pumpWidget(video(2, false));
+      gate.complete();
+      // The inactive view intentionally keeps its loading indicator; drain the
+      // controlled initialization completion without waiting for it to animate.
+      await tester.pump();
+      expect(previous.disposed, isTrue);
+      expect(created, isEmpty);
+      await tester.pumpWidget(video(2, true));
+      await tester.pumpAndSettle();
+      expect(created, [replacement]);
+      expect(replacement.source?.url, 'https://example.test/video-2.mp4');
+      expect(replacement.looping, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'changing video URL reapplies looping to the replacement source',
+    (tester) async {
+      final player = _Player();
+      Widget video(int id) => _app(
+        BooruVideo(
+          url: 'https://example.test/video-$id.mp4',
+          aspectRatio: 1,
+          playerFactory: (_) => player,
+        ),
+      );
+      await tester.pumpWidget(video(1));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(video(2));
+      await tester.pumpAndSettle();
+      expect(player.switches, 1);
+      expect(player.looping, isTrue);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+
   const remote = 'https://safebooru.donmai.us/video.mp4';
   for (final pendingInitialization in [false, true]) {
     testWidgets(

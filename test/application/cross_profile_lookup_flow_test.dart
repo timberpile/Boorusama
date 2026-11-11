@@ -57,8 +57,9 @@ void main() {
             currentDetailPost(tester).id == 201,
       );
       await harness.settle(tester);
+      await harness.showViewerControls(tester);
       final viewerContext = tester.element(
-        find.byType(DownloadPostButton).last,
+        find.byType(DownloadPostButton).hitTestable().first,
       );
       final viewerScope = ProviderScope.containerOf(
         viewerContext,
@@ -83,7 +84,7 @@ void main() {
       await tester.tap(
         find
             .descendant(
-              of: find.byType(DownloadPostButton).last,
+              of: find.byType(DownloadPostButton).hitTestable().first,
               matching: find.byType(IconButton),
             )
             .first,

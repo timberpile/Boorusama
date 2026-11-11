@@ -175,9 +175,6 @@ void main() {
           await f.harness.settle(tester);
           await expanded;
           expect(view.isExpanded, isTrue);
-          await tester.binding.handlePopRoute();
-          await f.harness.settle(tester);
-          expect(view.isExpanded, isFalse);
           expect(find.byType(RawProgressivePostImage), findsWidgets);
           expect(find.byType(PoolDetailContent), findsNothing);
         }

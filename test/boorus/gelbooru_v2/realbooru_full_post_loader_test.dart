@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:boorusama/core/images/providers.dart';
@@ -148,7 +149,9 @@ void main() {
             );
           }
         });
-        await tester.tap(find.byIcon(Icons.more_horiz).first);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyO);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_horiz).hitTestable().first);
         await tester.pumpAndSettle();
         await tester.tap(find.text('Load Original').hitTestable());
         await tester.runAsync(() async {

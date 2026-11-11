@@ -96,8 +96,12 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final bottomObstruction = ValueNotifier(0.0);
   final cooldown = ValueNotifier(false);
   final keyboardShortcutsEnabled = ValueNotifier(true);
+  final presentationProgress = ValueNotifier(0.0);
 
   var previouslyForcedShowUIByDrag = false;
+
+  /// The mounted occurrence owns its Details scroll position.
+  VoidCallback? scrollDetailsToTop;
 
   void attachOverlayAnimController(AnimationController? controller) {
     _overlayAnimController = controller;
@@ -266,6 +270,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
   void toggleOverlay({
     bool includeSystemStatus = true,
   }) {
+    if (isExpanded) return;
     final oldValue = overlay.value;
 
     if (oldValue) {
@@ -281,9 +286,15 @@ class PostDetailsPageViewController extends ChangeNotifier {
     }
   }
 
-  void showAllUI() {
+  void showAllUI({bool immediately = false}) {
     showOverlay();
     showBottomSheet();
+    if (immediately) {
+      _overlayAnimController?.value = 1;
+      _bottomSheetAnimController?.value = 1;
+      forceHideOverlay.value = false;
+      forceHideBottomSheet.value = false;
+    }
   }
 
   void hideAllUI() {
@@ -399,57 +410,24 @@ class PostDetailsPageViewController extends ChangeNotifier {
     Duration? duration,
     Curve? curve,
   }) async {
-    animating.value = true;
-    swipe.value = true;
-    verticalPosition.value = 0.0;
-    showOverlay(
-      includeSystemStatus: false,
-    );
-
-    return WidgetsBinding.instance.addPostFrameCallback((_) async {
-      sheetMaxSize.value = maxSize;
-
-      await _sheetController.animateTo(
-        0,
-        duration: duration ?? const Duration(milliseconds: 250),
-        curve: curve ?? Curves.easeInOut,
-      );
-
-      sheetState.value = switch (sheetState.value) {
-        SheetState.expanded => SheetState.hidden,
-        SheetState.collapsed => SheetState.collapsed,
-        SheetState.hidden => SheetState.hidden,
-      };
-
-      animating.value = false;
-    });
+    verticalPosition.value = 0;
+    setDisplacement(0);
+    hideAllUI();
+    sheetState.value = SheetState.hidden;
   }
 
   Future<void> expandToFullSheetSize() async {
-    sheetState.value = SheetState.expanded;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _sheetController.animateTo(
-        kFullSheetSize,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-      );
-    });
+    await expandToSnapPoint();
   }
 
   Future<void> expandToSnapPoint() async {
-    animating.value = true;
-
-    return WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _sheetController.animateTo(
-        maxSize,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-      );
-      sheetState.value = SheetState.expanded;
-      animating.value = false;
-      verticalPosition.value = 0.0;
-    });
+    if (isExpanded) return;
+    zoom.value = false;
+    enableAllSwiping();
+    verticalPosition.value = 0;
+    sheetState.value = SheetState.expanded;
+    showOverlay();
+    hideBottomSheet();
   }
 
   void disableAllSwiping() {
@@ -500,20 +478,18 @@ class PostDetailsPageViewController extends ChangeNotifier {
   }
 
   void onTransformationChanged(KurumiTransformationDetails details) {
-    final isZoomed = details.isZoomed;
+    if (isExpanded) return;
+    synchronizeZoom(details.isZoomed);
+  }
+
+  void synchronizeZoom(bool isZoomed) {
     // ignore same value
     if (zoom.value == isZoomed) return;
 
     zoom.value = isZoomed;
     if (isZoomed) {
-      if (!initialHideOverlay) {
-        hideAllUI();
-      }
       disableAllSwiping();
     } else {
-      if (!initialHideOverlay) {
-        showAllUI();
-      }
       enableAllSwiping();
     }
   }
@@ -611,6 +587,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
     forceHideBottomSheet.dispose();
     bottomObstruction.dispose();
     keyboardShortcutsEnabled.dispose();
+    presentationProgress.dispose();
 
     super.dispose();
   }

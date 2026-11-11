@@ -169,7 +169,8 @@ void main() {
       expect(gallery().controller.items.map((p) => p.id).toList(), [
         for (var id = 129; id >= 10; id--) id,
       ]);
-      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.showViewerControls(tester);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios).hitTestable().last);
       await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
       tester.widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard)).onOpen!();
       await harness.pumpUntilFound(tester, find.byType(RelatedGallery));
@@ -420,7 +421,10 @@ void main() {
         );
         await harness.settle(tester);
         expect(find.byType(MixedPostDetailsPage), findsOneWidget);
-        await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+        await harness.showViewerControls(tester);
+        await tester.tap(
+          find.byIcon(Symbols.arrow_back_ios).hitTestable().last,
+        );
         await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
         await harness.settle(tester);
         expect(pager.page, 2);
@@ -963,7 +967,8 @@ void main() {
       expect(find.byType(PoolOrderSelector), findsOneWidget);
       expect(find.text('Pool'), findsNothing);
       expect(find.byType(PoolOrderToggle), findsNothing);
-      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.showViewerControls(tester);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios).hitTestable().last);
       await harness.settle(tester);
       expect(find.byType(PoolDetailContent), findsNothing);
       expect(tester.takeException(), isNull);
@@ -1114,7 +1119,8 @@ void main() {
       expect(pager.totalPage, 6);
       expect(pager.page, 4);
       expect(currentDetailPost(tester).id, 106);
-      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.showViewerControls(tester);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios).hitTestable().last);
       await harness.pumpUntilFound(tester, find.byType(SearchSeriesGrid));
       await harness.settle(tester);
       expect(grid.controller.items.map((p) => p.id), [108, 109]);
@@ -1306,7 +1312,10 @@ void main() {
           ),
           hasLength(beforeShortcut),
         );
-        await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+        await harness.showViewerControls(tester);
+        await tester.tap(
+          find.byIcon(Symbols.arrow_back_ios).hitTestable().last,
+        );
         await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
         await harness.settle(tester);
         expect(pager.page, 1);
@@ -1393,7 +1402,10 @@ void main() {
               .value,
           PoolDetailsOrder.latest,
         );
-        await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+        await harness.showViewerControls(tester);
+        await tester.tap(
+          find.byIcon(Symbols.arrow_back_ios).hitTestable().last,
+        );
         await harness.pumpUntilFound(tester, find.byType(BookmarkScrollView));
         await harness.settle(tester);
         expect(
@@ -1561,7 +1573,8 @@ void main() {
         ),
         findsNothing,
       );
-      await tester.tap(find.byIcon(Symbols.arrow_back_ios));
+      await harness.showViewerControls(tester);
+      await tester.tap(find.byIcon(Symbols.arrow_back_ios).hitTestable().last);
       await harness.settle(tester);
       expect(card, findsOneWidget);
       expect(

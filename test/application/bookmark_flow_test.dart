@@ -27,10 +27,12 @@ void main() {
         await harness.pump(tester);
         await harness.openFirstPost(tester);
 
-        final bookmarkButton = find.descendant(
-          of: find.byType(BookmarkPostButton),
-          matching: find.byType(IconButton),
-        );
+        final bookmarkButton = find
+            .descendant(
+              of: find.byType(BookmarkPostButton),
+              matching: find.byType(IconButton),
+            )
+            .hitTestable();
         await harness.pumpUntil(
           tester,
           () => tester.widget<IconButton>(bookmarkButton).onPressed != null,

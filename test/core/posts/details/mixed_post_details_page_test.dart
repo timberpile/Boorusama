@@ -1,9 +1,14 @@
+import 'package:flutter/gestures.dart'
+    show kDoubleTapMinTime, kDoubleTapTimeout;
+import 'package:boorusama/core/posts/details/src/widgets/video_controls.dart';
+import 'package:boorusama/core/videos/player/types.dart';
 import 'package:boorusama/core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
 import 'package:boorusama/core/posts/details/src/routes/post_details_live_source.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/core/boorus/defaults/types.dart';
 import 'package:boorusama/core/images/types.dart';
+import 'package:boorusama/core/cache/providers.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/content/capabilities.dart';
@@ -16,10 +21,14 @@ import 'progressive_image_test_utils.dart';
 import 'package:extended_image/src/image/raw_image.dart';
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:ui' as ui;
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart'
+    show FontLoader, rootBundle, MethodCall, SystemChannels;
 
 // Flutter imports:
 import 'package:material_ui/material_ui.dart';
@@ -85,14 +94,622 @@ import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
 import 'package:boorusama/core/widgets/interactive_viewer_extended.dart';
+import 'package:boorusama/core/videos/engines/types.dart';
+import 'package:boorusama/core/videos/player/widgets.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/foundation/url_launcher.dart';
 
 import '../../../support/fakes/test_platform_services.dart';
+import '../../../support/fakes/memory_repositories.dart'
+    show MemoryMiscDataStore;
+
+const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
+  if (_viewerCaptureDirectory.isNotEmpty) {
+    testWidgets('capture approved shared Viewer modes', _captureViewerModes);
+  }
+  for (final size in [
+    const Size(400, 800),
+    const Size(844, 390),
+    const Size(1200, 800),
+  ]) {
+    testWidgets(
+      'Details retains playback controls for the same video actor at $size',
+      (tester) async {
+        VisibilityDetectorController.instance.updateInterval = Duration.zero;
+        _mobileViewport(tester, size: size);
+        final post = _post(
+          id: 1,
+          booruType: BooruType.danbooru,
+          host: 'https://danbooru.example',
+          data: _posts.first.booruData,
+          format: 'mp4',
+          videoUrl: 'https://danbooru.example/video/1',
+          duration: 90,
+        );
+        final harness = _Harness(posts: [post], loadMedia: false);
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        final controller = _detailsController(tester);
+        final player = _PlaybackProbe();
+        controller.onBooruVideoPlayerCreated(player, post);
+        await controller.playVideo(post);
+        await tester.pumpAndSettle();
+        final plays = player.plays;
+        final pager = _pageViewController(tester);
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        expect(find.byType(PlayPauseButton), findsOneWidget);
+        expect(find.byType(VideoProgressBar), findsOneWidget);
+        expect(find.byType(MoreOptionsControlButton), findsOneWidget);
+        await tester.tap(find.byType(PlayPauseButton));
+        await tester.pumpAndSettle();
+        expect(player.playing, isFalse);
+        expect(
+          player.plays,
+          plays,
+          reason: 'changing layout must not restart the player',
+        );
+        expect(pager.isExpanded, isTrue);
+        expect(controller.currentPost.value, post);
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      },
+    );
+  }
+
+  for (final fromDetails in [false, true]) {
+    testWidgets(
+      'actual media retains visible snap frames near endpoint, Details=$fromDetails',
+      (tester) async {
+        _mobileViewport(tester);
+        final post = _post(
+          id: 1,
+          booruType: BooruType.danbooru,
+          host: 'https://danbooru.example',
+          data: _posts.first.booruData,
+          width: 800,
+          height: 800,
+        );
+        final harness = _Harness(posts: [post], reduceAnimations: false);
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        await _waitForCurrentImage(tester);
+        final pager = _pageViewController(tester);
+        if (fromDetails) {
+          await pager.expandToSnapPoint();
+          await tester.pumpAndSettle();
+        }
+        double progress() => tester
+            .widgetList<ViewerPresentationTransition>(
+              find.byType(ViewerPresentationTransition),
+            )
+            .first
+            .progress;
+        final gesture = await tester.startGesture(
+          Offset(200, fromDetails ? 200 : 500),
+        );
+        await gesture.moveBy(Offset(0, fromDetails ? 360 : -360));
+        await tester.pump();
+        final held = progress();
+        expect(held, inExclusiveRange(0, 1));
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 35));
+        expect(progress(), inExclusiveRange(0, 1));
+        expect(progress(), fromDetails ? lessThan(held) : greaterThan(held));
+        await tester.pumpAndSettle();
+        expect(progress(), fromDetails ? 0 : 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      },
+    );
+  }
+
+  for (final size in [const Size(400, 800), const Size(844, 390)]) {
+    testWidgets('video quick actions have an opaque surface at $size', (
+      tester,
+    ) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester, size: size);
+      final post = _post(
+        id: 1,
+        booruType: BooruType.danbooru,
+        host: 'https://danbooru.example',
+        data: _posts.first.booruData,
+        format: 'mp4',
+        videoUrl: 'https://danbooru.example/video/1',
+        duration: 90,
+      );
+      final harness = _Harness(posts: [post], loadMedia: false);
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      final preview = find.byWidgetPredicate(
+        (widget) => widget is CustomScrollView && widget.shrinkWrap,
+      );
+      expect(preview, findsOneWidget);
+      final surfaces = tester.widgetList<DecoratedSliver>(
+        find.descendant(of: preview, matching: find.byType(DecoratedSliver)),
+      );
+      expect(surfaces.length, greaterThanOrEqualTo(2));
+      for (final surface in surfaces) {
+        expect((surface.decoration as BoxDecoration).color?.a, 1);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
+    });
+  }
+
+  testWidgets('repeated video controls activate only the settled occurrence', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final post = _post(
+      id: 1,
+      booruType: BooruType.danbooru,
+      host: 'https://danbooru.example',
+      data: _posts.first.booruData,
+      format: 'mp4',
+      videoUrl: 'https://danbooru.example/video/1',
+      duration: 90,
+    );
+    final harness = _Harness(posts: [post, post], loadMedia: false);
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final controller = _detailsController(tester);
+    final pager = _pageViewController(tester);
+    await pager.expandToSnapPoint();
+    await tester.pumpAndSettle();
+
+    Finder controls(int index) => find.byWidgetPredicate(
+      (widget) =>
+          widget is PostDetailsVideoControlsMobile && widget.pageIndex == index,
+      skipOffstage: false,
+    );
+    PlayPauseButton play(int index) => tester.widget<PlayPauseButton>(
+      find.descendant(
+        of: controls(index),
+        matching: find.byType(PlayPauseButton, skipOffstage: false),
+      ),
+    );
+    for (final active in [0, 1]) {
+      pager.jumpToPage(active);
+      await tester.pumpAndSettle();
+      controller.videoProgress.value = const VideoProgress(
+        Duration(seconds: 90),
+        Duration(seconds: 17),
+      );
+      controller.isVideoPlaying.value = true;
+      await tester.pump();
+      expect(play(active).isPlaying, same(controller.isVideoPlaying));
+      expect(play(1 - active).isPlaying.value, isFalse);
+      final activeTimes = tester.widgetList<VideoTimeText>(
+        find.descendant(
+          of: controls(active),
+          matching: find.byType(VideoTimeText, skipOffstage: false),
+        ),
+      );
+      final inactiveTimes = tester.widgetList<VideoTimeText>(
+        find.descendant(
+          of: controls(1 - active),
+          matching: find.byType(VideoTimeText, skipOffstage: false),
+        ),
+      );
+      expect(
+        activeTimes.map((time) => time.duration),
+        contains(const Duration(seconds: 17)),
+      );
+      expect(
+        inactiveTimes.map((time) => time.duration),
+        orderedEquals([Duration.zero, const Duration(seconds: 90)]),
+      );
+      expect(
+        find.ancestor(
+          of: find.descendant(
+            of: controls(1 - active),
+            matching: find.byType(PlayPauseButton, skipOffstage: false),
+          ),
+          matching: find.byWidgetPredicate(
+            (widget) => widget is IgnorePointer && widget.ignoring,
+            skipOffstage: false,
+          ),
+        ),
+        findsWidgets,
+      );
+    }
+    await tester.pumpWidget(const SizedBox.shrink());
+    harness.dispose();
+    await tester.pump();
+  });
+
+  for (final reduced in [false, true]) {
+    testWidgets(
+      'Details preserves Classic Comic return position, reduced=$reduced',
+      (tester) async {
+        _mobileViewport(tester);
+        final comic = _post(
+          id: 1,
+          booruType: BooruType.danbooru,
+          host: 'https://danbooru.example',
+          data: _posts.first.booruData,
+          height: 600,
+        );
+        final harness = _Harness(posts: [comic], reduceAnimations: reduced);
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        await _waitForCurrentImage(tester);
+        final immersive = tester
+            .widget<PostViewerTransformationScope>(
+              find.byType(PostViewerTransformationScope),
+            )
+            .controller
+            .transformationController;
+        final reading = immersive.value.clone()
+          ..setTranslationRaw(-400, -500, 0);
+        immersive.value = reading;
+        await tester.pumpAndSettle();
+        final usableReading = immersive.value.clone();
+        Future<void> classicTap() async {
+          final detector = tester.widget<GestureDetector>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is GestureDetector &&
+                  widget.onDoubleTapDown != null &&
+                  widget.onDoubleTap != null,
+            ),
+          );
+          detector.onDoubleTapDown!(
+            TapDownDetails(localPosition: const Offset(200, 400)),
+          );
+          detector.onDoubleTap!();
+          await tester.pumpAndSettle();
+        }
+
+        await classicTap();
+        expect(
+          immersive.value.getMaxScaleOnAxis(),
+          greaterThan(usableReading.getMaxScaleOnAxis()),
+        );
+        final detailZoom = immersive.value.clone();
+        final pager = _pageViewController(tester);
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        await pager.resetSheet();
+        await tester.pumpAndSettle();
+        expect(immersive.value, detailZoom);
+        await classicTap();
+        expect(immersive.value.storage, orderedEquals(usableReading.storage));
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      },
+    );
+  }
+
+  testWidgets(
+    'Back closes a child popup first and then exits the Details viewer',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final live = _LiveRouteHarness(
+        loadNext: (_) async => PostResult<Post>.empty(),
+      );
+      _disposeAfterUnmount(tester, live.dispose);
+      await live.grid.refresh();
+      await tester.pumpWidget(live.build());
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      final pager = _pageViewController(tester);
+      await pager.expandToSnapPoint();
+      await tester.pumpAndSettle();
+      final popup = showDialog<void>(
+        context: tester.element(find.byType(PostDetailsPageView)),
+        builder: (context) =>
+            const KurumiDialog(child: Text('Viewer child popup')),
+      );
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await popup;
+      expect(find.text('Viewer child popup'), findsNothing);
+      expect(find.byType(PostDetailsPageView), findsOneWidget);
+      expect(pager.isExpanded, isTrue);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.byType(PostDetailsPageView), findsNothing);
+      expect(find.text('Open'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      live.dispose();
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
+    'Details interpolates zoom and pan on the same loaded media in both directions',
+    (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester);
+      final harness = _Harness(posts: [_posts.first], reduceAnimations: false);
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
+      final pager = _pageViewController(tester);
+      final immersive = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      immersive.value = Matrix4.diagonal3Values(2, 2, 1)
+        ..setTranslationRaw(-80, -300, 0);
+      await tester.pumpAndSettle();
+      final saved = immersive.value.clone();
+      final imageController = tester
+          .widget<PostMedia<Post>>(find.byType(PostMedia<Post>))
+          .imageController;
+      final display = tester
+          .widget<InteractiveViewerExtended>(
+            find.byType(InteractiveViewerExtended),
+          )
+          .controller!;
+
+      await pager.expandToSnapPoint();
+      await tester.pump();
+      expect(
+        display.value,
+        saved,
+        reason: 'the first frame must not snap zoom to identity',
+      );
+      await tester.pump(const Duration(milliseconds: 70));
+      expect(display.value.getMaxScaleOnAxis(), greaterThan(1));
+      expect(
+        display.value.getMaxScaleOnAxis(),
+        lessThan(saved.getMaxScaleOnAxis()),
+      );
+      expect(immersive.value, saved);
+      await tester.pumpAndSettle();
+      expect(display.value, Matrix4.identity());
+      expect(
+        tester
+            .widget<PostMedia<Post>>(find.byType(PostMedia<Post>))
+            .imageController,
+        same(imageController),
+      );
+
+      await pager.resetSheet();
+      await tester.pump();
+      expect(
+        display.value,
+        Matrix4.identity(),
+        reason: 'return must start at the Details transform',
+      );
+      await tester.pump(const Duration(milliseconds: 70));
+      expect(display.value.getMaxScaleOnAxis(), greaterThan(1));
+      expect(
+        display.value.getMaxScaleOnAxis(),
+        lessThan(saved.getMaxScaleOnAxis()),
+      );
+      await tester.pumpAndSettle();
+      expect(display.value, saved);
+      expect(
+        tester
+            .widget<InteractiveViewerExtended>(
+              find.byType(InteractiveViewerExtended),
+            )
+            .controller,
+        same(display),
+      );
+      expect(
+        tester
+            .widget<PostMedia<Post>>(find.byType(PostMedia<Post>))
+            .imageController,
+        same(imageController),
+      );
+      await pager.expandToSnapPoint();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      await pager.resetSheet();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      await pager.expandToSnapPoint();
+      await tester.pumpAndSettle();
+      expect(pager.isExpanded, isTrue);
+      expect(display.value, Matrix4.identity());
+      expect(immersive.value, saved);
+      await pager.resetSheet();
+      await tester.pumpAndSettle();
+      expect(display.value, saved);
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
+    },
+  );
+
+  for (final initialHide in [false, true]) {
+    testWidgets(
+      'zoomed single tap keeps UI visible and fit resumes paging, initialHide=$initialHide',
+      (tester) async {
+        _mobileViewport(tester);
+        final harness = _Harness(
+          posts: [_posts.first],
+          hideOverlay: initialHide,
+        );
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        await _waitForCurrentImage(tester);
+        final pager = _pageViewController(tester);
+        pager.hideAllUI();
+        final transform = tester
+            .widget<PostViewerTransformationScope>(
+              find.byType(PostViewerTransformationScope),
+            )
+            .controller
+            .transformationController;
+        transform.value = Matrix4.diagonal3Values(2, 2, 1)
+          ..setTranslationRaw(-200, -400, 0);
+        await tester.pumpAndSettle();
+        expect(pager.zoom.value, isTrue);
+        await tester.tapAt(const Offset(200, 400));
+        await tester.pump(kDoubleTapTimeout);
+        await tester.pumpAndSettle();
+        expect(pager.overlay.value, isTrue);
+        transform.value = Matrix4.diagonal3Values(2.1, 2.1, 1)
+          ..setTranslationRaw(-210, -420, 0);
+        await tester.pumpAndSettle();
+        expect(pager.overlay.value, isTrue);
+        pager.hideAllUI();
+        transform.value = Matrix4.diagonal3Values(1.000001, 1.000001, 1)
+          ..setTranslationRaw(0.25, -0.125, 0);
+        await tester.pumpAndSettle();
+        expect(pager.zoom.value, isFalse);
+        expect(pager.swipe.value, isTrue);
+        expect(pager.overlay.value, isFalse);
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      },
+    );
+  }
+
+  for (final visible in [false, true]) {
+    testWidgets(
+      'double-tap zoom preserves overlay and system bars, visible=$visible',
+      (tester) async {
+        _mobileViewport(tester);
+        final harness = _Harness(posts: [_posts.first], hideOverlay: !visible);
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        await _waitForCurrentImage(tester);
+        final pager = _pageViewController(tester);
+        final systemCalls = <MethodCall>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+              systemCalls.add(call);
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        for (final zoomed in [true, false]) {
+          await tester.tapAt(const Offset(200, 400));
+          await tester.pump(kDoubleTapMinTime);
+          await tester.tapAt(const Offset(200, 400));
+          await tester.pumpAndSettle();
+          expect(pager.zoom.value, zoomed);
+          expect(pager.overlay.value, visible);
+          expect(pager.bottomSheet.value, visible);
+          expect(systemCalls, isEmpty);
+          await tester.pump(kDoubleTapTimeout);
+        }
+      },
+    );
+  }
+
+  testWidgets('a pending media tap is discarded when the Viewer unmounts', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final harness = _Harness(posts: [_posts.first]);
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await _waitForCurrentImage(tester);
+    await tester.tap(find.byKey(const ValueKey(('viewer-media', 0))));
+    await tester.pumpWidget(const SizedBox.shrink());
+    harness.dispose();
+    await tester.pump(kDoubleTapMinTime);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('distant navigation drops media and restores occurrence zoom', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final posts = [
+      for (var id = 10; id < 22; id++)
+        _post(
+          id: id,
+          booruType: BooruType.danbooru,
+          host: 'https://danbooru.example',
+          data: _posts.first.booruData,
+        ),
+    ];
+    final harness = _Harness(posts: posts);
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    await _waitForCurrentImage(tester);
+    final pager = _pageViewController(tester);
+    final firstScope = find.ancestor(
+      of: find.byKey(const ValueKey(('viewer-media', 0))),
+      matching: find.byType(PostViewerTransformationScope),
+    );
+    final first = tester
+        .widget<PostViewerTransformationScope>(firstScope)
+        .controller
+        .transformationController;
+    first.value = Matrix4.diagonal3Values(2, 2, 1)
+      ..setTranslationRaw(-100, -400, 0);
+    await tester.pumpAndSettle();
+    final saved = first.value.clone();
+    pager.jumpToPage(8);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey(('viewer-media', 0))), findsNothing);
+    expect(
+      find.byType(PostViewerOccurrence).evaluate().length,
+      lessThanOrEqualTo(3),
+    );
+    final distantScope = find.ancestor(
+      of: find.byKey(const ValueKey(('viewer-media', 8))),
+      matching: find.byType(PostViewerTransformationScope),
+    );
+    expect(
+      tester
+          .widget<PostViewerTransformationScope>(distantScope)
+          .controller
+          .transformationController
+          .value
+          .isIdentity(),
+      isTrue,
+    );
+    pager.jumpToPage(0);
+    await tester.pumpAndSettle();
+    final restored = tester
+        .widget<PostViewerTransformationScope>(firstScope)
+        .controller
+        .transformationController;
+    expect(restored, isNot(same(first)));
+    expect(restored.value, saved);
+    expect(
+      find.byType(PostViewerOccurrence).evaluate().length,
+      lessThanOrEqualTo(3),
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    harness.dispose();
+    await tester.pump();
+  });
+
   VisibilityDetectorController.instance.updateInterval = Duration.zero;
   testWidgets(
     'live entries append a Post to a group-only viewer without replacing its pager',
@@ -120,7 +737,7 @@ void main() {
           ),
         ),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       final pager = _pageViewController(tester);
@@ -150,7 +767,7 @@ void main() {
       ],
       repository: const _GalleryRepository(),
     );
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     final pager = _pageViewController(tester);
@@ -178,7 +795,7 @@ void main() {
         entries: entries,
         repository: const _GalleryRepository(),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       final pager = _pageViewController(tester);
@@ -242,7 +859,7 @@ void main() {
         ],
         repository: const _GalleryRepository(),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       expect(find.text('gallery-second'), findsOneWidget);
@@ -280,7 +897,7 @@ void main() {
           imageCache: TestImageCache({'thumbnail-1': lowerPng}),
           initialThumbnailUrl: 'thumbnail-1',
         );
-        addTearDown(harness.dispose);
+        _disposeAfterUnmount(tester, harness.dispose);
         await tester.pumpWidget(harness.build());
         await decodePump(tester);
         final media = tester
@@ -351,7 +968,7 @@ void main() {
         imageAdapter: adapter,
         imageCache: TestImageCache({'thumbnail-1': lowerPng}),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await decodePump(tester);
       final pages = _pageViewController(tester);
@@ -405,11 +1022,12 @@ void main() {
       _mobileViewport(tester);
       final adapter = ControlledImageAdapter();
       final harness = _Harness(
+        posts: _posts.take(2).toList(),
         thumbnailQuality: ImageQuality.low,
         imageAdapter: adapter,
         imageCache: TestImageCache({'thumbnail-1': lowerPng}),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await decodePump(tester);
       final firstTarget = adapter.pending.keys.singleWhere(
@@ -458,7 +1076,7 @@ void main() {
         imageAdapter: adapter,
         imageCache: TestImageCache({'thumbnail-1': lowerPng}),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await decodePump(tester);
       adapter.complete(
@@ -552,7 +1170,7 @@ void main() {
       imageAdapter: adapter,
       imageCache: TestImageCache({'thumbnail-1': lowerPng}),
     );
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.runAsync(
       () => pumpUntil(
@@ -609,7 +1227,7 @@ void main() {
         'original-1': portraitPng,
       }),
     );
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     final controller = ExtendedImageController();
     addTearDown(controller.dispose);
     Widget build(bool original) => UncontrolledProviderScope(
@@ -657,7 +1275,7 @@ void main() {
         imageAdapter: adapter,
         imageCache: TestImageCache({'thumbnail-1': lowerPng}),
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       final boundaryKey = GlobalKey();
       await tester.pumpWidget(
         RepaintBoundary(key: boundaryKey, child: harness.build()),
@@ -714,7 +1332,7 @@ void main() {
           imageAdapter: adapter,
           imageCache: TestImageCache({'thumbnail-1': lowerPng}),
         );
-        addTearDown(harness.dispose);
+        _disposeAfterUnmount(tester, harness.dispose);
         await tester.pumpWidget(harness.build());
         await decodePump(tester);
         adapter.complete(
@@ -782,6 +1400,7 @@ void main() {
     _mobileViewport(tester, size: const Size(800, 1200));
     final adapter = ControlledImageAdapter();
     final harness = _Harness(
+      posts: [_posts.first],
       loadOriginalOnZoom: true,
       postQuality: PostQuality.original,
       imageAdapter: adapter,
@@ -790,7 +1409,7 @@ void main() {
         'sample-1': targetPng,
       }),
     );
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.runAsync(
       () => pumpUntil(
@@ -841,7 +1460,7 @@ void main() {
         loadMedia: placeholder == 'empty URL',
         emptyFirstImage: placeholder == 'empty URL',
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
 
@@ -866,7 +1485,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester, size: const Size(800, 1200));
     final harness = _Harness(invalidImage: true);
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await tester.runAsync(
@@ -886,7 +1505,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester, size: const Size(800, 1200));
     final harness = _Harness();
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await tester.runAsync(
@@ -979,7 +1598,7 @@ void main() {
           initialIndex: scenario.source,
           reduceAnimations: false,
         );
-        addTearDown(harness.dispose);
+        _disposeAfterUnmount(tester, harness.dispose);
         await tester.pumpWidget(harness.build());
         await tester.pumpAndSettle();
         await _waitForCurrentImage(tester);
@@ -1055,7 +1674,7 @@ void main() {
         reduceAnimations: false,
         posts: posts,
       );
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       await _waitForCurrentImage(tester);
@@ -1110,7 +1729,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       _mobileViewport(tester);
       final harness = _Harness(initialIndex: 1, reduceAnimations: false);
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       await _waitForCurrentImage(tester);
@@ -1153,7 +1772,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester);
     final harness = _Harness(legacyVertical: true);
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await _waitForCurrentImage(tester);
@@ -1181,7 +1800,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester);
     final harness = _Harness(legacyVertical: true, reduceAnimations: false);
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await _waitForCurrentImage(tester);
@@ -1217,7 +1836,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester);
     final harness = _Harness(legacyVertical: true, reduceAnimations: false);
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await _waitForCurrentImage(tester);
@@ -1252,7 +1871,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester, size: const Size(800, 1200));
     final harness = _Harness();
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await _waitForCurrentImage(tester);
@@ -1287,7 +1906,7 @@ void main() {
     VisibilityDetectorController.instance.updateInterval = Duration.zero;
     _mobileViewport(tester, size: const Size(800, 1200));
     final harness = _Harness();
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     await tester.pumpWidget(harness.build());
     await tester.pumpAndSettle();
     await _waitForCurrentImage(tester);
@@ -1321,6 +1940,87 @@ void main() {
     expect(pageView.page, 1);
   });
 
+  for (final lateSecondPointer in [false, true]) {
+    testWidgets('vertical pinch, pan, and return to fit retain ownership, '
+        'late second pointer=$lateSecondPointer', (tester) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      _mobileViewport(tester, size: const Size(800, 1200));
+      final harness = _Harness();
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      await _waitForCurrentImage(tester);
+      final pager = _pageViewController(tester);
+      pager.hideAllUI();
+      await tester.pumpAndSettle();
+      final first = await tester.startGesture(
+        const Offset(400, 450),
+        pointer: 1,
+      );
+      if (lateSecondPointer) {
+        await first.moveBy(const Offset(0, -40));
+        await tester.pump();
+      }
+      final second = await tester.startGesture(
+        const Offset(400, 650),
+        pointer: 2,
+      );
+      await tester.pump();
+      await first.moveBy(const Offset(0, -80));
+      await second.moveBy(const Offset(0, 80));
+      await tester.pump();
+      await first.moveBy(const Offset(0, -40));
+      await second.moveBy(const Offset(0, 40));
+      await tester.pump();
+      await first.moveBy(const Offset(0, -80));
+      await second.moveBy(const Offset(0, 80));
+      await first.up();
+      await second.up();
+      await tester.pumpAndSettle();
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      expect(kurumiIsZoomed(transform.value), isTrue);
+      expect(pager.zoom.value, isTrue);
+      expect(pager.isExpanded, isFalse);
+      expect(pager.overlay.value, isFalse);
+      final beforePan = transform.value.storage[13];
+      final pan = await tester.startGesture(const Offset(400, 550));
+      await pan.moveBy(const Offset(0, -40));
+      await tester.pump();
+      await pan.moveBy(const Offset(0, -80));
+      await pan.up();
+      await tester.pumpAndSettle();
+      expect(transform.value.storage[13], lessThan(beforePan - 20));
+      expect(pager.isExpanded, isFalse);
+      final top = await tester.startGesture(const Offset(400, 350), pointer: 3);
+      final bottom = await tester.startGesture(
+        const Offset(400, 750),
+        pointer: 4,
+      );
+      await tester.pump();
+      await top.moveBy(const Offset(0, 150));
+      await bottom.moveBy(const Offset(0, -150));
+      await tester.pump();
+      await top.up();
+      await bottom.up();
+      await tester.pumpAndSettle();
+      expect(kurumiIsZoomed(transform.value), isFalse);
+      expect(pager.zoom.value, isFalse);
+      expect(pager.swipe.value, isTrue);
+      expect(pager.overlay.value, isFalse);
+      await tester.dragFrom(const Offset(650, 550), const Offset(-700, 0));
+      await tester.pumpAndSettle();
+      expect(pager.page, 1);
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
+    });
+  }
+
   testWidgets(
     'pinching retains image pan and enables bounded navigation',
     (
@@ -1329,7 +2029,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       _mobileViewport(tester, size: const Size(800, 1200));
       final harness = _Harness();
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       await _waitForCurrentImage(tester);
@@ -1382,7 +2082,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       _mobileViewport(tester);
       final harness = _Harness(legacyVertical: true);
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       await _waitForCurrentImage(tester);
@@ -1401,16 +2101,6 @@ void main() {
       await tester.pump();
 
       expect(pageView.zoom.value, isTrue);
-      expect(pageView.overlay.value, isFalse);
-      expect(_zoomAction('Next Page'), findsOneWidget);
-
-      tester
-          .widget<InteractiveViewerExtended>(
-            find.byType(InteractiveViewerExtended).first,
-          )
-          .onTap
-          ?.call();
-      await tester.pump();
       expect(pageView.overlay.value, isTrue);
       expect(_zoomAction('Next Page'), findsOneWidget);
 
@@ -1422,6 +2112,16 @@ void main() {
           ?.call();
       await tester.pump();
       expect(pageView.overlay.value, isFalse);
+      expect(_zoomAction('Next Page'), findsOneWidget);
+
+      tester
+          .widget<InteractiveViewerExtended>(
+            find.byType(InteractiveViewerExtended).first,
+          )
+          .onTap
+          ?.call();
+      await tester.pump();
+      expect(pageView.overlay.value, isTrue);
       expect(_zoomAction('Next Page'), findsOneWidget);
 
       transform.value = Matrix4.identity();
@@ -1441,7 +2141,7 @@ void main() {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       _mobileViewport(tester);
       final harness = _Harness(legacyVertical: true, hideOverlay: true);
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
       await _waitForCurrentImage(tester);
@@ -1480,7 +2180,7 @@ void main() {
       _mobileViewport(tester);
       final pending = Completer<PostResult<Post>>();
       final live = _LiveRouteHarness(loadNext: (_) => pending.future);
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
@@ -1499,7 +2199,7 @@ void main() {
       expect(_comicButton('Next Page'), findsNothing);
       details.loadOriginalImage(_liveInitial[1]);
       await _waitForCurrentImage(tester);
-      pageView.zoom.value = true;
+      _zoomCurrentPost(tester);
       await tester.pump();
 
       expect(live.requestedPages, [2]);
@@ -1518,7 +2218,15 @@ void main() {
       expect(details.currentPost.value.id, 33);
       expect(_detailsController(tester), same(details));
       expect(_pageViewController(tester), same(pageView));
-      expect(transform.value, Matrix4.identity());
+      expect(transform.value.getMaxScaleOnAxis(), 2);
+      final nextTransform = tester
+          .widget<PostViewerTransformationScope>(
+            find.byType(PostViewerTransformationScope),
+          )
+          .controller
+          .transformationController;
+      expect(nextTransform, isNot(same(transform)));
+      expect(nextTransform.value, Matrix4.identity());
       expect(details.usesOriginalImage(_liveInitial[1]), isTrue);
       _expectMedia(tester, postId: 33, host: 'pixiv.example');
       await tester.pump(const Duration(milliseconds: 200));
@@ -1537,7 +2245,7 @@ void main() {
         return PostResult(posts: [_liveNext], total: 3);
       },
     );
-    addTearDown(live.dispose);
+    _disposeAfterUnmount(tester, live.dispose);
     await live.grid.refresh();
     await tester.pumpWidget(live.build());
     await tester.tap(find.text('Open'));
@@ -1545,7 +2253,7 @@ void main() {
     await _waitForCurrentImage(tester);
     final details = _detailsController(tester);
     final pageView = _pageViewController(tester);
-    pageView.zoom.value = true;
+    _zoomCurrentPost(tester);
     await tester.pump();
 
     expect(details.currentPost.value.id, 22);
@@ -1574,7 +2282,7 @@ void main() {
       _mobileViewport(tester);
       final pending = Completer<PostResult<Post>>();
       final live = _LiveRouteHarness(loadNext: (_) => pending.future);
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
@@ -1617,14 +2325,14 @@ void main() {
       final live = _LiveRouteHarness(
         loadNext: (_) async => PostResult<Post>.empty(),
       );
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       final details = _detailsController(tester);
       final pageView = _pageViewController(tester);
-      pageView.zoom.value = true;
+      _zoomCurrentPost(tester);
       await tester.pump();
 
       expect(live.requestedPages, [2]);
@@ -1652,7 +2360,7 @@ void main() {
           _ => PostResult(posts: [_liveNext], total: 4),
         },
       );
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
@@ -1661,7 +2369,7 @@ void main() {
 
       final details = _detailsController(tester);
       final pageView = _pageViewController(tester);
-      pageView.zoom.value = true;
+      _zoomCurrentPost(tester);
       await tester.pumpAndSettle();
 
       expect(live.requestedPages, [2, 3, 4]);
@@ -1686,7 +2394,7 @@ void main() {
             ? PostResult(posts: [_liveInitial[1]], total: 3)
             : PostResult(posts: [_liveNext], total: 3),
       );
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
@@ -1694,7 +2402,7 @@ void main() {
       await _waitForCurrentImage(tester);
       final details = _detailsController(tester);
       final pageView = _pageViewController(tester);
-      pageView.zoom.value = true;
+      _zoomCurrentPost(tester);
       await tester.pumpAndSettle();
 
       expect(live.requestedPages, [2, 3, 4]);
@@ -1733,14 +2441,14 @@ void main() {
           _ => PostResult(posts: [_liveNext], total: 3),
         },
       );
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
       await _waitForCurrentImage(tester);
       final details = _detailsController(tester);
-      _pageViewController(tester).zoom.value = true;
+      _zoomCurrentPost(tester);
       await tester.pump();
 
       expect(live.requestedPages, [2, 3]);
@@ -1762,13 +2470,13 @@ void main() {
           ? PostResult(posts: [_liveInitial[1]], total: null, hasMore: true)
           : PostResult<Post>.empty(),
     );
-    addTearDown(live.dispose);
+    _disposeAfterUnmount(tester, live.dispose);
     await live.grid.refresh();
     await tester.pumpWidget(live.build());
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
     final details = _detailsController(tester);
-    _pageViewController(tester).zoom.value = true;
+    _zoomCurrentPost(tester);
     await tester.pump();
 
     expect(live.requestedPages, [2, 3]);
@@ -1789,7 +2497,7 @@ void main() {
             ? pending.future
             : Future.value(PostResult(posts: [_liveNext], total: 3)),
       );
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       await tester.pumpWidget(live.build());
       await tester.tap(find.text('Open'));
@@ -1818,7 +2526,7 @@ void main() {
             ? pending.future
             : Future.value(PostResult(posts: [_liveNext], total: 3)),
       );
-      addTearDown(live.dispose);
+      _disposeAfterUnmount(tester, live.dispose);
       await live.grid.refresh();
       unawaited(live.grid.fetchMore());
       await tester.pumpWidget(live.build());
@@ -1850,7 +2558,7 @@ void main() {
     tester,
   ) async {
     final harness = _Harness();
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     final post = _post(
       id: 1,
       booruType: BooruType.danbooru,
@@ -1895,7 +2603,7 @@ void main() {
     tester,
   ) async {
     final harness = _Harness();
-    addTearDown(harness.dispose);
+    _disposeAfterUnmount(tester, harness.dispose);
     final request = (_configs.first.auth, 'artist');
 
     harness.container.read(chipColorsFromTagStringProvider(request));
@@ -1924,7 +2632,7 @@ void main() {
     (tester) async {
       VisibilityDetectorController.instance.updateInterval = Duration.zero;
       final harness = _Harness();
-      addTearDown(harness.dispose);
+      _disposeAfterUnmount(tester, harness.dispose);
 
       harness.container.read(
         chipColorsFromTagStringProvider((_configs.first.auth, 'artist')),
@@ -1966,7 +2674,6 @@ void main() {
       final expand = pageView.expandToSnapPoint();
       await tester.pumpAndSettle();
       await expand;
-      pageView.zoom.value = true;
 
       await pageView.nextPage(duration: Duration.zero);
       await tester.pumpAndSettle();
@@ -1980,11 +2687,11 @@ void main() {
       expect(_pageViewController(tester).slideshowController, same(slideshow));
       expect(details.usesOriginalImage(_posts[0]), isTrue);
       expect(details.usesOriginalImage(_posts[1]), isFalse);
-      // Phone-horizontal page changes close the previous post's details.
-      expect(pageView.sheetState.value, SheetState.collapsed);
-      expect(pageView.sheetController.size, 0);
+      // Details is the shared presentation mode across ordinary Post pages.
+      expect(pageView.sheetState.value, SheetState.expanded);
+      expect(pageView.sheetController.isAttached, isFalse);
       expect(pageView.displacement.value, 0);
-      expect(pageView.zoom.value, isTrue);
+      expect(pageView.zoom.value, isFalse);
 
       await pageView.nextPage(duration: Duration.zero);
       await tester.pumpAndSettle();
@@ -2000,11 +2707,7 @@ void main() {
             .enabled,
         isFalse,
       );
-      // The new post starts collapsed; explicitly reopen its metadata before
-      // checking the unsupported-source tag presentation.
-      final reopen = pageView.expandToSnapPoint();
-      await tester.pumpAndSettle();
-      await reopen;
+      // Unsupported sources retain Details with their own generic metadata.
       expect(find.text('Tags'), findsOneWidget);
       expect(find.textContaining('unknown@'), findsNothing);
       _expectMedia(tester, postId: 1, host: '');
@@ -2013,6 +2716,9 @@ void main() {
       expect(details.currentPost.value, _posts[3]);
       expect(pageView.currentPage.value, 3);
       expect(harness.container.read(currentBooruConfigProvider), globalBefore);
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
     },
   );
 
@@ -2160,9 +2866,27 @@ void main() {
   );
 }
 
+void _disposeAfterUnmount(WidgetTester tester, VoidCallback dispose) {
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    dispose();
+    await tester.pump();
+  });
+}
+
+void _zoomCurrentPost(WidgetTester tester) {
+  final transform = tester
+      .widget<PostViewerTransformationScope>(
+        find.byType(PostViewerTransformationScope),
+      )
+      .controller
+      .transformationController;
+  transform.value = Matrix4.diagonal3Values(2, 2, 1);
+}
+
 PostDetailsController<Post> _detailsController(WidgetTester tester) {
   final details = tester.widget<PostDetails>(find.byType(PostDetails));
-  return (details.data as PostDetailsData<Post>).controller;
+  return (details.data! as PostDetailsData<Post>).controller;
 }
 
 PostDetailsPageViewController _pageViewController(WidgetTester tester) => tester
@@ -2228,6 +2952,7 @@ class _Harness {
     bool emptyFirstImage = false,
     bool invalidImage = false,
     bool loadOriginalOnZoom = false,
+    bool darkTheme = false,
     PostQuality postQuality = PostQuality.high,
     HttpClientAdapter? imageAdapter,
     ImageCacheManager? imageCache,
@@ -2235,6 +2960,7 @@ class _Harness {
     ImageQuality thumbnailQuality = ImageQuality.automatic,
   }) : container = ProviderContainer(
          overrides: [
+           miscDataStoreProvider.overrideWithValue(MemoryMiscDataStore()),
            if (router != null) routerProvider.overrideWithValue(router),
            settingsProvider.overrideWithValue(
              Settings.defaultSettings.copyWith(
@@ -2257,7 +2983,10 @@ class _Harness {
              ),
            ),
            colorSchemeProvider.overrideWithValue(
-             ColorScheme.fromSeed(seedColor: Colors.blue),
+             ColorScheme.fromSeed(
+               seedColor: Colors.blue,
+               brightness: darkTheme ? Brightness.dark : Brightness.light,
+             ),
            ),
            initialSettingsBooruConfigProvider.overrideWithValue(_globalConfig),
            booruConfigProvider.overrideWith(
@@ -2341,33 +3070,46 @@ class _Harness {
   final ViewerEntryLiveSource? entrySource;
   final String? initialThumbnailUrl;
 
-  Widget build() => UncontrolledProviderScope(
-    container: container,
-    child: BooruLocalization(
-      child: MaterialApp(
-        builder: (context, child) =>
-            // ignore: deprecated_member_use
-            MaterialUiCompatibilityBridge(
-              child: KurumiTheme(
-                data: KurumiThemeData.fromMaterial(Theme.of(context)),
-                child: child!,
+  Widget build({ThemeData? theme, double? textScale, EdgeInsets? padding}) =>
+      UncontrolledProviderScope(
+        container: container,
+        child: BooruLocalization(
+          child: MaterialApp(
+            theme: theme,
+            builder: (context, child) =>
+                // ignore: deprecated_member_use
+                MaterialUiCompatibilityBridge(
+                  child: KurumiTheme(
+                    data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                    child: textScale == null && padding == null
+                        ? child!
+                        : MediaQuery(
+                            data: MediaQuery.of(context).copyWith(
+                              textScaler: textScale == null
+                                  ? null
+                                  : TextScaler.linear(textScale),
+                              padding: padding,
+                              viewPadding: padding,
+                            ),
+                            child: child!,
+                          ),
+                  ),
+                ),
+            home: Directionality(
+              textDirection: direction,
+              child: MixedPostDetailsPage(
+                posts: posts ?? _posts,
+                entries: entries,
+                entrySource: entrySource,
+                initialIndex: initialIndex,
+                initialThumbnailUrl: initialThumbnailUrl,
+                scrollController: null,
+                disclaimer: null,
               ),
             ),
-        home: Directionality(
-          textDirection: direction,
-          child: MixedPostDetailsPage(
-            posts: posts ?? _posts,
-            entries: entries,
-            entrySource: entrySource,
-            initialIndex: initialIndex,
-            initialThumbnailUrl: initialThumbnailUrl,
-            scrollController: null,
-            disclaimer: null,
           ),
         ),
-      ),
-    ),
-  );
+      );
 
   Widget buildRouter(GoRouter router) => UncontrolledProviderScope(
     container: container,
@@ -2386,7 +3128,12 @@ class _Harness {
     ),
   );
 
-  void dispose() => container.dispose();
+  var _disposed = false;
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    container.dispose();
+  }
 }
 
 class _EmptyBlacklist extends GlobalBlacklistedTagsNotifier {
@@ -2585,7 +3332,10 @@ class _LiveRouteHarness {
 
   Widget build() => harness.buildRouter(router);
 
+  var _disposed = false;
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     harness.dispose();
     router.dispose();
     grid.dispose();
@@ -2759,6 +3509,14 @@ Post _post({
   required BooruPostData data,
   int? uploaderId,
   double height = 100,
+  double width = 100,
+  Set<String>? artistTags,
+  Set<String> tags = const {},
+  Set<String>? characterTags,
+  Set<String>? copyrightTags,
+  String format = 'jpg',
+  String videoUrl = '',
+  double duration = 0,
 }) => Post(
   origin: PostOrigin.fromSource(
     booruType: booruType,
@@ -2770,15 +3528,18 @@ Post _post({
     thumbnailImageUrl: 'thumbnail-$id',
     sampleImageUrl: 'sample-$id',
     originalImageUrl: 'original-$id',
-    videoUrl: '',
+    videoUrl: videoUrl,
     videoThumbnailUrl: '',
-    width: 100,
+    width: width,
     height: height,
-    format: 'jpg',
+    artistTags: artistTags,
+    characterTags: characterTags,
+    copyrightTags: copyrightTags,
+    format: format,
     md5: 'md5-$id',
     fileSize: 1,
-    duration: 0,
-    tags: const {},
+    duration: duration,
+    tags: tags,
     rating: Rating.general,
     hasComment: false,
     isTranslated: false,
@@ -2855,9 +3616,10 @@ final class _MediaResolver implements MediaUrlResolver {
 }
 
 final class _TestImageAdapter implements HttpClientAdapter {
-  _TestImageAdapter(this.invalidImage);
+  _TestImageAdapter(this.invalidImage, {this.bytes});
 
   final bool invalidImage;
+  final Uint8List? bytes;
   static final _png = File('assets/images/logo.png').readAsBytesSync();
 
   @override
@@ -2869,7 +3631,7 @@ final class _TestImageAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async => ResponseBody.fromBytes(
-    invalidImage ? Uint8List.fromList([1, 2, 3]) : _png,
+    invalidImage ? Uint8List.fromList([1, 2, 3]) : bytes ?? _png,
     200,
     headers: {
       Headers.contentTypeHeader: ['image/png'],
@@ -3033,4 +3795,256 @@ class _GalleryGroupPresentation implements BooruGroupPresentation {
       ],
     );
   }
+}
+
+final class _PlaybackProbe implements BooruPlayer {
+  var playing = false;
+  var plays = 0;
+  @override
+  bool get isPlaying => playing;
+  @override
+  Future<void> play() async {
+    playing = true;
+    plays++;
+  }
+
+  @override
+  Future<void> pause() async {
+    playing = false;
+  }
+
+  @override
+  void dispose() {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Future<void> _captureViewerModes(WidgetTester tester) async {
+  final previousHitWarning = WidgetController.hitTestWarningShouldBeFatal;
+  WidgetController.hitTestWarningShouldBeFatal = true;
+  addTearDown(
+    () => WidgetController.hitTestWarningShouldBeFatal = previousHitWarning,
+  );
+  await tester.runAsync(() async {
+    final configFile = File('.dart_tool/package_config.json');
+    final packages =
+        (jsonDecode(await configFile.readAsString())
+                as Map<String, dynamic>)['packages']
+            as List;
+    final flutter = packages.cast<Map<String, dynamic>>().singleWhere(
+      (p) => p['name'] == 'flutter',
+    );
+    final sdk = configFile.absolute.uri
+        .resolve('${flutter['rootUri']}/')
+        .resolve('../../');
+    for (final font in [
+      ('Roboto', 'Roboto-Regular.ttf'),
+      ('MaterialIcons', 'MaterialIcons-Regular.otf'),
+    ]) {
+      await (FontLoader(font.$1)..addFont(
+            File.fromUri(
+              sdk.resolve('bin/cache/artifacts/material_fonts/${font.$2}'),
+            ).readAsBytes().then(ByteData.sublistView),
+          ))
+          .load();
+    }
+    await (FontLoader('packages/material_symbols_icons/MaterialSymbolsOutlined')
+          ..addFont(
+            rootBundle.load(
+              'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
+            ),
+          ))
+        .load();
+  });
+  final html = File('docs/designs/mockups/2026-11-10-unified-viewer.html')
+      .readAsStringSync();
+  final art = base64Decode(
+    RegExp('data:image/[^;]+;base64,([A-Za-z0-9+/=]+)')
+        .firstMatch(html)!
+        .group(1)!,
+  );
+  final cases = [
+    (
+      name: 'square-414',
+      viewport: const Size(414, 915),
+      media: const Size(930, 926),
+      scale: 1.0,
+      bytes: art,
+    ),
+    (
+      name: 'portrait-320',
+      viewport: const Size(320, 800),
+      media: const Size(2, 8),
+      scale: 2.0,
+      bytes: portraitPng,
+    ),
+    (
+      name: 'panorama-landscape',
+      viewport: const Size(844, 390),
+      media: const Size(1200, 160),
+      scale: 1.0,
+      bytes:
+          await tester.runAsync(() async {
+            final recorder = ui.PictureRecorder();
+            final canvas = ui.Canvas(recorder);
+            canvas.drawRect(
+              const Rect.fromLTWH(0, 0, 1200, 160),
+              ui.Paint()..color = const Color(0xff49667d),
+            );
+            canvas.drawRect(
+              const Rect.fromLTWH(0, 0, 400, 160),
+              ui.Paint()..color = const Color(0xffceae8b),
+            );
+            canvas.drawRect(
+              const Rect.fromLTWH(800, 0, 400, 160),
+              ui.Paint()..color = const Color(0xff7b8e69),
+            );
+            final picture = recorder.endRecording();
+            final image = await picture.toImage(1200, 160);
+            final data = await image.toByteData(format: ui.ImageByteFormat.png);
+            image.dispose();
+            picture.dispose();
+            return data!.buffer.asUint8List();
+          }) ??
+          Uint8List(0),
+    ),
+  ];
+  final directory = Directory(_viewerCaptureDirectory)
+    ..createSync(recursive: true);
+  for (final item in cases) {
+    tester.view.physicalSize = item.viewport;
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+    final post = _post(
+      id: 1,
+      booruType: BooruType.danbooru,
+      host: 'https://danbooru.example',
+      data: DanbooruPostData(
+        lastCommentAt: null,
+        upScore: 1,
+        downScore: 0,
+        favCount: 2,
+        approverId: null,
+        generalTags: {for (var i = 1; i <= 32; i++) 'reference_tag_$i'},
+        metaTags: const {},
+        hasChildren: false,
+        hasLarge: true,
+        pixelHash: '',
+      ),
+      tags: {for (var i = 1; i <= 32; i++) 'reference_tag_$i'},
+      artistTags: {'punziebunnie'},
+      width: item.media.width,
+      height: item.media.height,
+      characterTags: {'aerith_gainsborough', 'princess_peach'},
+      copyrightTags: {'final_fantasy', 'super_mario'},
+    );
+    final harness = _Harness(
+      posts: [post],
+      darkTheme: true,
+      hideOverlay: true,
+      reduceAnimations: false,
+      imageAdapter: _TestImageAdapter(false, bytes: item.bytes),
+      imageCache: TestImageCache({}),
+    );
+    final boundaryKey = GlobalKey();
+    try {
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: boundaryKey,
+          child: harness.build(
+            theme: ThemeData(
+              fontFamily: 'Roboto',
+              colorScheme: harness.container.read(colorSchemeProvider),
+            ),
+            textScale: item.scale,
+            padding: const EdgeInsets.only(top: 24, bottom: 24),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => tester
+              .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+              .any(
+                (media) =>
+                    media.imageController?.imageInfo.value?.image.width ==
+                    item.media.width,
+              ),
+          reason: 'capture media decoded',
+        ),
+      );
+      await tester.pumpAndSettle();
+      final pager = _pageViewController(tester);
+      Future<void> capture(String mode) async {
+        final boundary =
+            boundaryKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        await tester.runAsync(() async {
+          final image = await boundary.toImage();
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          image.dispose();
+          await File(
+            '${directory.path}/flutter-${item.name}-$mode.png',
+          ).writeAsBytes(bytes!.buffer.asUint8List());
+        });
+      }
+
+      expect(find.byType(KurumiInfoCircleIcon).hitTestable(), findsNothing);
+      await capture('immersive');
+      pager.showAllUI();
+      await tester.pumpAndSettle();
+      await capture('overlay');
+      if (item.name == 'square-414') {
+        final gesture = await tester.startGesture(const Offset(200, 560));
+        await gesture.moveBy(const Offset(0, -100));
+        await tester.pump();
+        await capture('drag-early');
+        await gesture.moveBy(const Offset(0, -160));
+        await tester.pump();
+        await capture('drag-late');
+        await gesture.up();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 35));
+        await capture('snap-mid');
+        await tester.pumpAndSettle();
+      }
+      await pager.expandToSnapPoint();
+      await tester.pumpAndSettle();
+      await capture('details-top');
+      final mediaHeight = tester
+          .getSize(find.byKey(const ValueKey(('viewer-media', 0))))
+          .height;
+      await tester.scrollUntilVisible(
+        find.text('File Details').hitTestable(),
+        120,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey(('viewer-details-scroll', 0))),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.tap(find.text('File Details'));
+      await tester.pumpAndSettle();
+      final scroll = tester
+          .widget<CustomScrollView>(
+            find.byKey(const ValueKey(('viewer-details-scroll', 0))),
+          )
+          .controller!;
+      expect(
+        scroll.position.maxScrollExtent,
+        greaterThan(mediaHeight),
+      );
+      scroll.jumpTo(scroll.position.maxScrollExtent.clamp(0, 650));
+      await tester.pumpAndSettle();
+      await capture('details-scrolled');
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
+    }
+  }
+  tester.view.reset();
 }

@@ -13,9 +13,7 @@ class PostDetailsOverlay extends StatelessWidget {
     required this.leftActions,
     required this.actions,
     required this.isLargeScreen,
-    required this.sheetAnimController,
     required this.overlayCurvedAnimation,
-    required this.disableAnimation,
     this.detailsEnabled = true,
     super.key,
   });
@@ -24,9 +22,7 @@ class PostDetailsOverlay extends StatelessWidget {
   final List<Widget> leftActions;
   final List<Widget> actions;
   final bool isLargeScreen;
-  final AnimationController sheetAnimController;
   final Animation<double>? overlayCurvedAnimation;
-  final bool disableAnimation;
   final bool detailsEnabled;
 
   @override
@@ -44,7 +40,6 @@ class PostDetailsOverlay extends StatelessWidget {
                 builder: (context, moving, _) => child,
               ),
               child: SafeArea(
-                right: isLargeScreen,
                 child: _buildOverlayContent(context),
               ),
             ),
@@ -54,19 +49,28 @@ class PostDetailsOverlay extends StatelessWidget {
           // independently of media overlay hiding and animation state.
           if (!detailsEnabled) return overlay;
 
-          return ValueListenableBuilder(
-            valueListenable: controller.forceHideOverlay,
-            builder: (_, hide, _) => hide
+          return ListenableBuilder(
+            listenable: Listenable.merge([
+              controller.forceHideOverlay,
+              controller.overlay,
+            ]),
+            builder: (_, _) =>
+                controller.forceHideOverlay.value ||
+                    (overlayCurvedAnimation == null &&
+                        !controller.overlay.value)
                 ? const SizedBox.shrink()
-                : overlayCurvedAnimation != null
-                ? SlideTransition(
-                    position: Tween(
-                      begin: const Offset(0, -1),
-                      end: Offset.zero,
-                    ).animate(overlayCurvedAnimation!),
-                    child: overlay,
-                  )
-                : overlay,
+                : ExcludeFocus(
+                    excluding: !controller.overlay.value,
+                    child: overlayCurvedAnimation != null
+                        ? SlideTransition(
+                            position: Tween(
+                              begin: const Offset(0, -1),
+                              end: Offset.zero,
+                            ).animate(overlayCurvedAnimation!),
+                            child: overlay,
+                          )
+                        : overlay,
+                  ),
           );
         },
       ),
@@ -104,11 +108,34 @@ class PostDetailsOverlay extends StatelessWidget {
                 ...actions,
                 const SizedBox(width: 8),
                 if (detailsEnabled)
-                  _SheetControlButton(
-                    controller: controller,
-                    isLargeScreen: isLargeScreen,
-                    disableAnimation: disableAnimation,
-                    sheetAnimController: sheetAnimController,
+                  ListenableBuilder(
+                    listenable: Listenable.merge([
+                      controller.presentationProgress,
+                      controller.overlay,
+                      ?overlayCurvedAnimation,
+                    ]),
+                    builder: (context, _) {
+                      final progress = controller.presentationProgress.value;
+                      final opacity =
+                          (1 - progress * 2).clamp(0.0, 1.0) *
+                          (overlayCurvedAnimation?.value ??
+                              (controller.overlay.value ? 1 : 0));
+                      return Offstage(
+                        offstage: opacity == 0,
+                        child: ExcludeFocus(
+                          excluding: controller.isExpanded || progress > 0,
+                          child: IgnorePointer(
+                            ignoring: controller.isExpanded || progress > 0,
+                            child: Opacity(
+                              opacity: opacity,
+                              child: _SheetControlButton(
+                                controller: controller,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
               ],
             ),
@@ -120,83 +147,12 @@ class PostDetailsOverlay extends StatelessWidget {
 }
 
 class _SheetControlButton extends StatelessWidget {
-  const _SheetControlButton({
-    required this.controller,
-    required this.isLargeScreen,
-    required this.disableAnimation,
-    required this.sheetAnimController,
-  });
-
+  const _SheetControlButton({required this.controller});
   final PostDetailsPageViewController controller;
-  final bool isLargeScreen;
-  final bool disableAnimation;
-  final AnimationController sheetAnimController;
 
   @override
-  Widget build(BuildContext context) {
-    final colorScheme = Kurumi.themeOf(context).colorScheme;
-
-    return ValueListenableBuilder(
-      valueListenable: controller.sheetState,
-      builder: (context, state, child) {
-        final isExpanded = state.isExpanded;
-
-        return !isExpanded
-            ? _buildExpandButton(context)
-            : _buildCollapseButton(context, colorScheme);
-      },
-    );
-  }
-
-  Widget _buildCollapseButton(BuildContext context, ColorScheme colorScheme) {
-    return KurumiCircularIconButton(
-      onPressed: () {
-        if (controller.animating.value) return;
-
-        if (!isLargeScreen) {
-          controller.resetSheet();
-        } else {
-          controller.toggleExpanded(
-            MediaQuery.sizeOf(context).longestSide,
-            () async {
-              if (!disableAnimation) {
-                if (sheetAnimController.isAnimating) return;
-                await sheetAnimController.reverse();
-              }
-            },
-          );
-        }
-      },
-      icon: KurumiInfoCircleIcon(
-        style: KurumiInfoCircleStyle.solid,
-        color: colorScheme.primary,
-      ),
-    );
-  }
-
-  Widget _buildExpandButton(BuildContext context) {
-    return KurumiCircularIconButton(
-      onPressed: () {
-        if (controller.animating.value) return;
-
-        if (!isLargeScreen) {
-          controller
-            ..expandToSnapPoint()
-            ..hideBottomSheet();
-        } else {
-          controller.toggleExpanded(
-            MediaQuery.sizeOf(context).longestSide,
-            () async {
-              if (!disableAnimation) {
-                if (sheetAnimController.isAnimating) return;
-
-                await sheetAnimController.forward();
-              }
-            },
-          );
-        }
-      },
-      icon: const KurumiInfoCircleIcon(),
-    );
-  }
+  Widget build(BuildContext context) => KurumiCircularIconButton(
+    onPressed: controller.expandToSnapPoint,
+    icon: const KurumiInfoCircleIcon(),
+  );
 }

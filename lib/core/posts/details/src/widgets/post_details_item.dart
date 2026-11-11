@@ -1,5 +1,6 @@
 // Flutter imports:
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 // Package imports:
 import 'package:foundation/performance.dart';
@@ -15,7 +16,6 @@ import '../../../../../foundation/info/package_info.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/gesture/types.dart';
-import '../../../../videos/player/widgets.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../widgets/widgets.dart';
 import '../../../details_pageview/widgets.dart';
@@ -73,6 +73,90 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
 class _PostDetailsItemState<T extends Post>
     extends ConsumerState<PostDetailsItem<T>> {
   final _videoKey = GlobalKey();
+  final _displayTransform = KurumiTransformationController();
+  double _presentationProgress = 0;
+  var _updatingDisplay = false;
+
+  void _syncDisplay() {
+    final immersive = _immersiveTransform;
+    if (immersive == null) return;
+    _updatingDisplay = true;
+    final matrix = Matrix4Tween(
+      begin: immersive.value,
+      end: Matrix4.identity(),
+    ).transform(_presentationProgress);
+    if (_presentationProgress > 0) {
+      _displayTransform.setPresentationValue(matrix);
+    } else {
+      _displayTransform.value = matrix;
+    }
+    _updatingDisplay = false;
+    // Kurumi may constrain a programmatic transform to the actual image bounds.
+    // Keep that usable matrix as the checkpoint, without recording the temporary
+    // interpolated Details representation.
+    if (_presentationProgress == 0 &&
+        _displayTransform.value != immersive.value) {
+      immersive.value = _displayTransform.value.clone();
+    }
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      _syncCurrentTransform();
+    } else {
+      _updateCurrentTransform();
+    }
+  }
+
+  void _saveGestureTransform() {
+    if (!_updatingDisplay && _presentationProgress == 0) {
+      _immersiveTransform?.value = _displayTransform.value.clone();
+    }
+  }
+
+  TransformationController? _immersiveTransform;
+  PostDetailsPageViewController? _pager;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final pager = PostDetailsPageViewScope.of(context);
+    if (_pager != pager) {
+      _pager?.sheetState.removeListener(_syncCurrentTransform);
+      _pager = pager;
+      pager.sheetState.addListener(_syncCurrentTransform);
+    }
+    _syncCurrentTransform();
+  }
+
+  void _syncCurrentTransform() {
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateCurrentTransform(),
+    );
+  }
+
+  void _updateCurrentTransform() {
+    if (!mounted || !_isPageSettled || _presentationProgress > 0) return;
+    final pager = _pager;
+    if (pager == null) return;
+    if (pager.isExpanded) {
+      pager.zoom.value = false;
+      pager.enableAllSwiping();
+    } else {
+      final zoomed = kurumiIsZoomed(
+        (_immersiveTransform ?? widget.transformController).value,
+      );
+      final settings = ref.read(imageViewerSettingsProvider);
+      final post = widget.post ?? widget.posts[widget.index];
+      if (zoomed &&
+          !pager.zoom.value &&
+          settings.loadOriginalOnZoom &&
+          settings.postQuality != PostQuality.original &&
+          post.hasFullView) {
+        widget.detailsController.loadOriginalImage(post);
+      }
+      pager.synchronizeZoom(zoomed);
+    }
+  }
+
   final _imageController = ExtendedImageController();
   final _representationState = _MediaRepresentationState();
   late final _mediaState = Listenable.merge([
@@ -85,10 +169,25 @@ class _PostDetailsItemState<T extends Post>
   @override
   void initState() {
     super.initState();
+    _displayTransform.addListener(_saveGestureTransform);
     _isPageSettled =
         widget.detailsController.currentSettledPage.value == widget.index;
     widget.detailsController.currentSettledPage.addListener(_onPageSettled);
     _imageController.loadState.addListener(_onImageStateChanged);
+  }
+
+  var _active = true;
+
+  @override
+  void deactivate() {
+    _active = false;
+    super.deactivate();
+  }
+
+  @override
+  void activate() {
+    super.activate();
+    _active = true;
   }
 
   @override
@@ -109,6 +208,10 @@ class _PostDetailsItemState<T extends Post>
     widget.detailsController.currentSettledPage.removeListener(_onPageSettled);
     _imageController.loadState.removeListener(_onImageStateChanged);
     _imageController.dispose();
+    _pager?.sheetState.removeListener(_syncCurrentTransform);
+    _immersiveTransform?.removeListener(_syncDisplay);
+    _displayTransform.removeListener(_saveGestureTransform);
+    _displayTransform.dispose();
     _representationState.dispose();
     super.dispose();
   }
@@ -118,6 +221,7 @@ class _PostDetailsItemState<T extends Post>
         widget.detailsController.currentSettledPage.value == widget.index;
     if (isPageSettled == _isPageSettled) return;
     setState(() => _isPageSettled = isPageSettled);
+    _syncCurrentTransform();
   }
 
   void _onRepresentationChanged(bool compatible) {
@@ -162,6 +266,15 @@ class _PostDetailsItemState<T extends Post>
     );
     final navigation = ZoomPageNavigationScope.maybeOf(context);
     final viewerTransform = PostViewerTransformationScope.maybeOf(context);
+    final immersiveTransform =
+        viewerTransform?.transformationController ?? widget.transformController;
+    if (_immersiveTransform != immersiveTransform) {
+      _immersiveTransform?.removeListener(_syncDisplay);
+      _immersiveTransform = immersiveTransform;
+      immersiveTransform.addListener(_syncDisplay);
+    }
+    _presentationProgress = ViewerPresentationTransition.of(context);
+    _syncDisplay();
     final automaticMediaLoadingEnabled = ref.watch(
       automaticMediaLoadingEnabledProvider,
     );
@@ -170,6 +283,11 @@ class _PostDetailsItemState<T extends Post>
         ref.watch(zoomStudyEnabledProvider);
 
     void onItemTap() {
+      if (!_active || !mounted) return;
+      if (pageViewController.isExpanded) {
+        pageViewController.resetSheet();
+        return;
+      }
       final controller = widget.detailsController;
 
       if (ref.read(appPlatformProvider).isDesktop) {
@@ -203,6 +321,12 @@ class _PostDetailsItemState<T extends Post>
     }
 
     void onTransformationChanged(KurumiTransformationDetails details) {
+      if (!_isPageSettled ||
+          pageViewController.isExpanded ||
+          _updatingDisplay ||
+          _presentationProgress > 0) {
+        return;
+      }
       final startedZooming = !pageViewController.zoom.value && details.isZoomed;
 
       pageViewController.onTransformationChanged(details);
@@ -243,19 +367,18 @@ class _PostDetailsItemState<T extends Post>
       builder: (_, state, _) => GestureDetector(
         // let the user tap the image to toggle overlay
         onTap: onItemTap,
+        onDoubleTap: state.isExpanded ? () {} : null,
         child: InteractiveViewerExtended(
           key: _videoKey,
           contentSize: mediaSize,
-          controller: widget.transformController,
-          constrainPanToContent: _isPageSettled,
+          controller: _displayTransform,
+          constrainPanToContent:
+              _isPageSettled && !state.isExpanded && _presentationProgress == 0,
           snapZoomToFit: snapZoomToFit,
           enable: switch (noteOverlayShown) {
             // If the note overlay is shown, disable all interactions to prevent gesture conflicts
             true => false,
-            false => switch (state.isExpanded) {
-              true => context.isLargeScreen,
-              false => true,
-            },
+            false => !state.isExpanded && _presentationProgress == 0,
           },
           onTransformationChanged: onTransformationChanged,
           onTap: onItemTap,
@@ -310,7 +433,10 @@ class _PostDetailsItemState<T extends Post>
                         onRepresentationChanged: _onRepresentationChanged,
                         // This is used to make sure we have a thumbnail to show instead of a black placeholder
                         placeholderMediaBuilder:
-                            isInitPage && initialThumbnailUrl != null
+                            isInitPage &&
+                                widget.index ==
+                                    widget.detailsController.initialPage &&
+                                initialThumbnailUrl != null
                             ? (_) => initialPlaceholderMedia!
                             : null,
                         controller: pageViewController,
@@ -320,42 +446,6 @@ class _PostDetailsItemState<T extends Post>
                   );
                 },
               ),
-              if (post.isVideo)
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: state.isExpanded && !context.isLargeScreen
-                      ? Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Row(
-                            children: [
-                              // duplicate codes, maybe refactor later
-                              PlayPauseButton(
-                                isPlaying:
-                                    widget.detailsController.isVideoPlaying,
-                                onPlayingChanged: (value) {
-                                  if (value) {
-                                    widget.detailsController.pauseVideo(
-                                      post,
-                                      showAnimation: true,
-                                    );
-                                  } else if (!value) {
-                                    widget.detailsController.playVideo(
-                                      post,
-                                      showAnimation: true,
-                                    );
-                                  } else {
-                                    // do nothing
-                                  }
-                                },
-                              ),
-                              const SoundControlButton(
-                                padding: EdgeInsets.all(8),
-                              ),
-                            ],
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
               if (post.isVideo)
                 SeekAnimationOverlay(
                   controller: widget.detailsController,
@@ -392,6 +482,7 @@ class _PostDetailsItemState<T extends Post>
             navigation: nav,
             mediaState: _mediaState,
             enabled:
+                !pageViewController.isExpanded &&
                 !post.isVideo &&
                 !noteOverlayShown &&
                 automaticMediaLoadingEnabled &&
@@ -419,7 +510,7 @@ class _PostDetailsItemState<T extends Post>
             ),
             child: ZoomStudyOverlay(
               post: post,
-              controller: widget.transformController,
+              controller: immersiveTransform,
               decodedSize: decodedSize,
             ),
           ),

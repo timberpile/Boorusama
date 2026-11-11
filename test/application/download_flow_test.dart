@@ -38,7 +38,7 @@ void main() {
         await harness.settle(tester);
         await tester.pump(const Duration(milliseconds: 500));
         final downloadButtons = find.byType(DownloadPostButton);
-        final downloadButton = downloadButtons.last;
+        final downloadButton = downloadButtons.hitTestable().first;
         await tester.ensureVisible(downloadButton);
         await tester.tap(downloadButton);
         await harness.pumpUntil(
@@ -105,10 +105,12 @@ void main() {
                   widget is material_ui.IconButton &&
                   widget.onLongPress != null,
             )
+            .hitTestable()
             .first;
 
         Future<void> selectSource(int index) async {
           final expectedRequestCount = service.requests.length + 1;
+          await harness.settle(tester);
           await tester.ensureVisible(downloadControl);
           tester
               .widget<material_ui.IconButton>(downloadControl)

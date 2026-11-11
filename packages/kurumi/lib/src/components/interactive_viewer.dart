@@ -37,6 +37,44 @@ const _kScaleChangeTolerance = 1e-10;
 
 const _kSnapSettleDuration = Duration(milliseconds: 50);
 
+/// Whether the displayed 2D scale differs visibly from contain fit.
+/// Translation and small floating-point drift do not imply a zoomed image.
+bool kurumiIsZoomed(Matrix4 matrix) {
+  final x = sqrt(
+    matrix.entry(0, 0) * matrix.entry(0, 0) +
+        matrix.entry(1, 0) * matrix.entry(1, 0),
+  );
+  final y = sqrt(
+    matrix.entry(0, 1) * matrix.entry(0, 1) +
+        matrix.entry(1, 1) * matrix.entry(1, 1),
+  );
+  return (x - 1).abs() > 0.001 || (y - 1).abs() > 0.001;
+}
+
+/// Separates temporary presentation matrices from the user's zoom gestures.
+class KurumiTransformationController extends TransformationController {
+  KurumiTransformationController([super.value]);
+
+  var _presentationUpdate = false;
+  bool get isPresentationUpdate => _presentationUpdate;
+
+  /// Changes the displayed matrix without discarding the double-tap return point.
+  void setPresentationValue(Matrix4 matrix) {
+    final previous = _presentationUpdate;
+    _presentationUpdate = true;
+    try {
+      if (value == matrix) {
+        // Even an unchanged frame must cancel an in-flight gesture animation.
+        notifyListeners();
+      } else {
+        value = matrix;
+      }
+    } finally {
+      _presentationUpdate = previous;
+    }
+  }
+}
+
 class KurumiTransformationDetails {
   const KurumiTransformationDetails({
     required this.scale,
@@ -298,7 +336,17 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
   void _onAnimationChanged() => _controller.value = _animation.value;
 
   void _onChanged() {
-    if (!_animationController.isAnimating && _controller.value.isIdentity()) {
+    if (_controller case KurumiTransformationController(
+      isPresentationUpdate: true,
+    )) {
+      _snapTimer?.cancel();
+      _snapTimer = null;
+      _animationController.stop();
+      _setZoomed(_computeIsZoomed());
+      return;
+    }
+    if (!_animationController.isAnimating &&
+        !kurumiIsZoomed(_controller.value)) {
       _classicReturnMatrix = null;
     }
     if (_snapTimer != null) {
@@ -322,11 +370,7 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
       maxScale: maxScale,
       minScale: _kFallbackMinScale,
       transformationMatrix: _controller.value,
-      isZoomed: !Matrix4.diagonal3Values(
-        _controller.value.right.x,
-        _controller.value.up.y,
-        _controller.value.forward.z,
-      ).isIdentity(),
+      isZoomed: kurumiIsZoomed(_controller.value),
     );
 
     _setZoomed(details.isZoomed);
@@ -343,25 +387,22 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
     widget.onTransformationChanged?.call(details);
   }
 
-  bool _computeIsZoomed() => !Matrix4.diagonal3Values(
-    _controller.value.right.x,
-    _controller.value.up.y,
-    _controller.value.forward.z,
-  ).isIdentity();
+  bool _computeIsZoomed() => kurumiIsZoomed(_controller.value);
 
   void _setZoomed(bool value) {
-    if (value == _isZoomed) return;
-
-    void apply() {
-      if (!mounted || value == _isZoomed) return;
-      setState(() => _isZoomed = value);
+    void apply(bool zoomed) {
+      if (!mounted || zoomed == _isZoomed) return;
+      setState(() => _isZoomed = zoomed);
     }
 
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
-      SchedulerBinding.instance.addPostFrameCallback((_) => apply());
+      // A later transform in this frame may already have returned to fit.
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) apply(_computeIsZoomed());
+      });
     } else {
-      apply();
+      apply(value);
     }
   }
 

@@ -56,6 +56,12 @@ class _PostDetailsShortcutsState extends State<PostDetailsShortcuts> {
       ),
       LogicalKeyboardKey.arrowUp => _enterControls(TraversalDirection.up),
       LogicalKeyboardKey.arrowDown => _enterControls(TraversalDirection.down),
+      LogicalKeyboardKey.tab when !widget.controller.overlay.value =>
+        _enterControls(
+          HardwareKeyboard.instance.isShiftPressed
+              ? TraversalDirection.down
+              : TraversalDirection.up,
+        ),
       _ => KeyEventResult.ignored,
     };
   }
@@ -69,6 +75,19 @@ class _PostDetailsShortcutsState extends State<PostDetailsShortcuts> {
   // nothing beyond its edges. Jump to the outermost control in view instead,
   // rather than one scrolled far down a side panel.
   KeyEventResult _enterControls(TraversalDirection direction) {
+    if (!widget.controller.overlay.value) {
+      // Remote users must be able to reveal controls without a touch or O key.
+      widget.controller.showAllUI(immediately: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _pageNode.hasPrimaryFocus &&
+            widget.controller.overlay.value &&
+            widget.controller.keyboardShortcutsEnabled.value) {
+          _enterControls(direction);
+        }
+      });
+      return KeyEventResult.handled;
+    }
     final target = outermostFocusTowards(
       _pageNode.traversalDescendants.where(
         (node) => node.canRequestFocus && !visibleFocusRect(node).isEmpty,

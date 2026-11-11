@@ -101,6 +101,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   var _isBuffering = false;
   var _isDisposing = false;
   var _isPreparingSource = false;
+  var _sourceNeedsInitialization = true;
   Timer? _cacheDelayTimer;
   String? _cachingUrl;
   Future<void> Function()? _releaseVideoSource;
@@ -141,6 +142,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     if (widget.url != oldWidget.url ||
         !mapEquals(widget.headers, oldWidget.headers) ||
         widget.videoPlayerEngine != oldWidget.videoPlayerEngine) {
+      _sourceNeedsInitialization = true;
       _log(
         widget.logger?.verbose,
         'Widget updated, reinitializing player. URL: ${widget.url}',
@@ -156,9 +158,17 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 
       if (widget.shouldInitialize) {
         _initializePlayer();
+      } else {
+        // A deferred replacement invalidates preparation for the previous URL
+        // too. Retaining a ready player must not suppress a later source change.
+        _sourceGeneration++;
+        _sourceCancellation?.cancel('Inactive video source replaced');
+        _isPreparingSource = false;
       }
     } else if (widget.shouldInitialize != oldWidget.shouldInitialize &&
-        widget.shouldInitialize) {
+        widget.shouldInitialize &&
+        (_sourceNeedsInitialization || _player == null) &&
+        !_isPreparingSource) {
       _initializePlayer();
     } else {
       _log(
@@ -256,6 +266,11 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
             );
             if (!current()) return;
 
+            // Switching sources can replace the native controller, whose loop
+            // setting defaults to false even when the previous source looped.
+            await player.setLooping(true);
+            if (!current()) return;
+
             if (previouslyPlaying && mounted && !_isDisposing) {
               await player.play();
             }
@@ -269,6 +284,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
             _releaseVideoSource = releasePrepared;
             releasePrepared = null;
             _isPreparingSource = false;
+            _sourceNeedsInitialization = false;
             setState(() {});
             if (_player case final player?) {
               widget.onVideoPlayerCreated?.call(player);
@@ -372,6 +388,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
         _releaseVideoSource = releasePrepared;
         releasePrepared = null;
         _isPreparingSource = false;
+        _sourceNeedsInitialization = false;
         setState(() {});
         widget.onVideoPlayerCreated?.call(player);
 

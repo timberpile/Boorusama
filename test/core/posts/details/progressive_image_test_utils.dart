@@ -57,7 +57,8 @@ Future<List<int>> paintedPixel(WidgetTester tester) async {
 }
 
 class ControlledImageAdapter implements HttpClientAdapter {
-  final pending = <String, Completer<ResponseBody>>{};
+  final pending = <String, Completer<Uint8List>>{};
+  final _statuses = <String, int>{};
   final requests = <RequestOptions>[];
   @override
   Future<ResponseBody> fetch(
@@ -66,20 +67,24 @@ class ControlledImageAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) {
     requests.add(options);
-    return (pending[options.uri.toString()] ??= Completer<ResponseBody>())
-        .future;
+    final url = options.uri.toString();
+    // Retries and adjacent-page readers need independent response streams.
+    return (pending[url] ??= Completer<Uint8List>()).future.then(
+      (bytes) => ResponseBody.fromBytes(
+        bytes,
+        _statuses[url] ?? 200,
+        headers: {
+          Headers.contentTypeHeader: ['image/png'],
+        },
+      ),
+    );
   }
 
-  void complete(String url, Uint8List bytes, {int status = 200}) =>
-      pending[url]!.complete(
-        ResponseBody.fromBytes(
-          bytes,
-          status,
-          headers: {
-            Headers.contentTypeHeader: ['image/png'],
-          },
-        ),
-      );
+  void complete(String url, Uint8List bytes, {int status = 200}) {
+    _statuses[url] = status;
+    pending[url]!.complete(bytes);
+  }
+
   @override
   void close({bool force = false}) {}
 }

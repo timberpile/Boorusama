@@ -43,6 +43,22 @@ class _LatePlayer extends _Player {
 
 void main() {
   test(
+    'replacement registration honors already-issued playback intent',
+    () async {
+      final manager = VideoPlaybackManager();
+      addTearDown(manager.dispose);
+      final previous = _Player();
+      manager.registerPlayer(previous, 'video');
+      await manager.playVideo('video');
+      final replacement = _Player();
+      manager.registerPlayer(replacement, 'video');
+      await Future<void>.value();
+      expect(replacement.plays, 1);
+      expect(replacement.isPlaying, isTrue);
+    },
+  );
+
+  test(
     'native play completion cannot restart a suspended destination',
     () async {
       final manager = VideoPlaybackManager();

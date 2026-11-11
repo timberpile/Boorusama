@@ -614,6 +614,7 @@ void main() {
   ) async {
     final keys = await _mountOnTv(tester, posts: [_videoPost]);
     await _openPostWithRemote(keys);
+    await keys.press(LogicalKeyboardKey.keyO);
     bool playing() => tester
         .widget<PlayPauseButton>(find.byType(PlayPauseButton))
         .isPlaying

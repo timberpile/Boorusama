@@ -76,6 +76,7 @@ final class AppFlowDriver {
           currentDetailPost(tester).id == id,
       description: 'details for post $id to become current',
     );
+    await harness.showViewerControls(tester);
   }
 
   Future<void> openPostMenu(
@@ -205,6 +206,7 @@ final class AppFlowDriver {
           ),
       description: 'bookmark details for post $postId from booru $booruId',
     );
+    await harness.showViewerControls(tester);
   }
 
   bool _matchesBookmarkPost(

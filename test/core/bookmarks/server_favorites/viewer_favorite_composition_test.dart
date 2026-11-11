@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -203,6 +205,9 @@ void main() {
           final pageController = PostDetailsPageViewScope.of(page);
           if (expanded) {
             unawaited(pageController.expandToSnapPoint());
+            await tester.pumpAndSettle();
+          } else {
+            await tester.sendKeyEvent(LogicalKeyboardKey.keyO);
             await tester.pumpAndSettle();
           }
           final favorite = find.byType(FavoritePostButton).hitTestable();

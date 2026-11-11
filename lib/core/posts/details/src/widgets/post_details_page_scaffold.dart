@@ -30,7 +30,8 @@ import '../../../post/routes.dart';
 import '../../../post/types.dart';
 import '../types/post_details.dart';
 import '../types/viewer_entry.dart';
-import '../types/post_viewer_transformation_controller.dart';
+import '../types/inherited_post.dart';
+import '../types/post_presentation_context.dart';
 import 'post_details_controller.dart';
 import 'post_details_full_info_sheet.dart';
 import 'post_details_page_view_scope.dart';
@@ -54,6 +55,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     required this.postGestureHandlerBuilder,
     required this.uiBuilder,
     this.sequence,
+    this.pageWrapperBuilder,
     super.key,
     this.onExpanded,
     this.preferredParts,
@@ -72,6 +74,7 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final void Function()? onExpanded;
   final PostDetailsController<T>? controller;
   final ViewerEntrySequence? sequence;
+  final Widget Function(BuildContext, int, Widget)? pageWrapperBuilder;
   final PostDetailsUIBuilder? uiBuilder;
   final Set<DetailsPart>? preferredParts;
   final Set<DetailsPart>? preferredPreviewParts;
@@ -104,8 +107,10 @@ class _PostDetailPageScaffoldState<T extends Post>
       ? _posts.elementAtOrNull(page)
       : widget.sequence!.postAt(page);
   bool get _isPostPage => _postAt(_controller.page) != null;
-  late final _viewerTransformationController =
-      PostViewerTransformationController(widget.transformController);
+  final _transformCheckpoints = <Object, Matrix4>{};
+  Object _occurrenceKey(int index) =>
+      widget.sequence?.entries[index].occurrenceId ??
+      (postViewerIdentity(_postAt(index)!), index);
 
   PostDetailsPageViewController? _pageViewController;
   PostDetailsPageViewController get _controller => _pageViewController!;
@@ -190,30 +195,6 @@ class _PostDetailPageScaffoldState<T extends Post>
 
   var _previouslyPlaying = false;
 
-  Set<DetailsPart> _resolveFullDetailsParts({
-    required bool hasPremium,
-  }) {
-    return widget.preferredParts ??
-        getLayoutParsedParts(
-          details: widget.layoutConfig?.details,
-          hasPremium: hasPremium,
-        ) ??
-        widget.uiBuilder?.buildableFullParts ??
-        <DetailsPart>{};
-  }
-
-  Set<DetailsPart> _resolvePreviewDetailsParts({
-    required bool hasPremium,
-  }) {
-    return widget.preferredPreviewParts ??
-        getLayoutPreviewParsedParts(
-          previewDetails: widget.layoutConfig?.previewDetails,
-          hasPremium: hasPremium,
-        ) ??
-        widget.uiBuilder?.preview.keys.toSet() ??
-        <DetailsPart>{};
-  }
-
   void _isVideoPlayingChanged() {
     if (context.isLargeScreen && ref.read(appPlatformProvider).isDesktop) {
       // force overlay to be on when video is not playing
@@ -251,7 +232,6 @@ class _PostDetailPageScaffoldState<T extends Post>
 
   void _onPageSettled(int page) {
     performanceRecorder.measureSync(PerfOperation.viewerSettlement, () {
-      _viewerTransformationController.onPageSettled(page);
       widget.controller?.onPageSettled(page);
     });
   }
@@ -366,17 +346,14 @@ class _PostDetailPageScaffoldState<T extends Post>
       ),
     );
 
-    return widget.enableViewerTransformations
-        ? PostViewerTransformationScope(
-            controller: _viewerTransformationController,
-            child: child,
-          )
-        : child;
+    return child;
   }
 
   Widget _build() {
     final postGesturesHandler = widget.postGestureHandlerBuilder;
     final gestures = widget.gestureConfig?.fullview;
+    final hasPremiumLayout = ref.watch(hasPremiumLayoutProvider);
+    final canCustomize = ref.watch(showPremiumFeatsProvider);
 
     final reduceAnimations = ref.watch(
       settingsProvider.select((value) => value.reduceAnimations),
@@ -459,23 +436,70 @@ class _PostDetailPageScaffoldState<T extends Post>
                 );
               }
             : null,
-        sheetBuilder: (context, scrollController) {
-          return Consumer(
-            builder: (_, ref, _) {
-              return ValueListenableBuilder(
-                valueListenable: _controller.sheetState,
-                builder: (context, state, _) => PostDetailsFullInfoSheet(
-                  scrollController: scrollController,
-                  sheetState: state,
-                  uiBuilder: widget.uiBuilder,
-                  preferredParts: _resolveFullDetailsParts(
-                    hasPremium: ref.watch(hasPremiumLayoutProvider),
-                  ),
-                  canCustomize: ref.watch(showPremiumFeatsProvider),
-                ),
-              );
-            },
+        occurrenceKeyBuilder: _occurrenceKey,
+        mediaSizeBuilder: (index) {
+          final post = _postAt(index);
+          return post == null ? null : Size(post.width, post.height);
+        },
+        pageWrapperBuilder: (context, index, content) {
+          Widget child = LayoutBuilder(
+            builder: (context, constraints) => PostDetailsSheetConstraints(
+              maxWidth: constraints.maxWidth,
+              child: content,
+            ),
           );
+          final post = _postAt(index);
+          if (post != null && widget.enableViewerTransformations) {
+            child = PostViewerOccurrence(
+              key: ValueKey(_occurrenceKey(index)),
+              checkpoints: _transformCheckpoints,
+              occurrence: _occurrenceKey(index),
+              child: child,
+            );
+          }
+          if (widget.pageWrapperBuilder case final wrapper?) {
+            return wrapper(context, index, child);
+          }
+          if (post == null) return child;
+          final presentation = context
+              .dependOnInheritedWidgetOfExactType<InheritedPost>()
+              ?.presentationContext;
+          return InheritedPost(
+            presentationContext: PostPresentationContext.resolve(
+              post: post,
+              presentation:
+                  presentation?.presentation ?? const GenericPostPresentation(),
+              resolvedConfig: presentation?.resolvedConfig,
+            ),
+            child: child,
+          );
+        },
+        detailsSliversBuilder: (context, index) {
+          final page = PostDetailsPageConfiguration.maybeOf(context);
+          final ui = page == null ? widget.uiBuilder : page.uiBuilder;
+          return [
+            if (_postAt(index)?.isVideo ?? false)
+              SliverToBoxAdapter(
+                child: PostDetailsVideoControlsMobile(
+                  pageIndex: index,
+                  controller: widget.controller!,
+                ),
+              ),
+            ...buildPostDetailsInfoSlivers(
+              context,
+              uiBuilder: ui,
+              preferredParts:
+                  widget.preferredParts ??
+                  getLayoutParsedParts(
+                    details: (page == null ? widget.layoutConfig : page.layout)
+                        ?.details,
+                    hasPremium: hasPremiumLayout,
+                  ) ??
+                  ui?.buildableFullParts ??
+                  <DetailsPart>{},
+              canCustomize: ui != null && canCustomize,
+            ),
+          ];
         },
         mainContentBuilder: (context, child) => MouseRegion(
           onEnter: (_) => _onHover(
@@ -489,22 +513,6 @@ class _PostDetailPageScaffoldState<T extends Post>
           child: Stack(
             children: [
               child,
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: !_isPostPage
-                    ? const SizedBox.shrink()
-                    : ValueListenableBuilder(
-                        valueListenable: widget.controller!.currentPost,
-                        builder: (context, post, child) {
-                          return post.isVideo && context.isLargeScreen
-                              ? PostDetailsVideoControlsDesktop(
-                                  controller: widget.controller!,
-                                  pageViewController: _controller,
-                                )
-                              : const SizedBox.shrink();
-                        },
-                      ),
-              ),
               if (widget.viewerWarning case final warning?)
                 Align(
                   alignment: Alignment.topCenter,
@@ -531,26 +539,27 @@ class _PostDetailPageScaffoldState<T extends Post>
             ),
           );
         },
-        bottomSheet: !_isPostPage
-            ? null
-            : Consumer(
-                builder: (_, ref, _) {
-                  return switch (widget.uiBuilder) {
-                    null => _buildFallbackPreview(),
-                    final uiBuilder when uiBuilder.preview.isNotEmpty =>
-                      _buildCustomPreview(
-                        uiBuilder: uiBuilder,
-                        hasPremium: ref.watch(hasPremiumLayoutProvider),
-                      ),
-                    _ => const SizedBox.shrink(),
-                  };
-                },
-              ),
+        bottomPreviewBuilder: (context, index) {
+          final post = _postAt(index);
+          if (post == null) return const SizedBox.shrink();
+          final page = PostDetailsPageConfiguration.maybeOf(context);
+          final ui = page == null ? widget.uiBuilder : page.uiBuilder;
+          return switch (ui) {
+            null => _buildFallbackPreview(context, index, post),
+            final ui when ui.preview.isNotEmpty => _buildCustomPreview(
+              pageIndex: index,
+              context: context,
+              post: post,
+              layout: page == null ? widget.layoutConfig : page.layout,
+              uiBuilder: ui,
+              hasPremium: hasPremiumLayout,
+            ),
+            _ => const SizedBox.shrink(),
+          };
+        },
         actions: widget.actions,
         onExpanded: () {
           widget.onExpanded?.call();
-          // Reset zoom when expanded
-          widget.transformController.value = Matrix4.identity();
           ref
               .read(analyticsProvider)
               .whenData(
@@ -572,12 +581,20 @@ class _PostDetailPageScaffoldState<T extends Post>
   }
 
   Widget _buildCustomPreview({
+    required int pageIndex,
+    required BuildContext context,
+    required Post post,
+    required LayoutConfigs? layout,
     required bool hasPremium,
     required PostDetailsUIBuilder uiBuilder,
   }) {
-    final preferredPreviewParts = _resolvePreviewDetailsParts(
-      hasPremium: hasPremium,
-    );
+    final preferredPreviewParts =
+        widget.preferredPreviewParts ??
+        getLayoutPreviewParsedParts(
+          previewDetails: layout?.previewDetails,
+          hasPremium: hasPremium,
+        ) ??
+        uiBuilder.preview.keys.toSet();
 
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final decoration = BoxDecoration(
@@ -592,66 +609,52 @@ class _PostDetailPageScaffoldState<T extends Post>
 
     return CustomScrollView(
       shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       slivers: [
-        ValueListenableBuilder(
-          valueListenable: widget.controller!.currentPost,
-          builder: (_, post, _) => post.isVideo
-              ? SliverToBoxAdapter(
-                  child: DecoratedBox(
-                    decoration: decoration,
-                    child: PostDetailsVideoControlsMobile(
+        if (post.isVideo)
+          SliverToBoxAdapter(
+            child: DecoratedBox(
+              decoration: decoration,
+              child: context.isLargeScreen
+                  ? PostDetailsVideoControlsDesktop(
+                      pageIndex: pageIndex,
+                      controller: widget.controller!,
+                      pageViewController: _controller,
+                    )
+                  : PostDetailsVideoControlsMobile(
+                      pageIndex: pageIndex,
                       controller: widget.controller!,
                     ),
-                  ),
-                )
-              : const SliverSizedBox.shrink(),
-        ),
-        ValueListenableBuilder(
-          valueListenable: widget.controller!.currentPost,
-          builder: (_, post, _) {
-            final multiSliver = MultiSliver(
+            ),
+          ),
+        DecoratedSliver(
+          decoration: decoration,
+          sliver: SliverPadding(
+            padding: EdgeInsets.only(top: post.isVideo ? 0 : 8),
+            sliver: MultiSliver(
               children: preferredPreviewParts
-                  .map((p) => uiBuilder.buildPart(context, p))
+                  .map((part) => uiBuilder.buildPart(context, part))
                   .nonNulls
                   .toList(),
-            );
-
-            return !post.isVideo
-                ? DecoratedSliver(
-                    decoration: decoration,
-                    sliver: SliverPadding(
-                      padding: const EdgeInsets.only(top: 8),
-                      sliver: multiSliver,
-                    ),
-                  )
-                : multiSliver;
-          },
+            ),
+          ),
         ),
         const _SliverBottomPadding(),
       ],
     );
   }
 
-  Widget _buildFallbackPreview() {
+  Widget _buildFallbackPreview(BuildContext context, int pageIndex, Post post) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildVideoControls(),
-        SizedBox(
-          height: MediaQuery.paddingOf(context).bottom,
-        ),
+        if (post.isVideo)
+          PostDetailsVideoControlsMobile(
+            controller: widget.controller!,
+            pageIndex: pageIndex,
+          ),
+        SizedBox(height: MediaQuery.paddingOf(context).bottom),
       ],
-    );
-  }
-
-  Widget _buildVideoControls() {
-    return ValueListenableBuilder(
-      valueListenable: widget.controller!.currentPost,
-      builder: (context, post, _) => post.isVideo
-          ? PostDetailsVideoControlsMobile(
-              controller: widget.controller!,
-            )
-          : const SizedBox.shrink(),
     );
   }
 }
@@ -703,4 +706,21 @@ class _SliverBottomPadding extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Per-occurrence source presentation for the shared pager's content and footer.
+class PostDetailsPageConfiguration extends InheritedWidget {
+  const PostDetailsPageConfiguration({
+    required this.uiBuilder,
+    required this.layout,
+    required super.child,
+    super.key,
+  });
+  final PostDetailsUIBuilder? uiBuilder;
+  final LayoutConfigs? layout;
+  static PostDetailsPageConfiguration? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<PostDetailsPageConfiguration>();
+  @override
+  bool updateShouldNotify(PostDetailsPageConfiguration oldWidget) =>
+      uiBuilder != oldWidget.uiBuilder || layout != oldWidget.layout;
 }

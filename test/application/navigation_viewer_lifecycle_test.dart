@@ -188,10 +188,13 @@ void main() {
         find.byType(PostDetailsPageScaffold),
       );
       await harness.settle(tester);
-      final bookmark = find.descendant(
-        of: find.byType(BookmarkPostButton),
-        matching: find.byType(IconButton),
-      );
+      await harness.showViewerControls(tester);
+      final bookmark = find
+          .descendant(
+            of: find.byType(BookmarkPostButton),
+            matching: find.byType(IconButton),
+          )
+          .hitTestable();
       await tester.tap(bookmark);
       await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
       expect(repository.bookmarks, isEmpty);
