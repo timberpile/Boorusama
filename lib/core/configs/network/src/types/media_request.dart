@@ -42,7 +42,7 @@ final class MediaRequest extends Equatable {
           ...filterSourceHeaders(headers),
           for (final entry in headers.entries)
             if (entry.key.toLowerCase() == 'referer' &&
-                _safeRootReferer(entry.value, source))
+                isSafeRootReferer(entry.value, source, uri))
               entry.key: entry.value,
         },
         overridden: true,
@@ -77,17 +77,40 @@ final class MediaRequest extends Equatable {
     return base.isEmpty || uri.path == base || uri.path.startsWith('$base/');
   }
 
-  static bool _safeRootReferer(String value, Uri source) {
-    final uri = Uri.tryParse(value);
-    return uri != null &&
-        uri.scheme == 'https' &&
-        uri.scheme == source.scheme &&
-        uri.host == source.host &&
-        uri.port == source.port &&
-        uri.userInfo.isEmpty &&
-        !uri.hasQuery &&
-        !uri.hasFragment &&
-        const ['', '/'].contains(uri.path);
+  /// A public root Referer is not authority to send profile credentials.
+  /// Keep the same decision at URL resolution and every transport redirect hop.
+  static bool isSafeRootReferer(String value, Uri source, Uri destination) {
+    final referer = Uri.tryParse(value);
+    if (referer == null ||
+        referer.scheme != 'https' ||
+        referer.userInfo.isNotEmpty ||
+        referer.hasQuery ||
+        referer.hasFragment ||
+        !const ['', '/'].contains(referer.path)) {
+      return false;
+    }
+    if (referer.scheme == source.scheme &&
+        referer.host == source.host &&
+        referer.port == source.port) {
+      return true;
+    }
+
+    // The catalog uses pixiv.net, but Pixiv's media contract uses www.pixiv.net.
+    // This exact public alias is only valid for the known HTTPS media hosts;
+    // it must not become a general www alias or authenticated-origin exception.
+    return source.scheme == 'https' &&
+        source.host == 'pixiv.net' &&
+        source.port == 443 &&
+        source.userInfo.isEmpty &&
+        !source.hasQuery &&
+        !source.hasFragment &&
+        const ['', '/'].contains(source.path) &&
+        referer.host == 'www.pixiv.net' &&
+        referer.port == 443 &&
+        destination.scheme == 'https' &&
+        destination.port == 443 &&
+        destination.userInfo.isEmpty &&
+        const ['i.pximg.net', 's.pximg.net'].contains(destination.host);
   }
 
   /// Filters source-profile headers before sending to a replacement host.

@@ -76,7 +76,7 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
         }
         final headers = _withinSource(uri)
             ? Map<String, dynamic>.of(request.headers)
-            : _safeHeaders(request.headers);
+            : _safeHeaders(request.headers, uri);
         final fetch = delegate
             .fetch(
               request.copyWith(headers: headers, followRedirects: false),
@@ -174,7 +174,10 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
     return MediaRequest.permitsSourceHeaders(uri, source);
   }
 
-  Map<String, dynamic> _safeHeaders(Map<String, dynamic> headers) {
+  Map<String, dynamic> _safeHeaders(
+    Map<String, dynamic> headers,
+    Uri destination,
+  ) {
     final strings = <String, String>{};
     for (final entry in headers.entries) {
       if (entry.value is String) strings[entry.key] = entry.value as String;
@@ -186,16 +189,11 @@ final class SourceMediaHttpClientAdapter implements HttpClientAdapter {
       if (entry.key.toLowerCase() != 'referer' || entry.value is! String) {
         continue;
       }
-      final referer = Uri.tryParse(entry.value as String);
-      if (referer != null &&
-          referer.scheme == 'https' &&
-          referer.scheme == source.scheme &&
-          referer.host == source.host &&
-          referer.port == source.port &&
-          referer.userInfo.isEmpty &&
-          !referer.hasQuery &&
-          !referer.hasFragment &&
-          const ['', '/'].contains(referer.path)) {
+      if (MediaRequest.isSafeRootReferer(
+        entry.value as String,
+        source,
+        destination,
+      )) {
         result[entry.key] = entry.value;
       }
     }

@@ -511,8 +511,6 @@ class BooruRawImage extends StatelessWidget {
 
 const _fetchStrategy = FetchStrategyBuilder(
   initialPauseBetweenRetries: Duration(milliseconds: 500),
-  // Nothing we can do about it, just ignore the error to avoid spamming the logs
-  silent: true,
 );
 
 bool _shouldLoadPlaceholderUrl({

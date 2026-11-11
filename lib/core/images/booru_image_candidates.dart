@@ -129,7 +129,7 @@ class BooruImageCandidates extends ConsumerWidget {
                 platform: platform,
                 androidVersion: androidVersion,
                 printError: false,
-                fetchStrategy: const FetchStrategyBuilder(silent: true),
+                fetchStrategy: const FetchStrategyBuilder(),
               ).image,
               cancel: () => token.cancel('Thumbnail probe no longer needed'),
             );
