@@ -148,7 +148,7 @@ physics, distance threshold, zoom, or media-gesture setting changed.
   without a clipboard platform handler is retained as interrupted evidence.
 - **Complete local regression passed** on `03c6f97d07cb270b15be271db3187f3874e32ca1`:
   **7,105 application tests**, **1,693 package/CLI tests across 13 roots**, both
-  shell tooling suites and **76 Python tests**, exit zero. Two existing Kurumi
+  shell tooling suites and **76 Python tests**, exit zero. Two existing `go_router`
   skips remain. Command: `./scripts/run_regression_tests.sh`, detected physical-core
   concurrency six. Evidence: `swipe-parity/gate.commit`, `gate.log`, `gate.exit`.
   Only this handoff changed afterward; runtime/tests/dependencies/generated output
@@ -217,7 +217,7 @@ Local evidence: `.worktrees/_artifacts/140-viewer-review-20261113/`.
   `mixed_post_details_page.dart`, and an unused `coverUrl` fixture variable.
 - **Complete local regression passed** on `803b64c480c7200a4798c4602a8d834e17c4541b`:
   **7,081 application tests**, **1,693 package/CLI tests across 13 roots**, both
-  repository shell suites and **76 Python tests**, exit zero. Two existing Kurumi
+  repository shell suites and **76 Python tests**, exit zero. Two existing `go_router`
   skips remain. Command: `./scripts/run_regression_tests.sh`, physical-core
   concurrency six (`gate.commit`, `gate.log`, `gate.exit`). The final runtime,
   tests, dependencies and generated runtime output are unchanged by this handoff.
@@ -338,7 +338,7 @@ Evidence is in `review-geometry-preload/` under the artifact directory below.
 - Complete local regression on `67dee198169551d095e6e9b402f84443d7340073`:
   **7,059 application tests**, **1,693 package/CLI tests across 13 roots**, both
   repository shell suites and **76 Python tests** passed, exit zero. Two existing
-  Kurumi tests remain skipped. Command: `./scripts/run_regression_tests.sh`,
+  `go_router` tests remain skipped. Command: `./scripts/run_regression_tests.sh`,
   detected physical-core concurrency six. Evidence: `gate.commit`, `gate.log`,
   `gate.exit`. The host logs include native-shell finalizer diagnostics also
   present in the previous passing boundary gate; no tests or commands failed.
@@ -402,7 +402,7 @@ previous complete pass is historical after these runtime changes.
   `b198ce93b3a484556c008981e3d57c61fbaf7438`:
   **7,044 application tests**, **1,693 package/CLI tests across 13 roots**, both
   repository shell suites and **76 Python tests** passed, exit zero. Two existing
-  Kurumi tests remain skipped. Command: `./scripts/run_regression_tests.sh`,
+  `go_router` tests remain skipped. Command: `./scripts/run_regression_tests.sh`,
   detected physical-core concurrency six. Evidence: `review-boundaries/gate.log`,
   `gate.exit`, `gate.commit`.
 - This qualification update changes only documentation; the checked runtime,
@@ -438,7 +438,7 @@ The earlier complete pass is historical and does not qualify the changed runtime
   `1d9dc3433b200abd36d5690b11e02206585d649b`:
   **7,032 application tests**, **1,693 package/CLI tests across 13 roots**, both
   repository shell suites and **76 Python tests** passed, exit zero. Two existing
-  Kurumi tests remain skipped. Evidence: `review-shared-viewer/gate.log`,
+  `go_router` tests remain skipped. Evidence: `review-shared-viewer/gate.log`,
   `gate.exit`, `gate.commit`. Command: `./scripts/run_regression_tests.sh` with
   detected physical-core concurrency (six).
 - This qualification update changes only documentation; the checked runtime,
@@ -475,7 +475,7 @@ Durable local logs are under the primary workspace's
   repository shell suites and **76 Python tests** passed, exit zero.
   Evidence: `gate2.log`, `gate2.exit`, `gate2.commit`. The unchanged final
   implementation includes the native failure-text correction and its focused
-  error/retry regression. Two existing Kurumi tests remain skipped.
+  error/retry regression. Two existing `go_router` tests remain skipped.
 
 
 No emulator, APK build, live Pixiv request or remote Favorite write was performed.

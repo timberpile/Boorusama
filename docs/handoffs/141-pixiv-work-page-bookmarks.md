@@ -4,8 +4,8 @@ Branch/worktree: `feature/141-pixiv-work-page-bookmarks`,
 `.worktrees/141-pixiv-work-page-bookmarks`.
 Base: published `develop` commit `bfc9030a9c14b539d9d3877911d41dc442633cd2`,
 which integrates accepted #140, including the short horizontal swipe correction.
-Status: production integration implemented; complete final-candidate regression
-is pending. This is local work for the owner's separate review. No publication,
+Status: **ready for owner review locally**. Production integration and the complete
+final-candidate regression passed on `8203d21ef2c681c0f2919785737781cfe68b947a`. This is local work for the owner's separate review. No publication,
 PR, develop integration, issue closure or Android/live-service acceptance is claimed.
 
 ## Production behavior
@@ -73,8 +73,14 @@ primary workspace.
   Final affected-scope analysis: **0 errors, 2 existing warnings, 197 infos**,
   exit 2 (`analysis-final.log/.exit`). The warnings are the existing promoted
   cast and unused `coverUrl` variable in the mixed Viewer source/test.
-- The complete local suite will qualify the final commit before owner-review
-  delivery. Earlier foundation passes below do not qualify this new combination.
+- **Complete local regression passed** on `8203d21ef2c681c0f2919785737781cfe68b947a`:
+  **7,147 application tests**, **1,693 package/CLI tests across 13 roots**, both
+  shell tooling suites and **76 Python tests**, exit zero. Two existing
+  `go_router` skips remain. Command: `./scripts/run_regression_tests.sh`, detected
+  physical-core concurrency six; `gate.commit`, `gate.log`, `gate.exit`.
+  This final update changes documentation only; runtime, tests, dependencies and
+  generated output match the tested candidate. Earlier foundation passes below
+  are historical, rather than qualification of this new combination.
 
 These are native Flutter host and real local storage checks. No Android target
 is currently configured; the owner directed native UI testing where possible.
