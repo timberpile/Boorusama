@@ -161,7 +161,9 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
 
   @override
   Widget build(BuildContext context) {
-    if (!NavigationActivity.of(context)) return widget.child;
+    // Navigation activity controls actions, not the identity of this subtree.
+    // Dropping the scope for a dialog disposed its chooser owner; dropping it
+    // for a neighbor substituted the current Page's Bookmark status for Work.
     final state = ref.watch(mediaGroupProvider(widget.entry));
     final presentation = ref
         .watch(
@@ -188,8 +190,15 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         : () => _downloadAll(state);
     return GroupLinkShareButton(
       builder: (context, share) => PostActionToolbarScope(
-        bookmarkButton: bookmarks == null || bookmarkData == null
+        bookmarkButton: bookmarks == null
             ? null
+            : bookmarkData == null
+            // Lost source access must not expose an actionable Page fallback.
+            ? IconButton(
+                tooltip: context.t.post.action.bookmark,
+                onPressed: null,
+                icon: const Icon(Icons.bookmark_border),
+              )
             : bookmarks.buildBookmarkButton(context, bookmarkData),
         additionalButtons: [
           if (bookmarks != null && bookmarkData != null)
