@@ -352,7 +352,13 @@ class _BookmarkMultiSelectionMenuState
             widget.records.length +
                 selectedPosts.length +
                 selectedPools.length) {
-      throw StateError('The selected saved records changed');
+      if (navigator.mounted) {
+        Kurumi.showErrorToast(
+          navigator.context,
+          navigator.context.t.bookmark.groups.operation_failed,
+        );
+      }
+      return;
     }
     final config = widget.config;
     final onCompleted = widget.onCompleted;

@@ -1,27 +1,108 @@
-# Issue #141: independent Pixiv Work/Page Bookmark continuation
-
-Current continuation (2026-11-11): rebased directly onto #140 runtime commit
-`9adce4b87fd4e8b6a4e36c770ae425720e560857` as explicitly requested. The duplicate
-inherited DTO-tag commit was dropped; the existing two Bookmark foundation test
-files pass (six tests) on that reconciled base. Production picker/actions/library
-integration is in progress. #140's final full rerun is isolated in its own
-worktree (`140-pixiv-works-20261111/gate2.log`).
-
-Historical foundation status follows and will be replaced by the final handoff.
-
-Status: **started, foundation reviewed, issue incomplete**. The user explicitly
-authorized beginning this issue after #140 establishes a stable source contract; completion
-still depends on #140's actual viewer/listing integration. No runtime UI cutover,
-PR, publication, develop integration, issue closure or device acceptance is
-claimed.
+# Issue #141: independent Pixiv Work and Page Bookmarks
 
 Branch/worktree: `feature/141-pixiv-work-page-bookmarks`,
 `.worktrees/141-pixiv-work-page-bookmarks`.
-Base: `0e69d84c7f0cf6df0136e5fb249c7826c9f77e8a`, the #140 engine-owned
-Work/Page foundation. Its [handoff](140-pixiv-work-viewer.md) records prerequisite
-limits, including the unfinished inherited #156 cache remediation. The current
-#156 lead owns shared cache/access changes. Reconcile the final prerequisites
-before combined acceptance.
+Base: published `develop` commit `bfc9030a9c14b539d9d3877911d41dc442633cd2`,
+which integrates accepted #140, including the short horizontal swipe correction.
+Status: production integration implemented; complete final-candidate regression
+is pending. This is local work for the owner's separate review. No publication,
+PR, develop integration, issue closure or Android/live-service acceptance is claimed.
+
+## Production behavior
+
+- The existing shared Viewer toolbar's Bookmark button targets the entire Pixiv
+  Work by default. Hold offers Work or the captured current real Page. Both
+  explicit actions also appear in the existing overflow menu. Missing/restricted
+  Pages have no actionable Page target. No second toolbar or fullscreen route
+  was introduced.
+- Summary-only Details can save a Work immediately without waiting for members
+  or manufacturing a Post. Native Browse/Search cards offer the same Work picker
+  from their existing context-menu surface. The selected Page's download, media
+  share, quality and remote Favorite actions retain the normal toolbar path.
+- The generic picker accepts immutable ContentGroup drafts. Its provisional ID
+  never selects storage. Opening freezes the Work/Page and source access; later
+  selection or hydration does not redirect the pending action. Existing Recent,
+  navigation, creation, dismissal, Back/Escape and saved-record editing remain.
+- Saving a Work writes one genuine `group/work:<illustId>` record and no implicit
+  Pages. Saving a Page writes only its real `post/work-page:<illustId>:<index>`
+  record. Their memberships, last-membership removal, Undo and cold restart are
+  independent. No remote Favorite operation, new store, or backup version is used.
+- Captured picker ownership is checked after awaits and at the repository journal
+  boundary through the existing asynchronous operation's scoped guard. New Group
+  creation commits the prepared Work/Page and Group together. The captured Page
+  path reuses existing Post snapshot preparation, avoiding an empty destination
+  when access is revoked during preparation.
+- Saved native Works participate in mixed Bookmark grids, membership-date order,
+  tag/source filtering, suggestions, mosaics, source availability counts and
+  selection. Cards reopen the existing mixed Viewer with stored metadata and
+  captured source binding. Bulk membership editing uses authoritative saved IDs.
+  An invalidated mixed selection reports failure without an uncaught exception.
+- Stored covers respect source policy, rating, tags, deleted/banned flags and
+  existing thumbnail-quality preferences. They use known thumbnail/sample media,
+  never fetch a manifest or an original just to fill a card, and retain a stable
+  placeholder when unavailable. v10 backup preserves Work/Page identities,
+  independent membership dates and optional safe cover metadata. Existing Work
+  and Page portable `.bslink` paths remain separate from source Work URLs.
+
+## Current verification (2026-11-13)
+
+Durable evidence: `.worktrees/_artifacts/141-pixiv-bookmarks-20261113/` in the
+primary workspace.
+
+- Existing Pixiv Works, Bookmark feature, Content contracts and backup-source
+  consumer suite: **1,196 passed**, `focused-initial.log/.exit`.
+- Final Work/action/storage/cover/backup and bulk selection suite: **65 passed**,
+  `actions-final.log/.exit`. The native UI cases exercise actual picker surfaces,
+  long-press choice, frozen Page selection, new Group handoff, 320dp/200-percent
+  text, keyboard insets, dismissal and access revocation. Storage checks use real
+  Hive journals with completion gates after preparation: both successful targets
+  and cancellation, context loss or profile removal leave the expected records
+  and Groups. Creation's first commit must contain both the target and Group.
+- Shared mixed Viewer plus stored-cover suite: **134 passed**,
+  `cover-viewer.log/.exit`. The real standard toolbar is asserted to contain the
+  Work Bookmark button in the existing portrait/narrow/enlarged/landscape matrix.
+  Cover checks reject deleted/banned/missing-profile media, preserve quality and
+  prove no Group source is constructed to display stored covers.
+- The stale mixed-selection regression fails on the previous implementation with
+  the actual uncaught StateError (`stale-selection-red.log/.exit`), then passes
+  with localized failure and no dispatched write in the final action suite.
+  Earlier new-fixture failures are retained separately: toast timers needed
+  expiry on the controlled widget clock, the reserved Default Group belongs to
+  the expected preimage, and real Post preparation needs its engine codec.
+- All **41 changed Dart files** formatted with FVM; `git diff --check` passed.
+  Final affected-scope analysis: **0 errors, 2 existing warnings, 197 infos**,
+  exit 2 (`analysis-final.log/.exit`). The warnings are the existing promoted
+  cast and unused `coverUrl` variable in the mixed Viewer source/test.
+- The complete local suite will qualify the final commit before owner-review
+  delivery. Earlier foundation passes below do not qualify this new combination.
+
+These are native Flutter host and real local storage checks. No Android target
+is currently configured; the owner directed native UI testing where possible.
+No new APK, emulator operation, real platform clipboard/share/download or live
+Pixiv mutation is claimed. The completed older foundation review below is
+historical; the current production diff was self-reviewed. Do not run Astra
+subagents unless the owner explicitly requests them again.
+
+## Preservation and continuation
+
+All 33 originally modified/untracked #141 files were preserved in recovery
+commit `95bdcb0d13257b52de60e1a67079d187881205ad`, then checkpointed on the original
+branch before replay. `refs/recovery/141-before-develop-20261113` retains
+`7097c9f8508f447585bc526f03fd40771c1a096a`. Only the four #141-owned commits after
+`1cd076deb...` were replayed onto published develop; no old cumulative prerequisite
+history was replayed or force-pushed. The primary checkout and unrelated tasks
+were preserved.
+
+Keep #141 at its own owner-review gate. Once ready, continue #144 and then #157
+without waiting for another implementation instruction. Before implementation,
+inspect and reconcile their feature branches, handoffs, tests and approved
+designs. `maintenance/combined-testing-2026-11-08` is reference material only,
+never a merge source. Preserve individual acceptance and publication boundaries.
+
+## Historical source-foundation handoff
+
+The following records pre-integration work and its original remaining steps;
+those statements are superseded by the current production state above.
 
 ## Started contract
 

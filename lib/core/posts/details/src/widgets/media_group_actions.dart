@@ -6,16 +6,20 @@ import '../../../../../foundation/loggers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../content/content_access_provider.dart';
 import '../../../../content/groups/group_members_provider.dart';
+import '../../../../content/groups/group_source_provider.dart';
+import '../../../../content/groups/group_capability.dart';
 import '../../../../content/types.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../../../../widgets/adaptive_button_row.dart';
+import '../../../../widgets/booru_menu_button_row.dart';
 import '../../../details_parts/src/toolbars/simple_post_action_toolbar.dart';
 import '../../../links/link_file_labels.dart';
 import '../../../links/share_group_link_button.dart';
 import '../../../post/types.dart';
 import '../providers/media_group_provider.dart';
 import '../types/viewer_entry.dart';
+import '../types/inherited_post.dart';
 
 /// Adds Work-only actions to the existing Post toolbar's overflow menu.
 /// Page download, sharing, favorites and image quality retain the normal UI.
@@ -159,6 +163,23 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
   Widget build(BuildContext context) {
     if (!NavigationActivity.of(context)) return widget.child;
     final state = ref.watch(mediaGroupProvider(widget.entry));
+    final presentation = ref
+        .watch(
+          booruGroupCapabilityProvider(widget.entry.contentReference.engine),
+        )
+        ?.presentation;
+    final bookmarks = presentation is BooruMediaGroupBookmarkPresentation
+        ? presentation as BooruMediaGroupBookmarkPresentation
+        : null;
+    final access = state.access;
+    final bookmarkData = access == null
+        ? null
+        : GroupBookmarkPresentationData(
+            access: access,
+            summary: state.details?.summary ?? widget.entry.summary,
+            details: state.details ?? widget.entry.storedDetails,
+            page: InheritedPost.maybeOf<Post>(context),
+          );
     final strings = context.t.content_viewer;
     final download = _downloading
         ? () => setState(() => _cancel = true)
@@ -167,7 +188,12 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         : () => _downloadAll(state);
     return GroupLinkShareButton(
       builder: (context, share) => PostActionToolbarScope(
+        bookmarkButton: bookmarks == null || bookmarkData == null
+            ? null
+            : bookmarks.buildBookmarkButton(context, bookmarkData),
         additionalButtons: [
+          if (bookmarks != null && bookmarkData != null)
+            ...bookmarks.buildBookmarkMenuButtons(context, bookmarkData),
           ButtonData(
             title: context.linkFileLabel,
             icon: const Icon(Icons.share),
@@ -195,6 +221,32 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
         ],
         child: widget.child,
       ),
+    );
+  }
+}
+
+/// Summary-only actions use the existing row without inventing a current Post.
+class MediaGroupSummaryActions extends StatelessWidget {
+  const MediaGroupSummaryActions({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = PostActionToolbarScope.maybeOf(context);
+    final bookmark = actions?.bookmarkButton;
+    return SliverToBoxAdapter(
+      child: bookmark == null
+          ? const SizedBox.shrink()
+          : BooruMenuButtonRow(
+              buttons: [
+                ButtonData(
+                  required: true,
+                  widget: bookmark,
+                  title: context.t.post.action.bookmark,
+                  icon: const Icon(Icons.bookmark_border),
+                ),
+                ...actions!.additionalButtons,
+              ],
+            ),
     );
   }
 }

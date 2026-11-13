@@ -1,5 +1,11 @@
 import 'dart:async';
 
+import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
+import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
+
+import '../../boorus/pixiv/works/work_test_fixtures.dart';
+
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_multi_selection.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -19,6 +25,7 @@ void main() {
   Widget app({
     String? groupId,
     required List<Post> posts,
+    List<Bookmark> records = const [],
     required _RecordingNotifier notifier,
     required Future<void> Function() onCompleted,
   }) => ProviderScope(
@@ -29,6 +36,7 @@ void main() {
           child: Scaffold(
             body: BookmarkMultiSelectionMenu(
               posts: posts,
+              records: records,
               config: BooruConfig.empty.auth,
               currentGroupId: groupId,
               onCompleted: onCompleted,
@@ -37,6 +45,34 @@ void main() {
         ),
       ),
     ),
+  );
+
+  testWidgets(
+    'stale mixed Work and Page selection fails without an uncaught error',
+    (tester) async {
+      final notifier = _RecordingNotifier();
+      final access = workAccess();
+      final dto = work();
+      final record = PixivWorkBookmarkTarget(
+        access: access,
+        summary: pixivWorkSummary(dto, access),
+      ).draft(currentAccess: access, at: DateTime.utc(2026)).copyWith(id: 7);
+      await tester.pumpWidget(
+        app(
+          groupId: '550e8400-e29b-41d4-a716-446655440000',
+          posts: [pixivWorkPagePosts(dto, access).last],
+          records: [record],
+          notifier: notifier,
+          onCompleted: () async => fail('A stale selection cannot complete'),
+        ),
+      );
+      tester.widget<KurumiPopupMenuItem>(find.byKey(actionKey)).onTap!.call();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 5));
+      dismissAllToast(showAnim: false);
+      expect(notifier.calls, 0);
+      expect(tester.takeException(), isNull);
+    },
   );
 
   testWidgets('All Bookmarks keeps both pickers and no direct Remove', (

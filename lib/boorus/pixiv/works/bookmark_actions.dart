@@ -9,10 +9,11 @@ import '../../../core/configs/config/types.dart';
 import '../../../core/bookmarks/src/widgets/bookmark_group_picker.dart';
 import '../../../core/content/content_access_provider.dart';
 import '../../../core/content/groups/group_capability.dart';
+import '../../../core/widgets/adaptive_button_row.dart';
 import 'bookmark_targets.dart';
 
 BookmarkPickerRequest _workRequest(
-  WidgetRef ref,
+  ProviderContainer container,
   GroupBookmarkPresentationData data,
 ) => ContentGroupBookmarkPickerRequest(
   source: data.access.config!,
@@ -23,7 +24,9 @@ BookmarkPickerRequest _workRequest(
         summary: data.summary,
         details: data.details,
       ).draft(
-        currentAccess: ref.read(contentAccessContextProvider(data.access.key)),
+        currentAccess: container.read(
+          contentAccessContextProvider(data.access.key),
+        ),
         at: DateTime.now().toUtc(),
       ),
 );
@@ -41,17 +44,21 @@ BookmarkPickerRequest _pageRequest(GroupBookmarkPresentationData data) {
   );
 }
 
+bool _current(ProviderContainer container, GroupBookmarkPresentationData data) {
+  final access = container.read(contentAccessContextProvider(data.access.key));
+  return access != null && data.access.hasSameAuthorization(access);
+}
+
 Future<void> _showPicker(
-  WidgetRef ref,
+  BuildContext context,
   GroupBookmarkPresentationData data, {
   bool page = false,
 }) async {
-  if (!ref.context.mounted ||
-      ref.read(contentAccessContextProvider(data.access.key)) == null ||
-      (page && data.page == null))
-    return;
-  final request = page ? _pageRequest(data) : _workRequest(ref, data);
-  await showBookmarkPickerDialog(ref.context, request: request);
+  if (!context.mounted || (page && data.page == null)) return;
+  final container = ProviderScope.containerOf(context, listen: false);
+  if (!_current(container, data)) return;
+  final request = page ? _pageRequest(data) : _workRequest(container, data);
+  await showBookmarkPickerDialog(context, request: request);
 }
 
 class PixivWorkBookmarkButton extends ConsumerStatefulWidget {
@@ -92,14 +99,14 @@ class _PixivWorkBookmarkButtonState
       _captureOwner();
   }
 
-  bool _current() =>
-      mounted &&
-      ref.read(contentAccessContextProvider(widget.data.access.key)) != null;
+  bool _isCurrent(GroupBookmarkPresentationData data) =>
+      mounted && _current(ProviderScope.containerOf(context), data);
 
   Future<void> _choose() async {
-    if (!_current()) return;
-    final work = _workRequest(ref, widget.data);
-    final page = widget.data.page == null ? null : _pageRequest(widget.data);
+    final captured = widget.data;
+    if (!_isCurrent(captured)) return;
+    final work = _workRequest(ProviderScope.containerOf(context), captured);
+    final page = captured.page == null ? null : _pageRequest(captured);
     final strings = context.t.content_viewer;
     TransitionRoute<dynamic>? choiceRoute;
     final selected = await showDialog<BookmarkPickerRequest>(
@@ -129,7 +136,9 @@ class _PixivWorkBookmarkButtonState
     if (!mounted || selected == null) return;
     if (choiceRoute case final route?) await route.completed;
     await WidgetsBinding.instance.endOfFrame;
-    if (_current()) await showBookmarkPickerDialog(context, request: selected);
+    if (_isCurrent(captured)) {
+      await showBookmarkPickerDialog(context, request: selected);
+    }
   }
 
   @override
@@ -141,17 +150,18 @@ class _PixivWorkBookmarkButtonState
         : library!.membershipsForId(id);
     return BookmarkGroupPickerAnchor(
       request: _owner,
-      requestBuilder: () => _workRequest(ref, widget.data),
+      requestBuilder: () =>
+          _workRequest(ProviderScope.containerOf(context), widget.data),
       builder: (context, show) => TooltipTheme(
         data: TooltipTheme.of(context)
             .copyWith(triggerMode: TooltipTriggerMode.manual),
         child: GestureDetector(
-          onLongPress: _current() ? _choose : null,
+          onLongPress: _isCurrent(widget.data) ? _choose : null,
           child: IconButton(
             tooltip: context.t.content_viewer.bookmark_work,
-            onPressed: _current()
+            onPressed: _isCurrent(widget.data)
                 ? () {
-                    if (_current()) show();
+                    if (_isCurrent(widget.data)) show();
                   }
                 : null,
             icon: Badge(
@@ -183,28 +193,26 @@ class _PixivWorkBookmarkButtonState
   }
 }
 
-/// The same frozen request serves overflow menus and native card context menus.
-class PixivWorkBookmarkMenuItem extends ConsumerWidget {
-  const PixivWorkBookmarkMenuItem({
-    required this.data,
-    this.page = false,
-    super.key,
-  });
-  final GroupBookmarkPresentationData data;
-  final bool page;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => KurumiPopupMenuItem(
-    title: Text(
-      page
+/// The normal toolbar owns overflow presentation; these callbacks freeze its
+/// source Work and selected real Page when the menu is built.
+List<ButtonData> pixivWorkBookmarkMenuButtons(
+  BuildContext context,
+  GroupBookmarkPresentationData data,
+) => [
+  for (final page in [false, true])
+    ButtonData(
+      title: page
           ? context.t.content_viewer.bookmark_page
           : context.t.content_viewer.bookmark_work,
+      icon: Icon(page ? Symbols.bookmark : Symbols.bookmarks),
+      widget: const SizedBox.shrink(),
+      enabled: !page || data.page != null,
+      placement: ButtonPlacement.menuOnly,
+      onTap: page && data.page == null
+          ? null
+          : () => _showPicker(context, data, page: page),
     ),
-    icon: Icon(page ? Symbols.bookmark : Symbols.bookmarks),
-    onTap: page && data.page == null
-        ? null
-        : () => _showPicker(ref, data, page: page),
-  );
-}
+];
 
 class PixivWorkBookmarkContextMenu extends ConsumerWidget {
   const PixivWorkBookmarkContextMenu({
@@ -219,7 +227,7 @@ class PixivWorkBookmarkContextMenu extends ConsumerWidget {
     menuItemsBuilder: (_) => [
       KurumiContextMenuTile(
         title: context.t.content_viewer.bookmark_work,
-        onTap: () => _showPicker(ref, data),
+        onTap: () => _showPicker(context, data),
       ),
     ],
     child: child,

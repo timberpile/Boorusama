@@ -9,6 +9,7 @@ import 'group_metadata.dart';
 import 'group_source.dart';
 import 'group_summary.dart';
 import '../../posts/post/types.dart';
+import '../../widgets/adaptive_button_row.dart';
 
 enum GroupLayout { memberGrid, mediaPager }
 
@@ -50,7 +51,7 @@ abstract interface class BooruMediaGroupBookmarkPresentation {
     BuildContext context,
     GroupBookmarkPresentationData data,
   );
-  List<Widget> buildBookmarkMenuItems(
+  List<ButtonData> buildBookmarkMenuButtons(
     BuildContext context,
     GroupBookmarkPresentationData data,
   );

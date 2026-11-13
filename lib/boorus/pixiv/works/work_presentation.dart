@@ -10,6 +10,7 @@ import '../../../core/content/groups/group_capability.dart';
 import '../../../core/content/types.dart';
 import '../../../core/posts/pools/group_summary_card.dart';
 import '../../../core/posts/pools/pool_grid_item.dart';
+import '../../../core/widgets/adaptive_button_row.dart';
 import '../client_provider.dart';
 import 'work_source.dart';
 import 'bookmark_actions.dart';
@@ -52,13 +53,10 @@ class PixivWorkPresentation
   ) => PixivWorkBookmarkButton(data: data);
 
   @override
-  List<Widget> buildBookmarkMenuItems(
+  List<ButtonData> buildBookmarkMenuButtons(
     BuildContext context,
     GroupBookmarkPresentationData data,
-  ) => [
-    PixivWorkBookmarkMenuItem(data: data),
-    PixivWorkBookmarkMenuItem(data: data, page: true),
-  ];
+  ) => pixivWorkBookmarkMenuButtons(context, data);
 
   @override
   Widget wrapBookmarkMenu(

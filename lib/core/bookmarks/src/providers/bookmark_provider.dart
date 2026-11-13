@@ -648,6 +648,34 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     return added;
   });
 
+  /// A captured Page and its new destination enter storage atomically. Preparing
+  /// the snapshot must not leave an empty Group if access is revoked meanwhile.
+  Future<void> createGroupWithCapturedPost(
+    String name,
+    BooruConfigAuth config,
+    Post post, {
+    String? parentGroupId,
+    void Function()? beforeCommit,
+  }) => withBookmarkCommitGuard(
+    () => _runTrackedMutation(() async {
+      beforeCommit?.call();
+      final current = await _librarySnapshot;
+      final existing = current.storedBookmarkForPost(post);
+      final draft = existing == null
+          ? await _prepareBookmark(config, post)
+          : null;
+      beforeCommit?.call();
+      final result = await (await _service).createGroupWithSavedRecords(
+        name,
+        [?existing],
+        drafts: [?draft],
+        parentGroupId: parentGroupId,
+      );
+      await _rememberManualGroup(result.group.id);
+    }),
+    beforeCommit,
+  );
+
   Future<BookmarkGroupRemovalResult> removeSavedRecordsFromGroup(
     Iterable<Bookmark> records,
     String groupId,

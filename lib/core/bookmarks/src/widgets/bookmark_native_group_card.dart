@@ -18,6 +18,7 @@ import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
 import '../../../posts/rating/types.dart';
 import '../../../posts/pools/pool_grid_item.dart';
+import '../../../posts/listing/providers.dart';
 import '../../../selection/selection_input.dart';
 import '../../../settings/providers.dart';
 import '../providers/bookmark_provider.dart';
@@ -212,7 +213,13 @@ class BookmarkNativeGroupCover extends ConsumerWidget {
           sourceUrl: bookmark.reference.site.toString(),
         );
     if (!allowed) return _NativeCoverFailure(onFailed: onFailed);
-    final selectedUrl = cover.thumbnail.toString();
+    final selectedUrl = defaultStaticGridThumbnailUrl(
+      thumbnail: cover.thumbnail.toString(),
+      sample: (cover.sample ?? cover.thumbnail).toString(),
+      original: (cover.sample ?? cover.thumbnail).toString(),
+      isVideo: false,
+      settings: ref.watch(gridThumbnailSettingsProvider(config.auth)),
+    );
     return CurrentBooruConfigScope(
       config: config,
       accessKey: access!.key,

@@ -84,8 +84,9 @@ class BookmarkPickerActions {
     if (request.source case final source?) {
       final public = source.anonymousReadScope;
       if (public != null) {
-        if (!public.isCurrent)
+        if (!public.isCurrent) {
           throw StateError('Bookmark picker source changed');
+        }
         final access = container.read(contentAccessContextProvider(public.key));
         if (access == null ||
             access.key.profileId != null ||
@@ -213,6 +214,22 @@ class BookmarkPickerActions {
             .createGroupWithContentDraft(
               name,
               draft,
+              parentGroupId: parentGroupId,
+              beforeCommit: _checkOwnership,
+            );
+        return;
+      }
+      if (request case PostBookmarkPickerRequest(
+        access: final _?,
+        :final config,
+        :final post,
+      )) {
+        await container
+            .read(bookmarkProvider.notifier)
+            .createGroupWithCapturedPost(
+              name,
+              config,
+              post,
               parentGroupId: parentGroupId,
               beforeCommit: _checkOwnership,
             );

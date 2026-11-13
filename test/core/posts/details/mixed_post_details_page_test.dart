@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
 import 'package:boorusama/boorus/pixiv/works/work_source.dart';
 import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
+import 'package:boorusama/boorus/pixiv/works/bookmark_actions.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_page.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_page_indicator.dart';
 
@@ -2276,6 +2277,14 @@ void main() {
             .hitTestable()
             .first;
         final toolbarContext = tester.element(normalToolbar);
+        expect(
+          find.descendant(
+            of: normalToolbar,
+            matching: find.byType(PixivWorkBookmarkButton),
+          ),
+          findsOneWidget,
+          reason: 'the shared toolbar must target the whole Work by default',
+        );
         final toolbarPost = tester
             .widget<DefaultPostActionToolbar<Post>>(normalToolbar)
             .post;
