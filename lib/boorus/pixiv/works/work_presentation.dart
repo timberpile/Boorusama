@@ -50,13 +50,16 @@ class PixivWorkPresentation
   Widget buildBookmarkButton(
     BuildContext context,
     GroupBookmarkPresentationData data,
-  ) => PixivWorkBookmarkButton(data: data);
+  ) => PixivWorkBookmarkButton(
+    key: ValueKey((data.summary.reference.identity, data.access.key)),
+    data: data,
+  );
 
   @override
   List<ButtonData> buildBookmarkMenuButtons(
     BuildContext context,
     GroupBookmarkPresentationData data,
-  ) => pixivWorkBookmarkMenuButtons(context, data);
+  ) => const [];
 
   @override
   Widget wrapBookmarkMenu(
