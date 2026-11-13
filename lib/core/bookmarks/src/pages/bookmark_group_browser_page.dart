@@ -29,6 +29,8 @@ import '../types/bookmark_group.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
 import '../types/pool_bookmark.dart';
+import '../types/content_group_bookmark.dart';
+import '../types/bookmark_grid_entry.dart';
 import '../widgets/bookmark_collection_deletion_summary.dart';
 import '../widgets/bookmark_group_destination_picker.dart';
 import '../widgets/bookmark_group_label.dart';
@@ -63,6 +65,7 @@ class _BookmarkGroupBrowserPageState
   final _scrolls = <Object, AutoScrollController>{};
   final _previews = <String, List<PostBookmark>>{};
   final _poolPreviews = <String, List<CollectionBookmark>>{};
+  final _nativePreviews = <String, List<ContentGroupBookmark>>{};
   (
     BookmarkLibraryState,
     BookmarkSortType,
@@ -475,6 +478,7 @@ class _BookmarkGroupBrowserPageState
       _previewInputs = inputs;
       _previews.clear();
       _poolPreviews.clear();
+      _nativePreviews.clear();
     }
   }
 
@@ -553,6 +557,16 @@ class _BookmarkGroupBrowserPageState
               title: title,
               previews: preview,
               pools: pools,
+              nativeGroups: _nativePreviews.putIfAbsent(
+                key,
+                () => selectNativeGroupBookmarks(
+                  state: state,
+                  view: previewView,
+                  selectedTags: const [],
+                  availableRecordIds:
+                      _previewInputs!.$4?.nativeGroupIds ?? const {},
+                ).take(4).toList(),
+              ),
               group: group,
               selected: group != null && selected.contains(group.id),
               onTap:

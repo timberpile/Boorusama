@@ -121,6 +121,8 @@ class BookmarkLibraryService {
     Iterable<Bookmark> records, {
     String? folderId,
     String? parentGroupId,
+    Iterable<Bookmark> drafts = const [],
+    void Function()? beforeCommit,
   }) => _scope(() async {
     final store =
         unifiedStore ??
@@ -143,6 +145,28 @@ class BookmarkLibraryService {
         throw StateError('Saved Bookmark changed before the action completed');
       members.add(current.id);
     }
+    final writes = <Bookmark>[];
+    final identities = <Object>{};
+    for (final draft in drafts) {
+      final candidate = store.normalizeRecord(bookmarkWithId(draft, 0));
+      final identity = bookmarkContentIdentity(candidate);
+      if (identity != null && !identities.add(identity)) continue;
+      final existing = identity == null
+          ? null
+          : await store.lookupContent(
+              identity,
+              engine: bookmarkEngine(candidate),
+            );
+      if (existing != null) {
+        store.normalizeRecord(candidate, previous: existing);
+        members.add(existing.id);
+      } else {
+        validateBookmarkCommitGuard();
+        final id = (await store.reserveIds(1)).single;
+        writes.add(bookmarkWithId(candidate, id));
+        members.add(id);
+      }
+    }
     final now = DateTime.now().toUtc();
     final group = BookmarkGroup(
       id: const Uuid().v4().toLowerCase(),
@@ -154,7 +178,11 @@ class BookmarkLibraryService {
       bookmarkIds: members,
       addedAt: {for (final id in members) id: now},
     );
-    await store.commitOrganization(groups: [group]);
+    beforeCommit?.call();
+    await withBookmarkCommitGuard(
+      () => store.commitOrganization(records: writes, groups: [group]),
+      beforeCommit,
+    );
     return (group: group, addedCount: members.length);
   });
 

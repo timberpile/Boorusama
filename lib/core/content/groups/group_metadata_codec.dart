@@ -151,6 +151,7 @@ final class GroupMetadataCodec {
       _ => null,
     },
     'variants': cover.variants,
+    'visibility': ?cover.visibility?.toJson(),
   };
   GroupCover _decodeCover(Object? value) {
     final map = contentMap(value);
@@ -160,6 +161,9 @@ final class GroupMetadataCodec {
       original: _uri(map['original']),
       width: map['width'] as int?,
       height: map['height'] as int?,
+      visibility: map['visibility'] == null
+          ? null
+          : GroupCoverVisibility.fromJson(contentMap(map['visibility'])),
       representedPost: map['representedPost'] == null
           ? null
           : references.decode(map['representedPost']),

@@ -27,6 +27,8 @@ import '../../posts/listing/src/widgets/post_grid_item.dart';
 import '../../posts/pools/pool_grid_item.dart';
 import '../../posts/post/types.dart';
 import '../content_access_provider.dart';
+import '../groups/group_capability.dart';
+import '../groups/group_source_provider.dart';
 import '../types.dart';
 import 'native_content_configuration_header.dart';
 
@@ -311,7 +313,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         onTap: (media) => _open(index, media.url),
       );
     }
-    return PoolGridItem(
+    final tile = PoolGridItem(
       category: group == null ? null : widget.groupLabel?.call(context, group),
       name: group?.title,
       total: group?.memberCount,
@@ -331,6 +333,22 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
             ),
       onTap: () => _open(index, image),
     );
+    final presentation = group == null
+        ? null
+        : ref
+              .watch(booruGroupCapabilityProvider(group.reference.engine))
+              ?.presentation;
+    return presentation is BooruMediaGroupBookmarkPresentation && group != null
+        ? (presentation as BooruMediaGroupBookmarkPresentation)
+              .wrapBookmarkMenu(
+                context,
+                GroupBookmarkPresentationData(
+                  access: widget.access,
+                  summary: group,
+                ),
+                tile,
+              )
+        : tile;
   }
 
   void _open(int index, String image) => goToPostDetailsPageCore<Post>(

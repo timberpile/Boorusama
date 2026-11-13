@@ -99,6 +99,7 @@ ContentGroupSummary pixivWorkSummary(
             representedPost: pixivPageReference(access, dto.id!, 0),
             width: (dto.width ?? 0) > 0 ? dto.width : null,
             height: (dto.height ?? 0) > 0 ? dto.height : null,
+            visibility: pixivWorkCoverVisibility(dto),
           ),
     previewTags: pixivWorkTags(dto),
   );
@@ -188,3 +189,22 @@ Rating pixivWorkRating(PixivIllustDto dto) => switch (dto.xRestrict) {
   1 || 2 => Rating.explicit,
   _ => Rating.unknown,
 };
+
+GroupCoverVisibility pixivWorkCoverVisibility(PixivIllustDto dto) =>
+    GroupCoverVisibility(
+      tags: [
+        for (final tag in dto.tags) ...[?tag.name, ?tag.translatedName],
+      ],
+      tagCoverage: switch (dto.tagCoverage) {
+        PixivTagCoverage.complete => MetadataCoverage.complete,
+        PixivTagCoverage.partial => MetadataCoverage.partial,
+        _ => MetadataCoverage.unknown,
+      },
+      rating: switch (dto.xRestrict) {
+        0 => 'general',
+        1 || 2 => 'explicit',
+        _ => 'unknown',
+      },
+      deleted: false,
+      banned: false,
+    );

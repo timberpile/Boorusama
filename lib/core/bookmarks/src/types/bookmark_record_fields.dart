@@ -1,8 +1,10 @@
 import '../../../boorus/booru/types.dart';
 import '../../../content/types.dart';
+import '../../../posts/post/types.dart';
 import 'bookmark.dart';
 import 'content_group_bookmark.dart';
 import 'legacy_group_bookmark.dart';
+import 'bookmark_search_token.dart';
 
 /// Local IDs address every record, including retained unaddressable media.
 /// Only independently established source facts enter the content index.
@@ -43,3 +45,27 @@ Bookmark bookmarkWithId(Bookmark bookmark, int id) {
     _ => throw const FormatException('Unsupported Bookmark record'),
   };
 }
+
+PostOrigin nativeBookmarkGroupOrigin(ContentGroupBookmark bookmark) =>
+    PostOrigin.fromSource(
+      booruType: bookmark.reference.engine,
+      booruId: bookmark.reference.engine.id,
+      source: bookmark.reference.site.toString(),
+      profileIdHint: bookmark.sourceProfileHint,
+    );
+
+Set<String> nativeGroupBookmarkTags(ContentGroupBookmark record) => {
+  ...?record.snapshot.index?.tags.map(canonicalBookmarkTag),
+  for (final tag
+      in (record.snapshot.details?.tags ?? record.summary.previewTags)
+              ?.values ??
+          const []) ...[
+    if (tag.name case final name?) canonicalBookmarkTag(name),
+    if (tag.displayName case final name?) canonicalBookmarkTag(name),
+  ],
+};
+
+bool isNativeGroupBookmark(Bookmark record) =>
+    record is ContentGroupBookmark &&
+    !record.reference.sourceKey.startsWith('pool:') &&
+    !record.reference.sourceKey.startsWith('related:');

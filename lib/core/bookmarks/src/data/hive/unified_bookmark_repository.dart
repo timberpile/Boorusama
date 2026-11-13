@@ -711,6 +711,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       'hash': _hash(plan),
       'plan': plan,
     };
+    validateBookmarkCommitGuard();
     await _metadata.put(_journal, journal);
     await _sync([_metadata]);
     await _apply(plan);

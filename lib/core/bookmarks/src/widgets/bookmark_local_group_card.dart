@@ -14,6 +14,8 @@ import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/pool_bookmark.dart';
 import 'bookmark_pool_card.dart';
+import 'bookmark_native_group_card.dart';
+import '../types/content_group_bookmark.dart';
 
 /// A locally saved Group with its own direct Bookmark members.
 final class BookmarkLocalGroupCard extends StatelessWidget {
@@ -26,6 +28,7 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
     required this.onDuplicate,
     required this.onDelete,
     this.pools = const [],
+    this.nativeGroups = const [],
     this.selected = false,
     this.onSelect,
     this.onMove,
@@ -38,6 +41,7 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
   final String title;
   final List<PostBookmark> previews;
   final List<CollectionBookmark> pools;
+  final List<ContentGroupBookmark> nativeGroups;
   final BookmarkGroup? group;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
@@ -76,6 +80,8 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                       child: BookmarkGroupPreviewGrid(
                         previews: previews,
                         additionalPreviews: [
+                          for (final group in nativeGroups)
+                            BookmarkNativeGroupCover(bookmark: group),
                           for (final pool in pools)
                             BookmarkPoolCoverImage(pool: pool),
                         ],

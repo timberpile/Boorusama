@@ -1,5 +1,14 @@
 # Issue #141: independent Pixiv Work/Page Bookmark continuation
 
+Current continuation (2026-11-11): rebased directly onto #140 runtime commit
+`9adce4b87fd4e8b6a4e36c770ae425720e560857` as explicitly requested. The duplicate
+inherited DTO-tag commit was dropped; the existing two Bookmark foundation test
+files pass (six tests) on that reconciled base. Production picker/actions/library
+integration is in progress. #140's final full rerun is isolated in its own
+worktree (`140-pixiv-works-20261111/gate2.log`).
+
+Historical foundation status follows and will be replaced by the final handoff.
+
 Status: **started, foundation reviewed, issue incomplete**. The user explicitly
 authorized beginning this issue after #140 establishes a stable source contract; completion
 still depends on #140's actual viewer/listing integration. No runtime UI cutover,

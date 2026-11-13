@@ -32,6 +32,7 @@ import '../../../settings/providers.dart';
 import '../data/bookmark_convert.dart';
 import '../data/bookmark_collection_projection.dart';
 import '../types/legacy_group_bookmark.dart';
+import '../types/content_group_bookmark.dart';
 import '../../../posts/related/related_posts_order_value.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
@@ -579,6 +580,86 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     );
     if (result.addedCount > 0) await _rememberManualGroup(result.group.id);
     return result;
+  });
+
+  Future<BookmarkToggleOutcome> toggleContentGroupTarget(
+    ContentGroupBookmark draft, {
+    required String groupId,
+    void Function()? beforeCommit,
+    void Function(BookmarkGroupRemovalResult)? onRemoved,
+  }) => withBookmarkCommitGuard(
+    () => _serialize(() async {
+      beforeCommit?.call();
+      final current = await _librarySnapshot;
+      final service = await _service;
+      beforeCommit?.call();
+      final id = current.idByContent[draft.reference.identity];
+      final saved = id == null ? null : current.byId[id];
+      if (saved != null &&
+          current.membershipsForId(saved.id).contains(groupId)) {
+        final removal = await service.removeBookmarksFromGroup([
+          saved,
+        ], groupId);
+        _recordRemoval(removal);
+        await _rememberManualGroup(groupId);
+        await _publishCommittedMutation();
+        onRemoved?.call(removal);
+        return BookmarkToggleOutcome.removed;
+      }
+      await service.saveDraftsToGroup(
+        saved == null ? [draft] : const [],
+        groupId,
+        savedRecords: saved == null ? const [] : [saved],
+      );
+      await _rememberManualGroup(groupId);
+      await _publishCommittedMutation();
+      return BookmarkToggleOutcome.added;
+    }),
+    beforeCommit,
+  );
+
+  Future<void> createGroupWithContentDraft(
+    String name,
+    ContentGroupBookmark draft, {
+    String? parentGroupId,
+    void Function()? beforeCommit,
+  }) => withBookmarkCommitGuard(
+    () => _runTrackedMutation(() async {
+      beforeCommit?.call();
+      final service = await _service;
+      beforeCommit?.call();
+      final result = await service.createGroupWithSavedRecords(
+        name,
+        const [],
+        drafts: [draft],
+        parentGroupId: parentGroupId,
+      );
+      await _rememberManualGroup(result.group.id);
+    }),
+    beforeCommit,
+  );
+
+  Future<int> addSavedRecordsToGroup(
+    Iterable<Bookmark> records,
+    String groupId,
+  ) => _runTrackedMutation(() async {
+    final added = await (await _service).addBookmarksToGroup(records, groupId);
+    if (added > 0) await _rememberManualGroup(groupId);
+    return added;
+  });
+
+  Future<BookmarkGroupRemovalResult> removeSavedRecordsFromGroup(
+    Iterable<Bookmark> records,
+    String groupId,
+  ) => _serialize(() async {
+    final removal = await (await _service).removeBookmarksFromGroup(
+      records,
+      groupId,
+    );
+    if (removal.removedCount > 0) await _rememberManualGroup(groupId);
+    _recordRemoval(removal);
+    await _publishCommittedMutation();
+    return removal;
   });
 
   Future<BookmarkToggleOutcome> togglePoolTarget(

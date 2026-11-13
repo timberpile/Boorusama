@@ -7,6 +7,8 @@ import '../../../posts/related/related_posts_order_value.dart';
 import 'pool_bookmark.dart';
 import 'bookmark.dart';
 import 'pool_bookmark_capability.dart';
+import 'content_group_bookmark.dart';
+import '../../../content/content_access.dart';
 
 /// The bookmark operation, independent of its anchor, dialog or context menu.
 sealed class BookmarkPickerRequest extends Equatable {
@@ -17,19 +19,38 @@ sealed class BookmarkPickerRequest extends Equatable {
   int? get savedRecordId => null;
 }
 
+/// Frozen native Group facts. The provisional draft ID never addresses storage.
+final class ContentGroupBookmarkPickerRequest extends BookmarkPickerRequest {
+  const ContentGroupBookmarkPickerRequest({
+    required this.draft,
+    required this.source,
+    required this.access,
+  });
+  final ContentGroupBookmark draft;
+  final ContentAccessKey access;
+  @override
+  final BooruConfig source;
+  @override
+  BooruConfigAuth get config => source.auth;
+  @override
+  List<Object?> get props => [draft, source, access];
+}
+
 final class PostBookmarkPickerRequest extends BookmarkPickerRequest {
   const PostBookmarkPickerRequest({
     required this.config,
     required this.post,
     this.source,
+    this.access,
   });
   @override
   final BooruConfigAuth config;
   final Post post;
+  final ContentAccessKey? access;
   @override
   final BooruConfig? source;
   @override
-  List<Object?> get props => [config, post, source];
+  List<Object?> get props => [config, post, source, access];
 }
 
 /// A frozen local record remains editable without an addressable source or a

@@ -8,6 +8,7 @@ import 'group_details.dart';
 import 'group_metadata.dart';
 import 'group_source.dart';
 import 'group_summary.dart';
+import '../../posts/post/types.dart';
 
 enum GroupLayout { memberGrid, mediaPager }
 
@@ -27,6 +28,41 @@ abstract interface class BooruGroupStatusPresentation {
     BuildContext context,
     ContentGroupSummary summary,
   );
+}
+
+/// Source-bound facts for local Group and optional current-Page actions.
+final class GroupBookmarkPresentationData {
+  const GroupBookmarkPresentationData({
+    required this.access,
+    required this.summary,
+    this.details,
+    this.page,
+  });
+  final ContentAccessContext access;
+  final ContentGroupSummary summary;
+  final ContentGroupDetails? details;
+  final Post? page;
+}
+
+/// Engine-owned local actions compose into common media and native cards.
+abstract interface class BooruMediaGroupBookmarkPresentation {
+  Widget buildBookmarkButton(
+    BuildContext context,
+    GroupBookmarkPresentationData data,
+  );
+  List<Widget> buildBookmarkMenuItems(
+    BuildContext context,
+    GroupBookmarkPresentationData data,
+  );
+  Widget wrapBookmarkMenu(
+    BuildContext context,
+    GroupBookmarkPresentationData data,
+    Widget child,
+  );
+}
+
+abstract interface class BooruGroupKindPresentation {
+  String kindLabel(BuildContext context, ContentGroupSummary summary);
 }
 
 final class BooruGroupCapability {

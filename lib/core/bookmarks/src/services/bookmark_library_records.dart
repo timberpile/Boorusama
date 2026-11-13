@@ -46,6 +46,7 @@ extension on BookmarkLibraryService {
         pending.add(candidate);
       }
     }
+    validateBookmarkCommitGuard();
     final ids = await store.reserveIds(pending.length);
     final created = <Bookmark>[
       for (final (index, draft) in pending.indexed)
