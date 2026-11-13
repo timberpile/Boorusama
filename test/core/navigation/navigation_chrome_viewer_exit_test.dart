@@ -5,7 +5,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  for (final destination in ['/following-topics', '/following-topics/feed/edit']) {
+  test('disposed chrome ignores late Viewer route and release callbacks', () {
+    final container = ProviderContainer();
+    final chrome = container.read(navigationChromeProvider.notifier);
+    final owner = Object();
+    chrome.setViewerFor(
+      owner,
+      active: true,
+      immersive: true,
+      routeProgress: 0.5,
+    );
+    container.dispose();
+    expect(() => chrome.setViewerProgressFor(owner, 0.25), returnsNormally);
+    expect(
+      () => chrome.setViewerFor(owner, active: false, immersive: false),
+      returnsNormally,
+    );
+    expect(
+      () => chrome.setViewerFor(Object(), active: true, immersive: true),
+      returnsNormally,
+    );
+  });
+
+  for (final destination in [
+    '/following-topics',
+    '/following-topics/feed/edit',
+  ]) {
     testWidgets('leaving a viewer for $destination reveals the bar', (
       tester,
     ) async {

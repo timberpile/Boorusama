@@ -1,21 +1,24 @@
 import 'package:booru_clients/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/explore/feed.dart';
-import 'package:boorusama/boorus/pixiv/explore/providers.dart';
+import 'package:boorusama/boorus/pixiv/client_provider.dart';
+import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
+import 'package:boorusama/core/content/groups/group_source_provider.dart';
+import 'package:boorusama/core/content/widgets/native_content_grid.dart';
+
+import 'pixiv/works/work_test_fixtures.dart' as works;
+
 import 'package:boorusama/boorus/pixiv/explore/widgets.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
-import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:foundation/foundation.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../core/search/following_topics/following_topic_test_utils.dart';
-import '../support/fakes/test_post.dart';
 
 void main() {
   for (final scale in [1.0, 2.0]) {
@@ -37,19 +40,6 @@ void main() {
         });
         final dio = Dio();
         addTearDown(() => dio.close(force: true));
-        final origin = PostOrigin.fromSource(
-          booruType: BooruType.pixiv,
-          booruId: BooruType.pixiv.id,
-          source: profile.url,
-          profileIdHint: profile.id,
-        );
-        final repository = _ExploreRepository(
-          PixivClient(accessToken: 'fixture', dio: dio),
-          origin,
-          [
-            for (var id = 1; id <= 120; id++) TestPost(id: id, origin: origin),
-          ],
-        );
         const settings = Settings.defaultSettings;
         final harness = FollowingTopicHarness(
           profiles: [profile],
@@ -60,7 +50,10 @@ void main() {
           ),
           overrides: [
             currentReadOnlyBooruConfigProvider.overrideWith((ref) => profile),
-            pixivExploreRepoProvider.overrideWith((ref, config) => repository),
+            pixivClientProvider.overrideWith((ref, _) => _Client()),
+            booruGroupCapabilityProvider.overrideWith(
+              (ref, _) => createPixivGroupCapability(ref),
+            ),
           ],
         );
         addTearDown(harness.dispose);
@@ -76,7 +69,7 @@ void main() {
           ),
         );
         await drain(tester);
-        final grid = find.byType(PostGrid<Post>);
+        final grid = find.byType(NativeContentGrid);
         final selector = find.byType(
           KurumiSegmentedButton<PixivExploreFeedKind>,
         );
@@ -100,7 +93,10 @@ void main() {
             await tester.tap(find.text(feed));
             await tester.pumpAndSettle();
           }
-          expect(tester.widget<PostGrid<Post>>(grid).controller.total, 120);
+          expect(
+            NativeContentGrid.controllerOf(tester.element(vertical)).entries,
+            hasLength(120),
+          );
           expect(selector.hitTestable(), findsOneWidget);
           expect(title.hitTestable(), findsOneWidget);
           final position = tester.state<ScrollableState>(vertical).position;
@@ -136,22 +132,26 @@ void main() {
   }
 }
 
-class _ExploreRepository extends PixivExploreRepository {
-  _ExploreRepository(PixivClient client, PostOrigin origin, this.posts)
-    : super(client: client, origin: origin);
-
-  final List<Post> posts;
-
-  @override
-  PostsOrError<Post> getPosts({
-    required PixivExploreFeed feed,
-    required int page,
-    DateTime? now,
-  }) => TaskEither.of(
-    PostResult(
-      posts: page == 1 ? posts : [],
-      total: posts.length,
-      hasMore: false,
-    ),
+class _Client extends PixivClient {
+  _Client() : super(accessToken: 'fixture');
+  PixivIllustListResult _page(int page) => PixivIllustListResult(
+    illusts: page == 1
+        ? [for (var id = 1; id <= 120; id++) works.work(id: id)]
+        : [],
+    hasMore: false,
   );
+  @override
+  Future<PixivIllustListResult> getRanking({
+    PixivRankingMode mode = PixivRankingMode.day,
+    DateTime? date,
+    int page = 1,
+  }) async => _page(page);
+  @override
+  Future<PixivIllustListResult> getFollowedIllusts({
+    PixivFollowRestrict restrict = PixivFollowRestrict.all,
+    int page = 1,
+  }) async => _page(page);
+  @override
+  Future<PixivIllustListResult> getRecommendedIllusts({int page = 1}) async =>
+      _page(page);
 }

@@ -23,7 +23,8 @@ final groupLinkShareAdapterProvider = Provider<ShareActionAdapter>(
 /// Shares the source address as the existing single-document link format.
 /// Group metadata, account hints, local IDs and cover media are never attached.
 class GroupLinkShareButton extends ConsumerStatefulWidget {
-  const GroupLinkShareButton({super.key});
+  const GroupLinkShareButton({this.builder, super.key});
+  final Widget Function(BuildContext, VoidCallback?)? builder;
   @override
   ConsumerState<GroupLinkShareButton> createState() =>
       _GroupLinkShareButtonState();
@@ -83,16 +84,18 @@ class _GroupLinkShareButtonState extends ConsumerState<GroupLinkShareButton> {
     final access = binding == null
         ? null
         : ref.watch(viewerSourceAccessProvider(binding));
-    return IconButton(
-      tooltip: context.linkFileLabel,
-      icon: const Icon(Icons.share),
-      onPressed:
-          !_sharing &&
-              access != null &&
-              SharePlatformCapabilities.forPlatform(currentAppPlatform())
-                  .canShareMedia
-          ? _share
-          : null,
-    );
+    final onShare =
+        !_sharing &&
+            access != null &&
+            SharePlatformCapabilities.forPlatform(currentAppPlatform())
+                .canShareMedia
+        ? _share
+        : null;
+    return widget.builder?.call(context, onShare) ??
+        IconButton(
+          tooltip: context.linkFileLabel,
+          icon: const Icon(Icons.share),
+          onPressed: onShare,
+        );
   }
 }

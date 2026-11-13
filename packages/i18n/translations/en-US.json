@@ -2971,5 +2971,15 @@
       }
     },
     "choose_date": "Choose Date"
+  },
+  "content_viewer": {
+    "work": "Work",
+    "pages": "Pages",
+    "work_counter": {"one": "$n Work", "other": "$n Works"},
+    "page_unavailable": "Page unavailable",
+    "download_page": "Download current Page",
+    "download_all": "Download all Pages",
+    "download_progress": "Queued $queued of $total Pages",
+    "download_incomplete": "Some Pages could not be prepared. Retry or open the missing Pages."
   }
 }

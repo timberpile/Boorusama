@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:flutter/rendering.dart' show SelectionRegistrar;
 import 'package:flutter_html/flutter_html.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -13,6 +14,7 @@ class AppHtml extends StatefulWidget {
     this.onLinkTap,
     this.extensions = const [],
     this.selectable = true,
+    this.selectionRegistrar,
   });
 
   final String data;
@@ -20,6 +22,9 @@ class AppHtml extends StatefulWidget {
   final OnTap? onLinkTap;
   final List<HtmlExtension> extensions;
   final bool selectable;
+
+  /// Reuses an owner above a pager so ordinary swipes reach that pager first.
+  final SelectionRegistrar? selectionRegistrar;
 
   static Map<String, Style> hintStyle(ColorScheme colorScheme) => {
     'a': Style(
@@ -64,13 +69,15 @@ class _AppHtmlState extends State<AppHtml> {
       extensions: widget.extensions,
     );
 
-    return widget.selectable
-        ? SelectableRegion(
-            focusNode: _focusNode,
-            selectionControls: materialTextSelectionControls,
-            child: html,
-          )
-        : html;
+    if (!widget.selectable) return html;
+    if (widget.selectionRegistrar case final registrar?) {
+      return SelectionRegistrarScope(registrar: registrar, child: html);
+    }
+    return SelectableRegion(
+      focusNode: _focusNode,
+      selectionControls: materialTextSelectionControls,
+      child: html,
+    );
   }
 
   Map<String, Style> _mergeStyle(

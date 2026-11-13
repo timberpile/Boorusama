@@ -72,6 +72,7 @@ final contentGroupSourceProvider = Provider.autoDispose
       dependencies: [
         booruGroupCapabilityProvider,
         contentAccessContextProvider,
+        contentEffectiveBlacklistProvider,
       ],
     );
 

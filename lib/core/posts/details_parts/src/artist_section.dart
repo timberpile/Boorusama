@@ -12,6 +12,7 @@ import '../../../../foundation/url_launcher.dart';
 import '../../../artists/types.dart';
 import '../../../comments/types.dart';
 import '../../sources/types.dart';
+import '../../details/src/widgets/native_metadata_selection.dart';
 import 'source_link.dart';
 
 enum TranlationState {
@@ -89,6 +90,8 @@ class _ArtistSectionState extends ConsumerState<ArtistSection> {
                       horizontal: 12,
                     ),
                     child: AppHtml(
+                      selectionRegistrar:
+                          NativeMetadataSelectionScope.registrarOf(context),
                       style: {
                         'body': Style(
                           whiteSpace: WhiteSpace.pre,

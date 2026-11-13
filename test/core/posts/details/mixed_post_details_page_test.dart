@@ -1,3 +1,16 @@
+import 'package:boorusama/core/content/content_media_access.dart';
+import 'package:boorusama/core/artists/types.dart';
+import 'package:boorusama/core/posts/details/src/providers/media_group_provider.dart';
+import 'package:flutter/foundation.dart'
+    show ChangeNotifier, DiagnosticPropertiesBuilder, FlutterError;
+import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
+import 'package:boorusama/boorus/pixiv/works/work_source.dart';
+import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
+import 'package:boorusama/core/posts/details/src/widgets/media_group_page.dart';
+import 'package:boorusama/core/posts/details/src/widgets/media_group_page_indicator.dart';
+
+import '../../../boorus/pixiv/works/work_test_fixtures.dart' as works;
+
 import 'package:flutter/gestures.dart'
     show kDoubleTapMinTime, kDoubleTapTimeout;
 import 'package:boorusama/core/posts/details/src/widgets/video_controls.dart';
@@ -108,8 +121,165 @@ import '../../../support/fakes/memory_repositories.dart'
 const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
+  for (final (size, scale) in [
+    (const Size(400, 800), 1.0),
+    (const Size(320, 800), 2.0),
+    (const Size(844, 390), 1.0),
+  ]) {
+    for (final work in [false, true]) {
+      for (final details in [false, true]) {
+        for (final backwards in [false, true]) {
+          testWidgets(
+            'short swipes change entries equally over media and commentary '
+            '(Work=$work, Details=$details, backwards=$backwards, $size, scale=$scale)',
+            (tester) async {
+              _mobileViewport(tester, size: size);
+              String? copiedText;
+              tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+                SystemChannels.platform,
+                (call) async {
+                  if (call.method == 'Clipboard.setData') {
+                    copiedText = (call.arguments as Map)['text'] as String;
+                  }
+                  if (call.method == 'Clipboard.hasStrings') {
+                    return {'value': false};
+                  }
+                  return null;
+                },
+              );
+              addTearDown(
+                () => tester.binding.defaultBinaryMessenger
+                    .setMockMethodCallHandler(SystemChannels.platform, null),
+              );
+              final access = ContentAccessContext.profile(
+                config: _configs[2],
+                authEpoch: 1,
+                policyEpoch: 1,
+              );
+              final initial = backwards ? 1 : 0;
+              final harness = _Harness(
+                initialIndex: initial,
+                posts: work
+                    ? const []
+                    : [
+                        for (var id = 1; id <= 2; id++)
+                          _post(
+                            id: id,
+                            booruType: BooruType.danbooru,
+                            host: 'https://danbooru.example',
+                            data: _posts.first.booruData,
+                          ),
+                      ],
+                entries: work
+                    ? [
+                        for (final id in [120, 121])
+                          GroupViewerEntry(
+                            summary: pixivWorkSummary(
+                              works.work(id: id, pageCount: 1),
+                              access,
+                            ),
+                            occurrenceId: id,
+                            source: ViewerSourceBinding(_configs[2]),
+                          ),
+                      ]
+                    : null,
+                loadMedia: false,
+                hideOverlay: true,
+                postPresentation: work
+                    ? null
+                    : const _Presentation('danbooru', commentary: true),
+                mediaCapability: work
+                    ? BooruGroupCapability(
+                        engine: BooruType.pixiv,
+                        keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+                        presentation: const PixivWorkPresentation(),
+                        createSource: (_, actor) => PixivWorkSource(
+                          access: actor,
+                          fetchWork: (id) async =>
+                              works.work(id: id, pageCount: 1),
+                        ),
+                      )
+                    : null,
+              );
+              _disposeAfterUnmount(tester, harness.dispose);
+              await tester.pumpWidget(harness.build(textScale: scale));
+              await tester.pumpAndSettle();
+              final pager = _pageViewController(tester);
+              if (details) {
+                await pager.expandToSnapPoint();
+                await tester.pumpAndSettle();
+              }
+              final origin = details
+                  ? tester.getCenter(
+                      find
+                          .text(
+                            work
+                                ? 'Work ${120 + initial}'
+                                : 'Post ${initial + 1}',
+                          )
+                          .hitTestable()
+                          .first,
+                    )
+                  : tester.getCenter(
+                      find.byKey(ValueKey(('viewer-media', initial))),
+                    );
+              await tester.flingFrom(
+                origin,
+                Offset(backwards ? 80 : -80, 0),
+                1200,
+              );
+              await tester.pumpAndSettle();
+              expect(pager.page, backwards ? 0 : 1);
+              expect(pager.isExpanded, details);
+              if (details) {
+                final selected = backwards ? 0 : 1;
+                final title = find
+                    .text(
+                      work ? 'Work ${120 + selected}' : 'Post ${selected + 1}',
+                    )
+                    .hitTestable()
+                    .first;
+                final paragraph = tester.renderObject<RenderParagraph>(
+                  find
+                      .descendant(of: title, matching: find.byType(RichText))
+                      .first,
+                );
+                final word = paragraph
+                    .getBoxesForSelection(
+                      const TextSelection(baseOffset: 0, extentOffset: 4),
+                    )
+                    .first
+                    .toRect();
+                await tester.longPressAt(
+                  paragraph.localToGlobal(word.center),
+                );
+                await tester.pumpAndSettle();
+                final copy = find.text('Copy').hitTestable();
+                expect(copy, findsOneWidget);
+                await tester.tap(copy);
+                await tester.pumpAndSettle();
+                expect(copiedText, contains(work ? 'Work' : 'Post'));
+                expect(
+                  pager.page,
+                  selected,
+                  reason:
+                      'holding text must select it instead of changing entries',
+                );
+              }
+              expect(tester.takeException(), isNull);
+            },
+          );
+        }
+      }
+    }
+  }
+
   if (_viewerCaptureDirectory.isNotEmpty) {
     testWidgets('capture approved shared Viewer modes', _captureViewerModes);
+    testWidgets(
+      'capture Pixiv Work shared Viewer modes',
+      _capturePixivWorkModes,
+    );
   }
   for (final size in [
     const Size(400, 800),
@@ -161,6 +331,867 @@ void main() {
         await tester.pump();
       },
     );
+  }
+
+  testWidgets(
+    'first Pixiv Work opens without an unavailable-profile fallback',
+    (tester) async {
+      _mobileViewport(tester);
+      final access = ContentAccessContext.profile(
+        config: _configs[2],
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final adapter = _PageImageAdapter();
+      final firstWorkReady = Completer<void>();
+      final harness = _Harness(
+        posts: const [],
+        initialIndex: 0,
+        entries: [
+          for (final id in [120, 121])
+            GroupViewerEntry(
+              summary: pixivWorkSummary(
+                works.work(id: id, pageCount: 1),
+                access,
+              ),
+              occurrenceId: id,
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+        ],
+        imageAdapter: adapter,
+        imageCache: TestImageCache({}),
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.pixiv,
+          keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+          presentation: const PixivWorkPresentation(),
+          createSource: (_, actor) => PixivWorkSource(
+            access: actor,
+            fetchWork: (id) async {
+              if (id == 120) await firstWorkReady.future;
+              return works.work(id: id, pageCount: 1);
+            },
+          ),
+        ),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        final viewerConfig = find.ancestor(
+          of: find.byType(PostDetailsPageScaffold<Post>),
+          matching: find.byType(CurrentBooruConfigScope),
+        );
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () =>
+                viewerConfig.evaluate().isNotEmpty &&
+                tester
+                        .widget<CurrentBooruConfigScope>(viewerConfig)
+                        .config
+                        .auth ==
+                    _configs[2].auth,
+            reason: 'captured profile resolves before first Work metadata',
+          ),
+        );
+        firstWorkReady.complete();
+        await tester.pumpAndSettle();
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => tester
+                .widgetList<PostMedia<Post>>(
+                  find.byType(PostMedia<Post>, skipOffstage: false),
+                )
+                .any(
+                  (media) =>
+                      media.post.id == 120000 &&
+                      media.imageController?.imageInfo.value != null,
+                ),
+            reason: 'first Pixiv Work image decoded',
+          ),
+        );
+        expect(_pageViewController(tester).page, 0);
+        expect(find.byType(MediaGroupPage), findsWidgets);
+        expect(find.byType(PostPresentationFallbackWarning), findsNothing);
+        expect(tester.takeException(), isNull);
+      } finally {
+        if (!firstWorkReady.isCompleted) firstWorkReady.complete();
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
+  testWidgets(
+    'Pixiv Work Details show listing metadata before its manifest loads',
+    (tester) async {
+      _mobileViewport(tester);
+      final access = ContentAccessContext.profile(
+        config: _configs[2],
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final manifestReady = Completer<void>();
+      final harness = _Harness(
+        posts: const [],
+        entries: [
+          GroupViewerEntry(
+            summary: pixivWorkSummary(
+              works.work(id: 120, pageCount: 2),
+              access,
+            ),
+            occurrenceId: 'summary-first',
+            source: ViewerSourceBinding(_configs[2]),
+          ),
+        ],
+        loadMedia: false,
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.pixiv,
+          keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+          presentation: const PixivWorkPresentation(),
+          createSource: (_, actor) => PixivWorkSource(
+            access: actor,
+            fetchWork: (_) async {
+              await manifestReady.future;
+              return works.work(id: 120, pageCount: 2);
+            },
+          ),
+        ),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        await _pageViewController(tester).expandToSnapPoint();
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => tester
+                .widgetList<ArtistSection>(
+                  find.byType(ArtistSection, skipOffstage: false),
+                )
+                .any(
+                  (section) => section.commentary.originalTitle == 'Work 120',
+                ),
+            reason: 'listing Work title is visible before detail metadata',
+          ),
+        );
+        expect(manifestReady.isCompleted, isFalse);
+        expect(
+          find.byType(RawTagsTile, skipOffstage: false),
+          findsWidgets,
+          reason: 'known listing tags are available in Details immediately',
+        );
+        expect(
+          find.byType(DefaultPostActionToolbar<Post>).hitTestable(),
+          findsNothing,
+          reason: 'unresolved Pages cannot expose Post actions',
+        );
+        manifestReady.complete();
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widgetList<ArtistSection>(
+                find.byType(ArtistSection, skipOffstage: false),
+              )
+              .any(
+                (section) =>
+                    section.commentary.originalTitle == 'Work 120' &&
+                    section.commentary.originalDescription ==
+                        '<p>Work caption</p>',
+              ),
+          isTrue,
+          reason: 'detail fields enrich the existing Work information',
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        if (!manifestReady.isCompleted) manifestReady.complete();
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      }
+    },
+  );
+
+  testWidgets(
+    'unresolved neighboring Pixiv Work shows Summary without Post-only Details',
+    (tester) async {
+      _mobileViewport(tester);
+      final access = ContentAccessContext.profile(
+        config: _configs[2],
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final nextWorkReady = Completer<void>();
+      final harness = _Harness(
+        posts: const [],
+        loadMedia: false,
+        entries: [
+          for (final id in [120, 121])
+            GroupViewerEntry(
+              summary: pixivWorkSummary(
+                works.work(id: id, pageCount: 2),
+                access,
+              ),
+              occurrenceId: id,
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+        ],
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.pixiv,
+          keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+          presentation: const PixivWorkPresentation(),
+          createSource: (_, actor) => PixivWorkSource(
+            access: actor,
+            fetchWork: (id) async {
+              if (id == 121) await nextWorkReady.future;
+              return works.work(id: id, pageCount: 2);
+            },
+          ),
+        ),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        final pager = _pageViewController(tester);
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        await pager.nextPage(duration: Duration.zero);
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => pager.page == 1,
+            reason:
+                'outer entry settles while the Work manifest remains pending',
+          ),
+        );
+        expect(pager.page, 1);
+        final nextDetails = find.byKey(
+          const ValueKey(('viewer-details-scroll', 1)),
+          skipOffstage: false,
+        );
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => tester
+                .widgetList<ArtistSection>(
+                  find.descendant(
+                    of: nextDetails,
+                    matching: find.byType(
+                      ArtistSection,
+                      skipOffstage: false,
+                    ),
+                  ),
+                )
+                .any(
+                  (section) => section.commentary.originalTitle == 'Work 121',
+                ),
+            reason: 'neighbor Work displays its listing summary while loading',
+          ),
+        );
+        expect(
+          find.descendant(
+            of: nextDetails,
+            matching: find.byType(
+              SimplePostStatsTile,
+              skipOffstage: false,
+            ),
+          ),
+          findsNothing,
+          reason: 'a Work without a Post cannot build Post statistics',
+        );
+        expect(tester.takeException(), isNull);
+        nextWorkReady.complete();
+        await tester.pumpAndSettle();
+        final pageToolbar = find.descendant(
+          of: nextDetails,
+          matching: find.byType(
+            DefaultPostActionToolbar<Post>,
+            skipOffstage: false,
+          ),
+        );
+        expect(pageToolbar, findsWidgets);
+        expect(
+          tester
+              .widget<DefaultPostActionToolbar<Post>>(pageToolbar.first)
+              .post
+              .id,
+          121000,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        if (!nextWorkReady.isCompleted) nextWorkReady.complete();
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      }
+    },
+  );
+
+  for (final mode in ['high', 'original', 'failed']) {
+    testWidgets(
+      'initial Pixiv cover hands off to a decoded Page or error ($mode)',
+      (tester) async {
+        _mobileViewport(tester);
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        const coverUrl = 'https://i.pximg.net/large/120_p0.jpg';
+        const pagePreviewUrl = 'https://i.pximg.net/large/120_first_page.jpg';
+        final work = works.work(
+          id: 120,
+          pageCount: 3,
+          // Detail metadata can replace the listing's cover URL. Page zero
+          // resolves from the top-level image_urls, not meta_pages.
+          sample: pagePreviewUrl,
+          pages: [
+            {
+              'image_urls': {
+                'large': pagePreviewUrl,
+                'square_medium': 'https://i.pximg.net/thumb/120_p0.jpg',
+                'original': 'https://i.pximg.net/original/120_p0.jpg',
+              },
+            },
+            works.page(120, 1),
+            works.page(120, 2),
+          ],
+        );
+        final adapter = _ReplayableImageAdapter();
+        final manifestReady = Completer<void>();
+        final harness = _Harness(
+          posts: const [],
+          entries: [
+            GroupViewerEntry(
+              summary: pixivWorkSummary(works.work(id: 120), access),
+              occurrenceId: 'first-cover',
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+          ],
+          imageAdapter: adapter,
+          imageCache: TestImageCache({}),
+          postQuality: mode == 'original'
+              ? PostQuality.original
+              : PostQuality.high,
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (_) async {
+                await manifestReady.future;
+                return work;
+              },
+            ),
+          ),
+        );
+        Finder coverPixels() => find.descendant(
+          of: find.byType(BooruImage, skipOffstage: false),
+          matching: find.byType(ExtendedRawImage, skipOffstage: false),
+        );
+        try {
+          await tester.pumpWidget(harness.build());
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => adapter.pending.keys.any(
+                (url) => url.contains('/large/120_p0.jpg'),
+              ),
+              reason: 'the timeline cover begins loading',
+            ),
+          );
+          adapter.complete(
+            adapter.pending.keys.firstWhere(
+              (url) => url.contains('/large/120_p0.jpg'),
+            ),
+            lowerPng,
+          );
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => tester
+                  .widgetList<ExtendedRawImage>(coverPixels())
+                  .any((image) => image.image != null),
+              reason: 'the first Work cover decodes',
+            ),
+          );
+          final coverElement = coverPixels().evaluate().first;
+          manifestReady.complete();
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => tester
+                  .widgetList<MediaGroupPage>(
+                    find.byType(MediaGroupPage, skipOffstage: false),
+                  )
+                  .any((page) => page.checkpoint.pages != null),
+              reason: 'the first Work PageView is mounted',
+            ),
+          );
+          expect(
+            coverPixels().evaluate(),
+            contains(coverElement),
+            reason: 'manifest handoff must retain the decoded cover element',
+          );
+          expect(
+            tester
+                .widget<ExtendedRawImage>(
+                  find.byElementPredicate((element) => element == coverElement),
+                )
+                .image,
+            isNotNull,
+            reason: 'the cover still has image pixels while Page media loads',
+          );
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => adapter.pending.keys.any(
+                (url) => url.contains('/large/120_first_page.jpg'),
+              ),
+              reason: 'the first Page starts decoding its own preview',
+            ),
+          );
+          adapter.complete(
+            adapter.pending.keys.firstWhere(
+              (url) => url.contains('/large/120_first_page.jpg'),
+            ),
+            mode == 'failed' ? Uint8List.fromList([1, 2, 3]) : targetPng,
+          );
+          if (mode == 'failed') {
+            // Both the preview and the target must fail before the image
+            // pipeline declares terminal failure. A pending target is not
+            // proof that the display has no recoverable image.
+            await tester.runAsync(
+              () => pumpUntil(
+                tester,
+                () => adapter.pending.keys.any(
+                  (url) => url.contains('media/120000'),
+                ),
+                reason: 'the failed Page target is requested',
+              ),
+            );
+            for (final url in adapter.pending.keys.toList()) {
+              if (url.contains('media/120000')) {
+                adapter.complete(url, Uint8List.fromList([1, 2, 3]));
+              }
+            }
+          }
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () =>
+                  coverPixels().evaluate().isEmpty &&
+                  (mode == 'failed'
+                      ? find
+                            .byType(ErrorPlaceholder, skipOffstage: false)
+                            .evaluate()
+                            .isNotEmpty
+                      : tester
+                            .widgetList<PostMedia<Post>>(
+                              find.byType(PostMedia<Post>, skipOffstage: false),
+                            )
+                            .any(
+                              (media) =>
+                                  media.post.id == 120000 &&
+                                  media.imageController?.imageInfo.value !=
+                                      null,
+                            )),
+              reason: 'the Page replaces its still-mounted cover',
+            ),
+          );
+          if (mode == 'original') {
+            await tester.runAsync(
+              () => pumpUntil(
+                tester,
+                () => adapter.pending.keys.any(
+                  (url) => url.contains('/original/120_p0.jpg'),
+                ),
+                reason:
+                    'original download is still pending after preview handoff',
+              ),
+            );
+            final page = tester
+                .widgetList<PostMedia<Post>>(
+                  find.byType(PostMedia<Post>, skipOffstage: false),
+                )
+                .firstWhere((media) => media.post.id == 120000);
+            expect(page.imageController?.imageInfo.value?.image.width, 8);
+            expect(
+              adapter.pending.entries
+                  .where((entry) => entry.key.contains('/original/120_p0.jpg'))
+                  .single
+                  .value
+                  .isCompleted,
+              isFalse,
+            );
+          }
+          expect(find.byType(MediaGroupPageIndicator), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          if (!manifestReady.isCompleted) manifestReady.complete();
+          for (final pending in adapter.pending.values) {
+            if (!pending.isCompleted) pending.complete(targetPng);
+          }
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pump();
+        }
+      },
+    );
+  }
+
+  testWidgets('Pixiv cover does not obscure manually blocked media', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final access = ContentAccessContext.profile(
+      config: _configs[2],
+      authEpoch: 1,
+      policyEpoch: 1,
+    );
+    final adapter = _ReplayableImageAdapter();
+    final harness = _Harness(
+      posts: const [],
+      entries: [
+        GroupViewerEntry(
+          summary: pixivWorkSummary(works.work(id: 120, pageCount: 1), access),
+          occurrenceId: 'manual-media',
+          source: ViewerSourceBinding(_configs[2]),
+        ),
+      ],
+      loadMedia: false,
+      imageAdapter: adapter,
+      imageCache: TestImageCache({}),
+      mediaCapability: BooruGroupCapability(
+        engine: BooruType.pixiv,
+        keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+        presentation: const PixivWorkPresentation(),
+        createSource: (_, actor) => PixivWorkSource(
+          access: actor,
+          fetchWork: (id) async => works.work(id: id, pageCount: 1),
+        ),
+      ),
+    );
+    try {
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      expect(find.byType(BooruImage, skipOffstage: false), findsNothing);
+      expect(
+        find.byType(BlockedMediaPlaceholder, skipOffstage: false),
+        findsWidgets,
+      );
+      expect(adapter.requests, isEmpty);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+    }
+  });
+
+  for (final quality in [PostQuality.high, PostQuality.original]) {
+    testWidgets(
+      'adjacent Work images paint before crossing half the outer swipe ($quality)',
+      (tester) async {
+        _mobileViewport(tester);
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final adapter = _PageImageAdapter();
+        final harness = _Harness(
+          posts: const [],
+          initialIndex: 1,
+          entries: [
+            for (final id in [120, 121, 122])
+              GroupViewerEntry(
+                summary: pixivWorkSummary(
+                  works.work(id: id, pageCount: 1),
+                  access,
+                ),
+                occurrenceId: id,
+                source: ViewerSourceBinding(_configs[2]),
+              ),
+          ],
+          imageAdapter: adapter,
+          postQuality: quality,
+          imageCache: TestImageCache({}),
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (id) async => works.work(id: id, pageCount: 1),
+            ),
+          ),
+        );
+        final captureKey = GlobalKey();
+        try {
+          await tester.pumpWidget(
+            RepaintBoundary(key: captureKey, child: harness.build()),
+          );
+          await tester.pumpAndSettle();
+          PostMedia<Post>? neighbor(int id) => tester
+              .widgetList<PostMedia<Post>>(
+                find.byType(PostMedia<Post>, skipOffstage: false),
+              )
+              .where((media) => media.post.id == id)
+              .firstOrNull;
+          expect(
+            neighbor(120000),
+            isNotNull,
+            reason: 'previous Work prepares its real image before selection',
+          );
+          expect(
+            neighbor(122000),
+            isNotNull,
+            reason: 'next Work prepares its real image before selection',
+          );
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () =>
+                  neighbor(120000)?.imageController?.loadState.value ==
+                      LoadState.completed &&
+                  neighbor(122000)?.imageController?.loadState.value ==
+                      LoadState.completed,
+              reason: 'both adjacent Work images decoded',
+            ),
+          );
+          final pager = _pageViewController(tester);
+          for (final direction in [-1.0, 1.0]) {
+            final drag = await tester.startGesture(
+              Offset(direction < 0 ? 330 : 70, 700),
+            );
+            await drag.moveBy(Offset(direction * 24, 0));
+            await drag.moveBy(Offset(direction * 76, 0));
+            await tester.pump();
+            expect(
+              pager.page,
+              1,
+              reason: 'the selected Work has not changed below half way',
+            );
+            final media = neighbor(direction < 0 ? 122000 : 120000)!;
+            final raw = find.descendant(
+              // Rebuilding the neighbor replaces its PostMedia widget object
+              // even when the decoded image remains mounted. Find by identity
+              // of the Page rather than the previous widget instance.
+              of: find.byWidgetPredicate(
+                (widget) =>
+                    widget is PostMedia<Post> &&
+                    widget.post.id == media.post.id,
+                skipOffstage: false,
+              ),
+              matching: find.byType(
+                ExtendedRawImage,
+                skipOffstage: false,
+              ),
+            );
+            expect(
+              tester
+                  .getRect(raw.first)
+                  .overlaps(const Rect.fromLTWH(0, 0, 400, 800)),
+              isTrue,
+            );
+            await drag.moveBy(Offset(direction * 135, 0));
+            await tester.pump();
+            expect(
+              (pager.precisePage.value! - 1).abs(),
+              greaterThan(0.5),
+              reason: 'the held outer swipe crossed the halfway threshold',
+            );
+            expect(
+              pager.page,
+              1,
+              reason: 'a held swipe must not commit the new Work at halfway',
+            );
+            expect(
+              raw,
+              findsWidgets,
+              reason: 'the decoded neighbor remains mounted during the swipe',
+            );
+            await drag.cancel();
+            await tester.pumpAndSettle();
+            pager.pageController.jumpToPage(1);
+            await tester.pumpAndSettle();
+          }
+          final viewerScaffold = tester.state(
+            find.byType(PostDetailsPageScaffold<Post>),
+          );
+          final destinationWork = find.byWidgetPredicate(
+            (widget) =>
+                widget is MediaGroupPage && widget.entry.occurrenceId == 122,
+            skipOffstage: false,
+          );
+          final destinationPage = tester.state(destinationWork);
+          final settleGesture = await tester.startGesture(
+            const Offset(200, 700),
+          );
+          await settleGesture.moveBy(const Offset(-24, 0));
+          await settleGesture.moveBy(const Offset(-266, 0));
+          await tester.pump();
+          await settleGesture.up();
+          var paintedFrames = 0;
+          var settled = false;
+          for (var frame = 0; frame < 120; frame++) {
+            await tester.pump(const Duration(milliseconds: 16));
+            final selectedImage = neighbor(122000);
+            expect(
+              selectedImage?.imageController?.loadState.value,
+              LoadState.completed,
+              reason:
+                  'the target image remains decoded in settlement frame $frame',
+            );
+            final targetRaw = find.descendant(
+              of: find.byWidget(selectedImage!),
+              matching: find.byType(ExtendedRawImage),
+            );
+            expect(
+              targetRaw,
+              findsWidgets,
+              reason: 'the decoded target remains mounted in frame $frame',
+            );
+            expect(
+              tester
+                  .widgetList<ExtendedRawImage>(targetRaw)
+                  .any(
+                    (image) => image.image != null,
+                  ),
+              isTrue,
+              reason: 'the decoded target has pixels in frame $frame',
+            );
+            if (pager.page == 2) {
+              paintedFrames++;
+              final pixelsVisible = await tester.runAsync(() async {
+                final boundary =
+                    captureKey.currentContext!.findRenderObject()!
+                        as RenderRepaintBoundary;
+                final image = await boundary.toImage();
+                try {
+                  final data = await image.toByteData(
+                    format: ui.ImageByteFormat.rawRgba,
+                  );
+                  if (data == null) return false;
+                  final bytes = data.buffer.asUint8List();
+                  final center =
+                      tester.getRect(targetRaw.first).center -
+                      tester.getTopLeft(find.byKey(captureKey));
+                  final x = center.dx.round().clamp(0, image.width - 1).toInt();
+                  final y = center.dy
+                      .round()
+                      .clamp(0, image.height - 1)
+                      .toInt();
+                  final pixelIndex = (y * image.width + x) * 4;
+                  return bytes[pixelIndex] == 0 &&
+                      bytes[pixelIndex + 1] == 0 &&
+                      bytes[pixelIndex + 2] == 255 &&
+                      bytes[pixelIndex + 3] == 255;
+                } finally {
+                  image.dispose();
+                }
+              });
+              expect(
+                pixelsVisible,
+                isTrue,
+                reason:
+                    'the selected Work must render blue pixels in settlement frame $frame',
+              );
+            }
+            if (paintedFrames >= 4 &&
+                !pager.pageController.position.isScrollingNotifier.value) {
+              settled = true;
+              break;
+            }
+          }
+          expect(
+            settled,
+            isTrue,
+            reason: 'the pager must settle within the bounded frame guard',
+          );
+          expect(paintedFrames, greaterThanOrEqualTo(4));
+          await tester.pumpAndSettle();
+          expect(pager.page, 2);
+          expect(
+            tester.state(destinationWork),
+            same(destinationPage),
+            reason: 'the selected Work must keep its media state',
+          );
+          expect(
+            tester.state(find.byType(PostDetailsPageScaffold<Post>)),
+            same(viewerScaffold),
+            reason: 'settlement must not remount decoded neighboring media',
+          );
+          expect(
+            neighbor(122000)?.imageController?.loadState.value,
+            LoadState.completed,
+          );
+          expect(
+            adapter.requests.where(
+              (url) =>
+                  url.contains('/original/') &&
+                  !url.contains('/121_p0') &&
+                  !url.contains('/122_p0'),
+            ),
+            isEmpty,
+            reason: 'inactive neighboring Works must never fetch originals',
+          );
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pumpAndSettle();
+        }
+      },
+    );
+  }
+
+  for (final size in [const Size(400, 800), const Size(844, 390)]) {
+    testWidgets('tapping Details letterboxing returns to Immersive at $size', (
+      tester,
+    ) async {
+      _mobileViewport(tester, size: size);
+      final post = _post(
+        id: 1,
+        booruType: BooruType.danbooru,
+        host: 'https://danbooru.example',
+        data: _posts.first.booruData,
+        width: 400,
+        height: 1600,
+      );
+      final harness = _Harness(
+        posts: [post],
+        hideOverlay: true,
+        reduceAnimations: false,
+        imageAdapter: _TestImageAdapter(false, bytes: portraitPng),
+        imageCache: TestImageCache({}),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        await _waitForCurrentImage(tester);
+        final pager = _pageViewController(tester);
+        final shared = tester.state(find.byType(PostDetailsPageView));
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        final rect = tester.getRect(
+          find.byKey(const ValueKey(('viewer-media', 0))),
+        );
+        final point = Offset(rect.left + 8, rect.top + rect.height * .5);
+        // This point is in the media frame, outside the transformed Post widget.
+        expect(
+          tester.getRect(find.byType(PostDetailsItem<Post>)).contains(point),
+          isFalse,
+        );
+        await tester.tapAt(point);
+        await tester.pumpAndSettle();
+        expect(pager.isExpanded, isFalse);
+        expect(pager.overlay.value, isFalse);
+        expect(tester.state(find.byType(PostDetailsPageView)), same(shared));
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      }
+    });
   }
 
   for (final fromDetails in [false, true]) {
@@ -642,7 +1673,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('distant navigation drops media and restores occurrence zoom', (
+  testWidgets('distant navigation evicts ordinary Post zoom checkpoints', (
     tester,
   ) async {
     _mobileViewport(tester);
@@ -672,7 +1703,6 @@ void main() {
     first.value = Matrix4.diagonal3Values(2, 2, 1)
       ..setTranslationRaw(-100, -400, 0);
     await tester.pumpAndSettle();
-    final saved = first.value.clone();
     pager.jumpToPage(8);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey(('viewer-media', 0))), findsNothing);
@@ -700,7 +1730,7 @@ void main() {
         .controller
         .transformationController;
     expect(restored, isNot(same(first)));
-    expect(restored.value, saved);
+    expect(restored.value.isIdentity(), isTrue);
     expect(
       find.byType(PostViewerOccurrence).evaluate().length,
       lessThanOrEqualTo(3),
@@ -709,6 +1739,1503 @@ void main() {
     harness.dispose();
     await tester.pump();
   });
+
+  testWidgets('24 repeated Works bound checkpoints and controller lifetime', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final access = ContentAccessContext.profile(
+      config: _configs[2],
+      authEpoch: 1,
+      policyEpoch: 1,
+    );
+    final entries = <ViewerEntry>[
+      for (var i = 0; i < 24; i++)
+        GroupViewerEntry(
+          summary: pixivWorkSummary(works.work(), access),
+          occurrenceId: ('repeat', i),
+          initialMemberKey: i == 0 ? 'work-page:120:1' : null,
+          source: ViewerSourceBinding(_configs[2]),
+        ),
+    ];
+    var requests = 0;
+    final harness = _Harness(
+      posts: const [],
+      entries: entries,
+      mediaCapability: BooruGroupCapability(
+        engine: BooruType.pixiv,
+        keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+        presentation: const PixivWorkPresentation(),
+        createSource: (_, actor) => PixivWorkSource(
+          access: actor,
+          fetchWork: (_) async {
+            requests++;
+            return works.work();
+          },
+        ),
+      ),
+    );
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final pager = _pageViewController(tester);
+    final controllers = <PostDetailsController<Post>>{};
+    MediaGroupPage workAt(int index) => tester
+        .widgetList<MediaGroupPage>(
+          find.byType(MediaGroupPage),
+        )
+        .singleWhere((work) => work.index == index);
+    TransformationController transformAt(int index, int page) => tester
+        .widget<PostViewerTransformationScope>(
+          find.ancestor(
+            of: find.descendant(
+              of: find.byWidgetPredicate(
+                (widget) => widget is MediaGroupPage && widget.index == index,
+              ),
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is PostDetailsItem<Post> &&
+                    (widget.post!.booruData as PixivPostData).pageIndex == page,
+              ),
+            ),
+            matching: find.byType(PostViewerTransformationScope),
+          ),
+        )
+        .controller
+        .transformationController;
+    Matrix4? nearbyZoom;
+    for (var i = 0; i < 24; i++) {
+      pager.jumpToPage(i);
+      await tester.pumpAndSettle();
+      workAt(i).checkpoint.pages!.jumpToPage(2);
+      await tester.pumpAndSettle();
+      if (i == 0) {
+        transformAt(0, 2).value = Matrix4.diagonal3Values(2, 2, 1)
+          ..setTranslationRaw(-100, -400, 0);
+        await tester.pumpAndSettle();
+        nearbyZoom = transformAt(0, 2).value.clone();
+      }
+      controllers.addAll(
+        tester
+            .widgetList<PostDetailsItem<Post>>(
+              find.byType(PostDetailsItem<Post>, skipOffstage: false),
+            )
+            .map((item) => item.detailsController),
+      );
+      final diagnostics = _viewerDiagnostics(tester);
+      expect(diagnostics['mediaCheckpoints'], lessThanOrEqualTo(5));
+      expect(diagnostics['selectedMediaControllers'], lessThanOrEqualTo(5));
+      expect(
+        diagnostics['mediaControllers'],
+        lessThanOrEqualTo(
+          diagnostics['mountedMediaControllers']! + 5,
+        ),
+      );
+      expect(
+        controllers.where(_controllerAlive).length,
+        lessThanOrEqualTo(diagnostics['mediaControllers']!),
+      );
+      // One/two-entry reversals preserve the selection for each occurrence.
+      if (i >= 2) {
+        pager.jumpToPage(i - 2);
+        await tester.pumpAndSettle();
+        expect(workAt(i - 2).checkpoint.memberKey, 'work-page:120:2');
+        if (i == 2) expect(transformAt(0, 2).value, nearbyZoom);
+        pager.jumpToPage(i);
+        await tester.pumpAndSettle();
+        expect(workAt(i).checkpoint.memberKey, 'work-page:120:2');
+      }
+      expect(tester.takeException(), isNull);
+    }
+    pager.jumpToPage(3);
+    await tester.pumpAndSettle();
+    expect(workAt(3).checkpoint.memberKey, isNull);
+    expect(workAt(3).checkpoint.pages!.page, 0);
+    expect(workAt(3).checkpoint.transforms, isEmpty);
+    expect(transformAt(3, 0).value.isIdentity(), isTrue);
+    pager.jumpToPage(0);
+    await tester.pumpAndSettle();
+    expect(workAt(0).checkpoint.memberKey, 'work-page:120:1');
+    expect(workAt(0).checkpoint.pages!.page, 1);
+    expect(
+      requests,
+      1,
+      reason: 'evicting reading state keeps the shared envelope',
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    expect(controllers.where(_controllerAlive), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('24 Posts retain nearby scroll and zoom and evict distant state', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final posts = [
+      for (var i = 0; i < 24; i++)
+        _post(
+          id: 10 + i,
+          booruType: BooruType.danbooru,
+          host: 'https://danbooru.example',
+          data: _posts.first.booruData,
+        ),
+    ];
+    final harness = _Harness(
+      posts: posts,
+      postPresentation: const _Presentation('danbooru', detailsHeight: 1800),
+    );
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    final pager = _pageViewController(tester);
+    TransformationController transformAt(int index) => tester
+        .widget<PostViewerTransformationScope>(
+          find.ancestor(
+            of: find.byKey(ValueKey(('viewer-media', index))),
+            matching: find.byType(PostViewerTransformationScope),
+          ),
+        )
+        .controller
+        .transformationController;
+    ScrollController scrollAt(int index) => tester
+        .widget<CustomScrollView>(
+          find.byKey(ValueKey(('viewer-details-scroll', index))),
+        )
+        .controller!;
+    await _waitForCurrentImage(tester);
+    transformAt(0).value = Matrix4.diagonal3Values(2, 2, 1)
+      ..setTranslationRaw(-100, -400, 0);
+    await tester.pumpAndSettle();
+    final saved = transformAt(0).value.clone();
+    await pager.expandToSnapPoint();
+    await tester.pumpAndSettle();
+    final offset = scrollAt(0).position.maxScrollExtent.clamp(0.0, 80.0);
+    expect(offset, greaterThan(0));
+    scrollAt(0).jumpTo(offset);
+    await tester.pumpAndSettle();
+    for (final index in [1, 2, 0]) {
+      pager.jumpToPage(index);
+      await tester.pumpAndSettle();
+    }
+    expect(scrollAt(0).offset, offset);
+    // Details uses contain-fit; returning to Immersive restores its saved zoom.
+    await pager.resetSheet();
+    await tester.pumpAndSettle();
+    expect(transformAt(0).value, saved);
+    await pager.expandToSnapPoint();
+    await tester.pumpAndSettle();
+    for (var i = 1; i < 24; i++) {
+      pager.jumpToPage(i);
+      await tester.pumpAndSettle();
+      scrollAt(i).jumpTo(scrollAt(i).position.maxScrollExtent.clamp(0.0, 50.0));
+      await tester.pump();
+      expect(
+        _diagnosticCount(
+          tester.state(find.byType(PostDetailsPageView)),
+          'scrollOffsets',
+        ),
+        lessThanOrEqualTo(5),
+      );
+      expect(
+        _diagnosticCount(
+          tester.state(find.byType(PostDetailsPageScaffold<Post>)),
+          'transformCheckpoints',
+        ),
+        lessThanOrEqualTo(5),
+      );
+    }
+    pager.jumpToPage(0);
+    await tester.pumpAndSettle();
+    expect(scrollAt(0).offset, 0);
+    await pager.resetSheet();
+    await tester.pumpAndSettle();
+    expect(transformAt(0).value.isIdentity(), isTrue);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'same-actor Page hydration updates media, toolbar and fallback popup',
+    (
+      tester,
+    ) async {
+      _mobileViewport(tester);
+      final access = ContentAccessContext.profile(
+        config: _configs[2],
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      MediaGroupState snapshot({required bool updated}) {
+        final dto = works.work(
+          pages: [
+            works.page(120, 0),
+            works.page(
+              120,
+              1,
+              original: updated ? 'https://i.pximg.net/new/120_p1.jpg' : null,
+            ),
+            works.page(120, 2),
+          ],
+          tags: [
+            {'name': updated ? 'updated-tag' : 'old-tag'},
+          ],
+        );
+        final posts = pixivWorkPagePosts(dto, access);
+        return MediaGroupState(
+          access: access,
+          details: pixivWorkDetails(dto, access),
+          members: GroupMembersState(
+            members: [
+              for (var i = 0; i < posts.length; i++)
+                GroupMember(
+                  reference: pixivPageReference(access, 120, i),
+                  memberKey: 'work-page:120:$i',
+                  sourcePosition: i,
+                  availability: MemberAvailability.available,
+                ),
+            ],
+            resolved: {
+              for (var i = 0; i < posts.length; i++)
+                pixivPageReference(access, 120, i).identity: PostContentEntry(
+                  reference: pixivPageReference(access, 120, i),
+                  post: posts[i],
+                ),
+            },
+            firstPageLoaded: true,
+            generation: 1,
+          ),
+        );
+      }
+
+      final initial = snapshot(updated: false);
+      final state = StateProvider((ref) => initial);
+      final harness = _Harness(
+        posts: const [],
+        entries: [
+          GroupViewerEntry(
+            summary: initial.details!.summary,
+            occurrenceId: 'refreshing-work',
+            initialMemberKey: 'work-page:120:1',
+            source: ViewerSourceBinding(_configs[2]),
+          ),
+        ],
+        mediaState: state,
+        postQuality: PostQuality.original,
+        imageAdapter: _PageImageAdapter(),
+        imageCache: TestImageCache({}),
+      );
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(
+        harness.build(
+          theme: ThemeData(extensions: const [KurumiExtendedColorScheme()]),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final work = tester.widget<MediaGroupPage>(find.byType(MediaGroupPage));
+      final checkpoint = work.checkpoint;
+      final details = tester
+          .widgetList<PostDetailsItem<Post>>(
+            find.byType(PostDetailsItem<Post>),
+          )
+          .singleWhere(
+            (item) => (item.post!.booruData as PixivPostData).pageIndex == 1,
+          )
+          .detailsController;
+      final pager = _pageViewController(tester);
+      final transform = tester
+          .widget<PostViewerTransformationScope>(
+            find.ancestor(
+              of: find.byWidgetPredicate(
+                (widget) =>
+                    widget is PostDetailsItem<Post> &&
+                    identical(widget.detailsController, details),
+              ),
+              matching: find.byType(PostViewerTransformationScope),
+            ),
+          )
+          .controller
+          .transformationController;
+      transform.value = Matrix4.diagonal3Values(2, 2, 1)
+        ..setTranslationRaw(-100, -400, 0);
+      await tester.pumpAndSettle();
+      final matrix = transform.value.clone();
+      const popupKey = ValueKey('snapshot-fallback');
+      final popup = OverlayEntry(
+        builder: (context) => UncontrolledProviderScope(
+          container: harness.container,
+          child: ProviderScope(
+            overrides: [hasPremiumLayoutProvider.overrideWithValue(true)],
+            child: KurumiTheme(
+              data: KurumiThemeData.fromMaterial(Theme.of(context)),
+              child: PostDetailsPageViewScope(
+                controller: pager,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: DefaultFallbackBackupMoreButton<Post>(
+                    key: popupKey,
+                    controller: details,
+                    layoutConfig: const LayoutConfigs(
+                      home: null,
+                      details: null,
+                      previewDetails: [],
+                    ),
+                    authConfig: _configs[2].auth,
+                    viewerConfig: _configs[2].viewer,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      Overlay.of(tester.element(find.byType(PostDetailsPageView)))
+          .insert(popup);
+      await tester.pumpAndSettle();
+      final updated = snapshot(updated: true);
+      harness.container.read(state.notifier).state = updated;
+      await tester.pumpAndSettle();
+      final post = updated.postAt(1)!;
+      expect(details.currentPost.value, same(post));
+      expect(details.posts.single, same(post));
+      expect(
+        tester
+            .widget<CommonPostPopupMenu>(
+              find.descendant(
+                of: find.byKey(popupKey),
+                matching: find.byType(CommonPostPopupMenu),
+              ),
+            )
+            .post,
+        same(post),
+      );
+      expect(
+        tester
+            .widgetList<DefaultPostActionToolbar<Post>>(
+              find.byType(DefaultPostActionToolbar<Post>),
+            )
+            .any((toolbar) => identical(toolbar.post, post)),
+        isTrue,
+      );
+      final item = tester
+          .widgetList<PostDetailsItem<Post>>(
+            find.byType(PostDetailsItem<Post>),
+          )
+          .singleWhere((item) => identical(item.post, post));
+      expect(item.detailsController, same(details));
+      expect(item.imageUrlBuilder(post), post.originalImageUrl);
+      expect(
+        tester.widget<MediaGroupPage>(find.byType(MediaGroupPage)).checkpoint,
+        same(checkpoint),
+      );
+      expect(checkpoint.memberKey, 'work-page:120:1');
+      expect(transform.value, matrix);
+      popup.remove();
+      popup.dispose();
+      await tester.pumpAndSettle();
+      // Optional Details failure currently remains fail-closed, even with members.
+      // This is the documented capability limit, not a Pixiv-only rewrite.
+      for (final failed in [false, true]) {
+        harness.container.read(state.notifier).state = MediaGroupState(
+          access: access,
+          members: updated.members,
+          failed: failed,
+        );
+        // Pending optional metadata deliberately keeps its loading animation.
+        await tester.pump();
+        await tester.pump();
+        expect(
+          find.byType(DefaultPostActionToolbar<Post>).hitTestable(),
+          findsNothing,
+        );
+        expect(_viewerDiagnostics(tester)['selectedMediaControllers'], 0);
+      }
+      harness.container.read(state.notifier).state = updated;
+      await tester.pumpAndSettle();
+      final held = await tester.startGesture(const Offset(200, 400));
+      await held.moveBy(const Offset(0, 60));
+      await tester.pump();
+      harness.container.read(state.notifier).state = const MediaGroupState(
+        failed: true,
+      );
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await held.up();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final (size, scale) in [
+    (const Size(400, 800), 1.0),
+    (const Size(320, 844), 2.0),
+    (const Size(844, 390), 1.0),
+  ]) {
+    testWidgets(
+      'Work Pages reuse shared modes, retain holes and independent checkpoints ($size, $scale)',
+      (tester) async {
+        _mobileViewport(tester);
+        tester.view.physicalSize = size;
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final entries = <ViewerEntry>[
+          for (final occurrence in ['first', 'repeat'])
+            GroupViewerEntry(
+              summary: pixivWorkSummary(works.work(), access),
+              occurrenceId: occurrence,
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+          PostViewerEntry(
+            post: _posts[2],
+            occurrenceId: 'ordinary-post',
+            source: ViewerSourceBinding(_configs[2]),
+          ),
+        ];
+        var requests = 0;
+        final harness = _Harness(
+          posts: const [],
+          entries: entries,
+          hideOverlay: true,
+          reduceAnimations: false,
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (_) async {
+                requests++;
+                return works.work(
+                  pages: [works.page(120, 0), null, works.page(120, 2)],
+                );
+              },
+            ),
+          ),
+        );
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        final pager = _pageViewController(tester);
+        final shared = tester.state(find.byType(PostDetailsPageView));
+        expect(requests, 1);
+        expect(pager.overlay.value, isFalse);
+        final media = find.descendant(
+          of: find.byType(MediaGroupPage).first,
+          matching: find.byType(PageView),
+        );
+        await tester.drag(media, Offset(-size.width * .8, 0));
+        await tester.pumpAndSettle();
+        expect(pager.page, 0);
+        expect(find.text('Page unavailable'), findsWidgets);
+        expect(
+          tester
+              .widget<MediaGroupPage>(find.byType(MediaGroupPage).first)
+              .checkpoint
+              .memberKey,
+          'work-page:120:1',
+        );
+        // A missing original slot exposes no neighboring Page as an action target.
+        expect(
+          find.byType(DefaultPostActionToolbar<Post>).hitTestable(),
+          findsNothing,
+        );
+        await tester.drag(media, Offset(-size.width * .8, 0));
+        await tester.pumpAndSettle();
+        expect(pager.page, 0);
+        if (size.width == 400 && scale == 1) {
+          double progress() => tester
+              .widgetList<ViewerPresentationTransition>(
+                find.byType(ViewerPresentationTransition),
+              )
+              .first
+              .progress;
+          final drag = await tester.startGesture(const Offset(200, 500));
+          await drag.moveBy(const Offset(0, -200));
+          await tester.pump();
+          final held = progress();
+          expect(held, inExclusiveRange(0, 1));
+          await drag.up();
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 35));
+          expect(progress(), inExclusiveRange(held, 1));
+        } else {
+          await pager.expandToSnapPoint();
+        }
+        await tester.pumpAndSettle();
+        expect(pager.isExpanded, isTrue);
+        expect(
+          find.byType(DefaultInheritedPostActionToolbar<Post>),
+          findsWidgets,
+        );
+        final normalToolbar = find
+            .byType(DefaultPostActionToolbar<Post>)
+            .hitTestable()
+            .first;
+        final toolbarContext = tester.element(normalToolbar);
+        final toolbarPost = tester
+            .widget<DefaultPostActionToolbar<Post>>(normalToolbar)
+            .post;
+        final pageDetails = PostDetails.of<Post>(toolbarContext);
+        final item = tester
+            .widgetList<PostDetailsItem<Post>>(
+              find.byType(PostDetailsItem<Post>),
+            )
+            .singleWhere((item) => item.post == toolbarPost);
+        expect(pageDetails.controller, same(item.detailsController));
+        expect((toolbarPost.booruData as PixivPostData).pageIndex, 2);
+        final toolbarScope = ProviderScope.containerOf(
+          toolbarContext,
+          listen: false,
+        );
+        expect(toolbarScope.read(contentAccessRequiredProvider), isTrue);
+        expect(
+          toolbarScope.read(currentContentAccessKeyProvider)?.profileId,
+          _configs[2].id,
+        );
+        final configuration = PostDetailsPageConfiguration.maybeOf(
+          toolbarContext,
+        )!;
+        expect(
+          configuration.uiBuilder!.full.keys,
+          containsAll([
+            DetailsPart.toolbar,
+            DetailsPart.tags,
+            DetailsPart.fileDetails,
+          ]),
+        );
+        if (size.width == 400 && scale == 1) {
+          final work = tester
+              .widgetList<MediaGroupPage>(
+                find.byType(MediaGroupPage, skipOffstage: false),
+              )
+              .singleWhere((page) => page.entry.occurrenceId == 'first');
+          final selectedPage = work.checkpoint.memberKey;
+          expect(selectedPage, 'work-page:120:2');
+          await tester.drag(
+            find.text('File Details').hitTestable().first,
+            Offset(-size.width * .8, 0),
+          );
+          expect(
+            work.checkpoint.memberKey,
+            selectedPage,
+            reason: 'a swipe over Details must switch Works, not Work Pages',
+          );
+        } else {
+          pager.jumpToPage(1);
+        }
+        await tester.pumpAndSettle();
+        expect(pager.page, 1);
+        expect(tester.state(find.byType(PostDetailsPageView)), same(shared));
+        expect(pager.isExpanded, isTrue);
+        expect(requests, 1);
+        expect(find.text('1 / 3'), findsWidgets);
+        pager.jumpToPage(2);
+        await tester.pumpAndSettle();
+        expect(tester.state(find.byType(PostDetailsPageView)), same(shared));
+        expect(pager.isExpanded, isTrue);
+        final ordinaryItem = tester
+            .widgetList<PostDetailsItem<Post>>(
+              find.byType(PostDetailsItem<Post>),
+            )
+            .singleWhere((item) => item.post == _posts[2]);
+        expect(
+          ordinaryItem.detailsController.currentPost.value,
+          same(_posts[2]),
+        );
+        expect(ordinaryItem.detailsController.postAtPage(2), same(_posts[2]));
+        expect(ordinaryItem.detailsController.currentPage.value, 2);
+        expect(ordinaryItem.detailsController.currentSettledPage.value, 2);
+        pager.jumpToPage(0);
+        await tester.pumpAndSettle();
+        expect(find.text('3 / 3'), findsWidgets);
+        // Reading hints are independent from the normal immersive overlay.
+        if (size.width == 400 && scale == 1) {
+          final drag = await tester.startGesture(const Offset(200, 200));
+          await drag.moveBy(const Offset(0, 200));
+          await tester.pump();
+          expect(
+            tester
+                .widgetList<ViewerPresentationTransition>(
+                  find.byType(ViewerPresentationTransition),
+                )
+                .first
+                .progress,
+            inExclusiveRange(0, 1),
+          );
+          await drag.up();
+        } else {
+          await pager.resetSheet();
+        }
+        await tester.pumpAndSettle();
+        expect(pager.overlay.value, isFalse);
+        final hint = find.descendant(
+          of: find.byType(MediaGroupPageIndicator),
+          matching: find.byType(AnimatedOpacity),
+        );
+        expect(tester.widget<AnimatedOpacity>(hint).opacity, 1);
+        await tester.pump(const Duration(seconds: 3));
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(tester.widget<AnimatedOpacity>(hint).opacity, 0);
+        expect(pager.overlay.value, isFalse);
+        await tester.drag(media, Offset(size.width * .8, 0));
+        await tester.pumpAndSettle();
+        expect(find.text('2 / 3'), findsOneWidget);
+        expect(tester.widget<AnimatedOpacity>(hint).opacity, 1);
+        expect(pager.overlay.value, isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'Details on the next regular Post are ready on the first swipe',
+    (tester) async {
+      _mobileViewport(tester);
+      final harness = _Harness(posts: _posts.take(3).toList());
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        final pager = _pageViewController(tester);
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        await tester.flingFrom(
+          const Offset(200, 650),
+          const Offset(-275, 0),
+          5000,
+        );
+        await tester.pumpAndSettle();
+        expect(pager.page, 1);
+        expect(pager.isExpanded, isTrue);
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey(('viewer-details-scroll', 1))),
+            matching: find.byType(DefaultInheritedInformationSection<Post>),
+          ),
+          findsWidgets,
+          reason: 'Details must render on first arrival, not after revisiting',
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      }
+    },
+  );
+
+  testWidgets(
+    'a new Pixiv Work shows its Details before being revisited',
+    (tester) async {
+      _mobileViewport(tester);
+      final access = ContentAccessContext.profile(
+        config: _configs[2],
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final harness = _Harness(
+        posts: const [],
+        entries: [
+          for (final id in [120, 121])
+            GroupViewerEntry(
+              summary: pixivWorkSummary(
+                works.work(id: id, pageCount: 2),
+                access,
+              ),
+              occurrenceId: id,
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+        ],
+        reduceAnimations: false,
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.pixiv,
+          keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+          presentation: const PixivWorkPresentation(),
+          createSource: (_, actor) => PixivWorkSource(
+            access: actor,
+            fetchWork: (id) async => works.work(id: id, pageCount: 2),
+          ),
+        ),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        final pager = _pageViewController(tester);
+        await pager.expandToSnapPoint();
+        await tester.pumpAndSettle();
+        // Swipe the Details gutter, outside selectable commentary text.
+        await tester.flingFrom(
+          Offset(
+            4,
+            tester.getCenter(find.text('Work 120').hitTestable().first).dy,
+          ),
+          const Offset(-275, 0),
+          5000,
+        );
+        await tester.pumpAndSettle();
+        expect(pager.page, 1);
+        expect(pager.isExpanded, isTrue);
+        final targetDetails = find.descendant(
+          of: find.byKey(
+            const ValueKey(('viewer-details-scroll', 1)),
+            skipOffstage: false,
+          ),
+          matching: find.byType(
+            DefaultPostActionToolbar<Post>,
+            skipOffstage: false,
+          ),
+        );
+        expect(
+          targetDetails,
+          findsWidgets,
+          reason: 'the target Work must build Details on its first visit',
+        );
+        expect(
+          tester
+              .widget<DefaultPostActionToolbar<Post>>(targetDetails.first)
+              .post
+              .id,
+          121000,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pump();
+      }
+    },
+  );
+
+  for (final backwards in [false, true]) {
+    testWidgets(
+      'fast flings cannot skip a Work whose Page manifest is still loading, backwards=$backwards',
+      (tester) async {
+        _mobileViewport(tester);
+        final ready = Completer<void>();
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final entry = GroupViewerEntry(
+          summary: pixivWorkSummary(works.work(), access),
+          occurrenceId: 'loading-work',
+          source: ViewerSourceBinding(_configs[2]),
+          initialMemberKey: backwards ? 'work-page:120:2' : null,
+        );
+        final harness = _Harness(
+          posts: const [],
+          initialIndex: backwards ? 2 : 0,
+          hideOverlay: true,
+          reduceAnimations: false,
+          loadMedia: false,
+          entries: [
+            PostViewerEntry(
+              post: _posts[2],
+              occurrenceId: 'before',
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+            entry,
+            PostViewerEntry(
+              post: _posts[2],
+              occurrenceId: 'after',
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+          ],
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (_) async {
+                await ready.future;
+                return works.work();
+              },
+            ),
+          ),
+        );
+        try {
+          await tester.pumpWidget(harness.build());
+          await tester.pump();
+          final pager = _pageViewController(tester);
+          final offset = Offset(backwards ? 260 : -260, 0);
+          Future<void> fastSwipe() async {
+            await tester.flingFrom(const Offset(200, 40), offset, 5000);
+            // Wait for outer settlement without waiting for the pending manifest's spinner.
+            for (
+              var frame = 0;
+              frame < 80 &&
+                  pager.pageController.position.isScrollingNotifier.value;
+              frame++
+            ) {
+              await tester.pump(const Duration(milliseconds: 16));
+            }
+            await tester.pump();
+            expect(
+              pager.pageController.position.isScrollingNotifier.value,
+              isFalse,
+            );
+          }
+
+          await fastSwipe();
+          expect(pager.page, 1, reason: 'the first fling enters the Work');
+          expect(ready.isCompleted, isFalse);
+          await fastSwipe();
+          expect(
+            pager.page,
+            1,
+            reason: 'loading is not a proven first/last Page boundary',
+          );
+          ready.complete();
+          await tester.pumpAndSettle();
+          final media = tester
+              .widgetList<MediaGroupPage>(find.byType(MediaGroupPage))
+              .singleWhere(
+                (widget) => widget.entry.occurrenceId == 'loading-work',
+              );
+          expect(media.checkpoint.pages!.page, backwards ? 2 : 0);
+          await tester.flingFrom(const Offset(200, 40), offset, 5000);
+          for (
+            var frame = 0;
+            frame < 80 && media.checkpoint.memberKey != 'work-page:120:1';
+            frame++
+          ) {
+            await tester.pump(const Duration(milliseconds: 16));
+          }
+          expect(pager.page, 1);
+          expect(media.checkpoint.memberKey, 'work-page:120:1');
+          expect(
+            media.checkpoint.pages!.position.isScrollingNotifier.value,
+            isTrue,
+          );
+          // Start the next fast fling before the preceding Page has settled.
+          await tester.flingFrom(const Offset(200, 40), offset, 5000);
+          await tester.pumpAndSettle();
+          expect(pager.page, 1);
+          expect(
+            media.checkpoint.memberKey,
+            backwards ? 'work-page:120:0' : 'work-page:120:2',
+          );
+          await fastSwipe();
+          await tester.pumpAndSettle();
+          expect(
+            pager.page,
+            backwards ? 0 : 2,
+            reason: 'a real Page boundary still reaches its neighboring entry',
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          if (!ready.isCompleted) ready.complete();
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pump();
+        }
+      },
+    );
+  }
+
+  testWidgets('a Work with a failed Page manifest remains escapable', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final access = ContentAccessContext.profile(
+      config: _configs[2],
+      authEpoch: 1,
+      policyEpoch: 1,
+    );
+    final entry = GroupViewerEntry(
+      summary: pixivWorkSummary(works.work(), access),
+      occurrenceId: 'failed-work',
+      source: ViewerSourceBinding(_configs[2]),
+    );
+    final harness = _Harness(
+      posts: const [],
+      initialIndex: 1,
+      hideOverlay: true,
+      loadMedia: false,
+      entries: [
+        PostViewerEntry(
+          post: _posts[2],
+          occurrenceId: 'before',
+          source: ViewerSourceBinding(_configs[2]),
+        ),
+        entry,
+        PostViewerEntry(
+          post: _posts[2],
+          occurrenceId: 'after',
+          source: ViewerSourceBinding(_configs[2]),
+        ),
+      ],
+      mediaCapability: BooruGroupCapability(
+        engine: BooruType.pixiv,
+        keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+        presentation: const PixivWorkPresentation(),
+        createSource: (_, actor) => PixivWorkSource(
+          access: actor,
+          fetchWork: (_) async =>
+              throw StateError('fixture manifest unavailable'),
+        ),
+      ),
+    );
+    try {
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      final pager = _pageViewController(tester);
+      expect(find.text('Page unavailable'), findsWidgets);
+      await tester.flingFrom(
+        const Offset(200, 40),
+        const Offset(-260, 0),
+        5000,
+      );
+      await tester.pumpAndSettle();
+      expect(pager.page, 2);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
+    }
+  });
+
+  for (final size in [
+    const Size(400, 800),
+    const Size(320, 640),
+    const Size(844, 390),
+  ]) {
+    testWidgets(
+      'each Work Page fills its own Details frame and travels full width at $size',
+      (tester) async {
+        _mobileViewport(tester, size: size);
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final adapter = _PageImageAdapter();
+        final harness = _Harness(
+          posts: const [],
+          entries: [
+            GroupViewerEntry(
+              summary: pixivWorkSummary(works.work(), access),
+              occurrenceId: 'geometry',
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+          ],
+          imageAdapter: adapter,
+          imageCache: TestImageCache({}),
+          reduceAnimations: false,
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (_) async => works.work(),
+            ),
+          ),
+        );
+        try {
+          await tester.pumpWidget(harness.build());
+          await tester.pumpAndSettle();
+          final pager = _pageViewController(tester);
+          await pager.expandToSnapPoint();
+          await tester.pumpAndSettle();
+          Future<void> decoded(int page, Size expected) => tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => tester
+                  .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+                  .any(
+                    (media) =>
+                        media.post.id == 120000 + page &&
+                        media.contentSize == expected,
+                  ),
+              reason: 'Page $page actual geometry',
+            ),
+          );
+          await decoded(0, const Size(2, 8));
+          final mediaFrame = find.byKey(const ValueKey(('viewer-media', 0)));
+          final frame = tester.getRect(mediaFrame);
+          final workPage = tester.widget<MediaGroupPage>(
+            find.byType(MediaGroupPage),
+          );
+          expect(
+            workPage.checkpoint.pages!.position.viewportDimension,
+            closeTo(size.width, .01),
+          );
+          final drag = await tester.startGesture(frame.center);
+          await drag.moveBy(const Offset(-24, 0));
+          await drag.moveBy(Offset(-size.width * .2, 0));
+          await tester.pump();
+          final scroll = workPage.checkpoint.pages!.position;
+          expect(
+            scroll.pixels,
+            greaterThan(size.width * .15),
+            reason: 'the carousel uses unscaled full-width gesture coordinates',
+          );
+          await drag.up();
+          await tester.pumpAndSettle();
+          if (workPage.checkpoint.memberKey != 'work-page:120:1') {
+            workPage.checkpoint.pages!.jumpToPage(1);
+            await tester.pumpAndSettle();
+          }
+          await decoded(1, const Size(8, 8));
+          final image = tester
+              .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+              .firstWhere((media) => media.post.id == 120001);
+          expect(
+            image.contentSize,
+            const Size(8, 8),
+            reason: 'the cover metadata must not constrain a later Page',
+          );
+          final raw = find.descendant(
+            of: find.byWidget(image),
+            matching: find.byType(ExtendedRawImage),
+          );
+          await tester.runAsync(
+            () => pumpUntil(
+              tester,
+              () => raw.evaluate().isNotEmpty,
+              reason: 'square Page painted',
+            ),
+          );
+          final rect = tester.getRect(raw.first);
+          final expected = size.width < frame.height
+              ? size.width
+              : frame.height;
+          expect(rect.width, closeTo(expected, 1));
+          expect(rect.height, closeTo(expected, 1));
+          expect(
+            tester.getRect(mediaFrame),
+            frame,
+            reason: 'Page geometry never shrinks the carousel',
+          );
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pumpAndSettle();
+        }
+      },
+    );
+  }
+
+  for (final enabled in [false, true]) {
+    testWidgets(
+      'Work metadata and display preloading are bounded and honor automatic loading=$enabled',
+      (tester) async {
+        _mobileViewport(tester);
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final fetched = <int>[];
+        final adapter = _PageImageAdapter();
+        final harness = _Harness(
+          posts: const [],
+          initialIndex: 2,
+          loadMedia: enabled,
+          entries: [
+            for (var id = 120; id < 127; id++)
+              GroupViewerEntry(
+                summary: pixivWorkSummary(works.work(id: id), access),
+                occurrenceId: id,
+                source: ViewerSourceBinding(_configs[2]),
+              ),
+          ],
+          imageAdapter: adapter,
+          imageCache: TestImageCache({}),
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (id) async {
+                fetched.add(id);
+                return works.work(id: id);
+              },
+            ),
+          ),
+        );
+        try {
+          await tester.pumpWidget(harness.build());
+          await tester.pumpAndSettle();
+          if (enabled) {
+            await tester.runAsync(
+              () => pumpUntil(
+                tester,
+                () =>
+                    adapter.requests.any(
+                      (url) => url.endsWith('/media/121000'),
+                    ) &&
+                    adapter.requests.any(
+                      (url) => url.endsWith('/media/123000'),
+                    ) &&
+                    adapter.requests.any(
+                      (url) => url.endsWith('/media/122001'),
+                    ) &&
+                    adapter.requests.any(
+                      (url) => url.endsWith('/media/122002'),
+                    ),
+                reason: 'adjacent Work covers and next two Page display renditions before navigation',
+              ),
+            );
+            expect(fetched.toSet(), {121, 122, 123});
+            expect(
+              adapter.requests.any((url) => url.contains('/original/')),
+              isFalse,
+            );
+          } else {
+            expect(fetched.toSet(), {
+              122,
+            }, reason: 'only the foreground loads metadata');
+            expect(adapter.requests, isEmpty);
+          }
+          expect(_pageViewController(tester).page, 2);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pumpAndSettle();
+        }
+      },
+    );
+  }
+
+  testWidgets(
+    'uncropped Work preview survives metadata handoff and never displays the square thumbnail',
+    (tester) async {
+      _mobileViewport(tester);
+      final access = ContentAccessContext.profile(
+        config: _configs[2],
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final gate = Completer<void>();
+      const square = 'https://i.pximg.net/thumb/120_p0.jpg';
+      const preview = 'https://i.pximg.net/large/120_p0.jpg';
+      final adapter = ControlledImageAdapter();
+      final harness = _Harness(
+        posts: const [],
+        initialThumbnailUrl: square,
+        entries: [
+          GroupViewerEntry(
+            summary: pixivWorkSummary(works.work(), access),
+            occurrenceId: 'pending-cover',
+            source: ViewerSourceBinding(_configs[2]),
+          ),
+        ],
+        imageAdapter: adapter,
+        imageCache: TestImageCache({square: lowerPng, preview: portraitPng}),
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.pixiv,
+          keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+          presentation: const PixivWorkPresentation(),
+          createSource: (_, actor) => PixivWorkSource(
+            access: actor,
+            fetchWork: (_) async {
+              await gate.future;
+              return works.work();
+            },
+          ),
+        ),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => tester
+                .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
+                .any(
+                  (image) =>
+                      image.image?.width == 2 && image.image?.height == 8,
+                ),
+            reason: 'full-aspect preview before metadata',
+          ),
+        );
+        expect(gate.isCompleted, isFalse);
+        expect(find.byType(PostMedia<Post>), findsNothing);
+        gate.complete();
+        await tester.pumpAndSettle();
+        final media = tester.widget<PostMedia<Post>>(
+          find.byType(PostMedia<Post>).first,
+        );
+        expect(media.placeholderMediaBuilder?.call(media.post).url, preview);
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () =>
+                media.imageController?.imageInfo.value?.image.width == 2 &&
+                media.imageController?.imageInfo.value?.image.height == 8,
+            reason: 'same uncropped preview in the real Page while target remains pending',
+          ),
+        );
+        expect(
+          adapter.requests.any((request) => request.uri.toString() == square),
+          isFalse,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        if (!gate.isCompleted) gate.complete();
+        await tester.pumpWidget(const SizedBox.shrink());
+        harness.dispose();
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
+  for (final (size, direction) in [
+    (const Size(400, 800), TextDirection.ltr),
+    (const Size(844, 390), TextDirection.ltr),
+    (const Size(400, 800), TextDirection.rtl),
+  ]) {
+    testWidgets(
+      'Work media frame routes black margins to Pages and crosses entry boundaries at $size, $direction',
+      (tester) async {
+        _mobileViewport(tester, size: size);
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final entries = <ViewerEntry>[
+          PostViewerEntry(
+            post: _posts[2],
+            occurrenceId: 'before',
+            source: ViewerSourceBinding(_configs[2]),
+          ),
+          for (final id in [120, 121])
+            GroupViewerEntry(
+              summary: pixivWorkSummary(
+                works.work(id: id, pageCount: id == 121 ? 1 : 3),
+                access,
+              ),
+              occurrenceId: 'work:$id',
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+          PostViewerEntry(
+            post: _posts[2],
+            occurrenceId: 'after',
+            source: ViewerSourceBinding(_configs[2]),
+          ),
+        ];
+        final harness = _Harness(
+          posts: const [],
+          entries: entries,
+          initialIndex: 1,
+          direction: direction,
+          hideOverlay: true,
+          reduceAnimations: false,
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (id) async =>
+                  works.work(id: id, pageCount: id == 121 ? 1 : 3),
+            ),
+          ),
+        );
+        try {
+          await tester.pumpWidget(harness.build());
+          await tester.pumpAndSettle();
+          final pager = _pageViewController(tester);
+          final previousSign = direction == TextDirection.ltr ? 1.0 : -1.0;
+          Future<void> swipe(bool next) async {
+            await tester.dragFrom(
+              Offset(size.width * .5, 40),
+              Offset(
+                (next ? -previousSign : previousSign) * size.width * .7,
+                0,
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+
+          String? page(int id) => tester
+              .widgetList<MediaGroupPage>(find.byType(MediaGroupPage))
+              .firstWhere((widget) => widget.entry.occurrenceId == 'work:$id')
+              .checkpoint
+              .memberKey;
+          // Include the return from Details, where media has a smaller frame.
+          await pager.expandToSnapPoint();
+          await tester.pumpAndSettle();
+          final detailsFrame = tester.getRect(
+            find.byKey(const ValueKey(('viewer-media', 1))),
+          );
+          await tester.dragFrom(
+            Offset(8, detailsFrame.center.dy),
+            Offset(-previousSign * size.width * .7, 0),
+          );
+          await tester.pumpAndSettle();
+          expect(
+            pager.page,
+            1,
+            reason: 'Details letterboxing belongs to the media Page pager',
+          );
+          expect(page(120), 'work-page:120:1');
+          await tester.dragFrom(
+            Offset(8, detailsFrame.center.dy),
+            Offset(previousSign * size.width * .7, 0),
+          );
+          await tester.pumpAndSettle();
+          expect(pager.page, 1);
+          expect(page(120), 'work-page:120:0');
+          await pager.resetSheet();
+          await tester.pumpAndSettle();
+          await swipe(true);
+          expect(pager.page, 1);
+          expect(page(120), 'work-page:120:1');
+          await swipe(false);
+          expect(pager.page, 1);
+          expect(page(120), 'work-page:120:0');
+          final boundary = await tester.startGesture(
+            Offset(size.width * .4, 40),
+          );
+          await boundary.moveBy(Offset(previousSign * 30, 0));
+          await boundary.moveBy(Offset(previousSign * size.width * .25, 0));
+          await tester.pump();
+          expect(
+            pager.precisePage.value,
+            inExclusiveRange(0, 1),
+            reason: 'the outer entry follows the finger at a Work boundary',
+          );
+          await boundary.moveBy(Offset(previousSign * size.width * .4, 0));
+          await boundary.up();
+          await tester.pumpAndSettle();
+          expect(
+            pager.page,
+            0,
+            reason: 'outward swipe on the first Page reaches the previous Post',
+          );
+          await swipe(false);
+          expect(
+            pager.page,
+            0,
+            reason: 'the first entry has no previous neighbor',
+          );
+          await swipe(true);
+          expect(pager.page, 1);
+          await swipe(true);
+          await swipe(true);
+          expect(
+            pager.page,
+            1,
+            reason: 'arriving at the last Page does not skip a Work in the same gesture',
+          );
+          expect(page(120), 'work-page:120:2');
+          await swipe(true);
+          expect(
+            pager.page,
+            2,
+            reason: 'a fresh outward swipe reaches the next Work',
+          );
+          await swipe(true);
+          expect(
+            pager.page,
+            3,
+            reason: 'a single-image Work passes through to the following Post',
+          );
+          await swipe(true);
+          expect(pager.page, 3, reason: 'the last entry has no next neighbor');
+          await swipe(false);
+          expect(pager.page, 2);
+          await swipe(false);
+          expect(pager.page, 1);
+          expect(page(120), 'work-page:120:2');
+          await swipe(false);
+          expect(pager.page, 1);
+          expect(page(120), 'work-page:120:1');
+          if (size.width == 400 && direction == TextDirection.ltr) {
+            await tester.runAsync(
+              () => pumpUntil(
+                tester,
+                () => tester
+                    .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+                    .any(
+                      (media) =>
+                          media.post.booruData is PixivPostData &&
+                          (media.post.booruData as PixivPostData).pageIndex ==
+                              1 &&
+                          media.imageController?.loadState.value ==
+                              LoadState.completed,
+                    ),
+                reason: 'decoded current Work Page before pinch',
+              ),
+            );
+            final upper = await tester.startGesture(
+              const Offset(200, 300),
+              pointer: 21,
+            );
+            final lower = await tester.startGesture(
+              const Offset(200, 500),
+              pointer: 22,
+            );
+            await upper.moveBy(const Offset(0, -60));
+            await lower.moveBy(const Offset(0, 60));
+            await tester.pump();
+            await upper.moveBy(const Offset(0, -40));
+            await lower.moveBy(const Offset(0, 40));
+            await upper.up();
+            await lower.up();
+            await tester.pumpAndSettle();
+            expect(pager.zoom.value, isTrue);
+            expect(pager.page, 1);
+            expect(page(120), 'work-page:120:1');
+            expect(pager.isExpanded, isFalse);
+            final pinchTop = await tester.startGesture(
+              const Offset(200, 250),
+              pointer: 23,
+            );
+            final pinchBottom = await tester.startGesture(
+              const Offset(200, 550),
+              pointer: 24,
+            );
+            await pinchTop.moveBy(const Offset(0, 100));
+            await pinchBottom.moveBy(const Offset(0, -100));
+            await tester.pump();
+            await pinchTop.up();
+            await pinchBottom.up();
+            await tester.pumpAndSettle();
+            expect(pager.zoom.value, isFalse);
+            expect(pager.overlay.value, isFalse);
+            final held = await tester.startGesture(
+              const Offset(200, 40),
+              pointer: 25,
+            );
+            await held.moveBy(const Offset(-30, 0));
+            await held.moveBy(const Offset(-60, 0));
+            await tester.pump();
+            final interrupt = await tester.startGesture(
+              const Offset(200, 300),
+              pointer: 26,
+            );
+            await interrupt.up();
+            await held.up();
+            await tester.pumpAndSettle();
+            expect(pager.page, 1);
+            expect(
+              page(120),
+              'work-page:120:1',
+              reason: 'multi-touch cancels a partially dragged Page',
+            );
+          }
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pump();
+        }
+      },
+    );
+  }
 
   VisibilityDetectorController.instance.updateInterval = Duration.zero;
   testWidgets(
@@ -2884,6 +5411,42 @@ void _zoomCurrentPost(WidgetTester tester) {
   transform.value = Matrix4.diagonal3Values(2, 2, 1);
 }
 
+int _diagnosticCount(State state, String name) {
+  final properties = DiagnosticPropertiesBuilder();
+  state.debugFillProperties(properties);
+  return properties.properties
+          .singleWhere((property) => property.name == name)
+          .value!
+      as int;
+}
+
+Map<String, int> _viewerDiagnostics(WidgetTester tester) {
+  final state = tester.state(
+    find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString() == '_MixedPostDetailsView',
+    ),
+  );
+  return {
+    for (final name in [
+      'mediaCheckpoints',
+      'selectedMediaControllers',
+      'mediaControllers',
+      'mountedMediaControllers',
+    ])
+      name: _diagnosticCount(state, name),
+  };
+}
+
+bool _controllerAlive(PostDetailsController<Post> controller) {
+  try {
+    return ChangeNotifier.debugAssertNotDisposed(controller);
+    // Disposal is a debug assertion; catching it lets this test count live actors.
+    // ignore: avoid_catching_errors
+  } on FlutterError {
+    return false;
+  }
+}
+
 PostDetailsController<Post> _detailsController(WidgetTester tester) {
   final details = tester.widget<PostDetails>(find.byType(PostDetails));
   return (details.data! as PostDetailsData<Post>).controller;
@@ -2946,6 +5509,9 @@ class _Harness {
     this.entries,
     this.entrySource,
     BooruRepository? repository,
+    BooruGroupCapability? mediaCapability,
+    BooruPostPresentation? postPresentation,
+    StateProvider<MediaGroupState>? mediaState,
     bool reduceAnimations = true,
     bool hideOverlay = false,
     bool loadMedia = true,
@@ -2960,6 +5526,10 @@ class _Harness {
     ImageQuality thumbnailQuality = ImageQuality.automatic,
   }) : container = ProviderContainer(
          overrides: [
+           if (mediaState != null)
+             mediaGroupProvider.overrideWith(
+               (ref, entry) => ref.watch(mediaState),
+             ),
            miscDataStoreProvider.overrideWithValue(MemoryMiscDataStore()),
            if (router != null) routerProvider.overrideWithValue(router),
            settingsProvider.overrideWithValue(
@@ -2998,6 +5568,9 @@ class _Harness {
            ),
            booruEngineRegistryProvider.overrideWith(_createEngineRegistry),
            booruGroupCapabilityProvider.overrideWith((ref, type) {
+             if (mediaCapability != null && type == mediaCapability.engine) {
+               return mediaCapability;
+             }
              if (repository is _GalleryRepository &&
                  type == BooruType.danbooru) {
                return _galleryGroupCapability();
@@ -3007,12 +5580,13 @@ class _Harness {
                  .getGroupCapability(type);
            }),
            booruPostPresentationProvider.overrideWith((ref, request) {
-             return switch (request.data) {
-               DanbooruPostData() => DanbooruBuilder().postPresentation,
-               E621PostData() => E621Builder().postPresentation,
-               PixivPostData() => PixivBuilder().postPresentation,
-               _ => const GenericPostPresentation(),
-             };
+             return postPresentation ??
+                 switch (request.data) {
+                   DanbooruPostData() => DanbooruBuilder().postPresentation,
+                   E621PostData() => E621Builder().postPresentation,
+                   PixivPostData() => PixivBuilder().postPresentation,
+                   _ => const GenericPostPresentation(),
+                 };
            }),
            mediaUrlResolverProvider.overrideWith(
              (ref, config) => _MediaResolver(
@@ -3075,6 +5649,7 @@ class _Harness {
         container: container,
         child: BooruLocalization(
           child: MaterialApp(
+            debugShowCheckedModeBanner: false,
             theme: theme,
             builder: (context, child) =>
                 // ignore: deprecated_member_use
@@ -3552,7 +6127,10 @@ Post _post({
 );
 
 final class _Presentation implements BooruPostPresentation {
-  const _Presentation(this.name);
+  const _Presentation(this.name, {this.detailsHeight, this.commentary = false});
+
+  final double? detailsHeight;
+  final bool commentary;
 
   final String name;
 
@@ -3569,6 +6147,22 @@ final class _Presentation implements BooruPostPresentation {
     },
     full: {
       DetailsPart.toolbar: (context) => _PresentationProbe(name: name),
+      if (commentary)
+        DetailsPart.artistInfo: (context) => SliverToBoxAdapter(
+          child: ArtistSection(
+            commentary: ArtistCommentary(
+              originalTitle: 'Post ${post.id}',
+              originalDescription: 'Swipe this commentary',
+              translatedTitle: '',
+              translatedDescription: '',
+            ),
+            artistTags: const {},
+            source: post.source,
+          ),
+        ),
+      if (detailsHeight case final height?)
+        DetailsPart.tags: (context) =>
+            SliverToBoxAdapter(child: SizedBox(height: height)),
     },
   );
 }
@@ -3825,37 +6419,7 @@ Future<void> _captureViewerModes(WidgetTester tester) async {
   addTearDown(
     () => WidgetController.hitTestWarningShouldBeFatal = previousHitWarning,
   );
-  await tester.runAsync(() async {
-    final configFile = File('.dart_tool/package_config.json');
-    final packages =
-        (jsonDecode(await configFile.readAsString())
-                as Map<String, dynamic>)['packages']
-            as List;
-    final flutter = packages.cast<Map<String, dynamic>>().singleWhere(
-      (p) => p['name'] == 'flutter',
-    );
-    final sdk = configFile.absolute.uri
-        .resolve('${flutter['rootUri']}/')
-        .resolve('../../');
-    for (final font in [
-      ('Roboto', 'Roboto-Regular.ttf'),
-      ('MaterialIcons', 'MaterialIcons-Regular.otf'),
-    ]) {
-      await (FontLoader(font.$1)..addFont(
-            File.fromUri(
-              sdk.resolve('bin/cache/artifacts/material_fonts/${font.$2}'),
-            ).readAsBytes().then(ByteData.sublistView),
-          ))
-          .load();
-    }
-    await (FontLoader('packages/material_symbols_icons/MaterialSymbolsOutlined')
-          ..addFont(
-            rootBundle.load(
-              'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
-            ),
-          ))
-        .load();
-  });
+  await _loadViewerCaptureFonts(tester);
   final html = File('docs/designs/mockups/2026-11-10-unified-viewer.html')
       .readAsStringSync();
   final art = base64Decode(
@@ -4047,4 +6611,174 @@ Future<void> _captureViewerModes(WidgetTester tester) async {
     }
   }
   tester.view.reset();
+}
+
+Future<void> _loadViewerCaptureFonts(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    final configFile = File('.dart_tool/package_config.json');
+    final packages =
+        (jsonDecode(await configFile.readAsString())
+                as Map<String, dynamic>)['packages']
+            as List;
+    final flutter = packages.cast<Map<String, dynamic>>().singleWhere(
+      (p) => p['name'] == 'flutter',
+    );
+    final sdk = configFile.absolute.uri
+        .resolve('${flutter['rootUri']}/')
+        .resolve('../../');
+    for (final font in [
+      ('Roboto', 'Roboto-Regular.ttf'),
+      ('MaterialIcons', 'MaterialIcons-Regular.otf'),
+    ]) {
+      await (FontLoader(font.$1)..addFont(
+            File.fromUri(
+              sdk.resolve('bin/cache/artifacts/material_fonts/${font.$2}'),
+            ).readAsBytes().then(ByteData.sublistView),
+          ))
+          .load();
+    }
+    await (FontLoader('packages/material_symbols_icons/MaterialSymbolsOutlined')
+          ..addFont(
+            rootBundle.load(
+              'packages/material_symbols_icons/lib/fonts/MaterialSymbolsOutlined.ttf',
+            ),
+          ))
+        .load();
+  });
+}
+
+Future<void> _capturePixivWorkModes(WidgetTester tester) async {
+  await _loadViewerCaptureFonts(tester);
+  final art = base64Decode(
+    RegExp('data:image/[^;]+;base64,([A-Za-z0-9+/=]+)')
+        .firstMatch(
+          File('docs/designs/mockups/2026-11-10-unified-viewer.html')
+              .readAsStringSync(),
+        )!
+        .group(1)!,
+  );
+  final directory = Directory(_viewerCaptureDirectory)
+    ..createSync(recursive: true);
+  final access = ContentAccessContext.profile(
+    config: _configs[2],
+    authEpoch: 1,
+    policyEpoch: 1,
+  );
+  for (final (name, viewport, scale) in [
+    ('pixiv-414', const Size(414, 915), 1.0),
+    ('pixiv-320', const Size(320, 800), 2.0),
+    ('pixiv-landscape', const Size(844, 390), 1.0),
+  ]) {
+    _mobileViewport(tester, size: viewport);
+    tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+    addTearDown(tester.view.resetViewPadding);
+    final harness = _Harness(
+      posts: const [],
+      entries: [
+        GroupViewerEntry(
+          summary: pixivWorkSummary(works.work(), access),
+          occurrenceId: 'capture',
+          source: ViewerSourceBinding(_configs[2]),
+        ),
+      ],
+      hideOverlay: true,
+      darkTheme: true,
+      reduceAnimations: false,
+      imageAdapter: _TestImageAdapter(false, bytes: art),
+      imageCache: TestImageCache({}),
+      mediaCapability: BooruGroupCapability(
+        engine: BooruType.pixiv,
+        keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+        presentation: const PixivWorkPresentation(),
+        createSource: (_, actor) => PixivWorkSource(
+          access: actor,
+          fetchWork: (_) async => works.work(),
+        ),
+      ),
+    );
+    final key = GlobalKey();
+    try {
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: harness.build(
+            theme: ThemeData(
+              fontFamily: 'Roboto',
+              colorScheme: harness.container.read(colorSchemeProvider),
+            ),
+            textScale: scale,
+            padding: const EdgeInsets.only(top: 24, bottom: 24),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => tester
+              .widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>))
+              .any(
+                (media) =>
+                    media.imageController?.loadState.value ==
+                    LoadState.completed,
+              ),
+          reason: 'decoded Work Page',
+        ),
+      );
+      await tester.pumpAndSettle();
+      final pager = _pageViewController(tester);
+      Future<void> capture(String mode) async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        await tester.runAsync(() async {
+          final image = await boundary.toImage();
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          image.dispose();
+          await File('${directory.path}/flutter-$name-$mode.png')
+              .writeAsBytes(bytes!.buffer.asUint8List());
+        });
+      }
+
+      await capture('immersive');
+      pager.showAllUI();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(DefaultInheritedPostActionToolbar<Post>),
+        findsWidgets,
+      );
+      await capture('overlay');
+      await pager.expandToSnapPoint();
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(DefaultInheritedPostActionToolbar<Post>),
+        findsWidgets,
+      );
+      await capture('details');
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
+    }
+  }
+}
+
+final class _PageImageAdapter extends _TestImageAdapter {
+  _PageImageAdapter() : super(false);
+  final requests = <String>[];
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    final url = options.uri.toString();
+    requests.add(url);
+    return ResponseBody.fromBytes(
+      url.endsWith('/media/120000') ? portraitPng : targetPng,
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['image/png'],
+      },
+    );
+  }
 }

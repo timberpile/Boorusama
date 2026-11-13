@@ -14,12 +14,16 @@ abstract class PreloadStrategy {
 class PreloadStrategyOptions {
   const PreloadStrategyOptions({
     this.defaultPreloadDistance = 1,
+    this.preloadDisplayOnEntry = false,
     this.lowConfidenceBoost = 0,
     this.mediumConfidenceBoost = 1,
     this.highConfidenceBoost = 2,
   });
 
   final int defaultPreloadDistance;
+
+  /// Native Work manifests already identify safe display renditions.
+  final bool preloadDisplayOnEntry;
   final int lowConfidenceBoost;
   final int mediumConfidenceBoost;
   final int highConfidenceBoost;
@@ -69,7 +73,7 @@ class DirectionBasedPreloadStrategy extends PreloadStrategy {
   ) {
     final baseDistance = options.defaultPreloadDistance;
     final distance = switch (directionHistory.entryPattern) {
-      EntryPattern.direct => 1,
+      EntryPattern.direct => options.preloadDisplayOnEntry ? baseDistance : 1,
       EntryPattern.initial || EntryPattern.sequential => baseDistance,
       EntryPattern.exploring => math.max(1, baseDistance - 1),
     };
@@ -100,7 +104,9 @@ class DirectionBasedPreloadStrategy extends PreloadStrategy {
         // browsing or just want to view that specific post, so we conservatively
         // preload only thumbnails to minimize bandwidth usage
         final urls = switch ((directionHistory.entryPattern, media)) {
-          (EntryPattern.direct, final media?) => {media.thumbnailUrl},
+          (EntryPattern.direct, final media?)
+              when !options.preloadDisplayOnEntry =>
+            {media.thumbnailUrl},
           (_, final media?) => media.allUrls,
           _ => <String>{},
         };

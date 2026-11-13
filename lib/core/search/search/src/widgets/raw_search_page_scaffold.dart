@@ -64,7 +64,16 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.extraHeaders,
     this.itemBuilder,
     this.resultGridBuilder,
+    this.nativeResultBuilder,
   });
+
+  final Widget Function(
+    BuildContext context,
+    String query,
+    int initialPage,
+    Widget header,
+  )?
+  nativeResultBuilder;
 
   final SearchParams params;
 
@@ -382,27 +391,54 @@ class _SearchPageScaffoldState<T extends Post>
       },
       child: ValueListenableBuilder(
         valueListenable: _controller.tagString,
-        builder: (context, query, _) => PostScope(
-          // Each applied query owns its requests and pagination. Replacing this
-          // scope logically cancels old work without waiting for the server.
-          key: ValueKey(query),
-          fetcher: (page) => widget.fetcher(
-            page,
-            _controller.tagsController,
-          ),
-          pageMode: _useRoutePosition && widget.initialPage != null
-              ? PageMode.paginated
-              : null,
-          initialPage: _useRoutePosition ? widget.initialPage : null,
-          builder: (context, controller) {
-            // Hacky way to get the controller
-            _setupPostControllerListener(controller);
-            return _buildDefaultSearchResults(
-              context,
-              controller,
-            );
-          },
-        ),
+        builder: (context, query, _) => widget.nativeResultBuilder != null
+            ? Padding(
+                padding: EdgeInsets.only(
+                  bottom:
+                      ref.watch(searchBarPositionProvider) ==
+                          SearchBarPosition.bottom
+                      ? _calcSearchRegionHeight(_tagsController.value) +
+                            MediaQuery.viewPaddingOf(context).bottom
+                      : 0,
+                ),
+                child: widget.nativeResultBuilder!(
+                  context,
+                  query,
+                  _useRoutePosition ? widget.initialPage ?? 1 : 1,
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (ref.watch(searchBarPositionProvider) ==
+                          SearchBarPosition.top)
+                        _Displacement(
+                          selectionModeController: _selectionModeController,
+                        ),
+                      widget.resultHeader,
+                    ],
+                  ),
+                ),
+              )
+            : PostScope(
+                // Each applied query owns its requests and pagination. Replacing this
+                // scope logically cancels old work without waiting for the server.
+                key: ValueKey(query),
+                fetcher: (page) => widget.fetcher(
+                  page,
+                  _controller.tagsController,
+                ),
+                pageMode: _useRoutePosition && widget.initialPage != null
+                    ? PageMode.paginated
+                    : null,
+                initialPage: _useRoutePosition ? widget.initialPage : null,
+                builder: (context, controller) {
+                  // Hacky way to get the controller
+                  _setupPostControllerListener(controller);
+                  return _buildDefaultSearchResults(
+                    context,
+                    controller,
+                  );
+                },
+              ),
       ),
     );
   }

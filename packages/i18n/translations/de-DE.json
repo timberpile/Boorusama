@@ -2020,5 +2020,15 @@
       }
     },
     "choose_date": "Datum auswählen"
+  },
+  "content_viewer": {
+    "work": "Werk",
+    "pages": "Seiten",
+    "work_counter": {"one": "$n Werk", "other": "$n Werke"},
+    "page_unavailable": "Seite nicht verfügbar",
+    "download_page": "Aktuelle Seite herunterladen",
+    "download_all": "Alle Seiten herunterladen",
+    "download_progress": "$queued von $total Seiten eingereiht",
+    "download_incomplete": "Einige Seiten konnten nicht vorbereitet werden. Erneut versuchen oder die fehlenden Seiten öffnen."
   }
 }

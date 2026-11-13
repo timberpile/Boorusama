@@ -33,6 +33,9 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
     this.imageCacheManager,
     this.imageController,
     this.onRepresentationChanged,
+    this.onTerminalFailure,
+    this.contentSize,
+    this.onImageSize,
   });
 
   final BooruConfigAuth config;
@@ -43,11 +46,17 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? imageController;
   final ValueChanged<bool>? onRepresentationChanged;
+  final VoidCallback? onTerminalFailure;
+  final Size? contentSize;
+  final ValueChanged<Size>? onImageSize;
   final T post;
 
   @override
   Widget build(BuildContext context) {
     final aspectRatio =
+        (contentSize == null
+            ? null
+            : contentSize!.width / contentSize!.height) ??
         _postAspectRatio(post) ??
         mediaAspectRatioBuilder?.call(post) ??
         post.effectiveSampleAspectRatio;
@@ -68,6 +77,9 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
                     imageCacheManager: imageCacheManager,
                     imageController: imageController,
                     onRepresentationChanged: onRepresentationChanged,
+                    onTerminalFailure: onTerminalFailure,
+                    contentSize: contentSize,
+                    onImageSize: onImageSize,
                   ),
                   ..._buildNotes(ref),
                 ],
@@ -84,6 +96,9 @@ class PostDetailsImage<T extends Post> extends StatelessWidget {
             imageCacheManager: imageCacheManager,
             imageController: imageController,
             onRepresentationChanged: onRepresentationChanged,
+            onTerminalFailure: onTerminalFailure,
+            contentSize: contentSize,
+            onImageSize: onImageSize,
           );
   }
 
@@ -129,6 +144,9 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
     this.imageCacheManager,
     this.imageController,
     this.onRepresentationChanged,
+    this.onTerminalFailure,
+    this.contentSize,
+    this.onImageSize,
     this.fit,
   });
 
@@ -140,6 +158,9 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? imageController;
   final ValueChanged<bool>? onRepresentationChanged;
+  final VoidCallback? onTerminalFailure;
+  final Size? contentSize;
+  final ValueChanged<Size>? onImageSize;
   final T post;
   final BoxFit? fit;
 
@@ -149,11 +170,17 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
         ? imageUrlBuilder!(post)
         : post.thumbnailImageUrl;
     final aspectRatio =
+        (contentSize == null
+            ? null
+            : contentSize!.width / contentSize!.height) ??
         _postAspectRatio(post) ??
         mediaAspectRatioBuilder?.call(post) ??
         post.effectiveThumbnailAspectRatio;
 
     if (imageUrl.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => onTerminalFailure?.call(),
+      );
       return NullableAspectRatio(
         aspectRatio: aspectRatio,
         child: const KurumiImagePlaceholder(
@@ -183,13 +210,17 @@ class RawPostDetailsImage<T extends Post> extends ConsumerWidget {
           ? [post.sampleImageUrl]
           : const [],
       aspectRatio: aspectRatio,
-      geometryAspectRatio: post.width > 0 && post.height > 0
+      geometryAspectRatio: contentSize != null
+          ? contentSize!.width / contentSize!.height
+          : post.width > 0 && post.height > 0
           ? post.width / post.height
           : null,
       fit: fit,
       imageCacheManager: imageCacheManager,
       controller: imageController,
       onRepresentationChanged: onRepresentationChanged,
+      onTerminalFailure: onTerminalFailure,
+      onImageSize: onImageSize,
     );
 
     return KurumiHero(

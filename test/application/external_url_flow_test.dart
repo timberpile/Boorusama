@@ -64,7 +64,7 @@ void main() {
     await tester.tap(find.byType(KurumiInfoCircleIcon).first);
     await harness.settle(tester);
 
-    final sourceLogo = find.byType(ConfigAwareWebsiteLogo);
+    final sourceLogo = find.byType(ConfigAwareWebsiteLogo).hitTestable();
     expect(sourceLogo, findsOneWidget);
     await tester.tap(sourceLogo);
 

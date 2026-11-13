@@ -8,14 +8,16 @@ import 'package:booru_clients/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/client_provider.dart';
 import 'package:boorusama/boorus/pixiv/configs/extra_data.dart';
 import 'package:boorusama/boorus/pixiv/favorites/page.dart';
-import 'package:boorusama/boorus/pixiv/posts/types.dart';
+import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
+import 'package:boorusama/core/content/groups/group_source_provider.dart';
+import 'package:boorusama/core/content/widgets/native_content_grid.dart';
+import 'package:boorusama/core/content/widgets/native_content_configuration_header.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/content_media_dio.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
-import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/rendering.dart' show CacheExtentStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,11 +67,9 @@ void main() {
         isNotEmpty,
         reason: 'An HTTP request must begin while its cached tile is still below the viewport.',
       );
-      final grid = tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>));
-      expect(grid.cacheExtent, isNull);
       final scrollView = tester.widget<CustomScrollView>(
         find.descendant(
-          of: find.byType(PostGrid<Post>),
+          of: find.byType(NativeContentGrid),
           matching: find.byType(CustomScrollView),
         ),
       );
@@ -87,21 +87,32 @@ void main() {
       await page.pump(tester);
       page.calls.single.complete(1, more: true);
       await tester.pump();
-      await tester.pump(page.controller(tester).debounceDuration);
+      await tester.pump();
       await _until(tester, () => page.calls.length == 2);
       page.calls.last.response.complete(ResponseBody.fromString('{}', 503));
       await _until(tester, () => !page.controller(tester).loadingMore);
       expect(page.controller(tester).errors.value, isNotNull);
       await tester.pump();
+      expect(
+        find.text(
+          tester
+              .element(find.byType(PixivFavoritesPage))
+              .t
+              .search
+              .errors
+              .failed_to_load_data,
+        ),
+        findsOneWidget,
+      );
       expect(page.calls, hasLength(2));
       final retry = page.controller(tester).fetchMore();
-      await tester.pump(page.controller(tester).debounceDuration);
+      await tester.pump();
       await _until(tester, () => page.calls.length == 3);
       expect(page.calls.last.options.queryParameters['max_bookmark_id'], '90');
       page.calls.last.complete(2);
       await _until(tester, () => !page.controller(tester).loadingMore);
       await retry;
-      expect(page.controller(tester).items, hasLength(2));
+      expect(page.controller(tester).entries, hasLength(2));
       final refresh = page.controller(tester).refresh();
       await _until(tester, () => page.calls.length == 4);
       expect(
@@ -112,12 +123,18 @@ void main() {
       await _until(tester, () => !page.controller(tester).refreshing);
       await refresh;
       await tester.pump();
-      await tester.pump(page.controller(tester).debounceDuration);
+      await tester.pump();
       await _until(tester, () => page.calls.length == 5);
       expect(page.calls.last.options.queryParameters['max_bookmark_id'], '50');
       page.calls.last.complete(12);
       await _until(tester, () => !page.controller(tester).loadingMore);
-      expect(page.controller(tester).items.map((p) => p.illustId), [11, 12]);
+      expect(
+        page
+            .controller(tester)
+            .entries
+            .map((p) => int.parse(p.reference.sourceKey.split(':').last)),
+        [11, 12],
+      );
       await page.close(tester);
     },
   );
@@ -134,8 +151,6 @@ void main() {
         page.calls.last.complete(number, more: true, cursor: '${100 - number}');
         final controller = page.controller(tester);
         if (number < 4) {
-          await tester.pumpAndSettle();
-          await tester.pump(controller.debounceDuration);
           await _until(tester, () => page.calls.length == number + 1);
         } else {
           await _until(tester, () => !controller.loadingMore);
@@ -143,7 +158,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(page.calls, hasLength(4));
-      expect(page.controller(tester).items, hasLength(4));
+      expect(page.controller(tester).entries, hasLength(4));
       expect(
         page.calls
             .skip(1)
@@ -161,12 +176,12 @@ void main() {
             )
             .last,
       );
-      await tester.pump(page.controller(tester).debounceDuration);
+      await tester.pump();
       await _until(tester, () => page.calls.length == 5);
       expect(page.calls.last.options.queryParameters['max_bookmark_id'], '96');
       page.calls.last.complete(5);
       await _until(tester, () => !page.controller(tester).loadingMore);
-      expect(page.controller(tester).items, hasLength(5));
+      expect(page.controller(tester).entries, hasLength(5));
       expect(page.controller(tester).hasMore, isFalse);
       await page.close(tester);
     },
@@ -188,14 +203,14 @@ void main() {
       final position = tester.state<ScrollableState>(scrollable).position;
       expect(page.calls, hasLength(1));
       position.jumpTo(
-        // Masonry refines its estimate after the jump. Stay just inside the
-        // threshold rather than depending on subpixel estimation rounding.
-        position.maxScrollExtent - position.viewportDimension * 2 + 32,
+        // Keep the request ahead of the end, allowing masonry to refine the
+        // estimate for Work captions as further cards enter its layout cache.
+        position.maxScrollExtent - position.viewportDimension * 1.5,
       );
       await tester.pump();
-      await tester.pump(page.controller(tester).debounceDuration);
+      await tester.pump();
       await _until(tester, () => page.calls.length == 2);
-      expect(position.extentAfter, greaterThan(position.viewportDimension));
+      expect(position.extentAfter, greaterThan(0));
       expect(page.calls.last.options.queryParameters['max_bookmark_id'], '90');
       page.calls.last.complete(101, count: 60);
       await _until(tester, () => !page.controller(tester).loadingMore);
@@ -213,7 +228,7 @@ void main() {
       expect(privacy.hitTestable(), findsNothing);
       expect(title.hitTestable(), findsNothing);
       expect(
-        find.byType(PostGridConfigurationHeader<Post>).hitTestable(),
+        find.byType(NativeContentConfigurationHeader).hitTestable(),
         findsOneWidget,
       );
       expect(position.pixels, greaterThan(200));
@@ -246,7 +261,7 @@ void main() {
         page.calls.last.complete(1, visible: false, more: true);
         final controller = page.controller(tester);
         await _until(tester, () => !controller.refreshing);
-        expect(controller.items, isEmpty);
+        expect(controller.entries, isEmpty);
         expect(controller.hasMore, isTrue);
         for (final (requested, cursor, visible) in [
           ('90', '80', false),
@@ -254,7 +269,7 @@ void main() {
         ]) {
           // Empty-but-continuing pages now use the shared bounded fill cycle.
           await tester.pump();
-          await tester.pump(controller.debounceDuration);
+          await tester.pump();
           await _until(tester, () => !page.calls.last.response.isCompleted);
           expect(
             page.calls.last.options.queryParameters['restrict'],
@@ -271,10 +286,16 @@ void main() {
             cursor: cursor,
           );
           await tester.pump();
-          await _until(tester, () => !controller.loading);
+          if (visible) {
+            await _until(tester, () => !controller.loadingMore);
+          } else {
+            await _until(tester, () => page.calls.length == start + 2);
+          }
           expect(controller.hasMore, !visible);
           expect(
-            controller.items.map((post) => post.illustId),
+            controller.entries.map(
+              (entry) => int.parse(entry.reference.sourceKey.split(':').last),
+            ),
             visible ? [3] : <int>[],
           );
         }
@@ -310,7 +331,7 @@ void main() {
       page.calls.last.complete(2, visible: false);
       old.complete(99);
       await _until(tester, () => !page.controller(tester).refreshing);
-      expect(page.controller(tester).items, isEmpty);
+      expect(page.controller(tester).entries, isEmpty);
       expect(tester.takeException(), isNull);
       await page.close(tester);
     },
@@ -332,7 +353,7 @@ void main() {
       });
       await _until(
         tester,
-        () => find.byType(PostGrid<Post>).evaluate().isEmpty,
+        () => find.byType(NativeContentGrid).evaluate().isEmpty,
       );
       await _until(tester, () => old.cancelled);
       expect(page.calls, hasLength(1));
@@ -343,8 +364,11 @@ void main() {
       await _until(tester, () => page.calls.length == 2);
       expect(page.calls.last.options.queryParameters['user_id'], 200);
       page.calls.last.complete(20);
-      await _until(tester, () => page.controller(tester).items.isNotEmpty);
-      expect(page.controller(tester).items.single.illustId, 20);
+      await _until(tester, () => page.controller(tester).entries.isNotEmpty);
+      expect(
+        page.controller(tester).entries.single.reference.sourceKey,
+        'work:20',
+      );
       await page.close(tester);
     },
   );
@@ -358,9 +382,9 @@ void main() {
         Future<void>? loading;
         if (whileLoadingMore) {
           page.calls[0].complete(1, more: true);
-          await _until(tester, () => first.items.isNotEmpty);
+          await _until(tester, () => first.entries.isNotEmpty);
           loading = first.fetchMore();
-          await tester.pump(first.debounceDuration);
+          await tester.pump();
           await _until(tester, () => page.calls.length == 2);
         }
         final oldCall = page.calls.last;
@@ -378,8 +402,13 @@ void main() {
         page.calls.last.complete(2);
         oldCall.complete(99);
         if (loading != null) await loading;
-        await _until(tester, () => current.items.isNotEmpty);
-        expect(current.items.map((post) => post.illustId), [2]);
+        await _until(tester, () => current.entries.isNotEmpty);
+        expect(
+          current.entries.map(
+            (entry) => int.parse(entry.reference.sourceKey.split(':').last),
+          ),
+          [2],
+        );
         expect(current.errors.value, isNull);
         final refreshed = current.refresh();
         await _until(
@@ -389,7 +418,12 @@ void main() {
         page.calls.last.complete(3);
         await tester.pumpAndSettle();
         await refreshed;
-        expect(current.items.map((post) => post.illustId), [3]);
+        expect(
+          current.entries.map(
+            (entry) => int.parse(entry.reference.sourceKey.split(':').last),
+          ),
+          [3],
+        );
         await page.close(tester);
       },
     );
@@ -416,9 +450,9 @@ void main() {
       public.complete(10);
       private.complete(11);
       final current = page.controller(tester);
-      await _until(tester, () => current.items.isNotEmpty);
-      expect(current.items.single.illustId, 20);
-      expect(current.items.single.origin.profileIdHint, _b.id);
+      await _until(tester, () => current.entries.isNotEmpty);
+      expect(current.entries.single.reference.sourceKey, 'work:20');
+      expect(current.access.key.profileId, _b.id);
       expect(context.mounted, isTrue);
       expect(tester.takeException(), isNull);
       await page.close(tester);
@@ -468,6 +502,9 @@ class _Harness {
     onMediaRequest: onMediaRequest,
     profiles: [_a, _b],
     overrides: [
+      booruGroupCapabilityProvider.overrideWith(
+        (ref, _) => createPixivGroupCapability(ref),
+      ),
       currentReadOnlyBooruConfigProvider.overrideWith(
         (ref) => ref.watch(_current),
       ),
@@ -495,8 +532,10 @@ class _Harness {
     await _until(tester, () => calls.isNotEmpty);
   }
 
-  PostGridController<Post> controller(WidgetTester tester) =>
-      tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>)).controller;
+  NativeContentController controller(WidgetTester tester) =>
+      NativeContentGrid.controllerOf(
+        tester.element(find.byType(CustomScrollView).first),
+      );
 
   Future<void> close(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox.shrink());

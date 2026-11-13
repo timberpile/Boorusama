@@ -64,7 +64,14 @@ class PostPagePresentationScope extends ConsumerWidget {
         ? null
         : ref.watch(viewerSourceAccessProvider(binding));
     final presentation = post == null ? null : _resolve(ref, access);
-    final config = presentation?.effectiveConfig ?? BooruConfig.empty;
+    // A Group already has a captured source before its first Post resolves.
+    // Preserve that profile's ProviderScope while metadata is loading: moving
+    // from an empty scope to the real profile can momentarily revoke a
+    // previously decoded neighbor image during outer page settlement.
+    final config =
+        presentation?.effectiveConfig ??
+        (groupBuilder == null ? null : access?.config) ??
+        BooruConfig.empty;
 
     return CurrentBooruConfigScope(
       config: config,

@@ -4,7 +4,7 @@ import 'package:kurumi/material.dart';
 
 import '../../../../navigation/destination_activity.dart';
 import '../types/page_mode.dart';
-import 'post_grid_controller.dart';
+import '../types/timeline_continuation_controller.dart';
 
 /// Owns automatic continuation for one post timeline. Short and empty pages
 /// share a bounded fill cycle; scrolling or refresh starts a new cycle.
@@ -16,7 +16,7 @@ class PostGridPrefetch extends StatefulWidget {
     this.enabled = true,
     super.key,
   });
-  final PostGridController controller;
+  final TimelineContinuationController controller;
   final ScrollController scrollController;
   final Widget child;
   final bool enabled;

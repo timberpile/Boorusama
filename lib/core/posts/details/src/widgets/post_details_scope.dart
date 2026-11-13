@@ -119,6 +119,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
         immersive: !_pageViewController.overlay.value,
         closing: _routeAnimation?.status == AnimationStatus.reverse,
         bottomObstruction: _pageViewController.bottomObstruction.value,
+        routeProgress: _routeAnimation?.value ?? 1,
       );
     });
     WidgetsBinding.instance.ensureVisualUpdate();
@@ -126,14 +127,23 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
 
   void _onRouteAnimationStatus(AnimationStatus _) => _syncNavigationChrome();
 
+  void _onRouteAnimationTick() {
+    _navigationChrome?.setViewerProgressFor(
+      this,
+      _routeAnimation?.value ?? 1,
+    );
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final animation = ModalRoute.of(context)?.animation;
     if (_routeAnimation != animation) {
       _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
+      _routeAnimation?.removeListener(_onRouteAnimationTick);
       _routeAnimation = animation;
       animation?.addStatusListener(_onRouteAnimationStatus);
+      animation?.addListener(_onRouteAnimationTick);
     }
     if (DestinationScope.maybeOf(context) != null &&
         _navigationChrome == null) {
@@ -150,6 +160,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
   @override
   void dispose() {
     _routeAnimation?.removeStatusListener(_onRouteAnimationStatus);
+    _routeAnimation?.removeListener(_onRouteAnimationTick);
     final chrome = _navigationChrome;
     if (chrome != null)
       WidgetsBinding.instance.addPostFrameCallback(

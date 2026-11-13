@@ -102,12 +102,14 @@ class PostGridItem extends ConsumerWidget {
     this.presentation,
     this.additions,
     this.disablePostInteraction,
+    this.selectionEnabled = true,
   });
 
   final Post post;
   final int index;
   final bool useHero;
   final bool multiSelectEnabled;
+  final bool selectionEnabled;
   final BooruConfigAuth config;
   final ValueChanged<GridThumbnailMedia>? onTap;
   final AutoScrollOptions? autoScrollOptions;
@@ -278,13 +280,15 @@ class PostGridItem extends ConsumerWidget {
       leadingIcons: leadingIcons,
       blockOverlay: effectiveBlockOverlay,
     );
-    final selectableItem = DefaultSelectableItem(
-      index: index,
-      post: post,
-      item: item,
-      config: config,
-      indicatorSize: ref.watch(selectionIndicatorSizeProvider),
-    );
+    final selectableItem = !selectionEnabled
+        ? item
+        : DefaultSelectableItem(
+            index: index,
+            post: post,
+            item: item,
+            config: config,
+            indicatorSize: ref.watch(selectionIndicatorSizeProvider),
+          );
     final tooltip =
         resolvedAdditions.tooltipBuilder?.call(selectableItem) ??
         DefaultTagListPrevewTooltip(
@@ -297,10 +301,7 @@ class PostGridItem extends ConsumerWidget {
       enabled: useHero,
       child: KurumiHero(
         tag: postHeroTag(post),
-        child: ExplicitContentBlockOverlay(
-          rating: post.rating,
-          child: tooltip,
-        ),
+        child: ExplicitContentBlockOverlay(rating: post.rating, child: tooltip),
       ),
     );
   }

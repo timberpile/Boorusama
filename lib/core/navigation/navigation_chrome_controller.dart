@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final navigationChromeProvider =
@@ -57,8 +58,20 @@ class NavigationChromeState {
 }
 
 class NavigationChromeController extends Notifier<NavigationChromeState> {
+  // Expose route ticks without rebuilding the complete navigation shell.
+  final viewerRouteProgress = ValueNotifier<double>(0);
+  var _disposed = false;
+
   @override
-  NavigationChromeState build() => const NavigationChromeState();
+  NavigationChromeState build() {
+    ref.onDispose(() {
+      _disposed = true;
+      _viewerOwner = null;
+      viewerRouteProgress.dispose();
+    });
+    return const NavigationChromeState();
+  }
+
   void setMenuOpen(bool value) => state = state.copyWith(
     menuOpen: value,
     barHiddenFraction: 0,
@@ -95,14 +108,27 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
         selectionBottomObstruction: selected ? bottomObstruction : 0,
       );
   Object? _viewerOwner;
+
+  void setViewerProgressFor(Object owner, double progress) {
+    if (!_disposed && identical(_viewerOwner, owner)) {
+      viewerRouteProgress.value = progress.clamp(0.0, 1.0);
+    }
+  }
+
   void setViewerFor(
     Object owner, {
     required bool active,
     required bool immersive,
     bool closing = false,
     double bottomObstruction = 0,
+    double? routeProgress,
   }) {
+    // Route teardown may release its owner after the provider's final frame.
+    if (_disposed) return;
     if (active) {
+      if (!identical(_viewerOwner, owner) || routeProgress != null) {
+        viewerRouteProgress.value = (routeProgress ?? 1.0).clamp(0.0, 1.0);
+      }
       _viewerOwner = owner;
       _setViewer(
         open: true,
@@ -113,6 +139,7 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
     } else if (identical(_viewerOwner, owner)) {
       _viewerOwner = null;
       _setViewer(open: false, immersive: false);
+      viewerRouteProgress.value = 0;
     }
   }
 

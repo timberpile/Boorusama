@@ -74,6 +74,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   var _foreground = false;
   final Map<Object, String?> _feedInitializationOwners = {};
   var _disposed = false;
+  var _statusPublicationQueued = false;
   CancelToken? _runToken;
   CancelToken? _initializationToken;
   final _automaticOwners = <String, CancelToken>{};
@@ -286,7 +287,18 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   }
 
   void _publishStatus() {
-    if (_disposed) return;
+    if (_disposed || _statusPublicationQueued) return;
+    // Provider listeners may fire synchronously while a new profile's widget
+    // tree is mounting. Publishing into another provider there is forbidden
+    // by Riverpod and can invalidate unrelated widgets during their build.
+    _statusPublicationQueued = true;
+    scheduleMicrotask(() {
+      _statusPublicationQueued = false;
+      if (!_disposed) _publishStatusNow();
+    });
+  }
+
+  void _publishStatusNow() {
     final settings = ref.read(settingsProvider).searchRefresh;
     final environment = ref.read(searchRefreshEnvironmentProvider);
     final sources = ref.read(followingTopicsProvider).valueOrNull;

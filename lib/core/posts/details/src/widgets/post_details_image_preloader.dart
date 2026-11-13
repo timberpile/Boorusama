@@ -26,6 +26,9 @@ import '../../../media_preload/src/preload_metadata_queue.dart';
 import '../../../media_preload/src/viewer_preload_metadata.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
+import '../providers/media_group_provider.dart';
+import '../../../../content/groups/group_capability.dart';
+import '../../../../content/groups/group_source_provider.dart';
 import '../types/viewer_entry.dart';
 import 'post_details_page_view_scope.dart';
 
@@ -85,6 +88,7 @@ class _MixedPostDetailsImagePreloaderState
           }
         },
       );
+  final _workStates = <int, MediaGroupState>{};
   final _directionHistory = DirectionHistory();
   PostDetailsPageViewController? _pageViewController;
   int? _lastPage;
@@ -277,11 +281,32 @@ class _MixedPostDetailsImagePreloaderState
       _preloadManager.preloadWithStrategy(
         strategy: DirectionBasedPreloadStrategy(
           directionHistory: _directionHistory,
+          options: PreloadStrategyOptions(
+            preloadDisplayOnEntry: _workStates.isNotEmpty,
+          ),
         ),
         currentPage: currentPage,
         itemCount: widget.pageCount,
         mediaBuilder: (index) {
           if (diagnosticRecording) diagnosticResolved++;
+          final work = _workStates[index];
+          final workPost = work?.postAt(0);
+          if (workPost != null && work?.access?.config != null) {
+            final access = work!.access!;
+            final config = access.config!;
+            final resolver = ref.read(mediaUrlResolverProvider(config.auth));
+            final media = thumbnailOnlyViewerPreloadMedia(
+              workPost,
+              thumbnailUrl: workPost.sampleImageUrl,
+              displayUrl: resolver.resolveMediaUrl(workPost, config.viewer),
+            );
+            return media == null
+                ? null
+                : (
+                    group: (auth: config.auth, access: access.key),
+                    media: media,
+                  );
+          }
           final input = widget.postAt(index);
           if (input == null) return null;
           final config = _configAt(index, input, configs);
@@ -375,6 +400,46 @@ class _MixedPostDetailsImagePreloaderState
 
   @override
   Widget build(BuildContext context) {
+    final previousWorks = Map<int, MediaGroupState>.of(_workStates);
+    _workStates.clear();
+    if (_pageViewController != null &&
+        NavigationActivity.of(context) &&
+        ref.watch(automaticMediaLoadingEnabledProvider)) {
+      // Keep only the current and immediately adjacent native Work manifests
+      // alive. They share the foreground's source/envelope and actor lifetime.
+      for (final index in [
+        _controller.page - 1,
+        _controller.page,
+        _controller.page + 1,
+      ]) {
+        final entries = widget.sequence?.entries;
+        if (entries == null || index < 0 || index >= entries.length) {
+          continue;
+        }
+        final entry = entries[index];
+        if (entry is! GroupViewerEntry || entry.source == null) {
+          continue;
+        }
+        final access = ref.watch(viewerSourceAccessProvider(entry.source!));
+        if (access == null) continue;
+        final capability = ref.watch(
+          booruGroupCapabilityProvider(entry.contentReference.engine),
+        );
+        if (capability == null ||
+            !capability.presentation.supports(entry.summary) ||
+            capability.presentation.layoutFor(entry.summary) !=
+                GroupLayout.mediaPager) {
+          continue;
+        }
+        _workStates[index] = ref.watch(mediaGroupProvider(entry));
+      }
+      if (previousWorks.length != _workStates.length ||
+          _workStates.entries.any(
+            (entry) => !identical(previousWorks[entry.key], entry.value),
+          )) {
+        _scheduleRefresh();
+      }
+    }
     if (_pageViewController != null) {
       final indices =
           DirectionBasedPreloadStrategy(directionHistory: _directionHistory)

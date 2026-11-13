@@ -45,32 +45,44 @@ class PostDetailsOverlay extends StatelessWidget {
             ),
           );
 
-          // Non-Post entries that use this overlay retain explicit Back navigation
-          // independently of media overlay hiding and animation state.
-          if (!detailsEnabled) return overlay;
+          // Non-Post entries intentionally retain Back outside dismissal,
+          // even when the ordinary media overlay is hidden.
+          if (!detailsEnabled) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: controller.freestyleMoving,
+              builder: (context, dismissing, _) =>
+                  dismissing ? const SizedBox.shrink() : overlay,
+            );
+          }
 
           return ListenableBuilder(
             listenable: Listenable.merge([
               controller.forceHideOverlay,
               controller.overlay,
+              controller.freestyleMoving,
             ]),
-            builder: (_, _) =>
-                controller.forceHideOverlay.value ||
-                    (overlayCurvedAnimation == null &&
-                        !controller.overlay.value)
-                ? const SizedBox.shrink()
-                : ExcludeFocus(
-                    excluding: !controller.overlay.value,
-                    child: overlayCurvedAnimation != null
-                        ? SlideTransition(
-                            position: Tween(
-                              begin: const Offset(0, -1),
-                              end: Offset.zero,
-                            ).animate(overlayCurvedAnimation!),
-                            child: overlay,
-                          )
-                        : overlay,
-                  ),
+            builder: (_, _) {
+              // Never reveal Back while the entire Viewer is being dismissed,
+              // including on group entries or when UI was initially hidden.
+              if (controller.freestyleMoving.value ||
+                  controller.forceHideOverlay.value ||
+                  (overlayCurvedAnimation == null &&
+                      !controller.overlay.value)) {
+                return const SizedBox.shrink();
+              }
+              return ExcludeFocus(
+                excluding: !controller.overlay.value,
+                child: overlayCurvedAnimation != null
+                    ? SlideTransition(
+                        position: Tween(
+                          begin: const Offset(0, -1),
+                          end: Offset.zero,
+                        ).animate(overlayCurvedAnimation!),
+                        child: overlay,
+                      )
+                    : overlay,
+              );
+            },
           );
         },
       ),

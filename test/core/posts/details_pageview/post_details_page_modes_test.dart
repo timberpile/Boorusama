@@ -160,6 +160,72 @@ void main() {
   }
 
   for (final fromDetails in [false, true]) {
+    for (final release in ['moving', 'slow moving', 'paused', 'reversed']) {
+      testWidgets(
+        'mode release follows $release intent after a short drag, Details=$fromDetails',
+        (tester) async {
+          final controller = await mount(
+            tester,
+            reduceMotion: false,
+            hideOverlay: true,
+          );
+          if (fromDetails) {
+            await controller.expandToSnapPoint();
+            await tester.pumpAndSettle();
+          }
+          final direction = fromDetails ? 1.0 : -1.0;
+          final gesture = await tester.startGesture(
+            Offset(200, fromDetails ? 200 : 500),
+          );
+          var time = 0;
+          for (
+            var step = 0;
+            step <
+                (release == 'slow moving'
+                    ? 24
+                    : release == 'reversed'
+                    ? 6
+                    : 3);
+            step++
+          ) {
+            time += 16;
+            await gesture.moveBy(
+              Offset(
+                0,
+                direction *
+                    (release == 'slow moving'
+                        ? 1
+                        : release == 'reversed'
+                        ? 30
+                        : 12),
+              ),
+              timeStamp: Duration(milliseconds: time),
+            );
+            await tester.pump();
+          }
+          if (release == 'reversed') {
+            for (var step = 0; step < 3; step++) {
+              time += 16;
+              await gesture.moveBy(
+                Offset(0, -direction * 25),
+                timeStamp: Duration(milliseconds: time),
+              );
+              await tester.pump();
+            }
+          }
+          if (release == 'paused') time += 200;
+          await gesture.up(timeStamp: Duration(milliseconds: time + 16));
+          await tester.pumpAndSettle();
+          expect(
+            controller.isExpanded,
+            release.endsWith('moving') ? !fromDetails : fromDetails,
+          );
+        },
+      );
+    }
+  }
+
+  for (final fromDetails in [false, true]) {
     testWidgets(
       'near-end release still has a visible snap animation, Details=$fromDetails',
       (tester) async {
@@ -604,7 +670,7 @@ void main() {
   }
 
   testWidgets(
-    'Details restores an occurrence scroll checkpoint after distant navigation',
+    'Details restores nearby scroll checkpoints and evicts distant ones',
     (tester) async {
       final controller = await mount(tester);
       await controller.expandToSnapPoint();
@@ -616,6 +682,19 @@ void main() {
           .controller!;
       scroll.jumpTo(650);
       await tester.pump();
+      controller.jumpToPage(2);
+      await tester.pumpAndSettle();
+      controller.jumpToPage(0);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<CustomScrollView>(
+              find.byKey(const ValueKey(('viewer-details-scroll', 0))),
+            )
+            .controller!
+            .offset,
+        650,
+      );
       controller.jumpToPage(6);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('art-0')), findsNothing);
@@ -626,7 +705,7 @@ void main() {
             find.byKey(const ValueKey(('viewer-details-scroll', 0))),
           )
           .controller!;
-      expect(restored.offset, 650);
+      expect(restored.offset, 0);
       expect(controller.isExpanded, isTrue);
     },
   );

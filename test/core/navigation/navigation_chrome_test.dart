@@ -177,7 +177,30 @@ void main() {
         final barState = width < 1000 ? tester.state(bar) : null;
         chrome.setViewerFor(owner, active: true, immersive: false);
         await tester.pumpAndSettle();
-        expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
+        expect(
+          find.byKey(const Key('nav-shortcut-browse')),
+          width < 1000 ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byKey(const Key('nav-shortcut-browse')).hitTestable(),
+          findsNothing,
+        );
+        if (width < 1000 && !hiddenByScroll) {
+          chrome.setViewerProgressFor(owner, 0.25);
+          await tester.pump();
+          expect(
+            tester.widget<AnimatedSlide>(bar).offset.dy,
+            closeTo(Curves.easeOutCubic.transform(0.25), 0.001),
+          );
+          chrome.setViewerProgressFor(owner, 0.75);
+          await tester.pump();
+          expect(
+            tester.widget<AnimatedSlide>(bar).offset.dy,
+            closeTo(Curves.easeOutCubic.transform(0.75), 0.001),
+          );
+          chrome.setViewerProgressFor(owner, 1);
+          await tester.pump();
+        }
         final pageContext = tester.element(find.text(following.toStorageKey()));
         expect(MediaQuery.paddingOf(pageContext).bottom, 24);
         expect(MediaQuery.viewPaddingOf(pageContext).bottom, 24);
@@ -187,6 +210,7 @@ void main() {
           immersive: false,
           closing: true,
         );
+        chrome.setViewerProgressFor(owner, 0.5);
         await tester.pump();
         if (width < 1000) {
           expect(tester.state(bar), same(barState));
@@ -200,15 +224,21 @@ void main() {
               .translation;
           expect(
             translation(),
-            hiddenByScroll ? const Offset(0, 1) : Offset.zero,
+            hiddenByScroll
+                ? const Offset(0, 1)
+                : Offset(0, Curves.easeOutCubic.transform(0.5)),
           );
         }
         // The viewer still owns layout clearance during its reverse transition.
         expect(scope.read(navigationChromeProvider).viewerOpen, isTrue);
         expect(MediaQuery.paddingOf(pageContext).bottom, 24);
+        chrome.setViewerProgressFor(owner, 1);
         chrome.setViewerFor(owner, active: true, immersive: false);
         await tester.pump();
-        expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
+        expect(
+          find.byKey(const Key('nav-shortcut-browse')),
+          width < 1000 ? findsOneWidget : findsNothing,
+        );
         chrome.setViewerFor(owner, active: false, immersive: false);
         await tester.pump();
         await tester.pumpAndSettle();

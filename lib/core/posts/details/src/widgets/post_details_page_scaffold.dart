@@ -2,6 +2,7 @@ import '../../../../navigation/destination_activity.dart';
 
 // Flutter imports:
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show IntProperty;
 
 // Package imports:
 import 'package:foundation/performance.dart';
@@ -55,6 +56,10 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     required this.postGestureHandlerBuilder,
     required this.uiBuilder,
     this.sequence,
+    this.hasMediaPager,
+    this.mediaNavigationBuilder,
+    this.pagePostBuilder,
+    this.pageIndicatorBuilder,
     this.pageWrapperBuilder,
     super.key,
     this.onExpanded,
@@ -74,6 +79,12 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final void Function()? onExpanded;
   final PostDetailsController<T>? controller;
   final ViewerEntrySequence? sequence;
+  final bool Function(int)? hasMediaPager;
+  final MediaPageNavigation? Function(int)? mediaNavigationBuilder;
+
+  /// The selected real Post in a media-pager entry; never a synthetic Group Post.
+  final Post? Function(int)? pagePostBuilder;
+  final Widget? Function(int)? pageIndicatorBuilder;
   final Widget Function(BuildContext, int, Widget)? pageWrapperBuilder;
   final PostDetailsUIBuilder? uiBuilder;
   final Set<DetailsPart>? preferredParts;
@@ -103,11 +114,22 @@ class _PostDetailPageScaffoldState<T extends Post>
     extends ConsumerState<PostDetailsPageScaffold<T>> {
   List<T> get _posts => widget.posts;
   int get _pageCount => widget.sequence?.entries.length ?? _posts.length;
-  Post? _postAt(int page) => widget.sequence == null
+  Post? _directPostAt(int page) => widget.sequence == null
       ? _posts.elementAtOrNull(page)
       : widget.sequence!.postAt(page);
+  Post? _postAt(int page) =>
+      _directPostAt(page) ?? widget.pagePostBuilder?.call(page);
   bool get _isPostPage => _postAt(_controller.page) != null;
   final _transformCheckpoints = <Object, Matrix4>{};
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(
+      IntProperty('transformCheckpoints', _transformCheckpoints.length),
+    );
+  }
+
   Object _occurrenceKey(int index) =>
       widget.sequence?.entries[index].occurrenceId ??
       (postViewerIdentity(_postAt(index)!), index);
@@ -144,9 +166,11 @@ class _PostDetailPageScaffoldState<T extends Post>
     if (identical(_pageViewController, controller)) return;
 
     _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
+    _pageViewController?.currentPage.removeListener(_pruneTransformCheckpoints);
     _volumeKeyPageNavigator?.dispose();
     _pageViewController = controller;
     controller.precisePage.addListener(_onPrecisePageChanged);
+    controller.currentPage.addListener(_pruneTransformCheckpoints);
 
     _volumeKeyPageNavigator = VolumeKeyPageNavigator(
       pageViewController: controller,
@@ -166,6 +190,19 @@ class _PostDetailPageScaffoldState<T extends Post>
         _isVideoPlayingChanged,
       );
       widget.controller?.isVideoPlaying.addListener(_isVideoPlayingChanged);
+      final controller = widget.controller;
+      // A media Page and an ordinary Post share this frame but have separate
+      // controllers. A settled outer pager will not emit another page event.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !identical(widget.controller, controller)) return;
+        final page = _controller.page;
+        controller?.setPage(page);
+        controller?.updateCurrentPost(page);
+        if (_controller.precisePage.value == page.toDouble()) {
+          controller?.onPageSettled(page);
+        }
+        controller?.setNavigationActive(visibilityNotifier.value);
+      });
     }
   }
 
@@ -174,9 +211,15 @@ class _PostDetailPageScaffoldState<T extends Post>
     _volumeKeyPageNavigator?.dispose();
     widget.controller?.isVideoPlaying.removeListener(_isVideoPlayingChanged);
     _pageViewController?.precisePage.removeListener(_onPrecisePageChanged);
+    _pageViewController?.currentPage.removeListener(_pruneTransformCheckpoints);
     visibilityNotifier.dispose();
 
     super.dispose();
+  }
+
+  void _pruneTransformCheckpoints() {
+    final retained = _controller.retainedStatePages.map(_occurrenceKey).toSet();
+    _transformCheckpoints.removeWhere((key, _) => !retained.contains(key));
   }
 
   void _handleMediaKey(VoidCallback action) {
@@ -218,11 +261,14 @@ class _PostDetailPageScaffoldState<T extends Post>
           final page = precisePage.round();
           final distance = (page - precisePage).abs();
 
-          if (distance <= 0.25) {
+          // The selected presentation changes only when the outer pager has
+          // committed this page. A precise-position notification can otherwise
+          // update the Post controller before the rest of the Viewer tree.
+          final scrolling =
+              _controller.pageController.hasClients &&
+              _controller.pageController.position.isScrollingNotifier.value;
+          if (!scrolling && distance == 0 && page == _controller.page) {
             widget.controller?.updateCurrentPost(page);
-          }
-
-          if (distance == 0) {
             _onPageSettled(page);
           }
         }
@@ -376,6 +422,8 @@ class _PostDetailPageScaffoldState<T extends Post>
           final post = _postAt(page);
 
           widget.controller?.setPage(page);
+          widget.controller?.updateCurrentPost(page);
+          widget.controller?.onPageSettled(page);
 
           _isInitPage.value = false;
           widget.onPageChanged?.call(page);
@@ -401,14 +449,20 @@ class _PostDetailPageScaffoldState<T extends Post>
           widget.controller?.onExit();
         },
         itemCount: _pageCount,
-        detailsEnabled: _isPostPage,
+        mediaNavigationBuilder: widget.mediaNavigationBuilder,
+        detailsEnabled:
+            _isPostPage ||
+            (widget.hasMediaPager?.call(_controller.page) ?? false),
         overlayEnabled:
+            (widget.hasMediaPager?.call(_controller.page) ?? false) ||
             !(widget
                     .sequence
                     ?.entries[_controller.page]
                     .usesContentNavigationHeader ??
                 false),
-        isPostPage: (index) => _postAt(index) != null,
+        isPostPage: (index) =>
+            _postAt(index) != null ||
+            (widget.hasMediaPager?.call(index) ?? false),
         leftActions: [
           if (widget.controller?.dislclaimer != null)
             KurumiCircularIconButton(
@@ -449,10 +503,12 @@ class _PostDetailPageScaffoldState<T extends Post>
             ),
           );
           final post = _postAt(index);
-          if (post != null && widget.enableViewerTransformations) {
+          if (_directPostAt(index) != null &&
+              widget.enableViewerTransformations) {
             child = PostViewerOccurrence(
               key: ValueKey(_occurrenceKey(index)),
               checkpoints: _transformCheckpoints,
+              retainCheckpoint: () => _controller.retainsStateFor(index),
               occurrence: _occurrenceKey(index),
               child: child,
             );
@@ -482,13 +538,14 @@ class _PostDetailPageScaffoldState<T extends Post>
               SliverToBoxAdapter(
                 child: PostDetailsVideoControlsMobile(
                   pageIndex: index,
-                  controller: widget.controller!,
+                  controller: PostDetails.of<Post>(context).controller,
                 ),
               ),
             ...buildPostDetailsInfoSlivers(
               context,
               uiBuilder: ui,
               preferredParts:
+                  page?.preferredParts ??
                   widget.preferredParts ??
                   getLayoutParsedParts(
                     details: (page == null ? widget.layoutConfig : page.layout)
@@ -497,7 +554,8 @@ class _PostDetailPageScaffoldState<T extends Post>
                   ) ??
                   ui?.buildableFullParts ??
                   <DetailsPart>{},
-              canCustomize: ui != null && canCustomize,
+              canCustomize:
+                  ui != null && canCustomize && _postAt(index) != null,
             ),
           ];
         },
@@ -513,6 +571,9 @@ class _PostDetailPageScaffoldState<T extends Post>
           child: Stack(
             children: [
               child,
+              if (widget.pageIndicatorBuilder?.call(_controller.page)
+                  case final indicator?)
+                Positioned.fill(child: indicator),
               if (widget.viewerWarning case final warning?)
                 Align(
                   alignment: Alignment.topCenter,
@@ -523,7 +584,8 @@ class _PostDetailPageScaffoldState<T extends Post>
         ),
         itemBuilder: (context, index) {
           final child = widget.itemBuilder(context, index);
-          if (!widget.enableViewerTransformations || _postAt(index) == null) {
+          if (!widget.enableViewerTransformations ||
+              _directPostAt(index) == null) {
             return child;
           }
 
@@ -618,12 +680,12 @@ class _PostDetailPageScaffoldState<T extends Post>
               child: context.isLargeScreen
                   ? PostDetailsVideoControlsDesktop(
                       pageIndex: pageIndex,
-                      controller: widget.controller!,
+                      controller: PostDetails.of<Post>(context).controller,
                       pageViewController: _controller,
                     )
                   : PostDetailsVideoControlsMobile(
                       pageIndex: pageIndex,
-                      controller: widget.controller!,
+                      controller: PostDetails.of<Post>(context).controller,
                     ),
             ),
           ),
@@ -714,13 +776,17 @@ class PostDetailsPageConfiguration extends InheritedWidget {
     required this.uiBuilder,
     required this.layout,
     required super.child,
+    this.preferredParts,
     super.key,
   });
   final PostDetailsUIBuilder? uiBuilder;
   final LayoutConfigs? layout;
+  final Set<DetailsPart>? preferredParts;
   static PostDetailsPageConfiguration? maybeOf(BuildContext context) => context
       .dependOnInheritedWidgetOfExactType<PostDetailsPageConfiguration>();
   @override
   bool updateShouldNotify(PostDetailsPageConfiguration oldWidget) =>
-      uiBuilder != oldWidget.uiBuilder || layout != oldWidget.layout;
+      uiBuilder != oldWidget.uiBuilder ||
+      layout != oldWidget.layout ||
+      preferredParts != oldWidget.preferredParts;
 }

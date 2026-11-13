@@ -77,58 +77,69 @@ typedef ContentPreloadRequest = ({
 
 /// Source-bound preload work owns a subscription only for its bounded window.
 final contentPreloadManagerProvider = Provider.autoDispose
-    .family<PreloadManager, ContentPreloadRequest>((ref, request) {
-      final context = ref.watch(contentAccessContextProvider(request.access));
-      final delegate = ref.watch(defaultImageCacheManagerProvider);
-      final cache = ref.watch(
-        contentMediaCacheManagerProvider((
-          manager: delegate,
-          access: request.access,
-        )),
-      );
-      final valid = context != null && context.config?.auth == request.auth;
-      final publicScope = request.auth.anonymousReadScope;
-      final dio = valid
-          ? ref.watch(contentMediaDioProvider(request.access))
-          : null;
+    .family<PreloadManager, ContentPreloadRequest>(_createContentPreloader);
 
-      final headers = valid
-          ? ref.watch(httpHeadersProvider(request.auth))
-          : const <String, String>{};
-      final network = ref.watch(networkSettingsProvider(request.auth));
-      bool current() =>
-          valid &&
-          (publicScope?.isCurrent ?? true) &&
-          ref.read(contentAccessContextProvider(request.access))?.key ==
-              request.access;
-      final manager = PreloadManager(
-        isEnabled: () =>
-            current() && ref.read(automaticMediaLoadingEnabledProvider),
-        preloader: (url, token) async {
-          if (!current()) return;
-          final uri = Uri.tryParse(url);
-          if (publicScope != null &&
-              (uri == null || !publicScope.source.allowsMedia(uri)))
-            return;
-          final media = network.resolveMedia(
-            url,
-            headers: headers,
-            sourceUrl: request.auth.url,
-          );
-          await ImagePreloader(
-            cacheManager: cache,
-            dio: dio!,
-          ).preloadImage(
-            media.url,
-            headers: media.headers,
-            cancelToken: token,
-            propagateErrors: true,
-          );
-        },
+/// Independent viewport ownership prevents one Work from cancelling another
+/// occurrence's speculative requests while both share the existing HTTP/cache.
+final contentOccurrencePreloadManagerProvider = Provider.autoDispose
+    .family<
+      PreloadManager,
+      ({ContentPreloadRequest source, Object occurrence})
+    >(
+      (ref, request) => _createContentPreloader(ref, request.source),
+    );
+
+PreloadManager _createContentPreloader(Ref ref, ContentPreloadRequest request) {
+  final context = ref.watch(contentAccessContextProvider(request.access));
+  final delegate = ref.watch(defaultImageCacheManagerProvider);
+  final cache = ref.watch(
+    contentMediaCacheManagerProvider((
+      manager: delegate,
+      access: request.access,
+    )),
+  );
+  final valid = context != null && context.config?.auth == request.auth;
+  final publicScope = request.auth.anonymousReadScope;
+  final dio = valid ? ref.watch(contentMediaDioProvider(request.access)) : null;
+
+  final headers = valid
+      ? ref.watch(httpHeadersProvider(request.auth))
+      : const <String, String>{};
+  final network = ref.watch(networkSettingsProvider(request.auth));
+  bool current() =>
+      valid &&
+      (publicScope?.isCurrent ?? true) &&
+      ref.read(contentAccessContextProvider(request.access))?.key ==
+          request.access;
+  final manager = PreloadManager(
+    isEnabled: () =>
+        current() && ref.read(automaticMediaLoadingEnabledProvider),
+    preloader: (url, token) async {
+      if (!current()) return;
+      final uri = Uri.tryParse(url);
+      if (publicScope != null &&
+          (uri == null || !publicScope.source.allowsMedia(uri))) {
+        return;
+      }
+      final media = network.resolveMedia(
+        url,
+        headers: headers,
+        sourceUrl: request.auth.url,
       );
-      ref.listen(automaticMediaLoadingEnabledProvider, (_, enabled) {
-        if (!enabled) manager.cancelAll();
-      });
-      ref.onDispose(manager.dispose);
-      return manager;
-    });
+      await ImagePreloader(
+        cacheManager: cache,
+        dio: dio!,
+      ).preloadImage(
+        media.url,
+        headers: media.headers,
+        cancelToken: token,
+        propagateErrors: true,
+      );
+    },
+  );
+  ref.listen(automaticMediaLoadingEnabledProvider, (_, enabled) {
+    if (!enabled) manager.cancelAll();
+  });
+  ref.onDispose(manager.dispose);
+  return manager;
+}

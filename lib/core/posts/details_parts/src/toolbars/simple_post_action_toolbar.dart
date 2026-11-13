@@ -95,6 +95,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
                 icon: const Icon(Icons.comment_outlined),
                 onTap: () => goToCommentPage(context, ref, post),
               ),
+            ...?PostActionToolbarScope.maybeOf(context)?.additionalButtons,
             ...buttons,
           ],
         );
@@ -162,4 +163,19 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
           : null,
     );
   }
+}
+
+/// Extends the standard action row without replacing its presentation or actions.
+class PostActionToolbarScope extends InheritedWidget {
+  const PostActionToolbarScope({
+    required this.additionalButtons,
+    required super.child,
+    super.key,
+  });
+  final List<ButtonData> additionalButtons;
+  static PostActionToolbarScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PostActionToolbarScope>();
+  @override
+  bool updateShouldNotify(PostActionToolbarScope oldWidget) =>
+      additionalButtons != oldWidget.additionalButtons;
 }

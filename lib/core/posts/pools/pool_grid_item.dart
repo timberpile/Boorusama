@@ -144,58 +144,60 @@ class PoolGridItem extends ConsumerWidget {
                     ),
                     const SizedBox(width: 4),
                   ],
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final count = _visibleCount(
-                          context,
-                          constraints.maxWidth,
-                        );
-                        return Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Semantics(
-                            container: true,
-                            label: spokenLabel,
-                            child: ExcludeSemantics(
-                              child: Container(
-                                key: const ValueKey('pool-badge'),
-                                height: 24,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xC0000000),
-                                  borderRadius: BorderRadius.all(
-                                    Radius.circular(4),
+                  if (kind != PoolGridItemKind.collection ||
+                      (total ?? displayedCount ?? 0) >= 2)
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final count = _visibleCount(
+                            context,
+                            constraints.maxWidth,
+                          );
+                          return Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Semantics(
+                              container: true,
+                              label: spokenLabel,
+                              child: ExcludeSemantics(
+                                child: Container(
+                                  key: const ValueKey('pool-badge'),
+                                  height: 24,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
                                   ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    SvgPicture.asset(
-                                      kind.iconAsset,
-                                      key: ValueKey('pool-kind-' + kind.name),
-                                      width: 16,
-                                      height: 16,
+                                  decoration: const BoxDecoration(
+                                    color: Color(0xC0000000),
+                                    borderRadius: BorderRadius.all(
+                                      Radius.circular(4),
                                     ),
-                                    if (count != null) ...[
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        count,
-                                        style: _badgeCountStyle,
-                                        maxLines: 1,
-                                        softWrap: false,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SvgPicture.asset(
+                                        kind.iconAsset,
+                                        key: ValueKey('pool-kind-' + kind.name),
+                                        width: 16,
+                                        height: 16,
                                       ),
+                                      if (count != null) ...[
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          count,
+                                          style: _badgeCountStyle,
+                                          maxLines: 1,
+                                          softWrap: false,
+                                        ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

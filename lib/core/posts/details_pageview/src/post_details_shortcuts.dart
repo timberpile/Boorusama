@@ -7,18 +7,21 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import 'post_details_page_view_controller.dart';
+import 'zoom_page_navigation_scope.dart';
 
 class PostDetailsShortcuts extends StatefulWidget {
   const PostDetailsShortcuts({
     required this.controller,
     required this.isLargeScreen,
     required this.child,
+    this.mediaNavigation,
     super.key,
   });
 
   final PostDetailsPageViewController controller;
   final bool isLargeScreen;
   final Widget child;
+  final MediaPageNavigation? Function()? mediaNavigation;
 
   @override
   State<PostDetailsShortcuts> createState() => _PostDetailsShortcutsState();
@@ -47,6 +50,19 @@ class _PostDetailsShortcutsState extends State<PostDetailsShortcuts> {
 
     final duration = widget.isLargeScreen ? Duration.zero : null;
 
+    final media = widget.controller.isExpanded
+        ? null
+        : widget.mediaNavigation?.call();
+    if (media != null) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        media.onNext?.call();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        media.onPrevious?.call();
+        return KeyEventResult.handled;
+      }
+    }
     return switch (event.logicalKey) {
       LogicalKeyboardKey.arrowRight => _handled(
         () => widget.controller.nextPage(duration: duration),

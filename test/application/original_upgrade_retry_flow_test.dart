@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/details_parts/widgets.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:dio/dio.dart';
@@ -71,7 +72,12 @@ void main() {
             () => find.text('Retry').evaluate().isNotEmpty,
             reason: 'retained sample after failed Original',
           );
-          await waitForPixel(tester, [0, 0, 255, 255]);
+          await waitForPixel(tester, [
+            0,
+            0,
+            255,
+            255,
+          ], within: find.byType(PostDetailsPageScaffold));
         });
         await harness.settle(tester);
         expect(find.byType(DefaultInheritedPostActionToolbar), findsWidgets);
@@ -84,9 +90,19 @@ void main() {
             () => adapter.pending.containsKey(original),
             reason: 'tappable retry',
           );
-          await waitForPixel(tester, [0, 0, 255, 255]);
+          await waitForPixel(tester, [
+            0,
+            0,
+            255,
+            255,
+          ], within: find.byType(PostDetailsPageScaffold));
           adapter.complete(original, originalPng);
-          await waitForPixel(tester, [0, 255, 0, 255]);
+          await waitForPixel(tester, [
+            0,
+            255,
+            0,
+            255,
+          ], within: find.byType(PostDetailsPageScaffold));
         });
         expect(
           adapter.requests.where((r) => r.uri.toString() == original),

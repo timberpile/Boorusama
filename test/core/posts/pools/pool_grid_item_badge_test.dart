@@ -102,6 +102,18 @@ void main() {
     });
   }
 
+  testWidgets('single-image Collections and Works omit the count badge', (
+    tester,
+  ) async {
+    await showTile(tester, kind: PoolGridItemKind.collection, total: 1);
+    expect(find.byKey(const ValueKey('pool-badge')), findsNothing);
+    expect(find.text('1'), findsNothing);
+    expect(find.byKey(const ValueKey('pool-source-icon')), findsOneWidget);
+    await showTile(tester, kind: PoolGridItemKind.collection, total: 2);
+    expect(find.byKey(const ValueKey('pool-badge')), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
+
   testWidgets('source is left of type and the right corner stays free', (
     tester,
   ) async {

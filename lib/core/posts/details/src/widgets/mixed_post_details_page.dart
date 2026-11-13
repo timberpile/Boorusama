@@ -7,6 +7,7 @@ import 'dart:async';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -15,20 +16,36 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
+import '../../../../artists/types.dart';
+import '../../../../content/groups/group_capability.dart';
+import '../../../../content/groups/group_source_provider.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../navigation/destination_activity.dart';
+import '../../../../developer_options/providers.dart';
+import 'group_viewer_scope.dart';
 import '../../../../notes/note/widgets.dart';
+import '../../../../settings/providers.dart';
 import '../../../details_parts/types.dart';
+import '../../../details_pageview/widgets.dart';
 import '../../../details_parts/widgets.dart';
 import '../../../post/types.dart';
+import '../../../sources/types.dart';
 import '../providers/providers.dart';
 import '../providers/viewer_source_access_provider.dart';
 import '../routes/post_details_live_source.dart';
 import '../types/inherited_post.dart';
 import '../types/post_details.dart';
 import '../types/viewer_entry.dart';
+import '../types/media_group_checkpoint.dart';
+import '../providers/media_group_provider.dart';
+import 'media_group_page.dart';
+import 'media_group_actions.dart';
+import 'media_group_page_indicator.dart';
+import 'native_metadata_selection.dart';
 import 'viewer_entry_content.dart';
 import 'post_details_page_view_scope.dart';
 import 'post_details_actions.dart';
+import 'post_details_controller.dart';
 import 'post_details_image_preloader.dart';
 import 'post_details_item.dart';
 import 'post_details_notes.dart';
@@ -295,7 +312,257 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
 }
 
 class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
+  // Presentation wrappers change when the selected outer Post/Work changes.
+  // Keep the pager and its decoded neighboring media mounted across this swap.
+  final _viewerScaffoldKey = GlobalKey();
   final _transformController = TransformationController();
+  PostDetailsPageViewController? _mediaPager;
+
+  void _mediaPageChanged() {
+    if (mounted) {
+      _scheduleMediaCleanup();
+      setState(() {});
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final pager = PostDetailsPageViewScope.of(context);
+    if (_mediaPager != pager) {
+      _mediaPager?.currentPage.removeListener(_mediaPageChanged);
+      _mediaPager = pager;
+      pager.currentPage.addListener(_mediaPageChanged);
+    }
+  }
+
+  final _mediaCheckpoints = <Object, MediaGroupCheckpoint>{};
+  final _mediaControllers = <Object, PostDetailsController<Post>>{};
+  // Old/new media subtrees can overlap while the shared presentation rebuilds.
+  // Only the last mounted Page may release an unselected controller.
+  final _mediaControllerUsers = <PostDetailsController<Post>, int>{};
+  final _selectedMediaControllers = <int, PostDetailsController<Post>>{};
+  final _pendingMediaPosts = <PostDetailsController<Post>, (int, Post)>{};
+  var _disposing = false;
+  var _mediaCleanupScheduled = false;
+
+  void _scheduleMediaCleanup() {
+    if (_mediaCleanupScheduled || _disposing) return;
+    _mediaCleanupScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _mediaCleanupScheduled = false;
+      if (!mounted || _disposing) return;
+      final replacements = Map.of(_pendingMediaPosts);
+      _pendingMediaPosts.clear();
+      for (final replacement in replacements.entries) {
+        final (index, post) = replacement.value;
+        replacement.key.replacePost(index, post);
+      }
+      final pager = _mediaPager!;
+      final retained = pager.retainedStatePages
+          .map((index) => widget.sequence?.entries[index].occurrenceId)
+          .toSet();
+      _mediaCheckpoints.removeWhere((key, _) => !retained.contains(key));
+      _selectedMediaControllers.removeWhere(
+        (index, _) => !pager.retainsStateFor(index),
+      );
+      final selected = _selectedMediaControllers.values.toSet();
+      _mediaControllers.removeWhere((_, controller) {
+        if (_mediaControllerUsers.containsKey(controller) ||
+            selected.contains(controller)) {
+          return false;
+        }
+        controller.dispose();
+        return true;
+      });
+    });
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties
+      ..add(IntProperty('mediaCheckpoints', _mediaCheckpoints.length))
+      ..add(
+        IntProperty(
+          'selectedMediaControllers',
+          _selectedMediaControllers.length,
+        ),
+      )
+      ..add(IntProperty('mediaControllers', _mediaControllers.length))
+      ..add(
+        IntProperty('mountedMediaControllers', _mediaControllerUsers.length),
+      );
+  }
+
+  Post? _mediaPostAt(int index, {bool includePrepared = false}) {
+    if (!_hasMediaPager(index)) return null;
+    final entry = widget.sequence!.entries[index] as GroupViewerEntry;
+    if (!includePrepared &&
+        index != _mediaPager?.page &&
+        !(_mediaCheckpoints[entry.occurrenceId]?.visited ?? false)) {
+      return null;
+    }
+    final state = ref.read(mediaGroupProvider(entry));
+    final members = state.members?.members;
+    final selected = members == null
+        ? null
+        : _checkpoint(entry).indexIn(members);
+    return selected == null ? null : state.postAt(selected);
+  }
+
+  PostDetailsData<Post> _mediaDetails(
+    int index,
+    Post post, {
+    bool selected = true,
+  }) {
+    final entry = widget.sequence!.entries[index] as GroupViewerEntry;
+    final access = ref.read(mediaGroupProvider(entry)).access!;
+    final key = (entry.occurrenceId, access.key, postViewerIdentity(post));
+    final controller = _mediaControllers.putIfAbsent(
+      key,
+      () => PostDetailsController<Post>(
+        posts: [post],
+        initialPage: index,
+        postIndexForPage: (page) => page == index ? 0 : null,
+        scrollController: null,
+        initialThumbnailUrl: null,
+        dislclaimer: null,
+        reduceAnimations: ref.read(settingsProvider).reduceAnimations,
+        doubleTapSeekDuration: ref
+            .read(imageViewerSettingsProvider)
+            .doubleTapSeekDuration,
+      ),
+    );
+    // Group hydration can replace URLs/metadata without changing Page identity.
+    // Coalesce controller publication after build, preserving its reading state.
+    if (!identical(controller.posts.single, post)) {
+      _pendingMediaPosts[controller] = (index, post);
+    } else {
+      _pendingMediaPosts.remove(controller);
+    }
+    if (selected) _selectedMediaControllers[index] = controller;
+    _scheduleMediaCleanup();
+    return PostDetailsData(posts: controller.posts, controller: controller);
+  }
+
+  void _retainMediaController(PostDetailsController<Post> controller) {
+    _mediaControllerUsers.update(
+      controller,
+      (users) => users + 1,
+      ifAbsent: () => 1,
+    );
+  }
+
+  void _releaseMediaController(
+    PostDetailsController<Post> controller,
+  ) {
+    final users = _mediaControllerUsers[controller];
+    if (users == null) return;
+    if (users > 1) {
+      _mediaControllerUsers[controller] = users - 1;
+      return;
+    }
+    _mediaControllerUsers.remove(controller);
+    // Toolbar and overlapping media consumers detach during the same frame.
+    // Remove retention independently, then dispose only after the final detach.
+    _scheduleMediaCleanup();
+  }
+
+  Widget? _pageIndicator(int index) {
+    if (!_hasMediaPager(index)) return null;
+    final entry = widget.sequence!.entries[index] as GroupViewerEntry;
+    final state = ref.read(mediaGroupProvider(entry));
+    final members = state.members?.members;
+    final selected = members == null
+        ? null
+        : _checkpoint(entry).indexIn(members);
+    final total = state.members?.sourceTotal ?? members?.length ?? 0;
+    if (selected == null || total < 2) return null;
+    return MediaGroupPageIndicator(
+      key: ValueKey((entry.occurrenceId, state.access?.key)),
+      memberKey: members![selected].memberKey,
+      page: (members[selected].sourcePosition ?? selected) + 1,
+      total: total,
+      disableAnimation: ref.read(settingsProvider).reduceAnimations,
+    );
+  }
+
+  bool _hasMediaPager(int index) {
+    final entry = widget.sequence?.entries[index];
+    if (entry is! GroupViewerEntry) return false;
+    final presentation = ref
+        .read(booruGroupCapabilityProvider(entry.contentReference.engine))
+        ?.presentation;
+    return presentation != null &&
+        presentation.supports(entry.summary) &&
+        presentation.layoutFor(entry.summary) == GroupLayout.mediaPager;
+  }
+
+  MediaGroupCheckpoint _checkpoint(GroupViewerEntry entry) =>
+      _mediaCheckpoints.putIfAbsent(
+        entry.occurrenceId,
+        () => MediaGroupCheckpoint(memberKey: entry.initialMemberKey),
+      );
+
+  MediaPageNavigation? _mediaNavigation(int index) {
+    if (!_hasMediaPager(index)) return null;
+    final entry = widget.sequence!.entries[index] as GroupViewerEntry;
+    final checkpoint = _checkpoint(entry);
+    if (index != _mediaPager?.page &&
+        !(_mediaCheckpoints[entry.occurrenceId]?.visited ?? false)) {
+      return const MediaPageNavigation();
+    }
+    final state = ref.read(mediaGroupProvider(entry));
+    final members = state.members?.members;
+    final selected = members == null ? null : checkpoint.indexIn(members);
+    if (selected == null &&
+        !state.failed &&
+        state.members?.nextPageError == null &&
+        (members == null || state.members?.next != null)) {
+      // Loading/restoring a Page does not prove either Work boundary.
+      return const MediaPageNavigation();
+    }
+    final pager = PostDetailsPageViewScope.of(context);
+    final previousEntry = index > 0
+        ? () => unawaited(pager.previousPage())
+        : null;
+    final nextEntry = index + 1 < widget.sequence!.entries.length
+        ? () => unawaited(pager.nextPage())
+        : null;
+    final atStart = selected == null || selected == 0;
+    final atEnd =
+        selected == null ||
+        (selected + 1 == members!.length &&
+            state.members!.next == null &&
+            state.members!.nextPageError == null);
+    return MediaPageNavigation(
+      pageController: () => checkpoint.pages,
+      atStart: atStart,
+      atEnd: atEnd,
+      previousId: atStart
+          ? index > 0
+                ? ('entry', index - 1)
+                : null
+          : (entry.occurrenceId, members![selected - 1].memberKey),
+      nextId: atEnd
+          ? nextEntry == null
+                ? null
+                : ('entry', index + 1)
+          : selected + 1 < members.length
+          ? (entry.occurrenceId, members[selected + 1].memberKey)
+          : null,
+      onPrevious: atStart
+          ? previousEntry
+          : () => checkpoint.navigate?.call(selected - 1),
+      onNext: atEnd
+          ? nextEntry
+          : selected + 1 < members.length
+          ? () => checkpoint.navigate?.call(selected + 1)
+          : null,
+    );
+  }
+
   final _isInitPage = ValueNotifier(true);
   final _fallbackReasons = <int, PostPresentationFallbackReason>{};
   final _recovering = <int>{};
@@ -303,6 +570,11 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
 
   @override
   void dispose() {
+    _disposing = true;
+    _mediaPager?.currentPage.removeListener(_mediaPageChanged);
+    for (final controller in _mediaControllers.values) {
+      controller.dispose();
+    }
     _transformController.dispose();
     _isInitPage.dispose();
     super.dispose();
@@ -312,34 +584,54 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   Widget build(BuildContext context) {
     final details = PostDetails.maybeOf<Post>(context);
     final pager = PostDetailsPageViewScope.of(context);
-    return MixedPostDetailsImagePreloader(
-      posts: details?.posts ?? const [],
-      sequence: widget.sequence,
-      child: ListenableBuilder(
-        listenable: Listenable.merge([
-          pager.currentPage,
-          if (details != null) details.controller.currentPost,
-        ]),
-        builder: (context, _) {
-          final sequence = widget.sequence;
-          final post = sequence == null
-              ? details!.controller.currentPost.value
-              : sequence.postAt(pager.page);
-          return PostPagePresentationScope(
-            post: post,
-            sourceBinding: widget.sequence?.entries[pager.page].source,
-            fallbackConfig: widget.fallbackConfig,
-            groupBuilder: (context) => CurrentPostDetailsNotes(
-              post: null,
-              viewerConfig: BooruConfig.empty.viewer,
-              authConfig: BooruConfig.empty.auth,
-              enabled: false,
-              child: Stack(children: [_buildGroupViewer(context, details)]),
-            ),
-            builder: (context, ref, presentation) =>
-                _buildViewer(context, ref, details!, presentation),
-          );
-        },
+    // The active occurrence keeps its source observers alive while metadata
+    // and media compose into separate regions of the shared viewer.
+    final entry = widget.sequence?.entries[pager.page];
+    if (entry is GroupViewerEntry && _hasMediaPager(pager.page)) {
+      ref.watch(mediaGroupProvider(entry));
+    }
+    return NativeMetadataSelectionScope(
+      child: MixedPostDetailsImagePreloader(
+        posts: details?.posts ?? const [],
+        sequence: widget.sequence,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([
+            pager.currentPage,
+            if (details != null) details.controller.currentPost,
+          ]),
+          builder: (context, _) {
+            final sequence = widget.sequence;
+            final post = sequence == null
+                ? details!.controller.currentPost.value
+                : sequence.postAt(pager.page) ?? _mediaPostAt(pager.page);
+            if (post == null) {
+              _selectedMediaControllers.remove(pager.page);
+              _scheduleMediaCleanup();
+            }
+            final activeDetails = _hasMediaPager(pager.page) && post != null
+                ? _mediaDetails(pager.page, post)
+                : details;
+            return PostPagePresentationScope(
+              post: post,
+              sourceBinding: widget.sequence?.entries[pager.page].source,
+              fallbackConfig: widget.fallbackConfig,
+              groupBuilder: (context) => CurrentPostDetailsNotes(
+                post: null,
+                viewerConfig: BooruConfig.empty.viewer,
+                authConfig: BooruConfig.empty.auth,
+                enabled: false,
+                child: Stack(children: [_buildGroupViewer(context, details)]),
+              ),
+              builder: (context, ref, presentation) => _buildViewer(
+                context,
+                ref,
+                activeDetails!,
+                presentation,
+                regularDetails: details,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -349,6 +641,26 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     int index,
   ) {
     final entry = widget.sequence?.entries[index];
+    if (entry is GroupViewerEntry && _hasMediaPager(index)) {
+      return KeyedSubtree(
+        key: PageStorageKey(entry.occurrenceId),
+        child: MediaGroupPage(
+          // Preserve the entire decoded Work media subtree if the selected
+          // presentation reparents its page wrapper in the same frame.
+          key: GlobalObjectKey(_checkpoint(entry)),
+          entry: entry,
+          index: index,
+          routeActive: NavigationActivity.of(this.context),
+          checkpoint: _checkpoint(entry),
+          onSelected: () => setState(() {}),
+          controllerForPost: (post) =>
+              _mediaDetails(index, post, selected: false).controller,
+          onControllerAttached: _retainMediaController,
+          onControllerReleased: (controller) =>
+              _releaseMediaController(controller),
+        ),
+      );
+    }
     if (entry != null && entry is! PostViewerEntry) {
       return ViewerEntryContent(
         key: PageStorageKey(entry.occurrenceId),
@@ -363,7 +675,12 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     BuildContext context,
     PostDetailsData<Post>? details,
   ) => PostDetailsPageScaffold<Post>(
+    key: _viewerScaffoldKey,
     sequence: widget.sequence,
+    hasMediaPager: _hasMediaPager,
+    mediaNavigationBuilder: _mediaNavigation,
+    pagePostBuilder: _mediaPostAt,
+    pageIndicatorBuilder: _pageIndicator,
     pageWrapperBuilder: (context, index, child) =>
         _wrapPage(context, index, child, details),
     controller: details?.controller,
@@ -373,7 +690,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     gestureConfig: null,
     layoutConfig: null,
     postGestureHandlerBuilder: null,
-    uiBuilder: null,
+    uiBuilder: _groupSummaryUiBuilder,
+    preferredParts: _groupSummaryDetailsParts,
     actions: const [],
     nextLoading: widget.nextLoading,
     nextFailed: widget.nextFailed,
@@ -394,27 +712,89 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     Widget child,
     PostDetailsData<Post>? details,
   ) {
-    final post = widget.sequence == null
-        ? details?.posts.elementAtOrNull(index)
-        : widget.sequence!.postAt(index);
-    if (post == null) return child;
-    return PostPagePresentationScope(
-      post: post,
-      sourceBinding: widget.sequence?.entries[index].source,
-      fallbackConfig: widget.fallbackConfig,
-      builder: (context, ref, presentation) {
-        final ui = presentation.usesGenericPresentation
+    final entry = widget.sequence?.entries[index];
+    final mediaGroup = entry is GroupViewerEntry && _hasMediaPager(index);
+
+    Widget buildPage({bool includePrepared = false}) {
+      final post = widget.sequence == null
+          ? details?.posts.elementAtOrNull(index)
+          : widget.sequence!.postAt(index) ??
+                _mediaPostAt(index, includePrepared: includePrepared);
+      if (post == null && !mediaGroup) return child;
+
+      Widget wrap(BuildContext context, PostPagePresentation? presentation) {
+        final ui = presentation == null
+            ? mediaGroup
+                  ? _groupSummaryUiBuilder
+                  : null
+            : presentation.usesGenericPresentation
             ? widget.fallbackUiBuilderDecorator?.call(
                     _genericPostDetailsUiBuilder,
-                    post,
+                    post!,
                   ) ??
                   _genericPostDetailsUiBuilder
-            : presentation.context.presentation.detailsBuilder(post);
-        return PostDetailsPageConfiguration(
+            : presentation.context.presentation.detailsBuilder(post!);
+        Widget result = PostDetailsPageConfiguration(
           uiBuilder: ui,
-          layout: presentation.effectiveConfig.layout,
+          layout: presentation?.effectiveConfig.layout,
+          // Default Post statistics require an InheritedPost. An unresolved
+          // Work has only Group metadata, even when a neighbor already has
+          // a fully resolved Post presentation.
+          preferredParts: mediaGroup && post == null
+              ? _groupSummaryDetailsParts
+              : null,
           child: child,
         );
+        if (mediaGroup) {
+          result = PostDetails(
+            data: post == null
+                ? null
+                : _mediaDetails(
+                    index,
+                    post,
+                    selected: index == _mediaPager?.page,
+                  ),
+            child: GroupViewerScope(
+              entry: entry,
+              child: MediaGroupActions(entry: entry, child: result),
+            ),
+          );
+          result = NavigationActivity(
+            active:
+                PostDetailsPageViewScope.of(context).page == index &&
+                NavigationActivity.of(context),
+            child: result,
+          );
+        }
+        return result;
+      }
+
+      return PostPagePresentationScope(
+        post: post,
+        sourceBinding: entry?.source,
+        fallbackConfig: widget.fallbackConfig,
+        groupBuilder: (context) => wrap(context, null),
+        builder: (context, ref, presentation) => wrap(context, presentation),
+      );
+    }
+
+    if (!mediaGroup) return buildPage();
+    final groupEntry = entry as GroupViewerEntry;
+    // The media-pager itself observes the manifest, but its surrounding
+    // Details wrapper otherwise keeps the null Post from the first build.
+    // Observe only pages whose media is already eligible for preparation.
+    return Consumer(
+      builder: (context, ref, _) {
+        final pager = PostDetailsPageViewScope.of(context);
+        final automaticLoading = ref.watch(
+          automaticMediaLoadingEnabledProvider,
+        );
+        final canPrepare =
+            pager.page == index ||
+            _checkpoint(groupEntry).visited ||
+            (automaticLoading && (pager.page - index).abs() <= 1);
+        if (canPrepare) ref.watch(mediaGroupProvider(groupEntry));
+        return buildPage(includePrepared: canPrepare);
       },
     );
   }
@@ -458,8 +838,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     BuildContext context,
     WidgetRef ref,
     PostDetailsData<Post> details,
-    PostPagePresentation currentPresentation,
-  ) {
+    PostPagePresentation currentPresentation, {
+    required PostDetailsData<Post>? regularDetails,
+  }) {
     final posts = details.posts;
     final controller = details.controller;
     final config = currentPresentation.effectiveConfig;
@@ -513,9 +894,14 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         : currentPresentation.context.presentation.detailsBuilder(currentPost);
 
     final scaffold = PostDetailsPageScaffold<Post>(
+      key: _viewerScaffoldKey,
       sequence: widget.sequence,
+      hasMediaPager: _hasMediaPager,
+      mediaNavigationBuilder: _mediaNavigation,
+      pagePostBuilder: _mediaPostAt,
+      pageIndicatorBuilder: _pageIndicator,
       pageWrapperBuilder: (context, index, child) =>
-          _wrapPage(context, index, child, details),
+          _wrapPage(context, index, child, regularDetails),
       transformController: _transformController,
       isInitPage: _isInitPage,
       controller: controller,
@@ -562,7 +948,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         if (widget.sequence != null && widget.sequence!.postAt(index) == null) {
           return _entryItem(context, index);
         }
-        return _buildPostItem(context, index, details);
+        return _buildPostItem(context, index, regularDetails!);
       },
     );
 
@@ -642,6 +1028,96 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           _recovering.remove(index);
         });
     }
+  }
+}
+
+// Group metadata can render before its first Page is resolved. Do not wait
+// for a synthetic Post or for the Page manifest before presenting Details.
+const _groupSummaryDetailsParts = {
+  DetailsPart.artistInfo,
+  DetailsPart.tags,
+};
+
+final _groupSummaryUiBuilder = PostDetailsUIBuilder(
+  full: {
+    DetailsPart.artistInfo: (context) => const _GroupSummaryInformation(),
+    DetailsPart.tags: (context) => const _GroupSummaryTags(),
+  },
+);
+
+class _GroupSummaryInformation extends ConsumerWidget {
+  const _GroupSummaryInformation();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entry = GroupViewerScope.maybeEntryOf(context);
+    if (entry == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    final state = ref.watch(mediaGroupProvider(entry));
+    if (state.access == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    final details = state.details;
+    final title = details?.summary.title ?? entry.summary.title ?? '';
+    final description = details?.description?.text ?? '';
+    final creators = details?.creators ?? const [];
+    return SliverToBoxAdapter(
+      child: ArtistSection(
+        commentary: ArtistCommentary(
+          originalTitle: title,
+          originalDescription: description,
+          translatedTitle: '',
+          translatedDescription: '',
+        ),
+        artistTags: {for (final creator in creators) creator.displayName},
+        source:
+            InheritedPost.maybeOf<Post>(context)?.source ?? PostSource.none(),
+      ),
+    );
+  }
+}
+
+class _GroupSummaryTags extends ConsumerWidget {
+  const _GroupSummaryTags();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entry = GroupViewerScope.maybeEntryOf(context);
+    if (entry == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    final state = ref.watch(mediaGroupProvider(entry));
+    if (state.access == null) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    final tags =
+        state.details?.tags ??
+        state.details?.summary.previewTags ??
+        entry.summary.previewTags;
+    if (tags == null || tags.values.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
+    return SliverToBoxAdapter(
+      child: RawTagsTile(
+        title: Text(context.t.tags.counter(n: tags.values.length)),
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                for (final tag in tags.values)
+                  if ((tag.displayName ?? tag.name) case final name?
+                      when name.isNotEmpty)
+                    KurumiCompactChip(label: name),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

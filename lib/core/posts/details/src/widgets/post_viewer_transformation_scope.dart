@@ -46,17 +46,19 @@ class PostViewerTransformationViewport extends StatelessWidget {
   }
 }
 
-/// Retains only a matrix outside the pager's mounted current/adjacent window.
+/// Retains a nearby occurrence's matrix after its media subtree detaches.
 class PostViewerOccurrence extends StatefulWidget {
   const PostViewerOccurrence({
     required this.checkpoints,
     required this.occurrence,
     required this.child,
+    this.retainCheckpoint,
     super.key,
   });
   final Map<Object, Matrix4> checkpoints;
   final Object occurrence;
   final Widget child;
+  final bool Function()? retainCheckpoint;
 
   @override
   State<PostViewerOccurrence> createState() => _PostViewerOccurrenceState();
@@ -73,7 +75,9 @@ class _PostViewerOccurrenceState extends State<PostViewerOccurrence> {
 
   @override
   void dispose() {
-    widget.checkpoints[widget.occurrence] = _transform.value.clone();
+    if (widget.retainCheckpoint?.call() ?? true) {
+      widget.checkpoints[widget.occurrence] = _transform.value.clone();
+    }
     _transform.dispose();
     super.dispose();
   }

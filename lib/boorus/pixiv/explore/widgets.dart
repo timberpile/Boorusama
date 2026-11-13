@@ -10,9 +10,9 @@ import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/posts/explores/types.dart';
 import '../../../core/posts/explores/widgets.dart';
-import '../../../core/posts/listing/widgets.dart';
+import '../client_provider.dart';
+import '../works/work_listing.dart';
 import '../configs/extra_data.dart';
-import '../posts/types.dart';
 import 'feed.dart';
 import 'providers.dart';
 
@@ -54,23 +54,38 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
     ).xRestrict;
 
     return Scaffold(
-      body: PostScope<Post>(
-        fetcher: (page) => ref
-            .read(pixivExploreRepoProvider(config))
-            .getPosts(
-              feed: _feed.value,
-              page: page,
-            ),
+      body: ValueListenableBuilder(
+        valueListenable: _feed,
         // The grid owns its top inset so its floating timeline remains below
         // the status bar after the source header scrolls away. This outer
         // inset keeps the fixed date controls clear of system navigation.
-        builder: (context, controller) => SafeArea(
+        builder: (context, feed, _) => SafeArea(
           top: false,
           child: Column(
             children: [
               Expanded(
-                child: PostGrid(
-                  controller: controller,
+                child: PixivWorkGrid(
+                  config: config,
+                  queryIdentity: feed,
+                  fetchPage: (page) {
+                    final client = ref.read(pixivClientProvider(config.auth));
+                    return switch (feed) {
+                      PixivRankingFeed(:final mode, :final date) =>
+                        client.getRanking(
+                          mode: mode,
+                          date: pixivRankingRequestDateFor(date),
+                          page: page,
+                        ),
+                      PixivFollowingFeed(:final restrict) =>
+                        client.getFollowedIllusts(
+                          restrict: restrict,
+                          page: page,
+                        ),
+                      PixivRecommendedFeed() => client.getRecommendedIllusts(
+                        page: page,
+                      ),
+                    };
+                  },
                   sliverHeaders: [
                     KurumiSliverAppBar(
                       title: Text(context.t.pixiv.explore.title),
@@ -87,9 +102,8 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
                             current: _feed.value,
                             newestRankingDate: pixivRankingNewestDate(),
                           );
-                          controller.refresh();
                         },
-                        onControlsChanged: () => controller.refresh(),
+                        onControlsChanged: () => setState(() {}),
                       ),
                     ),
                   ],
@@ -103,7 +117,7 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
                 builder: (context, feed, _) => switch (feed) {
                   PixivRankingFeed() => _RankingDateStepper(
                     feed: _feed,
-                    onChanged: () => controller.refresh(),
+                    onChanged: () => setState(() {}),
                   ),
                   PixivFollowingFeed() ||
                   PixivRecommendedFeed() => const SizedBox.shrink(),

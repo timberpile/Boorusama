@@ -327,12 +327,16 @@ final class HeadlessAppHarness {
   /// Reveals actions with the same single tap used in the hidden Immersive UI.
   Future<void> showViewerControls(WidgetTester tester) async {
     await settle(tester);
-    if (find.byType(PostDetailsPageScaffold).evaluate().isEmpty) return;
+    // Transparent member routes retain the covered gallery's own scaffold.
+    final activeViewer = find.byType(PostDetailsPageScaffold).hitTestable();
+    if (activeViewer.evaluate().isEmpty) return;
     final view = PostDetailsPageViewScope.of(
-      tester.element(find.byType(PostDetailsPageScaffold).first),
+      tester.element(activeViewer.first),
     );
     if (view.overlay.value) return;
-    await tester.tap(find.byKey(ValueKey(('viewer-media', view.page))));
+    await tester.tap(
+      find.byKey(ValueKey(('viewer-media', view.page))).hitTestable(),
+    );
     await pumpUntil(
       tester,
       () => view.overlay.value,

@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show ValueListenable, IntProperty;
 import 'package:flutter/scheduler.dart' show SchedulerPhase, SchedulerBinding;
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -20,6 +20,8 @@ import 'post_details_page_view_controller.dart';
 import 'post_details_shortcuts.dart';
 import 'sheet_state_storage.dart';
 import 'zoom_page_navigation_scope.dart';
+import 'viewer_media_viewport.dart';
+import 'viewer_route_transition.dart';
 
 /// One outer pager owns media, its overlay and its scrolling Details content.
 class PostDetailsPageView extends StatefulWidget {
@@ -55,10 +57,12 @@ class PostDetailsPageView extends StatefulWidget {
     this.detailsEnabled = true,
     this.overlayEnabled = true,
     this.isPostPage,
+    this.mediaNavigationBuilder,
   });
 
   final List<Widget> Function(BuildContext, int) detailsSliversBuilder;
   final int itemCount;
+  final MediaPageNavigation? Function(int)? mediaNavigationBuilder;
   final bool detailsEnabled;
   final bool overlayEnabled;
   final bool Function(int)? isPostPage;
@@ -94,6 +98,12 @@ class PostDetailsPageView extends StatefulWidget {
 
 class _PostDetailsPageViewState extends State<PostDetailsPageView>
     with TickerProviderStateMixin {
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(IntProperty('scrollOffsets', _scrollOffsets.length));
+  }
+
   final _interacting = ValueNotifier(false);
   final _scrollOffsets = <Object, double>{};
   EdgeInsets _safeInsets = EdgeInsets.zero;
@@ -185,9 +195,21 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       if (page == null || (page - expected).abs() > 0.001) _cancelEdgeSlide();
     }
     _controller.precisePage.value = page;
-    final number = page?.round();
-    if (number == null || number == _controller.page) return;
+    // Do not replace the selected presentation at halfway through a held drag.
+    if (page == null ||
+        _controller.pageController.position.isScrollingNotifier.value) {
+      return;
+    }
+    _commitPage(page.round());
+  }
+
+  void _commitPage(int number) {
+    if (number == _controller.page) return;
     _controller.currentPage.value = number;
+    final retained = _controller.retainedStatePages
+        .map((index) => widget.occurrenceKeyBuilder?.call(index) ?? index)
+        .toSet();
+    _scrollOffsets.removeWhere((key, _) => !retained.contains(key));
     widget.onPageChanged?.call(number);
     // Transform ownership belongs to the settled occurrence, not its neighbor.
     _controller.zoom.value = false;
@@ -333,6 +355,8 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       child: PostDetailsShortcuts(
         controller: _controller,
         isLargeScreen: isLargeScreen,
+        mediaNavigation: () =>
+            widget.mediaNavigationBuilder?.call(_controller.page),
         child: PopScope(
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) _onPop();
@@ -369,6 +393,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
         _controller.zoom,
         _controller.sheetState,
         _controller.animating,
+        _controller.freestyleMoving,
         _interacting,
       ]),
       builder: (context, _) {
@@ -376,7 +401,8 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
             _interacting.value ||
             !_controller.swipe.value ||
             _controller.zoom.value ||
-            _controller.animating.value;
+            _controller.animating.value ||
+            _controller.freestyleMoving.value;
         return AnimatedBuilder(
           animation: _edgeSlideController,
           builder: (context, child) {
@@ -408,38 +434,69 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
               ),
             );
           },
-          child: PageView.builder(
-            controller: _controller.pageController,
-            allowImplicitScrolling: true,
-            physics: blocked || widget.itemCount < 2
-                ? const NeverScrollableScrollPhysics()
-                : const _PostDetailsPagePhysics(),
-            itemCount: widget.itemCount,
-            itemBuilder: (context, index) {
-              final key = widget.occurrenceKeyBuilder?.call(index) ?? index;
-              final page = _ViewerPage(
-                key: ValueKey(key),
-                index: index,
-                interacting: _interacting,
-                controller: _controller,
-                previewAnimation: _previewAnimation,
-                isPost: widget.isPostPage?.call(index) ?? widget.detailsEnabled,
-                disableAnimation: widget.disableAnimation,
-                mediaSize: widget.mediaSizeBuilder?.call(index),
-                itemBuilder: (context) => _buildMedia(context, index),
-                detailsBuilder: (context) =>
-                    widget.detailsSliversBuilder(context, index),
-                previewBuilder: (context) =>
-                    widget.bottomPreviewBuilder?.call(context, index) ??
-                    widget.bottomSheet,
-                savedOffset: () => _scrollOffsets[key] ?? 0,
-                saveOffset: (value) => _scrollOffsets[key] = value,
-                onSwipeDown: widget.onSwipeDownThresholdReached,
-                swipeDownThreshold: widget.swipeDownThreshold,
-              );
-              return widget.pageWrapperBuilder?.call(context, index, page) ??
-                  page;
+          child: NotificationListener<ScrollEndNotification>(
+            onNotification: (notification) {
+              if (notification.depth == 0 &&
+                  notification.metrics.axis == Axis.horizontal &&
+                  _controller.pageController.hasClients) {
+                // Scroll notifications fire after layout. Commit in a microtask
+                // so presentation dependents are not rebuilt during layout.
+                scheduleMicrotask(() {
+                  if (!mounted ||
+                      !_controller.pageController.hasClients ||
+                      _controller
+                          .pageController
+                          .position
+                          .isScrollingNotifier
+                          .value) {
+                    return;
+                  }
+                  final page = _controller.pageController.page;
+                  if (page != null) _commitPage(page.round());
+                });
+              }
+              return false;
             },
+            child: PageView.builder(
+              controller: _controller.pageController,
+              allowImplicitScrolling: true,
+              physics: blocked || widget.itemCount < 2
+                  ? const NeverScrollableScrollPhysics()
+                  : const _PostDetailsPagePhysics(),
+              itemCount: widget.itemCount,
+              itemBuilder: (context, index) {
+                final key = widget.occurrenceKeyBuilder?.call(index) ?? index;
+                final page = _ViewerPage(
+                  key: ValueKey(key),
+                  index: index,
+                  interacting: _interacting,
+                  controller: _controller,
+                  previewAnimation: _previewAnimation,
+                  isPost:
+                      widget.isPostPage?.call(index) ?? widget.detailsEnabled,
+                  disableAnimation: widget.disableAnimation,
+                  mediaSize: widget.mediaSizeBuilder?.call(index),
+                  mediaNavigation: () =>
+                      widget.mediaNavigationBuilder?.call(index),
+                  itemBuilder: (context) => _buildMedia(context, index),
+                  detailsBuilder: (context) =>
+                      widget.detailsSliversBuilder(context, index),
+                  previewBuilder: (context) =>
+                      widget.bottomPreviewBuilder?.call(context, index) ??
+                      widget.bottomSheet,
+                  savedOffset: () => _scrollOffsets[key] ?? 0,
+                  saveOffset: (value) {
+                    if (_controller.retainsStateFor(index)) {
+                      _scrollOffsets[key] = value;
+                    }
+                  },
+                  onSwipeDown: widget.onSwipeDownThresholdReached,
+                  swipeDownThreshold: widget.swipeDownThreshold,
+                );
+                return widget.pageWrapperBuilder?.call(context, index, page) ??
+                    page;
+              },
+            ),
           ),
         );
       },
@@ -451,40 +508,63 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     final loading = widget.nextLoading && index == last;
     final failed = !loading && widget.nextFailed && index == last;
     final more = !loading && !failed && widget.nextCanLoad && index == last;
+    final media = widget.mediaNavigationBuilder?.call(index);
     final navigation = ZoomPageNavigationScope(
       previousLabel: context.t.infinite_scroll.previous_page,
-      nextLabel: failed
+      nextLabel: media != null
+          ? context.t.infinite_scroll.next_page
+          : failed
           ? context.t.generic.action.retry
           : more
           ? context.t.infinite_scroll.load_more
           : context.t.infinite_scroll.next_page,
-      onPrevious: index > 0
+      onPrevious: media != null
+          ? media.onPrevious
+          : index > 0
           ? () => _controller.previousPage(duration: Duration.zero)
           : null,
-      onEdgePrevious: index > 0
+      onEdgePrevious: media != null
+          ? media.atStart && index > 0
+                ? () => _navigateFromEdge(index, index - 1)
+                : media.onPrevious
+          : index > 0
           ? () => _navigateFromEdge(index, index - 1)
           : null,
-      previousActionId: index > 0 ? (index - 1, widget.itemCount) : null,
-      nextEdgeAction: failed
+      previousActionId: media != null
+          ? media.previousId
+          : index > 0
+          ? (index - 1, widget.itemCount)
+          : null,
+      nextEdgeAction: media != null
+          ? ZoomPageEdgeAction.page
+          : failed
           ? ZoomPageEdgeAction.retry
           : more
           ? ZoomPageEdgeAction.loadMore
           : ZoomPageEdgeAction.page,
-      nextActionId: failed
+      nextActionId: media != null
+          ? media.nextId
+          : failed
           ? ('retry', widget.onRetryNext)
           : more
           ? ('load-more', widget.onLoadMoreNext)
           : loading || index == last
           ? null
           : (index + 1, widget.itemCount),
-      onNext: failed
+      onNext: media != null
+          ? media.onNext
+          : failed
           ? widget.onRetryNext
           : more
           ? widget.onLoadMoreNext
           : loading || index == last
           ? null
           : () => _controller.nextPage(duration: Duration.zero),
-      onEdgeNext: index < last
+      onEdgeNext: media != null
+          ? media.atEnd && index < last
+                ? () => _navigateFromEdge(index, index + 1)
+                : media.onNext
+          : index < last
           ? () => _navigateFromEdge(index, index + 1)
           : null,
       child: widget.itemBuilder(context, index),
@@ -496,16 +576,23 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
           PageNavButton(
             alignment: Alignment.centerRight,
             controller: _controller,
-            visibleWhen: (page) => page < widget.itemCount - 1,
+            visibleWhen: (page) => media != null
+                ? media.onNext != null
+                : page < widget.itemCount - 1,
             icon: const Icon(Symbols.arrow_forward),
-            onPressed: () => _controller.nextPage(duration: Duration.zero),
+            onPressed: () => media != null
+                ? media.onNext?.call()
+                : _controller.nextPage(duration: Duration.zero),
           ),
           PageNavButton(
             alignment: Alignment.centerLeft,
             controller: _controller,
-            visibleWhen: (page) => page > 0,
+            visibleWhen: (page) =>
+                media != null ? media.onPrevious != null : page > 0,
             icon: const Icon(Symbols.arrow_back),
-            onPressed: () => _controller.previousPage(duration: Duration.zero),
+            onPressed: () => media != null
+                ? media.onPrevious?.call()
+                : _controller.previousPage(duration: Duration.zero),
           ),
         ],
       ],
@@ -522,6 +609,7 @@ class _ViewerPage extends StatefulWidget {
     required this.isPost,
     required this.disableAnimation,
     required this.mediaSize,
+    required this.mediaNavigation,
     required this.itemBuilder,
     required this.detailsBuilder,
     required this.previewBuilder,
@@ -538,6 +626,7 @@ class _ViewerPage extends StatefulWidget {
   final bool isPost;
   final bool disableAnimation;
   final Size? mediaSize;
+  final MediaPageNavigation? Function() mediaNavigation;
   final WidgetBuilder itemBuilder;
   final List<Widget> Function(BuildContext) detailsBuilder;
   final Widget? Function(BuildContext) previewBuilder;
@@ -559,6 +648,7 @@ class _ViewerPageState extends State<_ViewerPage>
   );
   late final _scroll = ScrollController(
     initialScrollOffset: _details ? widget.savedOffset() : 0,
+    keepScrollOffset: false,
   );
   late bool _mountedDetails = _details;
   final _pointers = <int>{};
@@ -566,6 +656,9 @@ class _ViewerPageState extends State<_ViewerPage>
   Offset? _pointerPosition;
   Offset _dismissOffset = Offset.zero;
   var _dragging = false;
+  var _returningDismiss = false;
+  var _ownsDismissGesture = false;
+  var _dismissResetSerial = 0;
   var _cancelledMediaDrag = false;
   var _overlayWasVisible = false;
   var _startedInDetails = false;
@@ -575,19 +668,32 @@ class _ViewerPageState extends State<_ViewerPage>
   var _startedAtTop = false;
   double _transitionDistance = 1;
   double _dragStartProgress = 0;
+  VelocityTracker? _velocity;
+  double _lastVerticalDirection = 0;
+  double _directionPositionY = 0;
+  double _releaseVelocityY = 0;
+  Duration? _lastMotionTime;
 
   void _onInteractionChanged() {
     if (widget.interacting.value) _cancelPointerGesture();
   }
 
   void _pointerDown(PointerDownEvent event, {bool fromOverlay = false}) {
+    if (!mounted) return;
     _pointers.add(event.pointer);
     if (_pointers.length != 1) {
       _cancelPointerGesture();
       return;
     }
     _dragOrigin = _pointerPosition = event.position;
-    _cancelledMediaDrag = widget.interacting.value || !_current;
+    _velocity = VelocityTracker.withKind(event.kind)
+      ..addPosition(event.timeStamp, event.position);
+    _lastVerticalDirection = 0;
+    _directionPositionY = event.position.dy;
+    _releaseVelocityY = 0;
+    _lastMotionTime = null;
+    _cancelledMediaDrag =
+        widget.interacting.value || !_current || _returningDismiss;
     _overlayWasVisible = widget.controller.overlay.value;
     _startedInDetails = _details;
     _dragStartProgress = _mode.value;
@@ -596,8 +702,18 @@ class _ViewerPageState extends State<_ViewerPage>
     _fromOverlay = fromOverlay;
   }
 
-  void _pointerMove(PointerMoveEvent event) =>
-      _updateVerticalDrag(event.position);
+  void _pointerMove(PointerMoveEvent event) {
+    if (!mounted) return;
+    _velocity?.addPosition(event.timeStamp, event.position);
+    _releaseVelocityY = _velocity?.getVelocity().pixelsPerSecond.dy ?? 0;
+    _lastMotionTime = event.timeStamp;
+    final movement = event.position.dy - _directionPositionY;
+    if (movement.abs() >= 2) {
+      _lastVerticalDirection = movement.sign;
+      _directionPositionY = event.position.dy;
+    }
+    _updateVerticalDrag(event.position);
+  }
 
   void _updateVerticalDrag(Offset position) {
     _pointerPosition = position;
@@ -624,6 +740,11 @@ class _ViewerPageState extends State<_ViewerPage>
       } else if (delta.dy > 0) {
         if (_fromOverlay) return;
         _dragging = true;
+        // Dismissal has a separate gate from animated mode transitions.
+        if (_current) {
+          widget.controller.beginDismissGesture(this);
+          _ownsDismissGesture = true;
+        }
       }
       if (!_dragging) {
         _mode.stop();
@@ -640,10 +761,18 @@ class _ViewerPageState extends State<_ViewerPage>
       // Starting the gesture must rebuild even if it is already at an endpoint.
       setState(() {});
     } else if (_dragging) {
-      widget.controller.freestyleMoving.value = true;
       widget.controller.hideOverlay(includeSystemStatus: false);
       widget.controller.hideBottomSheet();
-      setState(() => _dismissOffset = delta);
+      final offset = Offset(0, math.max(0, delta.dy));
+      widget.controller.freestyleMoveOffset.value = offset;
+      _dismissOffset = offset;
+      // The mobile route owns all visible movement, not just the image.
+      final routeDrag = ViewerDismissalScope.maybeOf(context);
+      if (routeDrag == null) {
+        setState(() {});
+      } else {
+        routeDrag.offset.value = offset.dy;
+      }
     }
   }
 
@@ -670,6 +799,8 @@ class _ViewerPageState extends State<_ViewerPage>
 
   void _cancelPointerGesture() {
     _cancelledMediaDrag = true;
+    _velocity = null;
+    _lastVerticalDirection = 0;
     if (_scrubbing) {
       _scrubbing = false;
       // Restore synchronously before the scale recognizer handles a second
@@ -680,18 +811,48 @@ class _ViewerPageState extends State<_ViewerPage>
     _resetDismiss();
   }
 
-  void _resetDismiss() {
-    widget.controller.freestyleMoving.value = false;
-    if (_dragging && mounted) {
-      setState(() {
-        _dragging = false;
-        _dismissOffset = Offset.zero;
-      });
-      if (!_details && _overlayWasVisible) widget.controller.showAllUI();
+  void _finishDismissReset() {
+    _returningDismiss = false;
+    if (_ownsDismissGesture) {
+      widget.controller.endDismissGesture(this);
+      _ownsDismissGesture = false;
+    }
+    if (mounted && !_details && _overlayWasVisible) {
+      widget.controller.showAllUI();
+    }
+  }
+
+  void _resetDismiss({bool immediate = false}) {
+    if (_returningDismiss && !immediate) return;
+    if (!_dragging && !_returningDismiss) return;
+    final routeDrag = ViewerDismissalScope.maybeOf(context);
+    final animate = !immediate && !_reduceMotion;
+    final serial = ++_dismissResetSerial;
+    setState(() {
+      _dragging = false;
+      _dismissOffset = Offset.zero;
+    });
+    if (animate && routeDrag != null) {
+      _returningDismiss = true;
+      unawaited(
+        routeDrag.restore(false).then((_) {
+          if (mounted && serial == _dismissResetSerial) _finishDismissReset();
+        }),
+      );
+    } else if (animate && routeDrag == null) {
+      // The inline media TweenAnimationBuilder completes the return.
+      _returningDismiss = true;
+    } else {
+      if (routeDrag != null) unawaited(routeDrag.restore(true));
+      _finishDismissReset();
     }
   }
 
   void _pointerUp(PointerEvent event) {
+    // Flutter may deliver the release of a held pointer to a RenderPointerListener
+    // that was disposed during route navigation. Ownership was already released
+    // by dispose; never restart gesture cleanup with a defunct State/context.
+    if (!mounted) return;
     _pointers.remove(event.pointer);
     if (_pointers.isNotEmpty) return;
     if (_scrubbing) {
@@ -700,7 +861,20 @@ class _ViewerPageState extends State<_ViewerPage>
       final travelled =
           (_mode.value - (_startedInDetails ? 1 : 0)).abs() *
           _transitionDistance;
-      final expand = travelled >= threshold
+      final idle = _lastMotionTime == null
+          ? null
+          : event.timeStamp - _lastMotionTime!;
+      final moving =
+          idle != null &&
+          idle >= Duration.zero &&
+          idle < const Duration(milliseconds: 100) &&
+          _releaseVelocityY.abs() >= kMinFlingVelocity;
+      // A deliberate release in motion expresses direction even before the
+      // distance threshold. A pause keeps distance-based settling; reversing
+      // the final movement lets the user return to the starting mode.
+      final expand = moving && _lastVerticalDirection != 0
+          ? _lastVerticalDirection < 0
+          : travelled >= threshold
           ? !_startedInDetails
           : _startedInDetails;
       if (expand != _details) {
@@ -715,19 +889,42 @@ class _ViewerPageState extends State<_ViewerPage>
     } else if (!_cancelledMediaDrag &&
         _dragging &&
         _dismissOffset.dy > widget.swipeDownThreshold) {
-      _resetDismiss();
       if (widget.onSwipeDown != null) {
         widget.onSwipeDown!();
+        // A configured pop can start reversing after this callback returns.
+        // Let the route claim the drag offset before resetting non-pop gestures.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted &&
+              ModalRoute.of(context)?.animation?.status !=
+                  AnimationStatus.reverse) {
+            _resetDismiss();
+          }
+        });
       } else {
-        Navigator.of(context).maybePop();
+        final route = ModalRoute.of(context);
+        unawaited(
+          Navigator.of(context).maybePop().then((handled) {
+            if (!mounted) return;
+            // A route remains current while its reverse animation is running.
+            // Resetting its drag here would erase the captured release offset.
+            if (!handled ||
+                ((route?.isCurrent ?? false) &&
+                    route?.animation?.status != AnimationStatus.reverse)) {
+              _resetDismiss();
+            }
+          }),
+        );
       }
     } else {
       _resetDismiss();
     }
     _dragOrigin = _pointerPosition = null;
+    _velocity = null;
+    _lastVerticalDirection = 0;
   }
 
   void _pointerCancel(PointerCancelEvent event) {
+    if (!mounted) return;
     _cancelPointerGesture();
     _pointerUp(event);
   }
@@ -782,9 +979,30 @@ class _ViewerPageState extends State<_ViewerPage>
     if (widget.controller.zoom.value && !_fromOverlay) _cancelPointerGesture();
   }
 
+  @override
+  void didUpdateWidget(covariant _ViewerPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_details && !_mountedDetails) {
+      _mountedDetails = true;
+      if (!_mode.isAnimating && !_scrubbing) _mode.value = 1;
+    }
+  }
+
   void _pageChanged() {
     final current = widget.controller.page == widget.index;
+    if (!current && _current && (_dragging || _returningDismiss)) {
+      _resetDismiss(immediate: true);
+    }
     if (current != _current) setState(() => _current = current);
+    // The PageView can build an adjacent entry before its Post metadata is
+    // available. A first visit must not inherit an unmounted Details panel
+    // or a collapsed presentation from that earlier placeholder.
+    if (current && _details) {
+      if (!_mountedDetails) setState(() => _mountedDetails = true);
+      if (!_scrubbing && !_mode.isAnimating && _mode.value != 1) {
+        _mode.value = 1;
+      }
+    }
     if (widget.controller.page == widget.index) {
       _publishProgress();
       widget.controller.scrollDetailsToTop = _scrollToTop;
@@ -864,6 +1082,9 @@ class _ViewerPageState extends State<_ViewerPage>
 
   @override
   void dispose() {
+    if (_ownsDismissGesture) {
+      widget.controller.abandonDismissGesture(this);
+    }
     widget.controller.sheetState.removeListener(_modeChanged);
     widget.controller.zoom.removeListener(_zoomChanged);
     widget.interacting.removeListener(_onInteractionChanged);
@@ -881,6 +1102,54 @@ class _ViewerPageState extends State<_ViewerPage>
     return ExcludeFocus(excluding: !_current, child: _buildPage(context));
   }
 
+  Widget _mediaDragSurface(Widget child) {
+    if (widget.mediaNavigation() == null) return child;
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        widget.controller.zoom,
+        widget.controller.animating,
+        widget.controller.freestyleMoving,
+        widget.interacting,
+      ]),
+      builder: (context, _) => _ViewerDragSurface(
+        controller: widget.controller,
+        enabled:
+            !widget.controller.zoom.value &&
+            !widget.controller.animating.value &&
+            !widget.controller.freestyleMoving.value &&
+            !widget.interacting.value,
+        selectController: (next) {
+          final media = widget.mediaNavigation();
+          final inner = media?.pageController?.call();
+          // Freeze this choice for the drag. Reaching another Page during the
+          // same gesture must not transfer its remaining movement to a Work.
+          // A missing inner controller can mean the Page manifest or its
+          // viewport is still loading. Only a proven boundary exits the Work.
+          return media != null && (next ? media.atEnd : media.atStart)
+              ? widget.controller.pageController
+              : inner;
+        },
+        child: child,
+      ),
+    );
+  }
+
+  Widget _dismissibleMedia(Widget child) {
+    if (ViewerDismissalScope.maybeOf(context) != null) return child;
+    return TweenAnimationBuilder<Offset>(
+      tween: Tween(begin: Offset.zero, end: _dismissOffset),
+      duration: _dragging || _reduceMotion
+          ? Duration.zero
+          : const Duration(milliseconds: 165),
+      onEnd: () {
+        if (_returningDismiss) _finishDismissReset();
+      },
+      builder: (context, offset, child) =>
+          Transform.translate(offset: offset, child: child),
+      child: child,
+    );
+  }
+
   Widget _buildPage(BuildContext context) {
     if (!widget.isPost) return widget.itemBuilder(context);
     return LayoutBuilder(
@@ -889,7 +1158,11 @@ class _ViewerPageState extends State<_ViewerPage>
         final safeWidth = constraints.maxWidth - padding.horizontal;
         final usable = math.max(0, constraints.maxHeight - padding.vertical);
         final ceiling = usable * 0.6;
-        final size = widget.mediaSize;
+        // A Work has one stable frame. Fitting each Page happens inside its
+        // horizontal pager so neither its geometry nor swipe travel is scaled
+        // by the cover image.
+        final mediaPager = widget.mediaNavigation() != null;
+        final size = mediaPager ? null : widget.mediaSize;
         final ratio = size != null && size.width > 0 && size.height > 0
             ? size.width / size.height
             : double.nan;
@@ -968,62 +1241,76 @@ class _ViewerPageState extends State<_ViewerPage>
                               : const NeverScrollableScrollPhysics(),
                           slivers: [
                             SliverToBoxAdapter(
-                              child: SizedBox(
-                                key: ValueKey(('viewer-media', widget.index)),
-                                height: lerpDouble(
-                                  constraints.maxHeight,
-                                  detailsHeight,
-                                  progress,
-                                ),
-                                child: ClipRect(
-                                  child: OverflowBox(
-                                    alignment: Alignment.topLeft,
-                                    minWidth: constraints.maxWidth,
-                                    maxWidth: constraints.maxWidth,
-                                    minHeight: constraints.maxHeight,
-                                    maxHeight: constraints.maxHeight,
-                                    child: Transform(
-                                      alignment: Alignment.topLeft,
-                                      transform: Matrix4.identity()
-                                        ..translateByDouble(
-                                          targetOffset.dx * progress,
-                                          targetOffset.dy * progress,
-                                          0,
-                                          1,
-                                        )
-                                        ..scaleByDouble(
-                                          lerpDouble(1, targetScale, progress)!,
-                                          lerpDouble(1, targetScale, progress)!,
-                                          1,
-                                          1,
-                                        ),
-                                      child: TweenAnimationBuilder<Offset>(
-                                        tween: Tween(
-                                          begin: Offset.zero,
-                                          end: _dismissOffset,
-                                        ),
-                                        duration: _dragging || _reduceMotion
-                                            ? Duration.zero
-                                            : const Duration(milliseconds: 165),
-                                        builder: (context, offset, child) =>
-                                            Transform.translate(
-                                              offset: offset,
-                                              child: Transform.scale(
-                                                scale:
-                                                    1 -
-                                                    (offset.dy.abs() /
-                                                            widget
-                                                                .swipeDownThreshold *
-                                                            0.2)
-                                                        .clamp(0.0, 0.2),
-                                                child: child,
+                              child: _mediaDragSurface(
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _details && _current
+                                      ? widget.controller.resetSheet
+                                      : null,
+                                  child: SizedBox(
+                                    key: ValueKey((
+                                      'viewer-media',
+                                      widget.index,
+                                    )),
+                                    height: lerpDouble(
+                                      constraints.maxHeight,
+                                      detailsHeight,
+                                      progress,
+                                    ),
+                                    child: ClipRect(
+                                      child: mediaPager
+                                          ? ViewerMediaViewport(
+                                              viewport: constraints.biggest,
+                                              details: Size(
+                                                safeWidth,
+                                                detailsHeight,
+                                              ),
+                                              progress: progress,
+                                              child:
+                                                  ViewerPresentationTransition(
+                                                    progress: progress,
+                                                    child: _dismissibleMedia(
+                                                      media,
+                                                    ),
+                                                  ),
+                                            )
+                                          : OverflowBox(
+                                              alignment: Alignment.topLeft,
+                                              minWidth: constraints.maxWidth,
+                                              maxWidth: constraints.maxWidth,
+                                              minHeight: constraints.maxHeight,
+                                              maxHeight: constraints.maxHeight,
+                                              child: Transform(
+                                                alignment: Alignment.topLeft,
+                                                transform: Matrix4.identity()
+                                                  ..translateByDouble(
+                                                    targetOffset.dx * progress,
+                                                    targetOffset.dy * progress,
+                                                    0,
+                                                    1,
+                                                  )
+                                                  ..scaleByDouble(
+                                                    lerpDouble(
+                                                      1,
+                                                      targetScale,
+                                                      progress,
+                                                    )!,
+                                                    lerpDouble(
+                                                      1,
+                                                      targetScale,
+                                                      progress,
+                                                    )!,
+                                                    1,
+                                                    1,
+                                                  ),
+                                                child: _dismissibleMedia(
+                                                  ViewerPresentationTransition(
+                                                    progress: progress,
+                                                    child: media,
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                        child: ViewerPresentationTransition(
-                                          progress: progress,
-                                          child: media,
-                                        ),
-                                      ),
                                     ),
                                   ),
                                 ),
@@ -1086,8 +1373,9 @@ class _ViewerPageState extends State<_ViewerPage>
                                 onPointerMove: _pointerMove,
                                 onPointerUp: _pointerUp,
                                 onPointerCancel: _pointerCancel,
-                                child: _OverlayDragSurface(
+                                child: _ViewerDragSurface(
                                   controller: widget.controller,
+                                  claimVertical: true,
                                   child: KurumiMeasureSize(
                                     onChange: (size) {
                                       _previewHeight = size.height;
@@ -1143,35 +1431,67 @@ class ViewerPresentationTransition extends InheritedWidget {
       progress != oldWidget.progress;
 }
 
-/// A toolbar drag participates in the arena, cancelling button taps, and drives
-/// the same outer ScrollPosition even when zoom owns drags on the image itself.
-class _OverlayDragSurface extends StatefulWidget {
-  const _OverlayDragSurface({required this.controller, required this.child});
+/// Drives one ScrollPosition for the whole gesture. Media chooses the Page or
+/// outer occurrence at drag start; toolbars always choose the outer occurrence.
+class _ViewerDragSurface extends StatefulWidget {
+  const _ViewerDragSurface({
+    required this.controller,
+    required this.child,
+    this.selectController,
+    this.enabled = true,
+    this.claimVertical = false,
+  });
   final PostDetailsPageViewController controller;
   final Widget child;
+  final PageController? Function(bool next)? selectController;
+  final bool enabled;
+  final bool claimVertical;
   @override
-  State<_OverlayDragSurface> createState() => _OverlayDragSurfaceState();
+  State<_ViewerDragSurface> createState() => _ViewerDragSurfaceState();
 }
 
-class _OverlayDragSurfaceState extends State<_OverlayDragSurface> {
+class _ViewerDragSurfaceState extends State<_ViewerDragSurface> {
   Drag? _drag;
   final _pointers = <int>{};
   var _cancelled = false;
   int? _startPage;
+  Offset? _origin;
+  PageController? _target;
+
+  @override
+  void didUpdateWidget(_ViewerDragSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled || widget.controller != oldWidget.controller) {
+      _cancelled = true;
+      _cancelDrag();
+    }
+  }
 
   void _cancelDrag() {
     final drag = _drag;
     _drag = null;
     drag?.cancel();
-    if (drag != null && _startPage != null) {
-      final page = _startPage!;
-      widget.controller.animateToPage(page);
+    if (drag != null && _startPage != null && (_target?.hasClients ?? false)) {
+      _target!.animateToPage(
+        _startPage!,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     }
   }
 
   @override
   void dispose() {
-    _drag?.cancel();
+    // Canceling ScrollDragController starts a ballistic activity, which can
+    // create a ticker after this Scrollable's context has been deactivated.
+    // Going idle disposes the active drag without starting another animation.
+    if (_drag != null && (_target?.hasClients ?? false)) {
+      final position = _target!.position;
+      if (position is ScrollPositionWithSingleContext) {
+        position.goIdle();
+      }
+    }
+    _drag = null;
     super.dispose();
   }
 
@@ -1179,7 +1499,10 @@ class _OverlayDragSurfaceState extends State<_OverlayDragSurface> {
   Widget build(BuildContext context) => Listener(
     onPointerDown: (event) {
       _pointers.add(event.pointer);
-      if (_pointers.length > 1) {
+      if (_pointers.length == 1) {
+        _cancelled = !widget.enabled;
+        _origin = event.position;
+      } else {
         _cancelled = true;
         _cancelDrag();
       }
@@ -1191,26 +1514,43 @@ class _OverlayDragSurfaceState extends State<_OverlayDragSurface> {
     },
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onHorizontalDragStart: (details) {
-        if (_cancelled) return;
-        _startPage = widget.controller.page;
-        _drag = widget.controller.pageController.position.drag(
-          details,
-          () => _drag = null,
-        );
-      },
-      onHorizontalDragUpdate: (details) {
-        if (!_cancelled) _drag?.update(details);
-      },
-      onHorizontalDragEnd: (details) {
-        final drag = _drag;
-        _drag = null;
-        if (!_cancelled) drag?.end(details);
-      },
-      onHorizontalDragCancel: _cancelDrag,
+      onHorizontalDragStart: !widget.enabled
+          ? null
+          : (details) {
+              if (_cancelled) return;
+              final delta =
+                  details.globalPosition.dx -
+                  (_origin?.dx ?? details.globalPosition.dx);
+              final next = Directionality.of(context) == TextDirection.ltr
+                  ? delta < 0
+                  : delta > 0;
+              _target = widget.selectController == null
+                  ? widget.controller.pageController
+                  : widget.selectController!(next);
+              if (!(_target?.hasClients ?? false)) return;
+              _startPage = (_target!.page ?? _target!.initialPage.toDouble())
+                  .round();
+              _drag = _target!.position.drag(
+                details,
+                () => _drag = null,
+              );
+            },
+      onHorizontalDragUpdate: !widget.enabled
+          ? null
+          : (details) {
+              if (!_cancelled) _drag?.update(details);
+            },
+      onHorizontalDragEnd: !widget.enabled
+          ? null
+          : (details) {
+              final drag = _drag;
+              _drag = null;
+              if (!_cancelled) drag?.end(details);
+            },
+      onHorizontalDragCancel: !widget.enabled ? null : _cancelDrag,
       // Claim a vertical toolbar drag so its buttons do not tap/hold. The page's
       // pointer observer drives presentation directly, without claiming media.
-      onVerticalDragUpdate: (_) {},
+      onVerticalDragUpdate: widget.claimVertical ? (_) {} : null,
       child: widget.child,
     ),
   );

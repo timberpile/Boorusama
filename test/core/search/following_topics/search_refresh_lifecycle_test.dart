@@ -1,7 +1,9 @@
 import 'package:clock/clock.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/core/search/following_topics/src/services/search_refresh_scheduler.dart';
+import 'package:boorusama/core/search/following_topics/src/services/conservative_refresh_policy.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/search_refresh_lifecycle.dart';
 
 import 'following_topic_test_utils.dart';
@@ -10,6 +12,40 @@ import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/providers/search_refresh_coordinator.dart';
 
 void main() {
+  testWidgets(
+    'refresh status publication never mutates providers during widget build',
+    (tester) async {
+      final harness = FollowingTopicHarness();
+      addTearDown(harness.dispose);
+      final coordinator = harness.container.read(
+        searchRefreshCoordinatorProvider.notifier,
+      );
+      var configured = false;
+      await harness.pump(
+        tester,
+        Consumer(
+          builder: (context, ref, child) {
+            ref.watch(searchRefreshStatusProvider);
+            if (!configured) {
+              configured = true;
+              // A profile switch can synchronously activate a coordinator
+              // listener while another route's widgets are still mounting.
+              coordinator.setForeground(false);
+            }
+            return const SizedBox();
+          },
+        ),
+      );
+      expect(configured, isTrue);
+      expect(tester.takeException(), isNull);
+      await tester.pump();
+      expect(
+        harness.container.read(searchRefreshStatusProvider).paused,
+        RefreshSkipReason.inactive,
+      );
+    },
+  );
+
   testWidgets(
     'automatic foreground run refreshes an overdue source with site coordination',
     (tester) async {

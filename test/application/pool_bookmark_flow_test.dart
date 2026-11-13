@@ -417,15 +417,20 @@ void main() {
         await tester.tap(tile);
         await harness.pumpUntil(
           tester,
-          () => find.byType(BookmarkDetailsPage).evaluate().isEmpty,
+          () =>
+              find.byType(BookmarkDetailsPage).hitTestable().evaluate().isEmpty,
         );
         await harness.settle(tester);
-        expect(find.byType(MixedPostDetailsPage), findsOneWidget);
+        // The transparent member route retains its covered gallery for Back.
+        expect(find.byType(MixedPostDetailsPage).hitTestable(), findsOneWidget);
         await harness.showViewerControls(tester);
         await tester.tap(
           find.byIcon(Symbols.arrow_back_ios).hitTestable().last,
         );
-        await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
+        await harness.pumpUntilFound(
+          tester,
+          find.byType(BookmarkDetailsPage).hitTestable(),
+        );
         await harness.settle(tester);
         expect(pager.page, 2);
         expect(gallery.scrollController!.offset, offset);
@@ -1296,10 +1301,11 @@ void main() {
         await tester.tap(member);
         await harness.pumpUntil(
           tester,
-          () => find.byType(BookmarkDetailsPage).evaluate().isEmpty,
+          () =>
+              find.byType(BookmarkDetailsPage).hitTestable().evaluate().isEmpty,
         );
         await harness.settle(tester);
-        expect(find.byType(MixedPostDetailsPage), findsOneWidget);
+        expect(find.byType(MixedPostDetailsPage).hitTestable(), findsOneWidget);
         final beforeShortcut = harness.booruBackend.requests
             .whereType<FakeBooruPostRequest>()
             .where((r) => r.query.startsWith('id:'))
@@ -1316,7 +1322,10 @@ void main() {
         await tester.tap(
           find.byIcon(Symbols.arrow_back_ios).hitTestable().last,
         );
-        await harness.pumpUntilFound(tester, find.byType(BookmarkDetailsPage));
+        await harness.pumpUntilFound(
+          tester,
+          find.byType(BookmarkDetailsPage).hitTestable(),
+        );
         await harness.settle(tester);
         expect(pager.page, 1);
         expect(scroll.offset, offset);

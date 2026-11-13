@@ -232,8 +232,7 @@ class AppNavigationShell extends ConsumerWidget {
                 !keyboard &&
                 !chrome.selectionActive &&
                 (chrome.menuOpen || chrome.barVisible);
-            final viewerCoversBar = chrome.viewerOpen && !chrome.viewerClosing;
-            final barShown = barPositionVisible && !viewerCoversBar;
+            final barShown = barPositionVisible && !chrome.viewerOpen;
             // A root operation may temporarily use another source branch.
             // Return to its caller before falling back to remembered Browse.
             final rootCanPop = ModalRoute.canPopOf(context) ?? false;
@@ -339,12 +338,9 @@ class AppNavigationShell extends ConsumerWidget {
                                 left: 0,
                                 right: 0,
                                 height: bottomExtent,
-                                // Keep the timeline position ready as soon as
-                                // the viewer starts revealing it again.
-                                child: Visibility(
-                                  visible: !viewerCoversBar,
-                                  maintainState: true,
-                                  child: IgnorePointer(
+                                // Keep the bar mounted while it moves out
+                                // with the Viewer route and back on dismissal.
+                                child: IgnorePointer(
                                     ignoring: !barShown || chrome.viewerOpen,
                                     child: ExcludeFocus(
                                       excluding: !barShown || chrome.viewerOpen,
@@ -429,7 +425,6 @@ class AppNavigationShell extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
-                                ),
                               ),
                           ],
                         ),
@@ -516,9 +511,23 @@ class _NavigationBarSlide extends ConsumerWidget {
       keyboard: keyboard,
       disableAnimations: MediaQuery.disableAnimationsOf(context),
     );
-    return AnimatedSlide(
-      offset: Offset(0, transition.hiddenFraction),
-      duration: transition.duration,
+    return ValueListenableBuilder<double>(
+      valueListenable:
+          ref.read(navigationChromeProvider.notifier).viewerRouteProgress,
+      builder: (context, progress, child) {
+        final baseHidden = transition.hiddenFraction;
+        // Hide the bar early in the entrance animation. Route durations
+        // are shorter than before, so the same slide also returns promptly.
+        final hidden = chrome.viewerOpen
+            ? baseHidden +
+                  (1 - baseHidden) * Curves.easeOutCubic.transform(progress)
+            : baseHidden;
+        return AnimatedSlide(
+          offset: Offset(0, hidden),
+          duration: chrome.viewerOpen ? Duration.zero : transition.duration,
+          child: child!,
+        );
+      },
       child: child,
     );
   }

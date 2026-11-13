@@ -57,6 +57,19 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final bool Function() checkIfLargeScreen;
 
   int get page => currentPage.value;
+  // Interaction checkpoints are short-lived conveniences for nearby entries.
+  bool retainsStateFor(int index) => (index - page).abs() <= 2;
+
+  Iterable<int> get retainedStatePages sync* {
+    for (
+      var index = (page - 2).clamp(0, totalPage);
+      index < (page + 3).clamp(0, totalPage);
+      index++
+    ) {
+      yield index;
+    }
+  }
+
   bool get isExpanded => sheetState.value.isExpanded;
 
   PageController get pageController => _pageController;
@@ -89,6 +102,38 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final zoom = ValueNotifier(false);
   final freestyleMoveOffset = ValueNotifier(Offset.zero);
   final freestyleMoving = ValueNotifier(false);
+  Object? _dismissGestureOwner;
+  var _disposed = false;
+
+  void beginDismissGesture(Object owner) {
+    _dismissGestureOwner = owner;
+    freestyleMoving.value = true;
+  }
+
+  void endDismissGesture(Object owner) {
+    if (!identical(_dismissGestureOwner, owner)) return;
+    _dismissGestureOwner = null;
+    _clearDismissGesture();
+  }
+
+  // A Page can unmount during a route transition while the widget tree is
+  // locked. Release ownership immediately, but notify surviving listeners
+  // only after the teardown frame has finished.
+  void abandonDismissGesture(Object owner) {
+    if (!identical(_dismissGestureOwner, owner)) return;
+    _dismissGestureOwner = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && _dismissGestureOwner == null) {
+        _clearDismissGesture();
+      }
+    });
+  }
+
+  void _clearDismissGesture() {
+    freestyleMoving.value = false;
+    freestyleMoveOffset.value = Offset.zero;
+  }
+
   final isItemPushed = ValueNotifier(false);
   final forceHideOverlay = ValueNotifier(false);
   final forceHideBottomSheet = ValueNotifier(false);
@@ -561,6 +606,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _slideshowController.dispose();
     _cancelCooldown();
 

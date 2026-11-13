@@ -30,6 +30,7 @@ import 'play_pause_animation_overlay.dart';
 import 'post_details_controller.dart';
 import 'post_details_page_view_scope.dart';
 import 'post_media.dart';
+import 'post_details_image.dart' show PostDetailsPlaceholderMediaBuilder;
 import 'seek_animation_overlay.dart';
 import 'post_viewer_transformation_scope.dart';
 import 'zoom_edge_page_gesture.dart';
@@ -49,9 +50,23 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
     required this.imageUrlBuilder,
     required this.mediaAspectRatioBuilder,
     required this.videoAspectRatioBuilder,
+    this.contentSize,
+    this.onImageSize,
+    this.onImageReady,
+    this.onImageUnavailable,
+    this.placeholderMediaBuilder,
+    this.allowOriginalImage = true,
     super.key,
   });
 
+  final PostDetailsPlaceholderMediaBuilder<T>? placeholderMediaBuilder;
+  final bool allowOriginalImage;
+  final Size? contentSize;
+  final ValueChanged<Size>? onImageSize;
+
+  /// Fired after the first decoded rendition has reached the media surface.
+  final VoidCallback? onImageReady;
+  final VoidCallback? onImageUnavailable;
   final int index;
   final List<T> posts;
   final T? post;
@@ -232,7 +247,12 @@ class _PostDetailsItemState<T extends Post>
 
   void _onImageStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      if (_imageController.loadState.value == LoadState.completed &&
+          _imageController.imageInfo.value != null) {
+        widget.onImageReady?.call();
+      }
+      setState(() {});
     });
   }
 
@@ -353,9 +373,11 @@ class _PostDetailsItemState<T extends Post>
         post.height.isFinite &&
         post.width > 0 &&
         post.height > 0;
-    final mediaSize = hasPostGeometry
-        ? Size(post.width, post.height)
-        : decodedSize ?? Size(post.width, post.height);
+    final mediaSize =
+        widget.contentSize ??
+        (hasPostGeometry
+            ? Size(post.width, post.height)
+            : decodedSize ?? Size(post.width, post.height));
 
     final initialThumbnailUrl = widget.detailsController.initialThumbnailUrl;
     final initialPlaceholderMedia = initialThumbnailUrl != null
@@ -413,9 +435,11 @@ class _PostDetailsItemState<T extends Post>
                     valueListenable:
                         widget.detailsController.originalImagePostKeys,
                     builder: (_, originalImagePostKeys, _) {
-                      final useOriginal = originalImagePostKeys.contains(
-                        postViewerIdentity(post),
-                      );
+                      final useOriginal =
+                          widget.allowOriginalImage &&
+                          originalImagePostKeys.contains(
+                            postViewerIdentity(post),
+                          );
 
                       return PostMedia<T>(
                         post: post,
@@ -431,14 +455,18 @@ class _PostDetailsItemState<T extends Post>
                         imageCacheManager: widget.imageCacheManager,
                         imageController: _imageController,
                         onRepresentationChanged: _onRepresentationChanged,
+                        onTerminalFailure: widget.onImageUnavailable,
+                        contentSize: widget.contentSize,
+                        onImageSize: widget.onImageSize,
                         // This is used to make sure we have a thumbnail to show instead of a black placeholder
                         placeholderMediaBuilder:
-                            isInitPage &&
-                                widget.index ==
-                                    widget.detailsController.initialPage &&
-                                initialThumbnailUrl != null
-                            ? (_) => initialPlaceholderMedia!
-                            : null,
+                            widget.placeholderMediaBuilder ??
+                            (isInitPage &&
+                                    widget.index ==
+                                        widget.detailsController.initialPage &&
+                                    initialThumbnailUrl != null
+                                ? (_) => initialPlaceholderMedia!
+                                : null),
                         controller: pageViewController,
                         isPageSettled: _isPageSettled,
                       );

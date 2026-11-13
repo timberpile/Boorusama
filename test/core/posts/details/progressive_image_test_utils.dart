@@ -128,11 +128,22 @@ Future<void> pumpUntil(
   }
 }
 
-Future<void> waitForPixel(WidgetTester tester, List<int> expected) => pumpUntil(
+Future<void> waitForPixel(
+  WidgetTester tester,
+  List<int> expected, {
+  Finder? within,
+}) => pumpUntil(
   tester,
   () async {
     final images = tester
-        .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
+        .widgetList<ExtendedRawImage>(
+          within == null
+              ? find.byType(ExtendedRawImage)
+              : find.descendant(
+                  of: within,
+                  matching: find.byType(ExtendedRawImage),
+                ),
+        )
         .map((widget) => widget.image)
         .nonNulls;
     if (images.isEmpty) return false;
