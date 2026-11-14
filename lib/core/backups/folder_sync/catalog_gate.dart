@@ -84,7 +84,7 @@ final class SyncCatalogGate {
     required String publisher,
     required int expectedSequence,
     required Uint8List bytes,
-  }) async {
+  }) {
     final id = syncUuid(publisher);
     syncPositiveInteger(expectedSequence);
     if (bytes.length > folderSyncMaxMetadataBytes) {
@@ -152,7 +152,7 @@ final class SyncCatalogGate {
   Future<T> withCurrentCatalog<T>(
     VerifiedSyncCatalog catalog,
     Future<T> Function() commit,
-  ) => mutations.runExclusive(() async {
+  ) => mutations.runExclusive(() {
     final trust = _read(catalog.publisher);
     if (trust == null) throw const SyncTrustRequired();
     if (trust.sequence != catalog.sequence ||
