@@ -106,7 +106,7 @@ void main() {
             });
             await container.read(bookmarkProvider.future);
             final dto = work();
-            final BookmarkPickerRequest request = page
+            final request = page
                 ? PostBookmarkPickerRequest(
                     config: access.config!.auth,
                     source: access.config,
@@ -213,9 +213,8 @@ void main() {
 /// Pause after the real service has prepared IDs and organization, immediately
 /// before entering the production repository's durable commit path.
 class _GatedRepository extends BookmarkHiveRepository {
-  _GatedRepository(Box<BookmarkHiveObject> posts, BookmarkTestStorage storage)
+  _GatedRepository(super.posts, BookmarkTestStorage storage)
     : super(
-        posts,
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,
         coordinator: storage.coordinator,

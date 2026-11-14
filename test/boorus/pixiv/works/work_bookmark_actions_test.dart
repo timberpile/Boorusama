@@ -8,6 +8,7 @@ import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart'
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_name_dialog.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/groups/group_capability.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -31,11 +32,15 @@ void main() {
           expect(find.byType(KurumiDropdownIcon), findsOneWidget);
           fixture.data.value = bookmarkData(fixture.access, page: 0);
           await tester.pump();
-          await tester.tap(find.text(choosePage ? 'Current Page' : 'Entire Work'));
+          await tester.tap(
+            find.text(choosePage ? 'Current Page' : 'Entire Work'),
+          );
           await tester.pumpAndSettle();
-          final request = tester.widget<BookmarkGroupPicker>(
-            find.byType(BookmarkGroupPicker),
-          ).request;
+          final request = tester
+              .widget<BookmarkGroupPicker>(
+                find.byType(BookmarkGroupPicker),
+              )
+              .request;
           if (choosePage) {
             expect((request as PostBookmarkPickerRequest).post, same(captured));
           } else {
@@ -49,7 +54,9 @@ void main() {
           expect(records, hasLength(1));
           final groups = (await tester.runAsync(fixture.groups.getGroups))!;
           expect(
-            groups.singleWhere((g) => g.id == fixture.destinationId).bookmarkIds,
+            groups
+                .singleWhere((g) => g.id == fixture.destinationId)
+                .bookmarkIds,
             {records.single.id},
           );
           if (choosePage) {
@@ -65,7 +72,9 @@ void main() {
       );
     }
 
-    testWidgets('direct tap saves only the Work, narrow=$narrow', (tester) async {
+    testWidgets('direct tap saves only the Work, narrow=$narrow', (
+      tester,
+    ) async {
       final fixture = await mountWorkBookmarks(tester, narrow: narrow);
       await tester.tap(find.byTooltip('Entire Work'));
       await tester.pumpAndSettle();
@@ -75,31 +84,38 @@ void main() {
       expect(state.items, isEmpty);
     });
 
-    testWidgets('new Group handoff retains Work with keyboard, narrow=$narrow', (
-      tester,
-    ) async {
-      final fixture = await mountWorkBookmarks(tester, narrow: narrow);
-      await tester.tap(find.byTooltip('Entire Work'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('bookmark-picker-create-group')));
-      await tester.pumpAndSettle();
-      expect(find.byType(BookmarkGroupNameDialog), findsOneWidget);
-      await tester.enterText(find.byType(TextField), 'Whole artworks');
-      tester.view.viewInsets = const FakeViewPadding(bottom: 180);
-      await tester.pumpAndSettle();
-      await commitBookmarkInteraction(
+    testWidgets(
+      'new Group handoff retains Work with keyboard, narrow=$narrow',
+      (
         tester,
-        fixture,
-        () => tester.tap(find.text('Save')),
-      );
-      final state = fixture.container.read(bookmarkProvider).requireValue;
-      expect(state.records.single, isA<ContentGroupBookmark>());
-      expect(state.items, isEmpty);
-      expect(
-        state.groups.singleWhere((g) => g.name == 'Whole artworks').bookmarkIds,
-        {state.records.single.id},
-      );
-    });
+      ) async {
+        final fixture = await mountWorkBookmarks(tester, narrow: narrow);
+        await tester.tap(find.byTooltip('Entire Work'));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('bookmark-picker-create-group')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byType(BookmarkGroupNameDialog), findsOneWidget);
+        await tester.enterText(find.byType(TextField), 'Whole artworks');
+        tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+        await tester.pumpAndSettle();
+        await commitBookmarkInteraction(
+          tester,
+          fixture,
+          () => tester.tap(find.text('Save')),
+        );
+        final state = fixture.container.read(bookmarkProvider).requireValue;
+        expect(state.records.single, isA<ContentGroupBookmark>());
+        expect(state.items, isEmpty);
+        expect(
+          state.groups
+              .singleWhere((g) => g.name == 'Whole artworks')
+              .bookmarkIds,
+          {state.records.single.id},
+        );
+      },
+    );
   }
 
   testWidgets('confirmed single Page has only the direct Work action', (
@@ -110,9 +126,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(KurumiDropdownIcon), findsNothing);
     expect(
-      tester.widget<KurumiActionIconButton>(
-        find.byType(KurumiActionIconButton),
-      ).onLongPress,
+      tester
+          .widget<KurumiActionIconButton>(
+            find.byType(KurumiActionIconButton),
+          )
+          .onLongPress,
       isNull,
     );
     await tester.tap(find.byTooltip('Entire Work'));
@@ -124,7 +142,9 @@ void main() {
     );
   });
 
-  testWidgets('unknown count is not mistaken for a single Page', (tester) async {
+  testWidgets('unknown count is not mistaken for a single Page', (
+    tester,
+  ) async {
     final fixture = await mountWorkBookmarks(tester);
     fixture.data.value = bookmarkData(fixture.access, pageCount: null);
     await tester.pumpAndSettle();
@@ -227,7 +247,13 @@ void main() {
     });
   }
 
-  for (final invalidate in ['dismiss', 'work', 'access', 'profile', 'unmount']) {
+  for (final invalidate in [
+    'dismiss',
+    'work',
+    'access',
+    'profile',
+    'unmount',
+  ]) {
     testWidgets('choice rejects $invalidate without writing', (tester) async {
       final fixture = await mountWorkBookmarks(tester);
       await tester.longPress(find.byTooltip('Entire Work'));
@@ -250,7 +276,7 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(find.byType(BookmarkGroupPicker), findsNothing);
-      expect((await tester.runAsync(fixture.repository.readAll))!, isEmpty);
+      expect((await tester.runAsync(fixture.repository.readAll)), isEmpty);
       expect(tester.takeException(), isNull);
     });
   }
@@ -264,7 +290,7 @@ void main() {
     expect(find.byType(BookmarkGroupPicker), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect((await tester.runAsync(fixture.repository.readAll))!, isEmpty);
+    expect((await tester.runAsync(fixture.repository.readAll)), isEmpty);
   });
 
   testWidgets('overflow has no duplicate Work or Page bookmark actions', (
