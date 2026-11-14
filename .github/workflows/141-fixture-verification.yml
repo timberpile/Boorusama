@@ -1,4 +1,4 @@
-name: Repair and verify 141 widget fixture
+name: Verify current 141 widget fixture
 
 on:
   push:
@@ -6,58 +6,33 @@ on:
     paths: [.github/workflows/141-fixture-verification.yml]
 
 permissions:
-  contents: write
-
-concurrency:
-  group: repair-141-widget-fixture
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   fixture:
     if: github.repository == 'timberpile/Boorusama'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     env:
       BOORUSAMA_USE_FVM: 'false'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ github.sha }}
-      - name: Apply the single fixture boundary correction
-        shell: bash
+          persist-credentials: false
+      - name: Record exact source identity
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-          path = Path('test/boorus/pixiv/works/work_bookmark_widget_fixture.dart')
-          old = '  final fixture = await WorkBookmarkWidgetFixture.create(tester);'
-          new = '''  // Hive initialization performs real file I/O outside the widget fake clock.
-            final fixture = (await tester.runAsync(
-              () => WorkBookmarkWidgetFixture.create(tester),
-            ))!;'''
-          source = path.read_text()
-          assert source.count(old) == 1, 'Expected fixture initialization changed; stop rather than guessing.'
-          path.write_text(source.replace(old, new))
-          changed = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
-          assert changed == [str(path)], changed
-          PY
-          git diff --check
-          git add test/boorus/pixiv/works/work_bookmark_widget_fixture.dart
-          git rm .github/workflows/141-fixture-verification.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m 'test: initialize bookmark Hive fixture outside FakeAsync (Refs #141)'
-          git push origin HEAD:refs/heads/feature/141-pixiv-work-page-bookmarks
-          echo "Tested candidate: $(git rev-parse HEAD)"
+          git rev-parse HEAD
+          git hash-object test/boorus/pixiv/works/work_bookmark_widget_fixture.dart
+          grep -n -E 'createTemp|runAsync|mountWorkBookmarks|\.create\(tester\)' test/boorus/pixiv/works/work_bookmark_widget_fixture.dart
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           flutter-version: 3.47.2
           cache: true
       - name: Native host prerequisites
-        run: sudo apt-get update && sudo apt-get install -y meson nasm
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq meson nasm
       - name: Generate application sources
-        run: ./init.sh
+        run: ./init.sh > "$RUNNER_TEMP/141-init.log" 2>&1 || { tail -80 "$RUNNER_TEMP/141-init.log"; exit 1; }
       - name: Analyze the fixture and production bookmark paths
         id: analysis
         continue-on-error: true
@@ -80,6 +55,7 @@ jobs:
               kind = event.get('type')
               if kind == 'testStart': tests[event['test']['id']] = event['test']['name']
               elif kind == 'error': print(event.get('error', ''), event.get('stackTrace', ''))
+              elif kind == 'print': print(event.get('message', ''))
               elif kind == 'testDone':
                   if event.get('skipped'): skipped += 1
                   elif event.get('result') == 'success': passed += 1
