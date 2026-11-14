@@ -43,6 +43,28 @@ is a source reference, not a merge target or a current verification result.
   from a current verified catalog and use its approved publisher key. The result
   is transport evidence, **not** a validated export archive, supported schema,
   source/profile permission or authorized import/deletion plan.
+- `catalog.dart`: typed source advertisements, explicit active/withdrawn/deleted
+  states, bound revisions, labels, duplicate identity and iterative cycle checks.
+  A missing entry never carries withdrawal evidence.
+- `bookmark_package.dart`: bounded existing `.bsexport` archive verification,
+  exactly one supported v10 Bookmark source and one source Group's direct
+  membership, typed Work/Page identity validation and deterministic semantic
+  hashing. The builder generates a fresh credential-free transfer and strips local
+  search/page context. Incoming bytes cannot be passed back to publication.
+  Private captured payload text and read-only bytes retain validation evidence;
+  each `data` access returns a detached decode rather than shared mutable state.
+- `publication.dart`: durable revision/catalog reservations, payload then signed
+  descriptor then signed catalog publication, complete outgoing intent checkpoints
+  and per-source withdrawal barriers including unfinished reserved revisions.
+  Retried failures leave gaps rather than reuse immutable names. The publisher
+  compares semantic inputs before archive construction, authenticates cached
+  revisions and skips archive rebuilding for unchanged content. Preparation uses
+  a separate shared publication work queue, never the domain mutation lock.
+- `receive_preparation.dart`: bind the approved catalog fingerprint, exact active
+  advertisement, descriptor, archive schema/source scope and semantic digest.
+  The prepared result is not subscription, profile, ownership or deletion
+  authority. A future executor must recheck its catalog ticket under the shared
+  domain coordinator immediately before journaled application.
 - `bookmark_scope.dart`: bounded iterative complete-subtree union, canonical
   source identity, virtual direct-root links, source sibling order and overlapping
   coverage. It previews source IDs uncovered by explicit-root unsubscribe but
@@ -58,13 +80,14 @@ is a source reference, not a merge target or a current verification result.
 
 ## Production wiring still required
 
-Build signed catalog entries and descriptor-last publication with durable
-revision reservations and partial-write recovery. Validate `.bsexport` archives
-through the existing bounded package reader, then enforce supported schemas,
-typed v10 source content and exact advertised scope. Prepare outside the shared
-mutation lock and revalidate the current catalog immediately before journaled
-apply. Persist source-to-fresh-local-ID ownership and enforce read-only mirrors
-at repository/service entry points, not just hidden menus.
+Connect publication rules, consistent local source snapshots and debounced dirty
+signals to the new publisher components. Persist the complete advertisement set
+and assemble catalogs only from successful source operations. Do not republish
+received mirrors. Following package support is not implemented. Before accepting
+prepared Bookmark data, persist source-to-fresh-local-ID ownership and enforce
+read-only mirrors at repository/service entry points, not just hidden menus.
+Revalidate the current catalog and apply ownership, domain changes and last-applied
+markers through the existing transaction journal. No such apply path is enabled.
 
 Implement safe explicit withdrawal, confirmed unsubscribe/Forget Device and
 independent local copies; local-membership-only All Bookmarks; dirty-signal
