@@ -5781,12 +5781,13 @@ Future<void> _swipeOutwardAtRightEdge(
   await drag.moveBy(const Offset(-170, 0));
   if (indicatorIcon != null) {
     await tester.pump();
-    expect(find.byIcon(indicatorIcon), findsOneWidget);
+    final indicator = find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics && widget.properties.label == indicatorLabel,
+    );
+    expect(indicator, findsOneWidget);
     expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Semantics && widget.properties.label == indicatorLabel,
-      ),
+      find.descendant(of: indicator, matching: find.byIcon(indicatorIcon)),
       findsOneWidget,
     );
   }

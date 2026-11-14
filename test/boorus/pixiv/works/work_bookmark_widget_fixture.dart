@@ -24,6 +24,7 @@ import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/navigation/destination_activity.dart';
 import 'package:boorusama/core/posts/details/src/providers/media_group_provider.dart';
+import 'package:boorusama/core/posts/details/src/providers/viewer_source_access_provider.dart';
 import 'package:boorusama/core/posts/details/src/types/inherited_post.dart';
 import 'package:boorusama/core/posts/details/src/types/post_presentation_context.dart';
 import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
@@ -208,6 +209,12 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
         booruGroupCapabilityProvider.overrideWith(
           (ref, engine) => createPixivGroupCapability(ref),
         ),
+        viewerSourceAccessProvider.overrideWith((ref, binding) {
+          final value = ref.watch(current);
+          return binding.resolve(ref.watch(booruConfigProvider)) == null
+              ? null
+              : value;
+        }),
         mediaGroupProvider.overrideWith(
           (ref, entry) => MediaGroupState(
             access: ref.watch(contentAccessContextProvider(access.key)),

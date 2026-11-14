@@ -18,6 +18,7 @@ import '../../../links/link_file_labels.dart';
 import '../../../links/share_group_link_button.dart';
 import '../../../post/types.dart';
 import '../providers/media_group_provider.dart';
+import '../providers/viewer_source_access_provider.dart';
 import '../types/viewer_entry.dart';
 import '../types/inherited_post.dart';
 
@@ -36,6 +37,17 @@ class MediaGroupActions extends ConsumerStatefulWidget {
 }
 
 class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
+  MediaGroupState? _retainedState;
+
+  @override
+  void didUpdateWidget(MediaGroupActions oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entry.contentReference != widget.entry.contentReference ||
+        oldWidget.entry.source?.config != widget.entry.source?.config) {
+      _retainedState = null;
+    }
+  }
+
   var _downloading = false;
   var _cancel = false;
   var _queued = 0;
@@ -164,14 +176,38 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
     // Navigation activity controls actions, not the identity of this subtree.
     // Dropping the scope for a dialog disposed its chooser owner; dropping it
     // for a neighbor substituted the current Page's Bookmark status for Work.
-    final state = ref.watch(mediaGroupProvider(widget.entry));
+    final MediaGroupState state;
+    if (NavigationActivity.of(context)) {
+      state = ref.watch(mediaGroupProvider(widget.entry));
+      _retainedState = state;
+    } else {
+      // Covered routes and offscreen neighbors keep Work identity without
+      // subscribing to metadata/member providers and starting hidden loads.
+      final binding = widget.entry.source;
+      final resolved = binding == null
+          ? null
+          : ref.watch(viewerSourceAccessProvider(binding));
+      final access =
+          resolved != null && resolved.accepts(widget.entry.contentReference)
+          ? resolved
+          : null;
+      final retained = _retainedState;
+      final current =
+          access != null &&
+          (retained?.access?.hasSameAuthorization(access) ?? false);
+      state = MediaGroupState(
+        access: access,
+        details: current ? retained?.details : widget.entry.storedDetails,
+        members: current ? retained?.members : null,
+      );
+    }
     final presentation = ref
         .watch(
           booruGroupCapabilityProvider(widget.entry.contentReference.engine),
         )
         ?.presentation;
     final bookmarks = presentation is BooruMediaGroupBookmarkPresentation
-        ? presentation as BooruMediaGroupBookmarkPresentation
+        ? presentation as BooruMediaGroupBookmarkPresentation?
         : null;
     final access = state.access;
     final bookmarkData = access == null
