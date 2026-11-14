@@ -124,7 +124,11 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
       title: context.t.bookmark.groups.selector,
       child: BookmarkFolderPickerContents(
         folders: library?.folders ?? const [],
-        groups: library?.groups ?? const [],
+        groups:
+            library?.groups
+                .where((group) => !library.mirrors.isReceived(group.id))
+                .toList() ??
+            const [],
         membershipGroupIds: singleMemberships,
         groupBuilder: (context, group) => BookmarkPickerMenuItem(
           icon: Icon(
@@ -469,7 +473,11 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(bookmarkProvider).valueOrNull;
-    final groups = state?.groups ?? const <BookmarkGroup>[];
+    final groups =
+        state?.groups
+            .where((group) => !state.mirrors.isReceived(group.id))
+            .toList() ??
+        const <BookmarkGroup>[];
     final summary = BookmarkGroupSelectionSummary.fromPosts(
       posts: posts,
       state: state,

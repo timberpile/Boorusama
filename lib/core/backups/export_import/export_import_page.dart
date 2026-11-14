@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
 import '../auto/widgets.dart';
+import '../folder_sync/page.dart';
 import '../transfer/route_utils.dart';
 import '../transfer/sync_data_page.dart';
 import '../utils/backup_file_picker.dart';
@@ -115,6 +116,18 @@ class ExportImportPage extends ConsumerWidget {
                   ),
                 );
               },
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.sync),
+                title: Text(context.t.folder_sync.title),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FolderSyncPage(),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             Card(

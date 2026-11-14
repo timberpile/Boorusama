@@ -35,14 +35,15 @@ final class SyncCatalogGate {
 
   String _key(String publisher) => 'folder_sync.v1.publisher.$publisher';
 
-  _Trust? _read(String publisher) {
+  _Trust? _read(String publisher, {bool includeRevoked = false}) {
     final encoded = store.get(_key(publisher));
     if (encoded == null) return null;
     final value = jsonDecode(encoded);
     if (value is! Map<String, dynamic>) {
       throw const FormatException('Invalid local publisher trust');
     }
-    return _Trust.fromJson(value, publisher);
+    final trust = _Trust.fromJson(value, publisher);
+    return trust.approved || includeRevoked ? trust : null;
   }
 
   /// Call only after explicit fingerprint approval. Reapproval is idempotent;
@@ -58,12 +59,18 @@ final class SyncCatalogGate {
       throw const FormatException('Invalid publisher key');
     }
     await mutations.runExclusive(() async {
-      final prior = _read(id);
+      final prior = _read(id, includeRevoked: true);
       final key = base64Encode(captured);
       if (prior != null) {
         if (prior.publicKey != key) {
           throw const FormatException('Publisher key changed');
         }
+        // A previous failed durability barrier may still be visible in the
+        // store's cache. Idempotence must repeat the barrier before granting use.
+        await store.put(
+          _key(id),
+          jsonEncode({...prior.toJson(), 'approved': true}),
+        );
         return;
       }
       await store.put(
@@ -79,6 +86,25 @@ final class SyncCatalogGate {
       );
     });
   }
+
+  List<int>? approvedKey(String publisher) {
+    final trust = _read(syncUuid(publisher));
+    return trust == null
+        ? null
+        : List<int>.unmodifiable(base64Decode(trust.publicKey));
+  }
+
+  Future<void> revokePublisher(String publisher) =>
+      mutations.runExclusive(() async {
+        final id = syncUuid(publisher);
+        final prior = _read(id, includeRevoked: true);
+        if (prior == null) return;
+        // Keep the observed high-water mark across explicit Forget/reapproval.
+        await store.put(
+          _key(id),
+          jsonEncode({...prior.toJson(), 'approved': false}),
+        );
+      });
 
   Future<VerifiedSyncCatalog> verifyAndCheckpoint({
     required String publisher,
@@ -108,7 +134,9 @@ final class SyncCatalogGate {
           (sequence == trust.sequence && digest != trust.digest)) {
         throw const SyncReplayRejected();
       }
-      if (sequence > trust.sequence) {
+      {
+        // Re-barrier identical retries too: a failed fsync may have left the
+        // new sequence in Hive memory without making it durable.
         // Persist OBSERVED, not APPLIED, before compatibility/body checks. A
         // missing package, future protocol or invalid body must not allow an
         // old signed withdrawal (or an already prepared old import) to return.
@@ -152,7 +180,7 @@ final class SyncCatalogGate {
   Future<T> withCurrentCatalog<T>(
     VerifiedSyncCatalog catalog,
     Future<T> Function() commit,
-  ) => mutations.runExclusive(() {
+  ) => mutations.runExclusive(() async {
     final trust = _read(catalog.publisher);
     if (trust == null) throw const SyncTrustRequired();
     if (trust.sequence != catalog.sequence ||
@@ -160,6 +188,9 @@ final class SyncCatalogGate {
         syncDigest(base64Decode(trust.publicKey)) != catalog.fingerprint) {
       throw const SyncReplayRejected();
     }
+    // Reapproval may have failed after changing a cached Hive value. Authority
+    // must be durable at commit admission even for an already prepared ticket.
+    await store.put(_key(catalog.publisher), jsonEncode(trust.toJson()));
     return commit();
   });
 }
@@ -170,12 +201,17 @@ final class _Trust {
     required this.publicKey,
     required this.sequence,
     required this.digest,
+    this.approved = true,
   });
   factory _Trust.fromJson(Map<String, dynamic> json, String publisher) {
     if (json['version'] != 1) throw const SyncUpdateRequired();
     final key = syncString(json['publicKey']);
     final sequence = json['sequence'];
     final digest = json['digest'];
+    final approved = json['approved'] ?? true;
+    if (approved is! bool) {
+      throw const FormatException('Invalid publisher approval');
+    }
     if (json['publisher'] != publisher ||
         base64Decode(key).length != 32 ||
         sequence is! int ||
@@ -191,14 +227,17 @@ final class _Trust {
       publicKey: key,
       sequence: sequence,
       digest: digest as String?,
+      approved: approved,
     );
   }
   final String publisher;
   final String publicKey;
   final int sequence;
   final String? digest;
+  final bool approved;
   Map<String, Object?> toJson() => {
     'version': 1,
+    'approved': approved,
     'publisher': publisher,
     'publicKey': publicKey,
     'sequence': sequence,

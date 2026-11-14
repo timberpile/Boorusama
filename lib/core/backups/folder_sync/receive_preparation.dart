@@ -35,6 +35,7 @@ final class SyncReceivePreparation {
     required VerifiedSyncCatalog catalog,
     required SyncCollectionId collection,
     required List<int> publisherKey,
+    int maxPreparedBytes = 64 * 1024 * 1024,
   }) async {
     final key = List<int>.unmodifiable(publisherKey);
     if (collection.publisher != catalog.publisher ||
@@ -58,10 +59,15 @@ final class SyncReceivePreparation {
     final transported = await SyncRevisionTransport(storage)
         .read(expected: expected, publisherKey: key);
     if (transported == null) return null;
-    final package = await SyncBookmarkPackageValidator(
-      fs: fs,
-      codec: codec,
-    ).validate(collection: collection, bytes: transported.bytes);
+    final package =
+        await SyncBookmarkPackageValidator(
+          fs: fs,
+          codec: codec,
+        ).validate(
+          collection: collection,
+          bytes: transported.bytes,
+          maxPreparedBytes: maxPreparedBytes,
+        );
     if (package.semanticHash != expected.semanticHash) {
       throw const FormatException(
         'Sync semantic content does not match descriptor',

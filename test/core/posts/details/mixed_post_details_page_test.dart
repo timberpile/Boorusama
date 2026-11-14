@@ -899,7 +899,9 @@ void main() {
           policyEpoch: 1,
         );
         final adapter = _PageImageAdapter();
+        final displayed = <Object>{};
         final harness = _Harness(
+          onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
           posts: const [],
           initialIndex: 1,
           entries: [
@@ -959,6 +961,9 @@ void main() {
               reason: 'both adjacent Work images decoded',
             ),
           );
+          expect(displayed, {
+            121,
+          }, reason: 'decoded preloads must not mark adjacent Works read');
           final pager = _pageViewController(tester);
           for (final direction in [-1.0, 1.0]) {
             final drag = await tester.startGesture(
@@ -1136,6 +1141,8 @@ void main() {
             isEmpty,
             reason: 'inactive neighboring Works must never fetch originals',
           );
+          expect(displayed, containsAll([121, 122]));
+          expect(displayed, isNot(contains(120)));
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());
           harness.dispose();
@@ -5516,6 +5523,7 @@ class _Harness {
     this.initialIndex = 0,
     this.posts,
     this.entries,
+    this.onEntryDisplayed,
     this.entrySource,
     BooruRepository? repository,
     BooruGroupCapability? mediaCapability,
@@ -5650,6 +5658,7 @@ class _Harness {
   final int initialIndex;
   final List<Post>? posts;
   final List<ViewerEntry>? entries;
+  final ValueChanged<ViewerEntry>? onEntryDisplayed;
   final ViewerEntryLiveSource? entrySource;
   final String? initialThumbnailUrl;
 
@@ -5682,6 +5691,7 @@ class _Harness {
             home: Directionality(
               textDirection: direction,
               child: MixedPostDetailsPage(
+                onEntryDisplayed: onEntryDisplayed,
                 posts: posts ?? _posts,
                 entries: entries,
                 entrySource: entrySource,

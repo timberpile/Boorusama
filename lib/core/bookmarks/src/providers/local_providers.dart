@@ -34,7 +34,7 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref.cacheFor(const Duration(seconds: 3));
   final (bookmarks, pools, records) = await ref.watch(
     bookmarkProvider.selectAsync(
-      (state) => (state.items, state.pools, state.records),
+      (state) => (state.localItems, state.localPools, state.localRecords),
     ),
   );
 
@@ -75,7 +75,7 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
 ) async {
   final (bookmarks, pools, records) = await ref.watch(
     bookmarkProvider.selectAsync(
-      (state) => (state.items, state.pools, state.records),
+      (state) => (state.localItems, state.localPools, state.localRecords),
     ),
   );
 

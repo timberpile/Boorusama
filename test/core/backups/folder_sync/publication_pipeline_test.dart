@@ -218,6 +218,20 @@ void main() {
     },
   );
 
+  test('package expansion is bounded before decoding its payload', () async {
+    final package = await build();
+    await expectLater(
+      SyncBookmarkPackageValidator(fs: fs, codec: codec).validate(
+        collection: collection,
+        bytes: package.bytes,
+        // Allows the archive itself, but no space for its expanded JSON.
+        maxPreparedBytes: package.bytes.length * 2 + 8,
+      ),
+      throwsException,
+    );
+    expect(storage.writes, isEmpty);
+  });
+
   test(
     'sync publication strips local browsing context and normalizes tag sets',
     () async {

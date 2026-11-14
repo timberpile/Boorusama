@@ -25,6 +25,7 @@ import '../../../post/types.dart';
 import '../providers/note_overlay_provider.dart';
 import 'zoom_study_overlay.dart';
 import '../../../../settings/providers.dart';
+import '../../../../navigation/destination_activity.dart';
 import '../../../../settings/types.dart';
 import 'play_pause_animation_overlay.dart';
 import 'post_details_controller.dart';
@@ -53,6 +54,7 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
     this.contentSize,
     this.onImageSize,
     this.onImageReady,
+    this.onDisplayed,
     this.onImageUnavailable,
     this.placeholderMediaBuilder,
     this.allowOriginalImage = true,
@@ -66,6 +68,9 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
 
   /// Fired after the first decoded rendition has reached the media surface.
   final VoidCallback? onImageReady;
+
+  /// A decoded image on the settled, active full Viewer occurrence.
+  final VoidCallback? onDisplayed;
   final VoidCallback? onImageUnavailable;
   final int index;
   final List<T> posts;
@@ -133,6 +138,7 @@ class _PostDetailsItemState<T extends Post>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _notifyDisplayed();
     final pager = PostDetailsPageViewScope.of(context);
     if (_pager != pager) {
       _pager?.sheetState.removeListener(_syncCurrentTransform);
@@ -237,6 +243,7 @@ class _PostDetailsItemState<T extends Post>
     if (isPageSettled == _isPageSettled) return;
     setState(() => _isPageSettled = isPageSettled);
     _syncCurrentTransform();
+    _notifyDisplayed();
   }
 
   void _onRepresentationChanged(bool compatible) {
@@ -245,12 +252,32 @@ class _PostDetailsItemState<T extends Post>
     _onImageStateChanged();
   }
 
+  void _notifyDisplayed() {
+    if (widget.onDisplayed == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeDisplayed();
+    });
+  }
+
+  void _maybeDisplayed() {
+    if (widget.onDisplayed != null &&
+        _active &&
+        _isPageSettled &&
+        _imageController.loadState.value == LoadState.completed &&
+        _imageController.imageInfo.value != null &&
+        (ModalRoute.of(context)?.isCurrent ?? true) &&
+        NavigationActivity.of(context)) {
+      widget.onDisplayed!();
+    }
+  }
+
   void _onImageStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_imageController.loadState.value == LoadState.completed &&
           _imageController.imageInfo.value != null) {
         widget.onImageReady?.call();
+        _maybeDisplayed();
       }
       setState(() {});
     });

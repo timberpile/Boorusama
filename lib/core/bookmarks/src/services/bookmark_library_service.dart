@@ -12,6 +12,7 @@ import '../types/content_group_bookmark.dart';
 import '../types/legacy_group_bookmark.dart';
 import '../types/stored_group_snapshot.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_mirror_state.dart';
 import '../types/pool_bookmark_repository.dart';
 import '../types/pool_bookmark.dart';
 import '../../../groups/folder_tree.dart';
@@ -303,6 +304,9 @@ class BookmarkLibraryService {
       return BookmarkLibraryState(
         bookmarks: bookmarks,
         records: store == null ? null : records,
+        mirrors: store is BookmarkMirrorStore
+            ? await (store as BookmarkMirrorStore).readMirrorState()
+            : const BookmarkMirrorState.empty(),
         revision: store == null ? 0 : await store.readRevision(),
         pools: store == null
             ? await groupRepository.getPoolBookmarks()

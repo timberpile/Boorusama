@@ -39,10 +39,12 @@ class MediaGroupPage extends ConsumerStatefulWidget {
     required this.onControllerReleased,
     required this.onControllerAttached,
     this.routeActive = true,
+    this.onDisplayed,
     super.key,
   });
   final GroupViewerEntry entry;
   final bool routeActive;
+  final VoidCallback? onDisplayed;
   final int index;
   final MediaGroupCheckpoint checkpoint;
   final VoidCallback onSelected;
@@ -310,6 +312,7 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
                       onControllerAttached: widget.onControllerAttached,
                       config: config,
                       outerIndex: widget.index,
+                      onDisplayed: widget.onDisplayed,
                       onImageReady: pageIndex == index
                           ? () => _finishCoverHandoff(coverKey)
                           : null,
@@ -342,6 +345,7 @@ class _MediaPage extends ConsumerStatefulWidget {
     required this.outerIndex,
     required this.active,
     this.onImageReady,
+    this.onDisplayed,
     this.onImageUnavailable,
     super.key,
   });
@@ -353,6 +357,7 @@ class _MediaPage extends ConsumerStatefulWidget {
   final int outerIndex;
   final bool active;
   final VoidCallback? onImageReady;
+  final VoidCallback? onDisplayed;
   final VoidCallback? onImageUnavailable;
   @override
   ConsumerState<_MediaPage> createState() => _MediaPageState();
@@ -442,6 +447,7 @@ class _MediaPageState extends ConsumerState<_MediaPage> {
               allowOriginalImage: widget.active,
               onImageSize: _onImageSize,
               onImageReady: widget.onImageReady,
+              onDisplayed: widget.onDisplayed,
               onImageUnavailable: widget.onImageUnavailable,
               placeholderMediaBuilder: (post) {
                 final original =

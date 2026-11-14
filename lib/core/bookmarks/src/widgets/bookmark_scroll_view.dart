@@ -1,4 +1,7 @@
 import 'bookmark_group_viewer_entry.dart';
+import '../../../backups/folder_sync/providers.dart';
+import '../../../backups/folder_sync/page.dart';
+import '../../../backups/folder_sync/reading_state.dart';
 import '../providers/pool_bookmark_provider.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
 
@@ -322,6 +325,18 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
               // Shared actions resolve each post's source profile and use the
               // ordinary quality, filename, duplicate and sidecar policy.
               extraActions: (selectedPosts) => [
+                if (_selectedUnreadKeys().isNotEmpty)
+                  MultiSelectButton(
+                    name: context.t.folder_sync.mark_read,
+                    icon: const Icon(Icons.done_all),
+                    onPressed: () => runSyncAction(context, () async {
+                      final keys = _selectedUnreadKeys();
+                      final service = await ref.read(
+                        folderSyncServiceProvider.future,
+                      );
+                      await service.markRead(widget.view.groupId!, keys);
+                    }),
+                  ),
                 MultiSelectPopupButton(
                   enabled:
                       !controller.refreshing &&
@@ -494,6 +509,27 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
           _selectionModeController.selectedKeys.contains(entry.key))
         entry.pool,
   ];
+
+  Set<String> _selectedUnreadKeys() {
+    if (widget.view.kind != BookmarkViewKind.group) return const {};
+    final state = ref.read(bookmarkProvider).valueOrNull;
+    final owner = state?.mirrors.owners[widget.view.groupId];
+    if (owner == null) return const {};
+    final unread = SyncGroupReadingState.fromJson(owner.reading).unreadMembers;
+    final selected = <String>{};
+    for (final entry in _entries) {
+      if (!_selectionModeController.selectedKeys.contains(entry.key)) continue;
+      final Bookmark? record = switch (entry) {
+        BookmarkPostEntry(:final bookmark) => bookmark,
+        BookmarkNativeGroupEntry(:final bookmark) => bookmark,
+        BookmarkPoolEntry(:final pool) => state!.byId[pool.bookmarkId],
+      };
+      if (record == null) continue;
+      final key = syncBookmarkMemberKey(record);
+      if (unread.contains(key)) selected.add(key);
+    }
+    return selected;
+  }
 
   List<ContentGroupBookmark> _selectedNativeGroups() => [
     for (final entry in _entries.whereType<BookmarkNativeGroupEntry>())

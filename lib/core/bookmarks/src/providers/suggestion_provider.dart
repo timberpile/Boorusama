@@ -93,7 +93,7 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
       if (obsolete) return BookmarkTagIndex(const []);
       // Autocomplete counts do not depend on the grid's date/shuffle ordering.
       final bookmarks = switch (view.kind) {
-        BookmarkViewKind.all => library.items,
+        BookmarkViewKind.all => library.localItems,
         BookmarkViewKind.group || BookmarkViewKind.subtree => [
           for (final id in library.bookmarkIdsForView(view))
             ?library.bookmarksById[id],
@@ -111,7 +111,7 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
                   ),
             isCurrent: () => !obsolete,
             revision: view.kind == BookmarkViewKind.all && source == null
-                ? library.items
+                ? library.localItems
                 : null,
           ) ??
           BookmarkTagIndex(const []);

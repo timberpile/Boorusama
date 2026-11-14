@@ -6,6 +6,7 @@ import '../export_import/models/package_manifest.dart';
 import '../export_import/package/export_package_writer.dart';
 import '../export_import/models/export_selection.dart';
 import '../export_import/package/export_package_reader.dart';
+import '../export_import/package/export_package_limits.dart';
 import '../sources/bookmark_backup_codec.dart';
 import '../sources/bookmark_backup_data.dart';
 import '../utils/data_converter.dart';
@@ -24,6 +25,7 @@ final class ValidatedSyncBookmarkPackage {
     Uint8List bytes, {
     this.forPublication = false,
   }) : bytes = Uint8List.fromList(bytes).asUnmodifiableView();
+  int get retainedByteLength => bytes.length + _payload.length * 2;
   final bool forPublication;
   final SyncCollectionId collection;
   final String _payload;
@@ -44,18 +46,34 @@ final class SyncBookmarkPackageValidator {
   Future<ValidatedSyncBookmarkPackage> validate({
     required SyncCollectionId collection,
     required Uint8List bytes,
+    int maxPreparedBytes = 64 * 1024 * 1024,
   }) async {
     if (collection.kind != 'bookmarks' ||
         bytes.isEmpty ||
         bytes.length > folderSyncMaxBytes) {
       throw const FormatException('Invalid Bookmark sync package');
     }
+    // Bound expansion before reading JSON, including space for detached input,
+    // UTF-16 text and the parsed domain snapshot. The transport limit alone
+    // cannot constrain a small, highly compressed archive.
+    final expandedBudget = (maxPreparedBytes - bytes.length * 2) ~/ 8;
+    if (expandedBudget <= 0) {
+      throw const FormatException('Sync package exceeds preparation budget');
+    }
     final captured = Uint8List.fromList(bytes);
     final scratch = await fs.createTempDirectory('boorusama_sync_validate_');
     try {
       final path = '$scratch/revision.bsexport';
       await fs.writeBytes(path, captured);
-      final staged = await ExportPackageReader(fs: fs).stage(path);
+      final staged = await ExportPackageReader(
+        fs: fs,
+        limits: ExportPackageLimits(
+          maxFileCount: 2,
+          maxManifestBytes: expandedBudget.clamp(0, 1024 * 1024),
+          maxPartBytes: expandedBudget,
+          maxExpandedBytes: expandedBudget,
+        ),
+      ).stage(path);
       try {
         final manifest = staged.manifest;
         if (manifest.format != kExportPackageFormat ||

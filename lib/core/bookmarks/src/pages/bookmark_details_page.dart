@@ -1,4 +1,9 @@
+import 'dart:async';
+
 import '../../../posts/details/src/types/viewer_entry.dart';
+import '../../../backups/folder_sync/providers.dart';
+import '../../../backups/folder_sync/reading_state.dart';
+import '../types/bookmark_view.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +40,7 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
     required this.initialThumbnailUrl,
     required PostGridController<Post> controller,
     this.entries,
+    this.sourceView = const BookmarkView.all(),
     super.key,
   }) : posts = List.unmodifiable(controller.items);
 
@@ -42,6 +48,7 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
   final String? initialThumbnailUrl;
   final List<Post> posts;
   final List<ViewerEntry>? entries;
+  final BookmarkView sourceView;
 
   @override
   ConsumerState<BookmarkDetailsPage> createState() =>
@@ -50,6 +57,27 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
 
 class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
   late final List<ViewerEntry> _entries;
+  final _displayed = <Object>{};
+
+  void _onDisplayed(ViewerEntry entry) {
+    if (widget.sourceView.kind != BookmarkViewKind.group) return;
+    final groupId = widget.sourceView.groupId!;
+    final library = ref.read(bookmarkProvider).valueOrNull;
+    if (library == null || !library.mirrors.isReceived(groupId)) return;
+    final record = library.byId[entry.source?.bookmarkId];
+    if (record == null || !_displayed.add(entry.occurrenceId)) return;
+    final pendingService = ref.read(folderSyncServiceProvider.future);
+    unawaited(() async {
+      try {
+        final service = await pendingService;
+        if (mounted)
+          await service.markRead(groupId, {syncBookmarkMemberKey(record)});
+      } catch (_) {
+        // Failed local acknowledgement leaves the entry unread for retry.
+        _displayed.remove(entry.occurrenceId);
+      }
+    }());
+  }
 
   @override
   void initState() {
@@ -76,6 +104,7 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
 
     return MixedPostDetailsPage(
       posts: widget.posts,
+      onEntryDisplayed: _onDisplayed,
       entries: _entries,
       initialIndex: widget.initialIndex,
       initialThumbnailUrl: widget.initialThumbnailUrl,

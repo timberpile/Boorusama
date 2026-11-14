@@ -67,6 +67,9 @@ final bookmarkRoutes = GoRoute(
             initialThumbnailUrl: extra['initialThumbnailUrl'] as String,
             controller: extra['controller'] as PostGridController<Post>,
             entries: extra['entries'] as List<ViewerEntry>?,
+            sourceView:
+                extra['sourceView'] as BookmarkView? ??
+                const BookmarkView.all(),
           ),
         );
       },

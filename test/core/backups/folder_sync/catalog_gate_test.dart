@@ -66,6 +66,24 @@ void main() {
     },
   );
 
+  test(
+    'an identical retry repeats a failed cache-visible durability barrier',
+    () async {
+      await approve();
+      store.failAfterCache = true;
+      await expectLater(accept(1), throwsStateError);
+      // Cached OBSERVED is already advanced, but still not durable.
+      await expectLater(accept(1), throwsStateError);
+      store.failAfterCache = false;
+      final ticket = await accept(1);
+      var applied = false;
+      await gate.withCurrentCatalog(ticket, () async {
+        applied = true;
+      });
+      expect(applied, isTrue);
+    },
+  );
+
   test('same sequence with different signed content is equivocation', () async {
     await approve();
     await accept(3);
@@ -219,11 +237,13 @@ void main() {
 final class _Store implements MiscDataStore {
   final values = <String, String>{};
   var failWrites = false;
+  var failAfterCache = false;
   @override
   String? get(String key) => values[key];
   @override
   Future<void> put(String key, String value) async {
     if (failWrites) throw StateError('Injected metadata write failure');
     values[key] = value;
+    if (failAfterCache) throw StateError('Injected durability failure');
   }
 }

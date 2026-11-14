@@ -64,6 +64,7 @@ Future<void> goToBookmarkDetailsPage(
       extra: {
         'controller': controller,
         'entries': entries,
+        'sourceView': sourceView,
         'initialThumbnailUrl': initialThumbnailUrl,
       },
     );

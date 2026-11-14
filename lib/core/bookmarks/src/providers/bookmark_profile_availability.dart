@@ -178,15 +178,13 @@ class BookmarkProfileAvailability {
     String? selectedBooruUrl,
     Map<int, PostPresentationFallbackReason> observedFailures = const {},
   }) {
-    final ids = view.kind == BookmarkViewKind.all
-        ? null
-        : library.bookmarkIdsForView(view);
+    final ids = library.bookmarkIdsForView(view);
     final matches = matchingBookmarks(
       bookmarks: library.items.where(
         (bookmark) =>
             (!postIds.contains(bookmark.id) ||
                 observedFailures.containsKey(bookmark.id)) &&
-            (ids == null || ids.contains(bookmark.id)),
+            ids.contains(bookmark.id),
       ),
       selectedTags: selectedTags,
       selectedBooruUrl: selectedBooruUrl,

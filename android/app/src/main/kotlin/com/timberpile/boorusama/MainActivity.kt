@@ -13,6 +13,7 @@ class MainActivity: FlutterFragmentActivity() {
     private var gifSaveChannel: GifSaveChannel? = null
     private var gifBackgroundChannel: GifBackgroundChannel? = null
     private var autoBackupChannel: AutoBackupChannel? = null
+    private var folderSyncChannel: FolderSyncChannel? = null
     private var exportSaveChannel: ExportSaveChannel? = null
     private var receivedExportChannel: ReceivedExportChannel? = null
     private var searchRefreshEnvironmentChannel: SearchRefreshEnvironmentChannel? = null
@@ -56,6 +57,7 @@ class MainActivity: FlutterFragmentActivity() {
         gifSaveChannel = GifSaveChannel(this, messenger)
         gifBackgroundChannel = GifBackgroundChannel(applicationContext, messenger)
         autoBackupChannel = AutoBackupChannel(this, messenger)
+        folderSyncChannel = FolderSyncChannel(applicationContext, messenger)
         exportSaveChannel = ExportSaveChannel(applicationContext, messenger)
         receivedExportChannel = ReceivedExportChannel(applicationContext, messenger).also {
             it.register()
@@ -87,6 +89,7 @@ class MainActivity: FlutterFragmentActivity() {
         pendingSharedTextIntents.clear()
         receivedExportChannel?.close()
         autoBackupChannel?.close()
+        folderSyncChannel?.close()
         exportSaveChannel?.close()
         gifSaveChannel?.close()
         gifBackgroundChannel?.close()

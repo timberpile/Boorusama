@@ -15,9 +15,11 @@ final class SyncPublicationSequences {
   const SyncPublicationSequences({
     required this.store,
     required this.mutations,
+    this.ensureCurrent,
   });
   final MiscDataStore store;
   final DataMutationCoordinator mutations;
+  final void Function()? ensureCurrent;
 
   Future<int> reserve(String publisher, {SyncCollectionId? collection}) {
     final id = syncUuid(publisher);
@@ -26,6 +28,7 @@ final class SyncPublicationSequences {
     }
     final key = 'folder_sync.v1.outgoing.$id.${collection?.key ?? 'catalog'}';
     return mutations.runExclusive(() async {
+      ensureCurrent?.call();
       final raw = store.get(key);
       final value = raw == null ? 0 : jsonDecode(raw);
       if (value is! int || value < 0 || value >= folderSyncMaxSequence) {
@@ -62,6 +65,7 @@ final class SyncPublicationSequences {
   Future<void> stageCatalog(
     SyncCatalog catalog,
   ) => mutations.runExclusive(() async {
+    ensureCurrent?.call();
     final key = 'folder_sync.v1.outgoing.${catalog.publisher}.catalog_intent';
     final encoded = store.get(key);
     final barriers = <String, int>{};
@@ -302,7 +306,13 @@ final class SyncBookmarkPublisher {
       throw StateError('Source snapshot changed during preparation');
     }
     final revision = await writer.publishRevision(package);
-    await writer.sequences.store.put(key, canonicalSyncJson(revision.toJson()));
+    await writer.sequences.mutations.runExclusive(() async {
+      writer.sequences.ensureCurrent?.call();
+      await writer.sequences.store.put(
+        key,
+        canonicalSyncJson(revision.toJson()),
+      );
+    });
     return revision;
   });
 }

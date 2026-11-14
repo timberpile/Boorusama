@@ -32,9 +32,17 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
     this.selected = false,
     this.onSelect,
     this.onMove,
+    this.syncActions = const [],
+    this.syncIndicator,
+    this.arrivals = 0,
+    this.hasUnseenChange = false,
     super.key,
   });
 
+  final List<Widget> syncActions;
+  final Widget? syncIndicator;
+  final int arrivals;
+  final bool hasUnseenChange;
   final bool selected;
   final VoidCallback? onSelect;
   final VoidCallback? onMove;
@@ -55,7 +63,8 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
         onMove != null ||
         onRename != null ||
         onDuplicate != null ||
-        onDelete != null;
+        onDelete != null ||
+        syncActions.isNotEmpty;
     return Semantics(
       enabled: onTap != null,
       child: Opacity(
@@ -123,6 +132,29 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (syncIndicator != null)
+                      Positioned(bottom: 8, left: 8, child: syncIndicator!),
+                    if (!selected && (arrivals > 0 || hasUnseenChange))
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Kurumi.themeOf(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            child: Text(
+                              arrivals > 0 ? '+$arrivals' : '•',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (selected)
                       const Positioned(
                         bottom: 8,
@@ -143,6 +175,7 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
                             color: Colors.white,
                           ),
                           items: [
+                            ...syncActions,
                             if (onMove != null)
                               KurumiPopupMenuItem(
                                 title: Text(context.t.folders.move),

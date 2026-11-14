@@ -19,6 +19,7 @@ import '../../../../groups/folder_tree.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/bookmark.dart';
 import '../../types/bookmark_group.dart';
+import '../../types/bookmark_mirror_state.dart';
 import '../../types/bookmark_group_tree.dart';
 import '../../types/bookmark_group_repository.dart';
 import '../../services/bookmark_storage_migration.dart';
@@ -40,7 +41,7 @@ part 'unified_bookmark_organization.dart';
 /// One payload/kind/ID authority. The old Post box is retained unchanged; Group
 /// payloads are private and no numeric range is used to determine record kind.
 class BookmarkHiveRepository extends BookmarkRepository<Post>
-    implements UnifiedBookmarkStore {
+    implements UnifiedBookmarkStore, BookmarkMirrorStore {
   BookmarkHiveRepository(
     this._posts, {
     required Box<dynamic> groupPayloadBox,
@@ -80,6 +81,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   (Box<BookmarkGroupHiveObject>, Box<dynamic>)? _organizationHandles;
   static const _journal = 'pendingMutation';
   static const _schema = 'repositorySchema';
+  static const _mirrorStateKey = 'receivedBookmarkOwnership';
   static const _revision = 'recordRevision';
   static const _floor = 'allocationFloor';
   static final _migrationZone = Object();
@@ -187,7 +189,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   Future<void> _initialize() async {
     final schema = _metadata.get(_schema);
     if (schema != null) {
-      if (schema != 1) {
+      if (schema != 1 && schema != 2) {
         throw const FormatException('Unsupported Bookmark repository schema');
       }
       final bound = await _ids.readNextId();
@@ -524,6 +526,43 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     ),
   );
 
+  BookmarkMirrorState _mirrors() {
+    final raw = _metadata.get(_mirrorStateKey);
+    if (raw == null && _metadata.get(_schema) == 2) {
+      throw const FormatException('Received Bookmark ownership is missing');
+    }
+    return raw == null
+        ? const BookmarkMirrorState.empty()
+        : BookmarkMirrorState.fromJson(raw);
+  }
+
+  @override
+  Future<BookmarkMirrorState> readMirrorState() =>
+      _ready(() async => _mirrors());
+
+  @override
+  Future<void> commitMirrorOrganization({
+    required BookmarkMirrorState expected,
+    required BookmarkMirrorState next,
+    Iterable<Bookmark> records = const [],
+    Set<int> removeIds = const {},
+    List<BookmarkGroup> groups = const [],
+    Set<String> removeGroupIds = const {},
+  }) => _ready(() async {
+    final current = _mirrors();
+    if (!_same(current.toJson(), expected.toJson()) ||
+        next.epoch != expected.epoch + 1) {
+      throw StateError('Bookmark mirror state changed before commit');
+    }
+    await _mutate(
+      records.toList(),
+      removeIds,
+      organizationGroups: groups,
+      removedOrganizationGroups: removeGroupIds,
+      mirrorState: next,
+    );
+  });
+
   @override
   Future<List<int>> reserveIds(int count) =>
       _ready(() => _allocator.reserve(count));
@@ -618,6 +657,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     Set<String> removedOrganizationGroups = const {},
     List<CollectionFolder>? organizationFolders,
     bool restoreLocalPreimage = false,
+    BookmarkMirrorState? mirrorState,
   }) async {
     final deletes = <Map<String, Object?>>[];
     final previous = <String, Object?>{};
@@ -690,7 +730,12 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       recordIds: records.map((record) => record.id).toSet(),
       removedRecordIds: deleting,
     );
-    if (upserts.isEmpty && deletes.isEmpty && organization == null) return;
+    await _guardMirrorMutation(organization, deleting, mirrorState, normalized);
+    if (upserts.isEmpty &&
+        deletes.isEmpty &&
+        organization == null &&
+        mirrorState == null)
+      return;
     final revision = _metadata.get(_revision) as int;
     final plan = <String, Object?>{
       'upserts': upserts,
@@ -700,10 +745,17 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       'expectedRevision': revision,
       'targetRevision': revision + 1,
       'organization': ?organization,
+      if (mirrorState != null)
+        'mirrors': {
+          'previous': _mirrors().toJson(),
+          'next': mirrorState.toJson(),
+        },
       if (restoreLocalPreimage) 'restoredIds': restoredIds.toList()..sort(),
     };
     final journal = {
-      'version': restoreLocalPreimage
+      'version': mirrorState != null
+          ? 4
+          : restoreLocalPreimage
           ? 3
           : organization == null
           ? 1
@@ -732,9 +784,12 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       if (raw == null) return;
       final journal = contentMap(raw);
       final plan = contentMap(journal['plan']);
-      if (!const {1, 2, 3}.contains(journal['version']) ||
-          (journal['version'] != 1) != plan.containsKey('organization') ||
+      if (!const {1, 2, 3, 4}.contains(journal['version']) ||
+          (journal['version'] == 1 && plan.containsKey('organization')) ||
+          (const {2, 3}.contains(journal['version']) &&
+              !plan.containsKey('organization')) ||
           (journal['version'] == 3) != plan.containsKey('restoredIds') ||
+          (journal['version'] == 4) != plan.containsKey('mirrors') ||
           journal['hash'] != _hash(plan)) {
         throw const FormatException('Invalid Bookmark mutation journal');
       }
@@ -897,6 +952,17 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         deletes.map((entry) => _localId(entry['id'])).toSet(),
       );
     }
+    BookmarkMirrorState? nextMirrors;
+    if (plan['mirrors'] case final raw?) {
+      final change = contentMap(raw);
+      final before = BookmarkMirrorState.fromJson(change['previous']);
+      nextMirrors = BookmarkMirrorState.fromJson(change['next']);
+      if (nextMirrors.epoch != before.epoch + 1 ||
+          (!_same(_mirrors().toJson(), before.toJson()) &&
+              !_same(_mirrors().toJson(), nextMirrors.toJson()))) {
+        throw const FormatException('Invalid mirror ownership journal');
+      }
+    }
     if (postWrites.isNotEmpty) await _posts.putAll(postWrites);
     if (groupWrites.isNotEmpty) await _groups.putAll(groupWrites);
     if (postDeletes.isNotEmpty) await _posts.deleteAll(postDeletes);
@@ -910,7 +976,14 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       ...organizationBoxes,
     ]);
     await _metadata.deleteAll(oldContentKeys);
-    await _metadata.putAll({...indexWrites, _revision: target});
+    await _metadata.putAll({
+      ...indexWrites,
+      _revision: target,
+      if (nextMirrors != null) ...{
+        _mirrorStateKey: nextMirrors.toJson(),
+        _schema: 2,
+      },
+    });
     await _sync([_metadata]);
     await _metadata.delete(_journal);
     await _sync([_metadata]);

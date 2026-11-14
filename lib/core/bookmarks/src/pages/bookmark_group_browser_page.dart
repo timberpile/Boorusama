@@ -1,5 +1,8 @@
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
+
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
@@ -9,6 +12,10 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 
 import '../../../../foundation/performance/performance_navigation.dart';
 import '../../../navigation/navigation_interaction_scopes.dart';
+import '../../../backups/folder_sync/page.dart';
+import '../../../backups/folder_sync/providers.dart';
+import '../../../backups/folder_sync/reading_state.dart';
+import '../../../navigation/destination_activity.dart';
 import '../../../selection/collection_selection.dart';
 import '../../../selection/collection_selection_bar.dart';
 import '../../../selection/ordered_selection_canvas.dart';
@@ -131,6 +138,39 @@ class _BookmarkGroupBrowserPageState
     );
   }
 
+  final _acknowledged = <(String, int)>{};
+
+  void _acknowledge(BookmarkLibraryState? state, String? id, bool visible) {
+    final owner = state?.mirrors.owners[id];
+    if (!visible ||
+        id == null ||
+        owner == null ||
+        !(ModalRoute.of(context)?.isCurrent ?? true) ||
+        !NavigationActivity.of(context))
+      return;
+    final key = (id, owner.revision);
+    final reading = SyncGroupReadingState.fromJson(owner.reading);
+    if (!reading.hasUnseenChange || !_acknowledged.add(key)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _currentId(ref.read(bookmarkProvider).valueOrNull) != id ||
+          !(ModalRoute.of(context)?.isCurrent ?? true) ||
+          !NavigationActivity.of(context)) {
+        _acknowledged.remove(key);
+        return;
+      }
+      final pending = ref.read(folderSyncServiceProvider.future);
+      unawaited(() async {
+        try {
+          final service = await pending;
+          if (mounted) await service.acknowledge(id, owner.revision);
+        } catch (_) {
+          _acknowledged.remove(key);
+        }
+      }());
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final visible = TickerMode.of(context);
@@ -141,9 +181,14 @@ class _BookmarkGroupBrowserPageState
     final state = library.valueOrNull;
     final id = _currentId(state);
     final group = state?.groupsById[id];
+    _acknowledge(state, id, visible);
     final children = state?.groupTree.childrenOf(id) ?? const <BookmarkGroup>[];
     final ordinaryChildren = children
-        .where((child) => !child.isDefault)
+        .where(
+          (child) =>
+              !child.isDefault &&
+              (id != null || !(state?.mirrors.isReceived(child.id) ?? false)),
+        )
         .toList();
     final requested = _legacyFolderRequest
         ? state?.legacyFolderGroupIds[_requestedId] ?? _requestedId
@@ -260,12 +305,17 @@ class _BookmarkGroupBrowserPageState
                       enabled: state != null,
                       semanticLabel: context.t.generic.action.more,
                       items: [
-                        KurumiPopupMenuItem(
-                          title: Text(context.t.bookmark.groups.add),
-                          icon: const Icon(Icons.add),
-                          onTap: () => _create(id),
-                        ),
-                        if (group != null && !group.isDefault) ...[
+                        if (group != null && state != null)
+                          ..._syncActions(state, group),
+                        if (!(state?.mirrors.isReceived(id ?? '') ?? false))
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.bookmark.groups.add),
+                            icon: const Icon(Icons.add),
+                            onTap: () => _create(id),
+                          ),
+                        if (group != null &&
+                            !group.isDefault &&
+                            !state!.mirrors.isReceived(group.id)) ...[
                           KurumiPopupMenuItem(
                             title: Text(context.t.bookmark.groups.rename),
                             onTap: () => _rename(group),
@@ -344,6 +394,16 @@ class _BookmarkGroupBrowserPageState
                         selected,
                       );
                       final slivers = <Widget>[
+                        if (id == null && state.mirrors.owners.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: Text(context.t.folder_sync.local),
+                            ),
+                          ),
                         if (mode == BookmarkGroupViewMode.structure &&
                             (id == null || ordinaryChildren.isNotEmpty))
                           if (id != null && !genuinelyEmpty)
@@ -373,6 +433,7 @@ class _BookmarkGroupBrowserPageState
                             controller: scroll,
                             slivers: [
                               ...slivers,
+                              if (id == null) ..._deviceSlivers(state),
                               if (genuinelyEmpty &&
                                   (mode != BookmarkGroupViewMode.structure ||
                                       ordinaryChildren.isEmpty))
@@ -488,6 +549,15 @@ class _BookmarkGroupBrowserPageState
     List<BookmarkGroup> children,
     Set<String> selected,
   ) {
+    final published = ref.exists(folderSyncServiceProvider)
+        ? ref.watch(folderSyncServiceProvider).valueOrNull?.publishedRoots ??
+              const <String>{}
+        : const <String>{};
+    bool isPublished(BookmarkGroup group) =>
+        published.contains(group.id) ||
+        state.groupTree
+            .ancestors(group.id)
+            .any((parent) => published.contains(parent.id));
     final cards = <(String, BookmarkView, BookmarkGroup?)>[
       if (id == null) ...[
         (context.t.bookmark.groups.all, const BookmarkView.all(), null),
@@ -523,9 +593,7 @@ class _BookmarkGroupBrowserPageState
                     state.groupTree.childrenOf(group.id).isNotEmpty
                 ? BookmarkView.subtree(group.id)
                 : view;
-            final previewGroups = previewView.kind == BookmarkViewKind.all
-                ? null
-                : state.groupIdsForView(previewView);
+            final previewGroups = state.groupIdsForView(previewView);
             final key = view.groupId ?? 'all';
             final preview = _previews.putIfAbsent(
               key,
@@ -546,15 +614,50 @@ class _BookmarkGroupBrowserPageState
                               pool.localId,
                             ) ??
                             false) &&
-                        (previewGroups == null ||
-                            pool.groupIds.any(previewGroups.contains)),
+                        pool.groupIds.any(previewGroups.contains),
                   )
                   .take(4)
                   .toList(),
             );
-            final editable = group != null && !group.isDefault;
+            final editable =
+                group != null &&
+                !group.isDefault &&
+                !state.mirrors.isReceived(group.id);
             final card = BookmarkLocalGroupCard(
               title: title,
+              syncActions: group == null || _selection.isActive
+                  ? const []
+                  : _syncActions(state, group),
+              syncIndicator: group != null && state.mirrors.isReceived(group.id)
+                  ? Tooltip(
+                      message: context.t.folder_sync.received,
+                      child: const Icon(
+                        Icons.sync_lock,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    )
+                  : group != null && isPublished(group)
+                  ? Tooltip(
+                      message: context.t.folder_sync.published,
+                      child: const Icon(
+                        Icons.upload,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    )
+                  : null,
+              arrivals: group == null || state.mirrors.owners[group.id] == null
+                  ? 0
+                  : SyncGroupReadingState.fromJson(
+                      state.mirrors.owners[group.id]!.reading,
+                    ).arrivals.length,
+              hasUnseenChange:
+                  group == null || state.mirrors.owners[group.id] == null
+                  ? false
+                  : SyncGroupReadingState.fromJson(
+                      state.mirrors.owners[group.id]!.reading,
+                    ).hasUnseenChange,
               previews: preview,
               pools: pools,
               nativeGroups: _nativePreviews.putIfAbsent(
@@ -606,6 +709,87 @@ class _BookmarkGroupBrowserPageState
     );
   }
 
+  List<Widget> _syncActions(BookmarkLibraryState state, BookmarkGroup group) {
+    final owner = state.mirrors.owners[group.id];
+    if (owner == null)
+      return [
+        KurumiPopupMenuItem(
+          title: Text(context.t.folder_sync.publish),
+          icon: const Icon(Icons.upload),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const FolderSyncPage(section: 'publish'),
+            ),
+          ),
+        ),
+      ];
+    return [
+      KurumiPopupMenuItem(
+        title: Text(context.t.folder_sync.copy),
+        icon: const Icon(Icons.copy),
+        onTap: () => runSyncAction(context, () async {
+          await (await ref.read(folderSyncServiceProvider.future))
+              .localCopy(group.id);
+        }),
+      ),
+      if (state.mirrors.subscriptions[owner.publisher]?.contains(
+            owner.source,
+          ) ??
+          false)
+        KurumiPopupMenuItem(
+          title: Text(context.t.folder_sync.unsubscribe),
+          icon: const Icon(Icons.link_off),
+          onTap: () => runSyncAction(context, () async {
+            if (await confirmSyncAction(
+              context,
+              context.t.folder_sync.unsubscribe,
+              syncRemovalMessage(context, state, owner.publisher, owner.source),
+            ))
+              await (await ref.read(folderSyncServiceProvider.future))
+                  .unsubscribe(owner.publisher, owner.source);
+          }),
+        ),
+    ];
+  }
+
+  List<Widget> _deviceSlivers(BookmarkLibraryState state) => [
+    for (final publisher in state.mirrors.subscriptions.keys) ...[
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              const Expanded(child: Divider()),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  state.mirrors.aliases[publisher] ??
+                      state.mirrors.publisherNames[publisher] ??
+                      publisher,
+                ),
+              ),
+              IconButton(
+                tooltip: context.t.folder_sync.receive,
+                icon: const Icon(Icons.more_vert),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FolderSyncPage(section: 'receive'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      _cards(state, publisher, [
+        for (final source
+            in state.mirrors.subscriptions[publisher] ?? const <String>{})
+          if (state.mirrors.localIdFor(publisher, source) case final id?)
+            state.groupsById[id]!,
+      ], const {}),
+    ],
+  ];
+
   Future<void> _setMode(String id, BookmarkGroupViewMode mode) async {
     _selection.disable();
     await _run(
@@ -652,7 +836,18 @@ class _BookmarkGroupBrowserPageState
   Future<void> _move(Set<String> ids, String? current) async {
     final destination = await showBookmarkGroupDestinationPicker(
       context,
-      groups: ref.read(bookmarkProvider).requireValue.groups,
+      groups: ref
+          .read(bookmarkProvider)
+          .requireValue
+          .groups
+          .where(
+            (group) => !ref
+                .read(bookmarkProvider)
+                .requireValue
+                .mirrors
+                .isReceived(group.id),
+          )
+          .toList(),
       movingGroupIds: ids,
       initialParentGroupId: current,
     );

@@ -143,7 +143,7 @@ class ServerFavoriteFetchNotifier
       for (final job in _jobs.values) {
         final session = job.session;
         if (session != null &&
-            !library.requireValue.groupsById.containsKey(session.groupId)) {
+            !library.requireValue.localGroupIds.contains(session.groupId)) {
           job.cancellation.cancel();
         }
       }

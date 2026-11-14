@@ -84,6 +84,7 @@ class MixedPostDetailsPage extends StatefulWidget {
     required this.disclaimer,
     this.fallbackUiBuilderDecorator,
     this.postRecoveryBuilder,
+    this.onEntryDisplayed,
     this.fallbackConfig,
     this.liveSource,
     this.entries,
@@ -108,6 +109,7 @@ class MixedPostDetailsPage extends StatefulWidget {
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
   fallbackUiBuilderDecorator;
   final PostRecoveryBuilder? postRecoveryBuilder;
+  final ValueChanged<ViewerEntry>? onEntryDisplayed;
   final BooruConfig? fallbackConfig;
   final PostDetailsLiveSource? liveSource;
 
@@ -265,6 +267,7 @@ class _MixedPostDetailsPageState extends State<MixedPostDetailsPage> {
       scrollController: widget.scrollController,
       child: _MixedPostDetailsView(
         sequence: _sequence,
+        onEntryDisplayed: widget.onEntryDisplayed,
         fallbackUiBuilderDecorator: widget.fallbackUiBuilderDecorator,
         postRecoveryBuilder: widget.postRecoveryBuilder,
         fallbackConfig: widget.fallbackConfig,
@@ -292,6 +295,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
     required this.onLoadMoreNext,
     required this.onPageChanged,
     this.sequence,
+    this.onEntryDisplayed,
   });
 
   final PostDetailsUIBuilder Function(PostDetailsUIBuilder, Post)?
@@ -305,6 +309,7 @@ class _MixedPostDetailsView extends ConsumerStatefulWidget {
   final VoidCallback onLoadMoreNext;
   final ValueChanged<int> onPageChanged;
   final ViewerEntrySequence? sequence;
+  final ValueChanged<ViewerEntry>? onEntryDisplayed;
 
   @override
   ConsumerState<_MixedPostDetailsView> createState() =>
@@ -649,6 +654,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           // presentation reparents its page wrapper in the same frame.
           key: GlobalObjectKey(_checkpoint(entry)),
           entry: entry,
+          onDisplayed: widget.onEntryDisplayed == null
+              ? null
+              : () => widget.onEntryDisplayed!(entry),
           index: index,
           routeActive: NavigationActivity.of(this.context),
           checkpoint: _checkpoint(entry),
@@ -822,6 +830,12 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           viewerConfig: config.viewer,
           gestureConfig: config.postGestures,
           imageCacheManager: null,
+          onDisplayed: widget.onEntryDisplayed == null
+              ? null
+              : () {
+                  final entry = widget.sequence?.entries[index];
+                  if (entry != null) widget.onEntryDisplayed!(entry);
+                },
           detailsController: details.controller,
           imageUrlBuilder: (post) =>
               resolver.resolveMediaUrl(post, config.viewer),

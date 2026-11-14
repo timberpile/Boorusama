@@ -39,6 +39,7 @@ import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../services/bookmark_mutation_repository.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_mirror_state.dart';
 import '../types/bookmark_record_fields.dart';
 import '../types/pool_bookmark.dart';
 import '../types/pool_bookmark_repository.dart';
@@ -918,7 +919,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           position: group.position,
         ),
     ]);
-    return mutation.base.applyCommittedChanges(
+    final next = mutation.base.applyCommittedChanges(
       pools: mutation.base.hasUnifiedRecords
           ? null
           : await repository.getPoolBookmarks(),
@@ -928,6 +929,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       groups: groups,
       folders: folders,
     );
+    final store = await bookmarkRepository;
+    return store is BookmarkMirrorStore
+        ? next.withMirrors(
+            await (store as BookmarkMirrorStore).readMirrorState(),
+          )
+        : next;
   }
 
   Future<void> _publishCommittedMutation() async {
