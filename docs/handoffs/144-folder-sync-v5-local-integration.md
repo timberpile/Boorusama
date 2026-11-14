@@ -6,7 +6,8 @@ is authorized by this handoff.
 ## Status and starting point
 
 Continue `feature/144-folder-based-collection-sync`, preserving later work.
-Current runtime candidate: `1061837f9c2deb9f6344c1a27b6c351667fc11e9`.
+Observed review HEAD: `58dbf4c979930d6f8288be7cac17e845aa8cedaa` (2026-11-14 UTC).
+Latest foundation runtime candidate: `1061837f9c2deb9f6344c1a27b6c351667fc11e9`. The current branch includes a **temporary verification workflow** (`.github/workflows/144-acceptance-check.yml`) that must be reviewed/removed after qualification; no completed final success has been verified here.
 
 **The foundation is implemented; the production Sync feature is not complete.**
 This is an implementation continuation followed by local final acceptance, not a
@@ -17,8 +18,12 @@ two-device, Android SAF, crash-recovery or full-application acceptance.
 Read the approved [v5 specification](../designs/2026-11-03-folder-based-collection-sync.md),
 [interactive v5 mockup](../designs/mockups/2026-11-03-folder-sync.html), and
 [component/authority README](../../lib/core/backups/folder_sync/README.md).
-The separate [#141 acceptance handoff](141-pixiv-bookmark-regression-acceptance.md)
-remains relevant to the inherited Pixiv dependency.
+The separately maintained [current #141 acceptance handoff on its own branch](https://github.com/timberpile/Boorusama/blob/feature/141-pixiv-work-page-bookmarks/docs/handoffs/141-pixiv-bookmark-regression-acceptance.md)
+is authoritative for the inherited Pixiv dependency; the relative copy on this
+older branch may be stale. #141's bookmark picker timeout, approved four-state
+main icon/Page marker and fixed-footprint Kurumi dropdown are **not resolved**
+merely by merging its earlier source ancestor. Do not accidentally present
+P9's incorporated #141 snapshot as locally accepted.
 
 ## Branch reconciliation and immutable design evidence
 
@@ -101,17 +106,72 @@ to avoid blocking the UI isolate; their lint exception is documented.
 - [Transport/cleanup run 43572212520](https://github.com/timberpile/Boorusama/actions/runs/43572212520):
   explicitly tested bot commit `212e0b9ac7c7966ee6f1b89d0776a64d7c568f13`;
   62 tests passed, with 12 analyzer infos still reported.
-- [Follow-up run 43572965391](https://github.com/timberpile/Boorusama/actions/runs/43572965391):
-  explicitly tested `278870992c9fbe04b0565ca82dd23b9e5aef3687`; all 62 tests
-  passed, formatting and dependency-lock checks passed. Two unnecessary_async
-  infos remained, so the overall run was not green.
-- `1061837...` removes those redundant forwarding wrappers and starts a read-only
-  check of the reconciled foundation plus the complete Kurumi suite. That run's
-  result is not yet available at this documentation checkpoint. Do not infer
-  success from a continue-on-error step conclusion.
+- [Completed run 43572965391](https://github.com/timberpile/Boorusama/actions/runs/43572965391):
+  explicitly tested `278870992c9fbe04b0565ca82dd23b9e5aef3687`; **all 62
+  Foundation tests passed**, formatting and dependency lock checks passed, but
+  the **overall workflow FAILED** because analysis reported two
+  `unnecessary_async` infos in `catalog_gate.dart` (lines 87, 155 in that CI
+  candidate). The final outcome may not be inferred from `continue-on-error`
+  step status.
+- `1061837...` removes the two forwarding wrappers in source. No completed
+  **exact-final-runtime** analysis/test outcome has been verified by this web
+  audit. `.github/workflows/144-acceptance-check.yml` remains present on the
+  branch; it is an interim CI harness, not the required final full regression.
 - Store recreation tests are not real process/disk crash tests. There is no
   independent review, full final application regression, local build, Android
   SAF, live Pixiv or two-device acceptance from this remote session.
+
+## Independent source/design audit — 2026-11-14
+
+**Conforms at the FOUNDATION boundary:** the selected branch retains the exact
+approved v5 spec/mockup blobs (`0f1575ff...` / `fdd399af...`), including
+source-owned read-only received hierarchy, virtual device root links, recursive
+coverage, local-only All Bookmarks, local arrival +N and per-Group/portable-Post
+read semantics, and confirmed Unsubscribe/Forget/Copy rules. Current pure source
+contains: `SyncBookmarkScope` (effective recursive direct/inherited union and
+uncovered preview), `SyncGroupReadingState` (separate arrivals/read state),
+`SyncCatalogGate` (pinned key + persisted authenticated OBSERVED high-water and
+commit-time recheck), `SyncRevisionTransport` (signed exact descriptor and
+size/hash-bound payload), and bounded mounted-directory storage. This was
+reviewed from GitHub **source**, not exercised on an Android device.
+
+**No complete app implementation conforms yet:** there is still no production
+sender/receiver orchestration, signed publication catalogs, source package
+validation, journaled mirror apply and deletion, repository ownership guard,
+Viewer/Bookmark read-state wiring, device-section UI, or SAF adapter. The README
+correctly distinguishes transport authentication from **archive/schema/trust
+authorization**. Nothing in the existing source may mark mirrors applied or
+withdrawn based only on a verified descriptor, or assume a local directory
+adapter is Android SAF. Signed withdrawal must not be inferred from missing data.
+
+**Observed dependency/design gaps to close before integration:**
+
+- The shared #141 `KurumiActionIconButton` currently expands its `IconButton`
+  content slot using a 20/24 + 16 dp `Row`. This does **not** meet the owner's
+  approved unchanged-footprint, right-center overlaid chevron behavior and
+  previously produced an 8 dp overflow in Bookmark **and** Download. #141's
+  main Bookmark also lacks the approved current-Page-only marker. Reconcile
+  a tested final #141 source **before** #144's complete regression, not a
+  stale copy or speculative new toolbar.
+- The current #141 production Bookmark fixture waits 30 seconds for a revision
+  after a real picker destination tap; [CI 43572469576](https://github.com/timberpile/Boorusama/actions/runs/43572469576)
+  reports **73 passed, 14 failed**, and analysis infos. The root cause of that
+  hang remains unverified; do not label P9's Pixiv import/viewer dependency
+  accepted or assume all tests are green. A local-agent workaround should
+  distinguish test-clock starvation from actual repository/guard failures.
+- The requested Pixiv Page -> parent Work link can be derived from source-owned
+  `PixivPostData.illustId` and original Page index and must never implicitly
+  bookmark the parent. Its visible saved-Page navigation has not been verified
+  in the inherited #141 candidate; coordinate the acceptance scope with the
+  owner rather than introducing a new stored identity or flattening typed
+  bookmarks into Posts.
+- Ensure all final source/metadata operations use the same real mutation
+  coordinator and durable last-**APPLIED** marker, not just the high-water
+  OBSERVED checkpoint. Explicitly verify crash/restart and concurrent
+  catalog-supersession behavior. `DirectoryFolderSyncStorage` checks existing
+  links but documents race limitations if a hostile process swaps path
+  ancestors; verify actual platform threat boundary instead of claiming full
+  filesystem sandboxing.
 
 ## Remaining implementation, in dependency order
 
