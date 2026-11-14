@@ -28,7 +28,9 @@ void main() {
       schema: 10,
     );
     storage = _Storage();
-    storage.files[revision.descriptorPath] = await identity.sign(revision.toJson());
+    storage.files[revision.descriptorPath] = await identity.sign(
+      revision.toJson(),
+    );
     storage.files[revision.payloadPath] = payload;
     transport = SyncRevisionTransport(storage);
   });
@@ -54,7 +56,9 @@ void main() {
   test('missing descriptor does not inspect payload or fall back', () async {
     storage.files.remove(revision.descriptorPath);
     expect(await read(), isNull);
-    expect(storage.reads, [(revision.descriptorPath, folderSyncMaxMetadataBytes)]);
+    expect(storage.reads, [
+      (revision.descriptorPath, folderSyncMaxMetadataBytes),
+    ]);
   });
 
   test('missing payload is unavailable, not a withdrawal', () async {
@@ -71,7 +75,9 @@ void main() {
 
   test('a different signing key is rejected before reading payload', () async {
     final other = await SyncSigningIdentity.create();
-    storage.files[revision.descriptorPath] = await other.sign(revision.toJson());
+    storage.files[revision.descriptorPath] = await other.sign(
+      revision.toJson(),
+    );
     await expectLater(read(), throwsFormatException);
     expect(storage.reads.length, 1);
   });
@@ -105,7 +111,11 @@ void main() {
     expect(storage.reads.length, 1);
   });
 
-  for (final corrupt in <List<int>>[[1, 2], [1, 2, 3, 4], [1, 2, 4]]) {
+  for (final corrupt in <List<int>>[
+    [1, 2],
+    [1, 2, 3, 4],
+    [1, 2, 4],
+  ]) {
     test('rejects corrupt bytes $corrupt even from a lax adapter', () async {
       storage.files[revision.payloadPath] = Uint8List.fromList(corrupt);
       await expectLater(read(), throwsFormatException);
@@ -113,7 +123,9 @@ void main() {
   }
 
   test('oversized descriptor is rejected even from a lax adapter', () async {
-    storage.files[revision.descriptorPath] = Uint8List(folderSyncMaxMetadataBytes + 1);
+    storage.files[revision.descriptorPath] = Uint8List(
+      folderSyncMaxMetadataBytes + 1,
+    );
     await expectLater(read(), throwsFormatException);
     expect(storage.reads.length, 1);
   });
@@ -125,7 +137,10 @@ final class _Storage implements FolderSyncStorage {
   Object? failure;
 
   @override
-  Future<Uint8List?> read(String path, {int maxBytes = folderSyncMaxBytes}) async {
+  Future<Uint8List?> read(
+    String path, {
+    int maxBytes = folderSyncMaxBytes,
+  }) async {
     reads.add((path, maxBytes));
     final error = failure;
     if (error != null) throw error;
@@ -134,13 +149,16 @@ final class _Storage implements FolderSyncStorage {
   }
 
   @override
-  Future<List<String>> list(String path) async => throw StateError('No discovery');
+  Future<List<String>> list(String path) async =>
+      throw StateError('No discovery');
 
   @override
   Future<void> writeImmutable(String path, Uint8List bytes) async =>
       throw StateError('Read-only boundary');
 
   @override
-  Future<void> deleteOwnedRevision(String path, {required String owner}) async =>
-      throw StateError('No deletion authority');
+  Future<void> deleteOwnedRevision(
+    String path, {
+    required String owner,
+  }) async => throw StateError('No deletion authority');
 }

@@ -14,27 +14,33 @@ SyncBookmarkNode node(String id, {String? parent, int position = 0}) =>
 void main() {
   final nodes = [node(a), node(b, parent: a), node(c, parent: a)];
 
-  test('direct child then parent gives one canonical child with two reasons', () {
-    final scope = BookmarkSyncScope(
-      publisher: publisher,
-      nodes: nodes,
-      directRoots: {a, b},
-    );
-    expect(scope.covered, {a, b, c});
-    expect(scope.directRoots, {a, b});
-    expect(scope.reasonsFor(b), {a, b});
-    expect(scope.reasonsFor(c), {a});
-    expect(scope.childrenOf(a), [b, c]);
-    expect(scope.identityFor(b), scope.identityFor(b));
-    expect(scope.uncoveredAfterUnsubscribe(a), {a, c});
-    expect(scope.uncoveredAfterUnsubscribe(b), isEmpty);
-    expect(() => scope.uncoveredAfterUnsubscribe(c), throwsStateError);
-  });
+  test(
+    'direct child then parent gives one canonical child with two reasons',
+    () {
+      final scope = BookmarkSyncScope(
+        publisher: publisher,
+        nodes: nodes,
+        directRoots: {a, b},
+      );
+      expect(scope.covered, {a, b, c});
+      expect(scope.directRoots, {a, b});
+      expect(scope.reasonsFor(b), {a, b});
+      expect(scope.reasonsFor(c), {a});
+      expect(scope.childrenOf(a), [b, c]);
+      expect(scope.identityFor(b), scope.identityFor(b));
+      expect(scope.uncoveredAfterUnsubscribe(a), {a, c});
+      expect(scope.uncoveredAfterUnsubscribe(b), isEmpty);
+      expect(() => scope.uncoveredAfterUnsubscribe(c), throwsStateError);
+    },
+  );
 
   test('future children automatically join every covering root', () {
     final scope = BookmarkSyncScope(
       publisher: publisher,
-      nodes: [...nodes, node(d, parent: b)],
+      nodes: [
+        ...nodes,
+        node(d, parent: b),
+      ],
       directRoots: {a, b},
     );
     expect(scope.reasonsFor(d), {a, b});
@@ -50,7 +56,11 @@ void main() {
     );
     final after = BookmarkSyncScope(
       publisher: publisher,
-      nodes: [node(a), node(b), node(c, parent: a)],
+      nodes: [
+        node(a),
+        node(b),
+        node(c, parent: a),
+      ],
       directRoots: {a, b},
     );
     expect(after.covered, before.covered);
@@ -61,7 +71,10 @@ void main() {
   test('source parent outside published scope is not a local folder', () {
     final scope = BookmarkSyncScope(
       publisher: publisher,
-      nodes: [node(b, parent: a), node(c, parent: b)],
+      nodes: [
+        node(b, parent: a),
+        node(c, parent: b),
+      ],
       directRoots: {b},
     );
     expect(scope.covered, {b, c});
@@ -71,10 +84,14 @@ void main() {
 
   test('publisher identity isolates otherwise identical source UUIDs', () {
     final first = BookmarkSyncScope(
-      publisher: publisher, nodes: nodes, directRoots: {a},
+      publisher: publisher,
+      nodes: nodes,
+      directRoots: {a},
     );
     final second = BookmarkSyncScope(
-      publisher: otherPublisher, nodes: nodes, directRoots: {a},
+      publisher: otherPublisher,
+      nodes: nodes,
+      directRoots: {a},
     );
     expect(first.identityFor(b), isNot(second.identityFor(b)));
   });
@@ -87,24 +104,34 @@ void main() {
     ]) {
       expect(
         () => BookmarkSyncScope(
-          publisher: publisher, nodes: broken, directRoots: {a},
+          publisher: publisher,
+          nodes: broken,
+          directRoots: {a},
         ),
         throwsFormatException,
       );
     }
     expect(
       () => BookmarkSyncScope(
-        publisher: publisher, nodes: nodes, directRoots: {d},
+        publisher: publisher,
+        nodes: nodes,
+        directRoots: {d},
       ),
       throwsFormatException,
     );
   });
 
   test('sibling order is source-owned and snapshots cannot be mutated', () {
-    final input = [node(a), node(b, parent: a, position: 2), node(c, parent: a)];
+    final input = [
+      node(a),
+      node(b, parent: a, position: 2),
+      node(c, parent: a),
+    ];
     final roots = {a};
     final scope = BookmarkSyncScope(
-      publisher: publisher, nodes: input, directRoots: roots,
+      publisher: publisher,
+      nodes: input,
+      directRoots: roots,
     );
     input.clear();
     roots.clear();

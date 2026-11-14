@@ -66,9 +66,17 @@ final class SyncCatalogGate {
         }
         return;
       }
-      await store.put(_key(id), jsonEncode(_Trust(
-        publisher: id, publicKey: key, sequence: 0, digest: null,
-      ).toJson()));
+      await store.put(
+        _key(id),
+        jsonEncode(
+          _Trust(
+            publisher: id,
+            publicKey: key,
+            sequence: 0,
+            digest: null,
+          ).toJson(),
+        ),
+      );
     });
   }
 
@@ -83,7 +91,7 @@ final class SyncCatalogGate {
       throw const FormatException('Sync metadata exceeds byte limit');
     }
     final captured = Uint8List.fromList(bytes);
-    return await mutations.runExclusive(() async {
+    return mutations.runExclusive(() async {
       final trust = _read(id);
       if (trust == null) throw const SyncTrustRequired();
       final key = base64Decode(trust.publicKey);
@@ -104,24 +112,35 @@ final class SyncCatalogGate {
         // Persist OBSERVED, not APPLIED, before compatibility/body checks. A
         // missing package, future protocol or invalid body must not allow an
         // old signed withdrawal (or an already prepared old import) to return.
-        await store.put(_key(id), jsonEncode(_Trust(
-          publisher: id,
-          publicKey: trust.publicKey,
-          sequence: sequence,
-          digest: digest,
-        ).toJson()));
+        await store.put(
+          _key(id),
+          jsonEncode(
+            _Trust(
+              publisher: id,
+              publicKey: trust.publicKey,
+              sequence: sequence,
+              digest: digest,
+            ).toJson(),
+          ),
+        );
       }
       if (protocol != folderSyncProtocol) throw const SyncUpdateRequired();
       final collections = content['collections'];
       final name = content['deviceName'];
-      if (collections is! List || collections.length > folderSyncMaxEntries ||
-          name is! String || name.trim().isEmpty || name.length > 160 ||
+      if (collections is! List ||
+          collections.length > folderSyncMaxEntries ||
+          name is! String ||
+          name.trim().isEmpty ||
+          name.length > 160 ||
           RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
         throw const FormatException('Invalid signed sync catalog');
       }
       return VerifiedSyncCatalog._(
-        publisher: id, fingerprint: syncDigest(key), sequence: sequence,
-        digest: digest, content: content,
+        publisher: id,
+        fingerprint: syncDigest(key),
+        sequence: sequence,
+        digest: digest,
+        content: content,
       );
     });
   }
@@ -136,11 +155,12 @@ final class SyncCatalogGate {
   ) => mutations.runExclusive(() async {
     final trust = _read(catalog.publisher);
     if (trust == null) throw const SyncTrustRequired();
-    if (trust.sequence != catalog.sequence || trust.digest != catalog.digest ||
+    if (trust.sequence != catalog.sequence ||
+        trust.digest != catalog.digest ||
         syncDigest(base64Decode(trust.publicKey)) != catalog.fingerprint) {
       throw const SyncReplayRejected();
     }
-    return await commit();
+    return commit();
   });
 }
 
@@ -156,11 +176,14 @@ final class _Trust {
     final key = syncString(json['publicKey']);
     final sequence = json['sequence'];
     final digest = json['digest'];
-    if (json['publisher'] != publisher || base64Decode(key).length != 32 ||
-        sequence is! int || sequence < 0 || sequence > folderSyncMaxSequence ||
+    if (json['publisher'] != publisher ||
+        base64Decode(key).length != 32 ||
+        sequence is! int ||
+        sequence < 0 ||
+        sequence > folderSyncMaxSequence ||
         (sequence == 0
-          ? digest != null
-          : digest is! String || !isSyncDigest(digest))) {
+            ? digest != null
+            : digest is! String || !isSyncDigest(digest))) {
       throw const FormatException('Invalid local publisher checkpoint');
     }
     return _Trust(

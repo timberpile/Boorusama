@@ -1,3 +1,6 @@
+// Shared-directory checks must not block the UI isolate; keep async I/O.
+// ignore_for_file: avoid_slow_async_io
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -13,21 +16,30 @@ bool isSafeSyncPath(String path, {bool root = false}) =>
     (root && path.isEmpty) ||
     (path.length <= 512 &&
         path.split('/').length <= 8 &&
-        path.split('/').every((segment) =>
-          RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$').hasMatch(segment) &&
-          segment != '.' && segment != '..'));
+        path
+            .split('/')
+            .every(
+              (segment) =>
+                  RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$')
+                      .hasMatch(segment) &&
+                  segment != '.' &&
+                  segment != '..',
+            ));
 
 bool isOwnedSyncRevisionPath(String path, String owner) {
-  if (!isSafeSyncPath(path) || owner != owner.toLowerCase() ||
+  if (!isSafeSyncPath(path) ||
+      owner != owner.toLowerCase() ||
       !Uuid.isValidUUID(fromString: owner)) {
     return false;
   }
   final parts = path.split('/');
-  if (parts.length < 4 || parts[0] != 'devices' || parts[1] != owner) return false;
+  if (parts.length < 4 || parts[0] != 'devices' || parts[1] != owner)
+    return false;
   final String file;
   if (parts.length == 4 && parts[2] == 'catalog') {
     file = parts[3];
-  } else if (parts.length == 6 && parts[2] == 'collections' &&
+  } else if (parts.length == 6 &&
+      parts[2] == 'collections' &&
       const {'bookmarks', 'following_topics'}.contains(parts[3]) &&
       parts[4] == parts[4].toLowerCase() &&
       Uuid.isValidUUID(fromString: parts[4])) {
@@ -60,7 +72,11 @@ final class DirectoryFolderSyncStorage implements FolderSyncStorage {
 
   static Directory _root(String directory) {
     if (directory.trim().isEmpty || directory.contains('://')) {
-      throw ArgumentError.value(directory, 'directory', 'Expected filesystem directory');
+      throw ArgumentError.value(
+        directory,
+        'directory',
+        'Expected filesystem directory',
+      );
     }
     return Directory(p.join(directory, folderSyncRoot));
   }
@@ -81,7 +97,8 @@ final class DirectoryFolderSyncStorage implements FolderSyncStorage {
       }
     }
     final target = p.joinAll([root.path, ...parts]);
-    if (createParents) await Directory(p.dirname(target)).create(recursive: true);
+    if (createParents)
+      await Directory(p.dirname(target)).create(recursive: true);
     return target;
   }
 
@@ -103,7 +120,10 @@ final class DirectoryFolderSyncStorage implements FolderSyncStorage {
   }
 
   @override
-  Future<Uint8List?> read(String path, {int maxBytes = folderSyncMaxBytes}) async {
+  Future<Uint8List?> read(
+    String path, {
+    int maxBytes = folderSyncMaxBytes,
+  }) async {
     if (maxBytes < 0 || maxBytes > folderSyncMaxBytes) {
       throw ArgumentError.value(maxBytes, 'maxBytes');
     }

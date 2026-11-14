@@ -12,7 +12,10 @@ String syncBookmarkMemberKey(Bookmark bookmark) {
     throw const FormatException('Unaddressable content cannot be synchronized');
   }
   return canonicalSyncJson([
-    engine.id, identity.siteNamespace, identity.kind.name, identity.sourceKey,
+    engine.id,
+    identity.siteNamespace,
+    identity.kind.name,
+    identity.sourceKey,
   ]);
 }
 
@@ -33,10 +36,15 @@ final class SyncGroupReadingState {
        arrivals = Set.unmodifiable(arrivals);
 
   factory SyncGroupReadingState.empty(SyncCollectionId group) {
-    if (group.kind != 'bookmarks') throw const FormatException('Not a Bookmark Group');
+    if (group.kind != 'bookmarks')
+      throw const FormatException('Not a Bookmark Group');
     return SyncGroupReadingState._(
-      group: group, revision: 0, members: {}, readMembers: {},
-      arrivals: {}, hasUnseenChange: false,
+      group: group,
+      revision: 0,
+      members: {},
+      readMembers: {},
+      arrivals: {},
+      hasUnseenChange: false,
     );
   }
 
@@ -45,35 +53,46 @@ final class SyncGroupReadingState {
     final rawGroup = json['group'];
     final revision = json['revision'];
     final changed = json['changed'];
-    if (rawGroup is! Map<String, dynamic> || revision is! int ||
-        revision < 0 || revision > folderSyncMaxSequence || changed is! bool) {
+    if (rawGroup is! Map<String, dynamic> ||
+        revision is! int ||
+        revision < 0 ||
+        revision > folderSyncMaxSequence ||
+        changed is! bool) {
       throw const FormatException('Invalid local reading state');
     }
     final group = SyncCollectionId.fromJson(rawGroup);
     final members = _decodeKeys(json['members']);
     final read = _decodeKeys(json['read']);
     final arrivals = _decodeKeys(json['arrivals']);
-    if (group.kind != 'bookmarks' || !members.containsAll(arrivals) ||
+    if (group.kind != 'bookmarks' ||
+        !members.containsAll(arrivals) ||
         (!changed && arrivals.isNotEmpty) ||
         (revision == 0 && (members.isNotEmpty || read.isNotEmpty || changed))) {
       throw const FormatException('Inconsistent local reading state');
     }
     return SyncGroupReadingState._(
-      group: group, revision: revision, members: members, readMembers: read,
-      arrivals: arrivals, hasUnseenChange: changed,
+      group: group,
+      revision: revision,
+      members: members,
+      readMembers: read,
+      arrivals: arrivals,
+      hasUnseenChange: changed,
     );
   }
 
   final SyncCollectionId group;
+
   /// Last committed MEMBERSHIP revision, not a catalog metadata sequence.
   final int revision;
   final Set<String> members;
+
   /// Retain previously read identities through removal/rearrival. No other
   /// Group's state, root-link ID, Page sibling or aggregate can populate this.
   final Set<String> readMembers;
   final Set<String> arrivals;
   final bool hasUnseenChange;
-  Set<String> get unreadMembers => Set.unmodifiable(members.difference(readMembers));
+  Set<String> get unreadMembers =>
+      Set.unmodifiable(members.difference(readMembers));
 
   SyncGroupReadingState applyMembership({
     required int revision,
@@ -91,7 +110,9 @@ final class SyncGroupReadingState {
       revision: revision,
       members: next,
       readMembers: readMembers,
-      arrivals: arrivals.intersection(next).union(next.difference(this.members)),
+      arrivals: arrivals
+          .intersection(next)
+          .union(next.difference(this.members)),
       hasUnseenChange: hasUnseenChange || !_same(next, this.members),
     );
   }
@@ -102,12 +123,17 @@ final class SyncGroupReadingState {
       renderedRevision != revision
       ? this
       : SyncGroupReadingState._(
-          group: group, revision: revision, members: members,
-          readMembers: readMembers, arrivals: {}, hasUnseenChange: false,
+          group: group,
+          revision: revision,
+          members: members,
+          readMembers: readMembers,
+          arrivals: {},
+          hasUnseenChange: false,
         );
 
-  bool canMarkRead(Set<String> selection) =>
-      selection.any((key) => members.contains(key) && !readMembers.contains(key));
+  bool canMarkRead(Set<String> selection) => selection.any(
+    (key) => members.contains(key) && !readMembers.contains(key),
+  );
 
   /// Invoke for actually displayed full-Viewer Posts or explicit Mark Read.
   /// A Work card alone is not proof that all of its Pages have been displayed.
@@ -115,8 +141,11 @@ final class SyncGroupReadingState {
     final newlyRead = selection.intersection(members).difference(readMembers);
     if (newlyRead.isEmpty) return this;
     return SyncGroupReadingState._(
-      group: group, revision: revision, members: members,
-      readMembers: readMembers.union(newlyRead), arrivals: arrivals,
+      group: group,
+      revision: revision,
+      members: members,
+      readMembers: readMembers.union(newlyRead),
+      arrivals: arrivals,
       hasUnseenChange: hasUnseenChange,
     );
   }
@@ -134,7 +163,8 @@ final class SyncGroupReadingState {
 
 Set<String> _keys(Iterable<String> values) {
   final keys = values.toSet();
-  if (keys.any((key) => key.isEmpty)) throw const FormatException('Empty member key');
+  if (keys.any((key) => key.isEmpty))
+    throw const FormatException('Empty member key');
   return keys;
 }
 
@@ -143,8 +173,10 @@ Set<String> _decodeKeys(Object? value) {
     throw const FormatException('Invalid reading identity list');
   }
   final keys = _keys(value.cast<String>());
-  if (keys.length != value.length) throw const FormatException('Duplicate member key');
+  if (keys.length != value.length)
+    throw const FormatException('Duplicate member key');
   return keys;
 }
 
-bool _same(Set<String> a, Set<String> b) => a.length == b.length && a.containsAll(b);
+bool _same(Set<String> a, Set<String> b) =>
+    a.length == b.length && a.containsAll(b);

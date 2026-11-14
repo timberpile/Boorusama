@@ -22,22 +22,6 @@ final class SyncBookmarkNode {
 /// committed hierarchy change to include future children before emitting changes.
 /// This does not allocate local IDs, import data, or infer deletion from absence.
 final class BookmarkSyncScope {
-  BookmarkSyncScope._({
-    required this.publisher,
-    required Map<String, SyncBookmarkNode> nodes,
-    required Set<String> directRoots,
-    required Map<String?, List<String>> children,
-    required Map<String, int> counts,
-  }) : nodes = Map.unmodifiable(nodes),
-       directRoots = Set.unmodifiable(directRoots),
-       _children = Map.unmodifiable(children.map(
-         (key, value) => MapEntry(key, List<String>.unmodifiable(value)),
-       )),
-       _counts = Map.unmodifiable(counts),
-       covered = Set.unmodifiable(
-         counts.entries.where((entry) => entry.value > 0).map((entry) => entry.key),
-       );
-
   factory BookmarkSyncScope({
     required String publisher,
     required Iterable<SyncBookmarkNode> nodes,
@@ -88,13 +72,36 @@ final class BookmarkSyncScope {
       throw const FormatException('Source Group hierarchy cycle');
     }
     return BookmarkSyncScope._(
-      publisher: id, nodes: byId, directRoots: roots,
-      children: children, counts: counts,
+      publisher: id,
+      nodes: byId,
+      directRoots: roots,
+      children: children,
+      counts: counts,
     );
   }
+  BookmarkSyncScope._({
+    required this.publisher,
+    required Map<String, SyncBookmarkNode> nodes,
+    required Set<String> directRoots,
+    required Map<String?, List<String>> children,
+    required Map<String, int> counts,
+  }) : nodes = Map.unmodifiable(nodes),
+       directRoots = Set.unmodifiable(directRoots),
+       _children = Map.unmodifiable(
+         children.map(
+           (key, value) => MapEntry(key, List<String>.unmodifiable(value)),
+         ),
+       ),
+       _counts = Map.unmodifiable(counts),
+       covered = Set.unmodifiable(
+         counts.entries
+             .where((entry) => entry.value > 0)
+             .map((entry) => entry.key),
+       );
 
   final String publisher;
   final Map<String, SyncBookmarkNode> nodes;
+
   /// Device-root links, not duplicate persisted Groups. A nested direct root
   /// remains here while sharing its canonical identity with its parent's child.
   final Set<String> directRoots;
@@ -103,18 +110,25 @@ final class BookmarkSyncScope {
   final Map<String, int> _counts;
 
   SyncCollectionId identityFor(String source) {
-    if (!nodes.containsKey(source)) throw const FormatException('Unknown Group');
-    return SyncCollectionId(publisher: publisher, kind: 'bookmarks', source: source);
+    if (!nodes.containsKey(source))
+      throw const FormatException('Unknown Group');
+    return SyncCollectionId(
+      publisher: publisher,
+      kind: 'bookmarks',
+      source: source,
+    );
   }
 
   List<String> childrenOf(String source) {
-    if (!nodes.containsKey(source)) throw const FormatException('Unknown Group');
+    if (!nodes.containsKey(source))
+      throw const FormatException('Unknown Group');
     return _children[source] ?? const [];
   }
 
   /// Compute reasons on demand, avoiding an O(nodes * roots) persisted matrix.
   Set<String> reasonsFor(String source) {
-    if (!nodes.containsKey(source)) throw const FormatException('Unknown Group');
+    if (!nodes.containsKey(source))
+      throw const FormatException('Unknown Group');
     final reasons = <String>{};
     String? current = source;
     while (current != null && nodes.containsKey(current)) {

@@ -78,8 +78,8 @@ void main() {
       const foreign = '10000000-0000-4000-8000-000000000002';
       const source = '10000000-0000-4000-8000-000000000003';
       final bytes = Uint8List.fromList([1]);
-      final owned = 'devices/$owner/collections/bookmarks/$source/1.bsexport';
-      final other = 'devices/$foreign/collections/bookmarks/$source/1.bsexport';
+      const owned = 'devices/$owner/collections/bookmarks/$source/1.bsexport';
+      const other = 'devices/$foreign/collections/bookmarks/$source/1.bsexport';
       await storage.writeImmutable(owned, bytes);
       await storage.writeImmutable(other, bytes);
       for (final path in [

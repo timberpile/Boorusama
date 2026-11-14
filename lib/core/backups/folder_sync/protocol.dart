@@ -208,7 +208,10 @@ Future<Map<String, dynamic>> verifySyncSignature(
         syncJsonBytes(content),
         signature: signing.Signature(
           signatureBytes,
-          publicKey: signing.SimplePublicKey(key, type: signing.KeyPairType.ed25519),
+          publicKey: signing.SimplePublicKey(
+            key,
+            type: signing.KeyPairType.ed25519,
+          ),
         ),
       )) {
     throw const FormatException('Sync signature verification failed');
@@ -244,7 +247,8 @@ final class SyncRevision {
     }
   }
   factory SyncRevision.fromJson(Map<String, dynamic> json) {
-    if (json['protocol'] != folderSyncProtocol) throw const SyncUpdateRequired();
+    if (json['protocol'] != folderSyncProtocol)
+      throw const SyncUpdateRequired();
     return SyncRevision(
       collection: SyncCollectionId.fromJson(json),
       revision: syncPositiveInteger(json['revision']),
@@ -281,15 +285,19 @@ final class SyncRevision {
 final class SyncUpdateRequired implements Exception {
   const SyncUpdateRequired();
 }
+
 final class SyncConflict implements Exception {
   const SyncConflict();
 }
+
 final class SyncProfileRequired implements Exception {
   const SyncProfileRequired();
 }
+
 final class SyncTrustRequired implements Exception {
   const SyncTrustRequired();
 }
+
 final class SyncReplayRejected implements Exception {
   const SyncReplayRejected();
 }
