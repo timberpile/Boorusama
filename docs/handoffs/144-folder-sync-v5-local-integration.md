@@ -1,301 +1,200 @@
-# #144 — Folder Sync v5: implementation continuation and final acceptance
+# #144 — Folder Sync v5 implementation and verification
 
-Updated 2026-11-14. Issue #144 remains open/in-progress. No integration or closure
-is authorized by this handoff.
+Updated 2026-11-14. **Issue #144 remains open/in-progress. Do not merge into
+`develop`, create a PR or close it without owner approval. The branch is not yet
+ready for final owner acceptance.** This current-source report replaces obsolete
+foundation-only, temporary-workflow and #141-branch instructions.
 
-## Owner-approved Following UX and current-source note (2026-11-14)
+## Source and approved decisions
 
-**This section supersedes contradictory older handoff instructions.** The owner
-approved **fully source-owned, read-only Following Topics/folders/Feeds**, presented
-under **Local** followed by separate publisher-device sections with compact
-dividers (like received Bookmarks). Source controls names, queries, folder/member
-hierarchy, ordering and Feed definitions; receiver may not rename, move, edit,
-mix or republish any received definition. Guard writes at repository/service
-boundaries, not just menus. Only publisher-device aliases may be overridden
-locally. **Create Local Copy** creates independent editable Local definitions.
+Continue `feature/144-folder-based-collection-sync` in its existing worktree.
+The runtime candidate is `8bdfdb26b` (after implementation `dc6d40ae2`,
+tombstone fix `fbe4d1bd9` and Pixiv reconciliation `29f0c5045`).
 
-Receiver owns compatible profile binding, automatic/manual Post refresh preferences,
-request scheduling/rate limits, cache/previews, NEW/read and checkpoints. Receiving
-new definitions must never reset these local controls; definition-change badges
-remain separate from Post NEW. Preserve the independent Following publication
-scope rules; do **not** assume Bookmark's always-recursive scope automatically
-applies to Following.
+- `720a8bc96` reconciled `origin/develop` at `f77ca1f68`, including the accepted
+  #141 implementation integrated as `1a3f74b`. #141 is closed; do not resurrect
+  its old feature branch. Conflicting Pixiv tests/localizations use accepted
+  develop versions.
+- `314805e03` reconciled the latest feature remote, including `da009882b` and
+  `b404893b5`. The owner has **approved fully source-owned, read-only Following
+  Topics/folders/Feeds under Local and separate publisher-device sections**.
+  This UI decision is settled, not an outstanding approval question.
+- [Canonical v5 specification](../designs/2026-11-03-folder-based-collection-sync.md)
+  and [HTML reference](../designs/mockups/2026-11-03-folder-sync.html) remain the
+  product contract. The text supersedes illustrative mockup differences.
+- Folder relocation preserves identities, trust, subscriptions, mirrors,
+  checkpoints and revision history. Missing/offline files never mean deletion.
+- Following query/name/hierarchy/order/membership/Feed definitions are source-owned.
+  Receiver-compatible profile binding, auto/manual Post refresh preferences,
+  scheduling/rate limits, cache/previews, NEW/read and checkpoints stay local.
+  Create Local Copy must produce independently writable fresh local IDs. Do not
+  reuse obsolete local name/placement overrides or Bookmark's recursive scope
+  semantics for Following. [Owner decision](https://github.com/timberpile/Boorusama/issues/144#issuecomment-6877212547).
 
-Canonical [v5 specification](../designs/2026-11-03-folder-based-collection-sync.md)
-was updated for this approval (decision commit `da009882b9b485abbd8c6428f473bd0dd79b9b98`);
-[Issue decision](https://github.com/timberpile/Boorusama/issues/144#issuecomment-6877212547)
-records it. Previously approved folder relocation preserves state/trust and
-receiver-local auto-refresh remains in force. The #141 Pixiv implementation
-was integrated into `develop` under `1a3f74b` and issue #141 closed:
-**reconcile current develop**, not the old #141 feature branch.
+## Implemented application behavior
 
-The foundation has grown since the historical checkpoint below (signed catalog,
-publication, package validation and receive preparation), but **full production
-sync/ownership/UI/SAF is still not established by these changes**. Treat old
-commit/workflow/CI notes below as historical until verified against the actual
-branch HEAD. Do not merge/close without owner approval.
+`dc6d40ae2` connects the existing signed protocol/publication/validation foundations
+to **real Bookmark repositories**, not an in-memory replacement domain:
 
-## Status and starting point
+- Consistent local Group/direct-membership snapshots, recursive publication roots,
+  semantic no-op payload reuse and catalog-only source rename/hierarchy changes.
+  Explicit folder configuration, signed device discovery, fingerprint approval,
+  additive subscriptions, foreground startup/resume reconciliation, periodic scans
+  and coalesced Bookmark library changes are connected to the application lifecycle.
+- Canonical publisher/source → fresh local Group UUID mapping. Overlapping
+  subscriptions share one mirror, with direct-root virtual links and independent
+  subscribed descendants. Received and local hierarchy cannot mix.
+- Unified Hive journal version 4 includes mirror ownership, applied revision,
+  hierarchy/memberships and receiver reading state in one transaction. Interrupted
+  application is recovered before ordinary repository access. Last-applied source
+  descriptor history survives removal, Forget and reapproval.
+- Repository enforcement protects names, members, parents, order, ownership and
+  received-only saved snapshots. Receive cannot rewrite an existing local snapshot
+  or claim a local Group. Mixed local/received identities stay deduplicated and
+  preserve local observations; incompatible foreign-publisher snapshot changes
+  conflict instead of silently choosing a new owner.
+- Signed withdrawal/deletion removes only uncovered received mirrors. Explicit
+  offline Unsubscribe/Forget and independent Create Local Copy use safe domain
+  transactions. Outside local/received memberships preserve shared records; no
+  automatic Default membership is added. Forget revokes trust without erasing
+  anti-replay history.
+- All Bookmarks, its counts/tag/source selectors and previews use local membership.
+  Received Groups are excluded from ordinary Bookmark/bulk/Favorites Sync targets,
+  with repository guards behind the menu restrictions.
+- Settings → Export/Import → Folder Sync provides explicit setup and management.
+  Publish/Receive, Sync now, trust fingerprint, offline management, overlap-aware
+  removal counts and device naming use existing Kurumi surfaces. Bookmark Home
+  shows Local and publisher-device sections, canonical direct roots, compact
+  upload/sync-lock indicators and direct Group arrival badges. App shell and
+  existing card geometry remain in use.
+- Opening a received Group acknowledges only its rendered membership revision's
+  arrival notification. Selection Mark Read is conditional on unread selected
+  members. A decoded image in the settled, active full Viewer marks that saved
+  occurrence read; preloads, adjacent entries and covered routes do not. A saved
+  Work visit does not mark all separately saved Pages read.
+- Android SAF method channel is registered and disposed with MainActivity.
+  Persisted tree grants, bounded worker I/O, path/owner checks and exact document
+  name/URI verification are implemented. New-document creation replaces unsafe
+  rename-over-publication. Partial final files cannot validate and are retained;
+  no incomplete-file overwrite or automatic broad cleanup is activated.
 
-Continue `feature/144-folder-based-collection-sync`, preserving later work.
-Observed review HEAD: `58dbf4c979930d6f8288be7cac17e845aa8cedaa` (2026-11-14 UTC).
-Latest foundation runtime candidate: `1061837f9c2deb9f6344c1a27b6c351667fc11e9`. The current branch includes a **temporary verification workflow** (`.github/workflows/144-acceptance-check.yml`) that must be reviewed/removed after qualification; no completed final success has been verified here.
+Critical source review found and resolved additive-subscription deletion,
+unauthenticated publication-cache reuse, descriptor/schema skip, received-only
+snapshot edits, pre-expansion resource limits, cached failed-durability retries,
+post-disposal work and cleanup revision-history gaps. Sync-specific authority
+writes flush and synchronize the Hive file and parent directory before use.
 
-**The foundation is implemented; the production Sync feature is not complete.**
-This is an implementation continuation followed by local final acceptance, not a
-request to approve a finished UI. No import, destructive mirror cleanup or Sync
-navigation path has been enabled prematurely. Hosted foundation tests are not
-two-device, Android SAF, crash-recovery or full-application acceptance.
+`fbe4d1bd9` adds the final tombstone boundary: validate inactive descriptors against
+retained source history before deletion, retire at the supplied higher revision,
+and reject revival of skipped pre-deletion payloads. It also places the Folder
+Sync settings row after Advanced Backup so the existing backup flow remains
+reachable at its original position.
 
-Read the approved [v5 specification](../designs/2026-11-03-folder-based-collection-sync.md),
-[interactive v5 mockup](../designs/mockups/2026-11-03-folder-sync.html), and
-[component/authority README](../../lib/core/backups/folder_sync/README.md).
-The separately maintained [current #141 acceptance handoff on its own branch](https://github.com/timberpile/Boorusama/blob/feature/141-pixiv-work-page-bookmarks/docs/handoffs/141-pixiv-bookmark-regression-acceptance.md)
-is authoritative for the inherited Pixiv dependency; the relative copy on this
-older branch may be stale. #141's bookmark picker timeout, approved four-state
-main icon/Page marker and fixed-footprint Kurumi dropdown are **not resolved**
-merely by merging its earlier source ancestor. Do not accidentally present
-P9's incorporated #141 snapshot as locally accepted.
+`29f0c5045` removes a residual old #141 Artist Info Parent Work button left by
+three-way reconciliation. The accepted configurable Details section remains the
+only Parent Work UI. Pixiv source/tests and navigation match `origin/develop` after this correction;
+all 97 Pixiv Work/Page tests pass. The later Kurumi difference is the optional
+popup focus-node parameter described below.
 
-## Branch reconciliation and immutable design evidence
+`8bdfdb26b` fixes the new Default-card Publish menu's arrow-key reachability.
+Cards own and dispose their trigger/menu focus, retain canonical identity keys,
+and use an optional focus node on the existing Kurumi popup component. The exact
+remote-navigation regression, 55 Bookmark card tests and the full 222-test Kurumi
+suite pass, including both popup-trigger variants and Escape focus restoration.
 
-The branch retains its original work through
-`2207c09753a9008deaf294f40d8d3a709c9d6e17`, the earlier dependency reconciliation
-`f11c65ee45aa2d8fec7b81e06ae0f955577b2f43`, and foundation runtime
-`a7606bed7b2024d250f31495bb8f45e0056f51e3`.
+## Verification
 
-Merge `259f420eec00e580a3f82f29eda5fdae697a442f` incorporates #141 head
-`2fcd7a42de21d68b9ab4a049f940c52cbf2afe29` (runtime/test `64da57f...`) while
-retaining the #144 history. Cleanup head:
-`ae35297b95e96666ffcc582d26cb80fd8259d803`. The hosted reconciliation checked
-both ancestries and unchanged Sync source/tests, pubspec/lock and design files.
-It verified the exact approved blobs before pushing:
+Runtime candidate: `8bdfdb26b` (accepted Pixiv source and keyboard fix included). Documentation-only updates after it do not change
+runtime/test inputs. Durable local logs are under
+`.worktrees/_artifacts/144-production-20261114/` (ignored, not committed).
 
-- Specification: `0f1575ffcf84e0693c233bad53d7837c6af78c1c`.
-- Mockup: `fdd399aff10162a26c55da441aadabffbb42b357`.
+- `fvm flutter test --no-pub --concurrency=6 test/core/backups/folder_sync
+  test/application/backup_restore_flow_test.dart --reporter expanded`:
+  **112 passed** (108 Sync tests and 4 real backup application-flow tests).
+  Covers signed packages, journal fault/reopen, ownership/read-only enforcement,
+  trust/checkpoint retries, missing payloads, offline management, overlap, local
+  copies, relocation, schema/equivocation rejection and tombstone rollback.
+- The two-library scenario uses independent Hive libraries, signing identities,
+  preferences and mutation coordinators over one host directory. Opposite-direction
+  publication/subscription, stable identity, local-only All Bookmarks, source rename,
+  local reading preservation and no publication echoes pass. This is a **host
+  simulation**, not two physical devices or real Syncthing/SMB acceptance.
+- Headless UI checks cover 320 px width, 170% text, keyboard-open device naming,
+  opt-in setup, safe received device-card menus and Bookmark/Favorites consumers.
+  Image/preload reading and the Viewer rebuild regression pass in affected Viewer
+  suites. The complete suite below includes their final candidate versions.
+- Native SAF compile: installed Gradle 8.14,
+  `:app:compileDevDebugKotlin`: **BUILD SUCCESSFUL**, 506 actionable tasks.
+  This proves native compilation only. No install or physical-device interaction
+  was performed. Dart channel-contract tests are included in Sync tests.
+- Final scoped `fvm flutter analyze --no-pub` over Sync, Bookmarks, changed Viewer
+  files and affected tests: **0 errors, 6 existing warnings, 224 informational findings; exit 1**.
+  The warnings are four unnecessary null assertions in `media_group_page.dart`,
+  an unnecessary cast in `mixed_post_details_page.dart`, and the existing unused
+  `coverUrl` test variable. Informational findings include both existing lint and
+  implementation-style notices; this is not a clean analyzer result. A separate
+  analysis of the reconciled `work_information.dart` reports **no issues**.
+- `./scripts/run_regression_tests.sh` on `8bdfdb26b`: **exit 0**. **7,300
+  application tests, 1,706 package/CLI tests across all 13 tested packages, and
+  76 Python tooling tests passed**. Both pull-request-policy and Android-release
+  shell suites passed. Two existing `go_router` tests were skipped. Detected
+  physical concurrency was 6. Durable complete log: `full-regression-qualified.log`.
+  This is the final candidate's complete pass, including the corrected keyboard,
+  Pixiv reconciliation, Sync, journal and backup application-flow regressions.
+- `git diff --check`: clean before committing the runtime candidate. Localization
+  generated using `./gen.sh i18n`. Temporary #144 diagnostic workflow is absent;
+  it was removed in prior foundation work. No replacement diagnostic workflow added.
 
-This feature dependency merge is not develop integration or acceptance of #141.
-Check for later #141 fixes before final P9 verification. Its labels and shared
-button corrections are now included; there is no outstanding locale patch.
-Historical Combined `252e8954dab8c0842f83a2082c67f4841111c34e` is reference only.
-Do not merge or wholesale transplant it: its flat UI, automatic enablement on
-navigation and receiver-owned name/placement behavior conflict with v5.
+Earlier affected/full attempts exposed a viewer rebuild, a real/fake scheduler
+boundary in the new Hive/widget harness and backup-row reachability. These were
+fixed and rerun. The first complete attempt on `dc6d40ae2` was stopped after the
+final source review required the tombstone fix; it is **not** a complete pass.
+The second complete attempt on `fbe4d1bd9` exposed two duplicate Parent Work
+finders due to the residual old button; it was stopped and superseded by
+`29f0c5045`. Its complete application run then reached **7,299 passed / 1 failed**:
+only the new Default-card menu was unreachable by arrow keys. That failure is
+fixed in `8bdfdb26b`; the complete final runner above passed on that candidate.
+No failed or interrupted attempt is counted as a pass. Independent source review
+confirmed the tombstone and other reported safety fixes. A further read-only
+review confirmed focus ownership/disposal, canonical keys, arrow routing and
+popup focus restoration in `8bdfdb26b`. Neither review establishes device acceptance.
 
-## Implemented and inspected boundaries
+## Remaining production work and limits
 
-The implementation lives in `lib/core/backups/folder_sync/`, with focused tests
-in `test/core/backups/folder_sync/`.
+1. **Following integration is not implemented.** Build scoped definition packages,
+   actual repository publication/receive, canonical ownership and journaled apply/
+   cleanup, repository guards, Create Local Copy and approved Local/device UI.
+   Its definition-change glyph must remain separate from Post NEW. Preserve local
+   profile/refresh/cache/read state and rate limits. No Following receive or
+   destructive path is enabled in this candidate.
+2. Complete automatic change detection: durable mutation dirty signals and a
+   filesystem watcher with periodic fallback. Current foreground polling,
+   coalescing and full startup/resume reconciliation are connected, but no
+   terminated/background delivery guarantee exists.
+3. Complete v5 UI: actual activity history/deep links, device-alias editing,
+   sender-side fingerprint display, hierarchy/reason details in Publish/Receive, parent arrival aggregates,
+   complete per-entry unread presentation and operational error classification.
+   A missing/invalid collection currently pauses its publisher's combined receive
+   operation; isolate unaffected subscriptions without weakening overlap cleanup.
+4. Complete Viewer reading for videos and all alternative entry paths. Current
+   new read hook proves decoded-image display only, with no preload/neighbor credit.
+5. Validate Android providers and crash boundaries: persisted grants across restart,
+   revoked/offline trees, concurrent writers/name collisions, partial-document
+   recovery UX, directory/identity publication failures and real process death.
+   Some SAF providers rename new files or expose ambiguous names; they fail closed.
+   An incomplete immutable identity file currently requires transport repair or
+   relocation; it is not silently overwritten. Retention scheduling is disabled.
+6. Run actual two-device Android/Syncthing-or-mounted-share acceptance, upgrades
+   and larger collection/performance/UI checks. The owner explicitly said to
+   **leave the CPH2769 phone alone**; device acceptance remains pending. Final
+   ADB/Maestro discovery found CPH2769 and Pixel 4a physical devices, with **no
+   connected emulator**. Discovery only was performed; neither phone was operated.
 
-**Protocol and authenticated observations.** Bounded canonical JSON, Ed25519
-identity/signatures, typed publisher/kind/source identity and revision length/hash
-checks exist. Private seeds remain local. An immutable identity document excludes
-mutable display names. `verifySyncSignature` authenticates bytes only; it does
-not approve the key or establish protocol compatibility or mutation authority.
-
-The initial catalog gate had a reproduced rollback defect: a newer signed
-catalog with an unsupported protocol or invalid version-specific body failed
-before persisting the high-water mark. Older signed catalogs and already prepared
-old operations consequently remained usable. Ten new regressions failed before
-`4b39b033b77eccd7dab30e1b170c2776e2f7dc08` corrected this ordering.
-
-The gate now verifies the common publisher/protocol/sequence and filename binding,
-then durably records highest authenticated OBSERVED sequence/content digest before
-compatibility/body checks. Invalid signatures or mismatched common identity do
-not advance it. Rejected content yields no usable catalog ticket. Storage failures
-propagate; identical retry is allowed, older or equivocating content rejected.
-`withCurrentCatalog` rechecks the ticket under the shared mutation coordinator
-after asynchronous preparation. OBSERVED is not last APPLIED. Do not advance an
-applied marker until the journaled domain mutation succeeds.
-
-**Exact signed revision transport.** `f3a263c7cef0332891c172dfc9f980065cc82bb3`
-adds `SyncRevisionTransport`: read only the expected descriptor/payload paths,
-authenticate the descriptor with the supplied key, bind every revision field to
-the expected advertisement, bound both reads and verify payload length/SHA-256.
-The output owns a copied read-only byte view. Missing files are unavailable,
-permission/corruption errors propagate; there is no listing, older fallback,
-write or deletion. The caller must derive the expected revision and approved key
-from current trusted catalog state. **Transport evidence is not validated archive,
-supported schema, source/profile permission or an authorized mutation plan.**
-
-**Existing foundations retained.** Mounted-directory storage uses
-`v1/devices/...`, bounded reads and immutable no-clobber writes, rejects traversal
-and links, and limits retention paths. SAF URIs are deliberately not interpreted
-as filesystem paths. `bookmark_scope.dart` computes bounded iterative recursive
-union and uncovered-source previews without allocating IDs or deleting data.
-`reading_state.dart` provides immutable JSON-ready arrival/read state by publisher,
-source Group and portable typed Bookmark identity. None is wired to application
-providers, repositories, Viewer events or UI yet.
-
-`pubspec.lock` now includes generated cryptography 2.9.0. Its CI assertion checked
-that no unrelated dependency entry changed. Async filesystem checks remain async
-to avoid blocking the UI isolate; their lint exception is documented.
-
-## Verification evidence and limits
-
-- [Red checkpoint run 43569871060](https://github.com/timberpile/Boorusama/actions/runs/43569871060):
-  candidate `6fa0caba...`, 34 tests passed and all ten newly added regressions
-  failed. The follow-up checkpoint fix passed all 44 tests.
-- [Transport/cleanup run 43572212520](https://github.com/timberpile/Boorusama/actions/runs/43572212520):
-  explicitly tested bot commit `212e0b9ac7c7966ee6f1b89d0776a64d7c568f13`;
-  62 tests passed, with 12 analyzer infos still reported.
-- [Completed run 43572965391](https://github.com/timberpile/Boorusama/actions/runs/43572965391):
-  explicitly tested `278870992c9fbe04b0565ca82dd23b9e5aef3687`; **all 62
-  Foundation tests passed**, formatting and dependency lock checks passed, but
-  the **overall workflow FAILED** because analysis reported two
-  `unnecessary_async` infos in `catalog_gate.dart` (lines 87, 155 in that CI
-  candidate). The final outcome may not be inferred from `continue-on-error`
-  step status.
-- `1061837...` removes the two forwarding wrappers in source. No completed
-  **exact-final-runtime** analysis/test outcome has been verified by this web
-  audit. `.github/workflows/144-acceptance-check.yml` remains present on the
-  branch; it is an interim CI harness, not the required final full regression.
-- Store recreation tests are not real process/disk crash tests. There is no
-  independent review, full final application regression, local build, Android
-  SAF, live Pixiv or two-device acceptance from this remote session.
-
-## Independent source/design audit — 2026-11-14
-
-**Conforms at the FOUNDATION boundary:** the branch retains the approved
-v5 contract and interactive mockup (source reference blobs `0f1575ff...` /
-`fdd399af...`). A subsequent documentation-only change adjusted the spec's
-stale opening status to acknowledge the present foundational code; the v5
-product rules are unchanged, including
-source-owned read-only received hierarchy, virtual device root links, recursive
-coverage, local-only All Bookmarks, local arrival +N and per-Group/portable-Post
-read semantics, and confirmed Unsubscribe/Forget/Copy rules. Current pure source
-contains: `SyncBookmarkScope` (effective recursive direct/inherited union and
-uncovered preview), `SyncGroupReadingState` (separate arrivals/read state),
-`SyncCatalogGate` (pinned key + persisted authenticated OBSERVED high-water and
-commit-time recheck), `SyncRevisionTransport` (signed exact descriptor and
-size/hash-bound payload), and bounded mounted-directory storage. This was
-reviewed from GitHub **source**, not exercised on an Android device.
-
-**No complete app implementation conforms yet:** there is still no production
-sender/receiver orchestration, signed publication catalogs, source package
-validation, journaled mirror apply and deletion, repository ownership guard,
-Viewer/Bookmark read-state wiring, device-section UI, or SAF adapter. The README
-correctly distinguishes transport authentication from **archive/schema/trust
-authorization**. Nothing in the existing source may mark mirrors applied or
-withdrawn based only on a verified descriptor, or assume a local directory
-adapter is Android SAF. Signed withdrawal must not be inferred from missing data.
-
-**Observed dependency/design gaps to close before integration:**
-
-- The shared #141 `KurumiActionIconButton` currently expands its `IconButton`
-  content slot using a 20/24 + 16 dp `Row`. This does **not** meet the owner's
-  approved unchanged-footprint, right-center overlaid chevron behavior and
-  previously produced an 8 dp overflow in Bookmark **and** Download. #141's
-  main Bookmark also lacks the approved current-Page-only marker. Reconcile
-  a tested final #141 source **before** #144's complete regression, not a
-  stale copy or speculative new toolbar.
-- The current #141 production Bookmark fixture waits 30 seconds for a revision
-  after a real picker destination tap; [CI 43572469576](https://github.com/timberpile/Boorusama/actions/runs/43572469576)
-  reports **73 passed, 14 failed**, and analysis infos. The root cause of that
-  hang remains unverified; do not label P9's Pixiv import/viewer dependency
-  accepted or assume all tests are green. A local-agent workaround should
-  distinguish test-clock starvation from actual repository/guard failures.
-- The requested Pixiv Page -> parent Work link can be derived from source-owned
-  `PixivPostData.illustId` and original Page index and must never implicitly
-  bookmark the parent. Its visible saved-Page navigation has not been verified
-  in the inherited #141 candidate; coordinate the acceptance scope with the
-  owner rather than introducing a new stored identity or flattening typed
-  bookmarks into Posts.
-- Ensure all final source/metadata operations use the same real mutation
-  coordinator and durable last-**APPLIED** marker, not just the high-water
-  OBSERVED checkpoint. Explicitly verify crash/restart and concurrent
-  catalog-supersession behavior. `DirectoryFolderSyncStorage` checks existing
-  links but documents race limitations if a hostile process swaps path
-  ancestors; verify actual platform threat boundary instead of claiming full
-  filesystem sandboxing.
-
-## Remaining implementation, in dependency order
-
-### 1. Complete trusted publication and receive preparation
-
-Define validated canonical catalog collection entries and signed explicit
-withdrawal evidence. Reserve revision numbers durably, produce a consistent
-source snapshot, write the immutable payload first and signed descriptor last,
-then publish a monotonically increasing signed catalog. Preserve recoverability
-under interruption at every stage; never reuse or overwrite an immutable winner.
-Compare dirty revisions/semantic inputs before rebuilding archives. A display-name
-change belongs in a new signed catalog, not a rewritten identity document.
-
-Use the existing bounded `.bsexport` reader in
-`lib/core/backups/export_import/package/export_package_reader.dart`, manifest and
-source validation, plus `lib/core/backups/sources/bookmark_backup_codec.dart` and
-the typed Bookmark codecs. Enforce supported schema and exact advertised
-publisher/kind/source scope after transport verification. Preserve v10 Work/Page
-identity; do not flatten Works or use thumbnail URLs as identity. Resolve profile
-requirements without silently rebinding a different actor.
-
-Prepare outside the shared mutation lock. Immediately before apply, recheck the
-current catalog using the same `DataMutationCoordinator`; then execute a journaled
-mutation and persist last APPLIED atomically. A future/unsupported catalog,
-missing package or read failure must not become an empty authoritative snapshot.
-
-### 2. Add canonical ownership and repository enforcement
-
-Persist `(publisher, kind, source Group)` to fresh local Group ID mapping and
-explicit mirror ownership. A source Group has one canonical local mirror even
-when several subscribed roots cover it. Imported numeric/local IDs are not source
-identity. Source-owned name, member set, hierarchy and sibling order replace the
-mirror's prior source-owned values.
-
-Guard mutation entry points in the existing unified Bookmark repository/services,
-not just menus: no local rename, move, reorder, mixed local membership edits or
-republishing of incoming mirrors. Ordinary local operations must remain unchanged.
-All Bookmarks requires at least one local membership and shows mixed local/received
-records once. Received-only records must not leak into that local collection.
-
-### 3. Integrate coverage and safe destructive operations
-
-Use complete recursive current/future subtree union, with no exclusions or
-future-child toggle. Parent A and explicit child B yield one payload/mirror/read
-state; both root entries are virtual links, and B remains under A. Compute the
-whole new coverage before any removal, including reparenting and overlapping roots.
-
-Only verified explicit signed withdrawal or confirmed local Unsubscribe/Forget
-Device may remove uncovered mirrors. Unsubscribe applies to explicit roots only.
-Forget Device must preserve independent copies, other publishers/owners, unrelated
-memberships and folders containing unrelated content. Copy creates new writable
-local Group IDs with no received ownership. Keep these paths journaled and test
-partial failure/restart before enabling them. Permission loss, offline storage,
-missing files or unsupported metadata never mean withdrawal.
-
-### 4. Connect reading, arrivals, publication triggers and v5 UI
-
-Persist local state by publisher/source Group/typed Post identity. Acknowledge only
-the opened Group's arrivals after its rendered revision is known; opening never
-marks Posts or child Groups read. Actual full Viewer display or conditional Mark
-Read changes per-Post reading. Preload and neighboring Viewer entries do not count.
-A Work display must not mark every Page read. Virtual links share the canonical
-state; distinct Groups/devices and the publisher do not.
-
-Implement the approved Local/device sections, source hierarchy and responsive
-Kurumi controls from the existing mockup. Publisher display names come from signed
-catalogs; local receiver aliases remain local. Keep management available while
-offline, with explicit confirmations. Navigation must not enable Sync implicitly.
-Separate Following definition changes from Post NEW. Wire debounced publication
-signals to genuine local source mutations, never to incoming/read/arrival changes.
-
-### 5. Complete platform and final acceptance
-
-Implement Android SAF through the proper document-provider abstraction, including
-persisted grants, revocation, app restart, provider failures and native registration.
-Do not emulate SAF with `Directory(contentUri)`. Validate genuine two-device
-publication/discovery/subscription, overlap, reparenting, offline recovery,
-withdrawal, copy, unsubscribe and Forget Device. Add process-level crash injection
-around checkpoint writes, package publication and journaled application, plus
-ownership mutation tests and the repository-required complete final regressions.
-
-Record exact final runtime, checks, fault-injection/device evidence and remaining
-owner decisions in this handoff and #144. Reconcile any later #141 corrective
-commits explicitly before the combined final verification. Do not infer acceptance
-from the existence of a large historical Combined implementation.
-
-## Product decisions that remain open
-
-Source `deleted` versus Stop Publishing, changing an active shared directory and
-Following auto-update policy still need explicit decisions. Preserve data rather
-than inventing destructive behavior. These open choices do not weaken the approved
-v5 ownership, recursive-coverage, arrival/read or device-section contracts.
+Runtime commits `dc6d40ae2`, `fbe4d1bd9`, `29f0c5045` and `8bdfdb26b` were
+pushed to `origin/feature/144-folder-based-collection-sync`; remote runtime SHA
+`8bdfdb26bb5d92730a300e8b4063db008145b7ed` was verified. This documentation-only
+report does not change the tested runtime. Keep the feature branch and issue open.
+This candidate
+is **not ready for final owner acceptance or develop integration** because the
+Following implementation and remaining platform/UI acceptance above are unfinished.
+No merge, PR or closure has been requested.

@@ -1,6 +1,6 @@
 # Folder-based collection synchronization
 
-Design specification for [#144](https://github.com/timberpile/Boorusama/issues/144). **Canonical product/UI contract. A standalone protocol, transport, scope and read-state foundation exists under `lib/core/backups/folder_sync/`; full production Sync integration, repositories, Viewer/UI wiring and Android SAF remain unimplemented.**
+Design specification for [#144](https://github.com/timberpile/Boorusama/issues/144). **Canonical product/UI contract. Bookmark publication/receive, journaled mirror ownership, management UI, Viewer image reading and Android SAF code are connected under `lib/core/backups/folder_sync/`. Following integration, the remaining v5 UI and device acceptance are incomplete; see the current handoff.**
 
 [Interactive HTML reference](mockups/2026-11-03-folder-sync.html) (interactive v5: mobile/desktop device sections, source-owned read-only Groups, full Viewer post reading, conditional selection Mark Read, Publish/Receive and activity). This text is authoritative if the mockup's illustrative data or behavior differs.
 

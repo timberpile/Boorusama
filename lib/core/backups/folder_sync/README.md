@@ -1,112 +1,122 @@
-# Folder Sync v5 foundations (#144)
+# Folder Sync integration (#144)
 
-**Not connected to application settings, lifecycle, import transactions,
-Bookmark repositories or Viewer events. This is not an end-to-end Sync feature.**
-Current verification and remaining acceptance are recorded in the
-[local integration handoff](../../../../docs/handoffs/144-folder-sync-v5-local-integration.md).
+The current application integration supports **Bookmark Groups**. Following
+Topics/folders/Feeds are not connected yet. This is an incomplete feature branch,
+not a completed v5 implementation or a qualified two-device Android feature.
+See the [handoff](../../../../docs/handoffs/144-folder-sync-v5-local-integration.md)
+for exact verification and remaining work. The
+[v5 specification](../../../../docs/designs/2026-11-03-folder-based-collection-sync.md)
+and [HTML reference](../../../../docs/designs/mockups/2026-11-03-folder-sync.html)
+remain authoritative, including the approved source-owned Following UI.
 
-The approved contract is
-[the v5 design](../../../../docs/designs/2026-11-03-folder-based-collection-sync.md)
-and its mockup. Historical Combined `252e8954dab8c0842f83a2082c67f4841111c34e`
-is a source reference, not a merge target or a current verification result.
+## Application flow
 
-## Components and authority boundaries
+Settings → Export/Import → Folder Sync opens management without enabling scans.
+Explicit folder selection enables foreground startup/resume reconciliation,
+30-second polling and 500 ms coalescing of Bookmark library changes. A complete
+snapshot reconciliation recovers changes missed while offline or terminated.
+Changing folders replaces only the transport location: identities, trust,
+subscriptions, mirrors, revision counters and checkpoints remain installation-local.
 
-- `protocol.dart`: bounded canonical JSON, Ed25519 identity/signature handling,
-  publisher/kind/source identity and revision length/hash checks. Private seeds
-  stay local. Identity JSON is immutable; editable publisher names belong in
-  increasing signed catalogs. `verifySyncSignature` authenticates bytes only;
-  it does not approve a key, bind a publisher or establish compatibility.
-  `SyncRevision.schema` is structurally valid, not necessarily supported.
-- `storage.dart`: mounted directories under `v1/devices/...`, bounded streaming
-  reads, immutable no-clobber publication, random scratch files, path/link checks
-  and exact owned-revision retention paths. Android SAF is not a filesystem path.
-  Link checks do not sandbox a hostile process replacing filesystem ancestors.
-  Filesystem checks remain asynchronous to avoid blocking the UI isolate.
-- `catalog_gate.dart`: explicit pinned-key approval and a durable highest
-  authenticated OBSERVED sequence/content digest using `MiscDataStore` and the
-  shared `DataMutationCoordinator`. The common signed publisher/protocol/sequence
-  is bound before the checkpoint. A valid newer common header advances the
-  checkpoint even when its protocol or body cannot be consumed, preventing old
-  signed catalogs or prepared old commits from regaining authority. Rejected
-  bodies receive no verified ticket. Failed checkpoint writes propagate;
-  identical retries are allowed, older/equivocating catalogs are rejected.
-  `withCurrentCatalog` rechecks trust/checkpoint under the same lock after async
-  preparation. OBSERVED is not APPLIED: applied markers belong to successful
-  journaled domain transactions only.
-- `revision_transport.dart`: reads only the exact expected descriptor and payload
-  paths. It checks the descriptor signature, compares every revision field with
-  the caller's expected advertisement, bounds both reads, verifies payload length
-  and SHA-256, then exposes a copied read-only byte view. Missing files return
-  unavailable; permission/corruption failures propagate. There is no listing,
-  older-revision fallback, write or deletion. The caller must obtain `expected`
-  from a current verified catalog and use its approved publisher key. The result
-  is transport evidence, **not** a validated export archive, supported schema,
-  source/profile permission or authorized import/deletion plan.
-- `catalog.dart`: typed source advertisements, explicit active/withdrawn/deleted
-  states, bound revisions, labels, duplicate identity and iterative cycle checks.
-  A missing entry never carries withdrawal evidence.
-- `bookmark_package.dart`: bounded existing `.bsexport` archive verification,
-  exactly one supported v10 Bookmark source and one source Group's direct
-  membership, typed Work/Page identity validation and deterministic semantic
-  hashing. The builder generates a fresh credential-free transfer and strips local
-  search/page context. Incoming bytes cannot be passed back to publication.
-  Private captured payload text and read-only bytes retain validation evidence;
-  each `data` access returns a detached decode rather than shared mutable state.
-- `publication.dart`: durable revision/catalog reservations, payload then signed
-  descriptor then signed catalog publication, complete outgoing intent checkpoints
-  and per-source withdrawal barriers including unfinished reserved revisions.
-  Retried failures leave gaps rather than reuse immutable names. The publisher
-  compares semantic inputs before archive construction, authenticates cached
-  revisions and skips archive rebuilding for unchanged content. Preparation uses
-  a separate shared publication work queue, never the domain mutation lock.
-- `receive_preparation.dart`: bind the approved catalog fingerprint, exact active
-  advertisement, descriptor, archive schema/source scope and semantic digest.
-  The prepared result is not subscription, profile, ownership or deletion
-  authority. A future executor must recheck its catalog ticket under the shared
-  domain coordinator immediately before journaled application.
-- `bookmark_scope.dart`: bounded iterative complete-subtree union, canonical
-  source identity, virtual direct-root links, source sibling order and overlapping
-  coverage. It previews source IDs uncovered by explicit-root unsubscribe but
-  neither allocates local IDs nor deletes anything. An unpublished external
-  source parent is allowed; names do not determine identity or scope. Local
-  editing `FolderTree` assumptions do not fit these discovery subsets.
-- `reading_state.dart`: immutable JSON-ready receiver-local arrival and reading
-  state per publisher/Group. Opening acknowledges only arrivals for the rendered
-  membership revision; reading changes only selected current identities. Removed
-  and reappearing read identities retain state. Portable typed Bookmark member
-  keys are not local IDs or thumbnail URLs. Nothing automatically hooks this to
-  grids, preloads, neighbors, Group opening or all Pages of a Work.
+`providers.dart` connects the actual unified Bookmark and Group repositories,
+engine codecs, shared domain coordinator, persisted signing identity and library
+reload. `service.dart` captures consistent local source snapshots, recursively
+publishes selected local Group subtrees, discovers authenticated catalogs, requests
+explicit fingerprint approval, and applies only subscribed publishers. Incoming
+mirrors cannot be published. Unchanged content reuses verified immutable payloads;
+name/hierarchy changes update the catalog. A corrupt own catalog is repaired at a
+fresh sequence, preserving the original immutable bytes.
 
-## Production wiring still required
+The UI uses existing Kurumi surfaces and Bookmark cards. Bookmark Home separates
+Local and publisher-device sections; direct subscribed roots are virtual links to
+one canonical received Group, including overlapping root/child subscriptions.
+Received structure is read-only. Management includes trust, Publish/Receive,
+Sync now, overlap-aware confirmed Unsubscribe/Forget and Create Local Copy.
+Offline subscriptions remain manageable. There is no new app-shell destination
+or navigation bar.
 
-Connect publication rules, consistent local source snapshots and debounced dirty
-signals to the new publisher components. Persist the complete advertisement set
-and assemble catalogs only from successful source operations. Do not republish
-received mirrors. Following package support is not implemented. Before accepting
-prepared Bookmark data, persist source-to-fresh-local-ID ownership and enforce
-read-only mirrors at repository/service entry points, not just hidden menus.
-Revalidate the current catalog and apply ownership, domain changes and last-applied
-markers through the existing transaction journal. No such apply path is enabled.
+## Authority and storage
 
-Implement safe explicit withdrawal, confirmed unsubscribe/Forget Device and
-independent local copies; local-membership-only All Bookmarks; dirty-signal
-publication before archive rebuilding; durable arrival/read integration; Android
-SAF grants/native registration; and the approved v5 Kurumi device sections/UI.
-An unavailable directory, missing file or unsupported catalog must never become
-an empty authoritative deletion snapshot. Unknown deletion policy remains
-non-destructive.
+- `protocol.dart`, `catalog.dart`, `revision_transport.dart`: bounded canonical
+  JSON, Ed25519 signatures, exact publisher/source identity, typed advertisements,
+  descriptor/hash/length verification and compatibility checks.
+- `catalog_gate.dart`: explicit pinned keys and highest authenticated OBSERVED
+  catalog sequence/digest. Higher unsupported catalogs still prevent rollback.
+  Recheck the ticket inside the domain coordinator before apply. Approval,
+  identical retries and apply admission repeat the durability barrier, including
+  after a failed write that left updated values in Hive's memory cache.
+- `durable_preferences.dart`: Sync-specific Hive flush, file sync and parent
+  directory sync before keys/reservations/checkpoints become usable authority.
+  Provider initialization also barriers cached writes from earlier attempts.
+- `publication.dart`: durable monotonic reservations, payload then descriptor
+  then complete signed catalog, explicit withdrawal barriers and semantic no-op
+  detection. Expensive preparation uses a separate publication queue.
+- `bookmark_package.dart`, `receive_preparation.dart`: existing credential-free
+  v10 `.bsexport` for one Group's direct memberships. Validate schema, typed
+  records, source scope and semantic binding before applying. Bound ZIP expansion
+  before staging/JSON parsing, plus an aggregate retained-byte preparation budget.
+  This is a resource guard, not an exact process-memory benchmark.
+- `bookmark_mirror_engine.dart`, `BookmarkMirrorState`: fresh local UUID mapping,
+  complete recursive overlap coverage, receiver reading state and retained
+  per-source revision/descriptor history. Signed tombstones retire the source
+  revision so a later catalog cannot revive the same withdrawn payload. Subscribe
+  is additive; only explicit management or verified inactive advertisements may
+  remove uncovered mirrors. Forget revokes trust while retaining anti-replay
+  history; reapproval must be explicit.
+- The unified Hive journal commits ownership, hierarchy, memberships, local
+  reading state and applied revision together. Repository guards reject ordinary
+  mirror edits, local/received hierarchy mixing, ownership capture of local
+  Groups, changed received-only snapshots, local snapshot replacement by receive,
+  and revision-history rollback. Shared records referenced outside removed
+  mirrors survive cleanup; no unwanted Default membership is manufactured.
+- `storage.dart`: bounded mounted-directory transport with immutable no-clobber
+  publication, path/link validation and exact own-namespace retention paths.
+- `android_storage.dart` / `FolderSyncChannel.kt`: persisted SAF tree grants,
+  bounded worker-thread I/O, no content-URI-to-filesystem conversion and exact
+  owned-path cleanup. Native registration and lifecycle cleanup are connected.
+  SAF publication creates a new final document and verifies its exact name/URI
+  before opening it; it never renames over a possible concurrent winner. Partial
+  final documents are retained as immutable evidence and cannot pass signed
+  descriptor/hash validation. Ambiguous/renamed provider results fail closed.
+  Actual provider crash/concurrency behavior still needs device acceptance.
 
-Do not port historical flat UI, auto-enable-on-navigation, receiver-owned
-name/placement preservation, withdrawn-mirror retention, older-catalog fallback
-or unconditional archive rebuilding. These conflict with v5.
+Missing/offline files, revoked grants, corrupt archives and unsupported versions
+never authorize deletion. Source cleanup requires authenticated explicit signed
+withdrawal/deletion or confirmed local Unsubscribe/Forget. Cleanup of shared
+folder history is not scheduled automatically.
 
-## Verification boundaries
+## Bookmark browsing and reading
 
-The dependency lock is generated, not hand-written. Focused hosted tests cover
-protocol, observed checkpoints and rejected prepared commits, signed transport,
-recursive overlap, arrival/read separation and mounted-directory operations.
-Consult the handoff for exact tested commits and failures; do not infer complete
-application acceptance from foundation checks. Store recreation is not a real
-process/disk crash test. Journal fault injection, ownership mutation coverage,
-complete final regressions and actual two-device/SAF acceptance remain required.
+All Bookmarks and its tag/source/count selectors include only records with a
+local membership; a record shared with a local Group appears once. Received Groups
+are excluded from ordinary pickers, bulk destinations and Favorites Sync targets,
+with repository enforcement behind the UI.
+
+Group opening acknowledges only that canonical Group's arrivals at its rendered
+membership revision. Conditional selection Mark Read and an actually decoded,
+settled, active full Viewer occurrence update portable member identities. Preloads,
+covered routes and neighboring entries do not count. Displaying a saved Work
+marks that Work entry, not every separately saved Page. Video-read completion,
+parent arrival aggregation and the complete v5 reading presentation remain open.
+
+## Remaining integration
+
+Following package/publication/receive, journaled ownership, repository guards and
+approved Local/device UI remain unimplemented. Preserve receiver-controlled
+profile binding, automatic/manual Post refresh, scheduling/rate limits, cache,
+NEW/read and checkpoints when implementing them. Received definitions must be
+fully source-owned and read-only; do not restore obsolete receiver name/placement
+overrides or copy Bookmark recursive scope rules into Following.
+
+Also pending: durable mutation dirty signals, filesystem watcher with polling
+fallback, complete activity history/deep links, device-alias editing, full status
+classification/recovery UX, per-subscription failure isolation within a publisher,
+parent arrival aggregates, video reading and broader UI acceptance. No retention
+scheduler or incomplete destructive Following path is enabled.
+
+Host tests exercise real Hive repositories, journal interruption/reopen, two
+independent library/signing-identity instances, signed directory transport,
+offline management, relocation, retry/replay and narrow/enlarged/keyboard UI.
+These are not Android provider, real process-kill, Syncthing/SMB or two-physical-device
+acceptance results. Do not operate the owner's CPH2769 phone; device acceptance
+remains pending.
