@@ -117,18 +117,6 @@ class ExportImportPage extends ConsumerWidget {
                 );
               },
             ),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.sync),
-                title: Text(context.t.folder_sync.title),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const FolderSyncPage(),
-                  ),
-                ),
-              ),
-            ),
             const SizedBox(height: 12),
             Card(
               child: ListTile(
@@ -168,6 +156,18 @@ class ExportImportPage extends ConsumerWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const ManualBackupPage()),
+                ),
+              ),
+            ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.sync),
+                title: Text(context.t.folder_sync.title),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const FolderSyncPage(),
+                  ),
                 ),
               ),
             ),

@@ -299,6 +299,109 @@ void main() {
     },
   );
 
+  for (final rollbackTombstone in [false, true]) {
+    test(
+      'tombstones bind skipped source revisions (stale tombstone=$rollbackTombstone)',
+      () async {
+        final old = await publish(parent, [workRecord]);
+        final b = await publish(child, [pageRecord]);
+        await engine.receive(
+          ticket: await advertise(old, b),
+          publisherKey: identity.publicKey,
+          directRoots: {parent},
+        );
+        final middle = await publish(parent, [workRecord, pageRecord]);
+        if (rollbackTombstone) {
+          await engine.receive(
+            ticket: await advertise(middle, b),
+            publisherKey: identity.publicKey,
+          );
+        }
+        var latest = middle;
+        for (var i = 0; i < 3; i++) {
+          latest = await publish(parent, [workRecord, pageRecord]);
+        }
+        final sequence = await writer.sequences.reserve(identity.id);
+        final tombstone = SyncCatalog(
+          publisher: identity.id,
+          sequence: sequence,
+          name: 'Publisher',
+          entries: [
+            SyncCatalogEntry(
+              id: old.collection,
+              name: 'A',
+              state: SyncPublicationState.deleted,
+              revision: rollbackTombstone ? old : latest,
+            ),
+            SyncCatalogEntry(
+              id: b.collection,
+              name: 'B',
+              state: SyncPublicationState.active,
+              revision: b,
+              parent: parent,
+            ),
+          ],
+        );
+        final ticket = await gate.verifyAndCheckpoint(
+          publisher: identity.id,
+          expectedSequence: sequence,
+          bytes: await identity.sign(tombstone.toJson()),
+        );
+        final before = await repository.readMirrorState();
+        if (rollbackTombstone) {
+          await expectLater(
+            engine.receive(ticket: ticket, publisherKey: identity.publicKey),
+            throwsA(isA<SyncReplayRejected>()),
+          );
+          expect(await repository.readMirrorState(), before);
+        } else {
+          await engine.receive(
+            ticket: ticket,
+            publisherKey: identity.publicKey,
+          );
+          final after = await repository.readMirrorState();
+          expect(after.owners, isEmpty);
+          expect(
+            after.checkpoints['${identity.id}/$parent']!.revision,
+            latest.revision,
+          );
+          // Middle was never applied; it is still older than the signed deletion.
+          final next = await writer.sequences.reserve(identity.id);
+          final revived = SyncCatalog(
+            publisher: identity.id,
+            sequence: next,
+            name: 'Publisher',
+            entries: [
+              SyncCatalogEntry(
+                id: middle.collection,
+                name: 'A',
+                state: SyncPublicationState.active,
+                revision: middle,
+              ),
+              SyncCatalogEntry(
+                id: b.collection,
+                name: 'B',
+                state: SyncPublicationState.active,
+                revision: b,
+                parent: parent,
+              ),
+            ],
+          );
+          final retry = await gate.verifyAndCheckpoint(
+            publisher: identity.id,
+            expectedSequence: next,
+            bytes: await identity.sign(revived.toJson()),
+          );
+          await expectLater(
+            engine.receive(ticket: retry, publisherKey: identity.publicKey),
+            throwsA(isA<SyncReplayRejected>()),
+          );
+          expect(await repository.readMirrorState(), after);
+        }
+      },
+    );
+  }
+
   testWidgets(
     'setup entry and device naming fit narrow enlarged text with keyboard',
     (tester) async {

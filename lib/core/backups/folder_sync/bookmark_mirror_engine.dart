@@ -133,6 +133,27 @@ final class SyncBookmarkMirrorEngine {
         throw const SyncConflict();
       }
     }
+    final retired = <String, BookmarkMirrorOwner>{};
+    for (final entry in entries.values) {
+      if (entry.state == SyncPublicationState.active) continue;
+      final prior =
+          initial.checkpoints['${ticket.publisher}/${entry.id.source}'];
+      if (prior == null) continue;
+      final revision = entry.revision;
+      if (revision != null) {
+        if (revision.schema != ValidatedSyncBookmarkPackage.schema) {
+          throw const SyncUpdateRequired();
+        }
+        _checkRevision(prior, revision);
+      }
+      retired[prior.sourceKey] = prior.retire(
+        revision: revision?.revision,
+        payloadDigest: revision?.sha256,
+        descriptorDigest: revision == null
+            ? null
+            : syncDigest(syncJsonBytes(revision.toJson())),
+      );
+    }
     final prepared = <String, PreparedSyncBookmarkRevision>{};
     var retainedBytes = 0;
     var advertisedBytes = 0;
@@ -146,17 +167,10 @@ final class SyncBookmarkMirrorEngine {
         throw const SyncUpdateRequired();
       }
       final descriptorDigest = syncDigest(syncJsonBytes(revision.toJson()));
-      if (before?.revision == revision.revision &&
-          before?.descriptorDigest != null &&
-          before!.descriptorDigest != descriptorDigest) {
-        throw const SyncReplayRejected();
-      }
-      if (before != null &&
-          (revision.revision < before.revision ||
-              (before.retired && revision.revision <= before.revision) ||
-              (revision.revision == before.revision &&
-                  revision.sha256 != before.payloadDigest))) {
-        throw const SyncReplayRejected();
+      if (before != null) {
+        _checkRevision(before, revision);
+        if (before.retired && revision.revision <= before.revision)
+          throw const SyncReplayRejected();
       }
       if (owned.containsKey(source) &&
           before?.revision == revision.revision &&
@@ -334,15 +348,7 @@ final class SyncBookmarkMirrorEngine {
         final next = BookmarkMirrorState(
           epoch: current.epoch + 1,
           owners: nextOwners,
-          checkpoints: {
-            ...current.checkpoints,
-            for (final entry in entries.values)
-              if (entry.state != SyncPublicationState.active)
-                if (current
-                        .checkpoints['${ticket.publisher}/${entry.id.source}']
-                    case final prior?)
-                  prior.sourceKey: prior.retire(),
-          },
+          checkpoints: {...current.checkpoints, ...retired},
           subscriptions: {...current.subscriptions, ticket.publisher: roots},
           publisherNames: {
             ...current.publisherNames,
@@ -369,6 +375,17 @@ final class SyncBookmarkMirrorEngine {
         );
       }),
     );
+  }
+
+  void _checkRevision(BookmarkMirrorOwner before, SyncRevision revision) {
+    final descriptor = syncDigest(syncJsonBytes(revision.toJson()));
+    if (revision.revision < before.revision ||
+        (revision.revision == before.revision &&
+            (revision.sha256 != before.payloadDigest ||
+                (before.descriptorDigest != null &&
+                    descriptor != before.descriptorDigest)))) {
+      throw const SyncReplayRejected();
+    }
   }
 
   String _memberSemantic(Bookmark record, String source) =>

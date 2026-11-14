@@ -123,13 +123,17 @@ final class BookmarkMirrorOwner extends Equatable {
     'groupDigest': groupDigest,
     'reading': reading,
   };
-  BookmarkMirrorOwner retire() => BookmarkMirrorOwner(
+  BookmarkMirrorOwner retire({
+    int? revision,
+    String? payloadDigest,
+    String? descriptorDigest,
+  }) => BookmarkMirrorOwner(
     publisher: publisher,
     source: source,
-    revision: revision,
-    payloadDigest: payloadDigest,
+    revision: revision ?? this.revision,
+    payloadDigest: payloadDigest ?? this.payloadDigest,
     groupDigest: groupDigest,
-    descriptorDigest: descriptorDigest,
+    descriptorDigest: descriptorDigest ?? this.descriptorDigest,
     parentSource: parentSource,
     position: position,
     reading: reading,
