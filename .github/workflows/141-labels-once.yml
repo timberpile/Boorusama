@@ -1,0 +1,67 @@
+name: Apply approved 141 bookmark labels once
+
+on:
+  push:
+    branches: [feature/141-pixiv-work-page-bookmarks]
+    paths: [.github/workflows/141-labels-once.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-141-bookmark-labels
+  cancel-in-progress: false
+
+jobs:
+  labels:
+    if: github.repository == 'timberpile/Boorusama' && github.ref == 'refs/heads/feature/141-pixiv-work-page-bookmarks'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+      - name: Apply and validate only the approved label changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import copy
+          import json
+          import pathlib
+          import subprocess
+
+          paths = [pathlib.Path('packages/i18n/translations') / f'{locale}.json'
+                   for locale in ('en-US', 'de-DE')]
+          before_bytes = {path: path.read_bytes() for path in paths}
+          before = {path: json.loads(data) for path, data in before_bytes.items()}
+          patch = pathlib.Path('docs/handoffs/141-bookmark-labels.patch')
+          subprocess.run(['git', 'apply', '--check', str(patch)], check=True)
+          subprocess.run(['git', 'apply', str(patch)], check=True)
+          approved = [('Entire Work', 'Current Page'),
+                      ('Gesamtes Werk', 'Aktuelle Seite')]
+          for path, (work, page) in zip(paths, approved):
+              expected = copy.deepcopy(before[path])
+              old = before[path]['content_viewer']
+              expected['content_viewer'].update(bookmark_work=work, bookmark_page=page)
+              actual = path.read_bytes()
+              assert json.loads(actual) == expected, f'Unexpected JSON edit: {path}'
+              exact = before_bytes[path]
+              for key, value in [('bookmark_work', work), ('bookmark_page', page)]:
+                  old_line = f'"{key}": {json.dumps(old[key], ensure_ascii=False)}'.encode()
+                  new_line = f'"{key}": {json.dumps(value, ensure_ascii=False)}'.encode()
+                  assert exact.count(old_line) == 1, f'Ambiguous label: {path}:{key}'
+                  exact = exact.replace(old_line, new_line)
+              assert actual == exact, f'Unrelated byte changes: {path}'
+          changed = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
+          assert set(changed) == {str(path) for path in paths}, changed
+          print('Validated: two JSON files, exactly four approved label values, no unrelated byte changes.')
+          PY
+          git diff --check
+          git add packages/i18n/translations/en-US.json packages/i18n/translations/de-DE.json
+          git rm .github/workflows/141-labels-once.yml docs/handoffs/141-bookmark-labels.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: apply approved Pixiv bookmark labels (Refs #141)'
+          # A concurrent branch update rejects this normal push; never force it.
+          git push origin HEAD:refs/heads/feature/141-pixiv-work-page-bookmarks
