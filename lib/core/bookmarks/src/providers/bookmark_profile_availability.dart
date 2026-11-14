@@ -10,6 +10,8 @@ import '../../../content/types.dart';
 import '../../../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark_grid_entry.dart';
+import '../types/bookmark_record_fields.dart';
+import '../types/content_group_bookmark.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_group_selectors.dart';
@@ -121,11 +123,41 @@ class BookmarkProfileAvailability {
             : PostPresentationFallbackReason.missingProfile;
       }
     }
+    final native = <int>{};
+    for (final record in library.records.whereType<ContentGroupBookmark>()) {
+      if (record.reference.sourceKey.startsWith('pool:') ||
+          record.reference.sourceKey.startsWith('related:'))
+        continue;
+      final resolution = const PostOriginResolver().resolve(
+        nativeBookmarkGroupOrigin(record),
+        profiles,
+        allowProfileHintFallback: true,
+      );
+      final public = policy.resolve(
+        record.reference.engine,
+        record.reference.site,
+      );
+      final supported =
+          supportsGroup?.call(record.reference) ??
+          resolution is ResolvedPostOrigin;
+      if (resolution is AmbiguousPostOrigin) {
+        reasons[record.id] = PostPresentationFallbackReason.ambiguousProfile;
+      } else if (supported &&
+          (resolution is ResolvedPostOrigin || public != null)) {
+        native.add(record.id);
+      } else {
+        reasons[record.id] = resolution is ResolvedPostOrigin || public != null
+            ? PostPresentationFallbackReason.unavailableEngine
+            : PostPresentationFallbackReason.missingProfile;
+      }
+    }
+    nativeGroupIds = Set.unmodifiable(native);
     postIds = Set.unmodifiable(posts);
     collectionIds = Set.unmodifiable(collections);
     unavailableReasons = Map.unmodifiable(reasons);
     recordIds = Set.unmodifiable({
       ...postIds,
+      ...nativeGroupIds,
       for (final collection in library.pools)
         if (collectionIds.contains(collection.localId) &&
             collection.bookmarkId != null)
@@ -134,6 +166,7 @@ class BookmarkProfileAvailability {
   }
 
   late final Set<int> postIds;
+  late final Set<int> nativeGroupIds;
   late final Set<String> collectionIds;
   late final Set<int> recordIds;
 
@@ -169,6 +202,22 @@ class BookmarkProfileAvailability {
       sites.update(host, (count) => count + 1, ifAbsent: () => 1);
       reasons.update(reason, (count) => count + 1, ifAbsent: () => 1);
     }
+    for (final bookmark in selectNativeGroupBookmarks(
+      state: library,
+      view: view,
+      selectedTags: selectedTags,
+      selectedBooruUrl: selectedBooruUrl,
+    )) {
+      final reason =
+          unavailableReasons[bookmark.id] ?? observedFailures[bookmark.id];
+      if (reason == null || !seen.add(bookmark.id)) continue;
+      sites.update(
+        bookmark.reference.siteNamespace,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+      reasons.update(reason, (count) => count + 1, ifAbsent: () => 1);
+    }
     return BookmarkUnavailableSummary(
       sites: Map.unmodifiable(sites),
       reasons: Map.unmodifiable(reasons),
@@ -201,6 +250,7 @@ class BookmarkProfileAvailability {
         BookmarkPostEntry(:final bookmark) => bookmark.id,
         BookmarkPoolEntry(:final pool) =>
           pool.bookmarkId ?? ('pool', pool.localId),
+        BookmarkNativeGroupEntry(:final bookmark) => bookmark.id,
       };
       final reason = unavailableReasons[key];
       if (reason != null && seen.add(key)) {

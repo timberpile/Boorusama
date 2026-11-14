@@ -4,6 +4,7 @@ import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../content/content_access_provider.dart';
 import '../types/bookmark_picker_request.dart';
+import '../types/unified_bookmark_store.dart';
 import '../services/bookmark_library_service.dart';
 import '../types/bookmark_target.dart';
 import '../types/pool_bookmark.dart';
@@ -42,10 +43,16 @@ class BookmarkPickerActions {
     required BookmarkPickerRequest request,
     required this.isActive,
   }) : request = switch (request) {
-         PostBookmarkPickerRequest(:final config, :final post, source: null) =>
+         PostBookmarkPickerRequest(
+           :final config,
+           :final post,
+           :final access,
+           source: null,
+         ) =>
            PostBookmarkPickerRequest(
              config: config,
              post: post,
+             access: access,
              source: container
                  .read(booruConfigProvider)
                  .where((source) => source.auth == config)
@@ -65,11 +72,21 @@ class BookmarkPickerActions {
 
   void _checkOwnership() {
     if (_disposed || !isActive()) throw StateError('Bookmark picker dismissed');
+    final access = switch (request) {
+      ContentGroupBookmarkPickerRequest(:final access) => access,
+      PostBookmarkPickerRequest(:final access) => access,
+      _ => null,
+    };
+    if (access != null &&
+        container.read(contentAccessContextProvider(access)) == null) {
+      throw StateError('Bookmark picker source changed');
+    }
     if (request.source case final source?) {
       final public = source.anonymousReadScope;
       if (public != null) {
-        if (!public.isCurrent)
+        if (!public.isCurrent) {
           throw StateError('Bookmark picker source changed');
+        }
         final access = container.read(contentAccessContextProvider(public.key));
         if (access == null ||
             access.key.profileId != null ||
@@ -103,7 +120,9 @@ class BookmarkPickerActions {
             await container.read(
               relatedBookmarkDraftProvider((source, family)).future,
             ),
-          PostBookmarkPickerRequest() || SavedBookmarkPickerRequest() => null,
+          PostBookmarkPickerRequest() ||
+          SavedBookmarkPickerRequest() ||
+          ContentGroupBookmarkPickerRequest() => null,
         };
     _checkOwnership();
     return draft;
@@ -112,11 +131,29 @@ class BookmarkPickerActions {
   Future<BookmarkToggleOutcome?> toggle(
     String groupId, {
     required void Function(BookmarkGroupRemovalResult) onRemoved,
+  }) => withBookmarkCommitGuard(
+    () => _toggle(groupId, onRemoved: onRemoved),
+    _checkOwnership,
+  );
+
+  Future<BookmarkToggleOutcome?> _toggle(
+    String groupId, {
+    required void Function(BookmarkGroupRemovalResult) onRemoved,
   }) async {
     if (_pending) return null;
     _pending = true;
     try {
       _checkOwnership();
+      if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+        return await container
+            .read(bookmarkProvider.notifier)
+            .toggleContentGroupTarget(
+              draft,
+              groupId: groupId,
+              onRemoved: onRemoved,
+              beforeCommit: _checkOwnership,
+            );
+      }
       if (request case SavedBookmarkPickerRequest(:final record)) {
         return await container
             .read(bookmarkProvider.notifier)
@@ -155,6 +192,15 @@ class BookmarkPickerActions {
     String name,
     String? parentGroupId, {
     required void Function() beforeCommit,
+  }) => withBookmarkCommitGuard(
+    () => _createGroup(name, parentGroupId, beforeCommit: beforeCommit),
+    _checkOwnership,
+  );
+
+  Future<void> _createGroup(
+    String name,
+    String? parentGroupId, {
+    required void Function() beforeCommit,
   }) async {
     if (_pending) return;
     _pending = true;
@@ -162,6 +208,33 @@ class BookmarkPickerActions {
       final collection = await _resolveCollection();
       _checkOwnership();
       beforeCommit();
+      if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+        await container
+            .read(bookmarkProvider.notifier)
+            .createGroupWithContentDraft(
+              name,
+              draft,
+              parentGroupId: parentGroupId,
+              beforeCommit: _checkOwnership,
+            );
+        return;
+      }
+      if (request case PostBookmarkPickerRequest(
+        access: final _?,
+        :final config,
+        :final post,
+      )) {
+        await container
+            .read(bookmarkProvider.notifier)
+            .createGroupWithCapturedPost(
+              name,
+              config,
+              post,
+              parentGroupId: parentGroupId,
+              beforeCommit: _checkOwnership,
+            );
+        return;
+      }
       if (request case SavedBookmarkPickerRequest(:final record)) {
         await container
             .read(bookmarkProvider.notifier)

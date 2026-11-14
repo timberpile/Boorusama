@@ -2022,6 +2022,13 @@
     "choose_date": "Datum auswählen"
   },
   "content_viewer": {
+    "bookmark_saved": "Gespeichert",
+    "bookmark_unsaved": "Nicht gespeichert",
+    "parent_work": "Übergeordnetes Werk",
+    "work_number": "Werk #$id",
+    "page_counter": {"one": "$n Seite", "other": "$n Seiten"},
+    "bookmark_work": "Gesamtes Werk",
+    "bookmark_page": "Aktuelle Seite",
     "work": "Werk",
     "pages": "Seiten",
     "work_counter": {"one": "$n Werk", "other": "$n Werke"},

@@ -11,9 +11,13 @@ class PoolTileList<T> extends ConsumerWidget {
     required this.name,
     required this.postCount,
     required this.onTap,
+    this.title,
+    this.countLabel,
     super.key,
   });
 
+  final String? title;
+  final String Function(int count)? countLabel;
   final List<T> pools;
   final String? Function(T pool) name;
   final int? Function(T pool) postCount;
@@ -48,7 +52,7 @@ class PoolTileList<T> extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Text(
-                  context.t.pool.counter(n: pools.length),
+                  title ?? context.t.pool.counter(n: pools.length),
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -72,7 +76,10 @@ class PoolTileList<T> extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: switch (postCount(pool)) {
-                    final count? => Text(context.t.posts.counter(n: count)),
+                    final count? => Text(
+                      countLabel?.call(count) ??
+                          context.t.posts.counter(n: count),
+                    ),
                     _ => null,
                   },
                   trailing: const Icon(Symbols.keyboard_arrow_right),

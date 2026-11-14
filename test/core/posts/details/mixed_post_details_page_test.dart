@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart'
 import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
 import 'package:boorusama/boorus/pixiv/works/work_source.dart';
 import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
+import 'package:boorusama/boorus/pixiv/works/bookmark_actions.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_page.dart';
 import 'package:boorusama/core/posts/details/src/widgets/media_group_page_indicator.dart';
 
@@ -2276,6 +2277,14 @@ void main() {
             .hitTestable()
             .first;
         final toolbarContext = tester.element(normalToolbar);
+        expect(
+          find.descendant(
+            of: normalToolbar,
+            matching: find.byType(PixivWorkBookmarkButton),
+          ),
+          findsOneWidget,
+          reason: 'the shared toolbar must target the whole Work by default',
+        );
         final toolbarPost = tester
             .widget<DefaultPostActionToolbar<Post>>(normalToolbar)
             .post;
@@ -5772,12 +5781,13 @@ Future<void> _swipeOutwardAtRightEdge(
   await drag.moveBy(const Offset(-170, 0));
   if (indicatorIcon != null) {
     await tester.pump();
-    expect(find.byIcon(indicatorIcon), findsOneWidget);
+    final indicator = find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics && widget.properties.label == indicatorLabel,
+    );
+    expect(indicator, findsOneWidget);
     expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Semantics && widget.properties.label == indicatorLabel,
-      ),
+      find.descendant(of: indicator, matching: find.byIcon(indicatorIcon)),
       findsOneWidget,
     );
   }

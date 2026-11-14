@@ -14,6 +14,8 @@ import '../../../tags/local/providers.dart';
 import '../../../tags/tag/providers.dart';
 import '../../../tags/tag/types.dart';
 import '../../providers.dart';
+import '../types/content_group_bookmark.dart';
+import '../types/bookmark_record_fields.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
 
@@ -30,8 +32,10 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   ref,
 ) async {
   ref.cacheFor(const Duration(seconds: 3));
-  final (bookmarks, pools) = await ref.watch(
-    bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
+  final (bookmarks, pools, records) = await ref.watch(
+    bookmarkProvider.selectAsync(
+      (state) => (state.items, state.pools, state.records),
+    ),
   );
 
   final result = bookmarks.fold<Map<String, int>>(
@@ -45,6 +49,12 @@ final tagMapProvider = FutureProvider.autoDispose<Map<String, int>>((
   );
   for (final pool in pools) {
     for (final tag in pool.tags) {
+      result.update(tag, (n) => n + 1, ifAbsent: () => 1);
+    }
+  }
+  for (final record in records.whereType<ContentGroupBookmark>()) {
+    if (!isNativeGroupBookmark(record)) continue;
+    for (final tag in nativeGroupBookmarkTags(record)) {
       result.update(tag, (n) => n + 1, ifAbsent: () => 1);
     }
   }
@@ -63,8 +73,10 @@ final selectedBookmarkSortTypeProvider =
 final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   ref,
 ) async {
-  final (bookmarks, pools) = await ref.watch(
-    bookmarkProvider.selectAsync((state) => (state.items, state.pools)),
+  final (bookmarks, pools, records) = await ref.watch(
+    bookmarkProvider.selectAsync(
+      (state) => (state.items, state.pools, state.records),
+    ),
   );
 
   final hosts = <String>{
@@ -77,6 +89,12 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
         .nonNulls
         .where((host) => host.isNotEmpty)
         .map((host) => host.toLowerCase()),
+  );
+  hosts.addAll(
+    records
+        .whereType<ContentGroupBookmark>()
+        .where(isNativeGroupBookmark)
+        .map((record) => record.reference.siteNamespace),
   );
   return hosts.toList();
 });

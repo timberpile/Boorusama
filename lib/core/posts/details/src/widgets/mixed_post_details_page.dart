@@ -1034,12 +1034,14 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
 // Group metadata can render before its first Page is resolved. Do not wait
 // for a synthetic Post or for the Page manifest before presenting Details.
 const _groupSummaryDetailsParts = {
+  DetailsPart.toolbar,
   DetailsPart.artistInfo,
   DetailsPart.tags,
 };
 
 final _groupSummaryUiBuilder = PostDetailsUIBuilder(
   full: {
+    DetailsPart.toolbar: (context) => const MediaGroupSummaryActions(),
     DetailsPart.artistInfo: (context) => const _GroupSummaryInformation(),
     DetailsPart.tags: (context) => const _GroupSummaryTags(),
   },
@@ -1058,7 +1060,7 @@ class _GroupSummaryInformation extends ConsumerWidget {
     if (state.access == null) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
-    final details = state.details;
+    final details = state.details ?? entry.storedDetails;
     final title = details?.summary.title ?? entry.summary.title ?? '';
     final description = details?.description?.text ?? '';
     final creators = details?.creators ?? const [];
@@ -1094,6 +1096,7 @@ class _GroupSummaryTags extends ConsumerWidget {
     final tags =
         state.details?.tags ??
         state.details?.summary.previewTags ??
+        entry.storedDetails?.tags ??
         entry.summary.previewTags;
     if (tags == null || tags.values.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());

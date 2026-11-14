@@ -5,6 +5,7 @@ import 'package:boorusama/core/router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 
 import '../support/boorusama_test_runtime.dart';
 import 'support/app_flow_driver.dart';
@@ -85,7 +86,7 @@ void main() {
         find
             .descendant(
               of: find.byType(DownloadPostButton).hitTestable().first,
-              matching: find.byType(IconButton),
+              matching: find.byType(KurumiActionIconButton),
             )
             .first,
       );

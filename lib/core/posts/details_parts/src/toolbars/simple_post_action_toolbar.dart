@@ -64,7 +64,9 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
               ),
             ButtonData(
               required: true,
-              widget: BookmarkPostButton(post: post, config: auth),
+              widget:
+                  PostActionToolbarScope.maybeOf(context)?.bookmarkButton ??
+                  BookmarkPostButton(post: post, config: auth),
               title: context.t.post.action.bookmark,
               icon: const Icon(Icons.bookmark_border),
             ),
@@ -170,12 +172,15 @@ class PostActionToolbarScope extends InheritedWidget {
   const PostActionToolbarScope({
     required this.additionalButtons,
     required super.child,
+    this.bookmarkButton,
     super.key,
   });
   final List<ButtonData> additionalButtons;
+  final Widget? bookmarkButton;
   static PostActionToolbarScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PostActionToolbarScope>();
   @override
   bool updateShouldNotify(PostActionToolbarScope oldWidget) =>
-      additionalButtons != oldWidget.additionalButtons;
+      additionalButtons != oldWidget.additionalButtons ||
+      bookmarkButton != oldWidget.bookmarkButton;
 }

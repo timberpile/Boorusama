@@ -9,6 +9,8 @@ import '../../../boorus/booru/types.dart';
 import 'bookmark.dart';
 import 'pool_bookmark.dart';
 import 'bookmark_search_token.dart';
+import 'content_group_bookmark.dart';
+import 'bookmark_record_fields.dart' show nativeGroupBookmarkTags;
 
 class BookmarkTagSource extends Equatable {
   const BookmarkTagSource({required this.url, required this.booruType});
@@ -84,6 +86,41 @@ class BookmarkTagIndex {
         poolSources.putIfAbsent(tag, () => {})[source] = const {};
       }
     }
+    return _withTagContributions(counts, poolSources);
+  }
+
+  BookmarkTagIndex withNativeGroupBookmarks(
+    Iterable<ContentGroupBookmark> groups,
+  ) {
+    final counts = <String, int>{};
+    final sources = <String, Map<BookmarkTagSource, Set<String>>>{};
+    for (final group in groups) {
+      final source = BookmarkTagSource(
+        url: group.reference.site.toString(),
+        booruType: group.reference.engine,
+      );
+      for (final tag in nativeGroupBookmarkTags(group)) {
+        if (tag.isEmpty) continue;
+        counts.update(tag, (count) => count + 1, ifAbsent: () => 1);
+        sources.putIfAbsent(tag, () => {})[source] = {
+          for (final value
+              in (group.snapshot.details?.tags ?? group.summary.previewTags)
+                      ?.values ??
+                  const [])
+            if (value.category != null &&
+                (canonicalBookmarkTag(value.name ?? '') == tag ||
+                    canonicalBookmarkTag(value.displayName ?? '') == tag))
+              value.category!,
+        };
+      }
+    }
+    return _withTagContributions(counts, sources);
+  }
+
+  BookmarkTagIndex _withTagContributions(
+    Map<String, int> counts,
+    Map<String, Map<BookmarkTagSource, Set<String>>> sources,
+  ) {
     if (counts.isEmpty) return this;
     final changed = <BookmarkTagEntry>[];
     for (final tag in counts.keys) {
@@ -92,7 +129,14 @@ class BookmarkTagIndex {
         BookmarkTagEntry(
           tag: tag,
           count: (previous?.count ?? 0) + counts[tag]!,
-          sources: {...poolSources[tag]!, ...?previous?.sources},
+          sources: {
+            ...?previous?.sources,
+            for (final contribution in sources[tag]!.entries)
+              contribution.key: {
+                ...?previous?.sources[contribution.key],
+                ...contribution.value,
+              },
+          },
         ),
       );
     }

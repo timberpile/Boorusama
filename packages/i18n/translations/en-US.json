@@ -2973,6 +2973,13 @@
     "choose_date": "Choose Date"
   },
   "content_viewer": {
+    "bookmark_saved": "Saved",
+    "bookmark_unsaved": "Not saved",
+    "parent_work": "Parent Work",
+    "work_number": "Work #$id",
+    "page_counter": {"one": "$n Page", "other": "$n Pages"},
+    "bookmark_work": "Entire Work",
+    "bookmark_page": "Current Page",
     "work": "Work",
     "pages": "Pages",
     "work_counter": {"one": "$n Work", "other": "$n Works"},

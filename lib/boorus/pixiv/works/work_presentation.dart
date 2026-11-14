@@ -10,8 +10,10 @@ import '../../../core/content/groups/group_capability.dart';
 import '../../../core/content/types.dart';
 import '../../../core/posts/pools/group_summary_card.dart';
 import '../../../core/posts/pools/pool_grid_item.dart';
+import '../../../core/widgets/adaptive_button_row.dart';
 import '../client_provider.dart';
 import 'work_source.dart';
+import 'bookmark_actions.dart';
 
 BooruGroupCapability createPixivGroupCapability(Ref _) => BooruGroupCapability(
   engine: BooruType.pixiv,
@@ -33,8 +35,38 @@ BooruGroupCapability createPixivGroupCapability(Ref _) => BooruGroupCapability(
   presentation: const PixivWorkPresentation(),
 );
 
-class PixivWorkPresentation implements BooruGroupPresentation {
+class PixivWorkPresentation
+    implements
+        BooruGroupPresentation,
+        BooruMediaGroupBookmarkPresentation,
+        BooruGroupKindPresentation {
   const PixivWorkPresentation();
+
+  @override
+  String kindLabel(BuildContext context, ContentGroupSummary summary) =>
+      context.t.content_viewer.work;
+
+  @override
+  Widget buildBookmarkButton(
+    BuildContext context,
+    GroupBookmarkPresentationData data,
+  ) => PixivWorkBookmarkButton(
+    key: ValueKey((data.summary.reference.identity, data.access.key)),
+    data: data,
+  );
+
+  @override
+  List<ButtonData> buildBookmarkMenuButtons(
+    BuildContext context,
+    GroupBookmarkPresentationData data,
+  ) => const [];
+
+  @override
+  Widget wrapBookmarkMenu(
+    BuildContext context,
+    GroupBookmarkPresentationData data,
+    Widget child,
+  ) => PixivWorkBookmarkContextMenu(data: data, child: child);
 
   @override
   bool supports(ContentGroupSummary summary) =>

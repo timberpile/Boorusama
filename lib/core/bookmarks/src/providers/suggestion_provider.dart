@@ -115,20 +115,29 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
                 : null,
           ) ??
           BookmarkTagIndex(const []);
-      return overlay.build(
-        index,
-        selectPoolBookmarks(
-          state: library,
-          view: view,
-          selectedTags: const [],
-          selectedBooruUrl: source,
-        ),
-        (
-          library.pools,
-          source,
-          view.kind == BookmarkViewKind.subtree ? library.groupTree : null,
-        ),
-      );
+      return overlay
+          .build(
+            index,
+            selectPoolBookmarks(
+              state: library,
+              view: view,
+              selectedTags: const [],
+              selectedBooruUrl: source,
+            ),
+            (
+              library.pools,
+              source,
+              view.kind == BookmarkViewKind.subtree ? library.groupTree : null,
+            ),
+          )
+          .withNativeGroupBookmarks(
+            selectNativeGroupBookmarks(
+              state: library,
+              view: view,
+              selectedTags: const [],
+              selectedBooruUrl: source,
+            ),
+          );
     });
 
 final _poolTagOverlayProvider = Provider.autoDispose

@@ -1,3 +1,6 @@
+import 'dart:collection';
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -66,7 +69,7 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
   NavigationChromeState build() {
     ref.onDispose(() {
       _disposed = true;
-      _viewerOwner = null;
+      _viewers.clear();
       viewerRouteProgress.dispose();
     });
     return const NavigationChromeState();
@@ -107,12 +110,15 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
         selectionActive: selected,
         selectionBottomObstruction: selected ? bottomObstruction : 0,
       );
-  Object? _viewerOwner;
+  // Updating a covered route must not promote it above a nested Viewer.
+  final _viewers = LinkedHashMap<Object, _ViewerChrome>.identity();
 
   void setViewerProgressFor(Object owner, double progress) {
-    if (!_disposed && identical(_viewerOwner, owner)) {
-      viewerRouteProgress.value = progress.clamp(0.0, 1.0);
-    }
+    if (_disposed) return;
+    final viewer = _viewers[owner];
+    if (viewer == null) return;
+    viewer.progress = progress.clamp(0.0, 1.0);
+    _publishViewerProgress();
   }
 
   void setViewerFor(
@@ -126,28 +132,51 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
     // Route teardown may release its owner after the provider's final frame.
     if (_disposed) return;
     if (active) {
-      if (!identical(_viewerOwner, owner) || routeProgress != null) {
-        viewerRouteProgress.value = (routeProgress ?? 1.0).clamp(0.0, 1.0);
-      }
-      _viewerOwner = owner;
-      _setViewer(
-        open: true,
+      _viewers[owner] = _ViewerChrome(
         immersive: immersive,
         closing: closing,
         bottomObstruction: bottomObstruction,
+        progress: (routeProgress ?? _viewers[owner]?.progress ?? 1.0).clamp(
+          0.0,
+          1.0,
+        ),
       );
-    } else if (identical(_viewerOwner, owner)) {
-      _viewerOwner = null;
-      _setViewer(open: false, immersive: false);
-      viewerRouteProgress.value = 0;
+    } else if (_viewers.remove(owner) == null) {
+      return;
+    }
+    _publishViewerState();
+  }
+
+  void setViewerImmersive(bool immersive) {
+    if (_disposed) return;
+    final viewer = _viewers.values.lastOrNull;
+    if (viewer == null) {
+      _setViewer(open: false, immersive: immersive);
+    } else {
+      viewer.immersive = immersive;
+      _publishViewerState();
     }
   }
 
-  void setViewerImmersive(bool immersive) => _setViewer(
-    open: state.viewerOpen,
-    immersive: immersive,
-    closing: state.viewerClosing,
-  );
+  void _publishViewerState() {
+    final top = _viewers.values.lastOrNull;
+    _setViewer(
+      open: top != null,
+      immersive: top?.immersive ?? false,
+      closing: top != null && _viewers.values.every((viewer) => viewer.closing),
+      bottomObstruction: top?.bottomObstruction ?? 0,
+    );
+    _publishViewerProgress();
+  }
+
+  void _publishViewerProgress() {
+    // A closing child still covers another Viewer. Only the final Viewer's
+    // reverse transition may reveal the destination's navigation bar.
+    viewerRouteProgress.value = _viewers.values.fold(
+      0,
+      (progress, viewer) => math.max(progress, viewer.progress),
+    );
+  }
 
   void _setViewer({
     required bool open,
@@ -195,4 +224,18 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
       barScrollActive: false,
     );
   }
+}
+
+class _ViewerChrome {
+  _ViewerChrome({
+    required this.immersive,
+    required this.closing,
+    required this.bottomObstruction,
+    required this.progress,
+  });
+
+  bool immersive;
+  final bool closing;
+  final double bottomObstruction;
+  double progress;
 }

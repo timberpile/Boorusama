@@ -72,9 +72,14 @@ class BookmarkGroupPickerAnchor extends StatefulWidget {
   const BookmarkGroupPickerAnchor({
     required this.request,
     required this.builder,
+    this.requestBuilder,
     super.key,
   });
   final BookmarkPickerRequest request;
+
+  /// Capture optional newly loaded facts once, at opening, without replacing
+  /// the already open picker's target during an unrelated parent rebuild.
+  final BookmarkPickerRequest Function()? requestBuilder;
   final Widget Function(BuildContext, VoidCallback show) builder;
 
   @override
@@ -85,6 +90,14 @@ class BookmarkGroupPickerAnchor extends StatefulWidget {
 class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
   final _controller = AnchorController();
   final _navigation = BookmarkPickerNavigation();
+  BookmarkPickerRequest? _presentedRequest;
+
+  void _show() {
+    if (_controller.isShowing) return;
+    _presentedRequest = widget.requestBuilder?.call() ?? widget.request;
+    _controller.show();
+  }
+
   @override
   void didUpdateWidget(BookmarkGroupPickerAnchor oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -100,7 +113,7 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
 
   @override
   Widget build(BuildContext context) {
-    final request = widget.request;
+    final owner = widget.request;
     return KurumiAnchor(
       controller: _controller,
       onBack: () {
@@ -114,17 +127,17 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
             maxHeight: _maxHeight(context),
           ),
           child: BookmarkGroupPicker(
-            key: ValueKey(request),
-            request: request,
+            key: ValueKey(_presentedRequest ?? owner),
+            request: _presentedRequest ?? owner,
             navigation: _navigation,
             ownsBack: false,
             onDismiss: _controller.hide,
             // hide() revokes writes synchronously, before the fade completes.
-            isActive: () => _controller.isShowing && widget.request == request,
+            isActive: () => _controller.isShowing && widget.request == owner,
           ),
         ),
       ),
-      child: widget.builder(context, _controller.show),
+      child: widget.builder(context, _show),
     );
   }
 
@@ -262,6 +275,9 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
               .firstOrNull
               ?.groupIds ??
           const {};
+    } else if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+      final id = library?.idByContent[draft.reference.identity];
+      memberships = id == null ? const {} : library!.membershipsForId(id);
     } else if (request case PostBookmarkPickerRequest(:final post)) {
       final saved = library?.storedBookmarkForPost(post);
       memberships = library?.hasUnifiedRecords == true
