@@ -3,40 +3,57 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 
 void main() {
-  for (final direction in TextDirection.values) {
-    testWidgets('dropdown is trailing and contained, $direction', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Directionality(
-            textDirection: direction,
-            child: Center(
-              child: KurumiActionIconButton(
-                tooltip: 'Save',
-                showDropdown: true,
-                onPressed: () {},
-                onLongPress: () {},
-                icon: const Icon(Icons.bookmark),
+  for (final material3 in [false, true]) {
+    for (final direction in TextDirection.values) {
+      for (final size in [20.0, 24.0]) {
+        testWidgets(
+          'dropdown fits 48 dp, M3=$material3, $direction, size=$size',
+          (tester) async {
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: ThemeData(useMaterial3: material3),
+                home: Directionality(
+                  textDirection: direction,
+                  child: Center(
+                    child: SizedBox.square(
+                      dimension: 48,
+                      child: KurumiActionIconButton(
+                        tooltip: 'Save',
+                        showDropdown: true,
+                        iconSize: size,
+                        onPressed: () {},
+                        onLongPress: () {},
+                        icon: const Icon(Icons.bookmark),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
-      );
-      final button = tester.getRect(find.byType(IconButton));
-      final icon = tester.getRect(find.byIcon(Icons.bookmark));
-      final chevron = tester.getRect(find.byIcon(Icons.expand_more));
-      expect(button.width, greaterThanOrEqualTo(48));
-      expect(button.height, greaterThanOrEqualTo(48));
-      expect(button.contains(chevron.topLeft), isTrue);
-      expect(button.contains(chevron.bottomRight), isTrue);
-      expect(icon.center.dy, chevron.center.dy);
-      expect(
-        direction == TextDirection.ltr
-            ? chevron.left >= icon.right
-            : chevron.right <= icon.left,
-        isTrue,
-      );
-      expect(tester.takeException(), isNull);
-    });
+            );
+            final button = tester.getRect(find.byType(IconButton));
+            final iconFinder = find.byIcon(Icons.bookmark);
+            final icon = tester.getRect(iconFinder);
+            final chevron = tester.getRect(find.byIcon(Icons.expand_more));
+            expect(button.size, const Size(48, 48));
+            expect(icon.size, Size.square(size));
+            expect(IconTheme.of(tester.element(iconFinder)).size, size);
+            expect(chevron.size, const Size(16, 16));
+            expect(button.contains(icon.topLeft), isTrue);
+            expect(button.contains(icon.bottomRight), isTrue);
+            expect(button.contains(chevron.topLeft), isTrue);
+            expect(button.contains(chevron.bottomRight), isTrue);
+            expect(icon.center.dy, chevron.center.dy);
+            expect(
+              direction == TextDirection.ltr
+                  ? chevron.left >= icon.right
+                  : chevron.right <= icon.left,
+              isTrue,
+            );
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+    }
   }
 
   testWidgets('tap and hold stay separate; a hold does not select the icon', (
@@ -100,5 +117,9 @@ void main() {
       ),
     );
     expect(find.byIcon(Icons.expand_more), findsNothing);
+    expect(
+      tester.getSize(find.byIcon(Icons.bookmark_border)),
+      const Size.square(24),
+    );
   });
 }

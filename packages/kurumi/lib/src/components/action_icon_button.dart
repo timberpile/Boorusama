@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const _dropdownChevronSize = 16.0;
+
 /// A normal action with an optional held alternative. The trailing chevron is
 /// an affordance, not a second hit target or a persisted selection indicator.
 class KurumiActionIconButton extends StatelessWidget {
@@ -23,6 +25,10 @@ class KurumiActionIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hold = onPressed == null ? null : onLongPress;
+    // Material 2 constrains the entire icon slot to an iconSize square. Reserve
+    // space for both glyphs; KurumiDropdownIcon keeps the main glyph at its
+    // requested size rather than inheriting this larger composite slot size.
+    final slotSize = showDropdown ? iconSize + _dropdownChevronSize : iconSize;
     return TooltipTheme(
       data: hold == null
           ? TooltipTheme.of(context)
@@ -38,7 +44,7 @@ class KurumiActionIconButton extends StatelessWidget {
           visualDensity: VisualDensity.standard,
           padding: const EdgeInsets.all(4),
           splashRadius: 24,
-          iconSize: iconSize,
+          iconSize: slotSize,
           icon: showDropdown
               ? KurumiDropdownIcon(icon: icon, iconSize: iconSize)
               : icon,
@@ -61,11 +67,16 @@ class KurumiDropdownIcon extends StatelessWidget {
   final double iconSize;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SizedBox.square(dimension: iconSize, child: Center(child: icon)),
-      const ExcludeSemantics(child: Icon(Icons.expand_more, size: 16)),
-    ],
+  Widget build(BuildContext context) => IconTheme.merge(
+    data: IconThemeData(size: iconSize),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox.square(dimension: iconSize, child: Center(child: icon)),
+        const ExcludeSemantics(
+          child: Icon(Icons.expand_more, size: _dropdownChevronSize),
+        ),
+      ],
+    ),
   );
 }
