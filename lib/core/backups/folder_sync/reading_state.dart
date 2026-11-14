@@ -36,8 +36,9 @@ final class SyncGroupReadingState {
        arrivals = Set.unmodifiable(arrivals);
 
   factory SyncGroupReadingState.empty(SyncCollectionId group) {
-    if (group.kind != 'bookmarks')
+    if (group.kind != 'bookmarks') {
       throw const FormatException('Not a Bookmark Group');
+    }
     return SyncGroupReadingState._(
       group: group,
       revision: 0,
@@ -163,8 +164,9 @@ final class SyncGroupReadingState {
 
 Set<String> _keys(Iterable<String> values) {
   final keys = values.toSet();
-  if (keys.any((key) => key.isEmpty))
+  if (keys.any((key) => key.isEmpty)) {
     throw const FormatException('Empty member key');
+  }
   return keys;
 }
 
@@ -173,8 +175,9 @@ Set<String> _decodeKeys(Object? value) {
     throw const FormatException('Invalid reading identity list');
   }
   final keys = _keys(value.cast<String>());
-  if (keys.length != value.length)
+  if (keys.length != value.length) {
     throw const FormatException('Duplicate member key');
+  }
   return keys;
 }
 

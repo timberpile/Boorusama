@@ -247,8 +247,9 @@ final class SyncRevision {
     }
   }
   factory SyncRevision.fromJson(Map<String, dynamic> json) {
-    if (json['protocol'] != folderSyncProtocol)
+    if (json['protocol'] != folderSyncProtocol) {
       throw const SyncUpdateRequired();
+    }
     return SyncRevision(
       collection: SyncCollectionId.fromJson(json),
       revision: syncPositiveInteger(json['revision']),

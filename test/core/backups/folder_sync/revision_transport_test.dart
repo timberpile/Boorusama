@@ -134,7 +134,7 @@ void main() {
 final class _Storage implements FolderSyncStorage {
   final files = <String, Uint8List>{};
   final reads = <(String, int)>[];
-  Object? failure;
+  Error? failure;
 
   @override
   Future<Uint8List?> read(

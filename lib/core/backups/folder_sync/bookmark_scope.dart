@@ -110,8 +110,9 @@ final class BookmarkSyncScope {
   final Map<String, int> _counts;
 
   SyncCollectionId identityFor(String source) {
-    if (!nodes.containsKey(source))
+    if (!nodes.containsKey(source)) {
       throw const FormatException('Unknown Group');
+    }
     return SyncCollectionId(
       publisher: publisher,
       kind: 'bookmarks',
@@ -120,15 +121,17 @@ final class BookmarkSyncScope {
   }
 
   List<String> childrenOf(String source) {
-    if (!nodes.containsKey(source))
+    if (!nodes.containsKey(source)) {
       throw const FormatException('Unknown Group');
+    }
     return _children[source] ?? const [];
   }
 
   /// Compute reasons on demand, avoiding an O(nodes * roots) persisted matrix.
   Set<String> reasonsFor(String source) {
-    if (!nodes.containsKey(source))
+    if (!nodes.containsKey(source)) {
       throw const FormatException('Unknown Group');
+    }
     final reasons = <String>{};
     String? current = source;
     while (current != null && nodes.containsKey(current)) {

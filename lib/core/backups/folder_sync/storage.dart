@@ -33,8 +33,9 @@ bool isOwnedSyncRevisionPath(String path, String owner) {
     return false;
   }
   final parts = path.split('/');
-  if (parts.length < 4 || parts[0] != 'devices' || parts[1] != owner)
+  if (parts.length < 4 || parts[0] != 'devices' || parts[1] != owner) {
     return false;
+  }
   final String file;
   if (parts.length == 4 && parts[2] == 'catalog') {
     file = parts[3];
@@ -97,8 +98,9 @@ final class DirectoryFolderSyncStorage implements FolderSyncStorage {
       }
     }
     final target = p.joinAll([root.path, ...parts]);
-    if (createParents)
+    if (createParents) {
       await Directory(p.dirname(target)).create(recursive: true);
+    }
     return target;
   }
 
