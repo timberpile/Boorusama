@@ -1,0 +1,60 @@
+name: Bounded bookmark widget diagnostic
+
+on:
+  push:
+    branches: [feature/141-pixiv-work-page-bookmarks]
+    paths: [.github/workflows/141-bounded-diagnostic.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    if: github.repository == 'timberpile/Boorusama'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BOORUSAMA_USE_FVM: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.47.2
+          cache: true
+      - name: Host prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq meson nasm
+      - name: Generate sources
+        run: ./init.sh > "$RUNNER_TEMP/init.log" 2>&1 || { tail -60 "$RUNNER_TEMP/init.log"; exit 1; }
+      - name: Record source and add temporary fixture progress markers
+        run: |
+          git rev-parse HEAD
+          git hash-object test/boorus/pixiv/works/work_bookmark_widget_fixture.dart
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('test/boorus/pixiv/works/work_bookmark_widget_fixture.dart')
+          text = path.read_text()
+          markers = {
+            "  final directory = (await tester.runAsync(": "  print('DIAGNOSTIC: create directory');\n",
+            "    final posts = await Hive.openBox<BookmarkHiveObject>('posts');": "    print('DIAGNOSTIC: open Hive');\n",
+            "    final reader = await BookmarkStorageMigration(": "    print('DIAGNOSTIC: migration');\n",
+            "    final destination = await groups.createGroup('Destination');": "    print('DIAGNOSTIC: create destination');\n",
+            "    await container.read(bookmarkProvider.future);": "    print('DIAGNOSTIC: await bookmark provider');\n",
+            "    return WorkBookmarkWidgetFixture(": "    print('DIAGNOSTIC: provider ready');\n",
+            "  await tester.pumpWidget(": "  print('DIAGNOSTIC: mount widget');\n",
+            "  return fixture;": "  print('DIAGNOSTIC: fixture mounted');\n",
+            "      await action();": "      print('DIAGNOSTIC: begin commit action');\n",
+            "      await completed.future.timeout(const Duration(seconds: 30));": "      print('DIAGNOSTIC: await commit revision');\n",
+          }
+          for anchor, marker in markers.items():
+              assert text.count(anchor) == 1, anchor
+              text = text.replace(anchor, marker + anchor)
+          path.write_text(text)
+          PY
+      - name: Run only the first production path with bounded timeout
+        run: |
+          timeout 240s flutter test --no-pub --timeout 45s --fail-fast --reporter=expanded \
+            --plain-name 'production choice to durable picker, Page=false, narrow=false' \
+            test/boorus/pixiv/works/work_bookmark_actions_test.dart
