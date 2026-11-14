@@ -1,74 +1,89 @@
 # Folder Sync v5 foundations (#144)
 
-Status: isolated remote implementation candidate. **Not connected to the app's
-settings, lifecycle, import transaction, Bookmark repositories or Viewer. No
-usable end-to-end Sync feature or successful runtime check is claimed.**
+**Not connected to application settings, lifecycle, import transactions,
+Bookmark repositories or Viewer events. This is not an end-to-end Sync feature.**
+Current verification and remaining acceptance are recorded in the
+[local integration handoff](../../../../docs/handoffs/144-folder-sync-v5-local-integration.md).
 
 The approved contract is
-[`docs/designs/2026-11-03-folder-based-collection-sync.md`](../../../../docs/designs/2026-11-03-folder-based-collection-sync.md)
-and its v5 mockup. Historical Combined `252e8954dab8c0842f83a2082c67f4841111c34e`
-is a source reference, not a merge target or current verification result.
+[the v5 design](../../../../docs/designs/2026-11-03-folder-based-collection-sync.md)
+and its mockup. Historical Combined `252e8954dab8c0842f83a2082c67f4841111c34e`
+is a source reference, not a merge target or a current verification result.
 
-## Components
+## Components and authority boundaries
 
 - `protocol.dart`: bounded canonical JSON, Ed25519 identity/signature handling,
-  typed publisher/kind/source identity and revision length/hash checks. Private
-  seeds are app-local only. Identity.json is immutable; editable publisher names
-  belong in increasing signed catalogs. Unknown schemas/types are not permission
-  to discard data. `SyncRevision.schema` is validated structurally, not declared
-  supported; the import adapter must enforce actual codec capability.
-- `storage.dart`: mounted-directory implementation of the immutable storage
-  interface under `v1/devices/...`. It uses the repository's no-clobber publication
-  helper, bounded streaming reads, random scratch names, path/link checks and
-  exact owned-revision retention paths. Android SAF is deliberately not faked as
-  a filesystem path. Existing-link checks are not an OS-level sandbox against a
-  malicious process concurrently replacing filesystem ancestors.
-- `catalog_gate.dart`: explicit pinned-key approval plus app-local persisted
-  highest verified sequence/content digest. It rejects rollback, equal-sequence
-  equivocation, key changes, malformed local state and failed checkpoint writes.
-  Identical retries are accepted for crash recovery. It uses `MiscDataStore` and
-  the shared `DataMutationCoordinator`, not a second write-lock architecture.
-  `withCurrentCatalog` rechecks trust/checkpoint under that lock after payload
-  preparation. **Observed is not applied:** keep last-applied markers separate
-  and update them only with successful journaled domain commits. A verified
-  catalog is not yet a valid package or an authorized deletion plan.
-- `bookmark_scope.dart`: bounded, iterative full-subtree union, canonical source
-  identity, direct-root links, source sibling order and overlapping coverage.
-  It previews the SOURCE IDs uncovered by an explicit root unsubscribe; it does
-  not delete or allocate local IDs. It supports an unpublished external source
-  parent without inventing a local folder. Names do not drive scope. It does not
-  reuse `FolderTree` because that local-editing model requires every parent and
-  unique sibling names, neither of which is appropriate for discovery subsets.
+  publisher/kind/source identity and revision length/hash checks. Private seeds
+  stay local. Identity JSON is immutable; editable publisher names belong in
+  increasing signed catalogs. `verifySyncSignature` authenticates bytes only;
+  it does not approve a key, bind a publisher or establish compatibility.
+  `SyncRevision.schema` is structurally valid, not necessarily supported.
+- `storage.dart`: mounted directories under `v1/devices/...`, bounded streaming
+  reads, immutable no-clobber publication, random scratch files, path/link checks
+  and exact owned-revision retention paths. Android SAF is not a filesystem path.
+  Link checks do not sandbox a hostile process replacing filesystem ancestors.
+  Filesystem checks remain asynchronous to avoid blocking the UI isolate.
+- `catalog_gate.dart`: explicit pinned-key approval and a durable highest
+  authenticated OBSERVED sequence/content digest using `MiscDataStore` and the
+  shared `DataMutationCoordinator`. The common signed publisher/protocol/sequence
+  is bound before the checkpoint. A valid newer common header advances the
+  checkpoint even when its protocol or body cannot be consumed, preventing old
+  signed catalogs or prepared old commits from regaining authority. Rejected
+  bodies receive no verified ticket. Failed checkpoint writes propagate;
+  identical retries are allowed, older/equivocating catalogs are rejected.
+  `withCurrentCatalog` rechecks trust/checkpoint under the same lock after async
+  preparation. OBSERVED is not APPLIED: applied markers belong to successful
+  journaled domain transactions only.
+- `revision_transport.dart`: reads only the exact expected descriptor and payload
+  paths. It checks the descriptor signature, compares every revision field with
+  the caller's expected advertisement, bounds both reads, verifies payload length
+  and SHA-256, then exposes a copied read-only byte view. Missing files return
+  unavailable; permission/corruption failures propagate. There is no listing,
+  older-revision fallback, write or deletion. The caller must obtain `expected`
+  from a current verified catalog and use its approved publisher key. The result
+  is transport evidence, **not** a validated export archive, supported schema,
+  source/profile permission or authorized import/deletion plan.
+- `bookmark_scope.dart`: bounded iterative complete-subtree union, canonical
+  source identity, virtual direct-root links, source sibling order and overlapping
+  coverage. It previews source IDs uncovered by explicit-root unsubscribe but
+  neither allocates local IDs nor deletes anything. An unpublished external
+  source parent is allowed; names do not determine identity or scope. Local
+  editing `FolderTree` assumptions do not fit these discovery subsets.
 - `reading_state.dart`: immutable JSON-ready receiver-local arrival and reading
-  state per canonical publisher/Group. Opening acknowledges only the rendered
-  membership revision's arrivals; explicit reading changes only selected current
-  identities. Removed/reappearing read identities retain their state. Portable
-  member keys reuse `bookmarkContentIdentity` and engine identity with a typed
-  JSON tuple, not local IDs or thumbnail URLs. Nothing automatically calls this
-  from a grid, preload, neighboring Page or Group opening.
+  state per publisher/Group. Opening acknowledges only arrivals for the rendered
+  membership revision; reading changes only selected current identities. Removed
+  and reappearing read identities retain state. Portable typed Bookmark member
+  keys are not local IDs or thumbnail URLs. Nothing automatically hooks this to
+  grids, preloads, neighbors, Group opening or all Pages of a Work.
 
-## Wiring and verification gates
+## Production wiring still required
 
-Do not transplant the historical service/UI unchanged: it retains receiver-local
-Group names/placement, has obsolete exclusions/future-child options, retains
-withdrawn mirrors, can fall back to old catalogs, and rebuilds payload archives
-before unchanged detection. None of those behaviors is the approved v5 contract.
+Build signed catalog entries and descriptor-last publication with durable
+revision reservations and partial-write recovery. Validate `.bsexport` archives
+through the existing bounded package reader, then enforce supported schemas,
+typed v10 source content and exact advertised scope. Prepare outside the shared
+mutation lock and revalidate the current catalog immediately before journaled
+apply. Persist source-to-fresh-local-ID ownership and enforce read-only mirrors
+at repository/service entry points, not just hidden menus.
 
-Still required: descriptor-last publication/catalog construction and recovery,
-capability-aware signed entry/package validation, transactional mirror mappings
-and ownership guards, safe withdrawal/unsubscribe/Forget Device, local copies,
-local-only All Bookmarks, durable reading/arrival integration, dirty-signal
-publication, Android SAF/native registration, and the v5 Kurumi UI/device sections.
-No missing/offline directory or unsupported catalog may be converted into an
-empty authoritative deletion snapshot. Do not fall back past an accepted high
-water mark; unsupported newer protocol is an Update Required condition, not an
-excuse to resurrect a prior revision.
+Implement safe explicit withdrawal, confirmed unsubscribe/Forget Device and
+independent local copies; local-membership-only All Bookmarks; dirty-signal
+publication before archive rebuilding; durable arrival/read integration; Android
+SAF grants/native registration; and the approved v5 Kurumi device sections/UI.
+An unavailable directory, missing file or unsupported catalog must never become
+an empty authoritative deletion snapshot. Unknown deletion policy remains
+non-destructive.
 
-The direct `cryptography: ^2.7.0` dependency matches the historical implementation;
-resolve dependencies and regenerate/review the lockfile locally before checks.
-The authored tests in `test/core/backups/folder_sync/` have **not run**. Historical
-storage tests were ported by exact blob; new tests cover protocol, checkpoint
-restart via store reuse/failures, commit-time revocation, recursive overlap and
-separate read/arrival state. Store-reuse tests are not a real disk/process restart
-or crash-journal test. Formatting/analyzer, real metadata restart, property/fuzz
-checks, complete regressions and actual two-device/SAF acceptance remain required.
+Do not port historical flat UI, auto-enable-on-navigation, receiver-owned
+name/placement preservation, withdrawn-mirror retention, older-catalog fallback
+or unconditional archive rebuilding. These conflict with v5.
+
+## Verification boundaries
+
+The dependency lock is generated, not hand-written. Focused hosted tests cover
+protocol, observed checkpoints and rejected prepared commits, signed transport,
+recursive overlap, arrival/read separation and mounted-directory operations.
+Consult the handoff for exact tested commits and failures; do not infer complete
+application acceptance from foundation checks. Store recreation is not a real
+process/disk crash test. Journal fault injection, ownership mutation coverage,
+complete final regressions and actual two-device/SAF acceptance remain required.
