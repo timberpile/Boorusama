@@ -2973,8 +2973,8 @@
     "choose_date": "Choose Date"
   },
   "content_viewer": {
-    "bookmark_work": "Bookmark Work",
-    "bookmark_page": "Bookmark current Page",
+    "bookmark_work": "Entire Work",
+    "bookmark_page": "Current Page",
     "work": "Work",
     "pages": "Pages",
     "work_counter": {"one": "$n Work", "other": "$n Works"},

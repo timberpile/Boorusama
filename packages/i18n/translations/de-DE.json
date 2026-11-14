@@ -2022,8 +2022,8 @@
     "choose_date": "Datum auswählen"
   },
   "content_viewer": {
-    "bookmark_work": "Werk mit Lesezeichen versehen",
-    "bookmark_page": "Aktuelle Seite mit Lesezeichen versehen",
+    "bookmark_work": "Gesamtes Werk",
+    "bookmark_page": "Aktuelle Seite",
     "work": "Werk",
     "pages": "Seiten",
     "work_counter": {"one": "$n Werk", "other": "$n Werke"},

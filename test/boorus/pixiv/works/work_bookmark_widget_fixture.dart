@@ -9,13 +9,11 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_objec
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_group_repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_repository.dart';
-import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/recent_bookmark_groups_provider.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
-import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/groups/group_capability.dart';
@@ -76,7 +74,10 @@ Future<void> commitBookmarkInteraction(
   WorkBookmarkWidgetFixture fixture,
   Future<void> Function() action,
 ) async {
-  final revision = fixture.container.read(bookmarkProvider).requireValue.revision;
+  final revision = fixture.container
+      .read(bookmarkProvider)
+      .requireValue
+      .revision;
   final completed = Completer<void>();
   final listener = fixture.container.listen(bookmarkProvider, (_, next) {
     if (!completed.isCompleted &&
@@ -95,7 +96,7 @@ Future<void> commitBookmarkInteraction(
   } finally {
     listener.close();
   }
-  dismissAllToast(showAnim: false);
+  dismissAllToast();
   await tester.pumpAndSettle();
   expect(tester.takeException(), isNull);
 }
@@ -137,7 +138,9 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
   }
   final access = workAccess();
   final current = StateProvider<ContentAccessContext?>((ref) => access);
-  final data = ValueNotifier<GroupBookmarkPresentationData?>(bookmarkData(access));
+  final data = ValueNotifier<GroupBookmarkPresentationData?>(
+    bookmarkData(access),
+  );
   final active = ValueNotifier(true);
   final observer = RouteObserver<ModalRoute<dynamic>>();
   final fixture = (await tester.runAsync(() async {
@@ -160,39 +163,45 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
       reader: reader,
     );
     final destination = await groups.createGroup('Destination');
-    final container = ProviderContainer(overrides: [
-      ...storage.overrides,
-      booruEngineRegistryProvider.overrideWithValue(_CodecRegistry()),
-      postLinkGeneratorProvider.overrideWith(
-        (ref, config) => const NoLinkPostLinkGenerator(),
-      ),
-      bookmarkRepoProvider.overrideWith((ref) async => repository),
-      bookmarkGroupRepoProvider.overrideWith((ref) async => groups),
-      bookmarkUrlResolverProvider.overrideWith(
-        (ref, id) => const DefaultImageUrlResolver(),
-      ),
-      booruConfigProvider.overrideWith(
-        () => BooruConfigNotifier(initialConfigs: [access.config!]),
-      ),
-      settingsNotifierProvider.overrideWith(
-        () => SettingsNotifier(Settings.defaultSettings),
-      ),
-      contentAccessContextProvider.overrideWith((ref, key) {
-        final config = ref.watch(booruConfigProvider)
-            .where((c) => c.id == key.profileId).firstOrNull;
-        final value = ref.watch(current);
-        return config != null && value?.key == key ? value : null;
-      }),
-      recentBookmarkGroupsProvider.overrideWith((ref) async => []),
-      currentDestinationRouteObserverProvider.overrideWithValue(observer),
-      booruGroupCapabilityProvider.overrideWith(
-        (ref, engine) => createPixivGroupCapability(ref),
-      ),
-      mediaGroupProvider.overrideWith((ref, entry) => MediaGroupState(
-        access: ref.watch(contentAccessContextProvider(access.key)),
-        details: entry.storedDetails,
-      )),
-    ]);
+    final container = ProviderContainer(
+      overrides: [
+        ...storage.overrides,
+        booruEngineRegistryProvider.overrideWithValue(_CodecRegistry()),
+        postLinkGeneratorProvider.overrideWith(
+          (ref, config) => const NoLinkPostLinkGenerator(),
+        ),
+        bookmarkRepoProvider.overrideWith((ref) async => repository),
+        bookmarkGroupRepoProvider.overrideWith((ref) async => groups),
+        bookmarkUrlResolverProvider.overrideWith(
+          (ref, id) => const DefaultImageUrlResolver(),
+        ),
+        booruConfigProvider.overrideWith(
+          () => BooruConfigNotifier(initialConfigs: [access.config!]),
+        ),
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(Settings.defaultSettings),
+        ),
+        contentAccessContextProvider.overrideWith((ref, key) {
+          final config = ref
+              .watch(booruConfigProvider)
+              .where((c) => c.id == key.profileId)
+              .firstOrNull;
+          final value = ref.watch(current);
+          return config != null && value?.key == key ? value : null;
+        }),
+        recentBookmarkGroupsProvider.overrideWith((ref) async => []),
+        currentDestinationRouteObserverProvider.overrideWithValue(observer),
+        booruGroupCapabilityProvider.overrideWith(
+          (ref, engine) => createPixivGroupCapability(ref),
+        ),
+        mediaGroupProvider.overrideWith(
+          (ref, entry) => MediaGroupState(
+            access: ref.watch(contentAccessContextProvider(access.key)),
+            details: entry.storedDetails,
+          ),
+        ),
+      ],
+    );
     await container.read(bookmarkProvider.future);
     return WorkBookmarkWidgetFixture(
       container: container,
@@ -208,7 +217,7 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = Size(narrow ? 320 : 400, 800);
   addTearDown(() async {
-    dismissAllToast(showAnim: false);
+    dismissAllToast();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     fixture.container.dispose();
@@ -264,10 +273,12 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
                       child: MediaGroupActions(
                         entry: entry,
                         child: Center(
-                          child: Builder(builder: (context) =>
-                            PostActionToolbarScope.maybeOf(context)
-                                ?.bookmarkButton ??
-                            const Text('Page fallback')),
+                          child: Builder(
+                            builder: (context) =>
+                                PostActionToolbarScope.maybeOf(context)
+                                    ?.bookmarkButton ??
+                                const Text('Page fallback'),
+                          ),
                         ),
                       ),
                     ),

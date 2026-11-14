@@ -1,95 +1,110 @@
 # Pixiv Bookmark regressions and button options
 
-Issue: #141. Investigated against `e9d1056d0b15105db48e5ff4d1e0cbab7b203323`.
-Status: source diagnosis and remote candidate preparation; not device acceptance.
+Issue #141. Original diagnosis baseline: `e9d1056d0b15105db48e5ff4d1e0cbab7b203323`.
+Updated 2026-11-14. Current runtime and exact verification evidence are in the
+[local acceptance handoff](../handoffs/141-pixiv-bookmark-regression-acceptance.md).
+Source diagnosis and hosted tests are not live Pixiv/device acceptance.
 
-## Confirmed source findings
+## Root causes established in source
 
-`MediaGroupActions.build` returned its bare child whenever `NavigationActivity`
-was false. `DestinationPageActivity.didPushNext` makes a covered route inactive,
-including while its own Bookmark chooser dialog is open. The return removed
-`PostActionToolbarScope`, so the Work button was disposed. After the choice was
-popped, `_choose` returned at its `!mounted` guard instead of opening the real
-Bookmark destination picker. `Navigator.pop` and the row's optional anchor hide
-were not a demonstrated double-pop defect.
+`MediaGroupActions.build` returned its bare child when `NavigationActivity` was
+false. `DestinationPageActivity.didPushNext` makes a covered route inactive,
+including while its own Bookmark choice dialog is open. That removed the Work's
+`PostActionToolbarScope` and disposed its button. The awaiting chooser then
+returned at its unmounted guard instead of handing the selection to the real
+Bookmark Group picker. Neither a double pop nor storage corruption was proved.
 
-The same absent scope made `SimplePostActionToolbar` use its normal
-`BookmarkPostButton` fallback while rendering inactive neighboring Works. That
-button reads **Page identity** and uses `context.colors.upvoteColor`; the Work
-button reads **Work identity** and previously did not set a selected color.
-An old Page-only bookmark therefore yields a different result than a newly saved
-whole Work. This explains both directions of the reported white/orange and
-filled/unfilled transitions without inventing corruption of `idByContent`.
-There is no independent device reproduction or proof that these are the only
-causes of every reported frame. Actual paging, hydration and imported data still
-need the local acceptance matrix.
+The same absent scope exposed the ordinary `BookmarkPostButton` fallback for
+inactive neighboring Works. That fallback reads Page identity and uses the app's
+selected bookmark color; the Work button reads Work identity and previously did
+not set that selected color. Old Page-only records therefore produced a different
+fill/color from Work records while moving between entries. This explains the
+reported mismatch in source, but does not prove that it accounts for every frame
+of real swiping, hydration or imported-data behavior.
 
-The chooser also lacked per-target membership indicators, always offered its
-advanced affordance regardless of a confirmed one-Page count, and did not bind
-its continuation to the original outer Work owner. Download's old chevron was
-another custom painter: it composed a wider glyph than its nominal 24 dp canvas,
-not a reusable trailing-icon API.
+The chooser also had no independent membership indicators, exposed advanced
+choices for confirmed one-Page Works and did not bind continuation to the original
+outer Work owner. Download had its own custom trailing-arrow composition rather
+than a reusable button affordance.
 
-## Candidate changes and invariant
+A subsequent review found a separate layout defect in the first reusable button:
+Material 2 constrains the whole icon slot to `iconSize`. A 24 dp slot cannot contain
+a 24 dp main glyph plus a 16 dp chevron. `937ab4b...` reserves the composite slot
+while keeping the actual main glyph size explicit. This also covers the 20 dp
+Download variant; the minimum target remains 48 by 48 dp.
 
-Navigation activity now suppresses input without removing Work action ownership.
-Source loss gives a disabled action rather than an actionable Page fallback.
-Work reference/access key owns the widget; a captured owner token and current
-authorization guard reject a rebind, revoked actor, or disposed continuation.
-Inner Page changes do not replace the Page captured when the chooser opened.
-A Page choice must belong to the actual Work and actor and pass the existing
-restricted/source checks. Unknown count is not treated as one Page.
+## Corrective behavior and invariants
 
-Both choices use `Symbols.bookmark`, independent persisted fill/color and their
-own membership count. The main button continues to represent **Work only**;
-opening a menu does not change that status. Work uses the existing app bookmark
-selected-color role. Work/Page remain separate records; no migration or inferred
-Work membership is introduced. One-Page Works offer only the direct Work action.
-Redundant Work/Page overflow entries are removed; other actions are retained.
+Navigation activity suppresses input without removing Work action ownership.
+Source loss leaves a disabled Work action, not an actionable Page fallback.
+Work reference/access owns the state; a captured owner token and current
+permission guard reject outer Work replacement, revoked authorization or unmount.
+The chooser freezes the actual inner Page at entry, so a later inner Page change
+does not silently change the target. A Page must belong to the Work and actor and
+pass the existing availability restrictions. Unknown count is not one Page.
 
-`KurumiActionIconButton` composes an ordinary action and optional hold action with
-`showDropdown`; `KurumiDropdownIcon` lays out a trailing chevron within bounds.
-It does not infer saved state or own a domain menu. The chevron is decorative,
-not an inaccessible tiny second hit target. The standard target is at least
-48 x 48 dp, including the visually smaller Download variant; verify its callers
-on narrow layouts. Bookmark and Download share this presentation. RTL placement
-comes from Row direction, not fixed bottom/right coordinates.
+Direct tap remains Entire Work. Confirmed one-Page Works have no chooser or arrow.
+Both choices use the same bookmark glyph, independent persisted fill/color and
+membership count. Main-button selection continues to mean Work only. Opening a
+menu does not save anything or change selection. Redundant Work/Page overflow
+actions are removed; unrelated actions remain.
 
-The exact approved text changes are supplied in
-[`141-bookmark-labels.patch`](../handoffs/141-bookmark-labels.patch). **They are
-not yet applied to the large translation resources.** Apply them and regenerate
-localizations before running the new label-based tests. This candidate is not
-complete until that small outstanding source change is committed.
+The approved labels are now committed, not an outstanding patch:
 
-## Simultaneous Work/Page status: proposals, not approved implementation
-
-| Option | Benefits | Costs and risks |
+| Key | en-US | de-DE |
 | --- | --- | --- |
-| Two separately labelled Work and Page actions | Clearest independent status and direct access; straightforward semantics and tests | At least two full touch targets; two identical bookmark glyphs need explicit labels; a crowded toolbar must adapt rather than shrink hit areas |
-| Split Work primary + Page/target chooser | Preserves the primary Work action and a discoverable secondary target; independent indicators on one visual surface | Still needs two accessible hit targets, not two 24 dp halves; clearly label the secondary action as a chooser, not an immediate save; shared borders/focus are additional UI work |
-| Combined Work icon with Page badge | Smallest visual footprint | Four states require learning a legend; a small badge competes with group count, is hard at scale/contrast, and can imply that saving Work saves every Page |
+| `content_viewer.bookmark_work` | Entire Work | Gesamtes Werk |
+| `content_viewer.bookmark_page` | Current Page | Aktuelle Seite |
 
-**Recommendation:** use two explicit Work/Page targets when simultaneous status
-is a firm requirement; they have the least ambiguous state and action model.
-A split surface is a reasonable visual grouping, but does not legitimately save
-hit-target width. Avoid an encoded combined badge as the default. Keep the
-current approved Work-primary/held-chooser behavior in this corrective candidate
-until the owner selects a material redesign. All alternatives collapse to the
-single Work action for a confirmed one-Page Work. Do not silently change direct
-tap from Work to Page. The same glyph in the chooser is already approved and is
-not contingent on this separate toolbar decision.
+`e7354dfc...` changes exactly those values. The temporary patch is deleted.
+Localizations are generated through the normal project path.
 
-## Regression evidence boundary
+No membership, identity, codec, migration or Undo semantics were rewritten.
+A historical Page-only bookmark does not imply Work membership, even for a
+single-Page Work. Server-side Pixiv Favorites remain separate.
 
-New action tests mount production `MediaGroupActions` with real route coverage,
-then exercise the production chooser/picker/notifier and unified Hive repository.
-They cover direct tap, both choices, captured Page, keyboard Group creation,
-independent states, inactive neighbors, unknown/single counts, cancellation,
-source loss, outer Work replacement and unmount. Source/provider inputs are
-controlled to avoid networking. This is not a full viewer swipe/device test.
+## Reusable action control
 
-Kurumi tests cover trailing containment/RTL, minimum target size, disabled hold,
-independent tap/hold dispatch, and no selection mutation on menu activation.
-Existing real commit-guard and restart/Undo tests remain relevant. No new Dart
-format/analyzer/Flutter test, emulator, live Pixiv or independent review result
-is claimed. Historical green results belong to the old runtime only.
+`KurumiActionIconButton` accepts an ordinary action, optional hold action and
+`showDropdown`. `KurumiDropdownIcon` lays out the decorative trailing chevron;
+it does not own domain selection or a menu. Bookmark and Download use this shared
+control instead of custom arrow offsets/painters. Row direction provides RTL
+placement. The main glyph does not inherit the enlarged composite slot size.
+
+The chevron is not a tiny independent hit target. Tap and hold remain separate,
+disabling the action disables hold too, and menu activation has no selected-state
+side effect. Verify actual small Download callers, badges, narrow layouts and
+large text locally; the 48 dp touch target is intentionally not pixel-neutral
+relative to the old small visual button.
+
+## Simultaneous Work/Page status — alternatives, not an approved redesign
+
+| Option | Benefit | Cost or risk |
+| --- | --- | --- |
+| Two explicitly labelled Work and Page actions | Independent status is immediately clear; direct access and simple accessibility semantics | Two full targets and labels require responsive toolbar space |
+| Split Work primary plus Page/target chooser | Groups related actions and makes the secondary path discoverable | Still needs two accessible targets; the secondary half must clearly mean chooser rather than immediate save |
+| Work icon with a Page-state badge | Small visual footprint | Encodes four states, competes with membership count and can imply Work saving bookmarks every Page |
+
+Recommendation: use two explicit targets when simultaneous status is required.
+A split surface can group them visually but does not justify shrinking their hit
+areas. Avoid an encoded combined badge as the default. Keep Work-primary/held-
+chooser behavior in this corrective candidate until the owner chooses a material
+redesign. All alternatives collapse to Work-only for a confirmed one-Page Work;
+none silently changes direct tap to Page.
+
+## Evidence boundary
+
+The action tests mount production `MediaGroupActions`, route coverage, chooser,
+Group picker/notifier and unified Hive storage. They cover direct/choice targets,
+captured Page, keyboard Group creation, independent states, inactive neighbors,
+single/unknown counts, cancellation and stale authorization/owner rejection.
+Inputs are controlled; these are not real full-Viewer swipe tests.
+
+Kurumi tests cover Material 2/3, RTL/LTR, 20/24 dp geometry, containment, minimum
+target, disabled hold and distinct tap/hold dispatch. Existing commit guards,
+persistence and restart/Undo tests remain required. A fresh hosted run exposed a
+missing Riverpod extension import in the action tests; that compile failure and
+explicit post-await mounted guards are part of the verification cleanup. Never
+substitute an earlier summarized log or historical green count for the exact
+current candidate's output. See the handoff for final results and remaining
+Android/live Pixiv acceptance.

@@ -22,14 +22,17 @@ BookmarkPickerRequest _workRequest(
 ) => ContentGroupBookmarkPickerRequest(
   source: data.access.config!,
   access: data.access.key,
-  draft: PixivWorkBookmarkTarget(
-    access: data.access,
-    summary: data.summary,
-    details: data.details,
-  ).draft(
-    currentAccess: container.read(contentAccessContextProvider(data.access.key)),
-    at: DateTime.now().toUtc(),
-  ),
+  draft:
+      PixivWorkBookmarkTarget(
+        access: data.access,
+        summary: data.summary,
+        details: data.details,
+      ).draft(
+        currentAccess: container.read(
+          contentAccessContextProvider(data.access.key),
+        ),
+        at: DateTime.now().toUtc(),
+      ),
 );
 
 bool _isSinglePage(GroupBookmarkPresentationData data) =>
@@ -42,7 +45,8 @@ BookmarkPickerRequest? _pageRequest(GroupBookmarkPresentationData data) {
     // A loaded Post is not sufficient: it must be an available real Page of
     // this Work and the captured actor, never a neighboring Work's fallback.
     PixivPageBookmarkTarget(access: data.access, post: page);
-    if (data.summary.reference.sourceKey != 'work:${page.pixivData!.illustId}') {
+    if (data.summary.reference.sourceKey !=
+        'work:${page.pixivData!.illustId}') {
       return null;
     }
     return PostBookmarkPickerRequest(
@@ -172,6 +176,7 @@ class _PixivWorkBookmarkButtonState
       if (selected == null || !_isCurrent(captured, owner)) return;
       if (choiceRoute case final route?) await route.completed;
       await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
       // The Page request stays frozen across inner Page changes, while a new
       // outer Work, revoked actor, or disposed owner cancels the handoff.
       if (_isCurrent(captured, owner) && NavigationActivity.of(context)) {
@@ -208,7 +213,8 @@ class _PixivWorkBookmarkButtonState
           onLongPress: alternatives && enabled ? _choose : null,
           onPressed: enabled
               ? () {
-                  if (_isCurrent(data, owner) && NavigationActivity.of(context)) {
+                  if (_isCurrent(data, owner) &&
+                      NavigationActivity.of(context)) {
                     show();
                   }
                 }

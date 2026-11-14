@@ -78,7 +78,6 @@ class _Client extends PixivClient {
         work(id: 121),
         work(id: 122, type: 'ugoira'),
       ],
-      hasMore: false,
     );
   }
 
