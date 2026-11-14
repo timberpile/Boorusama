@@ -1,7 +1,21 @@
 # Issue #157: native nhentai source foundation
 
 Status: **source foundation implemented, package-verified and independently
-reviewed; application engine and final acceptance remain pending**. The user
+reviewed; application engine and final acceptance remain pending**.
+
+## Product UI decisions — 2026-11-14 (for future application integration)
+
+The first native nhentai release **uses the existing Pixiv Work-style Group
+media pager** for Galleries, with real ordered Page Posts and shared Group
+Details; no nhentai-specific overview-first page or new Viewer is required.
+Reuse existing Tag/Search UI without a separate nhentai Tag browser. Source
+document: [#157 UI decision](https://github.com/timberpile/Boorusama/issues/157#issuecomment-6877240744).
+
+The broader **cross-engine Gallery/Pool presentation toggle** (media-first
+viewer vs. Group overview + Post grid/timeline) is a **future design proposal**,
+not approval for a shared Viewer rewrite in #157. Keep source, identities and
+member order independent of presentation. Resolve that separately with the owner.
+ The user
 authorized this independent work
 while #156 remediation continues. Nothing here enables a source, integrates into
 develop, or completes #157.
