@@ -123,8 +123,11 @@ to avoid blocking the UI isolate; their lint exception is documented.
 
 ## Independent source/design audit — 2026-11-14
 
-**Conforms at the FOUNDATION boundary:** the selected branch retains the exact
-approved v5 spec/mockup blobs (`0f1575ff...` / `fdd399af...`), including
+**Conforms at the FOUNDATION boundary:** the branch retains the approved
+v5 contract and interactive mockup (source reference blobs `0f1575ff...` /
+`fdd399af...`). A subsequent documentation-only change adjusted the spec's
+stale opening status to acknowledge the present foundational code; the v5
+product rules are unchanged, including
 source-owned read-only received hierarchy, virtual device root links, recursive
 coverage, local-only All Bookmarks, local arrival +N and per-Group/portable-Post
 read semantics, and confirmed Unsubscribe/Forget/Copy rules. Current pure source
