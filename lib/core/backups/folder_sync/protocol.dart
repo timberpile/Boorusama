@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:cryptography/cryptography.dart' as signing;
+import 'package:flutter/foundation.dart' show immutable;
 import 'package:uuid/uuid.dart';
 
 import 'limits.dart';
@@ -70,6 +71,7 @@ int syncPositiveInteger(Object? value, {int maximum = folderSyncMaxSequence}) {
 
 bool isSyncDigest(String value) => RegExp(r'^[a-f0-9]{64}$').hasMatch(value);
 
+@immutable
 final class SyncCollectionId {
   SyncCollectionId({
     required String publisher,
@@ -103,7 +105,9 @@ final class SyncCollectionId {
   @override
   bool operator ==(Object other) =>
       other is SyncCollectionId &&
-      other.publisher == publisher && other.kind == kind && other.source == source;
+      other.publisher == publisher &&
+      other.kind == kind &&
+      other.source == source;
   @override
   int get hashCode => Object.hash(publisher, kind, source);
 }
@@ -181,7 +185,11 @@ final class SyncSigningIdentity {
 bool _keyBytes(List<int> bytes) =>
     bytes.length == 32 && bytes.every((byte) => byte >= 0 && byte <= 255);
 
-Future<Map<String, dynamic>> verifySyncDocument(
+/// Authenticates bytes only. This does NOT establish protocol compatibility,
+/// publisher approval, identity binding, freshness, or permission to mutate.
+/// Catalog gates use this boundary to persist an authenticated common header
+/// before rejecting a newer protocol they cannot interpret.
+Future<Map<String, dynamic>> verifySyncSignature(
   List<int> bytes,
   List<int> publicKey,
 ) async {
@@ -190,7 +198,8 @@ Future<Map<String, dynamic>> verifySyncDocument(
   final content = envelope['content'];
   final rawSignature = envelope['signature'];
   if (!_keyBytes(key) ||
-      content is! Map<String, dynamic> || rawSignature is! String) {
+      content is! Map<String, dynamic> ||
+      rawSignature is! String) {
     throw const FormatException('Invalid signed sync document');
   }
   final signatureBytes = base64Decode(rawSignature);
@@ -204,7 +213,15 @@ Future<Map<String, dynamic>> verifySyncDocument(
       )) {
     throw const FormatException('Sync signature verification failed');
   }
-  if (content['protocol'] != folderSyncProtocol) {
+  return content;
+}
+
+Future<Map<String, dynamic>> verifySyncDocument(
+  List<int> bytes,
+  List<int> publicKey,
+) async {
+  final content = await verifySyncSignature(bytes, publicKey);
+  if (syncPositiveInteger(content['protocol']) != folderSyncProtocol) {
     throw const SyncUpdateRequired();
   }
   return content;

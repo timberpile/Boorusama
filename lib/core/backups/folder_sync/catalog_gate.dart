@@ -14,7 +14,7 @@ final class VerifiedSyncCatalog {
     required this.sequence,
     required this.digest,
     required Map<String, dynamic> content,
-  }) : content = _freeze(content) as Map<String, dynamic>;
+  }) : content = _freeze(content)! as Map<String, dynamic>;
 
   final String publisher;
   final String fingerprint;
@@ -25,8 +25,9 @@ final class VerifiedSyncCatalog {
 
 /// Uses the existing app-local store and the SAME mutation coordinator as the
 /// importing service. No discovery path creates trust. A checkpoint records the
-/// highest verified catalog observed, not the last successfully applied payload.
-/// Missing payloads therefore retry the same catalog, never an older catalog.
+/// highest authenticated catalog observed, not the last successfully applied
+/// payload. An unsupported protocol or invalid version-specific body still
+/// blocks older catalogs once its signed common identity/sequence is verified.
 final class SyncCatalogGate {
   const SyncCatalogGate({required this.store, required this.mutations});
   final MiscDataStore store;
@@ -56,7 +57,7 @@ final class SyncCatalogGate {
         captured.any((byte) => byte < 0 || byte > 255)) {
       throw const FormatException('Invalid publisher key');
     }
-    return mutations.runExclusive(() async {
+    await mutations.runExclusive(() async {
       final prior = _read(id);
       final key = base64Encode(captured);
       if (prior != null) {
@@ -82,32 +83,27 @@ final class SyncCatalogGate {
       throw const FormatException('Sync metadata exceeds byte limit');
     }
     final captured = Uint8List.fromList(bytes);
-    return mutations.runExclusive(() async {
+    return await mutations.runExclusive(() async {
       final trust = _read(id);
       if (trust == null) throw const SyncTrustRequired();
       final key = base64Decode(trust.publicKey);
-      final content = await verifySyncDocument(captured, key);
+      final content = await verifySyncSignature(captured, key);
+      // These common fields can be authenticated even when the body requires a
+      // future reader. Filename/publisher mismatches never gain a checkpoint.
+      final protocol = syncPositiveInteger(content['protocol']);
       final sequence = syncPositiveInteger(content['sequence']);
-      final collections = content['collections'];
-      final name = content['deviceName'];
-      if (content['publisher'] != id || sequence != expectedSequence ||
-          collections is! List || collections.length > folderSyncMaxEntries ||
-          name is! String || name.trim().isEmpty || name.length > 160 ||
-          RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
-        throw const FormatException('Invalid signed sync catalog');
+      if (content['publisher'] != id || sequence != expectedSequence) {
+        throw const FormatException('Invalid signed sync catalog identity');
       }
       final digest = syncDigest(syncJsonBytes(content));
       if (sequence < trust.sequence ||
           (sequence == trust.sequence && digest != trust.digest)) {
         throw const SyncReplayRejected();
       }
-      final verified = VerifiedSyncCatalog._(
-        publisher: id, fingerprint: syncDigest(key), sequence: sequence,
-        digest: digest, content: content,
-      );
       if (sequence > trust.sequence) {
-        // Persist before returning evidence to a consumer that might delete.
-        // Storage failure grants no authority; no optimistic in-memory mark.
+        // Persist OBSERVED, not APPLIED, before compatibility/body checks. A
+        // missing package, future protocol or invalid body must not allow an
+        // old signed withdrawal (or an already prepared old import) to return.
         await store.put(_key(id), jsonEncode(_Trust(
           publisher: id,
           publicKey: trust.publicKey,
@@ -115,7 +111,18 @@ final class SyncCatalogGate {
           digest: digest,
         ).toJson()));
       }
-      return verified;
+      if (protocol != folderSyncProtocol) throw const SyncUpdateRequired();
+      final collections = content['collections'];
+      final name = content['deviceName'];
+      if (collections is! List || collections.length > folderSyncMaxEntries ||
+          name is! String || name.trim().isEmpty || name.length > 160 ||
+          RegExp(r'[\x00-\x1f\x7f]').hasMatch(name)) {
+        throw const FormatException('Invalid signed sync catalog');
+      }
+      return VerifiedSyncCatalog._(
+        publisher: id, fingerprint: syncDigest(key), sequence: sequence,
+        digest: digest, content: content,
+      );
     });
   }
 
@@ -133,7 +140,7 @@ final class SyncCatalogGate {
         syncDigest(base64Decode(trust.publicKey)) != catalog.fingerprint) {
       throw const SyncReplayRejected();
     }
-    return commit();
+    return await commit();
   });
 }
 
