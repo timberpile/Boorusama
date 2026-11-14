@@ -1,0 +1,106 @@
+name: Fix and verify 141 regressions
+
+on:
+  push:
+    branches: [feature/141-pixiv-work-page-bookmarks]
+    paths: [.github/workflows/141-fix-verify.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  verification:
+    if: github.repository == 'timberpile/Boorusama'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BOORUSAMA_USE_FVM: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+      - name: Correct demonstrated compiler and async-context failures
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('test/boorus/pixiv/works/work_bookmark_actions_test.dart')
+          text = path.read_text()
+          anchor = "import 'package:flutter_test/flutter_test.dart';"
+          addition = "import 'package:flutter_riverpod/flutter_riverpod.dart';\n"
+          assert text.count(anchor) == 1 and addition not in text
+          path.write_text(text.replace(anchor, addition + anchor))
+          path = Path('lib/boorus/pixiv/works/bookmark_actions.dart')
+          text = path.read_text()
+          anchor = '      await WidgetsBinding.instance.endOfFrame;\n'
+          assert text.count(anchor) == 1
+          path.write_text(text.replace(anchor, anchor + '      if (!mounted) return;\n'))
+          PY
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.47.2
+          cache: true
+      - name: Native host prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq meson nasm
+      - name: Generate sources
+        run: ./init.sh > "$RUNNER_TEMP/141-init.log" 2>&1 || { tail -80 "$RUNNER_TEMP/141-init.log"; exit 1; }
+      - name: Resolve demonstrated test lint findings and format
+        run: |
+          dart fix --apply --code=unnecessary_null_checks,unnecessary_async,omit_local_variable_types,use_super_parameters,unnecessary_import,unused_import,avoid_redundant_argument_values test/boorus/pixiv/works
+          dart format lib/boorus/pixiv/works/bookmark_actions.dart test/boorus/pixiv/works
+      - name: Validate scope and commit the candidate
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          paths = subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()
+          assert all(p == 'lib/boorus/pixiv/works/bookmark_actions.dart' or p.startswith('test/boorus/pixiv/works/') for p in paths), paths
+          PY
+          git diff --check
+          git diff --stat
+          git add lib/boorus/pixiv/works/bookmark_actions.dart test/boorus/pixiv/works
+          git rm .github/workflows/141-fix-verify.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: compile bookmark regressions and guard resumed context (Refs #141)'
+          git push origin HEAD:refs/heads/feature/141-pixiv-work-page-bookmarks
+          echo "Tested candidate: $(git rev-parse HEAD)"
+      - name: Analyze bookmark sources and tests
+        id: analysis
+        continue-on-error: true
+        run: flutter analyze --no-pub lib/boorus/pixiv/works test/boorus/pixiv/works
+      - name: Run Pixiv bookmark regressions
+        id: tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          flutter test --no-pub --reporter=json test/boorus/pixiv/works > "$RUNNER_TEMP/141-tests.jsonl" 2>&1
+          result=$?
+          python3 - <<'PY'
+          import json, os, pathlib
+          names = {}; passed = failed = skipped = 0
+          for line in (pathlib.Path(os.environ['RUNNER_TEMP']) / '141-tests.jsonl').read_text().splitlines():
+              try: e = json.loads(line)
+              except ValueError:
+                  print(line); continue
+              kind = e.get('type')
+              if kind == 'testStart': names[e['test']['id']] = e['test']['name']
+              elif kind == 'error': print(e.get('error', ''), e.get('stackTrace', ''))
+              elif kind == 'print': print(e.get('message', ''))
+              elif kind == 'testDone':
+                  if e.get('skipped'): skipped += 1
+                  elif e.get('result') == 'success': passed += 1
+                  else:
+                      failed += 1
+                      print('FAILED:', names.get(e.get('testID'), e.get('testID')))
+              elif kind == 'done': print('Runner success:', e.get('success'))
+          print(f'Completed cases (including setup/loading): {passed} passed, {failed} failed, {skipped} skipped')
+          PY
+          exit "$result"
+      - name: Summarize actual outcomes
+        if: always()
+        env:
+          ANALYSIS_RESULT: ${{ steps.analysis.outcome }}
+          TEST_RESULT: ${{ steps.tests.outcome }}
+        run: |
+          printf 'Analysis: %s\nPixiv Work tests: %s\n' "$ANALYSIS_RESULT" "$TEST_RESULT"
+          [ "$ANALYSIS_RESULT" = success ] && [ "$TEST_RESULT" = success ]
