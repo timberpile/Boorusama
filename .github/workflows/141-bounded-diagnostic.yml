@@ -49,12 +49,13 @@ jobs:
             "      await completed.future.timeout(const Duration(seconds: 30));": "      print('DIAGNOSTIC: await commit revision');\n",
           }
           for anchor, marker in markers.items():
-              assert text.count(anchor) == 1, anchor
-              text = text.replace(anchor, marker + anchor)
+              needle = '\n' + anchor + '\n'
+              assert text.count(needle) == 1, anchor
+              text = text.replace(needle, '\n' + marker + anchor + '\n')
           path.write_text(text)
           PY
       - name: Run only the first production path with bounded timeout
         run: |
-          timeout 240s flutter test --no-pub --timeout 45s --fail-fast --reporter=expanded \
+          timeout --kill-after=15s 240s flutter test --no-pub --timeout 45s --fail-fast --reporter=expanded \
             --plain-name 'production choice to durable picker, Page=false, narrow=false' \
             test/boorus/pixiv/works/work_bookmark_actions_test.dart
