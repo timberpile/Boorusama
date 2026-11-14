@@ -3,6 +3,38 @@
 Updated 2026-11-14. Issue #144 remains open/in-progress. No integration or closure
 is authorized by this handoff.
 
+## Owner-approved Following UX and current-source note (2026-11-14)
+
+**This section supersedes contradictory older handoff instructions.** The owner
+approved **fully source-owned, read-only Following Topics/folders/Feeds**, presented
+under **Local** followed by separate publisher-device sections with compact
+dividers (like received Bookmarks). Source controls names, queries, folder/member
+hierarchy, ordering and Feed definitions; receiver may not rename, move, edit,
+mix or republish any received definition. Guard writes at repository/service
+boundaries, not just menus. Only publisher-device aliases may be overridden
+locally. **Create Local Copy** creates independent editable Local definitions.
+
+Receiver owns compatible profile binding, automatic/manual Post refresh preferences,
+request scheduling/rate limits, cache/previews, NEW/read and checkpoints. Receiving
+new definitions must never reset these local controls; definition-change badges
+remain separate from Post NEW. Preserve the independent Following publication
+scope rules; do **not** assume Bookmark's always-recursive scope automatically
+applies to Following.
+
+Canonical [v5 specification](../designs/2026-11-03-folder-based-collection-sync.md)
+was updated for this approval (decision commit `da009882b9b485abbd8c6428f473bd0dd79b9b98`);
+[Issue decision](https://github.com/timberpile/Boorusama/issues/144#issuecomment-6877212547)
+records it. Previously approved folder relocation preserves state/trust and
+receiver-local auto-refresh remains in force. The #141 Pixiv implementation
+was integrated into `develop` under `1a3f74b` and issue #141 closed:
+**reconcile current develop**, not the old #141 feature branch.
+
+The foundation has grown since the historical checkpoint below (signed catalog,
+publication, package validation and receive preparation), but **full production
+sync/ownership/UI/SAF is still not established by these changes**. Treat old
+commit/workflow/CI notes below as historical until verified against the actual
+branch HEAD. Do not merge/close without owner approval.
+
 ## Status and starting point
 
 Continue `feature/144-folder-based-collection-sync`, preserving later work.
