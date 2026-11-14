@@ -38,13 +38,28 @@ BookmarkPickerRequest _workRequest(
 bool _isSinglePage(GroupBookmarkPresentationData data) =>
     (data.details?.summary.memberCount ?? data.summary.memberCount) == 1;
 
-BookmarkPickerRequest? _pageRequest(GroupBookmarkPresentationData data) {
+BookmarkPickerRequest? _pageRequest(
+  GroupBookmarkPresentationData data, {
+  bool statusOnly = false,
+}) {
   final page = data.page;
-  if (page == null || _isSinglePage(data)) return null;
+  if (page == null) return null;
   try {
     // A loaded Post is not sufficient: it must be an available real Page of
     // this Work and the captured actor, never a neighboring Work's fallback.
-    PixivPageBookmarkTarget(access: data.access, post: page);
+    if (statusOnly) {
+      final facts = page.pixivData;
+      if (facts == null ||
+          facts.illustId <= 0 ||
+          facts.pageIndex < 0 ||
+          page.origin.booruType != data.access.key.engine ||
+          page.origin.sourceHost != data.access.key.siteNamespace ||
+          page.origin.profileIdHint != data.access.key.profileId) {
+        return null;
+      }
+    } else {
+      PixivPageBookmarkTarget(access: data.access, post: page);
+    }
     if (data.summary.reference.sourceKey !=
         'work:${page.pixivData!.illustId}') {
       return null;
@@ -196,6 +211,14 @@ class _PixivWorkBookmarkButtonState
     final groups = _memberships(library.valueOrNull, owner);
     final enabled = !library.isLoading && _isCurrent(data, owner);
     final alternatives = !_isSinglePage(data);
+    final page = _pageRequest(data, statusOnly: true);
+    final pageSaved =
+        page != null && _memberships(library.valueOrNull, page).isNotEmpty;
+    final status =
+        '${context.t.content_viewer.bookmark_work}: '
+        '${groups.isNotEmpty ? context.t.content_viewer.bookmark_saved : context.t.content_viewer.bookmark_unsaved}; '
+        '${context.t.content_viewer.bookmark_page}: '
+        '${pageSaved ? context.t.content_viewer.bookmark_saved : context.t.content_viewer.bookmark_unsaved}';
     return BookmarkGroupPickerAnchor(
       request: owner,
       requestBuilder: () => _workRequest(
@@ -221,14 +244,34 @@ class _PixivWorkBookmarkButtonState
               : null,
           icon: Semantics(
             selected: groups.isNotEmpty,
-            value: groups.length > 1 ? '${groups.length}' : null,
+            value: status,
             child: Badge(
               isLabelVisible: groups.length > 1,
               label: Text('${groups.length}'),
-              child: Icon(
-                Symbols.bookmark,
-                fill: groups.isNotEmpty ? 1 : 0,
-                color: groups.isNotEmpty ? context.colors.upvoteColor : null,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    Symbols.bookmark,
+                    fill: groups.isNotEmpty ? 1 : 0,
+                    color: groups.isNotEmpty
+                        ? context.colors.upvoteColor
+                        : null,
+                  ),
+                  if (pageSaved)
+                    PositionedDirectional(
+                      end: -2,
+                      bottom: -2,
+                      child: ExcludeSemantics(
+                        child: Icon(
+                          Icons.insert_drive_file,
+                          key: const ValueKey('pixiv-bookmark-page-marker'),
+                          size: 12,
+                          color: context.colors.upvoteColor,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

@@ -5,6 +5,8 @@ import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
 import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
 import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_name_dialog.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_group_repository.dart';
@@ -87,16 +89,28 @@ Future<void> commitBookmarkInteraction(
     }
   });
   try {
-    // Hive uses real I/O. Wait for the production notifier's commit signal,
-    // not a host-speed sleep; the timeout is only a bounded hang guard.
-    await tester.runAsync(() async {
-      await action();
-      await completed.future.timeout(const Duration(seconds: 30));
-    });
+    // Hive needs real I/O turns and Riverpod needs the widget binding's
+    // microtasks/frames. A runAsync-only revision wait starves that binding.
+    // The stopwatch is a hang guard, never a performance assertion.
+    await tester.runAsync(action);
+    final guard = Stopwatch()..start();
+    while (!completed.isCompleted ||
+        find.byType(BookmarkGroupPicker).evaluate().isNotEmpty ||
+        find.byType(BookmarkGroupNameDialog).evaluate().isNotEmpty) {
+      if (guard.elapsed > const Duration(seconds: 30)) {
+        throw TimeoutException('Bookmark commit did not publish');
+      }
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await completed.future;
   } finally {
     listener.close();
   }
+  await tester.pumpAndSettle();
   dismissAllToast();
+  // Advance the controlled toast clock, including a toast mounted this frame.
+  await tester.pump(const Duration(seconds: 3));
   await tester.pumpAndSettle();
   expect(tester.takeException(), isNull);
 }
@@ -170,8 +184,8 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
         postLinkGeneratorProvider.overrideWith(
           (ref, config) => const NoLinkPostLinkGenerator(),
         ),
-        bookmarkRepoProvider.overrideWith((ref) async => repository),
-        bookmarkGroupRepoProvider.overrideWith((ref) async => groups),
+        bookmarkRepoProvider.overrideWith((ref) => Future.value(repository)),
+        bookmarkGroupRepoProvider.overrideWith((ref) => Future.value(groups)),
         bookmarkUrlResolverProvider.overrideWith(
           (ref, id) => const DefaultImageUrlResolver(),
         ),
@@ -189,7 +203,7 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
           final value = ref.watch(current);
           return config != null && value?.key == key ? value : null;
         }),
-        recentBookmarkGroupsProvider.overrideWith((ref) async => []),
+        recentBookmarkGroupsProvider.overrideWith((ref) => Future.value([])),
         currentDestinationRouteObserverProvider.overrideWithValue(observer),
         booruGroupCapabilityProvider.overrideWith(
           (ref, engine) => createPixivGroupCapability(ref),

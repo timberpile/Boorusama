@@ -6,9 +6,8 @@ integration approval.
 ## Start here
 
 Continue `feature/141-pixiv-work-page-bookmarks`, preserving later branch work.
-Runtime/test candidate: `64da57f27aac84312d1053dd134ea8acbbab75d8`.
-The subsequent diagnosis and handoff commits change documentation or remove
-temporary CI workflows, not application behavior. Read the
+Observed review HEAD: `52ce918c4222458eb6bc3bcc0c5107eb8db4be4b` (2026-11-14 UTC).
+The most recent verified source-level runtime change is `64da57f27aac84312d1053dd134ea8acbbab75d8`; later commits add a **still-present temporary diagnostic CI workflow** and other verification/docs work, not accepted app behavior. Recheck the branch head and exact runtime diff before local work. Read the
 [root-cause and UX comparison](../designs/2026-11-13-pixiv-bookmark-regressions.md).
 
 **Status: corrective candidate, not locally accepted.** Hosted verification is
@@ -33,10 +32,19 @@ independent persisted membership state/count. Main-button fill remains Work-only
 Duplicate Work/Page overflow entries are removed; unrelated actions remain.
 
 `KurumiActionIconButton` and `KurumiDropdownIcon` are shared by Bookmark and
-Download. Commit `937ab4b3bc7b3edec2a7dc783bf4520f982e1e48` corrects the Material 2
-composite icon slot: reserve the main glyph plus 16 dp chevron, while retaining
-an explicit 20/24 dp main glyph and at least 48 x 48 dp target. Tap and hold stay
-separate; disabling also disables hold. Menu opening does not select the icon.
+Download. Commit `937ab4b3bc7b3edec2a7dc783bf4520f982e1e48` attempted a Material 2
+layout correction by reserving the main 20/24 dp glyph **plus** 16 dp chevron
+in a `Row`. **This implementation conflicts with the owner's subsequently
+approved UI contract and is not an accepted final fix:** the chevron must be
+centered vertically at the **right** as an overlay/composite within the
+**unchanged button footprint**, with no increase in requested width. The normal
+button's ripple/interaction center stays optically between the two glyphs,
+matching Download behavior, and the chevron remains visible while the menu is
+open. Download and Bookmark must use one reusable Kurumi control; normal tap
+still executes the primary action and hold opens alternatives. Confirm a genuine
+48x48 dp usable hit target without 8 px right overflow at 20/24 dp, compact
+layouts, Material 2/3 and RTL. Do not solve it by clipping or shrinking the
+chevron away.
 
 The approved labels are applied in `e7354dfc77e24e4ba25a55c34098abd439003bb8`:
 Entire Work / Current Page; Gesamtes Werk / Aktuelle Seite. The old patch is
@@ -57,19 +65,54 @@ not imply Work membership, even for a one-Page Work. Pixiv Favorites are separat
   on `53ad491...` failed compilation because `requireValue`'s extension was not
   imported. It also exposed async-context and test lint findings. These are the
   demonstrated defects addressed by `64da57...`.
-- [Current verification 43572469576](https://github.com/timberpile/Boorusama/actions/runs/43572469576),
-  job `132379609968`, was triggered by `a5ccf30...` but explicitly commits and tests
-  `64da57f27aac84312d1053dd134ea8acbbab75d8`. It runs analysis of the Pixiv Work
-  sources/tests and the complete `test/boorus/pixiv/works` directory. At this
-  handoff checkpoint the test step is still running; **no passing result is
-  claimed**. Read the final outcome/log, not a continue-on-error step conclusion.
+- [Completed run 43572469576](https://github.com/timberpile/Boorusama/actions/runs/43572469576),
+  job `132379609968`, tested bot commit `64da57f27aac84312d1053dd134ea8acbbab75d8`
+  and **FAILED**. Its detailed log reports **73 passed / 14 failed** Pixiv Work
+  test cases, each of the inspected failures being a **30-second
+  `TimeoutException`** in `commitBookmarkInteraction()` while waiting for a
+  `bookmarkProvider` revision after a destination-row tap. Analysis also
+  reported remaining `unnecessary_async` infos. The workflow's
+  `continue-on-error` step conclusion is **not** a pass; the final job failed.
+  This run is not a conclusive production storage bug or a qualified final pass.
 - Earlier broad-run summaries did not match the source-fingerprinted fixture;
   do not use them as current acceptance evidence. The fixture already places
   real Hive setup and mutation waits in `tester.runAsync`; an attempted edit
   stopped at its exact-source assertion and made no fixture change.
 - No local build, device test, live Pixiv reproduction or independent review was
-  performed by this remote session. Historical `8203d21...` counts do not qualify
-  these changes. Temporary verification workflows are removed from the branch.
+  performed by the remote session. Historical `8203d21...` counts do not qualify
+  these changes. **`.github/workflows/141-bounded-diagnostic.yml` currently
+  remains on this branch** (`52ce918...`) and should be evaluated/removed after
+  the underlying failure is diagnosed. It instruments a temporary test fixture
+  at CI runtime, not a production fix; keep any meaningful final regression test.
+
+## Review findings to resolve BEFORE owner acceptance (2026-11-14)
+
+1. **P0: timeout diagnosis with definitive evidence.** The current
+   `work_bookmark_widget_fixture.dart` calls `tester.tap` from inside
+   `tester.runAsync` and then waits for the production notifier's revision
+   without pumping the test binding while the operation may still depend on
+   Flutter's frame/microtask machinery. This is a **plausible test deadlock**, not
+   a proven root cause. Keep production code unchanged until distinguished:
+   instrument the row callback, picker `_toggle`, `BookmarkPickerActions`,
+   notifier `toggleContentGroupTarget/togglePostTarget`, repository journal,
+   publish/revision and guard checks. Prefer a harness that executes the user
+   gesture in the normal widget-test zone, pumps frames while awaiting the
+   asynchronous real-I/O mutation, and verifies **both** durable Hive contents
+   and emitted revision. Exercise Work, Page, new Group and cancelled flows.
+   Capture the earliest blocked await and exact exception (if any); do not
+   merely lengthen timeouts or delete the failing tests.
+2. **P1: approved visual control not implemented.** Replace width-expanding
+   Kurumi `Row` with the agreed unchanged-footprint right-center chevron
+   overlay. Ensure Download and Bookmark both retain their behavior and the
+   correct ripple center; use production-toolbar geometry tests and device
+   capture rather than only a standalone icon test. Add the four-state
+   Work/body + current-Page-marker indicator to the main Bookmark button.
+3. **P1: gate any final sign-off on fresh evidence.** Source-only lifecycle
+   guard and menu removal are credible and implemented, but no valid passing
+   candidate-wide bookmark test result or live Pixiv Android evidence exists.
+   Re-run analysis, focused tests, complete repository regression and device
+   scenarios on the **exact final runtime** after fixes. Compare the checked
+   candidate to the carried #144 source before P9 integration.
 
 ## Local completion and acceptance
 
@@ -102,11 +145,37 @@ Exercise the following device cases without changing identity/persistence policy
 
 ## Product boundary and completion record
 
-Simultaneous Work/Page toolbar status remains a product choice, not part of the
-corrective redesign approval. The design note compares two explicit actions
-(recommended for clarity), a split surface and a combined badge. Retain the
-Work-primary/held-chooser behavior until the owner decides; do not introduce an
-ambiguous four-state badge or silently change direct tap to Page.
+**The owner has already decided the final main-icon semantics; these are no
+longer an open UI choice.** Keep the one Work-primary / long-press chooser
+button (a confirmed single-Page Work has no chooser), and use a **Page-only
+marker** with the existing Bookmark body:
+
+| Saved state | Bookmark body | Page marker |
+| --- | --- | --- |
+| Neither | Outlined | Absent |
+| Entire Work only | Filled | Absent |
+| Current Page only | Outlined | Present |
+| Both | Filled | Present |
+
+Compute Work and current Page status separately from canonical saved identities,
+not the open menu, pressed/ripple state, adjacent Work, remote Pixiv Favorite,
+or previous Page. The Page marker should be a small legible Material page/file
+glyph (no new SVG required initially), with a separate persistent right-center
+chevron affordance. In chooser rows, **Entire Work** and **Current Page** both
+use the standard Bookmark glyph, each independently filled by its own saved
+membership. Accessible value/tooltip must convey both statuses; test Page
+changes, legacy Page-only saves, work-menu open/close and single-Page Works.
+Main icon's Page marker and overlay chevron are **not implemented** in reviewed
+source `bookmark_actions.dart` / `action_icon_button.dart` at `52ce918...`.
+Do not claim this design is accepted in code until implemented and verified.
+
+**Page -> parent Work navigation is also requested** for saved Pixiv Page
+Bookmarks. `PixivPostData.illustId` and `pageIndex` already preserve the genuine
+source identity, enabling a same-site/profile `group/work:<illustId>` reference
+without manufacturing or requiring a saved parent Work. There is no verified
+UI parent-link implementation in the reviewed candidate. Implement or explicitly
+coordinate its acceptance scope with the owner; keep it distinct from generic
+Danbooru Pool membership lookup, and fail safely if the source profile is gone.
 
 Update this handoff and #141 with the final tested runtime, actual host/device
 results, any additional fixes and remaining decisions. Final local acceptance

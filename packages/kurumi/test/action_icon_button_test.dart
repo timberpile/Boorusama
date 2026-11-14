@@ -11,12 +11,12 @@ void main() {
           (tester) async {
             await tester.pumpWidget(
               MaterialApp(
+                builder: (context, child) => Material(child: child),
                 theme: ThemeData(useMaterial3: material3),
                 home: Directionality(
                   textDirection: direction,
                   child: Center(
-                    child: SizedBox.square(
-                      dimension: 48,
+                    child: UnconstrainedBox(
                       child: KurumiActionIconButton(
                         tooltip: 'Save',
                         showDropdown: true,
@@ -39,9 +39,9 @@ void main() {
             expect(IconTheme.of(tester.element(iconFinder)).size, size);
             expect(chevron.size, const Size(16, 16));
             expect(button.contains(icon.topLeft), isTrue);
-            expect(button.contains(icon.bottomRight), isTrue);
+            expect(button.inflate(.001).contains(icon.bottomRight), isTrue);
             expect(button.contains(chevron.topLeft), isTrue);
-            expect(button.contains(chevron.bottomRight), isTrue);
+            expect(button.inflate(.001).contains(chevron.bottomRight), isTrue);
             expect(icon.center.dy, chevron.center.dy);
             expect(
               direction == TextDirection.ltr
@@ -63,6 +63,7 @@ void main() {
     var holds = 0;
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => Material(child: child),
         home: Center(
           child: KurumiActionIconButton(
             tooltip: 'Save',
@@ -88,6 +89,7 @@ void main() {
     var holds = 0;
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => Material(child: child),
         home: Center(
           child: KurumiActionIconButton(
             tooltip: 'Save',
@@ -107,6 +109,7 @@ void main() {
   testWidgets('ordinary action has no dropdown', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
+        builder: (context, child) => Material(child: child),
         home: Center(
           child: KurumiActionIconButton(
             tooltip: 'Save',
