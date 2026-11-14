@@ -1,0 +1,46 @@
+name: Reconcile 141 into 144 once
+
+on:
+  push:
+    branches: [feature/144-folder-based-collection-sync]
+    paths: [.github/workflows/144-reconcile-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.repository == 'timberpile/Boorusama' && github.ref == 'refs/heads/feature/144-folder-based-collection-sync'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Merge only the pinned feature dependency and verify preservation
+        env:
+          BOOKMARK_HEAD: 2fcd7a42de21d68b9ab4a049f940c52cbf2afe29
+        run: |
+          set -euo pipefail
+          before="$(git rev-parse HEAD)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git cat-file -e "$BOOKMARK_HEAD^{commit}"
+          git merge --no-ff "$BOOKMARK_HEAD" -m 'chore: reconcile Pixiv bookmark corrective dependency (Refs #144)'
+          git merge-base --is-ancestor "$before" HEAD
+          git merge-base --is-ancestor "$BOOKMARK_HEAD" HEAD
+          git diff --exit-code "$before" HEAD -- \
+            lib/core/backups/folder_sync test/core/backups/folder_sync \
+            pubspec.yaml pubspec.lock \
+            docs/designs/2026-11-03-folder-based-collection-sync.md \
+            docs/designs/mockups/2026-11-03-folder-sync.html
+          test "$(git rev-parse HEAD:docs/designs/2026-11-03-folder-based-collection-sync.md)" = 0f1575ffcf84e0693c233bad53d7837c6af78c1c
+          test "$(git rev-parse HEAD:docs/designs/mockups/2026-11-03-folder-sync.html)" = fdd399aff10162a26c55da441aadabffbb42b357
+          echo "Dependency merge: $(git rev-parse HEAD)"
+          git rm .github/workflows/144-reconcile-once.yml
+          git commit -m 'chore: remove completed feature reconciliation workflow (Refs #144)'
+          git diff --check "$before" HEAD
+          git push origin HEAD:refs/heads/feature/144-folder-based-collection-sync
+          echo "Final reconciliation head: $(git rev-parse HEAD)"
+          echo 'Both histories and exact v5 blobs preserved. No develop ref updated. This is not runtime acceptance.'
