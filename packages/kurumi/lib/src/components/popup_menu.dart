@@ -18,6 +18,7 @@ class KurumiPopupMenuButton extends StatefulWidget {
     this.iconPadding = const EdgeInsets.all(6),
     this.child,
     this.enabled = true,
+    this.focusNode,
   });
 
   final List<Widget> items;
@@ -29,6 +30,7 @@ class KurumiPopupMenuButton extends StatefulWidget {
   final EdgeInsetsGeometry iconPadding;
   final Widget? child;
   final bool enabled;
+  final FocusNode? focusNode;
 
   @override
   State<KurumiPopupMenuButton> createState() => _KurumiPopupMenuButtonState();
@@ -59,6 +61,7 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
           color: widget.iconBackgroundColor ?? Colors.transparent,
           shape: const CircleBorder(),
           child: InkWell(
+            focusNode: widget.focusNode,
             customBorder: const CircleBorder(),
             onTap: widget.enabled ? toggleMenu : null,
             child: Padding(
@@ -99,6 +102,7 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
             ? Material(
                 color: Colors.transparent,
                 child: InkWell(
+                  focusNode: widget.focusNode,
                   onTap: widget.enabled ? toggleMenu : null,
                   child: IgnorePointer(child: button),
                 ),

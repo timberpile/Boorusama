@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -18,7 +19,7 @@ import 'bookmark_native_group_card.dart';
 import '../types/content_group_bookmark.dart';
 
 /// A locally saved Group with its own direct Bookmark members.
-final class BookmarkLocalGroupCard extends StatelessWidget {
+final class BookmarkLocalGroupCard extends StatefulWidget {
   const BookmarkLocalGroupCard({
     required this.title,
     required this.previews,
@@ -57,7 +58,38 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
   final VoidCallback? onDelete;
 
   @override
+  State<BookmarkLocalGroupCard> createState() => _BookmarkLocalGroupCardState();
+}
+
+class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
+  final _cardFocus = FocusNode();
+  final _menuFocus = FocusNode();
+  @override
+  void dispose() {
+    _cardFocus.dispose();
+    _menuFocus.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final BookmarkLocalGroupCard(
+      :title,
+      :previews,
+      :onTap,
+      :onRename,
+      :onDuplicate,
+      :onDelete,
+      :pools,
+      :nativeGroups,
+      :selected,
+      :onSelect,
+      :onMove,
+      :syncActions,
+      :syncIndicator,
+      :arrivals,
+      :hasUnseenChange,
+    ) = widget;
     final borderRadius = BorderRadius.circular(12);
     final hasActions =
         onMove != null ||
@@ -65,149 +97,177 @@ final class BookmarkLocalGroupCard extends StatelessWidget {
         onDuplicate != null ||
         onDelete != null ||
         syncActions.isNotEmpty;
-    return Semantics(
-      enabled: onTap != null,
-      child: Opacity(
-        opacity: onTap == null ? .38 : 1,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: Kurumi.themeOf(context).colorScheme.outlineVariant,
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent || !hasActions) {
+          return KeyEventResult.ignored;
+        }
+        // The small menu sits inside the card's larger focus rectangle, so
+        // geometric arrow traversal cannot reliably enter it on its own.
+        if (_cardFocus.hasPrimaryFocus &&
+            event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          _menuFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        if (_menuFocus.hasPrimaryFocus &&
+            event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          _cardFocus.requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Semantics(
+        enabled: onTap != null,
+        child: Opacity(
+          opacity: onTap == null ? .38 : 1,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Kurumi.themeOf(context).colorScheme.outlineVariant,
+              ),
+              borderRadius: borderRadius,
             ),
-            borderRadius: borderRadius,
-          ),
-          child: ClipRRect(
-            borderRadius: borderRadius,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                onLongPress: onSelect,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: BookmarkGroupPreviewGrid(
-                        previews: previews,
-                        additionalPreviews: [
-                          for (final group in nativeGroups)
-                            BookmarkNativeGroupCover(bookmark: group),
-                          for (final pool in pools)
-                            BookmarkPoolCoverImage(pool: pool),
-                        ],
-                        itemBuilder: (_, bookmark) =>
-                            _BookmarkGroupPreviewImage(bookmark: bookmark),
+            child: ClipRRect(
+              borderRadius: borderRadius,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  focusNode: _cardFocus,
+                  onTap: onTap,
+                  onLongPress: onSelect,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: BookmarkGroupPreviewGrid(
+                          previews: previews,
+                          additionalPreviews: [
+                            for (final group in nativeGroups)
+                              BookmarkNativeGroupCover(bookmark: group),
+                            for (final pool in pools)
+                              BookmarkPoolCoverImage(pool: pool),
+                          ],
+                          itemBuilder: (_, bookmark) =>
+                              _BookmarkGroupPreviewImage(bookmark: bookmark),
+                        ),
                       ),
-                    ),
-                    const Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Color(0x99000000),
-                              Color(0x66000000),
+                      const Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0x99000000),
+                                Color(0x66000000),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        right: hasActions ? 52 : 8,
+                        bottom: selected ? 40 : 8,
+                        child: IgnorePointer(
+                          child: DefaultTextStyle(
+                            style: Kurumi.themeOf(context)
+                                .textTheme
+                                .titleMedium!
+                                .copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: const [Shadow(blurRadius: 4)],
+                                ),
+                            child: KurumiFittedText(
+                              Text(title),
+                              alignment: AlignmentDirectional.topStart,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (syncIndicator != null)
+                        Positioned(bottom: 8, left: 8, child: syncIndicator),
+                      if (!selected && (arrivals > 0 || hasUnseenChange))
+                        Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Kurumi.themeOf(context)
+                                  .colorScheme
+                                  .primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              child: Text(
+                                arrivals > 0 ? '+$arrivals' : '•',
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (selected)
+                        const Positioned(
+                          bottom: 8,
+                          right: 8,
+                          child: Icon(
+                            Icons.check_circle,
+                            color: Colors.white,
+                          ),
+                        ),
+                      if (hasActions)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: KurumiPopupMenuButton(
+                            focusNode: _menuFocus,
+                            semanticLabel: context.t.generic.action.more,
+                            icon: const Icon(
+                              Icons.more_vert,
+                              color: Colors.white,
+                            ),
+                            items: [
+                              ...syncActions,
+                              if (onMove != null)
+                                KurumiPopupMenuItem(
+                                  title: Text(context.t.folders.move),
+                                  icon: const Icon(
+                                    Icons.drive_file_move_outline,
+                                  ),
+                                  onTap: onMove,
+                                ),
+                              if (onRename != null)
+                                KurumiPopupMenuItem(
+                                  title: Text(context.t.bookmark.groups.rename),
+                                  icon: const Icon(Icons.edit_outlined),
+                                  onTap: onRename,
+                                ),
+                              if (onDuplicate != null)
+                                KurumiPopupMenuItem(
+                                  title: Text(
+                                    context.t.bookmark.groups.duplicate,
+                                  ),
+                                  icon: const Icon(Icons.copy),
+                                  onTap: onDuplicate,
+                                ),
+                              if (onDelete != null)
+                                KurumiPopupMenuItem(
+                                  title: Text(context.t.bookmark.groups.delete),
+                                  icon: const Icon(Icons.delete_outline),
+                                  onTap: onDelete,
+                                ),
                             ],
                           ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      right: hasActions ? 52 : 8,
-                      bottom: selected ? 40 : 8,
-                      child: IgnorePointer(
-                        child: DefaultTextStyle(
-                          style: Kurumi.themeOf(context).textTheme.titleMedium!
-                              .copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                shadows: const [Shadow(blurRadius: 4)],
-                              ),
-                          child: KurumiFittedText(
-                            Text(title),
-                            alignment: AlignmentDirectional.topStart,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (syncIndicator != null)
-                      Positioned(bottom: 8, left: 8, child: syncIndicator!),
-                    if (!selected && (arrivals > 0 || hasUnseenChange))
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Kurumi.themeOf(context).colorScheme.primary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            child: Text(
-                              arrivals > 0 ? '+$arrivals' : '•',
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ),
-                    if (selected)
-                      const Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Icon(
-                          Icons.check_circle,
-                          color: Colors.white,
-                        ),
-                      ),
-                    if (hasActions)
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: KurumiPopupMenuButton(
-                          semanticLabel: context.t.generic.action.more,
-                          icon: const Icon(
-                            Icons.more_vert,
-                            color: Colors.white,
-                          ),
-                          items: [
-                            ...syncActions,
-                            if (onMove != null)
-                              KurumiPopupMenuItem(
-                                title: Text(context.t.folders.move),
-                                icon: const Icon(
-                                  Icons.drive_file_move_outline,
-                                ),
-                                onTap: onMove,
-                              ),
-                            if (onRename != null)
-                              KurumiPopupMenuItem(
-                                title: Text(context.t.bookmark.groups.rename),
-                                icon: const Icon(Icons.edit_outlined),
-                                onTap: onRename,
-                              ),
-                            if (onDuplicate != null)
-                              KurumiPopupMenuItem(
-                                title: Text(
-                                  context.t.bookmark.groups.duplicate,
-                                ),
-                                icon: const Icon(Icons.copy),
-                                onTap: onDuplicate,
-                              ),
-                            if (onDelete != null)
-                              KurumiPopupMenuItem(
-                                title: Text(context.t.bookmark.groups.delete),
-                                icon: const Icon(Icons.delete_outline),
-                                onTap: onDelete,
-                              ),
-                          ],
-                        ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

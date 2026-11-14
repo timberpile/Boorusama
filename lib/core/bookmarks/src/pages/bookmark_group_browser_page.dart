@@ -624,6 +624,7 @@ class _BookmarkGroupBrowserPageState
                 !group.isDefault &&
                 !state.mirrors.isReceived(group.id);
             final card = BookmarkLocalGroupCard(
+              key: ValueKey(('bookmark-card', group?.id ?? 'all')),
               title: title,
               syncActions: group == null || _selection.isActive
                   ? const []
