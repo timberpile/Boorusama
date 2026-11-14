@@ -173,12 +173,12 @@ void main() {
                 of: downloadButton,
                 matching: find.byWidgetPredicate(
                   (widget) =>
-                      widget is material_ui.IconButton &&
+                      widget is KurumiActionIconButton &&
                       widget.onLongPress != null,
                 ),
               )
               .first;
-          tester.widget<material_ui.IconButton>(control).onLongPress!.call();
+          await tester.longPress(control);
           await harness.pumpUntilFound(
             tester,
             find.byType(KurumiPopupMenuItem),

@@ -2973,6 +2973,9 @@
     "choose_date": "Choose Date"
   },
   "content_viewer": {
+    "bookmark_saved": "Saved",
+    "bookmark_unsaved": "Not saved",
+    "parent_work": "Open parent Work",
     "bookmark_work": "Entire Work",
     "bookmark_page": "Current Page",
     "work": "Work",

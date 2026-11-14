@@ -83,8 +83,12 @@ void main() {
                 postLinkGeneratorProvider.overrideWith(
                   (ref, config) => const NoLinkPostLinkGenerator(),
                 ),
-                bookmarkRepoProvider.overrideWith((ref) async => repository),
-                bookmarkGroupRepoProvider.overrideWith((ref) async => groups),
+                bookmarkRepoProvider.overrideWith(
+                  (ref) => Future.value(repository),
+                ),
+                bookmarkGroupRepoProvider.overrideWith(
+                  (ref) => Future.value(groups),
+                ),
                 bookmarkUrlResolverProvider.overrideWith(
                   (ref, id) => const DefaultImageUrlResolver(),
                 ),
@@ -213,7 +217,7 @@ void main() {
 /// Pause after the real service has prepared IDs and organization, immediately
 /// before entering the production repository's durable commit path.
 class _GatedRepository extends BookmarkHiveRepository {
-  _GatedRepository(super.posts, BookmarkTestStorage storage)
+  _GatedRepository(super._posts, BookmarkTestStorage storage)
     : super(
         groupPayloadBox: storage.groupPayloadBox,
         metadataBox: storage.metadataBox,

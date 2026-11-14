@@ -118,6 +118,28 @@ void main() {
     );
   }
 
+  testWidgets(
+    'historical Page-only single Work keeps its marker without implying Work membership',
+    (tester) async {
+      final fixture = await mountWorkBookmarks(tester);
+      fixture.data.value = bookmarkData(fixture.access, page: 0);
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byTooltip('Entire Work'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Current Page'));
+      await tester.pumpAndSettle();
+      await saveBookmark(tester, fixture);
+      fixture.data.value = bookmarkData(fixture.access, pageCount: 1, page: 0);
+      await tester.pumpAndSettle();
+      expect(_mainIcon(tester).fill, 0);
+      expect(
+        find.byKey(const ValueKey('pixiv-bookmark-page-marker')),
+        findsOneWidget,
+      );
+      expect(find.byType(KurumiDropdownIcon), findsNothing);
+    },
+  );
+
   testWidgets('confirmed single Page has only the direct Work action', (
     tester,
   ) async {
@@ -196,6 +218,23 @@ void main() {
         }
         final before = _mainIcon(tester);
         expect(before.fill, workSaved ? 1 : 0);
+        expect(
+          find.byKey(const ValueKey('pixiv-bookmark-page-marker')),
+          pageSaved ? findsOneWidget : findsNothing,
+        );
+        fixture.data.value = bookmarkData(fixture.access, page: 0);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('pixiv-bookmark-page-marker')),
+          findsNothing,
+        );
+        expect(_mainIcon(tester).fill, workSaved ? 1 : 0);
+        fixture.data.value = bookmarkData(fixture.access);
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('pixiv-bookmark-page-marker')),
+          pageSaved ? findsOneWidget : findsNothing,
+        );
         await tester.longPress(find.byTooltip('Entire Work'));
         await tester.pumpAndSettle();
         expect(_mainIcon(tester).fill, before.fill);
@@ -276,7 +315,7 @@ void main() {
         await tester.pumpAndSettle();
       }
       expect(find.byType(BookmarkGroupPicker), findsNothing);
-      expect((await tester.runAsync(fixture.repository.readAll)), isEmpty);
+      expect(await tester.runAsync(fixture.repository.readAll), isEmpty);
       expect(tester.takeException(), isNull);
     });
   }
@@ -290,7 +329,7 @@ void main() {
     expect(find.byType(BookmarkGroupPicker), findsOneWidget);
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect((await tester.runAsync(fixture.repository.readAll)), isEmpty);
+    expect(await tester.runAsync(fixture.repository.readAll), isEmpty);
   });
 
   testWidgets('overflow has no duplicate Work or Page bookmark actions', (

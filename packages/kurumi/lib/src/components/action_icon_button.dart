@@ -25,10 +25,6 @@ class KurumiActionIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hold = onPressed == null ? null : onLongPress;
-    // Material 2 constrains the entire icon slot to an iconSize square. Reserve
-    // space for both glyphs; KurumiDropdownIcon keeps the main glyph at its
-    // requested size rather than inheriting this larger composite slot size.
-    final slotSize = showDropdown ? iconSize + _dropdownChevronSize : iconSize;
     return TooltipTheme(
       data: hold == null
           ? TooltipTheme.of(context)
@@ -44,7 +40,7 @@ class KurumiActionIconButton extends StatelessWidget {
           visualDensity: VisualDensity.standard,
           padding: const EdgeInsets.all(4),
           splashRadius: 24,
-          iconSize: slotSize,
+          iconSize: iconSize,
           icon: showDropdown
               ? KurumiDropdownIcon(icon: icon, iconSize: iconSize)
               : icon,
@@ -54,8 +50,8 @@ class KurumiActionIconButton extends StatelessWidget {
   }
 }
 
-/// Keeps both glyphs within layout bounds instead of painting outside a 24 dp
-/// icon or superimposing a tiny arrow. Row supplies the trailing RTL placement.
+/// Composes the glyphs inside the existing 48 dp button. The icon slot keeps
+/// its original size; only the composite paints into the button's inner padding.
 class KurumiDropdownIcon extends StatelessWidget {
   const KurumiDropdownIcon({
     required this.icon,
@@ -67,14 +63,28 @@ class KurumiDropdownIcon extends StatelessWidget {
   final double iconSize;
 
   @override
-  Widget build(BuildContext context) => IconTheme.merge(
-    data: IconThemeData(size: iconSize),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: iconSize,
+    child: Stack(
+      clipBehavior: Clip.none,
       children: [
-        SizedBox.square(dimension: iconSize, child: Center(child: icon)),
-        const ExcludeSemantics(
-          child: Icon(Icons.expand_more, size: _dropdownChevronSize),
+        PositionedDirectional(
+          start: -6,
+          top: 0,
+          child: IconTheme.merge(
+            data: IconThemeData(size: iconSize),
+            child: SizedBox.square(
+              dimension: iconSize,
+              child: Center(child: icon),
+            ),
+          ),
+        ),
+        PositionedDirectional(
+          end: -12,
+          top: (iconSize - _dropdownChevronSize) / 2,
+          child: const ExcludeSemantics(
+            child: Icon(Icons.expand_more, size: _dropdownChevronSize),
+          ),
         ),
       ],
     ),
