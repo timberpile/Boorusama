@@ -1,125 +1,113 @@
-# #141 Pixiv Bookmark regression candidate — local completion and acceptance
+# #141 — Pixiv Bookmark corrections: local final acceptance
 
-## Branch and evidence
+Updated 2026-11-14. Issue #141 remains open/in-progress. This handoff is not
+integration approval.
 
-- Branch: `feature/141-pixiv-work-page-bookmarks`.
-- Runtime candidate: `56669fa7c2e226473d730cf5a4e9556fc7983b06`.
-- Previous branch head: `e9d1056d0b15105db48e5ff4d1e0cbab7b203323`.
-- Issue: #141, open / in-progress. This handoff does not authorize integration.
-- [Source diagnosis and UX comparison](../designs/2026-11-13-pixiv-bookmark-regressions.md).
+## Start here
 
-**Status: partial corrective candidate, not an accepted or green build.** Remote
-source edits and regression tests are committed. The approved locale edits are
-provided as an unapplied patch below. No Dart formatting, analyzer, Flutter test,
-Android, or live Pixiv result exists for this new candidate. The previous handoff's
-7,147 app / 1,693 package / 76 Python pass belongs only to runtime
-`8203d21ef2c681c0f2919785737781cfe68b947a`; owner feedback superseded its functional
-acceptance. Do not carry those results forward as evidence for this commit.
+Continue `feature/141-pixiv-work-page-bookmarks`, preserving later branch work.
+Runtime/test candidate: `64da57f27aac84312d1053dd134ea8acbbab75d8`.
+The subsequent diagnosis and handoff commits change documentation or remove
+temporary CI workflows, not application behavior. Read the
+[root-cause and UX comparison](../designs/2026-11-13-pixiv-bookmark-regressions.md).
 
-## First complete the small outstanding source edit
+**Status: corrective candidate, not locally accepted.** Hosted verification is
+separate from Android/live Pixiv acceptance. The final result for the current
+candidate must be read from the verification record below; historical counts
+must not be carried forward.
 
-Apply [`141-bookmark-labels.patch`](141-bookmark-labels.patch) to the two
-translation resources and regenerate localizations through the repository's
-normal generation path. It changes only:
+## Changes already committed
 
-| Resource key | en-US | de-DE |
-| --- | --- | --- |
-| `content_viewer.bookmark_work` | Entire Work | Gesamtes Werk |
-| `content_viewer.bookmark_page` | Current Page | Aktuelle Seite |
+`MediaGroupActions` now preserves Work toolbar scope while navigation is
+inactive. Previously, opening the chooser covered the route, removed that scope
+and disposed the button awaiting the result. Inactive neighbors also fell back
+to the ordinary Page bookmark action. Independent Page/Work identities and their
+previously different selected-color handling explain the reported mismatch in
+source. No storage corruption or migration defect was established.
 
-Do not reserialize or replace unrelated translations. The patch's context and
-offset application were checked with Git against synthetic locale fixtures;
-that is not evidence of application to the real files. The new widget tests
-intentionally expect the approved labels and cannot pass until the source
-strings and generated translations are updated. Commit the actual resource
-changes and remove the obsolete patch once applied; update the status wording
-in the diagnosis document accordingly.
+The button retains Work/access ownership, captures the actual Page when opening
+the chooser, and rejects stale outer Work, revoked authorization or unmounted
+continuations. A confirmed one-Page Work exposes only direct Work bookmarking;
+unknown count is not treated as one. Work/Page rows share a glyph but show
+independent persisted membership state/count. Main-button fill remains Work-only.
+Duplicate Work/Page overflow entries are removed; unrelated actions remain.
 
-## Implemented changes
+`KurumiActionIconButton` and `KurumiDropdownIcon` are shared by Bookmark and
+Download. Commit `937ab4b3bc7b3edec2a7dc783bf4520f982e1e48` corrects the Material 2
+composite icon slot: reserve the main glyph plus 16 dp chevron, while retaining
+an explicit 20/24 dp main glyph and at least 48 x 48 dp target. Tap and hold stay
+separate; disabling also disables hold. Menu opening does not select the icon.
 
-`MediaGroupActions.build` retains `PostActionToolbarScope` when navigation is
-inactive. Previously, opening the choice dialog caused
-`DestinationPageActivity.didPushNext` to make the route inactive and remove the
-Work button; its awaited continuation then returned because it was unmounted.
-The same early return exposed `SimplePostActionToolbar`'s ordinary Page bookmark
-fallback for inactive neighbors. Page and Work use independent identities, and
-the old Work button lacked the Page button's selected color, explaining the
-reported identity/color discrepancy in source. No storage-index corruption or
-migration defect was established.
+The approved labels are applied in `e7354dfc77e24e4ba25a55c34098abd439003bb8`:
+Entire Work / Current Page; Gesamtes Werk / Aktuelle Seite. The old patch is
+removed. Generate translations normally; do not look for or reapply that patch.
 
-The Work button is keyed by Work/access, retains its owner through a covering
-dialog, freezes the actual Page at chooser entry, and rejects outer Work changes,
-source revocation and unmount before destination handoff. A Page must belong to
-that Work and actor. A confirmed one-Page Work has only direct Work bookmarking;
-an unknown count retains alternatives. Choice rows use the same bookmark glyph
-with independent persisted membership fill/color/count. The main button still
-means Work only. It uses the app's bookmark selected-color role. Redundant
-Work/Page overflow actions are removed; other toolbar actions remain.
+`64da57...` adds the missing Riverpod extension import required by the action
+tests, an explicit mounted guard after the asynchronous route transition, and
+focused test lint/format corrections. No persistence codec, membership, identity,
+migration or Undo semantics were rewritten. Historical Page-only bookmarks do
+not imply Work membership, even for a one-Page Work. Pixiv Favorites are separate.
 
-`KurumiActionIconButton` / `KurumiDropdownIcon` provide the reusable trailing
-chevron. Bookmark and Download use them. The chevron stays in layout bounds and
-mirrors with directionality; the action target is at least 48 x 48 dp. Opening a
-menu has no selected-state side effect. The visually small Download variant now
-also has that target and supports its advertised alternate action: review its
-actual callers carefully for layout regressions rather than assuming this is
-pixel-neutral.
+## Actual verification record
 
-Persistence codecs, migrations, membership mutation, Undo and commit guards were
-not changed. A historical Page-only bookmark deliberately does not imply a Work
-bookmark, including on a single-Page Work. Remote Pixiv Favorites remain distinct.
+- [Locale validation 43569381180](https://github.com/timberpile/Boorusama/actions/runs/43569381180)
+  succeeded: exactly four approved values, valid JSON and unchanged unrelated
+  bytes in en-US/de-DE.
+- [Isolated run 43572108909](https://github.com/timberpile/Boorusama/actions/runs/43572108909)
+  on `53ad491...` failed compilation because `requireValue`'s extension was not
+  imported. It also exposed async-context and test lint findings. These are the
+  demonstrated defects addressed by `64da57...`.
+- [Current verification 43572469576](https://github.com/timberpile/Boorusama/actions/runs/43572469576),
+  job `132379609968`, was triggered by `a5ccf30...` but explicitly commits and tests
+  `64da57f27aac84312d1053dd134ea8acbbab75d8`. It runs analysis of the Pixiv Work
+  sources/tests and the complete `test/boorus/pixiv/works` directory. At this
+  handoff checkpoint the test step is still running; **no passing result is
+  claimed**. Read the final outcome/log, not a continue-on-error step conclusion.
+- Earlier broad-run summaries did not match the source-fingerprinted fixture;
+  do not use them as current acceptance evidence. The fixture already places
+  real Hive setup and mutation waits in `tester.runAsync`; an attempted edit
+  stopped at its exact-source assertion and made no fixture change.
+- No local build, device test, live Pixiv reproduction or independent review was
+  performed by this remote session. Historical `8203d21...` counts do not qualify
+  these changes. Temporary verification workflows are removed from the branch.
 
-## Checks to run and repair before acceptance
+## Local completion and acceptance
 
-Use the repository's current verification workflow. At minimum inspect/format/
-analyze the changed app and Kurumi files and run:
+First resolve any current hosted failure and run the repository-required checks
+on the final candidate. Include the Work action, commit guard, persistence,
+target/library tests; Kurumi action geometry and existing button/menu suites;
+Bookmark picker/mutations, mixed-content Viewer, Download and backup/import
+regressions. Record exact commits, commands and outcomes. The action fixture uses
+production route coverage, chooser, Group picker/notifier and unified Hive, but
+controlled provider inputs are not real Viewer swipe evidence.
 
-- `test/boorus/pixiv/works/work_bookmark_actions_test.dart` and the existing
-  `work_bookmark_commit_guard_test.dart`, `work_bookmark_persistence_test.dart`,
-  target/library tests in the same directory.
-- `packages/kurumi/test/action_icon_button_test.dart` and relevant existing
-  Kurumi button/menu tests.
-- Bookmark picker/mutation, mixed-content Viewer, Pixiv presentation and Download
-  regression suites, followed by the required complete candidate regression.
+Exercise the following device cases without changing identity/persistence policy:
 
-The new widget fixture uses the real `MediaGroupActions`, real route coverage,
-real picker/notifier and unified Hive journal. It controls source/provider input
-rather than making network requests. It waits for a notifier revision after the
-write rather than a timing sleep. Verify that fixture setup and real-I/O waiting
-work on the project's test runner; no execution result is claimed. This remains
-a host widget test, not an actual full-Viewer swipe test. Existing durable commit
-guard tests must continue rejecting dismissal/profile/source loss before commit.
+1. **Target/state matrix:** genuine one-Page, multi-Page, unknown count,
+   summary-only and unavailable/restricted Pages; Work-only, Page-only, both and
+   neither saved; zero, one and multiple memberships. Correct independent fills,
+   glyphs, labels and counts; only confirmed one-Page Works lose the chooser.
+2. **Real navigation:** saved A to unsaved B and saved A to saved B in both
+   directions, rapid swipes/Back, before and after loading. Include imported and
+   historical Page-only records. No Page fallback, transient false fill/color,
+   disappearing arrow or menu-open ghost save.
+3. **Real writes:** direct Work and both choices to a destination, exact durable
+   record and original Page index, new Group with keyboard, cancellation at both
+   stages, source/profile loss, outer Work change, removal/Undo and restart.
+   No implicit second target or server Favorite mutation.
+4. **Presentation:** narrow width, large text, RTL, light/dark/AMOLED,
+   screen-reader actions, membership badges, ordinary non-Pixiv bookmarks and
+   normal/small Download callers. Verify minimum hit targets do not overflow
+   compact toolbars and quality/share actions remain correct.
 
-## Device and owner acceptance matrix
+## Product boundary and completion record
 
-1. **Targets and labels:** genuine one-Page, multi-Page, unknown count,
-   summary-only, restricted/unavailable Page. Work-only, Page-only, both, neither;
-   zero/one/multiple Group memberships. Both choices use the same glyph and
-   independently correct state. Only confirmed one-Page Works lose the chooser.
-2. **Real navigation:** saved A to unsaved B and saved A to saved B, both directions,
-   rapid swipes/Back, before/after member loading. Include older Page bookmarks,
-   imported entries and newly saved Works. No Page fallback, transient false
-   fill/color, disappearing arrow, or menu-open ghost bookmark.
-3. **Mutations:** direct Work, chooser Work, chooser Page -> destination -> exact
-   durable record/original Page index. Create Group with keyboard, cancel at both
-   stages, revoke profile/access, leave the Work, and repeat. No implicit second
-   target or remote Favorite mutation. Confirm removal/Undo and restart.
-4. **Presentation and regression:** 320 dp, large text, RTL, light/dark/AMOLED,
-   screen-reader labels/actions, multiple membership badge, ordinary non-Pixiv
-   bookmarks, local Work cards/filter/sort, backup/import. Verify Download normal
-   and small variants, quality chooser, share, Favorites and source isolation.
+Simultaneous Work/Page toolbar status remains a product choice, not part of the
+corrective redesign approval. The design note compares two explicit actions
+(recommended for clarity), a split surface and a combined badge. Retain the
+Work-primary/held-chooser behavior until the owner decides; do not introduce an
+ambiguous four-state badge or silently change direct tap to Page.
 
-## Still a product decision
-
-The existing main control continues to show Work status only. The diagnosis doc
-compares two explicit actions, a split surface, and a combined-state badge. Its
-recommendation is two explicit Work/Page targets for maximum clarity; a split
-surface is a possible visual grouping but still needs two full hit targets.
-A speculative four-state badge was not implemented. Obtain the owner's choice
-before a material toolbar redesign, independently of accepting these defects.
-
-## Completion record
-
-Record the final runtime SHA, actual commands/results, any fixes to the new
-fixtures, device evidence and remaining owner decisions in this handoff and
-#141. Keep historical and current evidence separate. Local acceptance and an
-explicit integration decision are still required.
+Update this handoff and #141 with the final tested runtime, actual host/device
+results, any additional fixes and remaining decisions. Final local acceptance
+and explicit integration approval are still required.
