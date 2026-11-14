@@ -1,0 +1,85 @@
+name: Verify 141 bookmark candidate once
+
+on:
+  push:
+    branches: [feature/141-pixiv-work-page-bookmarks]
+    paths: [.github/workflows/141-verify-once.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-141-bookmark-candidate
+  cancel-in-progress: false
+
+jobs:
+  host-tests:
+    if: github.repository == 'timberpile/Boorusama'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BOORUSAMA_USE_FVM: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.47.2
+          cache: true
+      - name: Native host prerequisites
+        run: sudo apt-get update && sudo apt-get install -y meson nasm
+      - name: Resolve dependencies and generate application sources
+        run: ./init.sh
+      - name: Check changed Dart formatting
+        id: formatting
+        continue-on-error: true
+        run: |
+          dart format --output=none --set-exit-if-changed \
+            lib/boorus/pixiv/works/bookmark_actions.dart \
+            lib/boorus/pixiv/works/work_presentation.dart \
+            lib/core/posts/details/src/widgets/media_group_actions.dart \
+            lib/core/posts/details_parts/src/toolbars/download_post_button.dart \
+            packages/kurumi/lib/src/components/action_icon_button.dart \
+            packages/kurumi/test/action_icon_button_test.dart \
+            test/boorus/pixiv/works/work_bookmark_actions_test.dart \
+            test/boorus/pixiv/works/work_bookmark_widget_fixture.dart
+      - name: Analyze affected application and package sources
+        id: analysis
+        continue-on-error: true
+        run: |
+          flutter analyze --no-pub \
+            lib/boorus/pixiv/works \
+            lib/core/posts/details/src/widgets/media_group_actions.dart \
+            lib/core/posts/details_parts/src/toolbars/download_post_button.dart \
+            packages/kurumi/lib/src/components/action_icon_button.dart \
+            packages/kurumi/test/action_icon_button_test.dart \
+            test/boorus/pixiv/works
+      - name: Complete Kurumi package suite
+        id: kurumi
+        continue-on-error: true
+        run: |
+          workers="$(python3 scripts/physical_core_count.py)"
+          cd packages/kurumi
+          flutter test --no-pub "--concurrency=$workers" --reporter=expanded
+      - name: Pixiv and Bookmark regression suites
+        id: application
+        continue-on-error: true
+        run: |
+          workers="$(python3 scripts/physical_core_count.py)"
+          flutter test --no-pub "--concurrency=$workers" --reporter=expanded \
+            test/boorus/pixiv test/core/bookmarks test/core/posts
+      - name: Summarize actual check outcomes
+        if: always()
+        env:
+          FORMAT_RESULT: ${{ steps.formatting.outcome }}
+          ANALYSIS_RESULT: ${{ steps.analysis.outcome }}
+          KURUMI_RESULT: ${{ steps.kurumi.outcome }}
+          APP_RESULT: ${{ steps.application.outcome }}
+        run: |
+          printf 'Formatting: %s\nAnalysis: %s\nKurumi: %s\nApplication: %s\n' \
+            "$FORMAT_RESULT" "$ANALYSIS_RESULT" "$KURUMI_RESULT" "$APP_RESULT"
+          for result in "$FORMAT_RESULT" "$ANALYSIS_RESULT" "$KURUMI_RESULT" "$APP_RESULT"; do
+            if [ "$result" != success ]; then exit 1; fi
+          done
