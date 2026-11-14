@@ -18,6 +18,7 @@ enum DetailsPart {
   relatedPosts,
   characterList,
   uploaderPosts,
+  parentWork,
 }
 
 final _knownPartsMap = {for (final part in DetailsPart.values) part.name: part};
@@ -45,6 +46,7 @@ String translateDetailsPart(BuildContext context, DetailsPart part) {
     DetailsPart.tags => context.t.post.detail.widgets.tags,
     DetailsPart.toolbar => context.t.post.detail.widgets.toolbar,
     DetailsPart.pool => context.t.post.detail.widgets.pool,
+    DetailsPart.parentWork => context.t.content_viewer.parent_work,
     DetailsPart.artistInfo => context.t.post.detail.widgets.artist_info,
     DetailsPart.source => context.t.post.detail.widgets.source,
     DetailsPart.stats => context.t.post.detail.widgets.stats,

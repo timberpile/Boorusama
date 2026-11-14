@@ -34,6 +34,7 @@ const _defaultFullDetailsOrder = [
   DetailsPart.artistPosts,
   DetailsPart.uploaderPosts,
   DetailsPart.pool,
+  DetailsPart.parentWork,
   DetailsPart.relatedPosts,
   DetailsPart.characterList,
 ];

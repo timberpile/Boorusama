@@ -1,4 +1,55 @@
-# #141 — Pixiv Bookmark corrections: local final acceptance
+# #141 — Pixiv Work/Page Bookmarks: accepted implementation
+
+## Accepted implementation — 2026-11-14
+
+Owner accepted #141 and authorized integration on 2026-11-14. This supersedes
+the historical pending-acceptance status below. Runtime/test commit `90d13f84e`
+includes latest `origin/develop` (`f4750305f`). Implemented the fixed 48 dp shared
+Bookmark/Download chevron composition, independent four-state Work/Page marker,
+accessible saved states and source-bound Page-to-parent-Work navigation without
+saving. Parent Work is now an independent, configurable Details section using
+`PoolTileList`, with the saved Page's Work ID/count and no thumbnail, metadata
+request or parent Bookmark lookup. Existing saved layout keys/order remain valid;
+invalid imported Work IDs hide safely. Ugoira omits the unsupported parent link.
+Inactive Work actions retain identity without triggering disabled metadata
+preloads. Nested Page Bookmark → Parent Work → Back now retains each Viewer's
+navigation ownership in registration order, restoring the Page's bottom clearance
+and keeping the app's bottom navigation bar hidden through the child reverse
+transition. Destination activity changes also release covered Viewer owners.
+
+The 30-second picker timeout reproduced locally. Instrumentation reached the
+real save and publication path; pumping normal widget frames alongside real Hive
+I/O resolved the fixture deadlock and verified durable records/revisions. The
+fixture also waits for picker dismissal. No timeout extension, test exclusion or
+production mutation rewrite was used. Temporary diagnostics/workflow are removed.
+
+Final verification: complete `./scripts/run_regression_tests.sh` **passed** on
+`90d13f84e`: **7,191 application + 1,704 package/CLI Dart/Flutter tests**, both shell
+policy/release suites and **76 Python tooling tests**. The two existing
+`go_router` tests marked `skip: true` remain skipped. Detected concurrency: 6.
+Focused navigation/parent Work/mixed Viewer: **253 passed**, including eight new
+ownership regressions. The production-app test opens a saved Page, opens its
+parent Work twice, samples reverse-transition frames, verifies hidden navigation
+cannot receive taps, preserves the Page/Bookmark and restores usable navigation
+only after final exit. It covers 320 dp with normal and reduced animations.
+Controller/scope tests cover three owners, covered updates, delayed cleanup,
+destination deactivation, final exit and retained feed visibility.
+Affected runtime/test analysis: **no issues found**. Independent source review
+and re-review: no remaining findings. Flutter test logs include VM/finalizer
+diagnostics also present before the fix; the complete runner exits zero.
+
+The squash integration matches accepted feature tip `220f6c188` and the tested
+runtime/tree at `90d13f84e` except this documentation. The complete pass above is
+reused on that identical implementation against the unchanged `origin/develop`
+base `f4750305f`; no runtime, tests, dependencies or generated inputs changed.
+No additional agent-run Android/live Pixiv checks were performed: the owner had
+requested leaving the phone alone, then explicitly accepted the feature. An
+earlier dev APK built on `63d4f9e25` is not final-runtime device evidence.
+Local verification evidence: ignored
+`.worktrees/_artifacts/141-viewer-ownership-20261114/`; integration and cleanup
+record: `.worktrees/_artifacts/141-approved-integration-20261114/`.
+
+## Earlier handoff and original acceptance matrix
 
 Updated 2026-11-14. Issue #141 remains open/in-progress. This handoff is not
 integration approval.
