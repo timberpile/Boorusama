@@ -35,6 +35,7 @@ import '../../selection/ordered_selection_canvas.dart';
 import '../../selection/selection_input.dart';
 import '../../selection/collection_selection_bar.dart';
 import '../../navigation/destination_activity.dart';
+import '../../navigation/navigation_interaction_scopes.dart';
 import '../content_access_provider.dart';
 import '../groups/group_capability.dart';
 import '../groups/group_source_provider.dart';
@@ -257,7 +258,9 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                 final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
                 final viewport = Stack(
                   children: [
-                    Positioned.fill(child: timeline),
+                    Positioned.fill(
+                      child: NavigationScrollBoundary(child: timeline),
+                    ),
                     Positioned(
                       right: 12,
                       bottom:
@@ -275,7 +278,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                     ),
                   ],
                 );
-                return SelectionMode(
+                final content = SelectionMode(
                   controller: _selection,
                   options: ref.watch(selectionOptionsProvider),
                   scrollController: _scroll,
@@ -327,6 +330,11 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                       ],
                     ),
                   ),
+                );
+                return NavigationSelectionBridge(
+                  controller: _selection,
+                  selected: false,
+                  child: content,
                 );
               },
             ),
