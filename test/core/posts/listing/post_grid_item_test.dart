@@ -1,3 +1,9 @@
+import 'package:i18n/i18n.dart';
+
+import 'dart:ui' as ui;
+
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -55,6 +61,91 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  for (final layout in [ImageListType.classic, ImageListType.standard]) {
+    testWidgets(
+      'received marker uses the tile corner in $layout without moving selection controls',
+      (tester) async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(Colors.blue, BlendMode.src);
+        final picture = recorder.endRecording();
+        final portrait = (await tester.runAsync(
+          () => picture.toImage(25, 100),
+        ))!;
+        picture.dispose();
+        final selection = SelectionModeController();
+        addTearDown(selection.dispose);
+        var taps = 0;
+        await tester.pumpWidget(
+          _TestApp(
+            selection: selection,
+            mediaOverrides: [
+              imageListingSettingsProvider.overrideWithValue(
+                Settings.defaultSettings.listing.copyWith(
+                  imageListType: layout,
+                ),
+              ),
+            ],
+            child: Center(
+              child: SizedBox.square(
+                key: const ValueKey('received-cell'),
+                dimension: 160,
+                child: ListenableBuilder(
+                  listenable: selection,
+                  builder: (context, _) => BooruLocalization(
+                    child: BookmarkReadIndicator(
+                      unseen: true,
+                      selecting: selection.isActive,
+                      child: PostGridItem(
+                        post: TestPost(id: 42, width: 25, height: 100),
+                        index: 0,
+                        useHero: false,
+                        multiSelectEnabled: selection.isActive,
+                        config: _config.auth,
+                        additions: PostGridItemAdditions.empty,
+                        quickActionButton: const SizedBox.shrink(),
+                        onTap: (_) => taps++,
+                        imageBuilder: (_) => RawImage(
+                          key: const ValueKey('portrait-image'),
+                          width: 160,
+                          height: 160,
+                          image: portrait,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final bounds = tester.getRect(
+          find.byKey(const ValueKey('received-cell')),
+        );
+        final dot = tester.getRect(
+          find.byKey(const ValueKey('bookmark-unseen-dot')),
+        );
+        expect(dot.right, closeTo(bounds.right - 6, .001));
+        expect(dot.top, closeTo(bounds.top + 6, .001));
+        expect(dot.width, 14);
+        await tester.tapAt(dot.center);
+        expect(taps, 1);
+        selection.enable(initialSelected: [0]);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('bookmark-unseen-dot')), findsNothing);
+        expect(find.byIcon(Icons.zoom_in), findsOneWidget);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('received-cell'))),
+          bounds,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        portrait.dispose();
+      },
+    );
+  }
+
   for (final layout in ImageListType.values) {
     testWidgets(
       'decoded thumbnail probes preserve $layout sizing and request ownership',

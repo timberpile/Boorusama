@@ -66,6 +66,8 @@ Map<int, DateTime>? bookmarkMembershipDates({
   }
   final dates = <int, DateTime>{};
   for (final group in state.groups) {
+    if (view.kind == BookmarkViewKind.all && state.mirrors.isReceived(group.id))
+      continue;
     for (final id in group.bookmarkIds) {
       final date = group.addedAt[id] ?? state.bookmarksById[id]?.createdAt;
       if (date == null) continue;
@@ -94,7 +96,7 @@ List<PostBookmark> selectBookmarks({
         ? const <int>{}
         : state.bookmarkIdsForView(view);
     final inView = switch (view.kind) {
-      BookmarkViewKind.all => state.items,
+      BookmarkViewKind.all => state.localItems,
       BookmarkViewKind.group || BookmarkViewKind.subtree =>
         state.items
             .where(
@@ -155,7 +157,7 @@ List<PostBookmark> selectBookmarkPreviews({
       : state.bookmarkIdsForView(view);
   final candidates =
       switch (view.kind) {
-        BookmarkViewKind.all => state.items,
+        BookmarkViewKind.all => state.localItems,
         BookmarkViewKind.group || BookmarkViewKind.subtree =>
           groupIds
               .map((id) => state.bookmarksById[id])

@@ -667,7 +667,7 @@ void main() {
           expect(find.text(date.label), findsOneWidget);
           final overflow = find.descendant(
             of: find.byType(AppBar),
-            matching: find.byType(PopupMenuButton<String>),
+            matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
           );
           expect(
             tester.getRect(overflow).left -

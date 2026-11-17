@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -109,6 +110,55 @@ void main() {
     );
 
     expect(decoded, expected);
+  });
+
+  test('private rollback codec preserves publisher name scopes and exclusion identities', () {
+    final snapshot = SearchRuntimeSnapshot(
+      searches: const [],
+      feeds: const [],
+      sourceOwnedIds: const {'first', 'second'},
+      organization: TopicOrganization(
+        folders: [
+          TopicFolder(id: 'first', name: 'Same name', nameScope: 'publisher-a'),
+          TopicFolder(
+            id: 'second',
+            name: 'Same name',
+            nameScope: 'publisher-b',
+          ),
+        ],
+      ),
+    );
+    expect(
+      const SearchRuntimeSnapshotCodec().decode(
+        const SearchRuntimeSnapshotCodec().encode(snapshot),
+      ),
+      snapshot,
+    );
+  });
+
+  test('legacy mirror rollback can recover name scopes from its own journaled authority metadata', () {
+    final organization = TopicOrganization(
+      folders: [
+        TopicFolder(id: 'a', name: 'Same', nameScope: 'publisher-a'),
+        TopicFolder(id: 'b', name: 'Same', nameScope: 'publisher-b'),
+      ],
+    );
+    final snapshot = SearchRuntimeSnapshot(
+      searches: const [],
+      feeds: const [],
+      organization: organization,
+    );
+    final legacy = jsonDecode(
+      const SearchRuntimeSnapshotCodec().encode(snapshot),
+    ) as Map<String, dynamic>;
+    legacy.remove('folderScopes');
+    expect(
+      const SearchRuntimeSnapshotCodec().decode(
+        jsonEncode(legacy),
+        folderScopes: {'a': 'publisher-a', 'b': 'publisher-b'},
+      ),
+      snapshot,
+    );
   });
 
   test('restores searches, feed caches, and organization exactly', () async {

@@ -527,7 +527,7 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
       for (final profile in fetch ?? <BooruConfig>[]) {
         final groupId = updated.resolve(profile.id);
         if (groupId == null ||
-            !(snapshot?.groupsById.containsKey(groupId) ?? false)) {
+            !(snapshot?.localGroupIds.contains(groupId) ?? false)) {
           throw const ServerFavoriteException(
             ServerFavoriteProblem.targetMissing,
           );

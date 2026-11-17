@@ -7,6 +7,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:sliver_masonry_grid/sliver_masonry_grid.dart';
+import 'package:selection_mode/selection_mode.dart';
 
 import '../../configs/manage/widgets.dart';
 import '../../configs/config/types.dart';
@@ -26,6 +27,11 @@ import '../../posts/listing/src/widgets/post_grid_prefetch.dart';
 import '../../posts/listing/src/widgets/post_grid_item.dart';
 import '../../posts/pools/pool_grid_item.dart';
 import '../../posts/post/types.dart';
+import '../../selection/ordered_selection_controller.dart';
+import '../../selection/ordered_selection_canvas.dart';
+import '../../selection/selection_input.dart';
+import '../../selection/collection_selection_bar.dart';
+import '../../navigation/destination_activity.dart';
 import '../content_access_provider.dart';
 import '../groups/group_capability.dart';
 import '../groups/group_source_provider.dart';
@@ -84,6 +90,9 @@ class NativeContentGrid extends ConsumerStatefulWidget {
 class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
   late NativeContentController _controller;
   final _scroll = ScrollController();
+  final _selection = OrderedSelectionController<Object>(
+    exitWhenSelectionRemoved: true,
+  );
 
   @override
   void initState() {
@@ -106,6 +115,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
       initialPage: widget.initialPage,
       onRefresh: () => widget.onRefresh?.call(),
     );
+    _selection.reconcileDuringBuild(const [], scope: _controller);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(_controller.access, access)) {
         unawaited(_controller.refresh());
@@ -130,6 +140,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
     final listing = ref.watch(imageListingSettingsProvider);
     final current = ref.watch(contentAccessContextProvider(widget.access.key));
     if (current == null || !current.hasSameAuthorization(widget.access)) {
+      _selection.synchronizeDuringBuild(_selection.disable);
       return Center(child: Text(context.t.navigation.unavailable_profile));
     }
     return CurrentBooruConfigScope(
@@ -141,9 +152,24 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         left: false,
         child: Material(
           child: AnimatedBuilder(
-            animation: _controller,
+            animation: Listenable.merge([_controller, _selection]),
             builder: (context, _) => LayoutBuilder(
               builder: (context, size) {
+                final presentation = ref
+                    .watch(
+                      booruGroupCapabilityProvider(widget.access.key.engine),
+                    )
+                    ?.presentation;
+                _selection.reconcileDuringBuild([
+                  for (final (index, entry) in _controller.entries.indexed)
+                    if (entry is GroupContentEntry &&
+                        presentation != null &&
+                        presentation is BooruGroupSelectionPresentation &&
+                        presentation.supports(entry.summary) &&
+                        widget.access.accepts(entry.reference))
+                      _controller.viewerEntries[index].occurrenceId,
+                ], scope: _controller);
+                final selectedKeys = _selection.selectedKeys;
                 final columns = calculateGridCount(
                   size.maxWidth,
                   listing.gridSize,
@@ -215,7 +241,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                 );
                 final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
                 final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
-                return Stack(
+                final viewport = Stack(
                   children: [
                     Positioned.fill(child: timeline),
                     Positioned(
@@ -234,6 +260,59 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                       ),
                     ),
                   ],
+                );
+                return SelectionMode(
+                  controller: _selection,
+                  options: ref.watch(selectionOptionsProvider),
+                  scrollController: _scroll,
+                  child: SelectionInput(
+                    controller: _selection,
+                    itemCount: _selection.entries.length,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Focus(
+                            autofocus: true,
+                            child: OrderedSelectionCanvas(
+                              controller: _selection,
+                              child: viewport,
+                            ),
+                          ),
+                        ),
+                        if (_selection.isActive)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: size.maxHeight * .45,
+                            ),
+                            child: SingleChildScrollView(
+                              child: CollectionSelectionBar(
+                                controller: _selection,
+                                actions:
+                                    presentation
+                                        is BooruGroupSelectionPresentation
+                                    ? (presentation
+                                              as BooruGroupSelectionPresentation)
+                                          .buildSelectionActions(context, [
+                                            for (final (index, entry)
+                                                in _controller.entries.indexed)
+                                              if (entry is GroupContentEntry &&
+                                                  selectedKeys.contains(
+                                                    _controller
+                                                        .viewerEntries[index]
+                                                        .occurrenceId,
+                                                  ))
+                                                GroupBookmarkPresentationData(
+                                                  access: widget.access,
+                                                  summary: entry.summary,
+                                                ),
+                                          ])
+                                    : const [],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
@@ -289,6 +368,10 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
     final entry = _controller.entries[index];
     final group = entry is GroupContentEntry ? entry.summary : null;
     final post = entry is PostContentEntry ? entry.post : null;
+    final occurrence = _controller.viewerEntries[index].occurrenceId;
+    final selectionIndex = _selection.indexOf(
+      _controller.viewerEntries[index].occurrenceId,
+    );
     final cover = group?.cover;
     final image = cover == null
         ? post?.thumbnailImageUrl ?? ''
@@ -310,9 +393,17 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         multiSelectEnabled: false,
         selectionEnabled: false,
         config: widget.access.config!.auth,
-        onTap: (media) => _open(index, media.url),
+        onTap: (media) => _open(index, media.url, occurrence: occurrence),
       );
     }
+    void tap() {
+      if (!context.mounted || !NavigationActivity.of(context)) return;
+      if (selectionIndex == null ||
+          !handleSelectionTap(context, selectionIndex)) {
+        _open(index, image, occurrence: occurrence);
+      }
+    }
+
     final tile = PoolGridItem(
       category: group == null ? null : widget.groupLabel?.call(context, group),
       name: group?.title,
@@ -331,13 +422,31 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                   ref.watch(imageListingSettingsProvider).imageListType ==
                   ImageListType.standard,
             ),
-      onTap: () => _open(index, image),
+      onTap: tap,
     );
     final presentation = group == null
         ? null
         : ref
               .watch(booruGroupCapabilityProvider(group.reference.engine))
               ?.presentation;
+    if (presentation is BooruGroupSelectionPresentation) {
+      if (selectionIndex == null) return tile;
+      return GestureDetector(
+        onTap: tap,
+        onLongPress: _selection.isActive || !NavigationActivity.of(context)
+            ? null
+            : () => _selection.enable(initialSelected: [selectionIndex]),
+        child: SelectableBuilder(
+          index: selectionIndex,
+          builder: (context, selected) => KurumiSelectableItem(
+            isInSelectionMode: _selection.isActive,
+            isSelected: selected,
+            onPreview: () => _open(index, image, occurrence: occurrence),
+            item: tile,
+          ),
+        ),
+      );
+    }
     return presentation is BooruMediaGroupBookmarkPresentation && group != null
         ? (presentation as BooruMediaGroupBookmarkPresentation)
               .wrapBookmarkMenu(
@@ -351,34 +460,46 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
         : tile;
   }
 
-  void _open(int index, String image) => goToPostDetailsPageCore<Post>(
-    ref: ref,
-    posts: [
-      for (final item in _controller.entries)
-        if (item is PostContentEntry) item.post,
-    ],
-    initialIndex: index,
-    initialThumbnailUrl: image.isEmpty ? null : image,
-    hero: false,
-    config: widget.access.config,
-    entries: _controller.viewerEntries.toList(),
-    entrySource: ViewerEntryLiveSource(
-      changes: _controller,
-      entries: () => _controller.viewerEntries.toList(),
-      pagination: PostDetailsLiveSource(
+  void _open(int index, String image, {required Object occurrence}) {
+    if (!mounted ||
+        !NavigationActivity.of(context) ||
+        ref
+                .read(contentAccessContextProvider(widget.access.key))
+                ?.hasSameAuthorization(widget.access) !=
+            true ||
+        index < 0 ||
+        index >= _controller.viewerEntries.length ||
+        _controller.viewerEntries[index].occurrenceId != occurrence)
+      return;
+    goToPostDetailsPageCore<Post>(
+      ref: ref,
+      posts: [
+        for (final item in _controller.entries)
+          if (item is PostContentEntry) item.post,
+      ],
+      initialIndex: index,
+      initialThumbnailUrl: image.isEmpty ? null : image,
+      hero: false,
+      config: widget.access.config,
+      entries: _controller.viewerEntries.toList(),
+      entrySource: ViewerEntryLiveSource(
         changes: _controller,
-        posts: () => [
-          for (final item in _controller.entries)
-            if (item is PostContentEntry) item.post,
-        ],
-        hasMore: () =>
-            widget.pageMode == PageMode.infinite && _controller.hasMore,
-        loading: () => _controller.loadingMore,
-        failed: () => _controller.errors.value != null,
-        fetchMore: _controller.fetchMore,
+        entries: () => _controller.viewerEntries.toList(),
+        pagination: PostDetailsLiveSource(
+          changes: _controller,
+          posts: () => [
+            for (final item in _controller.entries)
+              if (item is PostContentEntry) item.post,
+          ],
+          hasMore: () =>
+              widget.pageMode == PageMode.infinite && _controller.hasMore,
+          loading: () => _controller.loadingMore,
+          failed: () => _controller.errors.value != null,
+          fetchMore: _controller.fetchMore,
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _footer(BuildContext context) => Padding(
     padding: const EdgeInsets.all(12),
@@ -431,6 +552,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
 
   @override
   void dispose() {
+    _selection.dispose();
     _controller.dispose();
     _scroll.dispose();
     super.dispose();

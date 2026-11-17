@@ -7,6 +7,7 @@ import 'package:boorusama/core/search/following_topics/src/pages/following_topic
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:clock/clock.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:i18n/i18n.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,7 +25,7 @@ void main() {
 
   Finder pageOverflow() => find.descendant(
     of: find.byType(AppBar),
-    matching: find.byTooltip('More'),
+    matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
   );
 
   Finder folderCard(String folderId) => find.byKey(
@@ -35,7 +36,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: folderCard(folderId),
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: followingCardMenus(),
       ),
     );
     await settle(tester);
@@ -47,17 +48,19 @@ void main() {
     String label,
   ) async {
     await openFolderMenu(tester, folderId);
+    await tester.ensureVisible(find.text(label).last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text(label).last);
     await settle(tester);
     await drain(tester);
   }
 
-  PopupMenuItem actionItem(WidgetTester tester, String label) =>
-      tester.widget<PopupMenuItem>(
+  KurumiPopupMenuItem actionItem(WidgetTester tester, String label) =>
+      tester.widget<KurumiPopupMenuItem>(
         find.ancestor(
           of: find.text(label),
           matching: find.byWidgetPredicate(
-            (widget) => widget is PopupMenuItem,
+            (widget) => widget is KurumiPopupMenuItem,
           ),
         ),
       );
@@ -457,8 +460,8 @@ void main() {
         (id: otherId, moveUp: true, moveDown: false),
       ]) {
         await openFolderMenu(tester, c.id);
-        expect(actionItem(tester, 'Move Up').enabled, c.moveUp);
-        expect(actionItem(tester, 'Move Down').enabled, c.moveDown);
+        expect(actionItem(tester, 'Move Up').onTap != null, c.moveUp);
+        expect(actionItem(tester, 'Move Down').onTap != null, c.moveDown);
         await dismissMenu(tester);
       }
 
@@ -475,12 +478,12 @@ void main() {
         await tester.tap(
           find.descendant(
             of: card,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: followingCardMenus(),
           ),
         );
         await settle(tester);
-        expect(actionItem(tester, 'Move Up').enabled, c.moveUp);
-        expect(actionItem(tester, 'Move Down').enabled, c.moveDown);
+        expect(actionItem(tester, 'Move Up').onTap != null, c.moveUp);
+        expect(actionItem(tester, 'Move Down').onTap != null, c.moveDown);
         await dismissMenu(tester);
       }
     },
@@ -518,7 +521,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byType(FollowingTopicCard),
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: followingCardMenus(),
         ),
       );
       await settle(tester);
@@ -804,11 +807,11 @@ void main() {
         );
         final folderMenu = find.descendant(
           of: folder,
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: followingCardMenus(),
         );
         final searchMenu = find.descendant(
           of: search,
-          matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+          matching: followingCardMenus(),
         );
         final folderItemCount = find.descendant(
           of: folder,
@@ -922,13 +925,13 @@ void main() {
 
     await harness.pump(tester, const FollowingTopicsPage());
     await openFolderMenu(tester, folderId);
-    expect(actionItem(tester, 'Refresh').enabled, isFalse);
+    expect(actionItem(tester, 'Refresh').onTap != null, isFalse);
     await dismissMenu(tester);
 
     await harness.pump(tester, FollowingTopicsPage(folderId: folderId));
     await tester.tap(pageOverflow());
     await settle(tester);
-    expect(actionItem(tester, 'Refresh').enabled, isFalse);
+    expect(actionItem(tester, 'Refresh').onTap != null, isFalse);
   });
 
   testWidgets(
@@ -949,7 +952,7 @@ void main() {
 
       await harness.pump(tester, const FollowingTopicsPage());
       await openFolderMenu(tester, folderId);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionItem(tester, 'Refresh').onTap != null, isFalse);
       await tester.tap(find.text('Refresh').last);
       await settle(tester);
       expect(harness.requests, isEmpty);
@@ -958,7 +961,7 @@ void main() {
       await harness.pump(tester, FollowingTopicsPage(folderId: folderId));
       await tester.tap(pageOverflow());
       await settle(tester);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionItem(tester, 'Refresh').onTap != null, isFalse);
       await tester.tap(find.text('Refresh'));
       await settle(tester);
       expect(harness.requests, isEmpty);
@@ -1001,13 +1004,13 @@ void main() {
       expect(find.text('Refreshing… 2 left'), findsOneWidget);
 
       await openFolderMenu(tester, folderId);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionItem(tester, 'Refresh').onTap != null, isFalse);
       await dismissMenu(tester);
 
       await harness.pump(tester, FollowingTopicsPage(folderId: folderId));
       await tester.tap(pageOverflow());
       await settle(tester);
-      expect(actionItem(tester, 'Refresh').enabled, isFalse);
+      expect(actionItem(tester, 'Refresh').onTap != null, isFalse);
       expect(find.text('Topic updates'), findsNothing);
       await dismissMenu(tester);
 
@@ -1092,7 +1095,7 @@ void main() {
 
     await tester.tap(pageOverflow());
     await settle(tester);
-    expect(actionItem(tester, 'Refresh All').enabled, isFalse);
+    expect(actionItem(tester, 'Refresh All').onTap != null, isFalse);
     expect(find.text('Refresh'), findsNothing);
   });
 
@@ -1127,7 +1130,7 @@ void main() {
     expect(
       find.descendant(
         of: folderCard(folderId),
-        matching: find.byTooltip('More'),
+        matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
       ),
       findsOneWidget,
     );

@@ -137,9 +137,36 @@ class WorkBookmarkWidgetFixture {
   final ValueNotifier<bool> active;
 }
 
+/// Hive can wait on a notifier mutation admitted in the widget clock. Let both
+/// that clock and real filesystem completions progress, including rejections.
+Future<T> workBookmarkIO<T>(
+  WidgetTester tester,
+  Future<T> Function() operation,
+) async {
+  var completed = false;
+  final pending = operation();
+  unawaited(
+    pending.then<void>(
+      (_) => completed = true,
+      onError: (Object _, StackTrace _) => completed = true,
+    ),
+  );
+  final guard = Stopwatch()..start();
+  while (!completed) {
+    if (guard.elapsed > const Duration(seconds: 30)) {
+      throw TimeoutException('Bookmark fixture I/O did not complete');
+    }
+    await tester.runAsync(() => Future<void>(() {}));
+    await tester.pump();
+  }
+  return pending;
+}
+
 Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
   WidgetTester tester, {
   bool narrow = false,
+  List<Override> overrides = const [],
+  Widget Function(WorkBookmarkWidgetFixture)? homeBuilder,
 }) async {
   final directory = (await tester.runAsync(
     () => Directory.systemTemp.createTemp('pixiv-bookmark-ui-'),
@@ -221,6 +248,7 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
             details: entry.storedDetails,
           ),
         ),
+        ...overrides,
       ],
     );
     await container.read(bookmarkProvider.future);
@@ -244,10 +272,10 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
     fixture.container.dispose();
     data.dispose();
     active.dispose();
-    await tester.runAsync(() async {
-      await Hive.close();
-      await directory.delete(recursive: true);
-    });
+    // Native timeline consumers can leave Hive continuations in the widget
+    // clock. Drain that clock and real I/O together before ending the test.
+    await workBookmarkIO(tester, Hive.close);
+    await tester.runAsync(() => directory.delete(recursive: true));
     tester.view.resetPhysicalSize();
     tester.view.resetDevicePixelRatio();
     tester.view.resetViewInsets();
@@ -272,42 +300,44 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
               ),
             ),
           ),
-          home: Scaffold(
-            body: DestinationPageActivity(
-              child: ListenableBuilder(
-                listenable: Listenable.merge([data, active]),
-                builder: (context, _) {
-                  final value = data.value;
-                  if (value == null) return const SizedBox.shrink();
-                  final entry = GroupViewerEntry(
-                    summary: value.summary,
-                    storedDetails: value.details,
-                    occurrenceId: value.summary.reference.identity,
-                    source: ViewerSourceBinding(access.config!),
-                  );
-                  return NavigationActivity(
-                    active: active.value && NavigationActivity.of(context),
-                    child: InheritedPost(
-                      presentationContext: value.page == null
-                          ? null
-                          : PostPresentationContext.generic(value.page!),
-                      child: MediaGroupActions(
-                        entry: entry,
-                        child: Center(
-                          child: Builder(
-                            builder: (context) =>
-                                PostActionToolbarScope.maybeOf(context)
-                                    ?.bookmarkButton ??
-                                const Text('Page fallback'),
+          home:
+              homeBuilder?.call(fixture) ??
+              Scaffold(
+                body: DestinationPageActivity(
+                  child: ListenableBuilder(
+                    listenable: Listenable.merge([data, active]),
+                    builder: (context, _) {
+                      final value = data.value;
+                      if (value == null) return const SizedBox.shrink();
+                      final entry = GroupViewerEntry(
+                        summary: value.summary,
+                        storedDetails: value.details,
+                        occurrenceId: value.summary.reference.identity,
+                        source: ViewerSourceBinding(access.config!),
+                      );
+                      return NavigationActivity(
+                        active: active.value && NavigationActivity.of(context),
+                        child: InheritedPost(
+                          presentationContext: value.page == null
+                              ? null
+                              : PostPresentationContext.generic(value.page!),
+                          child: MediaGroupActions(
+                            entry: entry,
+                            child: Center(
+                              child: Builder(
+                                builder: (context) =>
+                                    PostActionToolbarScope.maybeOf(context)
+                                        ?.bookmarkButton ??
+                                    const Text('Page fallback'),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                },
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
-          ),
         ),
       ),
     ),

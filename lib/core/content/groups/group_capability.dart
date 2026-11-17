@@ -66,6 +66,15 @@ abstract interface class BooruGroupKindPresentation {
   String kindLabel(BuildContext context, ContentGroupSummary summary);
 }
 
+/// Native timeline actions consume captured Group occurrences, never inferred
+/// member Posts. Engines opt in independently to their supported operations.
+abstract interface class BooruGroupSelectionPresentation {
+  List<Widget> buildSelectionActions(
+    BuildContext context,
+    List<GroupBookmarkPresentationData> groups,
+  );
+}
+
 final class BooruGroupCapability {
   BooruGroupCapability({
     required this.engine,

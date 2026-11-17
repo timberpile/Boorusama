@@ -18,6 +18,7 @@ import '../types/bookmark_library_state.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
+import '../types/content_group_bookmark.dart';
 import '../types/pool_bookmark.dart';
 import 'bookmark_group_name_dialog.dart';
 import 'bookmark_folder_picker_contents.dart';
@@ -124,7 +125,11 @@ class _ExistingBookmarkGroupSelectionDialog extends ConsumerWidget {
       title: context.t.bookmark.groups.selector,
       child: BookmarkFolderPickerContents(
         folders: library?.folders ?? const [],
-        groups: library?.groups ?? const [],
+        groups:
+            library?.groups
+                .where((group) => !library.mirrors.isReceived(group.id))
+                .toList() ??
+            const [],
         membershipGroupIds: singleMemberships,
         groupBuilder: (context, group) => BookmarkPickerMenuItem(
           icon: Icon(
@@ -175,6 +180,7 @@ class BookmarkGroupSelectionSummary {
     required int booruId,
     List<CollectionBookmark> pools = const [],
     List<Bookmark> records = const [],
+    List<ContentGroupBookmark> contentDrafts = const [],
   }) {
     var bookmarked = 0;
     final counts = <String, int>{};
@@ -211,8 +217,17 @@ class BookmarkGroupSelectionSummary {
         counts.update(groupId, (value) => value + 1, ifAbsent: () => 1);
       }
     }
+    for (final draft in contentDrafts) {
+      final id = state?.idByContent[draft.reference.identity];
+      if (id == null) continue;
+      bookmarked++;
+      for (final groupId in state!.membershipsForId(id)) {
+        counts.update(groupId, (value) => value + 1, ifAbsent: () => 1);
+      }
+    }
     return BookmarkGroupSelectionSummary(
-      totalPosts: posts.length + pools.length + records.length,
+      totalPosts:
+          posts.length + pools.length + records.length + contentDrafts.length,
       bookmarkedPosts: bookmarked,
       membershipCounts: Map.unmodifiable(counts),
     );
@@ -436,18 +451,33 @@ Future<BookmarkGroupSelectionTarget?> showBookmarkGroupSelectionDialog(
   required BooruConfigAuth config,
   List<CollectionBookmark> pools = const [],
   List<Bookmark> records = const [],
+  List<ContentGroupBookmark> contentDrafts = const [],
+  VoidCallback? beforeCommit,
   Set<String>? allowedGroupIds,
-}) => showDialog<BookmarkGroupSelectionTarget>(
-  context: context,
-  builder: (_) => _BookmarkGroupSelectionDialog(
-    operation: operation,
-    posts: posts,
-    pools: pools,
-    records: records,
-    config: config,
-    allowedGroupIds: allowedGroupIds,
-  ),
-);
+}) {
+  if (contentDrafts.isNotEmpty &&
+      (operation != BookmarkMultiSelectionOperation.add ||
+          posts.isNotEmpty ||
+          pools.isNotEmpty ||
+          records.isNotEmpty)) {
+    throw ArgumentError(
+      'Native drafts require an exclusive additive selection',
+    );
+  }
+  return showDialog<BookmarkGroupSelectionTarget>(
+    context: context,
+    builder: (_) => _BookmarkGroupSelectionDialog(
+      operation: operation,
+      posts: posts,
+      pools: pools,
+      records: records,
+      contentDrafts: List.unmodifiable(contentDrafts),
+      beforeCommit: beforeCommit,
+      config: config,
+      allowedGroupIds: allowedGroupIds,
+    ),
+  );
+}
 
 class _BookmarkGroupSelectionDialog extends ConsumerWidget {
   const _BookmarkGroupSelectionDialog({
@@ -456,6 +486,8 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     required this.config,
     required this.pools,
     required this.records,
+    required this.contentDrafts,
+    this.beforeCommit,
     this.allowedGroupIds,
   });
 
@@ -463,19 +495,28 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
   final List<Post> posts;
   final List<CollectionBookmark> pools;
   final List<Bookmark> records;
+  final List<ContentGroupBookmark> contentDrafts;
+  final VoidCallback? beforeCommit;
+  int get _count =>
+      posts.length + pools.length + records.length + contentDrafts.length;
   final Set<String>? allowedGroupIds;
   final BooruConfigAuth config;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(bookmarkProvider).valueOrNull;
-    final groups = state?.groups ?? const <BookmarkGroup>[];
+    final groups =
+        state?.groups
+            .where((group) => !state.mirrors.isReceived(group.id))
+            .toList() ??
+        const <BookmarkGroup>[];
     final summary = BookmarkGroupSelectionSummary.fromPosts(
       posts: posts,
       state: state,
       booruId: config.booruIdHint,
       pools: pools,
       records: records,
+      contentDrafts: contentDrafts,
     );
     final add = operation == BookmarkMultiSelectionOperation.add;
     final applicable = {
@@ -501,8 +542,16 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
         folders: const [],
         selectableGroupIds: applicable,
         groups: visibleGroups,
-        membershipGroupIds: posts.length + pools.length + records.length == 1
-            ? records.isNotEmpty
+        membershipGroupIds: _count == 1
+            ? contentDrafts.isNotEmpty
+                  ? switch (state?.idByContent[contentDrafts
+                        .single
+                        .reference
+                        .identity]) {
+                      final id? => state?.membershipsForId(id),
+                      _ => const <String>{},
+                    }
+                  : records.isNotEmpty
                   ? state?.membershipsForId(records.single.id)
                   : pools.isNotEmpty
                   ? state?.pools
@@ -538,14 +587,12 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
   ) => BookmarkPickerMenuItem(
     icon: Icon(
       target.id == null ? Symbols.bookmark : Symbols.bookmarks,
-      fill: posts.length + pools.length + records.length == 1 && count > 0
-          ? 1
-          : 0,
+      fill: _count == 1 && count > 0 ? 1 : 0,
     ),
     title: target.name,
     detail: context.t.bookmark.bulk.membership_count
         .replaceAll('{0}', '$count')
-        .replaceAll('{1}', '${posts.length + pools.length + records.length}'),
+        .replaceAll('{1}', '$_count'),
     hideOnTap: false,
     onTap: () => Navigator.pop(context, target),
   );
@@ -562,7 +609,14 @@ class _BookmarkGroupSelectionDialog extends ConsumerWidget {
     if (name == null || !context.mounted) return;
     try {
       final notifier = ref.read(bookmarkProvider.notifier);
-      final result = records.isNotEmpty
+      final result = contentDrafts.isNotEmpty
+          ? await notifier.createGroupWithContentDrafts(
+              name,
+              contentDrafts,
+              parentGroupId: folderId,
+              beforeCommit: beforeCommit,
+            )
+          : records.isNotEmpty
           ? await notifier.createGroupWithSavedRecords(
               name,
               records,

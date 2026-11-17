@@ -1,3 +1,4 @@
+import 'bookmark_backup_codec.dart';
 import '../../boorus/booru/types.dart';
 import '../../bookmarks/src/data/stored_bookmark_codec.dart';
 import '../../bookmarks/src/data/stored_group_codec.dart';
@@ -36,3 +37,11 @@ StoredBookmarkCodec _codecFromMaps(
     ),
   ),
 );
+
+BookmarkBackupCodec detachBookmarkBackupCodec(BookmarkBackupCodec original) {
+  final records = detachBookmarkRecordCodec(original.records);
+  return BookmarkBackupCodec(
+    postDataCodec: records.postDataCodec,
+    groupMetadata: records.groups.metadata,
+  );
+}

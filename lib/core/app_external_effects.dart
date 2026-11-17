@@ -6,6 +6,8 @@ import '../foundation/app_update/src/widgets/app_update_lifecycle_listener.dart'
 import '../foundation/networking.dart';
 import 'analytics/widgets.dart';
 import 'backups/auto/trigger.dart';
+import 'backups/mitemite/providers.dart';
+import 'backups/mitemite/notifications.dart';
 import 'backups/export_import/import/import_recovery_gate.dart';
 import 'backups/export_import/platform/received_export_listener.dart';
 import 'debug/widgets.dart';
@@ -30,7 +32,11 @@ class BoorusamaExternalEffects extends StatelessWidget {
               child: SearchRefreshLifecycle(
                 child: DiagnosticContextScope(
                   child: AppUpdateLifecycleListener(
-                    child: ImportRecoveryGate(child: child),
+                    child: MiteMiteLifecycle(
+                      child: MiteMiteNotifications(
+                        child: ImportRecoveryGate(child: child),
+                      ),
+                    ),
                   ),
                 ),
               ),

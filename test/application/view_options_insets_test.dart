@@ -1,6 +1,5 @@
 import 'package:boorusama/core/navigation/app_navigation_shell.dart';
 import 'package:boorusama/core/navigation/navigation_chrome_controller.dart';
-import 'package:boorusama/core/posts/listing/src/widgets/post_grid_config_icon_button.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +9,24 @@ import 'package:kurumi/material.dart';
 import 'support/app_flow_finders.dart';
 import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
+
+void expectInlineOptions(WidgetTester tester) {
+  final rows = find.descendant(
+    of: find.byType(PostGridActionSheet),
+    matching: find.byType(ListTile),
+  );
+  expect(rows, findsNWidgets(4));
+  for (final row in tester.widgetList<ListTile>(rows)) {
+    final label = tester.getRect(find.byWidget(row.title!));
+    final option = tester.getRect(find.byWidget(row.trailing!));
+    expect(
+      label.center.dy,
+      closeTo(option.center.dy, 0.01),
+      reason: 'View Options must keep labels and values on the same row',
+    );
+    expect(label.right, lessThanOrEqualTo(option.left));
+  }
+}
 
 void main() {
   testWidgets(
@@ -51,6 +68,7 @@ void main() {
             AnimationStatus.completed,
         description: 'View Options route animation to finish',
       );
+      expectInlineOptions(tester);
       final shown = MediaQuery.paddingOf(tester.element(sheet)).bottom;
       expect(shown, greaterThanOrEqualTo(64));
       chrome.userScroll(
@@ -72,6 +90,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 80));
       expect(MediaQuery.paddingOf(tester.element(sheet)).bottom, shown);
       expect(tester.getRect(grid), initial);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pump();
+      expectInlineOptions(tester);
       expect(tester.takeException(), isNull);
     },
   );

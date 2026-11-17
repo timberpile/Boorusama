@@ -122,6 +122,194 @@ import '../../../support/fakes/memory_repositories.dart'
 const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
+  for (final failTarget in [false, true]) {
+    testWidgets(
+      'image reading ignores a decoded thumbnail while full media is pending or failed (failure=$failTarget)',
+      (tester) async {
+        _mobileViewport(tester);
+        final displayed = <Object>{};
+        final adapter = ControlledImageAdapter();
+        final harness = _Harness(
+          posts: [_posts.first],
+          entries: [
+            PostViewerEntry(
+              post: _posts.first,
+              occurrenceId: 'still',
+              source: ViewerSourceBinding(_configs.first),
+            ),
+          ],
+          imageAdapter: adapter,
+          imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+          initialThumbnailUrl: 'thumbnail-1',
+          onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+        );
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.runAsync(() async {
+          await waitForPixel(tester, [255, 0, 0, 255]);
+          expect(
+            displayed,
+            isEmpty,
+            reason: 'A visible thumbnail is not full media',
+          );
+          await pumpUntil(
+            tester,
+            () => adapter.pending.keys.any(
+              (url) => url.contains('danbooru.example/media/1'),
+            ),
+            reason: 'full media request admitted',
+          );
+          final target = adapter.pending.keys.singleWhere(
+            (url) => url.contains('danbooru.example/media/1'),
+          );
+          adapter.complete(
+            target,
+            failTarget ? Uint8List.fromList([1, 2, 3]) : targetPng,
+          );
+          if (failTarget) {
+            await pumpUntil(
+              tester,
+              () => find.text('Retry').evaluate().isNotEmpty,
+              reason: 'failed full media retains only its thumbnail',
+            );
+            expect(displayed, isEmpty);
+          } else {
+            await waitForPixel(tester, [0, 0, 255, 255]);
+            await pumpUntil(
+              tester,
+              () => displayed.contains('still'),
+              reason: 'painted full media acknowledgement',
+            );
+            expect(displayed, {'still'});
+          }
+        });
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+  testWidgets(
+    'full image decoding behind a modal waits until the Viewer is visible',
+    (tester) async {
+      _mobileViewport(tester);
+      final displayed = <Object>{};
+      final adapter = ControlledImageAdapter();
+      final harness = _Harness(
+        posts: [_posts.first],
+        entries: [
+          PostViewerEntry(
+            post: _posts.first,
+            occurrenceId: 'covered-still',
+            source: ViewerSourceBinding(_configs.first),
+          ),
+        ],
+        imageAdapter: adapter,
+        imageCache: TestImageCache({'thumbnail-1': lowerPng}),
+        initialThumbnailUrl: 'thumbnail-1',
+        onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+      );
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.runAsync(() => waitForPixel(tester, [255, 0, 0, 255]));
+      final context = tester.element(find.byType(PostMedia<Post>).first);
+      final closed = showDialog<void>(
+        context: context,
+        builder: (_) => const KurumiDialog(child: Text('Covered Viewer')),
+      );
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await pumpUntil(
+          tester,
+          () => adapter.pending.keys.any(
+            (url) => url.contains('danbooru.example/media/1'),
+          ),
+          reason: 'covered full media request',
+        );
+        final target = adapter.pending.keys.singleWhere(
+          (url) => url.contains('danbooru.example/media/1'),
+        );
+        adapter.complete(target, targetPng);
+        await pumpUntil(
+          tester,
+          () => tester
+              .widgetList<ExtendedRawImage>(
+                find.byType(ExtendedRawImage, skipOffstage: false),
+              )
+              .any((image) => image.image?.width == 8),
+          reason: 'full image decoded behind the covering modal',
+        );
+        await tester.pump();
+        expect(displayed, isEmpty);
+      });
+      Navigator.of(context).pop();
+      await closed;
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => displayed.contains('covered-still'),
+          reason: 'uncovered full image presentation',
+        ),
+      );
+      expect(displayed, {'covered-still'});
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'video reading requires a frame in the foreground active Viewer',
+    (
+      tester,
+    ) async {
+      _mobileViewport(tester);
+      final displayed = <Object>{};
+      final post = _post(
+        id: 901,
+        booruType: BooruType.danbooru,
+        host: 'https://danbooru.example',
+        data: _posts.first.booruData,
+        format: 'mp4',
+      );
+      final harness = _Harness(
+        posts: [post],
+        entries: [
+          PostViewerEntry(
+            post: post,
+            occurrenceId: 'video',
+            source: ViewerSourceBinding(_configs.first),
+          ),
+        ],
+        loadMedia: false,
+        onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+      );
+      try {
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+        final media = tester.widget<PostMedia<Post>>(
+          find.byType(PostMedia<Post>),
+        );
+        expect(displayed, isEmpty);
+        media.onVideoFrameChanged!(false);
+        await tester.pump();
+        expect(displayed, isEmpty, reason: 'A created player is not a frame');
+
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+        media.onVideoFrameChanged!(true);
+        await tester.pump();
+        expect(displayed, isEmpty, reason: 'A background Viewer cannot read');
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pump();
+        expect(displayed, {'video'});
+      } finally {
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+        await tester.pumpWidget(const SizedBox());
+        harness.dispose();
+      }
+    },
+  );
+
   for (final (size, scale) in [
     (const Size(400, 800), 1.0),
     (const Size(320, 800), 2.0),
@@ -637,7 +825,6 @@ void main() {
           authEpoch: 1,
           policyEpoch: 1,
         );
-        const coverUrl = 'https://i.pximg.net/large/120_p0.jpg';
         const pagePreviewUrl = 'https://i.pximg.net/large/120_first_page.jpg';
         final work = works.work(
           id: 120,
@@ -899,7 +1086,9 @@ void main() {
           policyEpoch: 1,
         );
         final adapter = _PageImageAdapter();
+        final displayed = <Object>{};
         final harness = _Harness(
+          onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
           posts: const [],
           initialIndex: 1,
           entries: [
@@ -959,6 +1148,9 @@ void main() {
               reason: 'both adjacent Work images decoded',
             ),
           );
+          expect(displayed, {
+            121,
+          }, reason: 'decoded preloads must not mark adjacent Works read');
           final pager = _pageViewController(tester);
           for (final direction in [-1.0, 1.0]) {
             final drag = await tester.startGesture(
@@ -1136,6 +1328,8 @@ void main() {
             isEmpty,
             reason: 'inactive neighboring Works must never fetch originals',
           );
+          expect(displayed, containsAll([121, 122]));
+          expect(displayed, isNot(contains(120)));
         } finally {
           await tester.pumpWidget(const SizedBox.shrink());
           harness.dispose();
@@ -5516,6 +5710,7 @@ class _Harness {
     this.initialIndex = 0,
     this.posts,
     this.entries,
+    this.onEntryDisplayed,
     this.entrySource,
     BooruRepository? repository,
     BooruGroupCapability? mediaCapability,
@@ -5650,6 +5845,7 @@ class _Harness {
   final int initialIndex;
   final List<Post>? posts;
   final List<ViewerEntry>? entries;
+  final ValueChanged<ViewerEntry>? onEntryDisplayed;
   final ViewerEntryLiveSource? entrySource;
   final String? initialThumbnailUrl;
 
@@ -5682,6 +5878,7 @@ class _Harness {
             home: Directionality(
               textDirection: direction,
               child: MixedPostDetailsPage(
+                onEntryDisplayed: onEntryDisplayed,
                 posts: posts ?? _posts,
                 entries: entries,
                 entrySource: entrySource,

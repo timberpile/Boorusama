@@ -5,6 +5,7 @@ import '../../../boorus/booru/types.dart';
 import '../../../content/types.dart';
 import '../../../groups/folder_tree.dart';
 import '../types/bookmark_group.dart';
+import '../types/bookmark_mirror_state.dart';
 import '../types/bookmark_record_fields.dart';
 import '../types/unified_bookmark_store.dart';
 import '../types/bookmark.dart';
@@ -22,7 +23,8 @@ class BookmarkMutationRepository
     implements
         BookmarkRepository<Post>,
         BookmarkIdentityLookup,
-        UnifiedBookmarkStore {
+        UnifiedBookmarkStore,
+        BookmarkMirrorReader {
   BookmarkMutationRepository({required this.delegate, required this.base})
     : _revision = base.revision;
 
@@ -88,6 +90,16 @@ class BookmarkMutationRepository
 
   UnifiedBookmarkStore get _requiredStore =>
       _store ?? (throw StateError('Unified Bookmark storage unavailable'));
+
+  /// Ownership is always read from the pinned durable store, never from base:
+  /// external receive/cleanup may have changed it before this reload began.
+  @override
+  Future<BookmarkMirrorState> readMirrorState() async {
+    final store = _store;
+    return store is BookmarkMirrorReader
+        ? await (store as BookmarkMirrorReader).readMirrorState()
+        : const BookmarkMirrorState.empty();
+  }
 
   @override
   bool get supportsUnifiedRecords => _store != null;

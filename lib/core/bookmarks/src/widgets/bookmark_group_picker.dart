@@ -296,7 +296,13 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
         ? const <String, int>{}
         : bookmarkNestedMembershipCounts(tree, memberships);
     final recentGroups =
-        ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
+        ref
+            .watch(recentBookmarkGroupsProvider)
+            .valueOrNull
+            ?.where(
+              (group) => !(library?.mirrors.isReceived(group.id) ?? false),
+            )
+            .toList() ??
         const <BookmarkGroup>[];
     BookmarkPickerMenuItem row(
       BookmarkGroup group, {
@@ -323,7 +329,11 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
     );
     return BookmarkFolderPickerContents(
       folders: library?.folders ?? const [],
-      groups: library?.groups ?? const [],
+      groups:
+          library?.groups
+              .where((group) => !library.mirrors.isReceived(group.id))
+              .toList() ??
+          const [],
       membershipGroupIds: memberships,
       onRootBack: widget.onRootBack ?? _dismiss,
       navigation: _navigation,

@@ -25,6 +25,8 @@ void main() {
     bool showCount = true,
     List<String> sources = const ['one.example', _longSource],
     Widget? unavailableIndicator,
+    Widget? seenFilter,
+    TextDirection direction = TextDirection.ltr,
   }) async {
     final container = ProviderContainer(
       overrides: [
@@ -52,11 +54,14 @@ void main() {
             ).withBoorusamaColors(),
             builder: (context, child) => KurumiTheme(
               data: KurumiThemeData.fromMaterial(Theme.of(context)),
-              child: MediaQuery(
-                data: MediaQuery.of(context).copyWith(
-                  textScaler: TextScaler.linear(scale),
+              child: Directionality(
+                textDirection: direction,
+                child: MediaQuery(
+                  data: MediaQuery.of(context).copyWith(
+                    textScaler: TextScaler.linear(scale),
+                  ),
+                  child: child!,
                 ),
-                child: child!,
               ),
             ),
             home: Scaffold(
@@ -64,6 +69,7 @@ void main() {
                 alignment: Alignment.topLeft,
                 child: BookmarkListControls(
                   count: 12,
+                  seenFilter: seenFilter,
                   gridConfig: const Icon(Icons.settings),
                   unavailableIndicator: unavailableIndicator,
                 ),
@@ -75,6 +81,44 @@ void main() {
     );
     await tester.pumpAndSettle();
     return container;
+  }
+
+  for (final direction in TextDirection.values) {
+    for (final hasSeen in [false, true]) {
+      testWidgets(
+        'automatic separators for present groups with Seen=$hasSeen in $direction',
+        (tester) async {
+          tester.view.physicalSize = const Size(320, 640);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          await pumpControls(
+            tester,
+            direction: direction,
+            scale: 2,
+            seenFilter: hasSeen ? const Text('Seen control') : null,
+          );
+          expect(find.byType(VerticalDivider), findsNWidgets(hasSeen ? 2 : 1));
+          final controls = <Finder>[
+            if (hasSeen) find.text('Seen control'),
+            find.text('Newest'),
+            find.text('Source: All'),
+          ];
+          final centers = controls
+              .map((finder) => tester.getCenter(finder).dx)
+              .toList();
+          for (var i = 1; i < centers.length; i++) {
+            expect(
+              direction == TextDirection.ltr
+                  ? centers[i] > centers[i - 1]
+                  : centers[i] < centers[i - 1],
+              isTrue,
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   }
 
   testWidgets(

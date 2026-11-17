@@ -16,12 +16,15 @@ import '../types/search_refresh.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_repository.dart';
 
-typedef SearchPostRepositoryResolver =
-    PostRepository<Post> Function(BooruConfig config);
-typedef SearchPostDataCodecResolver =
-    BooruPostDataCodec? Function(BooruConfig config);
-typedef SearchRefreshQueryAdapterResolver =
-    SearchRefreshQueryAdapter Function(BooruConfigAuth config);
+typedef SearchPostRepositoryResolver = PostRepository<Post> Function(
+  BooruConfig config,
+);
+typedef SearchPostDataCodecResolver = BooruPostDataCodec? Function(
+  BooruConfig config,
+);
+typedef SearchRefreshQueryAdapterResolver = SearchRefreshQueryAdapter Function(
+  BooruConfigAuth config,
+);
 
 class SearchRefreshService {
   SearchRefreshService({
@@ -213,7 +216,9 @@ class SearchRefreshService {
                     booruType: config.auth.booruType,
                     booruId: config.booruId,
                     source: config.url,
-                    profileIdHint: config.id,
+                    profileIdHint: config.anonymousReadScope == null
+                        ? config.id
+                        : null,
                   ),
                   dataCodec: resolvePostDataCodec?.call(config),
                 ),

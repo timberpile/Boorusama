@@ -6,9 +6,12 @@ import '../export_import/import/collection_import_action.dart';
 import '../export_import/models/import_action.dart';
 import '../../configs/config/types.dart';
 import '../../search/following_topics/types.dart';
+import '../../search/following_topics/src/types/following_mirror_state.dart';
 import 'following_topic_backup_data.dart';
 import '../../groups/folder_tree.dart';
+
 import 'package:uuid/uuid.dart';
+
 import 'search_backup_profile.dart';
 import '../export_import/import/search_runtime_snapshot.dart';
 
@@ -59,6 +62,12 @@ class FollowingTopicImportService {
   final FollowingTopicRepository repository;
   final String importFolderName;
 
+  Future<FollowingMirrorState> _mirrors() async =>
+      repository is FollowingMirrorStore
+      ? (await (repository as FollowingMirrorStore).readMirrorSnapshot())
+            .mirrors
+      : const FollowingMirrorState.empty();
+
   FollowingTopicImportPreview preview(
     FollowingTopicBackupData data, {
     required List<BooruConfig> profiles,
@@ -103,6 +112,7 @@ class FollowingTopicImportService {
     BackupProfileIdResolver? profileIdResolver,
   }) async {
     final previousOrganization = await repository.getOrganization();
+    final mirrors = await _mirrors();
     final folderIds = previousOrganization.folders
         .map((folder) => folder.id)
         .toSet();
@@ -119,7 +129,11 @@ class FollowingTopicImportService {
     // The importer assigns a separate destination to each source record.
     // Resolving again by query would collapse independent duplicate topics.
     final importedByBackupId = result.resolvedIds;
-    final retainedIds = {...internalIds, ...importedByBackupId.values};
+    final retainedIds = {
+      ...internalIds,
+      ...importedByBackupId.values,
+      ...mirrors.owners.keys,
+    };
     for (final search in await repository.getAll()) {
       if (!retainedIds.contains(search.id)) await repository.delete(search.id);
     }
@@ -133,23 +147,35 @@ class FollowingTopicImportService {
 
     final folders = data.folders.toList()
       ..sort((left, right) => left.position.compareTo(right.position));
+    final imported = TopicOrganization(
+      folders: [
+        for (final folder in folders)
+          TopicFolder(
+            id: folder.id,
+            name: folder.name,
+            parentId: folder.parentId,
+            position: folder.position,
+            searchIds: mapped(folder.searchIds),
+            feedEnabled: folder.feedEnabled,
+            feedMaxPosts: folder.feedMaxPosts,
+          ),
+      ],
+      homeSearchIds: mapped(data.homeSearchIds),
+    );
     await repository.replaceOrganization(
       TopicOrganization(
         folders: [
-          for (final folder in folders)
-            TopicFolder(
-              id: folder.id,
-              name: folder.name,
-              parentId: folder.parentId,
-              position: folder.position,
-              searchIds: mapped(folder.searchIds),
-              feedEnabled: folder.feedEnabled,
-              feedMaxPosts: folder.feedMaxPosts,
-            ),
+          ...previousOrganization.folders.where(
+            (folder) => mirrors.isReceived(folder.id),
+          ),
+          ...imported.folders,
         ],
-        homeSearchIds: [
-          ...previousOrganization.homeSearchIds.where(internalIds.contains),
-          ...mapped(data.homeSearchIds),
+        placements: [
+          ...previousOrganization.placements.where(
+            (p) =>
+                mirrors.isReceived(p.itemId) || internalIds.contains(p.itemId),
+          ),
+          ...imported.placements,
         ],
       ),
     );
@@ -165,6 +191,15 @@ class FollowingTopicImportService {
     BackupProfileIdResolver? profileIdResolver,
     bool restoreHierarchy = false,
   }) async {
+    final mirrors = await _mirrors();
+    if (data.records.any((record) => mirrors.isReceived(record.id)) ||
+        data.folders.any((folder) => mirrors.isReceived(folder.id)) ||
+        (folderActions?.values.any(
+              (action) => mirrors.isReceived(action.targetId ?? ''),
+            ) ??
+            false)) {
+      throw const FollowingMirrorReadOnly();
+    }
     final unmatched = preview(
       data,
       profiles: profiles,
@@ -221,7 +256,9 @@ class FollowingTopicImportService {
           record: record,
           data: data,
           profileId: profileId,
-          searches: await repository.getAll(),
+          searches: (await repository.getAll()).where(
+            (topic) => !mirrors.isReceived(topic.id),
+          ),
           organization: await repository.getOrganization(),
           usedIds: usedDestinationIds,
           folderActions: folderActions ?? {},

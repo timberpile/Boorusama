@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:anchor_ui/anchor_ui.dart';
 import 'package:material_ui/material_ui.dart';
@@ -22,6 +23,7 @@ class KurumiAnchor extends StatefulWidget {
     this.spacing,
     this.backdropColor,
     this.reduceAnimation,
+    this.constrainToViewport = false,
   });
 
   final AnchorController controller;
@@ -38,6 +40,9 @@ class KurumiAnchor extends StatefulWidget {
   final double? spacing;
   final Color? backdropColor;
   final bool? reduceAnimation;
+
+  /// Opt in when the overlay content can scroll within the available viewport.
+  final bool constrainToViewport;
 
   @override
   State<KurumiAnchor> createState() => _KurumiAnchorState();
@@ -113,6 +118,7 @@ class _KurumiAnchorState extends State<KurumiAnchor>
           OffsetMiddleware(mainAxis: OffsetValue.value(widget.spacing ?? 4)),
           const FlipMiddleware(),
           const ShiftMiddleware(),
+          if (widget.constrainToViewport) const _ViewportFitMiddleware(),
         ],
         viewPadding:
             widget.viewPadding ??
@@ -170,6 +176,60 @@ class _KurumiAnchorState extends State<KurumiAnchor>
         ),
       ),
     };
+  }
+}
+
+/// Flip/Shift alone cannot keep a tall vertical popup inside both vertical
+/// boundaries: Shift only adjusts the cross axis. Bound scrollable content and
+/// clamp the measured overlay after normal anchor placement has been chosen.
+class _ViewportFitMiddleware implements PositioningMiddleware<Object?> {
+  const _ViewportFitMiddleware();
+
+  @override
+  (PositionState, Object?) run(PositionState state) {
+    final config = state.config;
+    final points = state.anchorPoints;
+    final width = math.max(
+      0.0,
+      config.viewportSize.width - config.padding.horizontal,
+    );
+    final height = math.max(
+      0.0,
+      config.viewportSize.height - config.padding.vertical,
+    );
+    final overlayWidth = math.min(config.overlayWidth ?? 0, width);
+    final overlayHeight = math.min(config.overlayHeight ?? 0, height);
+    final left =
+        config.childPosition.dx +
+        config.childSize.width * (1 + points.childAnchor.x) / 2 -
+        overlayWidth * (1 + points.overlayAnchor.x) / 2 +
+        points.offset.dx;
+    final top =
+        config.childPosition.dy +
+        config.childSize.height * (1 + points.childAnchor.y) / 2 -
+        overlayHeight * (1 + points.overlayAnchor.y) / 2 +
+        points.offset.dy;
+    final dx =
+        left.clamp(
+          config.padding.left,
+          config.padding.left + width - overlayWidth,
+        ) -
+        left;
+    final dy =
+        top.clamp(
+          config.padding.top,
+          config.padding.top + height - overlayHeight,
+        ) -
+        top;
+    return (
+      state.copyWith(
+        anchorPoints: points.copyWith(offset: points.offset + Offset(dx, dy)),
+      ),
+      // SizeData makes RawAnchor measure its opener during an overlay build.
+      // The opener may be in a newly rebuilt transform while a menu dismisses.
+      // Scrollable popup content owns its constraints without that callback.
+      null,
+    );
   }
 }
 

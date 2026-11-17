@@ -44,6 +44,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
     this.imageController,
     this.onRepresentationChanged,
     this.onTerminalFailure,
+    this.onVideoFrameChanged,
     this.contentSize,
     this.onImageSize,
     super.key,
@@ -62,6 +63,7 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   final ExtendedImageController? imageController;
   final ValueChanged<bool>? onRepresentationChanged;
   final VoidCallback? onTerminalFailure;
+  final ValueChanged<bool>? onVideoFrameChanged;
   final Size? contentSize;
   final ValueChanged<Size>? onImageSize;
   final bool isPageSettled;
@@ -178,10 +180,18 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                             total,
                             post,
                           ),
-                      onVideoPlayerCreated: (player) => details.controller
-                          .onBooruVideoPlayerCreated(player, post),
-                      onVideoPlayerDisposed: () =>
-                          details.controller.onBooruVideoPlayerDisposed(post),
+                      onVideoPlayerCreated: (player) {
+                        onVideoFrameChanged?.call(false);
+                        details.controller.onBooruVideoPlayerCreated(
+                          player,
+                          post,
+                        );
+                      },
+                      onVideoPlayerDisposed: () {
+                        onVideoFrameChanged?.call(false);
+                        details.controller.onBooruVideoPlayerDisposed(post);
+                      },
+                      onFrameRendered: () => onVideoFrameChanged?.call(true),
                       sound: ref.watch(globalSoundStateProvider),
                       speed: ref.watch(playbackSpeedProvider(videoUrl)),
                       thumbnailUrl: post.videoThumbnailUrl,

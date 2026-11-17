@@ -102,10 +102,17 @@ class _FollowTopicFolderPickerDialogState
 
   @override
   Widget build(BuildContext context) {
-    final organization = ref
-        .watch(followingTopicsProvider)
-        .valueOrNull
-        ?.organization;
+    final state = ref.watch(followingTopicsProvider).valueOrNull;
+    final organization = state == null
+        ? null
+        : TopicOrganization(
+            folders: state.organization.folders.where(
+              (f) => !state.mirrors.isReceived(f.id),
+            ),
+            placements: state.organization.placements.where(
+              (p) => !state.mirrors.isReceived(p.itemId),
+            ),
+          );
     final tree = organization?.tree;
     final children = tree?.children(_currentFolderId) ?? <TopicFolder>[];
     final strings = context.t.following_topics;

@@ -15,18 +15,28 @@ class BookmarkListControls extends ConsumerWidget {
     required this.count,
     this.gridConfig,
     this.unavailableIndicator,
+    this.seenFilter,
     super.key,
   });
 
   final int count;
   final Widget? gridConfig;
   final Widget? unavailableIndicator;
+  final Widget? seenFilter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final showCount = ref.watch(
       settingsProvider.select((s) => s.showBookmarkCount),
     );
+    final groups = <Widget>[
+      ?seenFilter,
+      const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [BookmarkSortButton(), BookmarkShuffleButton()],
+      ),
+      const BookmarkBooruSourceUrlSelector(),
+    ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
@@ -41,16 +51,17 @@ class BookmarkListControls extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Row(
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          BookmarkSortButton(),
-                          BookmarkShuffleButton(),
-                          SizedBox(
-                            height: 24,
-                            child: VerticalDivider(width: 12, thickness: 1),
-                          ),
-                          BookmarkBooruSourceUrlSelector(),
+                          for (final (index, group) in groups.indexed) ...[
+                            if (index > 0)
+                              const SizedBox(
+                                height: 24,
+                                child: VerticalDivider(width: 12, thickness: 1),
+                              ),
+                            group,
+                          ],
                         ],
                       ),
                       if (showCount)

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/widgets.dart';
 
 import '../cache/providers.dart';
 import '../configs/manage/providers.dart';
@@ -15,12 +16,36 @@ final navigationControllerProvider =
       NavigationController.new,
     );
 
+/// Explicit root ingress also resets a destination's in-page navigation, such
+/// as the Bookmark browser's Group state. Ordinary branch switches retain it.
+final destinationRootRequestsProvider =
+    NotifierProvider<DestinationRootRequests, Map<DestinationId, int>>(
+      DestinationRootRequests.new,
+    );
+
+class DestinationRootRequests extends Notifier<Map<DestinationId, int>> {
+  @override
+  Map<DestinationId, int> build() => const {};
+
+  void request(DestinationId id) =>
+      state = {...state, id: (state[id] ?? 0) + 1};
+}
+
 class NavigationController extends Notifier<NavigationPreferences> {
-  DestinationRouterBinding? binding;
+  DestinationRouterBinding? _binding;
+  final bindingChanges = ValueNotifier(0);
+  DestinationRouterBinding? get binding => _binding;
+  set binding(DestinationRouterBinding? value) {
+    if (identical(_binding, value)) return;
+    _binding = value;
+    bindingChanges.value++;
+  }
+
   var _selecting = false;
 
   @override
   NavigationPreferences build() {
+    ref.onDispose(bindingChanges.dispose);
     final store = ref.read(miscDataStoreProvider);
     var collapsed = <String>{};
     try {
@@ -51,6 +76,38 @@ class NavigationController extends Notifier<NavigationPreferences> {
       if (!await registry.dismissTransientRoutes()) return false;
       final accepted = registry.select(id);
       if (accepted) ref.read(navigationChromeProvider.notifier).show();
+      return accepted;
+    } finally {
+      _selecting = false;
+    }
+  }
+
+  Future<bool> openBookmarksHome() => openAppRoot(AppDestination.bookmarks);
+
+  Future<bool> openAppRoot(AppDestination destination) async {
+    final id = DestinationId.app(destination);
+    final registry = binding;
+    if (registry == null || _selecting) return false;
+    _selecting = true;
+    try {
+      final hadSelection = ref.read(navigationChromeProvider).selectionActive;
+      var accepted = await registry.openRoot(
+        id,
+      );
+      if (!accepted &&
+          hadSelection &&
+          !ref.read(navigationChromeProvider).selectionActive) {
+        accepted = await registry.openRoot(
+          id,
+        );
+      }
+      if (accepted) {
+        ref.read(destinationRootRequestsProvider.notifier).request(id);
+        // Keep external-ingress content suppression active until the real root
+        // browser has replaced its retained Group/search/selection state.
+        await WidgetsBinding.instance.endOfFrame;
+        ref.read(navigationChromeProvider.notifier).show();
+      }
       return accepted;
     } finally {
       _selecting = false;

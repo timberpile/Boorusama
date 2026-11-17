@@ -60,7 +60,7 @@ void main() {
       expect(find.textContaining('Last Checked:'), findsNothing);
       expect(find.byType(FeedLastChecked), findsOneWidget);
       final before = await tester.runAsync(h.repository.getAll);
-      await tester.tap(find.byType(PopupMenuButton<String>).first);
+      await tester.tap(find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')).first);
       await tester.pumpAndSettle();
       expect(find.text('Refresh'), findsOneWidget);
       expect(find.text('Feed Details'), findsNothing);

@@ -9,6 +9,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 // Project imports:
 import '../../../posts/post/types.dart';
 import 'bookmark.dart';
+import 'bookmark_mirror_state.dart';
 import 'bookmark_record_index.dart';
 import 'bookmark_record_fields.dart';
 import 'pool_bookmark.dart';
@@ -29,6 +30,7 @@ class BookmarkLibraryState extends Equatable {
     List<CollectionBookmark> pools = const [],
     List<Bookmark>? records,
     int revision = 0,
+    BookmarkMirrorState mirrors = const BookmarkMirrorState.empty(),
   }) {
     final index = BookmarkRecordIndex.build(
       records: records ?? bookmarks,
@@ -38,6 +40,7 @@ class BookmarkLibraryState extends Equatable {
     );
     final media = records == null ? bookmarks : _mediaRecords(index.records);
     return BookmarkLibraryState._initial(
+      mirrors: mirrors,
       index: index,
       canonical: records != null,
       media: media,
@@ -49,6 +52,7 @@ class BookmarkLibraryState extends Equatable {
   }
 
   BookmarkLibraryState._initial({
+    required this.mirrors,
     required BookmarkRecordIndex index,
     required bool canonical,
     required List<PostBookmark> media,
@@ -98,6 +102,7 @@ class BookmarkLibraryState extends Equatable {
        );
 
   BookmarkLibraryState._derived({
+    required this.mirrors,
     required this.folders,
     required this.legacyFolderGroupIds,
     required this.pools,
@@ -113,6 +118,54 @@ class BookmarkLibraryState extends Equatable {
     required this.revision,
   }) : _recordIndex = recordIndex,
        _canonical = canonical;
+
+  final BookmarkMirrorState mirrors;
+  late final Set<String> localGroupIds = Set.unmodifiable(
+    groupsById.keys.where((id) => !mirrors.isReceived(id)),
+  );
+  late final Set<int> localBookmarkIds = mirrors.owners.isEmpty
+      ? Set.unmodifiable(byId.keys)
+      : Set.unmodifiable({
+          for (final group in groups)
+            if (!mirrors.isReceived(group.id)) ...group.bookmarkIds,
+        });
+
+  late final List<CollectionBookmark> localPools = mirrors.owners.isEmpty
+      ? pools
+      : List.unmodifiable(
+          pools.where((pool) => pool.groupIds.any(localGroupIds.contains)),
+        );
+
+  late final List<PostBookmark> localItems = mirrors.owners.isEmpty
+      ? items
+      : List.unmodifiable(
+          items.where((item) => localBookmarkIds.contains(item.id)),
+        );
+  late final List<Bookmark> localRecords = mirrors.owners.isEmpty
+      ? records
+      : List.unmodifiable(
+          records.where((item) => localBookmarkIds.contains(item.id)),
+        );
+
+  BookmarkLibraryState withMirrors(BookmarkMirrorState value) =>
+      value == mirrors
+      ? this
+      : BookmarkLibraryState._derived(
+          mirrors: value,
+          folders: folders,
+          legacyFolderGroupIds: legacyFolderGroupIds,
+          pools: pools,
+          items: items,
+          bookmarks: bookmarks,
+          groups: groups,
+          bookmarksById: bookmarksById,
+          bookmarksByUniqueId: bookmarksByUniqueId,
+          groupsById: groupsById,
+          membershipsByBookmark: membershipsByBookmark,
+          recordIndex: _recordIndex,
+          canonical: _canonical,
+          revision: revision,
+        );
 
   final BookmarkRecordIndex _recordIndex;
   final bool _canonical;
@@ -156,13 +209,13 @@ class BookmarkLibraryState extends Equatable {
   }
 
   Set<int> bookmarkIdsForView(BookmarkView view) => switch (view.kind) {
-    BookmarkViewKind.all => Set.unmodifiable(byId.keys),
+    BookmarkViewKind.all => localBookmarkIds,
     BookmarkViewKind.group => groupsById[view.groupId]?.bookmarkIds ?? const {},
     BookmarkViewKind.subtree => subtreeProjection(view.groupId!).bookmarkIds,
   };
 
   Set<String> groupIdsForView(BookmarkView view) => switch (view.kind) {
-    BookmarkViewKind.all => Set.unmodifiable(groupsById.keys),
+    BookmarkViewKind.all => localGroupIds,
     BookmarkViewKind.group =>
       groupsById.containsKey(view.groupId) ? {view.groupId!} : const {},
     BookmarkViewKind.subtree => subtreeProjection(
@@ -317,6 +370,7 @@ class BookmarkLibraryState extends Equatable {
       return this;
     }
     return BookmarkLibraryState._derived(
+      mirrors: mirrors,
       legacyFolderGroupIds: legacyFolderGroupIds,
       pools: nextPools,
       folders: nextFolders,
@@ -461,6 +515,7 @@ class BookmarkLibraryState extends Equatable {
       return this;
     }
     return BookmarkLibraryState._derived(
+      mirrors: mirrors,
       legacyFolderGroupIds: legacyFolderGroupIds,
       pools: nextPools,
       folders: nextFolders,
@@ -561,6 +616,7 @@ class BookmarkLibraryState extends Equatable {
       });
     }
     return BookmarkLibraryState._derived(
+      mirrors: mirrors,
       legacyFolderGroupIds: legacyFolderGroupIds,
       pools: pools,
       folders: folders,
@@ -628,8 +684,8 @@ class BookmarkLibraryState extends Equatable {
 
   @override
   List<Object?> get props => _canonical
-      ? [records, groups, folders, pools, revision]
-      : [items, groups, folders, pools];
+      ? [records, groups, folders, pools, revision, mirrors]
+      : [items, groups, folders, pools, mirrors];
 }
 
 bool _isPost(Bookmark? record) => record is PostBookmark;

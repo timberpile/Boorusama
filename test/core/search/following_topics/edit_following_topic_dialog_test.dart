@@ -5,6 +5,7 @@ import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 
 import 'following_topic_test_utils.dart';
 
@@ -32,8 +33,17 @@ void main() {
   });
   tearDown(() => harness.dispose());
 
-  Future<void> open(WidgetTester tester, {bool missingProfile = false}) async {
-    final topic = topicFixture(query: '( cat ~ dog ) source:"a b"');
+  Future<void> open(
+    WidgetTester tester, {
+    bool missingProfile = false,
+    bool recoverProfile = false,
+  }) async {
+    final topic = topicFixture(
+      query: '( cat ~ dog ) source:"a b"',
+      profileId: recoverProfile
+          ? '00000000-0000-4000-8000-000000000004'
+          : testProfile.id,
+    );
     await harness.pump(
       tester,
       Scaffold(
@@ -111,6 +121,70 @@ void main() {
     );
     expect(saves, isEmpty);
   });
+
+  testWidgets(
+    'unbound Local Topic requires an explicit available profile choice before Save',
+    (tester) async {
+      await open(tester, recoverProfile: true);
+      final save = find.widgetWithText(FilledButton, 'Save');
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+      expect(saves, isEmpty);
+      await tester.tap(find.byType(KurumiOptionDropDownButton<String?>));
+      await settle(tester);
+      final option = find.text(otherTestProfile.url).last;
+      await tester.tap(option);
+      await settle(tester);
+      await tester.tap(save);
+      await drain(tester);
+      await settle(tester);
+      expect(saves.single.profileId, otherTestProfile.id);
+      expect(saves.single.query, '( cat ~ dog ) source:"a b"');
+    },
+  );
+
+  testWidgets('Cancel leaves a selected Local recovery profile unsaved', (
+    tester,
+  ) async {
+    await open(tester, recoverProfile: true);
+    await tester.tap(find.byType(KurumiOptionDropDownButton<String?>));
+    await settle(tester);
+    await tester.tap(find.text(otherTestProfile.url).last);
+    await settle(tester);
+    await tester.tap(find.text('Cancel'));
+    await settle(tester);
+    expect(saves, isEmpty);
+  });
+
+  testWidgets(
+    'Local profile recovery fits at 320dp and 200 percent text with keyboard',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetViewInsets();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      await open(tester, recoverProfile: true);
+      await tester.tap(find.byType(KurumiOptionDropDownButton<String?>));
+      await settle(tester);
+      await tester.tap(find.text(otherTestProfile.url).last);
+      await settle(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+      await tester.enterText(find.byType(TextField), 'Recovered Local');
+      await settle(tester);
+      await tester.ensureVisible(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.text('Save')).bottom, lessThanOrEqualTo(520));
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Save'));
+      await drain(tester);
+      await settle(tester);
+      expect(saves.single.profileId, otherTestProfile.id);
+    },
+  );
 
   for (final error in [
     DuplicateFollowingTopicException(),

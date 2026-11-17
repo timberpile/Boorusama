@@ -25,6 +25,7 @@ Future<void> goToSearchPage(
   String? order,
   BooruConfig? config,
   String? originatingTopicId,
+  Map<String, String> followingDefinitionReceipts = const {},
 }) async {
   final source = config ?? await chooseOperationSource(ref);
   if (!ref.context.mounted || source == null) return;
@@ -54,6 +55,7 @@ Future<void> goToSearchPage(
     ).toString(),
     extra: SearchRouteContext(
       config: source,
+      followingDefinitionReceipts: followingDefinitionReceipts,
       originatingTopicId: originatingTopicId,
       topicOrigin: topic == null
           ? null
@@ -70,11 +72,13 @@ Future<void> goToSearchPage(
 final class SearchRouteContext {
   const SearchRouteContext({
     required this.config,
+    this.followingDefinitionReceipts = const {},
     this.originatingTopicId,
     this.topicOrigin,
   });
 
   final BooruConfig config;
+  final Map<String, String> followingDefinitionReceipts;
   final String? originatingTopicId;
   final TopicSearchOrigin? topicOrigin;
 }

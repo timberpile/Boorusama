@@ -1,7 +1,18 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
+
+Future<bool> publishFileIfAbsentAsync(String source, String destination) =>
+    Isolate.run(_PublishTask(source, destination).run);
+
+final class _PublishTask {
+  const _PublishTask(this.source, this.destination);
+  final String source;
+  final String destination;
+  bool run() => publishFileIfAbsent(source, destination);
+}
 
 /// Publishes a complete temporary file without replacing any existing entry.
 /// Unlike an existence check followed by rename, the native operation also

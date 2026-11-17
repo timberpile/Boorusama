@@ -1,3 +1,13 @@
+import '../../../../content/content_access.dart';
+import '../../../../content/content_access_provider.dart';
+import '../widgets/following_definition_entry.dart';
+import '../types/following_mirror_state.dart';
+import '../providers/following_topic_config_provider.dart';
+import '../../../../backups/mitemite/protocol.dart' show SyncCollectionId;
+import '../../../../backups/mitemite/collection_alias_ui.dart';
+import '../../../../backups/mitemite/following_actions.dart';
+import '../../../../backups/mitemite/providers.dart';
+
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -138,6 +148,9 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (_, _) => Center(child: Text(strings.load_failed)),
               data: (state) {
+                final aliases = state.mirrors.owners.isEmpty
+                    ? const <SyncCollectionId, String>{}
+                    : ref.watch(syncCollectionAliasesProvider);
                 final feeds = state.feeds
                     .where((feed) => byProfileId.containsKey(feed.profileId))
                     .toList();
@@ -290,36 +303,40 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                                   label: strings.feed_info,
                                 ),
                               ),
-                              PopupMenuItem(
-                                value: 'up',
-                                enabled: index > 0,
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.arrow_upward,
-                                  label: strings.move_up,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'up',
+                                  enabled: index > 0,
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.arrow_upward,
+                                    label: strings.move_up,
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'down',
-                                enabled: index < siblings.length - 1,
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.arrow_downward,
-                                  label: strings.move_down,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'down',
+                                  enabled: index < siblings.length - 1,
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.arrow_downward,
+                                    label: strings.move_down,
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.edit_outlined,
-                                  label: context.t.generic.action.edit,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.edit_outlined,
+                                    label: context.t.generic.action.edit,
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.delete_outline,
-                                  label: context.t.generic.action.delete,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.delete_outline,
+                                    label: context.t.generic.action.delete,
+                                  ),
                                 ),
-                              ),
                             ],
                           );
                           return Card(
@@ -354,7 +371,12 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            feed.name,
+                                            followingAliasLabel(
+                                              feed.name,
+                                              feed.id,
+                                              state.mirrors,
+                                              aliases,
+                                            ),
                                             style: Theme.of(
                                               context,
                                             ).textTheme.titleMedium,
@@ -568,10 +590,13 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
     final asyncState = ref.watch(followingTopicsProvider);
     final state = asyncState.valueOrNull;
     final feed = state?.feeds.where((f) => f.id == widget.feedId).firstOrNull;
-    final config = ref
-        .watch(booruConfigProvider)
-        .where((c) => c.id == (feed?.profileId ?? widget.profileId))
-        .firstOrNull;
+    final config = [
+      for (final id in feed?.sourceIds ?? const <String>[])
+        ref.watch(followingTopicConfigProvider(id)),
+      ...ref
+          .watch(booruConfigProvider)
+          .where((c) => c.id == (feed?.profileId ?? widget.profileId)),
+    ].whereType<BooruConfig>().firstOrNull;
     final feedEnabled =
         state?.organization.folders
             .where((folder) => folder.id == widget.feedId)
@@ -596,118 +621,166 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
     final refreshing = state?.refreshingFeedId == widget.feedId;
     final refreshChecked = refreshing ? state?.feedRefreshChecked ?? 0 : 0;
     final refreshTotal = refreshing ? state?.feedRefreshTotal ?? 0 : 0;
-    return PerformanceScreenScope(
-      screen: PerfScreen.topicFeed,
-      priority: 2,
-      child: Scaffold(
-        appBar: KurumiAppBar(
-          backgroundColor: TimelineHeaderSliver.backgroundColorOf(context),
-          title: Text(feed?.name ?? strings.topic_feeds),
-          actions: [
-            if (_latestSuccessfulCheck(sources) case final checkedAt?)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 112),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    widthFactor: 1,
-                    child: FeedLastChecked(checkedAt: checkedAt, compact: true),
+    return FollowingDefinitionEntry(
+      ready: feed != null && config != null,
+      receipts: {
+        for (final source in sources)
+          if (ref.watch(followingTopicConfigProvider(source.id)) != null)
+            if (state?.mirrors.owners[source.id] case final owner?)
+              if (owner.hasDefinitionChange) source.id: owner.definitionDigest,
+      },
+      child: PerformanceScreenScope(
+        screen: PerfScreen.topicFeed,
+        priority: 2,
+        child: Scaffold(
+          appBar: KurumiAppBar(
+            backgroundColor: TimelineHeaderSliver.backgroundColorOf(context),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    folder != null && state != null
+                        ? followingAliasLabel(
+                            folder.name,
+                            folder.id,
+                            state.mirrors,
+                            followingAliasSource(state.mirrors, folder.id) ==
+                                    null
+                                ? const {}
+                                : ref.watch(syncCollectionAliasesProvider),
+                          )
+                        : feed?.name ?? strings.topic_feeds,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ),
-            PopupMenuButton<String>(
-              tooltip: context.t.generic.action.more,
-              onSelected: (action) async {
-                if (action == 'refresh' && !_filter.isActive) {
-                  await _refreshFeed(context, ref, widget.feedId);
-                } else if (action == 'settings' && folder != null) {
-                  await _editFolderSettings(folder);
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'refresh',
-                  enabled:
-                      !_filter.isActive &&
-                      feedEnabled &&
-                      feed != null &&
-                      state?.refreshingFeedId == null,
-                  child: PopupMenuActionLabel(
-                    icon: Icons.refresh,
-                    label: strings.refresh,
-                  ),
+                FollowingSyncStatus(
+                  readOnly: state?.mirrors.isReceived(widget.feedId) ?? false,
+                  published:
+                      isFolderFeed &&
+                      ref
+                          .watch(publishedFollowingRootsProvider)
+                          .contains(widget.feedId),
+                  changed:
+                      state != null &&
+                      unseenFollowingTopicDefinitions(
+                        state.mirrors,
+                        state.organization,
+                        widget.feedId,
+                      ).isNotEmpty,
                 ),
-                if (isFolderFeed)
-                  PopupMenuItem(
-                    value: 'settings',
-                    child: PopupMenuActionLabel(
-                      icon: Icons.tune,
-                      label: strings.feed_settings,
-                    ),
-                  ),
               ],
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: asyncState.isLoading && feed == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : asyncState.hasError && feed == null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(strings.load_failed),
-                          TextButton(
-                            onPressed: () =>
-                                ref.invalidate(followingTopicsProvider),
-                            child: Text(context.t.generic.action.retry),
-                          ),
-                        ],
+            actions: [
+              if (_latestSuccessfulCheck(sources) case final checkedAt?)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 112),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      widthFactor: 1,
+                      child: FeedLastChecked(
+                        checkedAt: checkedAt,
+                        compact: true,
                       ),
-                    )
-                  : feed == null || config == null
-                  ? Center(child: Text(strings.feeds_empty))
-                  : feed.posts.isEmpty
-                  ? CustomScrollView(
-                      slivers: [
-                        if (filterBar != null)
-                          TimelineHeaderSliver(child: filterBar),
-                        SliverToBoxAdapter(
-                          child: _FeedStatusHeader(
-                            sources: sources,
-                            refreshChecked: refreshChecked,
-                            refreshTotal: refreshTotal,
-                            unavailable: false,
-                          ),
+                    ),
+                  ),
+                ),
+              KurumiPopupMenuButton(
+                icon: const Icon(Icons.more_vert),
+                semanticLabel: context.t.generic.action.more,
+                iconPadding: const EdgeInsets.all(12),
+                items: [
+                  if (folder != null && state != null)
+                    ...followingSyncMenu(context, ref, state, folder.id),
+                  KurumiPopupMenuItem(
+                    title: Text(strings.refresh),
+                    icon: const Icon(Icons.refresh),
+                    onTap:
+                        !_filter.isActive &&
+                            feedEnabled &&
+                            feed != null &&
+                            state?.refreshingFeedId == null
+                        ? () => _refreshFeed(context, ref, widget.feedId)
+                        : null,
+                  ),
+                  if (isFolderFeed &&
+                      !(state?.mirrors.isReceived(folder.id) ?? false))
+                    KurumiPopupMenuItem(
+                      title: Text(strings.feed_settings),
+                      icon: const Icon(Icons.tune),
+                      onTap: () => _editFolderSettings(folder),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: asyncState.isLoading && feed == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : asyncState.hasError && feed == null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(strings.load_failed),
+                            TextButton(
+                              onPressed: () =>
+                                  ref.invalidate(followingTopicsProvider),
+                              child: Text(context.t.generic.action.retry),
+                            ),
+                          ],
                         ),
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: Text(
-                              _filter.isActive
-                                  ? strings.feed_filter_empty
-                                  : strings.feed_posts_empty,
+                      )
+                    : feed == null || config == null
+                    ? Center(
+                        child: Text(
+                          state?.mirrors.isReceived(widget.feedId) ?? false
+                              ? context.t.mitemite.following_paused
+                              : strings.feeds_empty,
+                        ),
+                      )
+                    : feed.posts.isEmpty
+                    ? CustomScrollView(
+                        slivers: [
+                          if (filterBar != null)
+                            TimelineHeaderSliver(child: filterBar),
+                          SliverToBoxAdapter(
+                            child: _FeedStatusHeader(
+                              sources: sources,
+                              refreshChecked: refreshChecked,
+                              refreshTotal: refreshTotal,
+                              unavailable: false,
                             ),
                           ),
-                        ),
-                      ],
-                    )
-                  : _CachedFeedGrid(
-                      key: _gridKey,
-                      filter: _filter,
-                      filterHeader: filterBar!,
-                      feed: feed,
-                      config: config,
-                      sources: sources,
-                      refreshChecked: refreshChecked,
-                      refreshTotal: refreshTotal,
-                    ),
-            ),
-          ],
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: Center(
+                              child: Text(
+                                _filter.isActive
+                                    ? strings.feed_filter_empty
+                                    : strings.feed_posts_empty,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : _CachedFeedGrid(
+                        key: _gridKey,
+                        filter: _filter,
+                        filterHeader: filterBar!,
+                        feed: feed,
+                        config: config,
+                        sources: sources,
+                        refreshChecked: refreshChecked,
+                        refreshTotal: refreshTotal,
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -808,10 +881,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   FeedHistorySession _createHistory() => FeedHistorySession(
     sources: widget.sources,
     confirmExhaustion: (source, page, result) {
-      final owner = ref
-          .read(booruConfigProvider)
-          .where((config) => config.id == source.profileId)
-          .firstOrNull;
+      final owner = ref.read(followingTopicConfigProvider(source.id));
       return owner != null &&
           confirmsFeedHistoryEnd(
             result,
@@ -831,10 +901,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
         _decodeFeedPost(ref, post, widget.config),
     ],
     fetchPage: (source, page) async {
-      final owner = ref
-          .read(booruConfigProvider)
-          .where((config) => config.id == source.profileId)
-          .firstOrNull;
+      final owner = ref.read(followingTopicConfigProvider(source.id));
       if (owner == null) throw StateError('Feed source profile unavailable');
       final adapter = ref
           .read(booruRepoProvider(owner.auth))
@@ -966,13 +1033,16 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   ) => _feedAction(context, () async {
     final controller = _controller;
     if (controller == null) return;
+    final access = _feedPostAccess(ref, post, widget.sources);
+    final config = access?.config;
+    if (config == null) return;
     goToPostDetailsPageFromController(
       ref: ref,
       initialIndex: index,
       controller: controller,
       scrollController: scrollController,
       initialThumbnailUrl: post.thumbnailImageUrl,
-      config: widget.config,
+      config: config,
       canContinue: () => mounted && _historyStarted && !widget.filter.isActive,
     );
   });
@@ -1083,27 +1153,29 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 ),
                 itemBuilder: (context, index, scroll, useHero) {
                   final post = controller.items.elementAt(index);
-                  final config = switch (const PostOriginResolver().resolve(
-                    post.origin,
-                    ref.watch(booruConfigProvider),
-                  )) {
-                    ResolvedPostOrigin(:final config) => config,
-                    _ => null,
-                  };
-                  return PostGridContextMenu(
-                    controller: controller,
-                    index: index,
-                    child: DefaultImageGridItem(
-                      index: index,
-                      autoScrollController: scroll,
+                  final access = _feedPostAccess(ref, post, widget.sources);
+                  final config = access?.config;
+                  if (config == null)
+                    return AspectRatio(
+                      aspectRatio: post.aspectRatio ?? 1,
+                      child: const KurumiImagePlaceholder(),
+                    );
+                  return CurrentBooruConfigScope(
+                    config: config,
+                    accessKey: access!.key,
+                    requireAccess: true,
+                    child: PostGridContextMenu(
                       controller: controller,
-                      useHero: useHero,
-                      config: config?.auth ?? BooruConfig.empty.auth,
-                      imageConfig: config?.auth,
-                      presentation: config == null
-                          ? const GenericPostPresentation()
-                          : null,
-                      onTap: () => _openPost(index, scroll, post),
+                      index: index,
+                      child: DefaultImageGridItem(
+                        index: index,
+                        autoScrollController: scroll,
+                        controller: controller,
+                        useHero: useHero,
+                        config: config.auth,
+                        imageConfig: config.auth,
+                        onTap: () => _openPost(index, scroll, post),
+                      ),
                     ),
                   );
                 },
@@ -1239,6 +1311,29 @@ class _FeedSelectionActions extends ConsumerWidget {
       postController: controller,
     );
   }
+}
+
+// An explicitly public received Feed keeps its public grant when duplicate
+// saved accounts make the general origin resolver ambiguous. Never choose one
+// of those accounts or grant access to a source absent from this Feed.
+ContentAccessContext? _feedPostAccess(
+  WidgetRef ref,
+  Post post,
+  List<FollowingTopic> sources,
+) {
+  final ordinary = ref.watch(contentAccessForOriginProvider(post.origin));
+  if (ordinary != null) return ordinary;
+  for (final source in sources) {
+    final config = ref.watch(followingTopicConfigProvider(source.id));
+    final scope = config?.anonymousReadScope;
+    if (scope != null &&
+        scope.isCurrent &&
+        scope.source.engine == post.origin.booruType &&
+        scope.source.site.host == post.origin.sourceHost) {
+      return ref.watch(contentAccessContextProvider(scope.key));
+    }
+  }
+  return null;
 }
 
 Post _decodeFeedPost(

@@ -12,7 +12,8 @@ import 'detached_bookmark_codec.dart';
 /// Only snapshots and detached codecs cross this boundary. Repository access,
 /// preparation steps and import execution remain with the calling source.
 final class BookmarkBackupWorker {
-  BookmarkBackupWorker(BookmarkBackupCodec codec) : _codec = _detach(codec);
+  BookmarkBackupWorker(BookmarkBackupCodec codec)
+    : _codec = detachBookmarkBackupCodec(codec);
 
   final BookmarkBackupCodec _codec;
 
@@ -31,14 +32,6 @@ final class BookmarkBackupWorker {
   Future<({ExportDataPayload metadata, BookmarkBackupData parsed})> decode(
     String encoded,
   ) => Isolate.run(_DecodeTask(encoded, _codec).decode);
-}
-
-BookmarkBackupCodec _detach(BookmarkBackupCodec original) {
-  final records = detachBookmarkRecordCodec(original.records);
-  return BookmarkBackupCodec(
-    postDataCodec: records.postDataCodec,
-    groupMetadata: records.groups.metadata,
-  );
 }
 
 final class _RevisionTask {

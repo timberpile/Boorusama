@@ -1,5 +1,11 @@
+import '../../../backups/mitemite/collection_alias_ui.dart';
+import '../../../backups/mitemite/mitemite_icon.dart';
+
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/services.dart';
+
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/performance.dart';
 import 'package:i18n/i18n.dart';
@@ -9,6 +15,10 @@ import 'package:scroll_to_index/scroll_to_index.dart';
 
 import '../../../../foundation/performance/performance_navigation.dart';
 import '../../../navigation/navigation_interaction_scopes.dart';
+import '../../../backups/mitemite/page.dart';
+import '../../../backups/mitemite/providers.dart';
+import '../../../backups/mitemite/name_dialog.dart';
+import '../../../backups/mitemite/reading_state.dart';
 import '../../../selection/collection_selection.dart';
 import '../../../selection/collection_selection_bar.dart';
 import '../../../selection/ordered_selection_canvas.dart';
@@ -143,7 +153,11 @@ class _BookmarkGroupBrowserPageState
     final group = state?.groupsById[id];
     final children = state?.groupTree.childrenOf(id) ?? const <BookmarkGroup>[];
     final ordinaryChildren = children
-        .where((child) => !child.isDefault)
+        .where(
+          (child) =>
+              !child.isDefault &&
+              (id != null || !(state?.mirrors.isReceived(child.id) ?? false)),
+        )
         .toList();
     final requested = _legacyFolderRequest
         ? state?.legacyFolderGroupIds[_requestedId] ?? _requestedId
@@ -183,13 +197,18 @@ class _BookmarkGroupBrowserPageState
     _selection.reconcileDuringBuild([
       if (mode == BookmarkGroupViewMode.structure)
         for (final child in ordinaryChildren)
-          (CollectionSelectionKind.group, child.id),
+          if (!(state?.mirrors.isReceived(child.id) ?? false))
+            (CollectionSelectionKind.group, child.id),
     ], scope: scope);
     final selected = {
       for (final (_, selectedId) in _selection.selectedKeys) selectedId,
     };
-    final title =
-        group?.displayName(context) ?? context.t.bookmark.groups.selector;
+    if (state != null && state.mirrors.owners.isNotEmpty) {
+      ref.watch(syncCollectionAliasesProvider);
+    }
+    final title = group == null
+        ? context.t.bookmark.groups.selector
+        : _groupLabel(state!, group);
     void up() => _open(group?.parentGroupId);
 
     return PopScope(
@@ -221,6 +240,32 @@ class _BookmarkGroupBrowserPageState
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Flexible(child: KurumiFittedText(Text(title))),
+                              if (state.mirrors.isReceived(id)) ...[
+                                const SizedBox(width: 6),
+                                Tooltip(
+                                  message: context.t.mitemite.received_group,
+                                  child: const MiteMiteIcon(
+                                    size: 18,
+                                  ),
+                                ),
+                              ] else if (ref
+                                      .watch(publishedBookmarkRootsProvider)
+                                      .contains(id) ||
+                                  state.groupTree
+                                      .ancestors(id)
+                                      .any(
+                                        (a) => ref
+                                            .watch(
+                                              publishedBookmarkRootsProvider,
+                                            )
+                                            .contains(a.id),
+                                      )) ...[
+                                const SizedBox(width: 6),
+                                Tooltip(
+                                  message: context.t.mitemite.published,
+                                  child: const MiteMiteIcon(size: 18),
+                                ),
+                              ],
                               const Icon(Icons.arrow_drop_down),
                             ],
                           ),
@@ -260,12 +305,17 @@ class _BookmarkGroupBrowserPageState
                       enabled: state != null,
                       semanticLabel: context.t.generic.action.more,
                       items: [
-                        KurumiPopupMenuItem(
-                          title: Text(context.t.bookmark.groups.add),
-                          icon: const Icon(Icons.add),
-                          onTap: () => _create(id),
-                        ),
-                        if (group != null && !group.isDefault) ...[
+                        if (group != null && state != null)
+                          ..._syncActions(state, group),
+                        if (!(state?.mirrors.isReceived(id ?? '') ?? false))
+                          KurumiPopupMenuItem(
+                            title: Text(context.t.bookmark.groups.add),
+                            icon: const Icon(Icons.add),
+                            onTap: () => _create(id),
+                          ),
+                        if (group != null &&
+                            !group.isDefault &&
+                            !state!.mirrors.isReceived(group.id)) ...[
                           KurumiPopupMenuItem(
                             title: Text(context.t.bookmark.groups.rename),
                             onTap: () => _rename(group),
@@ -373,6 +423,7 @@ class _BookmarkGroupBrowserPageState
                             controller: scroll,
                             slivers: [
                               ...slivers,
+                              if (id == null) ..._deviceSlivers(state),
                               if (genuinelyEmpty &&
                                   (mode != BookmarkGroupViewMode.structure ||
                                       ordinaryChildren.isEmpty))
@@ -448,7 +499,7 @@ class _BookmarkGroupBrowserPageState
               );
             final ancestor = ancestors[index - 1];
             return KurumiPopupMenuItem(
-              title: Text(ancestor.displayName(context)),
+              title: Text(_groupLabel(state, ancestor)),
               onTap: () => _open(ancestor.id),
             );
           },
@@ -488,6 +539,12 @@ class _BookmarkGroupBrowserPageState
     List<BookmarkGroup> children,
     Set<String> selected,
   ) {
+    final published = ref.watch(publishedBookmarkRootsProvider);
+    bool isPublished(BookmarkGroup group) =>
+        published.contains(group.id) ||
+        state.groupTree
+            .ancestors(group.id)
+            .any((parent) => published.contains(parent.id));
     final cards = <(String, BookmarkView, BookmarkGroup?)>[
       if (id == null) ...[
         (context.t.bookmark.groups.all, const BookmarkView.all(), null),
@@ -499,7 +556,7 @@ class _BookmarkGroupBrowserPageState
           ),
       ],
       for (final group in children)
-        (group.displayName(context), BookmarkView.group(group.id), group),
+        (_groupLabel(state, group), BookmarkView.group(group.id), group),
     ];
     return SliverLayoutBuilder(
       builder: (context, constraints) => SliverPadding(
@@ -523,9 +580,7 @@ class _BookmarkGroupBrowserPageState
                     state.groupTree.childrenOf(group.id).isNotEmpty
                 ? BookmarkView.subtree(group.id)
                 : view;
-            final previewGroups = previewView.kind == BookmarkViewKind.all
-                ? null
-                : state.groupIdsForView(previewView);
+            final previewGroups = state.groupIdsForView(previewView);
             final key = view.groupId ?? 'all';
             final preview = _previews.putIfAbsent(
               key,
@@ -546,15 +601,34 @@ class _BookmarkGroupBrowserPageState
                               pool.localId,
                             ) ??
                             false) &&
-                        (previewGroups == null ||
-                            pool.groupIds.any(previewGroups.contains)),
+                        pool.groupIds.any(previewGroups.contains),
                   )
                   .take(4)
                   .toList(),
             );
-            final editable = group != null && !group.isDefault;
+            final editable =
+                group != null &&
+                !group.isDefault &&
+                !state.mirrors.isReceived(group.id);
             final card = BookmarkLocalGroupCard(
+              key: ValueKey(('bookmark-card', group?.id ?? 'all')),
               title: title,
+              syncActions: group == null || _selection.isActive
+                  ? const []
+                  : _syncActions(state, group),
+              readOnly: group != null && state.mirrors.isReceived(group.id),
+              syncIndicator:
+                  group != null &&
+                      isPublished(group) &&
+                      !state.mirrors.isReceived(group.id)
+                  ? Tooltip(
+                      message: context.t.mitemite.published,
+                      child: const MiteMiteIcon(color: Colors.white, size: 20),
+                    )
+                  : null,
+              unseenCount: group == null
+                  ? 0
+                  : syncBookmarkUnseenMembers(state, group.id).length,
               previews: preview,
               pools: pools,
               nativeGroups: _nativePreviews.putIfAbsent(
@@ -606,6 +680,155 @@ class _BookmarkGroupBrowserPageState
     );
   }
 
+  String _groupLabel(BookmarkLibraryState state, BookmarkGroup group) {
+    final source = bookmarkAliasSource(state.mirrors, group.id);
+    return source == null
+        ? group.displayName(context)
+        : ref.read(syncCollectionAliasesProvider)[source] ??
+              group.displayName(context);
+  }
+
+  List<Widget> _syncActions(BookmarkLibraryState state, BookmarkGroup group) {
+    final owner = state.mirrors.owners[group.id];
+    if (owner == null) {
+      final published = ref.watch(publishedBookmarkRootsProvider);
+      final direct = published.contains(group.id);
+      final inherited = state.groupTree
+          .ancestors(group.id)
+          .any((p) => published.contains(p.id));
+      return [
+        KurumiPopupMenuItem(
+          title: Text(
+            direct
+                ? context.t.mitemite.manage_publication
+                : context.t.mitemite.publish,
+          ),
+          icon: const MiteMiteIcon(),
+          onTap: direct
+              ? () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MiteMitePage(section: 'publish'),
+                  ),
+                )
+              : () => publishBookmarkGroup(context, ref, group.id),
+        ),
+        if (inherited && !direct)
+          KurumiPopupMenuItem(
+            title: Text(context.t.mitemite.inherited),
+            icon: const Icon(Icons.account_tree_outlined),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const MiteMitePage(section: 'publish'),
+              ),
+            ),
+          ),
+      ];
+    }
+    return [
+      ...collectionAliasMenu(
+        context,
+        ref,
+        id: bookmarkAliasSource(state.mirrors, group.id)!,
+        sourceName: group.name,
+      ),
+      KurumiPopupMenuItem(
+        title: Text(context.t.mitemite.copy),
+        icon: const Icon(Icons.copy),
+        onTap: () => runSyncAction(context, () async {
+          await (await ref.read(miteMiteServiceProvider.future))
+              .localCopy(group.id);
+          if (mounted)
+            Kurumi.showSuccessToast(
+              context,
+              context.t.mitemite.local_copy_created,
+            );
+        }),
+      ),
+      if (state.mirrors.subscriptions[owner.publisher]?.contains(
+            owner.source,
+          ) ??
+          false)
+        KurumiPopupMenuItem(
+          title: Text(context.t.mitemite.unsubscribe),
+          icon: const Icon(Icons.link_off),
+          onTap: () => runSyncAction(context, () async {
+            if (await confirmSyncAction(
+              context,
+              context.t.mitemite.unsubscribe,
+              syncRemovalMessage(context, state, owner.publisher, owner.source),
+            ))
+              await (await ref.read(miteMiteServiceProvider.future))
+                  .unsubscribe(owner.publisher, owner.source);
+          }),
+        ),
+    ];
+  }
+
+  List<Widget> _deviceSlivers(BookmarkLibraryState state) => [
+    for (final publisher in state.mirrors.subscriptions.keys) ...[
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: LayoutBuilder(
+            builder: (context, constraints) => Row(
+              children: [
+                const MiteMiteIcon(size: 20),
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth:
+                        (constraints.maxWidth - 92).clamp(0, double.infinity) *
+                        .75,
+                  ),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      state.mirrors.aliases[publisher] ??
+                          state.mirrors.publisherNames[publisher] ??
+                          publisher,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(child: Divider()),
+                const SizedBox(width: 8),
+                IconButton(
+                  key: ValueKey(('bookmark-device-edit', publisher)),
+                  tooltip: context.t.generic.action.edit,
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => runSyncAction(context, () async {
+                    final service = await ref.read(
+                      miteMiteServiceProvider.future,
+                    );
+                    if (mounted)
+                      await editSyncDeviceAlias(
+                        context,
+                        service: service,
+                        publisher: publisher,
+                        alias: state.mirrors.aliases[publisher],
+                      );
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      _cards(state, publisher, [
+        for (final source
+            in state.mirrors.subscriptions[publisher] ?? const <String>{})
+          if (state.mirrors.localIdFor(publisher, source) case final id?)
+            if (state.groupsById[id] case final group?) group,
+      ], const {}),
+    ],
+  ];
+
   Future<void> _setMode(String id, BookmarkGroupViewMode mode) async {
     _selection.disable();
     await _run(
@@ -652,7 +875,18 @@ class _BookmarkGroupBrowserPageState
   Future<void> _move(Set<String> ids, String? current) async {
     final destination = await showBookmarkGroupDestinationPicker(
       context,
-      groups: ref.read(bookmarkProvider).requireValue.groups,
+      groups: ref
+          .read(bookmarkProvider)
+          .requireValue
+          .groups
+          .where(
+            (group) => !ref
+                .read(bookmarkProvider)
+                .requireValue
+                .mirrors
+                .isReceived(group.id),
+          )
+          .toList(),
       movingGroupIds: ids,
       initialParentGroupId: current,
     );

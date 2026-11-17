@@ -1,3 +1,5 @@
+import '../../../../content/content_access_provider.dart';
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -47,7 +49,10 @@ final untrackedTopicPreviewProvider = FutureProvider.autoDispose
 
       try {
         final urls = await loader.load(
-          canStart: () => !disposed && !token.isCancelled,
+          canStart: () =>
+              !disposed &&
+              !token.isCancelled &&
+              (key.config.anonymousReadScope?.isCurrent ?? true),
           fetch: () => runWithApiRequestContext(
             ApiRequestContext(
               requestClass: ApiRequestClass.preload,
@@ -55,7 +60,10 @@ final untrackedTopicPreviewProvider = FutureProvider.autoDispose
               admissionBehavior: ApiAdmissionBehavior.dropIfUnavailable,
               allowCooldownRetry: false,
               cancelToken: token,
-              canStart: () => !disposed && !token.isCancelled,
+              canStart: () =>
+                  !disposed &&
+                  !token.isCancelled &&
+                  (key.config.anonymousReadScope?.isCurrent ?? true),
             ),
             () async {
               // One first page only. Raw suppresses cascading requests, not
@@ -76,7 +84,26 @@ final untrackedTopicPreviewProvider = FutureProvider.autoDispose
               final result = await request.run();
               return result.fold(
                 (error) => throw error,
-                (page) => page.posts.map((post) => post.thumbnailImageUrl),
+                (page) => page.posts
+                    .where((post) {
+                      final scope = key.config.anonymousReadScope;
+                      if (scope == null) return true;
+                      final uri = Uri.tryParse(post.thumbnailImageUrl);
+                      return !disposed &&
+                          scope.isCurrent &&
+                          uri != null &&
+                          scope.source.allowsMedia(uri) &&
+                          ref
+                                  .watch(
+                                    contentPostVisibilityProvider((
+                                      access: scope.key,
+                                      post: post,
+                                    )),
+                                  )
+                                  .valueOrNull ==
+                              true;
+                    })
+                    .map((post) => post.thumbnailImageUrl),
               );
             },
           ),

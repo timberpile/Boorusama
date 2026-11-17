@@ -5,6 +5,8 @@ import 'package:kurumi/kurumi.dart';
 import 'package:i18n/i18n.dart';
 
 // Project imports:
+import '../../../../boorus/engine/providers.dart';
+import '../../../following_topics/src/widgets/following_definition_entry.dart';
 import '../../../../../foundation/platform.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/widgets.dart';
@@ -48,8 +50,20 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
               owner == null &&
               state.uri.queryParameters.containsKey('_profile')
           ? Center(child: Text(context.t.navigation.unavailable_profile))
-          : SearchPage(
-              initialConfig: local ? owner : null,
+          : Consumer(
+              builder: (context, routeRef, child) => FollowingDefinitionEntry(
+                ready:
+                    routeContext == null ||
+                    routeRef
+                            .watch(
+                              booruBuilderProvider(routeContext.config.auth),
+                            )
+                            ?.searchPageBuilder !=
+                        null,
+                receipts: routeContext?.followingDefinitionReceipts ?? const {},
+                child: child!,
+              ),
+              child: SearchPage(initialConfig: local ? owner : null),
             ),
     );
     final page = local

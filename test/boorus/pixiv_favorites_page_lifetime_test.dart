@@ -17,7 +17,6 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/content_media_dio.dart';
 import 'package:boorusama/core/http/client/providers.dart';
-import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/rendering.dart' show CacheExtentStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';

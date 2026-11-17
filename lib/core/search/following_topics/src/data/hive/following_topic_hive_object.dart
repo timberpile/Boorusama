@@ -23,6 +23,7 @@ class FollowingTopicHiveObject extends HiveObject {
     this.feedId,
     this.runtimeRevision = 0,
     this.queryStructure,
+    this.localSource,
     this.adaptiveIntervalMilliseconds = 86400000,
     this.emptyAutomaticStreak = 0,
     this.lastMaterialEditAt,
@@ -34,6 +35,7 @@ class FollowingTopicHiveObject extends HiveObject {
   String? feedId;
   int runtimeRevision;
   Object? queryStructure;
+  Object? localSource;
   String id;
   String profileId;
   String query;

@@ -171,7 +171,7 @@ class ServerFavoriteSettingsNotifier
         for (final groupId in groupIds) {
           validateServerFavoriteBinding(
             groupId: groupId,
-            groupIds: library.groupsById.keys.toSet(),
+            groupIds: library.localGroupIds,
           );
         }
       }

@@ -44,7 +44,9 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FollowingTopicCard).first,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: inFeed
+                ? find.byType(PopupMenuButton<FollowingTopicAction>)
+                : followingCardMenus(),
           ),
         );
         await settle(tester);

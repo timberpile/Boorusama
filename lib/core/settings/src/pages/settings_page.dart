@@ -265,6 +265,8 @@ class _SettingsAdaptiveShellState
   var _compactScrollHandled = false;
   var _sidebarScrollHandled = false;
   var _closing = false;
+  var _handlingBack = false;
+  var _contentCanPop = false;
   var _showSearch = false;
 
   @override
@@ -310,13 +312,37 @@ class _SettingsAdaptiveShellState
     });
   }
 
-  void _back() {
-    final navigation = ref.read(settingsNavigationProvider(_seed));
-    if (navigation.canGoBack(widget.presentation)) {
-      _notifier.back();
-    } else {
-      _closeHost();
+  Future<void> _back() async {
+    if (_handlingBack || _closing) return;
+    _handlingBack = true;
+    try {
+      // Export/Import and its nested flows use this Navigator. Pop the actual
+      // top route first; removing a declarative page updates the category via
+      // onDidRemovePage below. Do not discard the whole category on system Back.
+      if (await _contentNavigatorKey.currentState?.maybePop() ?? false) return;
+      if (!mounted) return;
+      final navigation = ref.read(settingsNavigationProvider(_seed));
+      if (navigation.canGoBack(widget.presentation)) {
+        _notifier.back();
+      } else {
+        _closeHost();
+      }
+    } finally {
+      _handlingBack = false;
     }
+  }
+
+  bool _contentNavigationChanged(NavigationNotification notification) {
+    final canPop = notification.canHandlePop;
+    if (_contentCanPop != canPop) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _contentCanPop != canPop) {
+          setState(() => _contentCanPop = canPop);
+        }
+      });
+    }
+    // A containing router must not treat this nested Navigator as its own.
+    return true;
   }
 
   void _selectCategory(SettingEntry entry) {
@@ -352,9 +378,11 @@ class _SettingsAdaptiveShellState
           child: KurumiDismissible(
             onDismiss: _back,
             child: PopScope<void>(
-              canPop: _closing || !navigation.canGoBack(presentation),
+              canPop:
+                  _closing ||
+                  (!_contentCanPop && !navigation.canGoBack(presentation)),
               onPopInvokedWithResult: (didPop, result) {
-                if (!didPop) _notifier.back();
+                if (!didPop) _back();
               },
               child: Row(
                 children: [
@@ -388,20 +416,24 @@ class _SettingsAdaptiveShellState
                       child: Semantics(
                         container: true,
                         child: KurumiFocusPane(
-                          child: Navigator(
-                            key: _contentNavigatorKey,
-                            pages: _destinationPages(
-                              presentation: presentation,
-                              visiblePath: visiblePath,
+                          child: NotificationListener<NavigationNotification>(
+                            onNotification: _contentNavigationChanged,
+                            child: Navigator(
+                              key: _contentNavigatorKey,
+                              pages: _destinationPages(
+                                presentation: presentation,
+                                visiblePath: visiblePath,
+                              ),
+                              onDidRemovePage: (page) {
+                                final currentId = ref
+                                    .read(settingsNavigationProvider(_seed))
+                                    .currentDestinationId;
+                                if (page.key ==
+                                    ValueKey('settings-$currentId')) {
+                                  _notifier.back();
+                                }
+                              },
                             ),
-                            onDidRemovePage: (page) {
-                              final currentId = ref
-                                  .read(settingsNavigationProvider(_seed))
-                                  .currentDestinationId;
-                              if (page.key == ValueKey('settings-$currentId')) {
-                                _notifier.back();
-                              }
-                            },
                           ),
                         ),
                       ),

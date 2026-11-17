@@ -99,11 +99,17 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.byType(FollowingTopicCard),
-            matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+            matching: followingCardMenus(),
           ),
         );
         await tester.pumpAndSettle();
         expect(find.text('Delete'), findsNothing);
+        await tester.ensureVisible(find.text('Unfollow'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(find.text('Unfollow')).bottom,
+          lessThanOrEqualTo(800),
+        );
         await tester.tap(find.text('Unfollow'));
         await drain(tester);
         await tester.pump();
@@ -151,9 +157,11 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byKey(ValueKey('following-topic-folder-${folder.id}')),
-          matching: find.byWidgetPredicate((w) => w is PopupMenuButton),
+          matching: followingCardMenus(),
         ),
       );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Delete'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete'));
       await tester.pumpAndSettle();

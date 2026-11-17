@@ -137,6 +137,16 @@ class _BranchActivity extends InheritedWidget {
       selectionChromeActive != oldWidget.selectionChromeActive;
 }
 
+/// Synchronously suppress content activity while an external navigation intent
+/// unwinds routes, including callbacks already queued before the next frame.
+class NavigationIntentScope extends InheritedNotifier<ValueNotifier<bool>> {
+  const NavigationIntentScope({
+    required ValueNotifier<bool> blocked,
+    required super.child,
+    super.key,
+  }) : super(notifier: blocked);
+}
+
 /// Route-local signal: selected destination AND foreground AND no covering
 /// root task/menu AND this page is the current route of its branch.
 class NavigationActivity extends InheritedWidget {
@@ -155,10 +165,15 @@ class NavigationActivity extends InheritedWidget {
   }
 
   static bool of(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<NavigationActivity>()
-          ?.active ??
-      true;
+      !(context
+              .dependOnInheritedWidgetOfExactType<NavigationIntentScope>()
+              ?.notifier
+              ?.value ??
+          false) &&
+      (context
+              .dependOnInheritedWidgetOfExactType<NavigationActivity>()
+              ?.active ??
+          true);
   @override
   bool updateShouldNotify(NavigationActivity oldWidget) =>
       active != oldWidget.active ||

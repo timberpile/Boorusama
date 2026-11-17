@@ -7,11 +7,13 @@ import 'search_post_preview.dart';
 import '../services/conservative_refresh_policy.dart';
 import 'search_refresh.dart';
 import 'feed_history_end.dart';
+import 'following_topic_source.dart';
 
 class FollowingTopic extends Equatable {
   FollowingTopic({
     required this.id,
     required this.profileId,
+    this.localSource,
     required this.query,
     required this.position,
     required this.createdAt,
@@ -50,10 +52,12 @@ class FollowingTopic extends Equatable {
     required int position,
     required DateTime createdAt,
     SearchQueryStructure? queryStructure,
+    FollowingTopicSource? localSource,
   }) {
     return FollowingTopic(
       id: id,
       profileId: profileId,
+      localSource: localSource,
       query: query.trim(),
       queryStructure: queryStructure,
       position: position,
@@ -67,6 +71,7 @@ class FollowingTopic extends Equatable {
 
   final String id;
   final String profileId;
+  final FollowingTopicSource? localSource;
   final String query;
   final SearchQueryStructure? queryStructure;
   final String? name;
@@ -116,6 +121,7 @@ class FollowingTopic extends Equatable {
     newPostCountEstimate,
     newPostCountIsLowerBound,
     historyEnd,
+    localSource,
   ];
 }
 

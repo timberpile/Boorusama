@@ -25,7 +25,7 @@ Keep these concepts separate:
 - A remote `ContentGroupBookmark` is one saved item, not a local child folder. Recursively displaying local groups never expands a saved Pool, Work, Related Family, or Gallery into its remote members.
 - `All` is a library-wide read view, not a writable group or persisted parent. Home is navigation, not an implicit Bookmark target.
 
-Favorites Sync remains additive/non-destructive under #132 and targets one explicit group's direct memberships. Do not implement mirror sync, ownership locks, server writes, or recursive destructive synchronization. #144's folder-sync feature remains separately owned; coordinate its changed organization contract rather than implementing it here. Following Topics may still use the shared `CollectionFolder` utilities. Remove them from Bookmark's canonical model, not globally from unrelated features.
+Favorites Sync remains additive/non-destructive under #132 and targets one explicit group's direct memberships. Do not implement mirror sync, ownership locks, server writes, or recursive destructive synchronization. #144's mitemite feature remains separately owned; coordinate its changed organization contract rather than implementing it here. Following Topics may still use the shared `CollectionFolder` utilities. Remove them from Bookmark's canonical model, not globally from unrelated features.
 
 ## 3. Data and view contracts
 

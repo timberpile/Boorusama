@@ -98,6 +98,7 @@ class _DownloadActivityScopeState extends ConsumerState<DownloadActivityScope> {
       ..listen(downloadNotificationTapProvider, (previous, current) {
         final value = current.valueOrNull;
         if (value == null) return;
+        if (value.startsWith('mitemite:')) return;
 
         if (value.startsWith('native:')) {
           final filter = value.substring('native:'.length);

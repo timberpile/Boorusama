@@ -1,3 +1,7 @@
+import 'package:boorusama/core/backups/mitemite/mitemite_icon.dart';
+import 'package:boorusama/core/backups/mitemite/protocol.dart';
+import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/navigation/page_presentation_profile.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:boorusama/core/widgets/multi_select_button.dart';
@@ -49,6 +53,68 @@ import '../../application/support/fake_image_dio.dart';
 import '../posts/details/progressive_image_test_utils.dart';
 
 void main() {
+  testWidgets(
+    'received device links expose only safe actions at narrow enlarged text',
+    (tester) async {
+      final received = _group('received', 'Source-owned Group');
+      final publisher = _id('publisher');
+      final source = _id('source');
+      final reading = SyncGroupReadingState.empty(
+        SyncCollectionId(
+          publisher: publisher,
+          kind: 'bookmarks',
+          source: source,
+        ),
+      ).applyMembership(revision: 1, members: {});
+      final owner = BookmarkMirrorOwner(
+        publisher: publisher,
+        source: source,
+        revision: 1,
+        payloadDigest: 'a' * 64,
+        groupDigest: bookmarkMirrorGroupDigest(received),
+        reading: reading.toJson(),
+      );
+      await _pump(
+        tester,
+        _Library(
+          _state(
+            groups: [_group('local', 'Local Group'), received],
+            mirrors: BookmarkMirrorState(
+              epoch: 1,
+              owners: {received.id: owner},
+              subscriptions: {
+                publisher: {source},
+              },
+              publisherNames: {publisher: 'Other device'},
+            ),
+          ),
+        ),
+        size: const Size(320, 900),
+        textScale: 1.7,
+      );
+      expect(find.text('Local'), findsNothing);
+      expect(find.text('Other device'), findsOneWidget);
+      expect(find.text('Source-owned Group'), findsOneWidget);
+      expect(find.byIcon(Icons.move_to_inbox_outlined), findsNothing);
+      expect(find.byType(MiteMiteIcon), findsOneWidget);
+      final edit = find.byKey(ValueKey(('bookmark-device-edit', publisher)));
+      expect(
+        find.descendant(of: edit, matching: find.byIcon(Icons.edit_outlined)),
+        findsOneWidget,
+      );
+      expect(tester.getSize(edit), const Size(48, 48));
+      expect(
+        tester.getCenter(find.text('Other device')).dx,
+        lessThan(tester.getCenter(edit).dx),
+      );
+      await _menu(tester, 'Source-owned Group');
+      expect(find.text(Translations().mitemite.copy), findsOneWidget);
+      expect(find.text(Translations().mitemite.unsubscribe), findsOneWidget);
+      expect(find.text(Translations().mitemite.publish), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'covered browsers defer preview filtering and show current groups when revealed',
     (tester) async {
@@ -1708,7 +1774,9 @@ BookmarkLibraryState _state({
   List<CollectionFolder> folders = const [],
   List<BookmarkGroup> groups = const [],
   List<PostBookmark> bookmarks = const [],
+  BookmarkMirrorState mirrors = const BookmarkMirrorState.empty(),
 }) => BookmarkLibraryState(
+  mirrors: mirrors,
   bookmarks: bookmarks,
   groups: [
     ...[

@@ -1,5 +1,7 @@
 # P4 Bookmark library package qualification — 2026-11-10
 
+> Naming normalization (2026-11-17): Historical paths and symbol references below use current MiteMite names. Recorded commit IDs and verification results are unchanged; consult the original commits for exact historical commands and artifact locations. These reference edits do not requalify earlier evidence.
+
 Latest continuation: [manual-feedback corrections](155-158-bookmark-library-ui-feedback-2026-11-10.md) supersede the empty-group picker navigation contract and record the new exact-candidate verification. Android evidence below remains historical for runtime `973df8b9c`.
 
 Historical qualification status: locally qualified for the owner’s manual acceptance. The owner has since approved integration; see [final integration evidence](155-158-bookmark-library-integration-2026-11-10.md).
@@ -15,7 +17,7 @@ The package owns #155/#158 unified storage, staged legacy/v2-to-v3 hierarchy
 conversion, integer record IDs, direct memberships and dates, retained snapshots,
 v10 transfer compatibility, hierarchy/browser/picker behavior and Undo. P5
 profile-independent import, P6 public readers, P7 native Group activation and
-later Pixiv/Folder Sync/nhentai remain separate. P2 and P3 were independently
+later Pixiv/MiteMite/nhentai remain separate. P2 and P3 were independently
 qualified and subsequently published as separate approved develop commits
 `537cef38a` (#132) and `d2325820b` (#154). Their successful user acceptance was
 reported on 2026-11-10; no repeated manual acceptance is requested.

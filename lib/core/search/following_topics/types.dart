@@ -10,3 +10,5 @@ export 'src/types/topic_organization.dart';
 export 'src/types/topic_feed.dart';
 
 export 'src/types/topic_feed_member_sort.dart';
+
+export 'src/types/following_topic_source.dart';

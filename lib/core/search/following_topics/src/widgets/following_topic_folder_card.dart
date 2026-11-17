@@ -1,3 +1,10 @@
+import 'package:kurumi/kurumi.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../providers/following_topic_config_provider.dart';
+import '../providers/following_topics_notifier.dart';
+import '../providers/untracked_topic_preview_provider.dart';
+
 // Package imports:
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -17,10 +24,12 @@ final class FollowingTopicFolderPreview {
   const FollowingTopicFolderPreview({
     required this.thumbnailUrl,
     required this.config,
+    this.topicId,
   });
 
   final String thumbnailUrl;
   final BooruConfigAuth config;
+  final String? topicId;
 }
 
 final class FollowingTopicFolderLastPost {
@@ -71,6 +80,7 @@ List<FollowingTopicFolderPreview> selectFollowingTopicFolderPreviews({
       FollowingTopicFolderPreview(
         thumbnailUrl: preview.thumbnailUrl,
         config: profile.auth,
+        topicId: id,
       ),
     );
     if (previews.length == 4) break;
@@ -115,6 +125,10 @@ class FollowingTopicFolderCard extends StatelessWidget {
     this.selected = false,
     this.selecting = false,
     required this.onAction,
+    this.syncActions,
+    this.readOnly = false,
+    this.definitionChanged = false,
+    this.published = false,
     super.key,
   });
 
@@ -137,11 +151,16 @@ class FollowingTopicFolderCard extends StatelessWidget {
   final VoidCallback? onSelect;
   final bool selected;
   final bool selecting;
+  final List<Widget>? syncActions;
+  final bool readOnly;
+  final bool definitionChanged;
+  final bool published;
 
   @override
   Widget build(BuildContext context) {
     final strings = context.t.following_topics;
     return Semantics(
+      label: readOnly ? context.t.mitemite.received : null,
       selected: selecting ? selected : null,
       child: Card(
         color: selected
@@ -181,6 +200,11 @@ class FollowingTopicFolderCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    FollowingSyncStatus(
+                      readOnly: readOnly,
+                      published: published,
+                      changed: definitionChanged,
+                    ),
                     if (newPostCount > 0)
                       TopicNewPostsBadge(
                         count: newPostCount,
@@ -197,7 +221,25 @@ class FollowingTopicFolderCard extends StatelessWidget {
                         icon: const Icon(Symbols.rss_feed),
                         onPressed: onOpenFeed,
                       ),
-                    if (!selecting)
+                    if (!selecting && syncActions != null)
+                      FollowingDefinitionMenu(
+                        showMoveActions: showMoveActions,
+                        folder: true,
+                        syncActions: syncActions!,
+                        readOnly: readOnly,
+                        onRefresh: canRefresh
+                            ? () => onAction(FollowingTopicAction.refresh)
+                            : null,
+                        onEdit: () => onAction(FollowingTopicAction.edit),
+                        onDelete: () => onAction(FollowingTopicAction.delete),
+                        onUp: showMoveActions && canMoveUp
+                            ? () => onAction(FollowingTopicAction.moveUp)
+                            : null,
+                        onDown: showMoveActions && canMoveDown
+                            ? () => onAction(FollowingTopicAction.moveDown)
+                            : null,
+                      ),
+                    if (!selecting && syncActions == null)
                       PopupMenuButton<FollowingTopicAction>(
                         tooltip: context.t.generic.action.more,
                         icon: const Icon(Symbols.more_vert),
@@ -258,10 +300,8 @@ class FollowingTopicFolderCard extends StatelessWidget {
                               padding: followingTopicCardThumbnailPadding,
                               child: AspectRatio(
                                 aspectRatio: 1,
-                                child: BooruImage(
-                                  imageUrl: preview.thumbnailUrl,
-                                  config: preview.config,
-                                  fit: BoxFit.cover,
+                                child: _FollowingFolderPreviewImage(
+                                  preview: preview,
                                 ),
                               ),
                             ),
@@ -292,5 +332,45 @@ class FollowingTopicFolderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _FollowingFolderPreviewImage extends ConsumerWidget {
+  const _FollowingFolderPreviewImage({required this.preview});
+  final FollowingTopicFolderPreview preview;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (preview.config.anonymousReadScope == null) {
+      return BooruImage(
+        imageUrl: preview.thumbnailUrl,
+        config: preview.config,
+        fit: BoxFit.cover,
+      );
+    }
+    final id = preview.topicId;
+    if (id == null) return const KurumiImagePlaceholder();
+    final config = ref.watch(followingTopicConfigProvider(id));
+    final topic = ref
+        .watch(followingTopicsProvider)
+        .valueOrNull
+        ?.topics
+        .where((topic) => topic.id == id)
+        .firstOrNull;
+    if (config == null || topic == null) return const KurumiImagePlaceholder();
+    final url = ref
+        .watch(
+          untrackedTopicPreviewProvider((
+            config: config,
+            query: topic.query,
+            structure: topic.queryStructure,
+            revision: topic.runtimeRevision,
+            attemptedAt: topic.lastAttemptAt,
+          )),
+        )
+        .valueOrNull
+        ?.firstOrNull;
+    return url == null
+        ? const KurumiImagePlaceholder()
+        : BooruImage(imageUrl: url, config: config.auth, fit: BoxFit.cover);
   }
 }

@@ -1,5 +1,6 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
@@ -7,6 +8,18 @@ typedef _FileOperationNative = Int32 Function(Int32);
 typedef _FileOperationDart = int Function(int);
 
 DynamicLibrary? _cachedLibc;
+
+/// Only path values cross the isolate boundary; Hive and transaction ownership
+/// remain with the caller, which must await this durability barrier.
+Future<void> syncPosixPathAsync(String path, {bool readWrite = false}) =>
+    Isolate.run(_SyncPathTask(path, readWrite).run);
+
+final class _SyncPathTask {
+  const _SyncPathTask(this.path, this.readWrite);
+  final String path;
+  final bool readWrite;
+  void run() => syncPosixPath(path, readWrite: readWrite);
+}
 
 void syncPosixPath(String path, {bool readWrite = false}) {
   final libc = _cachedLibc ??= _loadLibc();

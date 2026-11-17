@@ -8,6 +8,9 @@ import '../../../core/bookmarks/providers.dart';
 import '../../../core/bookmarks/src/data/bookmark_convert.dart';
 import '../../../core/bookmarks/src/types/bookmark_library_state.dart';
 import '../../../core/bookmarks/src/widgets/bookmark_group_picker.dart';
+import '../../../core/bookmarks/src/widgets/bookmark_multi_selection.dart';
+import '../../../core/bookmarks/src/types/content_group_bookmark.dart';
+import '../../../core/widgets/multi_select_button.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/content/content_access_provider.dart';
 import '../../../core/content/groups/group_capability.dart';
@@ -112,6 +115,89 @@ Future<void> _showPicker(
     context,
     request: _workRequest(container, data),
   );
+}
+
+class PixivSelectedWorksBookmarkButton extends ConsumerWidget {
+  const PixivSelectedWorksBookmarkButton({required this.groups, super.key});
+  final List<GroupBookmarkPresentationData> groups;
+
+  bool _valid(ProviderContainer container) {
+    if (groups.isEmpty) return false;
+    final checkedAccess = Set<Object>.identity();
+    for (final data in groups) {
+      if (checkedAccess.add(data.access) && !_current(container, data))
+        return false;
+      try {
+        PixivWorkBookmarkTarget(access: data.access, summary: data.summary);
+      } on FormatException {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    for (final key in groups.map((data) => data.access.key).toSet()) {
+      ref.watch(contentAccessContextProvider(key));
+    }
+    final container = ProviderScope.containerOf(context, listen: false);
+    return MultiSelectButton(
+      icon: const Icon(Symbols.bookmark),
+      name: context.t.post.action.bookmark,
+      onPressed: !_valid(container)
+          ? null
+          : () async {
+              final captured = List<GroupBookmarkPresentationData>.unmodifiable(
+                groups,
+              );
+              if (!NavigationActivity.of(context)) return;
+              void validate() {
+                if (!context.mounted || !_valid(container)) {
+                  throw StateError('Selected Work access changed');
+                }
+              }
+
+              try {
+                validate();
+                if (captured.length == 1) {
+                  await _showPicker(context, captured.single);
+                  return;
+                }
+                final drafts = List<ContentGroupBookmark>.unmodifiable([
+                  for (final data in captured)
+                    (_workRequest(
+                      container,
+                      data,
+                    ) as ContentGroupBookmarkPickerRequest).draft,
+                ]);
+                final target = await showBookmarkGroupSelectionDialog(
+                  context,
+                  operation: BookmarkMultiSelectionOperation.add,
+                  posts: const [],
+                  config: captured.first.access.config!.auth,
+                  contentDrafts: drafts,
+                  beforeCommit: validate,
+                );
+                if (target == null || target.appliedCount != null) return;
+                validate();
+                await container
+                    .read(bookmarkProvider.notifier)
+                    .addContentGroupDraftsToGroup(
+                      drafts,
+                      target.id!,
+                      beforeCommit: validate,
+                    );
+              } catch (_) {
+                if (context.mounted)
+                  Kurumi.showErrorToast(
+                    context,
+                    context.t.bookmark.groups.operation_failed,
+                  );
+              }
+            },
+    );
+  }
 }
 
 class PixivWorkBookmarkButton extends ConsumerStatefulWidget {

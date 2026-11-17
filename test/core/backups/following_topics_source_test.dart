@@ -1,3 +1,5 @@
+import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
+
 import '../../profile_uuid_utils.dart';
 
 import 'dart:async';
@@ -54,6 +56,45 @@ import '../search/following_topics/topic_test_utils.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('anonymous local copies export credential-free source references and still require explicit import binding', () async {
+    final harness = _Harness();
+    addTearDown(harness.container.dispose);
+    final topic = FollowingTopic.create(
+      id: '11111111-1111-4111-8111-111111111111',
+      profileId: '22222222-2222-4222-8222-222222222222',
+      query: 'cat',
+      name: 'Copied',
+      position: 0,
+      createdAt: DateTime.utc(2026),
+      localSource: FollowingTopicSource(
+        booruType: 'gelbooruV2',
+        url: 'https://safebooru.org',
+      ),
+    );
+    await harness.repository.restoreForProfile(topic.profileId, [topic]);
+    final data = await harness.source.dataGetter();
+    expect(data.records.single.profile.toJson(), {
+      'id': topic.id,
+      'booruType': 'gelbooruV2',
+      'url': 'https://safebooru.org',
+      'name': 'https://safebooru.org',
+    });
+    expect(await harness.source.unmatchedRecordIds(data, []), {topic.id});
+    final codec = FollowingTopicBackupCodec();
+    expect(
+      codec.parse(
+        ExportDataPayload(
+          version: 2,
+          exportDate: null,
+          exportVersion: null,
+          extraFields: const {'source': 'pinned_searches'},
+          data: codec.encode(data),
+        ),
+      ),
+      data,
+    );
+  });
 
   test('export after an edit contains only the new topic definition', () async {
     final harness = _Harness();

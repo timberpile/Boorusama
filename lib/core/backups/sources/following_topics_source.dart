@@ -10,6 +10,7 @@ import '../../../foundation/info/package_info.dart';
 import '../../configs/config/types.dart';
 import '../../configs/manage/providers.dart';
 import '../../search/following_topics/providers.dart';
+import '../../search/following_topics/src/types/following_mirror_state.dart';
 import '../preparation/preparation_pipeline.dart';
 import '../widgets/search_backup_missing_profiles_dialog.dart';
 import '../types/types.dart';
@@ -101,7 +102,7 @@ class FollowingTopicsBackupSource
                   if (!folderIds.contains(feed.id)) ...feed.sourceIds,
               };
               return '${context.t.following_topics.backup_count(
-                n: state.topics.where((search) => !internalIds.contains(search.id)).length,
+                n: state.topics.where((search) => !internalIds.contains(search.id) && !state.mirrors.isReceived(search.id)).length,
               )} · ${context.t.following_topics.backup_contents}';
             },
             loading: () => context.t.following_topics.backup_loading,
@@ -131,9 +132,20 @@ Future<FollowingTopicBackupData> _loadFollowingTopicData(Ref ref) async {
   );
   final profiles = {
     for (final profile in await ref.read(booruConfigRepoProvider).getAll())
-      profile.id: profile,
+      profile.id: BackupProfileReference(
+        id: profile.id,
+        booruType: profile.auth.booruType.name,
+        url: normalizeBackupProfileUrl(profile.url),
+        name: profile.name,
+      ),
   };
-  final topics = await repository.getAll();
+  final mirrors = repository is FollowingMirrorStore
+      ? (await (repository as FollowingMirrorStore).readMirrorSnapshot())
+            .mirrors
+      : const FollowingMirrorState.empty();
+  final topics = (await repository.getAll())
+      .where((topic) => !mirrors.isReceived(topic.id))
+      .toList();
   final feeds = await repository.getFeeds();
   final organization = await repository.getOrganization();
   final folderIds = organization.folders.map((folder) => folder.id).toSet();
@@ -145,7 +157,7 @@ Future<FollowingTopicBackupData> _loadFollowingTopicData(Ref ref) async {
       .where(
         (topic) =>
             !internalIds.contains(topic.id) &&
-            profiles.containsKey(topic.profileId),
+            followingTopicBackupProfile(topic, profiles.values) != null,
       )
       .map((topic) => topic.id)
       .toSet();
@@ -154,7 +166,9 @@ Future<FollowingTopicBackupData> _loadFollowingTopicData(Ref ref) async {
         .where(exportedIds.contains)
         .toList(),
     folders: [
-      for (final folder in organization.folders)
+      for (final folder in organization.folders.where(
+        (folder) => !mirrors.isReceived(folder.id),
+      ))
         FollowingTopicFolderBackupRecord(
           id: folder.id,
           name: folder.name,
@@ -169,7 +183,8 @@ Future<FollowingTopicBackupData> _loadFollowingTopicData(Ref ref) async {
       for (final subscription in topics.where(
         (search) => !internalIds.contains(search.id),
       ))
-        if (profiles[subscription.profileId] case final profile?)
+        if (followingTopicBackupProfile(subscription, profiles.values)
+            case final profile?)
           FollowingTopicBackupRecord(
             id: subscription.id,
             name: subscription.name,
@@ -183,12 +198,7 @@ Future<FollowingTopicBackupData> _loadFollowingTopicData(Ref ref) async {
             folderPosition: organization.placements
                 .firstWhere((p) => p.itemId == subscription.id)
                 .position,
-            profile: BackupProfileReference(
-              id: profile.id,
-              booruType: profile.auth.booruType.name,
-              url: normalizeBackupProfileUrl(profile.url),
-              name: profile.name,
-            ),
+            profile: profile,
           ),
     ],
   );

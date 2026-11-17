@@ -25,6 +25,7 @@ import '../../../post/types.dart';
 import '../providers/note_overlay_provider.dart';
 import 'zoom_study_overlay.dart';
 import '../../../../settings/providers.dart';
+import '../../../../navigation/destination_activity.dart';
 import '../../../../settings/types.dart';
 import 'play_pause_animation_overlay.dart';
 import 'post_details_controller.dart';
@@ -53,6 +54,7 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
     this.contentSize,
     this.onImageSize,
     this.onImageReady,
+    this.onDisplayed,
     this.onImageUnavailable,
     this.placeholderMediaBuilder,
     this.allowOriginalImage = true,
@@ -66,6 +68,9 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
 
   /// Fired after the first decoded rendition has reached the media surface.
   final VoidCallback? onImageReady;
+
+  /// Decoded media on the settled, active full Viewer occurrence.
+  final VoidCallback? onDisplayed;
   final VoidCallback? onImageUnavailable;
   final int index;
   final List<T> posts;
@@ -86,7 +91,8 @@ class PostDetailsItem<T extends Post> extends ConsumerStatefulWidget {
 }
 
 class _PostDetailsItemState<T extends Post>
-    extends ConsumerState<PostDetailsItem<T>> {
+    extends ConsumerState<PostDetailsItem<T>>
+    with WidgetsBindingObserver {
   final _videoKey = GlobalKey();
   final _displayTransform = KurumiTransformationController();
   double _presentationProgress = 0;
@@ -133,6 +139,7 @@ class _PostDetailsItemState<T extends Post>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _notifyDisplayed();
     final pager = PostDetailsPageViewScope.of(context);
     if (_pager != pager) {
       _pager?.sheetState.removeListener(_syncCurrentTransform);
@@ -179,11 +186,14 @@ class _PostDetailsItemState<T extends Post>
     _representationState,
   ]);
   var _mediaCompatible = false;
+  var _fullImageDecoded = false;
+  var _videoFrameRendered = false;
   late bool _isPageSettled;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _displayTransform.addListener(_saveGestureTransform);
     _isPageSettled =
         widget.detailsController.currentSettledPage.value == widget.index;
@@ -208,6 +218,17 @@ class _PostDetailsItemState<T extends Post>
   @override
   void didUpdateWidget(covariant PostDetailsItem<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.post != widget.post ||
+        oldWidget.authConfig != widget.authConfig) {
+      _videoFrameRendered = false;
+    }
+    if (postViewerIdentity(
+              oldWidget.post ?? oldWidget.posts[oldWidget.index],
+            ) !=
+            postViewerIdentity(widget.post ?? widget.posts[widget.index]) ||
+        oldWidget.authConfig != widget.authConfig) {
+      _fullImageDecoded = false;
+    }
     if (oldWidget.detailsController != widget.detailsController) {
       oldWidget.detailsController.currentSettledPage.removeListener(
         _onPageSettled,
@@ -220,6 +241,7 @@ class _PostDetailsItemState<T extends Post>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.detailsController.currentSettledPage.removeListener(_onPageSettled);
     _imageController.loadState.removeListener(_onImageStateChanged);
     _imageController.dispose();
@@ -237,6 +259,7 @@ class _PostDetailsItemState<T extends Post>
     if (isPageSettled == _isPageSettled) return;
     setState(() => _isPageSettled = isPageSettled);
     _syncCurrentTransform();
+    _notifyDisplayed();
   }
 
   void _onRepresentationChanged(bool compatible) {
@@ -245,12 +268,45 @@ class _PostDetailsItemState<T extends Post>
     _onImageStateChanged();
   }
 
+  void _notifyDisplayed() {
+    if (widget.onDisplayed == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeDisplayed();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _notifyDisplayed();
+  }
+
+  void _maybeDisplayed() {
+    final post = widget.post ?? widget.posts[widget.index];
+    final rendered = post.isVideo
+        ? _videoFrameRendered
+        : _fullImageDecoded &&
+              _imageController.loadState.value == LoadState.completed &&
+              _imageController.imageInfo.value != null;
+    if (widget.onDisplayed != null &&
+        _active &&
+        _isPageSettled &&
+        rendered &&
+        (WidgetsBinding.instance.lifecycleState == null ||
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed) &&
+        (ModalRoute.of(context)?.isCurrent ?? true) &&
+        NavigationActivity.of(context)) {
+      widget.onDisplayed!();
+    }
+  }
+
   void _onImageStateChanged() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (_imageController.loadState.value == LoadState.completed &&
           _imageController.imageInfo.value != null) {
         widget.onImageReady?.call();
+        _maybeDisplayed();
       }
       setState(() {});
     });
@@ -455,9 +511,19 @@ class _PostDetailsItemState<T extends Post>
                         imageCacheManager: widget.imageCacheManager,
                         imageController: _imageController,
                         onRepresentationChanged: _onRepresentationChanged,
+                        onVideoFrameChanged: (rendered) {
+                          _videoFrameRendered = rendered;
+                          if (rendered) _notifyDisplayed();
+                        },
                         onTerminalFailure: widget.onImageUnavailable,
                         contentSize: widget.contentSize,
-                        onImageSize: widget.onImageSize,
+                        onImageSize: (size) {
+                          // Progressive previews share the image controller.
+                          // Only accepted full renditions report their size.
+                          _fullImageDecoded = true;
+                          widget.onImageSize?.call(size);
+                          _notifyDisplayed();
+                        },
                         // This is used to make sure we have a thumbnail to show instead of a black placeholder
                         placeholderMediaBuilder:
                             widget.placeholderMediaBuilder ??

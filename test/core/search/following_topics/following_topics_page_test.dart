@@ -1,3 +1,4 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
@@ -177,7 +178,7 @@ void main() {
 
   Finder pageOverflow() => find.descendant(
     of: find.byType(AppBar),
-    matching: find.byTooltip('More'),
+    matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
   );
 
   Future<void> openPageMenu(WidgetTester tester) async {
@@ -191,12 +192,12 @@ void main() {
     await settle(tester);
   }
 
-  PopupMenuItem refreshAllItem(WidgetTester tester) =>
-      tester.widget<PopupMenuItem>(
+  KurumiPopupMenuItem refreshAllItem(WidgetTester tester) =>
+      tester.widget<KurumiPopupMenuItem>(
         find.ancestor(
           of: find.text('Refresh All'),
           matching: find.byWidgetPredicate(
-            (widget) => widget is PopupMenuItem,
+            (widget) => widget is KurumiPopupMenuItem,
           ),
         ),
       );
@@ -209,7 +210,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: card,
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: followingCardMenus(),
       ),
     );
     await settle(tester);
@@ -221,6 +222,8 @@ void main() {
     String name = 'Cats',
   ]) async {
     await openMenu(tester, name);
+    await tester.ensureVisible(find.text(label));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(label));
     await settle(tester);
   }
@@ -295,7 +298,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: folderCard,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: followingCardMenus(),
           ),
         );
         await settle(tester);
@@ -589,7 +592,7 @@ void main() {
   ) async {
     initialize();
     await pumpRouter(tester);
-    await tester.tap(find.byTooltip('More').first);
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')).first);
     await settle(tester);
     expect(find.text('Topic updates'), findsNothing);
     expect(find.text('Refresh All'), findsOneWidget);
@@ -776,7 +779,7 @@ void main() {
       expect(find.text('2 items selected'), findsOneWidget);
       await drag.up();
       await settle(tester);
-      expect(find.byType(PopupMenuButton<FollowingTopicAction>), findsNothing);
+      expect(followingCardMenus(), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -842,7 +845,7 @@ void main() {
           expect(find.text('Mark Read'), findsOneWidget);
         }
         expect(
-          find.byType(PopupMenuButton<FollowingTopicAction>),
+          followingCardMenus(),
           findsNothing,
         );
         expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -1068,7 +1071,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: folderCard,
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: followingCardMenus(),
       ),
     );
     await settle(tester);
@@ -1091,7 +1094,7 @@ void main() {
       expect(harness.requests, isEmpty);
       expect((await harness.repository.getAll()).single.id, 'cats');
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isFalse);
+      expect((refreshAllItem(tester).onTap != null), isFalse);
     },
   );
 
@@ -1588,13 +1591,13 @@ void main() {
           (label: 'Move Up', enabled: c.moveUp),
           (label: 'Move Down', enabled: c.moveDown),
         ]) {
-          final item = tester.widget<PopupMenuItem<FollowingTopicAction>>(
+          final item = tester.widget<KurumiPopupMenuItem>(
             find.ancestor(
               of: find.text(action.label),
-              matching: find.byType(PopupMenuItem<FollowingTopicAction>),
+              matching: find.byType(KurumiPopupMenuItem),
             ),
           );
-          expect(item.enabled, action.enabled);
+          expect(item.onTap != null, action.enabled);
         }
         await tester.tapAt(const Offset(1, 1));
         await settle(tester);
@@ -2085,7 +2088,7 @@ void main() {
         '00000000-0000-4000-8000-00000000000c',
       ]);
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isFalse);
+      expect((refreshAllItem(tester).onTap != null), isFalse);
       await tester.tapAt(const Offset(1, 1));
       await settle(tester);
       harness.container
@@ -2093,7 +2096,7 @@ void main() {
           .select(otherTestProfile);
       await pump(tester);
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isFalse);
+      expect((refreshAllItem(tester).onTap != null), isFalse);
       await tester.tapAt(const Offset(1, 1));
       await settle(tester);
       harness.refreshGate!.complete();
@@ -2104,7 +2107,7 @@ void main() {
         '00000000-0000-4000-8000-000000000063',
       ]);
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isTrue);
+      expect((refreshAllItem(tester).onTap != null), isTrue);
       expect(
         (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
         isNotNull,

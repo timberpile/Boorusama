@@ -240,6 +240,7 @@ Future<void> showTopicFollowFlow(
     selectedFolderIds: initialDestinations,
     onUpdateOriginal:
         original != null &&
+            !state.mirrors.isReceived(original.topic.id) &&
             original.isModified(profileId, query, queryStructure)
         ? () async {
             updatedOriginal = await showUpdateOriginalTopicDialog(

@@ -52,22 +52,19 @@ List<ContentGroupBookmark> selectNativeGroupBookmarks({
   String? selectedBooruUrl,
   Set<int>? availableRecordIds,
 }) {
-  final inView = view.kind == BookmarkViewKind.all
-      ? null
-      : state.bookmarkIdsForView(view);
+  final inView = state.bookmarkIdsForView(view);
   final filters = selectedTags
       .map(BookmarkSearchToken.parse)
       .where((token) => token.tag.isNotEmpty)
       .toList();
   return [
     for (final record
-        in (inView == null
-                ? state.records
-                : inView.map((id) => state.byId[id]).whereType<Bookmark>())
+        in inView
+            .map((id) => state.byId[id])
+            .whereType<Bookmark>()
             .whereType<ContentGroupBookmark>())
       if (!record.reference.sourceKey.startsWith('pool:') &&
           !record.reference.sourceKey.startsWith('related:') &&
-          (inView == null || inView.contains(record.id)) &&
           (availableRecordIds == null ||
               availableRecordIds.contains(record.id)) &&
           (selectedBooruUrl == null ||
@@ -105,7 +102,8 @@ List<CollectionBookmark> selectPoolBookmarks({
       .map(BookmarkSearchToken.parse)
       .where((t) => t.tag.isNotEmpty)
       .toList();
-  final groupsInView = view.kind == BookmarkViewKind.all
+  final groupsInView =
+      view.kind == BookmarkViewKind.all && state.mirrors.owners.isEmpty
       ? null
       : state.groupIdsForView(view);
   return state.pools.where((pool) {

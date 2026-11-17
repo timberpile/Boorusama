@@ -78,6 +78,7 @@ List<FollowingTopicMatch> selectMatchingFollowingTopics(
   FollowingTopicsState state, {
   required String profileId,
   required String query,
+  bool includeReceived = false,
 }) {
   final identity = normalizeSearchIdentity(query);
   if (identity.isEmpty) return const [];
@@ -87,6 +88,7 @@ List<FollowingTopicMatch> selectMatchingFollowingTopics(
   for (final placement in state.organization.placements) {
     final topic = topics[placement.itemId];
     if (topic == null ||
+        (!includeReceived && state.mirrors.isReceived(topic.id)) ||
         topic.profileId != profileId ||
         normalizeSearchIdentity(topic.query) != identity) {
       continue;
@@ -137,10 +139,6 @@ final organizedFollowingTopicsProvider =
       (ref, folderId) => ref.watch(followingTopicsProvider).whenData((
         state,
       ) {
-        final profiles = ref
-            .watch(booruConfigProvider)
-            .map((config) => config.id)
-            .toSet();
         final folderIds = state.organization.folders
             .map((folder) => folder.id)
             .toSet();
@@ -150,15 +148,15 @@ final organizedFollowingTopicsProvider =
         };
         final byId = {
           for (final search in state.topics)
-            if (!internalIds.contains(search.id) &&
-                profiles.contains(search.profileId))
-              search.id: search,
+            if (!internalIds.contains(search.id)) search.id: search,
         };
         final ids = folderId == null
             ? state.organization.homeSearchIds
             : state.organization.folders
-                  .singleWhere((folder) => folder.id == folderId)
-                  .searchIds;
+                      .where((folder) => folder.id == folderId)
+                      .firstOrNull
+                      ?.searchIds ??
+                  const <String>[];
         return List.unmodifiable([
           for (final id in ids) ?byId[id],
         ]);

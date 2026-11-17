@@ -39,6 +39,7 @@ import '../services/bookmark_library_service.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../services/bookmark_mutation_repository.dart';
 import '../types/bookmark.dart';
+import '../types/bookmark_mirror_state.dart';
 import '../types/bookmark_record_fields.dart';
 import '../types/pool_bookmark.dart';
 import '../types/pool_bookmark_repository.dart';
@@ -623,6 +624,20 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     ContentGroupBookmark draft, {
     String? parentGroupId,
     void Function()? beforeCommit,
+  }) async {
+    await createGroupWithContentDrafts(
+      name,
+      [draft],
+      parentGroupId: parentGroupId,
+      beforeCommit: beforeCommit,
+    );
+  }
+
+  Future<({BookmarkGroup group, int addedCount})> createGroupWithContentDrafts(
+    String name,
+    Iterable<ContentGroupBookmark> drafts, {
+    String? parentGroupId,
+    void Function()? beforeCommit,
   }) => withBookmarkCommitGuard(
     () => _runTrackedMutation(() async {
       beforeCommit?.call();
@@ -631,10 +646,28 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final result = await service.createGroupWithSavedRecords(
         name,
         const [],
-        drafts: [draft],
+        drafts: drafts,
         parentGroupId: parentGroupId,
+        beforeCommit: beforeCommit,
       );
       await _rememberManualGroup(result.group.id);
+      return result;
+    }),
+    beforeCommit,
+  );
+
+  Future<int> addContentGroupDraftsToGroup(
+    Iterable<ContentGroupBookmark> drafts,
+    String groupId, {
+    void Function()? beforeCommit,
+  }) => withBookmarkCommitGuard(
+    () => _runTrackedMutation(() async {
+      beforeCommit?.call();
+      final service = await _service;
+      beforeCommit?.call();
+      final result = await service.saveDraftsToGroup(drafts, groupId);
+      if (result.addedCount > 0) await _rememberManualGroup(groupId);
+      return result.addedCount;
     }),
     beforeCommit,
   );
@@ -918,7 +951,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           position: group.position,
         ),
     ]);
-    return mutation.base.applyCommittedChanges(
+    final next = mutation.base.applyCommittedChanges(
       pools: mutation.base.hasUnifiedRecords
           ? null
           : await repository.getPoolBookmarks(),
@@ -928,6 +961,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       groups: groups,
       folders: folders,
     );
+    final store = await bookmarkRepository;
+    return store is BookmarkMirrorStore
+        ? next.withMirrors(
+            await (store as BookmarkMirrorStore).readMirrorState(),
+          )
+        : next;
   }
 
   Future<void> _publishCommittedMutation() async {
@@ -1033,6 +1072,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           // A deletion, replacement, recovery reload or newer snapshot supersedes
           // this request. Do not resurrect a row or overwrite newer data.
           if (current is! PostBookmark ||
+              !currentState.localBookmarkIds.contains(bookmark.id) ||
               current.uniqueId != bookmark.uniqueId ||
               current.post.origin.booruType != bookmark.post.origin.booruType ||
               !identical(current, bookmark) ||
@@ -1064,7 +1104,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           return true;
         }, publishHydration: false),
       ).run(
-        bookmarks: library.items,
+        bookmarks: library.localItems,
         configs: configs,
         cancellation: cancellation,
         onProgress: onProgress,

@@ -39,8 +39,17 @@ class PixivWorkPresentation
     implements
         BooruGroupPresentation,
         BooruMediaGroupBookmarkPresentation,
+        BooruGroupSelectionPresentation,
         BooruGroupKindPresentation {
   const PixivWorkPresentation();
+
+  @override
+  List<Widget> buildSelectionActions(
+    BuildContext context,
+    List<GroupBookmarkPresentationData> groups,
+  ) => [
+    PixivSelectedWorksBookmarkButton(groups: groups),
+  ];
 
   @override
   String kindLabel(BuildContext context, ContentGroupSummary summary) =>

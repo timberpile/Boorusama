@@ -1,4 +1,12 @@
 import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_scroll_view.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_read_projection.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
+import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/protocol.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/default_image_grid_item.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
@@ -106,6 +114,288 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/themes/colors/src/colors.dart';
 
 void main() {
+  testWidgets(
+    'received read filter preserves raw Post identity and resets empty results',
+    (tester) async {
+      final records = [
+        for (var i = 0; i < 3; i++)
+          _legacyBookmark(postId: 91 + i).copyWith(id: 501 + i),
+      ];
+      const groupId = '11111111-1111-4111-8111-111111111111';
+      const publisher = '22222222-2222-4222-8222-222222222222';
+      const source = '33333333-3333-4333-8333-333333333333';
+      final group = BookmarkGroup(
+        id: groupId,
+        name: 'Received',
+        bookmarkIds: records.map((r) => r.id).toSet(),
+      );
+      final reading =
+          SyncGroupReadingState.empty(
+            SyncCollectionId(
+              publisher: publisher,
+              kind: 'bookmarks',
+              source: source,
+            ),
+          ).applyMembership(
+            revision: 1,
+            members: records.map(syncBookmarkMemberKey).toSet(),
+          );
+      BookmarkLibraryState snapshot(SyncGroupReadingState read) =>
+          BookmarkLibraryState(
+            bookmarks: records,
+            groups: [group],
+            mirrors: BookmarkMirrorState(
+              epoch: 1,
+              owners: {
+                groupId: BookmarkMirrorOwner(
+                  publisher: publisher,
+                  source: source,
+                  revision: 1,
+                  payloadDigest: 'a' * 64,
+                  groupDigest: bookmarkMirrorGroupDigest(group),
+                  reading: read.toJson(),
+                ),
+              },
+            ),
+          );
+      final notifier = _CacheBookmarkNotifier(snapshot(reading));
+      final controller = _controller(records.map((r) => r.post).toList());
+      final scroll = AutoScrollController();
+      final search = TextEditingController();
+      addTearDown(controller.dispose);
+      addTearDown(scroll.dispose);
+      addTearDown(search.dispose);
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: notifier,
+          home: MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 900),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: Scaffold(
+              body: BookmarkScrollView(
+                scrollController: scroll,
+                searchController: search,
+                view: BookmarkView.group(groupId),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(BookmarkSeenFilterButton),
+        findsNothing,
+        reason: 'All Unseen',
+      );
+      expect(
+        find.byKey(const ValueKey('bookmark-unseen-dot')),
+        findsNWidgets(3),
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('bookmark-unseen-dot')).first),
+        const Size(14, 14),
+      );
+      var mixed = reading.markRead({
+        syncBookmarkMemberKey(records.first),
+        syncBookmarkMemberKey(records.last),
+      });
+      notifier.publish(snapshot(mixed));
+      await tester.pumpAndSettle();
+      expect(find.byType(BookmarkSeenFilterButton), findsOneWidget);
+      final allItems = tester
+          .widgetList<DefaultImageGridItem>(find.byType(DefaultImageGridItem))
+          .toList();
+      final expected = allItems.singleWhere(
+        (item) => item.controller.items.toList()[item.index].id == 92,
+      );
+      await tester.tap(find.byType(BookmarkSeenFilterButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unseen').last);
+      await tester.pumpAndSettle();
+      final filtered = tester.widget<DefaultImageGridItem>(
+        find.byType(DefaultImageGridItem),
+      );
+      expect(filtered.index, expected.index);
+      expect(filtered.selectionIndex, 0);
+      expect(filtered.controller.items.toList()[filtered.index].id, 92);
+      final context = tester.element(find.byType(DefaultImageGridItem));
+      final selection = SelectionMode.of(context);
+      selection.enable(initialSelected: [0]);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('bookmark-unseen-dot')),
+        findsNothing,
+        reason: 'Preview owns the top-right during selection',
+      );
+      mixed = mixed.markRead({syncBookmarkMemberKey(records[1])});
+      notifier.publish(snapshot(mixed));
+      // The normal empty-state Lottie loops. Rebuild the provider, then drain
+      // the selection reconciliation notification instead of waiting for it.
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(DefaultImageGridItem), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(PostGridConfigIconButton),
+          matching: find.byType(KurumiPopupMenuButton),
+        ),
+        findsNothing,
+        reason: 'An empty filtered Timeline has no selectable entries',
+      );
+      expect(
+        find.byType(BookmarkSeenFilterButton),
+        findsOneWidget,
+        reason: 'Empty active filter can reset',
+      );
+      expect(selection.isActive, isFalse);
+      tester
+          .widget<BookmarkSeenFilterButton>(
+            find.byType(BookmarkSeenFilterButton),
+          )
+          .onSelected(BookmarkSeenFilter.all);
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(BookmarkSeenFilterButton),
+        findsNothing,
+        reason: 'All Seen',
+      );
+      expect(find.byType(DefaultImageGridItem), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'arrival receipts describe a rendered current listing, never hidden or stale content',
+    (
+      tester,
+    ) async {
+      final bookmark = _legacyBookmark();
+      const groupId = '11111111-1111-4111-8111-111111111111';
+      BookmarkLibraryState snapshot(int revision, Set<int> members) =>
+          BookmarkLibraryState(
+            revision: revision,
+            bookmarks: [bookmark],
+            groups: [
+              BookmarkGroup(
+                id: groupId,
+                name: 'Received',
+                bookmarkIds: members,
+              ),
+            ],
+          );
+      final notifier = _CacheBookmarkNotifier(snapshot(1, {bookmark.id}));
+      final visible = ValueNotifier(false);
+      final scroll = AutoScrollController();
+      final search = TextEditingController();
+      final controller = _controller([bookmark.post]);
+      addTearDown(visible.dispose);
+      addTearDown(scroll.dispose);
+      addTearDown(search.dispose);
+      addTearDown(controller.dispose);
+      final receipts = <int>[];
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: notifier,
+          home: Scaffold(
+            body: ValueListenableBuilder(
+              valueListenable: visible,
+              builder: (_, shown, child) =>
+                  TickerMode(enabled: shown, child: child!),
+              child: BookmarkScrollView(
+                scrollController: scroll,
+                searchController: search,
+                view: BookmarkView.group(groupId),
+                onContentRendered: (library) => receipts.add(library.revision),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(receipts, isEmpty);
+      visible.value = true;
+      await tester.pumpAndSettle();
+      expect(receipts, contains(1));
+      notifier.publish(snapshot(2, {}));
+      await tester.pump();
+      expect(
+        receipts,
+        isNot(contains(2)),
+        reason: 'The previous list is still on screen',
+      );
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => receipts.contains(2),
+          reason: 'the updated listing to finish rendering',
+        ),
+      );
+      expect(
+        receipts,
+        contains(2),
+        reason: 'An actually rendered empty state counts',
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'received-only recovery displays media without rewriting its snapshot',
+    (
+      tester,
+    ) async {
+      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      final legacy = _legacyBookmark();
+      final group = BookmarkGroup(
+        id: '11111111-1111-4111-8111-111111111111',
+        name: 'Received',
+        bookmarkIds: {legacy.id},
+      );
+      final notifier = _RecoveryBookmarkNotifier(
+        legacy,
+        group,
+        mirrors: BookmarkMirrorState(
+          epoch: 1,
+          owners: {
+            group.id: BookmarkMirrorOwner(
+              publisher: '22222222-2222-4222-8222-222222222222',
+              source: '33333333-3333-4333-8333-333333333333',
+              revision: 1,
+              payloadDigest: 'a' * 64,
+              groupDigest: bookmarkMirrorGroupDigest(group),
+            ),
+          },
+        ),
+      );
+      final controller = _controller([legacy.post]);
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        _BookmarkViewerHarness(
+          controller: controller,
+          bookmarkNotifier: notifier,
+          recoveryRepository: _RecoveryPostRepository(
+            result: TaskEither.right(_nativePost(id: 91)),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('post:91'), findsOneWidget);
+      expect(find.byType(PostPresentationFallbackWarning), findsNothing);
+      expect(notifier.upgrades, 0);
+      expect(notifier.state.requireValue.items.single, same(legacy));
+      expect(notifier.state.requireValue.mirrors.isReceived(group.id), isTrue);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets(
     'bookmark grid scopes a retained null-postId row to its local record ID',
     (tester) async {
@@ -1687,16 +1977,22 @@ PostBookmark _malformedBookmark() {
 }
 
 final class _RecoveryBookmarkNotifier extends BookmarkLibraryNotifier {
-  _RecoveryBookmarkNotifier(this.bookmark, this.group);
+  _RecoveryBookmarkNotifier(
+    this.bookmark,
+    this.group, {
+    this.mirrors = const BookmarkMirrorState.empty(),
+  });
 
   final PostBookmark bookmark;
   final BookmarkGroup group;
+  final BookmarkMirrorState mirrors;
   var upgrades = 0;
 
   @override
   FutureOr<BookmarkLibraryState> build() => BookmarkLibraryState(
     bookmarks: [bookmark],
     groups: [group],
+    mirrors: mirrors,
   );
 
   @override
@@ -1826,6 +2122,7 @@ class _CacheBookmarkNotifier extends BookmarkLibraryNotifier {
   final BookmarkLibraryState library;
   @override
   FutureOr<BookmarkLibraryState> build() => library;
+  void publish(BookmarkLibraryState value) => state = AsyncData(value);
 }
 
 Future<void> _tapFilter(WidgetTester tester, String label) async {

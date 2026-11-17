@@ -6,6 +6,7 @@ import 'package:boorusama/foundation/platform.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
 import 'package:mocktail/mocktail.dart';
@@ -35,6 +36,8 @@ class _Player extends Fake implements BooruPlayer {
   var switches = 0;
   var looping = false;
   @override
+  final ValueNotifier<bool> firstFrameRendered = ValueNotifier(false);
+  @override
   bool isPlatformSupported() => true;
   @override
   Future<void> initialize(VideoSource source, {VideoConfig? config}) async {
@@ -57,6 +60,7 @@ class _Player extends Fake implements BooruPlayer {
   @override
   Future<void> switchUrl(VideoSource source, {VideoConfig? config}) async {
     switches++;
+    firstFrameRendered.value = false;
     this.source = source;
     looping = false;
   }
@@ -88,6 +92,52 @@ Widget _app(Widget child) => ProviderScope(
 );
 
 void main() {
+  testWidgets('display waits for a current rendered frame and active surface', (
+    tester,
+  ) async {
+    final player = _Player();
+    var displayed = 0;
+    Widget video(int source, bool active) => _app(
+      BooruVideo(
+        url: 'https://example.test/video-$source.mp4',
+        aspectRatio: 1,
+        shouldInitialize: active,
+        playerFactory: (_) => player,
+        onFrameRendered: () => displayed++,
+      ),
+    );
+    await tester.pumpWidget(video(1, true));
+    await tester.pumpAndSettle();
+    expect(player.initializes, 1);
+    expect(displayed, 0, reason: 'Initialization is not a displayed frame');
+
+    await tester.pumpWidget(video(1, false));
+    player.firstFrameRendered.value = true;
+    await tester.pumpAndSettle();
+    expect(displayed, 0, reason: 'A hidden/preloaded surface is not read');
+    await tester.pumpWidget(video(1, true));
+    await tester.pumpAndSettle();
+    expect(displayed, 1);
+    await tester.pumpWidget(video(1, true));
+    await tester.pumpAndSettle();
+    expect(displayed, 1, reason: 'One display signal per source generation');
+
+    await tester.pumpWidget(video(2, true));
+    await tester.pumpAndSettle();
+    expect(player.switches, 1);
+    expect(
+      displayed,
+      1,
+      reason: 'An old source frame cannot read its replacement',
+    );
+    player.firstFrameRendered.value = true;
+    await tester.pumpAndSettle();
+    expect(displayed, 2);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+    player.firstFrameRendered.dispose();
+  });
+
   testWidgets(
     'reactivating a retained video preserves its initialized looping player',
     (tester) async {

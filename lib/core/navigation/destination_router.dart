@@ -117,6 +117,25 @@ final class DestinationRouterBinding {
     return true;
   }
 
+  /// Explicit notification ingress returns to a real destination root. Respect
+  /// each route's PopScope instead of replacing its history beneath an editor.
+  Future<bool> openRoot(DestinationId id) async {
+    final root = rootObserver;
+    while (root?.top != null &&
+        root!.top!.settings.name != 'navigation-shell') {
+      if (!await _popTransient(root, root.top!)) return false;
+    }
+    if (!await dismissTransientRoutes() || !select(id)) return false;
+    await WidgetsBinding.instance.endOfFrame;
+    if (_disposed || currentDestination != id) return false;
+    final observer = _observers[id]!;
+    while (observer.routes.length > 1) {
+      if (!await _popTransient(observer, observer.top!)) return false;
+      if (_disposed || currentDestination != id) return false;
+    }
+    return true;
+  }
+
   bool select(DestinationId id) {
     final index = indexOf(id);
     if (index < 0) {

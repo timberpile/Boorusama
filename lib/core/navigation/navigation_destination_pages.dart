@@ -63,8 +63,26 @@ class NavigationDestinationPage extends ConsumerWidget {
               ref.read(navigationControllerProvider.notifier).browseDestination,
             );
         return switch (id.appDestination!) {
-          AppDestination.following => const FollowingTopicsPage(),
-          AppDestination.bookmarks => const BookmarkGroupBrowserPage(),
+          AppDestination.following => FollowingTopicsPage(
+            key: ValueKey((
+              'following-home',
+              ref.watch(
+                destinationRootRequestsProvider.select(
+                  (requests) => requests[id] ?? 0,
+                ),
+              ),
+            )),
+          ),
+          AppDestination.bookmarks => BookmarkGroupBrowserPage(
+            key: ValueKey((
+              'bookmark-home',
+              ref.watch(
+                destinationRootRequestsProvider.select(
+                  (requests) => requests[id] ?? 0,
+                ),
+              ),
+            )),
+          ),
           AppDestination.blacklist => const BlacklistedTagPage(),
           AppDestination.favoriteTags => const FavoriteTagsPage(),
           AppDestination.bulkDownload => const BulkDownloadPage(),

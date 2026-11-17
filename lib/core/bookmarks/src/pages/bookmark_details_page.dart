@@ -1,4 +1,10 @@
+import 'dart:async';
+
 import '../../../posts/details/src/types/viewer_entry.dart';
+import '../../../backups/mitemite/providers.dart';
+import '../../../backups/mitemite/reading_state.dart';
+import '../types/bookmark_view.dart';
+import '../services/bookmark_read_projection.dart';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +41,8 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
     required this.initialThumbnailUrl,
     required PostGridController<Post> controller,
     this.entries,
+    this.readingTargets,
+    this.sourceView = const BookmarkView.all(),
     super.key,
   }) : posts = List.unmodifiable(controller.items);
 
@@ -42,6 +50,8 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
   final String? initialThumbnailUrl;
   final List<Post> posts;
   final List<ViewerEntry>? entries;
+  final Map<Object, BookmarkReadTarget>? readingTargets;
+  final BookmarkView sourceView;
 
   @override
   ConsumerState<BookmarkDetailsPage> createState() =>
@@ -50,6 +60,45 @@ class BookmarkDetailsPage extends ConsumerStatefulWidget {
 
 class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
   late final List<ViewerEntry> _entries;
+  final _displayed = <Object>{};
+
+  void _onDisplayed(ViewerEntry entry) {
+    final library = ref.read(bookmarkProvider).valueOrNull;
+    if (library == null) return;
+    final captured = widget.readingTargets?[entry.occurrenceId];
+    if (widget.readingTargets != null &&
+        (captured == null || !captured.isCurrent(library)))
+      return;
+    if (captured == null && widget.sourceView.kind != BookmarkViewKind.group)
+      return;
+    final groupId = captured?.groupId ?? widget.sourceView.groupId!;
+    if (!library.mirrors.isReceived(groupId)) return;
+    final record = library.byId[entry.source?.bookmarkId];
+    if (record == null || !_displayed.add(entry.occurrenceId)) return;
+    if (captured != null && syncBookmarkMemberKey(record) != captured.member) {
+      _displayed.remove(entry.occurrenceId);
+      return;
+    }
+    final pendingService = ref.read(miteMiteServiceProvider.future);
+    unawaited(() async {
+      try {
+        final service = await pendingService;
+        if (mounted)
+          await service.markReadTargets([
+            captured ??
+                BookmarkReadTarget(
+                  groupId: groupId,
+                  publisher: library.mirrors.owners[groupId]!.publisher,
+                  source: library.mirrors.owners[groupId]!.source,
+                  member: syncBookmarkMemberKey(record),
+                ),
+          ]);
+      } catch (_) {
+        // Failed local acknowledgement leaves the entry unread for retry.
+        _displayed.remove(entry.occurrenceId);
+      }
+    }());
+  }
 
   @override
   void initState() {
@@ -76,6 +125,7 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
 
     return MixedPostDetailsPage(
       posts: widget.posts,
+      onEntryDisplayed: _onDisplayed,
       entries: _entries,
       initialIndex: widget.initialIndex,
       initialThumbnailUrl: widget.initialThumbnailUrl,
@@ -151,6 +201,18 @@ Future<PostRecoveryResult> _recoverBookmarkPost(
           return const PostRecoveryFailure(
             PostPresentationFallbackReason.refreshFailed,
           );
+        // Received-only snapshots remain publisher-owned. Recovery may improve
+        // this Viewer occurrence without persisting an ordinary mirror edit.
+        if (ref
+                .read(bookmarkProvider)
+                .valueOrNull
+                ?.localBookmarkIds
+                .contains(
+                  bookmark.id,
+                ) !=
+            true) {
+          return PostRecoverySuccess(post);
+        }
         await ref
             .read(bookmarkProvider.notifier)
             .upgradeBookmarkSnapshot(bookmark, post, canUpgrade: current);

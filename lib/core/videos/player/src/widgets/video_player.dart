@@ -49,6 +49,7 @@ class BooruVideo extends ConsumerStatefulWidget {
     this.onCurrentPositionChanged,
     this.onVideoPlayerCreated,
     this.onVideoPlayerDisposed,
+    this.onFrameRendered,
     this.sound = true,
     this.speed = 1.0,
     this.thumbnailUrl,
@@ -72,6 +73,9 @@ class BooruVideo extends ConsumerStatefulWidget {
   final PositionCallback? onCurrentPositionChanged;
   final VideoPlayerCreatedCallback? onVideoPlayerCreated;
   final VideoPlayerDisposedCallback? onVideoPlayerDisposed;
+
+  /// A frame from the current source has reached the visible media surface.
+  final VoidCallback? onFrameRendered;
   final bool sound;
   final double speed;
   final String? thumbnailUrl;
@@ -107,6 +111,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
   Future<void> Function()? _releaseVideoSource;
   CancelToken? _sourceCancellation;
   var _sourceGeneration = 0;
+  int? _reportedFrameGeneration;
 
   VideoPlayerEngine get _resolvedEngine => VideoPlayerState.resolveVideoEngine(
     engine: widget.videoPlayerEngine,
@@ -564,47 +569,74 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     required String? thumbnailUrl,
     required double aspectRatio,
     bool isBuffering = false,
-  }) => AspectRatio(
-    aspectRatio: aspectRatio,
-    child: KurumiHero(
-      tag: widget.heroTag,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child:
-                player?.buildPlayerWidget(context) ?? const SizedBox.shrink(),
-          ),
-          if (thumbnailUrl case final url?)
+  }) {
+    final media = AspectRatio(
+      aspectRatio: aspectRatio,
+      child: KurumiHero(
+        tag: widget.heroTag,
+        child: Stack(
+          children: [
             Positioned.fill(
-              child: ValueListenableBuilder(
-                valueListenable:
-                    player?.firstFrameRendered ??
-                    const AlwaysStoppedAnimation(false),
-                builder: (_, rendered, child) => IgnorePointer(
-                  child: Opacity(
-                    opacity: rendered && !_isPreparingSource ? 0 : 1,
-                    child: child,
+              child:
+                  player?.buildPlayerWidget(context) ?? const SizedBox.shrink(),
+            ),
+            if (thumbnailUrl case final url?)
+              Positioned.fill(
+                child: ValueListenableBuilder(
+                  valueListenable:
+                      player?.firstFrameRendered ??
+                      const AlwaysStoppedAnimation(false),
+                  builder: (_, rendered, child) => IgnorePointer(
+                    child: Opacity(
+                      opacity: rendered && !_isPreparingSource ? 0 : 1,
+                      child: child,
+                    ),
                   ),
-                ),
-                child: Consumer(
-                  builder: (_, ref, _) => BooruImage(
-                    config: ref.watchConfigAuth,
-                    borderRadius: BorderRadius.zero,
-                    aspectRatio: aspectRatio,
-                    imageUrl: url,
+                  child: Consumer(
+                    builder: (_, ref, _) => BooruImage(
+                      config: ref.watchConfigAuth,
+                      borderRadius: BorderRadius.zero,
+                      aspectRatio: aspectRatio,
+                      imageUrl: url,
+                    ),
                   ),
                 ),
               ),
-            ),
-          if (isBuffering)
-            _BufferingOverlay(
-              thumbnailUrl: thumbnailUrl,
-              aspectRatio: aspectRatio,
-            ),
-        ],
+            if (isBuffering)
+              _BufferingOverlay(
+                thumbnailUrl: thumbnailUrl,
+                aspectRatio: aspectRatio,
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+    if (player == null || widget.onFrameRendered == null) return media;
+    return ValueListenableBuilder<bool>(
+      valueListenable: player.firstFrameRendered,
+      child: media,
+      builder: (_, rendered, child) {
+        final generation = _sourceGeneration;
+        if (rendered && _reportedFrameGeneration != generation) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted ||
+                generation != _sourceGeneration ||
+                !identical(player, _player) ||
+                !player.firstFrameRendered.value ||
+                !widget.shouldInitialize ||
+                _isPreparingSource ||
+                _error != null ||
+                _reportedFrameGeneration == generation) {
+              return;
+            }
+            _reportedFrameGeneration = generation;
+            widget.onFrameRendered?.call();
+          });
+        }
+        return child!;
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

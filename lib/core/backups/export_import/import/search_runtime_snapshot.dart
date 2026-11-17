@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:equatable/equatable.dart';
 
 import '../../../search/following_topics/types.dart';
+import '../../../search/following_topics/src/types/following_mirror_state.dart';
 import '../../../search/following_topics/src/services/conservative_refresh_policy.dart';
 
 final class SearchRuntimeSnapshot extends Equatable {
@@ -10,6 +11,7 @@ final class SearchRuntimeSnapshot extends Equatable {
     required this.searches,
     required this.feeds,
     required this.organization,
+    this.sourceOwnedIds = const {},
   });
 
   factory SearchRuntimeSnapshot.empty() => SearchRuntimeSnapshot(
@@ -25,8 +27,11 @@ final class SearchRuntimeSnapshot extends Equatable {
   final List<TopicFeed> feeds;
   final TopicOrganization organization;
 
+  /// Exclusion only: rollback must never turn a former mirror into Local data.
+  final Set<String> sourceOwnedIds;
+
   @override
-  List<Object?> get props => [searches, feeds, organization];
+  List<Object?> get props => [searches, feeds, organization, sourceOwnedIds];
 }
 
 final class SearchRuntimeSnapshotCodec {
@@ -39,9 +44,17 @@ final class SearchRuntimeSnapshotCodec {
     'searches': snapshot.searches.map(_searchToJson).toList(),
     'feeds': snapshot.feeds.map((feed) => feed.toJson()).toList(),
     'organization': snapshot.organization.toJson(),
+    'folderScopes': {
+      for (final folder in snapshot.organization.folders)
+        if (folder.nameScope != null) folder.id: folder.nameScope,
+    },
+    'sourceOwnedIds': snapshot.sourceOwnedIds.toList()..sort(),
   });
 
-  SearchRuntimeSnapshot decode(String encoded) {
+  SearchRuntimeSnapshot decode(
+    String encoded, {
+    Map<String, String> folderScopes = const {},
+  }) {
     final value = jsonDecode(encoded);
     if (value case {
       'version': _version,
@@ -52,7 +65,17 @@ final class SearchRuntimeSnapshotCodec {
       return SearchRuntimeSnapshot(
         searches: searches.map(_searchFromJson).toList(),
         feeds: feeds.map(_feedFromJson).toList(),
-        organization: TopicOrganization.fromJson(organization),
+        organization: TopicOrganization.fromJson(
+          organization,
+          folderScopes: {
+            ...((value['folderScopes'] as Map?) ?? const {})
+                .cast<String, String>(),
+            ...folderScopes,
+          },
+        ),
+        sourceOwnedIds: Set.unmodifiable(
+          ((value['sourceOwnedIds'] as List?) ?? const []).cast<String>(),
+        ),
       );
     }
     throw const FormatException('Invalid search runtime snapshot');
@@ -61,6 +84,7 @@ final class SearchRuntimeSnapshotCodec {
   static Map<String, Object?> _searchToJson(FollowingTopic search) => {
     'id': search.id,
     'profileId': search.profileId,
+    'localSource': search.localSource?.toJson(),
     'query': search.query,
     'queryStructure': search.queryStructure?.toJson(),
     'autoUpdateEnabled': search.autoUpdateEnabled,
@@ -137,6 +161,9 @@ final class SearchRuntimeSnapshotCodec {
     return FollowingTopic(
       id: id,
       profileId: profileId,
+      localSource: value['localSource'] == null
+          ? null
+          : FollowingTopicSource.fromJson(value['localSource'] as Map),
       query: query,
       queryStructure: SearchQueryStructure.tryParse(value['queryStructure']),
       autoUpdateEnabled: value['autoUpdateEnabled'] != false,
@@ -235,23 +262,48 @@ final class SearchRuntimeSnapshotService {
 
   final FollowingTopicRepository repository;
 
-  Future<SearchRuntimeSnapshot> capture() async => SearchRuntimeSnapshot(
-    searches: await repository.getAll(),
-    feeds: await repository.getFeeds(),
-    organization: await repository.getOrganization(),
-  );
+  Future<FollowingMirrorState> _mirrors() async =>
+      repository is FollowingMirrorStore
+      ? (await (repository as FollowingMirrorStore).readMirrorSnapshot())
+            .mirrors
+      : const FollowingMirrorState.empty();
+
+  Future<SearchRuntimeSnapshot> capture() async {
+    final mirrors = await _mirrors();
+    final organization = await repository.getOrganization();
+    return SearchRuntimeSnapshot(
+      searches: (await repository.getAll())
+          .where((topic) => !mirrors.isReceived(topic.id))
+          .toList(),
+      feeds: (await repository.getFeeds())
+          .where((feed) => !mirrors.isReceived(feed.id))
+          .toList(),
+      organization: TopicOrganization(
+        folders: organization.folders.where(
+          (folder) => !mirrors.isReceived(folder.id),
+        ),
+        placements: organization.placements.where(
+          (placement) => !mirrors.isReceived(placement.itemId),
+        ),
+      ),
+      sourceOwnedIds: mirrors.owners.keys.toSet(),
+    );
+  }
 
   Future<void> restore(SearchRuntimeSnapshot snapshot) async {
+    final mirrors = await _mirrors();
+    final protected = {...snapshot.sourceOwnedIds, ...mirrors.owners.keys};
     for (final feed in await repository.getFeeds()) {
-      await repository.deleteFeed(feed.id);
+      if (!mirrors.isReceived(feed.id)) await repository.deleteFeed(feed.id);
     }
     for (final search in await repository.getAll()) {
-      await repository.delete(search.id);
+      if (!mirrors.isReceived(search.id)) await repository.delete(search.id);
     }
 
     final searchesByProfile = <String, List<FollowingTopic>>{};
     for (final search in snapshot.searches) {
-      searchesByProfile.putIfAbsent(search.profileId, () => []).add(search);
+      if (!protected.contains(search.id))
+        searchesByProfile.putIfAbsent(search.profileId, () => []).add(search);
     }
     for (final entry in searchesByProfile.entries) {
       await repository.restoreForProfile(entry.key, entry.value);
@@ -259,11 +311,28 @@ final class SearchRuntimeSnapshotService {
 
     final feedsByProfile = <String, List<TopicFeed>>{};
     for (final feed in snapshot.feeds) {
-      feedsByProfile.putIfAbsent(feed.profileId, () => []).add(feed);
+      if (!protected.contains(feed.id))
+        feedsByProfile.putIfAbsent(feed.profileId, () => []).add(feed);
     }
     for (final entry in feedsByProfile.entries) {
       await repository.restoreFeeds(entry.key, entry.value);
     }
-    await repository.replaceOrganization(snapshot.organization);
+    final current = await repository.getOrganization();
+    await repository.replaceOrganization(
+      TopicOrganization(
+        folders: [
+          ...snapshot.organization.folders.where(
+            (folder) => !protected.contains(folder.id),
+          ),
+          ...current.folders.where((folder) => mirrors.isReceived(folder.id)),
+        ],
+        placements: [
+          ...snapshot.organization.placements.where(
+            (p) => !protected.contains(p.itemId),
+          ),
+          ...current.placements.where((p) => mirrors.isReceived(p.itemId)),
+        ],
+      ),
+    );
   }
 }

@@ -1,3 +1,6 @@
+import '../../../../configs/manage/providers.dart';
+import 'following_topic_config_provider.dart';
+
 import 'dart:async';
 
 import 'package:collection/collection.dart';
@@ -11,7 +14,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../settings/providers.dart';
 import '../../../../boorus/engine/providers.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../../foundation/networking/network_provider.dart';
 import '../services/search_refresh_scheduler.dart';
@@ -274,11 +276,24 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     );
   }
 
+  BooruConfig? _configFor(FollowingTopic topic) {
+    final received =
+        ref
+            .read(followingTopicsProvider)
+            .valueOrNull
+            ?.mirrors
+            .isReceived(topic.id) ??
+        false;
+    return received || topic.localSource != null
+        ? ref.read(followingTopicConfigProvider(topic.id))
+        : ref
+              .read(booruConfigProvider)
+              .where((config) => config.id == topic.profileId)
+              .firstOrNull;
+  }
+
   bool _supported(FollowingTopic search) {
-    final config = ref
-        .read(booruConfigProvider)
-        .where((c) => c.id == search.profileId)
-        .firstOrNull;
+    final config = _configFor(search);
     if (config == null) return false;
     final adapter = ref
         .read(booruRepoProvider(config.auth))
@@ -415,9 +430,6 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     try {
       final topics = await ref.read(followingTopicsProvider.future);
       if (!canContinue()) return 0;
-      final profiles = {
-        for (final config in ref.read(booruConfigProvider)) config.id: config,
-      };
       final interval = ref.read(settingsProvider).searchRefresh.interval;
       final folders = {
         for (final folder in topics.organization.folders) folder.id: folder,
@@ -493,7 +505,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
                             false))) {
             return false;
           }
-          final config = profiles[latest.profileId];
+          final config = _configFor(latest);
           if (config == null) return false;
           final adapter = ref
               .read(booruRepoProvider(config.auth))

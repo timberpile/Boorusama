@@ -1,3 +1,6 @@
+import '../../../../content/content_access_provider.dart';
+import 'following_topic_config_provider.dart';
+
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -7,7 +10,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../boorus/booru/types.dart';
 import '../../../../boorus/engine/providers.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../images/providers.dart';
@@ -41,33 +43,30 @@ final feedMemberPreviewProvider = FutureProvider.autoDispose
       ref,
       key,
     ) async {
-      final (feedProfileId, isMember, sourceProfileId, sourcePreviews) = ref
-          .watch(
-            followingTopicsProvider.select((value) {
-              final state = value.valueOrNull;
-              final feed = state?.feeds
-                  .where((f) => f.id == key.feedId)
-                  .firstOrNull;
-              final source = state?.topics
-                  .where((s) => s.id == key.sourceId)
-                  .firstOrNull;
-              return (
-                feed?.profileId,
-                feed?.sourceIds.contains(key.sourceId) ?? false,
-                source?.profileId,
-                source?.previews,
-              );
-            }),
+      final (feedProfileId, isMember, _, sourcePreviews) = ref.watch(
+        followingTopicsProvider.select((value) {
+          final state = value.valueOrNull;
+          final feed = state?.feeds
+              .where((f) => f.id == key.feedId)
+              .firstOrNull;
+          final source = state?.topics
+              .where((s) => s.id == key.sourceId)
+              .firstOrNull;
+          return (
+            feed?.profileId,
+            feed?.sourceIds.contains(key.sourceId) ?? false,
+            source?.profileId,
+            source?.previews,
           );
-      final profiles = ref.watch(booruConfigProvider);
-      final owner = profiles.where((p) => p.id == sourceProfileId).firstOrNull;
+        }),
+      );
+      final owner = ref.watch(followingTopicConfigProvider(key.sourceId));
       final global = ref.watch(settingsProvider.select((s) => s.listing));
       final loading = ref.watch(automaticMediaLoadingEnabledProvider);
       if (!loading ||
           feedProfileId == null ||
           sourcePreviews == null ||
           owner == null ||
-          sourceProfileId != feedProfileId ||
           !isMember) {
         return const [];
       }
@@ -97,12 +96,31 @@ final feedMemberPreviewProvider = FutureProvider.autoDispose
                       post.origin.sourceHost)) {
             continue;
           }
+          final publicScope = owner.anonymousReadScope;
+          if (publicScope != null &&
+              (!publicScope.isCurrent ||
+                  ref
+                          .watch(
+                            contentPostVisibilityProvider((
+                              access: publicScope.key,
+                              post: post,
+                            )),
+                          )
+                          .valueOrNull !=
+                      true))
+            continue;
           final media = resolver.resolve(post, settings: settings);
-          final urls = <String>{
-            media.url,
-            ?media.placeholderUrl,
-            ?media.fallbackUrl,
-          }..removeWhere((url) => url.isEmpty);
+          final urls =
+              <String>{
+                media.url,
+                ?media.placeholderUrl,
+                ?media.fallbackUrl,
+              }..removeWhere((url) {
+                if (url.isEmpty) return true;
+                final uri = Uri.tryParse(url);
+                return publicScope != null &&
+                    (uri == null || !publicScope.source.allowsMedia(uri));
+              });
           candidates.add([
             for (final url in urls)
               ref.watch(defaultCachedImageFileProvider(url).future),
@@ -118,7 +136,8 @@ final feedMemberPreviewProvider = FutureProvider.autoDispose
         for (final bytesFuture in variants) {
           try {
             final bytes = await bytesFuture;
-            if (disposed) return const [];
+            if (disposed || owner.anonymousReadScope?.isCurrent == false)
+              return const [];
             if (bytes == null || bytes.isEmpty) continue;
             final image = _cachedImage(bytes);
             if (await _decodeCachedImage(image, ref)) {

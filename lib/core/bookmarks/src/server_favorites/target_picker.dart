@@ -55,7 +55,11 @@ class _ServerFavoriteTargetPickerState
       title: context.t.bookmark.groups.selector,
       child: BookmarkFolderPickerContents(
         folders: library?.folders ?? const [],
-        groups: library?.groups ?? const [],
+        groups:
+            library?.groups
+                .where((group) => !library.mirrors.isReceived(group.id))
+                .toList() ??
+            const [],
         membershipGroupIds: {?widget.selected.groupId},
         homeChildren: [
           option(
