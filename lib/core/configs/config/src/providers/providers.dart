@@ -14,26 +14,20 @@ final hasBooruConfigsProvider = Provider<bool>((ref) {
   return configs.isNotEmpty;
 });
 
-final orderedConfigsProvider = FutureProvider.autoDispose<IList<BooruConfig>>((
-  ref,
-) {
-  final configs = ref.watch(booruConfigProvider);
-
-  final configMap = {for (final config in configs) config.id: config};
+/// Shared presentation order; unknown/stale IDs never hide existing profiles.
+final orderedProfileConfigsProvider = Provider<List<BooruConfig>>((ref) {
+  final byId = {
+    for (final config in ref.watch(booruConfigProvider)) config.id: config,
+  };
   final orders = ref.watch(
     settingsProvider.select((value) => value.booruConfigIdOrderList),
   );
-
-  if (configMap.length != orders.length) {
-    return configMap.values.toIList();
-  }
-
-  try {
-    return orders.map((e) => configMap[e]!).toIList();
-  } catch (e) {
-    return configMap.values.toIList();
-  }
+  return [for (final id in orders) ?byId.remove(id), ...byId.values];
 });
+
+final orderedConfigsProvider = FutureProvider.autoDispose<IList<BooruConfig>>(
+  (ref) => ref.watch(orderedProfileConfigsProvider).toIList(),
+);
 
 final firstMatchingConfigBySourceUrlProvider =
     Provider.family<BooruConfig?, (int, String)>(

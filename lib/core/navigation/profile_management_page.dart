@@ -47,7 +47,7 @@ class ProfileManagementPage extends ConsumerWidget {
         itemCount: profiles.length,
         onReorderItem: (oldIndex, newIndex) => notifier.reorder(
           oldIndex,
-          newIndex > oldIndex ? newIndex + 1 : newIndex,
+          newIndex,
           profiles,
         ),
         itemBuilder: (context, index) {

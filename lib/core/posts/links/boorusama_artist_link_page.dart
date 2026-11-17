@@ -1,10 +1,11 @@
+import '../../configs/config/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../boorus/danbooru/artists/artist/widgets.dart';
 import '../../configs/config/types.dart';
-import '../../configs/manage/providers.dart';
 import '../../configs/manage/widgets.dart';
 import '../../configs/create/src/types/edit_booru_config_id.dart';
 import '../../boorus/booru/types.dart';
@@ -56,7 +57,9 @@ class _BoorusamaArtistLinkPageState
   Widget build(BuildContext context) {
     final link = BoorusamaArtistLink.tryParse(widget.uri);
     if (link == null) return _frame(Text(context.t.post.app_link.invalid));
-    final matches = link.matchingProfiles(ref.watch(booruConfigProvider));
+    final matches = link.matchingProfiles(
+      ref.watch(orderedProfileConfigsProvider),
+    );
     if (_adding)
       return _frame(const Center(child: CircularProgressIndicator()));
     final selected =

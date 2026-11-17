@@ -1,3 +1,5 @@
+import '../../../../configs/config/providers.dart';
+
 import 'package:anchor_ui/anchor_ui.dart' show AnchorData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -15,7 +17,7 @@ class SearchProfileMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profiles = ref.watch(booruConfigProvider);
+    final profiles = ref.watch(orderedProfileConfigsProvider);
     final activeId = ref.watch(currentBooruConfigProvider.select((c) => c.id));
     final parentMenu = AnchorData.maybeOf(context)?.controller;
 

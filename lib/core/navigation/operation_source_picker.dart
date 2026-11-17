@@ -16,7 +16,7 @@ Future<BooruConfig?> chooseOperationSource(WidgetRef ref) async {
       ref.read(explicitPageSourceProvider) != null) {
     return ref.readConfig;
   }
-  final profiles = ref.read(booruConfigProvider);
+  final profiles = ref.read(orderedProfileConfigsProvider);
   final id = await showDialog<String>(
     context: ref.context,
     builder: (context) => KurumiDialog(

@@ -1,8 +1,9 @@
+import '../../../configs/config/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
-import '../../../configs/manage/providers.dart';
 import '../../sources/providers.dart';
 import '../export/export_flow_notifier.dart';
 import '../models/export_item_presentation.dart';
@@ -105,7 +106,7 @@ class _ReviewImport extends ConsumerWidget {
     };
     final localLabels = ref.watch(exportSelectionLabelsProvider).children;
     final names = {
-      for (final profile in ref.watch(booruConfigProvider))
+      for (final profile in ref.watch(orderedProfileConfigsProvider))
         profile.id: profile.name,
       ...state.profileNames,
     };

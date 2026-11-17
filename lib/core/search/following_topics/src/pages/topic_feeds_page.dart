@@ -1,3 +1,4 @@
+import '../../../../configs/config/providers.dart';
 import '../../../../content/content_access.dart';
 import '../../../../content/content_access_provider.dart';
 import '../widgets/following_definition_entry.dart';
@@ -26,7 +27,6 @@ import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../configs/config/types.dart';
 import '../../../../widgets/popup_menu_action_label.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../boorus/booru/types.dart';
@@ -132,7 +132,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
 
   @override
   Widget build(BuildContext context) {
-    final profiles = ref.watch(booruConfigProvider);
+    final profiles = ref.watch(orderedProfileConfigsProvider);
     final byProfileId = {for (final profile in profiles) profile.id: profile};
     final strings = context.t.following_topics;
     return PerformanceScreenScope(
@@ -594,7 +594,7 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
       for (final id in feed?.sourceIds ?? const <String>[])
         ref.watch(followingTopicConfigProvider(id)),
       ...ref
-          .watch(booruConfigProvider)
+          .watch(orderedProfileConfigsProvider)
           .where((c) => c.id == (feed?.profileId ?? widget.profileId)),
     ].whereType<BooruConfig>().firstOrNull;
     final feedEnabled =

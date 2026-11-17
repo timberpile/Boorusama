@@ -1,3 +1,5 @@
+import '../../../configs/config/providers.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,7 +14,6 @@ import '../../../bookmarks/types.dart';
 
 import 'package:i18n/i18n.dart';
 
-import '../../../configs/manage/providers.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../sources/providers.dart';
 import '../models/export_selection.dart';
@@ -35,10 +36,10 @@ final exportSelectionPresentationProvider =
     Provider<ExportSelectionPresentation>((ref) {
       final items = <String, ExportItemPresentation>{};
       final profileNames = {
-        for (final profile in ref.watch(booruConfigProvider))
+        for (final profile in ref.watch(orderedProfileConfigsProvider))
           profile.id: profile.name,
       };
-      for (final profile in ref.watch(booruConfigProvider)) {
+      for (final profile in ref.watch(orderedProfileConfigsProvider)) {
         items['profile:${profile.id}'] = ExportItemPresentation(
           label: profile.name,
         );

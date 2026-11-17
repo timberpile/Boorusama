@@ -1,3 +1,5 @@
+import '../../configs/config/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -5,7 +7,6 @@ import 'package:kurumi/material.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../configs/create/src/types/edit_booru_config_id.dart';
-import '../../configs/manage/providers.dart';
 import '../../configs/manage/widgets.dart';
 import '../../router.dart';
 import '../../search/search/src/pages/search_page.dart';
@@ -64,7 +65,9 @@ class _BoorusamaSearchLinkPageState
   Widget build(BuildContext context) {
     final link = BoorusamaSearchLink.tryParse(widget.uri);
     if (link == null) return _message(context.t.search.app_link.invalid);
-    final matches = link.matchingProfiles(ref.watch(booruConfigProvider));
+    final matches = link.matchingProfiles(
+      ref.watch(orderedProfileConfigsProvider),
+    );
 
     if (_addingProfile) {
       return _frame(const Center(child: CircularProgressIndicator()));

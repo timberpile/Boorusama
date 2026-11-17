@@ -5,6 +5,10 @@ import 'package:kurumi/material.dart';
 
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/settings/providers.dart';
 
 // Project imports:
 import 'package:boorusama/core/navigation/profile_management_page.dart';
@@ -31,7 +35,15 @@ void main() {
       viewportSize: viewportSize,
       runtime: backend.createRuntime(
         platform: platform,
-        configs: [backend.config, backend.configB],
+        configs: [
+          backend.config,
+          backend.configB,
+          BooruConfig.fromJson({
+            ...backend.configB.toJson(),
+            'id': '00000000-0000-4000-8000-000000000099',
+            'name': 'Third profile',
+          }),
+        ],
         settings: Settings.defaultSettings,
       ),
     );
@@ -127,6 +139,42 @@ void main() {
         description: 'persisted profile order to update the list',
       );
       expect(tester.getCenter(b).dy, lessThan(tester.getCenter(a).dy));
+    },
+  );
+
+  testWidgets(
+    'downward and upward final indices persist across profile rebuild',
+    (
+      tester,
+    ) async {
+      final (harness, backend) = await mountProfiles(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ProfileManagementPage)),
+      );
+      const third = '00000000-0000-4000-8000-000000000099';
+      tester
+          .widget<ReorderableListView>(find.byType(ReorderableListView))
+          .onReorderItem!(0, 2);
+      await harness.settle(tester);
+      expect(container.read(settingsProvider).booruConfigIdOrderList, [
+        backend.configB.id,
+        third,
+        backend.config.id,
+      ]);
+      expect(
+        tester.getTopLeft(profile(third)).dy,
+        lessThan(tester.getTopLeft(profile(backend.config.id)).dy),
+      );
+      tester
+          .widget<ReorderableListView>(find.byType(ReorderableListView))
+          .onReorderItem!(2, 0);
+      await harness.settle(tester);
+      expect(container.read(settingsProvider).booruConfigIdOrderList, [
+        backend.config.id,
+        backend.configB.id,
+        third,
+      ]);
+      expect(container.read(currentBooruConfigProvider).id, backend.config.id);
     },
   );
 

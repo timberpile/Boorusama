@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../bookmarks/providers.dart';
-import '../../configs/manage/providers.dart';
+import '../../configs/config/providers.dart';
 import '../../search/following_topics/providers.dart';
 import '../export_import/models/export_selection.dart';
 import '../export_import/sources/export_selection_ids.dart';
@@ -88,7 +88,7 @@ class TopicFeedsBackupSourceNotifier extends Notifier<TopicFeedsBackupSource> {
 }
 
 final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
-  final profiles = ref.watch(booruConfigProvider);
+  final profiles = ref.watch(orderedProfileConfigsProvider);
   final bookmarks = ref.watch(bookmarkProvider).valueOrNull;
   final searches = ref.watch(followingTopicsProvider).valueOrNull;
   final folderIds =

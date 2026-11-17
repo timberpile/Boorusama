@@ -58,8 +58,9 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     // The profile is already persisted. A delayed or failed preference write
     // must not leave the visible collection behind the repository.
     state = [...state, booruConfig];
-    final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-    final newOrders = [...orders, booruConfig.id];
+    final newOrders = [
+      for (final config in ref.read(orderedProfileConfigsProvider)) config.id,
+    ];
 
     await updateOrder(newOrders);
   }
@@ -474,11 +475,8 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     int newIndex,
     Iterable<BooruConfig> orderedConfigs,
   ) {
-    final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-    final newOrders = orders.isEmpty || orders.length != orderedConfigs.length
-        ? [for (final config in orderedConfigs) config.id]
-        : orders.toList();
-    newOrders.reorder(oldIndex, newIndex);
+    final newOrders = [for (final config in orderedConfigs) config.id];
+    if (!newOrders.reorder(oldIndex, newIndex)) return;
 
     updateOrder(newOrders);
   }
