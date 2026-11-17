@@ -51,6 +51,7 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 
 | Skill | Use when |
 | --- | --- |
+| [research-ticket](.agents/skills/research-ticket/SKILL.md) | Research bug/feature reports, check existing issues, and prepare reviewable issue drafts and local-agent handoffs |
 | [implement-change](.agents/skills/implement-change/SKILL.md) | Clear, scoped implementation |
 | [debug-issue](.agents/skills/debug-issue/SKILL.md) | Known symptom, uncertain cause |
 | [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
@@ -58,7 +59,9 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
-Default: inspect → implement → scope-appropriate verification → review → report.
+Default for authorized implementation: inspect → implement → scope-appropriate verification → review → report.
+Research-only requests end with findings and drafts; publishing issues or changing code
+requires the user's authorization.
 Tickets, issues, design/plan documents, subagents, and reviewer pairs are optional, not routine
 prerequisites. Use PRs only when explicitly requested. Do not automatically chain
 skills; implementation includes verification. Use Superpowers only when explicitly
