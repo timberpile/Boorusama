@@ -52,6 +52,12 @@ final exportSelectionPresentationProvider =
               : group.name,
         );
       }
+      for (final folder
+          in ref.watch(bookmarkProvider).valueOrNull?.folders ?? const []) {
+        items['group-folder:${folder.id}'] = ExportItemPresentation(
+          label: folder.name,
+        );
+      }
       final searches = ref.watch(followingTopicsProvider).valueOrNull;
       for (final folder in searches?.organization.folders ?? const []) {
         items['folder:${folder.id}'] = ExportItemPresentation(
