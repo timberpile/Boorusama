@@ -406,7 +406,7 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
             .read(settingsNotifierProvider.notifier)
             .updateWith(
               (s) => s.copyWith(
-                autoBackup: settings.copyWith(
+                autoBackup: s.autoBackup.copyWith(
                   lastBackupTime: () => DateTime.now(),
                 ),
               ),
@@ -424,9 +424,14 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
         progress: 1,
       );
     } catch (e) {
-      final diagnostic = failure
-          .report(e, revision: failureRevision)
-          .diagnostic;
+      final ownsFailure = failure.revision == failureRevision;
+      final reported = failure.report(e, revision: failureRevision);
+      if (!ownsFailure) {
+        // A validated directory or newer diagnostic supersedes this operation.
+        state = const BackupState(status: BackupStatus.idle);
+        return;
+      }
+      final diagnostic = reported.diagnostic;
       logger.error('Backup.Auto', 'Auto backup failed: $diagnostic');
 
       state = state.copyWith(

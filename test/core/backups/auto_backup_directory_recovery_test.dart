@@ -6,6 +6,7 @@ import 'package:boorusama/core/backups/auto/repo_io.dart';
 import 'package:boorusama/core/backups/auto/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/core/settings/src/types/settings_repository.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,7 +40,41 @@ class _Repository extends Fake implements AutoBackupRepository {
   }
 }
 
+class _FailedSave extends Fake implements SettingsRepository {
+  @override
+  Future<bool> save(Settings setting) async => false;
+}
+
 void main() {
+  test(
+    'failed settings write preserves folder and diagnostic without validating',
+    () async {
+      final repo = _Repository();
+      final container = _container(repo, settingsRepository: _FailedSave());
+      addTearDown(container.dispose);
+      final before = container
+          .read(settingsProvider)
+          .autoBackup
+          .userSelectedPath;
+      final diagnostic = container
+          .read(autoBackupFailureProvider.notifier)
+          .report(
+            PlatformException(code: 'backup_folder_access_required'),
+          );
+      expect(
+        await container
+            .read(autoBackupDirectoryRecoveryProvider)
+            .selectDirectory('new'),
+        isFalse,
+      );
+      expect(
+        container.read(settingsProvider).autoBackup.userSelectedPath,
+        before,
+      );
+      expect(container.read(autoBackupFailureProvider), same(diagnostic));
+      expect(repo.entered, isEmpty);
+    },
+  );
   for (final valid in [true, false]) {
     for (final unrelated in [false, true]) {
       test(
@@ -77,6 +112,38 @@ void main() {
         },
       );
     }
+  }
+
+  for (final succeeds in [true, false]) {
+    test(
+      'newer access diagnostic survives stale directory validation succeeds=$succeeds',
+      () async {
+        final repo = _Repository();
+        final container = _container(repo);
+        addTearDown(container.dispose);
+        final failure = container.read(autoBackupFailureProvider.notifier);
+        failure.report(
+          PlatformException(
+            code: 'backup_folder_access_required',
+            details: {'stage': 'check_persisted_permission'},
+          ),
+        );
+        final pending = container
+            .read(autoBackupDirectoryRecoveryProvider)
+            .selectDirectory('new');
+        await repo.started('new');
+        final newer = failure.report(
+          PlatformException(
+            code: 'backup_folder_access_required',
+            details: {'stage': 'verify_folder_write'},
+          ),
+        );
+        repo.finish('new', valid: succeeds);
+        await pending;
+        expect(container.read(autoBackupFailureProvider), same(newer));
+        expect(newer.stage, 'verify_folder_write');
+      },
+    );
   }
 
   test(
@@ -126,14 +193,17 @@ void main() {
   });
 }
 
-ProviderContainer _container(_Repository repo) => ProviderContainer(
+ProviderContainer _container(
+  _Repository repo, {
+  SettingsRepository? settingsRepository,
+}) => ProviderContainer(
   overrides: [
     autoBackupRepositoryProvider.overrideWithValue(repo),
     settingsNotifierProvider.overrideWith(
       () => SettingsNotifier(Settings.defaultSettings),
     ),
     settingsRepoProvider.overrideWithValue(
-      MemorySettingsRepository(Settings.defaultSettings),
+      settingsRepository ?? MemorySettingsRepository(Settings.defaultSettings),
     ),
     loggerProvider.overrideWithValue(
       ConsoleLogger(options: const ConsoleLoggerOptions.defaults()),

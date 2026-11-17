@@ -67,7 +67,10 @@ class AutoBackupFailureNotifier extends Notifier<AutoBackupFailure?> {
 
   AutoBackupFailure report(Object error, {int? revision}) {
     final failure = AutoBackupFailure.fromError(error);
-    if (revision == null || revision == _revision) state = failure;
+    if (revision == null || revision == _revision) {
+      _revision++;
+      state = failure;
+    }
     return failure;
   }
 }
