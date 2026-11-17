@@ -70,7 +70,6 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
         },
         builder: (context, controller) {
           final grid = PostGrid(
-            safeArea: false,
             header: PostGridConfigurationHeader<Post>(
               additionalControls: [
                 if (orderControl case final control?) control,

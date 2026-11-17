@@ -208,21 +208,28 @@ void main() {
               .select(config);
           await harness.pump(
             tester,
-            Scaffold(
-              body: ViewerNavigationScope(
-                open: (index, _) => opened = index,
-                child: engine == BooruType.danbooru
-                    ? DanbooruInfinitePostIdList(
-                        pool: DanbooruPool.empty().copyWith(
-                          id: 1,
-                          postIds: _ids,
+            MediaQuery(
+              data: const MediaQueryData(
+                size: Size(800, 600),
+                padding: EdgeInsets.only(top: 24),
+                viewPadding: EdgeInsets.only(top: 24),
+              ),
+              child: Scaffold(
+                body: ViewerNavigationScope(
+                  open: (index, _) => opened = index,
+                  child: engine == BooruType.danbooru
+                      ? DanbooruInfinitePostIdList(
+                          pool: DanbooruPool.empty().copyWith(
+                            id: 1,
+                            postIds: _ids,
+                          ),
+                        )
+                      : SzurubooruPoolDetailContent(
+                          pool: _szuruPool,
+                          embedded: embedded,
+                          storageId: 'occurrence',
                         ),
-                      )
-                    : SzurubooruPoolDetailContent(
-                        pool: _szuruPool,
-                        embedded: embedded,
-                        storageId: 'occurrence',
-                      ),
+                ),
               ),
             ),
           );
@@ -233,6 +240,16 @@ void main() {
             await tester.pump(const Duration(milliseconds: 100));
           }
           expect(grid.controller.items.map((p) => p.id), _ids);
+          if (engine == BooruType.danbooru) {
+            expect(grid.safeArea, isTrue);
+            final view = find
+                .descendant(
+                  of: find.byType(PostGrid<Post>),
+                  matching: find.byType(CustomScrollView),
+                )
+                .first;
+            expect(tester.getTopLeft(view).dy, greaterThanOrEqualTo(24));
+          }
           await tester.pump();
           final items = tester
               .widgetList<PostGridItem>(find.byType(PostGridItem))

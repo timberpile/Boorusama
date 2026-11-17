@@ -16,6 +16,7 @@ import 'router.dart';
 import 'bookmarks/src/server_favorites/feedback_banner.dart';
 import 'settings/providers.dart';
 import 'themes/theme/widgets.dart';
+import 'themes/system_ui.dart';
 import 'widgets/widgets.dart';
 import 'window/widgets.dart';
 
@@ -114,12 +115,12 @@ class BoorusamaCoreApp extends ConsumerWidget {
                           ),
                         ),
                         child: AnnotatedRegion(
-                          // Needed to make the bottom navigation bar transparent
-                          value: SystemUiOverlayStyle(
-                            statusBarColor: Colors.transparent,
-                            systemNavigationBarColor: Colors.transparent,
-                            statusBarBrightness: theme.brightness,
-                            statusBarIconBrightness: context.onBrightness,
+                          value: appSystemUiOverlayStyle(
+                            colors: Kurumi.themeOf(context).colorScheme,
+                            gestureNavigation:
+                                MediaQuery.systemGestureInsetsOf(context)
+                                    .bottom >
+                                0,
                           ),
                           child: KurumiFocusRing(
                             child: AppTitleBar(
