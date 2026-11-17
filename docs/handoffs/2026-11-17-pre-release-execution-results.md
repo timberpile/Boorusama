@@ -6,7 +6,7 @@ All issue branches and the preview originate from `4542aaa44e5002f7d546fb4ec96bf
 
 Bugfix preview: [`maintenance/pre-release-bugfix-preview-20261117`](https://github.com/timberpile/Boorusama/tree/maintenance/pre-release-bugfix-preview-20261117). All ten bugfixes were replayed with `cherry-pick -x` in the requested order and pushed incrementally. Stable patch IDs match every source commit, including the two documentation corrections. No feature code is included.
 
-The last combined runtime candidate tested is `fb21b13edc13aeff58049493e66ebf2fcbf97e9c`; subsequent #172 wording and this inventory are documentation only. The report-only preview parent is `a150fa5b1b3fb8c59d3144f6224b21a70409ef94`. This is an owner test branch, not a release-ready or develop-qualified candidate.
+The current combined runtime candidate `388cc404b897acca78ffd006e56671cf6b235ec0` passed the short #122 follow-up checks described below. The original run ended at `fb21b13edc13aeff58049493e66ebf2fcbf97e9c`; the later #122 follow-up changes runtime code. Inventory-only commits after the current candidate do not require repeating that same pass. This is an owner test branch, not a release-ready or develop-qualified candidate.
 
 ## Remote issue branch inventory
 
@@ -14,7 +14,7 @@ Each linked verification report records the cause/change, actual focused command
 
 | Issue | Remote branch | Exact branch tip | Source commits in order | Preview replay commits | Evidence / short checks |
 | --- | --- | --- | --- | --- | --- |
-| [#122](https://github.com/timberpile/Boorusama/issues/122) | [`bug/122-profile-reordering`](https://github.com/timberpile/Boorusama/tree/bug/122-profile-reordering) | `d3e936887b286b1b76ae74c0eeb15a030891b994` | `297780d9afffd461114a5da8401e580eaeac3fb0`, `d3e936887b286b1b76ae74c0eeb15a030891b994` | `ce1090cd8e0a834fa71e78fbb1466bd0f46c9bda`, `834696033cae80fee788f1487012f35d9dea3a95` | [Report](https://github.com/timberpile/Boorusama/blob/bug/122-profile-reordering/docs/handoffs/122-profile-order-verification.md); 7 passed; analysis 32 infos |
+| [#122](https://github.com/timberpile/Boorusama/issues/122) | [`bug/122-profile-reordering`](https://github.com/timberpile/Boorusama/tree/bug/122-profile-reordering) | `daf43f30c2787f4941459c2d367e8ca8534fdeb5` | `297780d9afffd461114a5da8401e580eaeac3fb0`, `d3e936887b286b1b76ae74c0eeb15a030891b994`, `daf43f30c2787f4941459c2d367e8ca8534fdeb5` | `ce1090cd8e0a834fa71e78fbb1466bd0f46c9bda`, `834696033cae80fee788f1487012f35d9dea3a95`, `388cc404b897acca78ffd006e56671cf6b235ec0` | [Report](https://github.com/timberpile/Boorusama/blob/bug/122-profile-reordering/docs/handoffs/122-profile-order-verification.md); Initial: 7 passed, analysis 32 infos; follow-up: 11 passed on source and preview, changed-file analysis clean |
 | [#96](https://github.com/timberpile/Boorusama/issues/96) | [`bug/96-transient-profile-errors`](https://github.com/timberpile/Boorusama/tree/bug/96-transient-profile-errors) | `6c0cfb29d9b64e6f608fb8700e6cd23ec030e82c` | `6c0cfb29d9b64e6f608fb8700e6cd23ec030e82c` | Excluded: blocked | [Report](https://github.com/timberpile/Boorusama/blob/bug/96-transient-profile-errors/docs/handoffs/96-profile-error-investigation.md); Blocked: actual Flutter exception unestablished; 60s control timed out |
 | [#174](https://github.com/timberpile/Boorusama/issues/174) | [`bug/174-pixiv-work-grouping`](https://github.com/timberpile/Boorusama/tree/bug/174-pixiv-work-grouping) | `21f06536857a7f1598a92b239155055d2dcd7a62` | `21f06536857a7f1598a92b239155055d2dcd7a62` | `602f1ecd56accf9f92c1075f48981e7c419607b8` | [Report](https://github.com/timberpile/Boorusama/blob/bug/174-pixiv-work-grouping/docs/handoffs/174-work-grouping-verification.md); 15 passed; analysis clean |
 | [#169](https://github.com/timberpile/Boorusama/issues/169) | [`bug/169-pixiv-refresh-state`](https://github.com/timberpile/Boorusama/tree/bug/169-pixiv-refresh-state) | `a0cc70501702cef4b8082cb0a41c9cb52818bd64` | `a0cc70501702cef4b8082cb0a41c9cb52818bd64` | `1cd6aec43941c89c9443a7695cc3a486430f6e21` | [Report](https://github.com/timberpile/Boorusama/blob/bug/169-pixiv-refresh-state/docs/handoffs/169-refresh-state-verification.md); 9 passed; analysis 3 infos |
@@ -62,3 +62,27 @@ The first #122 preview attempt failed during setup; bootstrap and the final retr
 No emulator/Maestro/device sessions, live APIs/accounts, real user backups/exports, Android/Kotlin/APK builds or complete regression suites were run. Per-issue reports state any further limits. Short tests do not establish responsiveness or real service acceptance. The owner will build and accept the preview and each feature separately. The complete local suite on the final combined candidate is still required before any later authorized develop integration.
 
 All branches/worktrees are retained. Issues remain open with `review` for the 14 implemented candidates and `blocked` for #96/#173. Features #171/#168/#170/#134 are based directly on the same develop base and contain none of the cumulative bugfix commits.
+
+## #122 drag-handle follow-up (2026-11-17)
+
+Owner review reproduced a menu appearing after a stationary hold on a profile's
+reorder handle. The original drag test moved immediately, allowing it to miss
+the ancestor menu's long-press recognizer. A new regression failed on the old
+implementation (menu visible after holding the handle), then passed after
+separating the profile-body menu from the full 48x48 draggable handle.
+
+Source: `daf43f30c2787f4941459c2d367e8ca8534fdeb5` on `bug/122-profile-reordering`; replay: `388cc404b897acca78ffd006e56671cf6b235ec0` on the preview. The preview first fast-forwarded the newly published documentation-only handoff `b509cd7283815b9fbcfce58edcac8662e7880e5d`; that document is preserved. All ten original bugfixes and 13 source/replay patch pairs are retained; feature commits remain excluded. This follow-up does not implement the separate review-remediation assignment or change #166.
+
+
+Final commands on both the source branch and combined preview:
+
+- `timeout 45s fvm flutter test --no-pub --concurrency=6 test/application/profile_management_context_menu_flow_test.dart`: 11 passed in each worktree. Covers stationary holds, wobble, release/cancel, held upward/downward reorders including a handle corner, stored order/active profile, profile-body editing/menus, desktop handle exclusion and body right-click, keyboard menus, and narrow 320px/200% RTL layout.
+- `timeout 25s fvm dart analyze lib/core/navigation/profile_management_page.dart test/application/profile_management_context_menu_flow_test.dart`: no issues in either worktree.
+- Changed files formatted with `fvm dart format`; `git diff --check` passed. Source/replay Dart files and stable patch IDs match.
+
+Logs and inventory check: `.worktrees/_artifacts/122-drag-handle-followup-20261117/`.
+Successful tests emitted the existing native finalizer/build-hook diagnostics;
+no test assertion failed. No full-suite, live-service, Android/emulator/Maestro
+or APK checks were run. Owner should hold the handle beyond the long-press
+threshold, release/cancel or then drag, and compare a profile-body long press.
+No develop integration, issue closure, PR or branch deletion was performed.
