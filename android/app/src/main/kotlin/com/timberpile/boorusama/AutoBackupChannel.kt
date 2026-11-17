@@ -120,17 +120,14 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                             throw SecurityException("Backup folder is not writable")
                         }
                         // Validate real provider writes without creating a backup or touching existing files.
-                        val probe = DocumentsContract.createDocument(resolver, folder, "application/octet-stream",
-                            ".boorusama-write-probe-${java.util.UUID.randomUUID()}")
-                            ?: throw IOException("Could not validate backup folder")
-                        try {
-                            resolver.openOutputStream(probe, "w")?.use { it.write(byteArrayOf(0)) }
-                                ?: throw IOException("Could not write backup probe")
-                        } finally {
-                            if (!DocumentsContract.deleteDocument(resolver, probe)) {
-                                throw IOException("Could not remove backup probe")
-                            }
-                        }
+                        verifyBackupDirectoryWrite(
+                            create = {
+                                DocumentsContract.createDocument(resolver, folder, "application/octet-stream",
+                                    ".boorusama-write-probe-${java.util.UUID.randomUUID()}")
+                            },
+                            open = { probe -> resolver.openOutputStream(probe, "w") },
+                            delete = { probe -> DocumentsContract.deleteDocument(resolver, probe) },
+                        )
                     }
                     val name = location.pathSegments.getOrNull(2)
                     stage = "list_backup_folder"

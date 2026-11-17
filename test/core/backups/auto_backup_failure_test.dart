@@ -13,6 +13,20 @@ import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  test('every accepted diagnostic invalidates older asynchronous writers', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final failure = container.read(autoBackupFailureProvider.notifier);
+    final captured = failure.revision;
+    final newer = failure.report(StateError('newer'));
+    expect(failure.revision, greaterThan(captured));
+    failure.report(
+      PlatformException(code: 'backup_folder_access_required'),
+      revision: captured,
+    );
+    expect(container.read(autoBackupFailureProvider), same(newer));
+  });
+
   test(
     'retains known stages without exception messages or arbitrary details',
     () {
