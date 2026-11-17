@@ -16,7 +16,7 @@ Repository order, profile identity and active selection remain independent.
 ## Checks
 
 - `fvm dart format` on all changed Dart files: passed.
-- `fvm flutter test --no-pub --concurrency=6 test/application/profile_management_context_menu_flow_test.dart`: 7 passed.
+- `fvm flutter test --no-pub --concurrency=6 test/application/profile_management_context_menu_flow_test.dart`: 6 passed.
 - `fvm flutter test --no-pub --concurrency=6 test/core/configs/profile_order_test.dart`: 1 passed.
 - `fvm dart analyze` limited to changed files and the neighboring links directory:
   zero errors, zero warnings, 32 informational lint findings.
