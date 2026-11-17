@@ -1,3 +1,4 @@
+import '../../../../posts/listing/types.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
 // Package imports:
@@ -64,6 +65,8 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     BuildContext context,
     String query,
     int initialPage,
+    int? initialScrollPosition,
+    PageMode? pageMode,
     Widget header,
   )?
   nativeResultBuilder;

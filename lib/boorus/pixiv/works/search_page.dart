@@ -33,20 +33,30 @@ class PixivWorkSearchPage extends ConsumerWidget {
       textMatchers: [?ref.watch(queryMatcherProvider(config.auth))],
       fetcher: (page, controller) =>
           compatibility.getPostsFromController(controller.tagSet, page),
-      nativeResultBuilder: (context, queryText, initialPage, header) {
-        final composed = composer.compose(queryText.split(' '));
-        final query = PixivQuery.parse(composed);
-        return PixivWorkGrid(
-          config: config,
-          queryIdentity: (queryText, composed.join(' '), config.search),
-          initialPage: initialPage,
-          header: header,
-          fetchPage: (page) {
-            final client = ref.read(pixivClientProvider(config.auth));
-            return fetchPixivWorkPage(client, query, page);
+      nativeResultBuilder:
+          (
+            context,
+            queryText,
+            initialPage,
+            initialScrollPosition,
+            pageMode,
+            header,
+          ) {
+            final composed = composer.compose(queryText.split(' '));
+            final query = PixivQuery.parse(composed);
+            return PixivWorkGrid(
+              config: config,
+              queryIdentity: (queryText, composed.join(' '), config.search),
+              initialPage: initialPage,
+              initialScrollPosition: initialScrollPosition,
+              pageMode: pageMode,
+              header: header,
+              fetchPage: (page) {
+                final client = ref.read(pixivClientProvider(config.auth));
+                return fetchPixivWorkPage(client, query, page);
+              },
+            );
           },
-        );
-      },
     );
   }
 }

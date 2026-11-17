@@ -50,15 +50,25 @@ final class PixivWorkSource extends ContentGroupSource {
         .canonicalize(ContentKind.group, reference.sourceKey);
   }
 
-  void seedWork(PixivIllustDto dto) {
+  void seedWork(PixivIllustDto dto, {bool replaceExisting = false}) {
     final summary = pixivWorkSummary(dto, access);
     _require(summary.reference);
     _requireVisible(dto);
     // Some list endpoints omit the Page manifest. Open those Works lazily
     // through their detail endpoint instead of treating omitted Pages as holes.
     final count = dto.pageCount;
-    if (count != null && count > 1 && dto.metaPages.length < count) return;
-    _envelopes.seed(summary.reference, dto);
+    if (count != null && count > 1 && dto.metaPages.length < count) {
+      if (replaceExisting) invalidate(summary.reference);
+      return;
+    }
+    if (replaceExisting) {
+      _generations.update(
+        summary.reference,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
+    _envelopes.seed(summary.reference, dto, replaceExisting: replaceExisting);
   }
 
   void _requireVisible(PixivIllustDto dto) {

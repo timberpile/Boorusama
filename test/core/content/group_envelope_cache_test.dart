@@ -23,6 +23,25 @@ void main() {
     sourceKey: 'pool:$id',
   );
 
+  test('fresh authorized seed replaces cached or pending envelope', () async {
+    final cache = GroupEnvelopeCache<int>(access: access, maxEntries: 2);
+    addTearDown(cache.dispose);
+    final old = Completer<int>();
+    final pending = cache.load(reference(1), () => old.future);
+    final cancelled = expectLater(
+      pending,
+      throwsA(isA<RequestCancelledError>()),
+    );
+    expect(cache.seed(reference(1), 2, replaceExisting: true), isTrue);
+    await cancelled;
+    old.complete(1);
+    expect(await cache.load(reference(1), () async => 0), 2);
+    cache.invalidate(reference(1));
+    expect(cache.seed(reference(1), 3), isFalse);
+    expect(cache.seed(reference(1), 4, replaceExisting: true), isTrue);
+    expect(await cache.load(reference(1), () async => 0), 4);
+  });
+
   test('explicit invalidation cannot accept a stale route seed', () async {
     final cache = GroupEnvelopeCache<int>(access: access);
     addTearDown(cache.dispose);

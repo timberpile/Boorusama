@@ -8,6 +8,7 @@ import 'package:kurumi/material.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:sliver_masonry_grid/sliver_masonry_grid.dart';
 import 'package:selection_mode/selection_mode.dart';
+import 'package:scroll_to_index/scroll_to_index.dart';
 
 import '../../configs/manage/widgets.dart';
 import '../../configs/config/types.dart';
@@ -48,11 +49,13 @@ final class NativeContentPage {
     required this.hasMore,
     this.total,
     this.rawCount,
+    this.indexForPosition,
   }) : entries = List.unmodifiable(entries);
   final List<ContentEntry> entries;
   final bool hasMore;
   final int? total;
   final int? rawCount;
+  final int Function(int)? indexForPosition;
 }
 
 /// One native Work/Gallery occurrence per card, using the common viewport
@@ -64,6 +67,7 @@ class NativeContentGrid extends ConsumerStatefulWidget {
     this.queryIdentity,
     this.pageMode = PageMode.infinite,
     this.initialPage = 1,
+    this.initialScrollPosition,
     this.onRefresh,
     this.header,
     this.sliverHeaders = const [],
@@ -81,6 +85,7 @@ class NativeContentGrid extends ConsumerStatefulWidget {
   final Object? queryIdentity;
   final PageMode pageMode;
   final int initialPage;
+  final int? initialScrollPosition;
   final VoidCallback? onRefresh;
   final Widget? header;
   final List<Widget> sliverHeaders;
@@ -93,7 +98,9 @@ class NativeContentGrid extends ConsumerStatefulWidget {
 
 class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
   late NativeContentController _controller;
-  final _scroll = ScrollController();
+  final _scroll = AutoScrollController();
+  var _restored = false;
+  var _restoreScheduled = false;
   final _selection = OrderedSelectionController<Object>(
     exitWhenSelectionRemoved: true,
   );
@@ -133,11 +140,55 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
     if (!widget.access.hasSameAuthorization(oldWidget.access) ||
         widget.queryIdentity != oldWidget.queryIdentity ||
         widget.pageMode != oldWidget.pageMode ||
-        widget.initialPage != oldWidget.initialPage) {
+        widget.initialPage != oldWidget.initialPage ||
+        widget.initialScrollPosition != oldWidget.initialScrollPosition) {
+      _restored = false;
+      _restoreScheduled = false;
       _controller.dispose();
       _createController();
     }
   }
+
+  void _restorePosition() {
+    final position = widget.initialScrollPosition;
+    if (_restored ||
+        _restoreScheduled ||
+        position == null ||
+        _controller.loadingMore ||
+        _controller.entries.isEmpty)
+      return;
+    _restoreScheduled = true;
+    final controller = _controller;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreScheduled = false;
+      if (!mounted ||
+          !identical(_controller, controller) ||
+          !_scroll.hasClients ||
+          ref
+                  .read(contentAccessContextProvider(widget.access.key))
+                  ?.hasSameAuthorization(widget.access) !=
+              true)
+        return;
+      _restored = true;
+      final index = controller.indexForPosition?.call(position) ?? position;
+      unawaited(
+        _scroll.scrollToIndex(
+          index.clamp(0, controller.entries.length - 1),
+          preferPosition: AutoScrollPosition.begin,
+        ),
+      );
+    });
+  }
+
+  Widget _indexedCard(BuildContext context, int index, {double? ratio}) =>
+      AutoScrollTag(
+        key: ValueKey(_controller.viewerEntries[index].occurrenceId),
+        controller: _scroll,
+        index: index,
+        child: ratio == null
+            ? _card(context, index)
+            : _masonryCard(context, index, ratio),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +210,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
             animation: Listenable.merge([_controller, _selection]),
             builder: (context, _) => LayoutBuilder(
               builder: (context, size) {
+                _restorePosition();
                 final presentation = ref
                     .watch(
                       booruGroupCapabilityProvider(widget.access.key.engine),
@@ -223,14 +275,20 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                           padding: EdgeInsets.all(listing.imageGridPadding),
                           sliver: listing.imageListType == ImageListType.masonry
                               ? SliverMasonryGrid.count(
+                                  key: ValueKey(
+                                    _controller
+                                        .viewerEntries
+                                        .firstOrNull
+                                        ?.occurrenceId,
+                                  ),
                                   crossAxisCount: columns,
                                   mainAxisSpacing: listing.imageGridSpacing,
                                   crossAxisSpacing: listing.imageGridSpacing,
                                   childCount: _controller.entries.length,
-                                  itemBuilder: (context, index) => _masonryCard(
+                                  itemBuilder: (context, index) => _indexedCard(
                                     context,
                                     index,
-                                    listing.imageGridAspectRatio,
+                                    ratio: listing.imageGridAspectRatio,
                                   ),
                                 )
                               : SliverGrid.builder(
@@ -246,7 +304,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                                       ),
                                   itemCount: _controller.entries.length,
                                   itemBuilder: (context, index) =>
-                                      _card(context, index),
+                                      _indexedCard(context, index),
                                 ),
                         ),
                         SliverToBoxAdapter(child: _footer(context)),
@@ -625,6 +683,7 @@ final class NativeContentController extends ChangeNotifier
   var _generation = 0;
   var _loaded = false;
   int? _failedPage;
+  int Function(int)? indexForPosition;
   CancelToken? _request;
 
   Future<void> refresh() async {
@@ -727,6 +786,7 @@ final class NativeContentController extends ChangeNotifier
           ),
         });
       }
+      indexForPosition = result.indexForPosition;
       page = requested;
       hasMore = result.hasMore;
       _loaded = true;

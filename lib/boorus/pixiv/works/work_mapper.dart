@@ -208,3 +208,24 @@ GroupCoverVisibility pixivWorkCoverVisibility(PixivIllustDto dto) =>
       deleted: false,
       banned: false,
     );
+
+/// Counts the actual legacy Post projection, including omitted/unusable Pages.
+/// This is transient route metadata and does not change a Work's memberCount.
+List<int> pixivWorkLegacyPageCounts(List<PixivIllustDto> dtos) => [
+  for (final dto in dtos)
+    if (pixivWorkIsVisible(dto))
+      if (PixivIllustType.parse(dto.type) != PixivIllustType.ugoira ||
+          illustDtoToPosts(dto).isNotEmpty)
+        illustDtoToPosts(dto).length,
+];
+
+/// Legacy search positions are zero-based flat Post indexes in the loaded page.
+/// Restore the containing Work; out-of-range positions select the last card.
+int pixivWorkIndexForPagePosition(List<int> pageCounts, int position) {
+  var remaining = position < 0 ? 0 : position;
+  for (final (index, count) in pageCounts.indexed) {
+    if (remaining < count) return index;
+    remaining -= count;
+  }
+  return pageCounts.isEmpty ? 0 : pageCounts.length - 1;
+}
