@@ -38,6 +38,7 @@ class AutoBackupFailure {
     'find_backup_folder',
     'create_backup_folder',
     'list_backup_folder',
+    'verify_folder_write',
     'read_backup_size',
     'delete_retained_backup',
     'read_manifest',
