@@ -14,7 +14,7 @@ do not start recovery. No backup export is needed to dismiss the stale warning.
 
 Android prepare already checked the persisted URI grant and listed/resolved the
 backup directory. Extend it to check directory-create capability and write/delete
-one uniquely named empty-data probe. Existing documents are never selected for
+a uniquely named probe containing one byte. Existing documents are never selected for
 this probe. Failed cleanup is a validation failure. This is actual provider write
 validation, not a second permission subsystem; the stage is sanitized like other
 backup diagnostics. The native probe has **not been compiled or run on Android**.
