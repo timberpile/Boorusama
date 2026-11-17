@@ -22,7 +22,7 @@ class PixivWorkSearchPage extends ConsumerWidget {
   final SearchParams params;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (SearchProfileSession.maybeOf(context)?.local ?? false) {
+    if (SearchProfileSession.maybeOf(context)?.postResultsOnly ?? false) {
       return DefaultSearchPage(params: params);
     }
     final config = ref.watchConfig;

@@ -10,6 +10,8 @@ import 'package:boorusama/core/content/widgets/native_content_grid.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/search/routes.dart';
+import 'package:boorusama/core/search/search/src/widgets/search_profile_session.dart';
+import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
 
@@ -17,54 +19,94 @@ import '../../../core/search/following_topics/following_topic_test_utils.dart';
 import 'work_test_fixtures.dart';
 
 void main() {
-  for (final query in [null, '', 'user:7', 'cat']) {
-    testWidgets(
-      'native entry point $query keeps one card per Work without detail reads',
-      (tester) async {
-        final access = workAccess();
-        final config = access.config!;
-        final client = _Client();
-        final harness = FollowingTopicHarness(
-          profiles: [config],
-          overrides: [
-            currentReadOnlyBooruConfigProvider.overrideWith((ref) => config),
-            pixivClientProvider.overrideWith((ref, _) => client),
-            booruGroupCapabilityProvider.overrideWith(
-              (ref, _) => createPixivGroupCapability(ref),
+  for (final local in [false, true]) {
+    for (final query in [null, '', 'user:7', 'cat']) {
+      testWidgets(
+        'native entry point $query local=$local keeps one card per Work without detail reads',
+        (tester) async {
+          final access = workAccess();
+          final config = access.config!;
+          final client = _Client();
+          final harness = FollowingTopicHarness(
+            profiles: [config],
+            overrides: [
+              currentReadOnlyBooruConfigProvider.overrideWith((ref) => config),
+              pixivClientProvider.overrideWith((ref, _) => client),
+              booruGroupCapabilityProvider.overrideWith(
+                (ref, _) => createPixivGroupCapability(ref),
+              ),
+            ],
+          );
+          addTearDown(harness.dispose);
+          await harness.pump(
+            tester,
+            SearchProfileSession(
+              local: local,
+              snapshot: null,
+              onSwitch: (_, _) {},
+              child: query == null
+                  ? Builder(builder: PixivBuilder().homeViewBuilder)
+                  : PixivWorkSearchPage(params: SearchParams(query: query)),
             ),
-          ],
-        );
-        addTearDown(harness.dispose);
-        await harness.pump(
-          tester,
-          query == null
-              ? Builder(builder: PixivBuilder().homeViewBuilder)
-              : PixivWorkSearchPage(params: SearchParams(query: query)),
-        );
-        await drain(tester);
-        final grid = find.byType(NativeContentGrid);
-        expect(grid, findsOneWidget);
-        expect(find.byType(PostGrid<Post>), findsNothing);
-        final view = find.descendant(
-          of: grid,
-          matching: find.byType(CustomScrollView),
-        );
-        final controller = NativeContentGrid.controllerOf(tester.element(view));
-        expect(controller.entries, hasLength(3));
-        expect(controller.entries.whereType<GroupContentEntry>(), hasLength(2));
-        expect(controller.entries.whereType<PostContentEntry>(), hasLength(1));
-        expect(client.calls, [
-          switch (query) {
-            'user:7' => ('artist', '7', 1),
-            'cat' => ('search', 'cat', 1),
-            _ => ('ranking', '', 1),
-          },
-        ]);
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox.shrink());
-      },
-    );
+          );
+          await drain(tester);
+          final grid = find.byType(NativeContentGrid);
+          expect(grid, findsOneWidget);
+          expect(find.byType(PostGrid<Post>), findsNothing);
+          final view = find.descendant(
+            of: grid,
+            matching: find.byType(CustomScrollView),
+          );
+          final controller = NativeContentGrid.controllerOf(
+            tester.element(view),
+          );
+          expect(controller.entries, hasLength(3));
+          expect(
+            controller.entries.whereType<GroupContentEntry>(),
+            hasLength(2),
+          );
+          expect(
+            controller.entries.whereType<PostContentEntry>(),
+            hasLength(1),
+          );
+          expect(client.calls, [
+            switch (query) {
+              'user:7' => ('artist', '7', 1),
+              'cat' => ('search', 'cat', 1),
+              _ => ('ranking', '', 1),
+            },
+          ]);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
   }
+  testWidgets('explicit Post-only session retains the compatibility page', (
+    tester,
+  ) async {
+    final config = workAccess().config!;
+    final harness = FollowingTopicHarness(
+      profiles: [config],
+      overrides: [currentReadOnlyBooruConfigProvider.overrideWithValue(config)],
+    );
+    addTearDown(harness.dispose);
+    await harness.pump(
+      tester,
+      SearchProfileSession(
+        local: true,
+        postResultsOnly: true,
+        snapshot: null,
+        onSwitch: (_, _) {},
+        child: const PixivWorkSearchPage(params: SearchParams()),
+      ),
+    );
+    await drain(tester);
+    expect(find.byType(DefaultSearchPage), findsOneWidget);
+    expect(find.byType(NativeContentGrid), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }
 
 class _Client extends PixivClient {
