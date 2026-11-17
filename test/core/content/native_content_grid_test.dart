@@ -6,6 +6,12 @@ import 'package:boorusama/core/navigation/destination_activity.dart';
 import 'package:boorusama/core/posts/listing/src/types/page_mode.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/post_grid_prefetch.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/sliver_post_grid_place_holder.dart';
+
+import '../search/following_topics/following_topic_test_utils.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../boorus/pixiv/works/work_test_fixtures.dart';
@@ -24,6 +30,62 @@ GroupContentEntry entry(int id) => GroupContentEntry(
 );
 
 void main() {
+  testWidgets(
+    'initial placeholders and retained refresh avoid a competing spinner',
+    (tester) async {
+      final config = workAccess().config!;
+      final harness = FollowingTopicHarness(profiles: [config]);
+      addTearDown(harness.dispose);
+      final replies = <Completer<NativeContentPage>>[];
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: Consumer(
+            builder: (_, ref, _) {
+              final access = ref.watch(contentProfileAccessProvider(config.id));
+              if (access == null) return const SizedBox.shrink();
+              return NativeContentGrid(
+                access: access,
+                fetchPage: (_) {
+                  final reply = Completer<NativeContentPage>();
+                  replies.add(reply);
+                  return reply.future;
+                },
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(replies, hasLength(1));
+      expect(find.byType(SliverPostGridPlaceHolder), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      replies.single.complete(
+        NativeContentPage(entries: [entry(101)], hasMore: false),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(SliverPostGridPlaceHolder), findsNothing);
+      final view = find.descendant(
+        of: find.byType(NativeContentGrid),
+        matching: find.byType(CustomScrollView),
+      );
+      final controller = NativeContentGrid.controllerOf(tester.element(view));
+      final refresh = controller.refresh();
+      await tester.pump();
+      expect(controller.entries, hasLength(1));
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(SliverPostGridPlaceHolder), findsNothing);
+      replies.last.completeError(StateError('offline fixture'));
+      await refresh;
+      await tester.pump();
+      expect(controller.entries, hasLength(1));
+      expect(find.text('Retry'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   test(
     'filtered empty continuation advances and a nonempty terminal batch stops',
     () async {
@@ -51,6 +113,70 @@ void main() {
       expect(pages, [1, 2]);
     },
   );
+
+  test(
+    'refresh retains entries and viewer identity until successful replacement',
+    () async {
+      final replacement = Completer<NativeContentPage>();
+      var calls = 0;
+      final controller = NativeContentController(
+        access: workAccess(),
+        current: () => true,
+        fetchPage: (_) async => ++calls == 1
+            ? NativeContentPage(entries: [entry(101)], hasMore: false)
+            : replacement.future,
+      );
+      addTearDown(controller.dispose);
+      await controller.refresh();
+      final occurrence = controller.viewerEntries.single.occurrenceId;
+      final pending = controller.refresh();
+      expect(controller.refreshing, isTrue);
+      expect(controller.entries.single.reference.sourceKey, 'work:101');
+      expect(controller.viewerEntries.single.occurrenceId, same(occurrence));
+      expect(controller.hasMore, isFalse);
+      replacement.complete(
+        NativeContentPage(entries: [entry(102)], hasMore: true),
+      );
+      await pending;
+      expect(controller.entries.single.reference.sourceKey, 'work:102');
+      expect(controller.refreshing, isFalse);
+      expect(controller.hasMore, isTrue);
+    },
+  );
+
+  for (final manual in [false, true]) {
+    test(
+      'failed refresh retains results and ${manual ? 'continuation' : 'retry'} replaces',
+      () async {
+        var calls = 0;
+        final pages = <int>[];
+        final controller = NativeContentController(
+          access: workAccess(),
+          current: () => true,
+          fetchPage: (page) async {
+            pages.add(page);
+            if (++calls == 2) throw StateError('fixture');
+            return NativeContentPage(entries: [entry(101)], hasMore: true);
+          },
+        );
+        addTearDown(controller.dispose);
+        await controller.refresh();
+        final occurrence = controller.viewerEntries.single.occurrenceId;
+        await controller.refresh();
+        expect(controller.errors.value, isA<StateError>());
+        expect(controller.viewerEntries.single.occurrenceId, same(occurrence));
+        expect(controller.entries, hasLength(1));
+        if (manual) {
+          await controller.fetchMore();
+        } else {
+          await controller.retry();
+        }
+        expect(controller.errors.value, isNull);
+        expect(controller.entries, hasLength(1));
+        expect(pages, [1, 1, 1]);
+      },
+    );
+  }
 
   test('refresh rejects late earlier results and preserves each occurrence identity', () async {
     final first = Completer<NativeContentPage>();
