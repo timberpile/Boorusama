@@ -32,6 +32,7 @@ final class RemoteBookmarkPool {
     required this.total,
     this.supportsUploadOrder = false,
     this.loadedDetails,
+    this.cachedMembers = const [],
   });
   final int id;
   final String title;
@@ -39,4 +40,5 @@ final class RemoteBookmarkPool {
   final int? total;
   final bool supportsUploadOrder;
   final ContentGroupDetails? loadedDetails;
+  final List<Post> cachedMembers;
 }

@@ -2243,7 +2243,7 @@ void main() {
   });
 
   testWidgets(
-    'Pool picker saves its summary without indexing members',
+    'Pool picker saves its summary without waiting for cover indexing',
     (tester) async {
       final setup = await _mount(tester, holdIndex: true);
       final harness = setup.harness;
@@ -2292,11 +2292,48 @@ void main() {
       expect(saved.loadedDetails!.description!.format, GroupTextFormat.dtext);
       expect(saved.loadedDetails!.sourceDates!.createdAt, DateTime.utc(2000));
       expect(saved.loadedDetails!.sourceDates!.updatedAt, DateTime.utc(2026));
+      await harness.settle(tester);
+      expect(
+        resolvePoolBookmarkProfile(
+          saved,
+          setup.container.read(booruConfigProvider),
+        )?.id,
+        harness.booruBackend.config.id,
+      );
+      final backfillProvider = missingPoolCoverProvider((
+        harness.booruBackend.config,
+        saved,
+      ));
+      expect(
+        setup.container.exists(backfillProvider),
+        isTrue,
+        reason: 'save should schedule its cover job',
+      );
+      expect(
+        setup.container.read(backfillProvider).hasError,
+        isFalse,
+        reason: setup.container.read(backfillProvider).toString(),
+      );
+      await harness.pumpUntil(
+        tester,
+        () => harness.booruBackend.requests
+            .whereType<FakeBooruPostRequest>()
+            .any((request) => request.query == 'pool:10'),
+      );
       expect(
         harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
           (request) => request.query == 'pool:10',
         ),
-        isEmpty,
+        hasLength(1),
+      );
+      expect(
+        setup.container
+            .read(bookmarkProvider)
+            .requireValue
+            .pools
+            .single
+            .localId,
+        saved.localId,
       );
       expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);

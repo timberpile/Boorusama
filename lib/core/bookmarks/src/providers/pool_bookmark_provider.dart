@@ -1,6 +1,12 @@
 import '../types/pool_bookmark_cover.dart';
 
 import 'dart:convert';
+import 'dart:async';
+
+import '../../../boorus/booru/types.dart';
+import '../../../configs/manage/providers.dart';
+import '../services/pool_cover_backfill_queue.dart';
+import '../../../content/content_access_provider.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,6 +79,13 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
           .firstOrNull;
       if (existing != null) return existing;
 
+      final blacklist = ref
+          .read(blacklistTagsProvider(config.filter))
+          .asData
+          ?.value;
+      final cover = blacklist == null
+          ? null
+          : eligiblePoolCover(config, blacklist, pool.cachedMembers);
       final now = DateTime.now().toUtc();
       return PoolBookmark(
         localId: const Uuid().v4(),
@@ -88,6 +101,9 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
         groupIds: const {},
         tags: const {},
         coverage: PoolTagCoverage.unknown,
+        cover: cover,
+        coverUrl: cover?.thumbnail,
+        coverPolicy: cover == null ? null : poolCoverPolicy(config, blacklist!),
       );
     });
 
@@ -224,3 +240,105 @@ final legacyPoolBookmarkCoverProvider = FutureProvider.autoDispose
       );
       return draft.cover;
     });
+
+PoolBookmarkCover? eligiblePoolCover(
+  BooruConfig config,
+  Set<String> blacklist,
+  Iterable<Post> posts,
+) {
+  final origin = postOriginFromConfig(config);
+  final eligible =
+      filterTags(
+        posts.take(PoolSummaryIndexer.memberBudget).toList(),
+        blacklist,
+      ).where(
+        (post) =>
+            post.origin.booruType == origin.booruType &&
+            post.origin.sourceHost == origin.sourceHost &&
+            post.origin.profileIdHint == config.id &&
+            poolCoverAllowsRating(config, post.rating) &&
+            !(post.status?.matches('deleted') ?? false) &&
+            !(post.status?.matches('banned') ?? false) &&
+            PoolBookmarkCover.isStatic(post.thumbnailImageUrl),
+      );
+  return eligible.isEmpty ? null : PoolBookmarkCover.fromPost(eligible.first);
+}
+
+final poolCoverBackfillQueueProvider = Provider(
+  (_) => PoolCoverBackfillQueue(),
+);
+
+final missingPoolCoverProvider = FutureProvider.autoDispose
+    .family<void, (BooruConfig, CollectionBookmark)>((ref, request) async {
+      ref.keepAlive();
+      var current = true;
+      ref.onDispose(() => current = false);
+      final (config, pool) = request;
+      if (pool.isRelated ||
+          pool.coverUrl != null ||
+          config.auth.booruType != BooruType.danbooru)
+        return;
+      final library = await ref.read(bookmarkProvider.future);
+      if (!library.pools.any(
+        (saved) =>
+            saved.localId == pool.localId && saved.identity == pool.identity,
+      ))
+        return;
+      final profiles = ref.read(booruConfigProvider);
+      final owner = resolvePoolBookmarkProfile(pool, profiles);
+      if (owner?.id != config.id || owner?.auth != config.auth) return;
+      final blacklist = await ref.watch(
+        blacklistTagsProvider(config.filter).future,
+      );
+      final policy = poolCoverPolicy(config, blacklist);
+      final access = ref.read(contentProfileAccessProvider(config.id));
+      if (access == null || access.config?.auth != config.auth) return;
+      bool allowed() =>
+          current &&
+          ref
+                  .read(contentAccessContextProvider(access.key))
+                  ?.hasSameAuthorization(access) ==
+              true &&
+          ref.read(poolCoverPolicyProvider(config)).asData?.value == policy;
+      await ref.read(poolCoverBackfillQueueProvider).run(
+        (access.key, pool.localId, policy),
+        () async {
+          for (var attempt = 0; attempt < 2 && allowed(); attempt++) {
+            try {
+              final remote = RemoteBookmarkPool(
+                id: pool.referenceId,
+                title: pool.title,
+                category: pool.category,
+                total: pool.total,
+                loadedDetails: pool.loadedDetails,
+              );
+              // No date/membership crawl: at most 40 members from one metadata page.
+              final summary = await ref.read(
+                poolBookmarkRefreshProvider((config, remote)).future,
+              );
+              if (!allowed() || summary.cover == null) return;
+              await ref
+                  .read(bookmarkProvider.notifier)
+                  .fillMissingPoolCover(summary, canCommit: allowed);
+              return;
+            } catch (_) {
+              if (attempt == 1) rethrow;
+            }
+          }
+        },
+      );
+    });
+
+void scheduleMissingPoolCover(Ref ref, CollectionBookmark saved) {
+  if (saved.coverUrl != null || saved.isRelated) return;
+  final config = resolvePoolBookmarkProfile(
+    saved,
+    ref.read(booruConfigProvider),
+  );
+  if (config == null || config.auth.booruType != BooruType.danbooru) return;
+  unawaited(
+    ref
+        .read(missingPoolCoverProvider((config, saved)).future)
+        .catchError((Object _) {}),
+  );
+}

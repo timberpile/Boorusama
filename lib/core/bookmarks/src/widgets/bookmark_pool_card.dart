@@ -299,7 +299,18 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
     final profile = access?.config;
     final policy = profile == null
         ? null
-        : ref.watch(poolCoverPolicyProvider(profile)).valueOrNull;
+        : ref.watch(poolCoverPolicyProvider(profile)).asData?.value;
+    final backfill =
+        profile != null &&
+            pool.coverUrl == null &&
+            !pool.isRelated &&
+            pool.groupIds.isNotEmpty
+        ? ref.watch(missingPoolCoverProvider((profile, pool)))
+        : null;
+    if (backfill?.isLoading ?? false) return const KurumiImagePlaceholder();
+    if ((backfill?.hasError ?? false) && showLabel) {
+      return Center(child: Text(context.t.search.errors.failed_to_load_data));
+    }
     final radius = ref.watch(
       imageListingSettingsProvider.select((s) => s.imageBorderRadius),
     );

@@ -42,6 +42,7 @@ import '../types/bookmark.dart';
 import '../types/bookmark_mirror_state.dart';
 import '../types/bookmark_record_fields.dart';
 import '../types/pool_bookmark.dart';
+import 'pool_bookmark_provider.dart' show scheduleMissingPoolCover;
 import '../types/pool_bookmark_repository.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_group_repository.dart';
@@ -767,10 +768,48 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
   });
 
+  void _scheduleNewPoolCovers(BookmarkLibraryState? previous) {
+    final known = {
+      for (final pool in previous?.pools ?? <CollectionBookmark>[])
+        pool.localId,
+    };
+    _schedulePoolCovers(
+      state.valueOrNull?.pools.where((pool) => !known.contains(pool.localId)) ??
+          const [],
+    );
+  }
+
+  void _schedulePoolCovers(Iterable<CollectionBookmark> pools) {
+    for (final pool in pools) {
+      unawaited(
+        Future<void>.microtask(() => scheduleMissingPoolCover(ref, pool))
+            .catchError((Object _) {}),
+      );
+    }
+  }
+
   Future<void> setRelatedOrder(int bookmarkId, RelatedPostsOrder order) =>
       _runTrackedMutation(
         () async => (await _service).setRelatedOrder(bookmarkId, order),
       );
+
+  Future<void> fillMissingPoolCover(
+    CollectionBookmark summary, {
+    required bool Function() canCommit,
+  }) => runSerializedMutation(() async {
+    final repository = await bookmarkGroupRepository;
+    final pools = await repository.getPoolBookmarks();
+    if (!canCommit()) return;
+    await repository.replacePoolBookmarks([
+      for (final pool in pools)
+        if (pool.localId == summary.localId &&
+            pool.identity == summary.identity &&
+            pool.coverUrl == null)
+          pool.withMissingCoverFrom(summary)
+        else
+          pool,
+    ]);
+  });
 
   Future<void> refreshPoolBookmark(CollectionBookmark summary) =>
       runSerializedMutation(() async {
@@ -979,6 +1018,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         _discardRestoredRemovalUndo(next);
         if (!identical(state.valueOrNull, next)) _publishLibrary(next);
         _requiresRefresh = false;
+        _scheduleNewPoolCovers(previousState.valueOrNull);
         return;
       } catch (_) {
         mutation.invalidate();
@@ -986,6 +1026,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     try {
       await _reload();
+      _scheduleNewPoolCovers(previousState.valueOrNull);
     } catch (_) {
       if (_storageSession == null || !state.isLoading) state = previousState;
       _requiresRefresh = true;
