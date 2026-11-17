@@ -44,6 +44,37 @@ Date: 2026-11-17. Repository: https://github.com/timberpile/Boorusama
 - Feature #173 (persistent backup-failure notification) must account for bug #172 (backup-folder error recovery). Ideally wait until #172 has been owner-accepted and integrated into develop; do **not** pull the whole bugfix preview into the feature branch. If that prerequisite is not available, leave #173 pending and continue with other independent features.
 - Do not promote any feature to the cumulative bugfix preview. No auto-merging features into develop.
 
+### Concrete Git/worktree runbook (adapt paths only after inspection)
+
+For the first bug, after confirming there is no existing branch/worktree and the target base is correct:
+
+    git fetch origin
+    git worktree list
+    git worktree add -b bug/122-profile-reordering .worktrees/122-profile-reordering origin/develop
+    git -C .worktrees/122-profile-reordering status --short
+
+If local develop is demonstrably up-to-date, the repository's scripts/agent_worktree.py helper is also appropriate. Never force-create a colliding branch. Repeat with an exact issue-based slug for **each** later task, always starting a fresh branch from the intended develop base rather than from the previous bug or the preview.
+
+Create the single preview worktree **once**, after inspecting remote branch availability and choosing the #144-inclusive base if available:
+
+    git worktree add -b maintenance/pre-release-bugfix-preview-20261117 .worktrees/pre-release-bugfix-preview origin/develop
+
+After a bug branch is committed, pushed and short-tested, replay its **exact issue-owned commits** in chronological order into the preview. For a single-commit example:
+
+    git -C .worktrees/pre-release-bugfix-preview cherry-pick -x <issue-commit-sha>
+    git -C .worktrees/pre-release-bugfix-preview status --short
+    git -C .worktrees/pre-release-bugfix-preview push -u origin maintenance/pre-release-bugfix-preview-20261117
+
+Before each preview push, verify a clean resolved tree and rerun the few relevant tests in the preview worktree. Do not copy the shell example literally until verifying the actual paths, commit SHA, branch ownership and status. Never force-push, reset the preview to a new base, or silently omit a failing cherry-pick.
+
+Typical **short** checks (choose actual changed files and affected test paths; these are templates, not a command to run the whole app):
+
+    fvm dart format <changed-dart-files>
+    fvm flutter test --no-pub <directly-related-test-file>
+    fvm dart analyze <affected-library-or-file>
+
+Tests should use fakes, mock platform bridges and controlled async completion where possible. Commit/push only after recording the actual results. A plugin/platform integration that cannot be covered without an Android run remains **pending owner's manual validation**.
+
 ## 2. Verification budget and stop rules
 
 The owner explicitly requests **short tests only** and will perform **final Android/live-service acceptance** personally.
