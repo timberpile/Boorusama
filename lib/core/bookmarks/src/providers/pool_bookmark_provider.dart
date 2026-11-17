@@ -311,6 +311,10 @@ final missingPoolCoverProvider = FutureProvider.autoDispose
         if (saved.coverUrl != null) return saved;
         final public = config.anonymousReadScope;
         if (public == null) {
+          // A native public bookmark must keep its anonymous actor even when
+          // a matching private profile is added later.
+          if (pool.sourceSite != null && pool.origin.profileIdHint == null)
+            return null;
           final owner = resolvePoolBookmarkProfile(
             pool,
             ref.read(booruConfigProvider),
@@ -393,7 +397,10 @@ final missingPoolCoverProvider = FutureProvider.autoDispose
     });
 
 void scheduleMissingPoolCover(Ref ref, CollectionBookmark saved) {
-  if (saved.coverUrl != null || saved.isRelated) return;
+  if (saved.coverUrl != null ||
+      saved.isRelated ||
+      (saved.sourceSite != null && saved.origin.profileIdHint == null))
+    return;
   final config = resolvePoolBookmarkProfile(
     saved,
     ref.read(booruConfigProvider),

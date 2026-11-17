@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/boorus/danbooru/posts/related/related_gallery.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
 import 'package:boorusama/core/posts/details/src/widgets/post_details_page_view_scope.dart';
@@ -72,6 +73,13 @@ class _Bookmarks extends BookmarkLibraryNotifier {
   final BookmarkLibraryState library;
   @override
   BookmarkLibraryState build() => library;
+  // This fixture supplies a library without backing storage. Cover writes are
+  // verified separately against real Hive; do not hydrate this fake from disk.
+  @override
+  Future<void> fillMissingPoolCover(
+    CollectionBookmark summary, {
+    required bool Function() canCommit,
+  }) async {}
 }
 
 void main() {

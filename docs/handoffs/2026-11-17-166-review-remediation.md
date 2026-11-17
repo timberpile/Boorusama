@@ -34,3 +34,27 @@ The cumulative preview report records the full-suite and native gates separately
 No live service, emulator, Android device or authenticated subscription acceptance
 was performed. Missing or ambiguous originating profile identity still fails
 closed; this correction does not invent a profile mapping for legacy imports.
+
+## Full-gate public actor follow-up
+
+The first cumulative full run exposed a public-actor promotion: after public
+scope revocation, adding a matching saved profile could schedule private cover
+recovery for an explicitly located native bookmark without a profile hint.
+Background scheduling and private lookup now reject that promotion. Visible
+public recovery continues through its captured anonymous scope. The existing
+real-storage public refresh test failed before and passes after this correction.
+
+The public viewer fixture overrides the library without backing storage; it now
+also overrides cover persistence so background recovery cannot hydrate its fake
+library from the unrelated empty runtime repository. Native persistence remains
+covered by the real-Hive tests, including public-success and replacement cases.
+
+The follow-up command passed **45 tests** across public refresh/viewer flows,
+native cover persistence, queue behavior and source-policy controls:
+
+```sh
+fvm flutter test --no-pub --concurrency=6 test/application/public_group_refresh_flow_test.dart test/application/public_group_viewer_flow_test.dart test/core/bookmarks/pool_cover_native_persistence_test.dart test/core/bookmarks/pool_cover_backfill_test.dart test/core/bookmarks/pool_bookmark_source_policy_test.dart
+```
+
+Evidence: `166-public-final.log` and the first cumulative full-run log. The final
+cumulative gate must run again with this follow-up included.
