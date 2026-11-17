@@ -295,7 +295,7 @@ class _SearchPageScaffoldState<T extends Post>
                   valueListenable: _controller.didSearchOnce,
                   builder: (context, searchOnce, child) {
                     return searchOnce
-                        ? _buildResult()
+                        ? _buildResultViewport()
                         : const SizedBox.shrink();
                   },
                 ),
@@ -329,6 +329,34 @@ class _SearchPageScaffoldState<T extends Post>
       ),
     );
   }
+
+  Widget _buildResultViewport() => ListenableBuilder(
+    listenable: Listenable.merge([
+      _searchBarAnimController,
+      _selectionModeController,
+      _tagsController,
+      _controller.state,
+    ]),
+    child: _buildResult(),
+    builder: (context, child) {
+      final top = ref.watch(searchBarPositionProvider) == SearchBarPosition.top;
+      final hidden =
+          _selectionModeController.isActive ||
+              _controller.state.value != SearchState.initial
+          ? 0.0
+          : Curves.easeInOut.transform(_searchBarAnimController.value);
+      // The viewport and overlay share the same measured search-region contract.
+      // A floating Timeline Toolbar cannot enter the editor's visible space.
+      return Padding(
+        padding: EdgeInsets.only(
+          top: top
+              ? (1 - hidden) * _calcSearchRegionHeight(_tagsController.value)
+              : 0,
+        ),
+        child: child,
+      );
+    },
+  );
 
   Widget _buildResult() {
     final persistentSearchBar = ref.watch(
@@ -408,11 +436,6 @@ class _SearchPageScaffoldState<T extends Post>
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (ref.watch(searchBarPositionProvider) ==
-                          SearchBarPosition.top)
-                        _Displacement(
-                          selectionModeController: _selectionModeController,
-                        ),
                       widget.resultHeader,
                     ],
                   ),
@@ -493,12 +516,6 @@ class _SearchPageScaffoldState<T extends Post>
             },
           ),
           sliverHeaders: [
-            if (searchBarPosition == SearchBarPosition.top)
-              SliverToBoxAdapter(
-                child: _Displacement(
-                  selectionModeController: _selectionModeController,
-                ),
-              ),
             const SearchResultAnalyticsAnchor(),
             if (widget.extraHeaders != null)
               ...widget.extraHeaders!(
