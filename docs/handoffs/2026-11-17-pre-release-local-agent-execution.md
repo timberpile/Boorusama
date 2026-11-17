@@ -4,7 +4,7 @@ Date: 2026-11-17. Repository: https://github.com/timberpile/Boorusama
 
 > **Execution authorization:** The owner asked the local coding agent to implement the listed issues **sequentially**, each on its **own issue branch**; to publish a **separate cumulative bugfix preview branch** for owner testing; and to leave every feature on an **independent feature branch** for individual testing. This handoff authorizes those task branches and the bugfix preview branch, **not** integration into develop, PR creation, issue closure, release publication, or branch deletion.
 
-**Goal:** Fix as many of the 11 currently open bugs as can be diagnosed and implemented safely, then prepare the six selected features, while allowing the owner to test all bugfixes together and each feature alone.
+**Goal:** Fix as many of the 11 currently open bugs as can be diagnosed and implemented safely, then prepare the five selected features, while allowing the owner to test all bugfixes together and each feature alone.
 
 **Architecture:** GitHub Issues are the sole source of task status; issue-linked technical handoffs provide implementation detail. Work in isolated task worktrees, produce small scoped commits, and cherry-pick verified bug commits onto one dedicated preview worktree. Feature branches are based on develop, never on the cumulative bugfix preview.
 
@@ -215,26 +215,17 @@ Handoff: https://github.com/timberpile/Boorusama/blob/develop/docs/handoffs/170-
 - Preserve manual ordering, existing sort persistence, folder scope, imports and read-only received semantics from #144. No timestamp migration.
 - Test both directions, equal timestamps, folder switching, sort restore and manually ordered topics.
 
-### F4. #43 — Recognize Verified Booru Host Aliases for Bookmark Identity
-
-Issue: https://github.com/timberpile/Boorusama/issues/43
-**Approved design (read in full before implementation):** https://github.com/timberpile/Boorusama/blob/develop/docs/designs/booru-post-database-aliases.md
-
-- **High data-risk feature:** First verify genuine shared upstream identity for Danbooru and Safebooru **Donmai** hosts; use a built-in verified-host registry, stable canonical database ID and upstream post key. Keep safebooru.org and other Danbooru instances separate. Never infer aliases from common engine, URL redirect, MD5 or matching images.
-- Before changing persisted data, document and review a migration/dedup algorithm that preserves all Group memberships, origin hosts, content restrictions, snapshots, references and independent credentials. Reuse current Bookmark identity mechanisms. Do not run migration on the owner's real database or import private user data.
-- Test fixtures: same upstream key through verified aliases deduplicates; unrelated host identical key stays separate; repeated sync/import remains idempotent; duplicate reconciliation preserves memberships; conflicting metadata and malformed identity do not corrupt data; no credential/rating-policy crossover.
-- If migration invariants cannot be proven with short focused tests, stop this feature at a design/patch branch and explicitly request owner review before data-changing integration. The full verification gate will be needed after owner acceptance.
-
-### F5. #134 — Group Related Posts in Timelines
+### F4. #134 — Group Related Posts in Timelines
 
 Issue: https://github.com/timberpile/Boorusama/issues/134
 
 - Implement **after bugfixes**. Reuse the completed #68 rolling Series-grouping machinery and #139 canonical Related-family identity; #138 shared Mixed Viewer already exists. Do not introduce nested groups or a second Related model.
-- Group at least **two verified, actually grouped** parent/child/sibling results, with the rolling five-result lookahead extended by matches. Preserve intervening Posts; **Series takes precedence** on overlap. Show Related · X/total when partial and Related · total when complete; handle unknown totals explicitly.
+- Group at least **two verified, actually grouped** parent/child/sibling results, with the rolling five-result lookahead extended by matches. Preserve intervening Posts; **Series takes precedence** on overlap. Display the existing Series-style card with a distinct Related icon, the first grouped Post's thumbnail, and **only one number**: the authoritative full-family Post count when known; otherwise the actual number of Posts grouped here. Never show an X/total ratio or an extra timeline-subset counter.
 - Opening a card navigates to the full Related Posts view with pagination, not an invented inline set. Disable grouping in selection, Bookmarks, Related/Series views and explicit family/collection searches. Preserve profile/account and rating filters.
-- Tests: direct family/siblings, lookahead extension, unrelated intervening Posts, total vs partial label, Series overlap, stable incremental pagination, exclusions, source scope and no missing/duplicate raw results. Avoid live family crawling.
+- Tests: direct family/siblings, lookahead extension, unrelated intervening Posts, total-count/fallback-count display with Related icon, Series-style visuals and Series precedence, stable incremental pagination, exclusions, source scope and no missing/duplicate raw results. Avoid live family crawling.
+- **#176 is a separate future UX feature:** do not redesign the Series/Pool/Related/Pixiv Work viewer or implement a Timeline-mode toggle as part of #134.
 
-### F6. #173 — Notify When Automatic Backups Fail
+### F5. #173 — Notify When Automatic Backups Fail
 
 Issue: https://github.com/timberpile/Boorusama/issues/173
 Handoff: https://github.com/timberpile/Boorusama/blob/develop/docs/handoffs/173-persistent-backup-failure-notification.md
@@ -246,7 +237,9 @@ Handoff: https://github.com/timberpile/Boorusama/blob/develop/docs/handoffs/173-
 ## 5. Explicit exclusions and coordination
 
 - **#144 Folder-Based Collection Sync:** another agent owns it; await its merge, do not duplicate its MiteMite or Following UX work.
+- **#43 Verified Booru Host Aliases:** owner removed it from this pre-release execution list; leave the GitHub issue open and do not implement it here.
 - **#55 Undo Reversible Actions and #124 Pixiv Artwork Bookmark Actions:** owner explicitly deferred; do not implement.
+- **#176 Unify Group Viewer and Timeline Modes:** future dedicated UX/design issue, not part of this pre-release sequence and not a prerequisite for #134.
 - **Bookmark Newest ordering discrepancy:** owner explicitly requested **no issue** for now; do not add work for it.
 - **#148 Standardize Timeline Header Scrolling:** not selected for this release implementation. #131's non-Pixiv Favorites exception is mandatory, but does not authorize unrelated #148 redesign.
 - **All other open feature issues** are outside this particular sequence unless the owner adds them. Do not quietly expand scope to #136, #167, etc.
