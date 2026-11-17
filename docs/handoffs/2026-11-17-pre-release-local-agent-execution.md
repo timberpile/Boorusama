@@ -218,12 +218,15 @@ Handoff: https://github.com/timberpile/Boorusama/blob/develop/docs/handoffs/170-
 ### F4. #134 — Group Related Posts in Timelines
 
 Issue: https://github.com/timberpile/Boorusama/issues/134
+**Latest owner-approved technical handoff:** https://github.com/timberpile/Boorusama/blob/develop/docs/handoffs/134-related-one-card-group-posts-toggle-2026-11-18.md
 
-- Implement **after bugfixes**. Reuse the completed #68 rolling Series-grouping machinery and #139 canonical Related-family identity; #138 shared Mixed Viewer already exists. Do not introduce nested groups or a second Related model.
-- Group at least **two verified, actually grouped** parent/child/sibling results, with the rolling five-result lookahead extended by matches. Preserve intervening Posts; **Series takes precedence** on overlap. Display the existing Series-style card with a distinct Related icon, the first grouped Post's thumbnail, and **only one number**: the authoritative full-family Post count when known; otherwise the actual number of Posts grouped here. Never show an X/total ratio or an extra timeline-subset counter.
-- Opening a card navigates to the full Related Posts view with pagination, not an invented inline set. Disable grouping in selection, Bookmarks, Related/Series views and explicit family/collection searches. Preserve profile/account and rating filters.
-- Tests: direct family/siblings, lookahead extension, unrelated intervening Posts, total-count/fallback-count display with Related icon, Series-style visuals and Series precedence, stable incremental pagination, exclusions, source scope and no missing/duplicate raw results. Avoid live family crawling.
-- **#176 is a separate future UX feature:** do not redesign the Series/Pool/Related/Pixiv Work viewer or implement a Timeline-mode toggle as part of #134.
+- Implement **after bugfixes**. Reuse #139 canonical direct Related-family identity and #138 shared Mixed Viewer. Series retains priority and **its existing rolling five-result lookahead**. Related no longer uses a distance threshold or two-member minimum: **one verified parent/child-related Post is enough**.
+- The first eligible Related Post owns one stable card. Suppress any later visible tile for another Post from the same direct family, however far away or across loaded pages; retain all raw indices for selection, pagination and viewer mapping. Do not treat a generic Danbooru Post as related merely because RelatedFamilyReference.fromPost returns an anchor.
+- Prefer a **temporary, projection-local family map** reconstructed from the existing raw list and frozen displayed entries, not a second persistent registry. Preserve frozen cards when later Series metadata arrives; respect source/account, query/filter, cancellation and refresh boundaries.
+- Use the existing Series-style Related icon and first member cover. If the complete-family count is already cached, show that one total; **if unknown, display only the icon**—no displayed-member fallback, no question mark, no X/total ratio, and no family count network request.
+- Add **one shared temporary Group Posts switch** in current Timeline View Options for supported Danbooru Search/Artist timelines, default ON. OFF projects **all raw Series and Related Posts** in original order without a refetch; ON restores grouping. Do not persist the choice; preserve it through Selection Mode and viewer/Back, and reset on new route/query/profile. Preserve the user's raw scroll anchor where possible. Explicit family queries and Selection Mode always show raw Posts.
+- Opening a Related card navigates to the full Related gallery with its normal pagination; no nested/inline viewer. Verify singleton groups, far-apart sibling results, Series overlap/late metadata, source isolation, icon-only/known totals, raw mapping, toggling without refetch, scroll anchor, bounded continuation and viewer Back using short focused tests.
+- **#176 is separate:** its future media-first versus member-Timeline viewer mode toggle must **not** be conflated with the #134 Timeline **Group Posts** switch.
 
 ### F5. #173 — Notify When Automatic Backups Fail
 
