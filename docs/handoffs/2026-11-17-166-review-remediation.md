@@ -58,3 +58,13 @@ fvm flutter test --no-pub --concurrency=6 test/application/public_group_refresh_
 
 Evidence: `166-public-final.log` and the first cumulative full-run log. The final
 cumulative gate must run again with this follow-up included.
+
+## Summary-only draft compatibility
+
+The full gate also reproduced blacklist initialization for supplied Pool Summary
+or Details without cached members. Draft preparation now skips that provider when
+there is no member from which to choose a cover, preserving the established
+no-network/no-member-lookup contract. Existing tests failed before the correction.
+The follow-up related run passed **25 tests**; Summary-only and loaded-Details
+controls separately passed **7 tests** (`166-draft-final.log`,
+`166-summary-final.log`). Independent static review found no issue in this guard.

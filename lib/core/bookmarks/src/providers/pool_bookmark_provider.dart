@@ -80,10 +80,9 @@ final poolBookmarkDraftProvider = FutureProvider.autoDispose
           .firstOrNull;
       if (existing != null) return existing;
 
-      final blacklist = ref
-          .read(blacklistTagsProvider(config.filter))
-          .asData
-          ?.value;
+      final blacklist = pool.cachedMembers.isEmpty
+          ? null
+          : ref.read(blacklistTagsProvider(config.filter)).asData?.value;
       final cover = blacklist == null
           ? null
           : eligiblePoolCover(config, blacklist, pool.cachedMembers);
