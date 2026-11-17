@@ -1,5 +1,10 @@
 # Pre-release local execution results (2026-11-17)
 
+> Updated verification: [complete review remediation results](2026-11-17-pre-release-remediation-results.md).
+> The sections below preserve the original short-test handoff. The new report
+> supersedes its pending full-regression and Kotlin/APK gates; owner Android
+> acceptance remains pending.
+
 Prepared for owner Android acceptance: **10 bugfixes on a cumulative preview, four independently testable features, two blocked issues**. All 16 issues remain open. Every issue has its own retained branch and worktree. No PR, develop integration, issue closure, release or branch deletion was performed.
 
 All issue branches and the preview originate from `4542aaa44e5002f7d546fb4ec96bf4cb0523cee5` (origin/develop after #144). A final remote check confirms develop is still that commit. Source branch heads below were verified against origin; task worktrees and the primary checkout were clean.
