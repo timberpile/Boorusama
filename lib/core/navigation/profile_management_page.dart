@@ -19,6 +19,25 @@ class ProfileManagementPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profiles = ref.watch(navigationProfilesProvider);
     final notifier = ref.read(booruConfigProvider.notifier);
+    // Match ListTile's themed spacing with the drag handle as a sibling.
+    final theme = Theme.of(context);
+    final tileTheme = ListTileTheme.of(context);
+    final direction = Directionality.of(context);
+    final contentPadding =
+        (tileTheme.contentPadding ??
+                (theme.useMaterial3
+                    ? const EdgeInsetsDirectional.only(start: 16, end: 24)
+                    : const EdgeInsets.symmetric(horizontal: 16)))
+            .resolve(direction);
+    final trailingInset = direction == TextDirection.ltr
+        ? contentPadding.right
+        : contentPadding.left;
+    final titleGap =
+        (tileTheme.horizontalTitleGap ?? 16) +
+        (tileTheme.visualDensity ?? theme.visualDensity).horizontal * 2;
+    final bodyPadding = direction == TextDirection.ltr
+        ? contentPadding.copyWith(right: titleGap)
+        : contentPadding.copyWith(left: titleGap);
     return Scaffold(
       appBar: showAppBar
           ? KurumiAppBar(
@@ -52,61 +71,79 @@ class ProfileManagementPage extends ConsumerWidget {
         ),
         itemBuilder: (context, index) {
           final profile = profiles[index];
-          return KurumiContextMenu(
-            menuItemsBuilder: (_) => [
-              KurumiContextMenuTile(
-                title: context.t.generic.action.edit,
-                onTap: () => goToUpdateBooruConfigPage(ref, config: profile),
-              ),
-              KurumiContextMenuTile(
-                title: context.t.generic.action.duplicate,
-                onTap: () => notifier.duplicate(
-                  config: profile,
-                  onFailure: (message) {
-                    if (context.mounted) {
-                      Kurumi.showErrorToast(context, message);
-                    }
-                  },
+          return Row(
+            key: ValueKey(profile.id),
+            children: [
+              Expanded(
+                child: KurumiContextMenu(
+                  menuItemsBuilder: (_) => [
+                    KurumiContextMenuTile(
+                      title: context.t.generic.action.edit,
+                      onTap: () =>
+                          goToUpdateBooruConfigPage(ref, config: profile),
+                    ),
+                    KurumiContextMenuTile(
+                      title: context.t.generic.action.duplicate,
+                      onTap: () => notifier.duplicate(
+                        config: profile,
+                        onFailure: (message) {
+                          if (context.mounted) {
+                            Kurumi.showErrorToast(context, message);
+                          }
+                        },
+                      ),
+                    ),
+                    KurumiContextMenuTile(
+                      title: context.t.generic.action.delete,
+                      destructive: true,
+                      onTap: () => showDialog<void>(
+                        context: context,
+                        builder: (context) => RemoveBooruConfigAlertDialog(
+                          title: context.t.booru.deletion.title(
+                            profileName: profile.name,
+                          ),
+                          description: context.t.booru.deletion.confirmation,
+                          onConfirm: () => notifier.delete(
+                            profile,
+                            onFailure: (message) =>
+                                Kurumi.showErrorToast(context, message),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  child: ListTile(
+                    contentPadding: bodyPadding,
+                    leading: SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: ConfigAwareWebsiteLogo.fromConfig(profile.auth),
+                    ),
+                    title: Text(profile.name),
+                    subtitle: Text(
+                      Uri.tryParse(profile.url)?.host ?? profile.url,
+                    ),
+                    onTap: () =>
+                        goToUpdateBooruConfigPage(ref, config: profile),
+                  ),
                 ),
               ),
-              KurumiContextMenuTile(
-                title: context.t.generic.action.delete,
-                destructive: true,
-                onTap: () => showDialog<void>(
-                  context: context,
-                  builder: (context) => RemoveBooruConfigAlertDialog(
-                    title: context.t.booru.deletion.title(
-                      profileName: profile.name,
-                    ),
-                    description: context.t.booru.deletion.confirmation,
-                    onConfirm: () => notifier.delete(
-                      profile,
-                      onFailure: (message) =>
-                          Kurumi.showErrorToast(context, message),
+              // Keep the entire handle outside the context-menu hit region.
+              Padding(
+                padding: EdgeInsetsDirectional.only(end: trailingInset),
+                child: ReorderableDragStartListener(
+                  index: index,
+                  child: const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: ColoredBox(
+                      color: Colors.transparent,
+                      child: Icon(Icons.drag_handle),
                     ),
                   ),
                 ),
               ),
             ],
-            key: ValueKey(profile.id),
-            child: ListTile(
-              trailing: ReorderableDragStartListener(
-                index: index,
-                child: const SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: Icon(Icons.drag_handle),
-                ),
-              ),
-              leading: SizedBox(
-                width: 32,
-                height: 32,
-                child: ConfigAwareWebsiteLogo.fromConfig(profile.auth),
-              ),
-              title: Text(profile.name),
-              subtitle: Text(Uri.tryParse(profile.url)?.host ?? profile.url),
-              onTap: () => goToUpdateBooruConfigPage(ref, config: profile),
-            ),
           );
         },
       ),
