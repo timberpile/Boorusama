@@ -1,3 +1,5 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/content/anonymous_access_provider.dart';
@@ -64,6 +66,9 @@ Future<GoRouter> _pumpLink(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(Settings.defaultSettings),
+        ),
         booruConfigProvider.overrideWith(() => profiles),
         defaultImageCacheManagerProvider.overrideWithValue(_Cache()),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),

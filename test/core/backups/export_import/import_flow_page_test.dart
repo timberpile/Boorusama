@@ -1,3 +1,5 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -197,6 +199,9 @@ void main() {
           backupRegistryProvider.overrideWithValue(BackupRegistry()),
           exportSelectionLabelsProvider.overrideWithValue(
             const ExportSelectionLabels(children: {}),
+          ),
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
           ),
           booruConfigProvider.overrideWith(
             () => BooruConfigNotifier(
@@ -741,6 +746,9 @@ Widget _mappingApp(_MappingReviewNotifier notifier) => ProviderScope(
     backupRegistryProvider.overrideWithValue(BackupRegistry()),
     exportSelectionLabelsProvider.overrideWithValue(
       const ExportSelectionLabels(children: {}),
+    ),
+    settingsNotifierProvider.overrideWith(
+      () => SettingsNotifier(Settings.defaultSettings),
     ),
     booruConfigProvider.overrideWith(
       () => BooruConfigNotifier(

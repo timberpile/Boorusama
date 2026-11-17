@@ -59,7 +59,11 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     // must not leave the visible collection behind the repository.
     state = [...state, booruConfig];
     final newOrders = [
-      for (final config in ref.read(orderedProfileConfigsProvider)) config.id,
+      for (final config in orderProfileConfigs(
+        state,
+        ref.read(settingsProvider).booruConfigIdOrderList,
+      ))
+        config.id,
     ];
 
     await updateOrder(newOrders);
