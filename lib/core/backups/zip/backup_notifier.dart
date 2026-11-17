@@ -373,6 +373,7 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
     final keepAlive = ref.keepAlive();
     final failure = ref.read(autoBackupFailureProvider.notifier);
     failure.clear();
+    final failureRevision = failure.revision;
     final logger = ref.read(loggerProvider);
 
     final startTime = DateTime.now();
@@ -423,7 +424,9 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
         progress: 1,
       );
     } catch (e) {
-      final diagnostic = failure.report(e).diagnostic;
+      final diagnostic = failure
+          .report(e, revision: failureRevision)
+          .diagnostic;
       logger.error('Backup.Auto', 'Auto backup failed: $diagnostic');
 
       state = state.copyWith(

@@ -110,6 +110,28 @@ class AutoBackupChannel(private val activity: Activity, messenger: BinaryMesseng
                         DocumentsContract.createDocument(resolver, root, DocumentsContract.Document.MIME_TYPE_DIR, folderName)
                             ?: throw IOException("Could not create folder")
                     } else throw IOException("Backup folder unavailable")
+                    if (call.method == "prepare") {
+                        stage = "verify_folder_write"
+                        val flags = resolver.query(folder, arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+                            null, null, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+                        } ?: 0L
+                        if ((flags and DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE.toLong()) == 0L) {
+                            throw SecurityException("Backup folder is not writable")
+                        }
+                        // Validate real provider writes without creating a backup or touching existing files.
+                        val probe = DocumentsContract.createDocument(resolver, folder, "application/octet-stream",
+                            ".boorusama-write-probe-${java.util.UUID.randomUUID()}")
+                            ?: throw IOException("Could not validate backup folder")
+                        try {
+                            resolver.openOutputStream(probe, "w")?.use { it.write(byteArrayOf(0)) }
+                                ?: throw IOException("Could not write backup probe")
+                        } finally {
+                            if (!DocumentsContract.deleteDocument(resolver, probe)) {
+                                throw IOException("Could not remove backup probe")
+                            }
+                        }
+                    }
                     val name = location.pathSegments.getOrNull(2)
                     stage = "list_backup_folder"
                     val items = children(tree, folder)
