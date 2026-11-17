@@ -2412,6 +2412,12 @@ void main() {
         buttons: kSecondaryMouseButton,
       );
       await harness.pumpUntilFound(tester, find.text('Refresh metadata'));
+      // Visible cover recovery and explicit refresh are separate metadata reads.
+      harness.booruBackend.enqueuePosts(
+        page: 1,
+        query: 'pool:10',
+        posts: harness.booruBackend.posts,
+      );
       await tester.tap(find.text('Refresh metadata'));
       await harness.pumpUntil(
         tester,

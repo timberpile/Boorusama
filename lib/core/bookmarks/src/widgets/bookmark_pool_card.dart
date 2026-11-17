@@ -311,15 +311,16 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
     if ((backfill?.hasError ?? false) && showLabel) {
       return Center(child: Text(context.t.search.errors.failed_to_load_data));
     }
+    final displayed = backfill?.asData?.value ?? pool;
     final radius = ref.watch(
       imageListingSettingsProvider.select((s) => s.imageBorderRadius),
     );
     if (profile != null &&
-        pool.coverUrl != null &&
-        pool.coverPolicy != null &&
-        pool.coverPolicy == policy) {
+        displayed.coverUrl != null &&
+        displayed.coverPolicy != null &&
+        displayed.coverPolicy == policy) {
       final cover =
-          pool.cover ??
+          displayed.cover ??
           (pool.isRelated
               ? null
               : ref
@@ -344,8 +345,8 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
         bookmarkId: pool.bookmarkId,
         child: BooruImage(
           config: profile.auth,
-          imageUrl: media?.url ?? pool.coverUrl!,
-          placeholderUrl: pool.coverUrl,
+          imageUrl: media?.url ?? displayed.coverUrl!,
+          placeholderUrl: displayed.coverUrl,
           aspectRatio: .6,
           fit: BoxFit.cover,
           borderRadius: BorderRadius.circular(radius),

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
+
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
@@ -75,6 +77,27 @@ void main() {
     ) as StoredPostDecodeSuccess).post;
   }
 
+  test('failed cover jobs retry after cooldown instead of remaining cached forever', () async {
+    var now = DateTime.utc(2026);
+    await withClock(Clock(() => now), () async {
+      final queue = PoolCoverBackfillQueue();
+      var calls = 0;
+      Future<void> failing() async {
+        calls++;
+        throw StateError('offline');
+      }
+
+      await expectLater(queue.run('pool', failing), throwsStateError);
+      await expectLater(queue.run('pool', failing), throwsStateError);
+      expect(calls, 1);
+      now = now.add(const Duration(minutes: 2));
+      await queue.run('pool', () async {
+        calls++;
+      });
+      expect(calls, 2);
+    });
+  });
+
   test(
     'background jobs deduplicate and serialize without blocking the caller',
     () async {
@@ -82,13 +105,13 @@ void main() {
       final gate = Completer<void>();
       final entered = Completer<void>();
       final calls = <int>[];
-      final first = queue.run('a', () async {
+      final first = queue.run<void>('a', () async {
         calls.add(1);
         entered.complete();
         await gate.future;
       });
       expect(
-        queue.run('a', () async {
+        queue.run<void>('a', () async {
           fail('duplicate');
         }),
         same(first),
@@ -103,6 +126,20 @@ void main() {
       expect(calls, [1, 2]);
     },
   );
+
+  test('completed cover retention is bounded and in-flight keys remain deduplicated', () async {
+    final queue = PoolCoverBackfillQueue(maxCompletedJobs: 2);
+    var calls = 0;
+    await queue.run('first', () async {
+      calls++;
+    });
+    await queue.run('second', () async {});
+    await queue.run('third', () async {});
+    await queue.run('first', () async {
+      calls++;
+    });
+    expect(calls, 2);
+  });
 
   test('cached cover requires verified source, policy, static media and permitted rating', () {
     expect(eligiblePoolCover(config, {}, [post()]), isNotNull);
@@ -246,6 +283,8 @@ void main() {
       addTearDown(container.dispose);
       await container.read(bookmarkProvider.future);
       final provider = missingPoolCoverProvider((config, pool));
+      final subscription = container.listen(provider, (_, _) {});
+      addTearDown(subscription.close);
       final pending = container.read(provider.future);
       if (scenario == 'revoked') {
         await entered.future;

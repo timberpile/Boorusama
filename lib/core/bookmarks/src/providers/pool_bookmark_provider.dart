@@ -7,6 +7,7 @@ import '../../../boorus/booru/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../services/pool_cover_backfill_queue.dart';
 import '../../../content/content_access_provider.dart';
+import '../types/bookmark_library_state.dart';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -268,65 +269,127 @@ final poolCoverBackfillQueueProvider = Provider(
   (_) => PoolCoverBackfillQueue(),
 );
 
+bool poolCoverHasReceivedMembership(
+  BookmarkLibraryState library,
+  CollectionBookmark pool,
+) => pool.groupIds.any(library.mirrors.isReceived);
+
+/// Received-only results are presentation data, scoped by actor and source
+/// revision. They never modify publisher records, digests or read state.
 final missingPoolCoverProvider = FutureProvider.autoDispose
-    .family<void, (BooruConfig, CollectionBookmark)>((ref, request) async {
-      ref.keepAlive();
+    .family<CollectionBookmark?, (BooruConfig, CollectionBookmark)>((
+      ref,
+      request,
+    ) async {
+      final keepAlive = ref.keepAlive();
       var current = true;
       ref.onDispose(() => current = false);
-      final (config, pool) = request;
-      if (pool.isRelated ||
-          pool.coverUrl != null ||
-          config.auth.booruType != BooruType.danbooru)
-        return;
-      final library = await ref.read(bookmarkProvider.future);
-      if (!library.pools.any(
-        (saved) =>
-            saved.localId == pool.localId && saved.identity == pool.identity,
-      ))
-        return;
-      final profiles = ref.read(booruConfigProvider);
-      final owner = resolvePoolBookmarkProfile(pool, profiles);
-      if (owner?.id != config.id || owner?.auth != config.auth) return;
-      final blacklist = await ref.watch(
-        blacklistTagsProvider(config.filter).future,
-      );
-      final policy = poolCoverPolicy(config, blacklist);
-      final access = ref.read(contentProfileAccessProvider(config.id));
-      if (access == null || access.config?.auth != config.auth) return;
-      bool allowed() =>
-          current &&
-          ref
-                  .read(contentAccessContextProvider(access.key))
-                  ?.hasSameAuthorization(access) ==
-              true &&
-          ref.read(poolCoverPolicyProvider(config)).asData?.value == policy;
-      await ref.read(poolCoverBackfillQueueProvider).run(
-        (access.key, pool.localId, policy),
-        () async {
-          for (var attempt = 0; attempt < 2 && allowed(); attempt++) {
-            try {
-              final remote = RemoteBookmarkPool(
-                id: pool.referenceId,
-                title: pool.title,
-                category: pool.category,
-                total: pool.total,
-                loadedDetails: pool.loadedDetails,
-              );
-              // No date/membership crawl: at most 40 members from one metadata page.
-              final summary = await ref.read(
-                poolBookmarkRefreshProvider((config, remote)).future,
-              );
-              if (!allowed() || summary.cover == null) return;
-              await ref
-                  .read(bookmarkProvider.notifier)
-                  .fillMissingPoolCover(summary, canCommit: allowed);
-              return;
-            } catch (_) {
-              if (attempt == 1) rethrow;
-            }
-          }
-        },
-      );
+      try {
+        final (config, pool) = request;
+        if (pool.isRelated || config.auth.booruType != BooruType.danbooru)
+          return null;
+        final signature = ref.watch(
+          bookmarkProvider.select((value) {
+            final state = value.asData?.value;
+            return (
+              state?.byId[pool.bookmarkId],
+              state?.mirrors.epoch,
+              state?.localBookmarkIds.contains(pool.bookmarkId),
+            );
+          }),
+        );
+        final library = await ref.read(bookmarkProvider.future);
+        if (!current) return null;
+        final saved = library.pools
+            .where(
+              (saved) =>
+                  saved.localId == pool.localId &&
+                  saved.identity == pool.identity,
+            )
+            .firstOrNull;
+        if (saved == null) return null;
+        if (saved.coverUrl != null) return saved;
+        final public = config.anonymousReadScope;
+        if (public == null) {
+          final owner = resolvePoolBookmarkProfile(
+            pool,
+            ref.read(booruConfigProvider),
+          );
+          if (owner?.id != config.id || owner?.auth != config.auth) return null;
+        } else if (pool.origin.profileIdHint != null || !public.isCurrent) {
+          return null;
+        }
+        final blacklist = await ref.watch(
+          blacklistTagsProvider(config.filter).future,
+        );
+        if (!current) return null;
+        final policy = poolCoverPolicy(config, blacklist);
+        final access = public == null
+            ? ref.watch(contentProfileAccessProvider(config.id))
+            : ref.watch(contentAccessContextProvider(public.key));
+        if (access == null ||
+            access.config?.auth != config.auth ||
+            access.key.engine != pool.origin.booruType ||
+            access.key.siteNamespace != pool.origin.sourceHost)
+          return null;
+        final presentationOnly = poolCoverHasReceivedMembership(library, saved);
+        bool allowed() {
+          if (!current) return false;
+          final next = ref.read(bookmarkProvider).asData?.value;
+          if (next == null ||
+              (
+                    next.byId[pool.bookmarkId],
+                    next.mirrors.epoch,
+                    next.localBookmarkIds.contains(pool.bookmarkId),
+                  ) !=
+                  signature ||
+              !next.pools.any(
+                (p) => p.localId == pool.localId && p.identity == pool.identity,
+              ) ||
+              ref
+                      .read(contentAccessContextProvider(access.key))
+                      ?.hasSameAuthorization(access) !=
+                  true ||
+              ref.read(poolCoverPolicyProvider(config)).asData?.value != policy)
+            return false;
+          return true;
+        }
+
+        return await ref
+            .read(poolCoverBackfillQueueProvider)
+            .run<CollectionBookmark?>(
+              (access.key, pool.localId, signature, policy),
+              () async {
+                for (var attempt = 0; attempt < 2 && allowed(); attempt++) {
+                  try {
+                    final remote = RemoteBookmarkPool(
+                      id: pool.referenceId,
+                      title: pool.title,
+                      category: pool.category,
+                      total: pool.total,
+                      loadedDetails: pool.loadedDetails,
+                    );
+                    // Two attempts at most; each reads one metadata page of up to 40 members.
+                    final summary = await ref.read(
+                      poolBookmarkRefreshProvider((config, remote)).future,
+                    );
+                    if (!allowed() || summary.cover == null) return null;
+                    if (!presentationOnly) {
+                      await ref
+                          .read(bookmarkProvider.notifier)
+                          .fillMissingPoolCover(summary, canCommit: allowed);
+                    }
+                    return summary;
+                  } catch (_) {
+                    if (attempt == 1) rethrow;
+                  }
+                }
+                return null;
+              },
+            );
+      } finally {
+        keepAlive.close();
+      }
     });
 
 void scheduleMissingPoolCover(Ref ref, CollectionBookmark saved) {
@@ -339,6 +402,6 @@ void scheduleMissingPoolCover(Ref ref, CollectionBookmark saved) {
   unawaited(
     ref
         .read(missingPoolCoverProvider((config, saved)).future)
-        .catchError((Object _) {}),
+        .then<void>((_) {}, onError: (Object _, StackTrace _) {}),
   );
 }

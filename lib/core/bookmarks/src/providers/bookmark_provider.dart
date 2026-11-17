@@ -19,7 +19,7 @@ import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../blacklists/providers.dart';
-import '../../../content/content_access.dart';
+import '../../../content/types.dart';
 import '../../../content/content_access_provider.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../downloads/downloader/providers.dart';
@@ -33,6 +33,7 @@ import '../data/bookmark_convert.dart';
 import '../data/bookmark_collection_projection.dart';
 import '../types/legacy_group_bookmark.dart';
 import '../types/content_group_bookmark.dart';
+import '../types/stored_group_snapshot.dart';
 import '../../../posts/related/related_posts_order_value.dart';
 import '../data/providers.dart';
 import '../services/bookmark_library_service.dart';
@@ -42,7 +43,8 @@ import '../types/bookmark.dart';
 import '../types/bookmark_mirror_state.dart';
 import '../types/bookmark_record_fields.dart';
 import '../types/pool_bookmark.dart';
-import 'pool_bookmark_provider.dart' show scheduleMissingPoolCover;
+import 'pool_bookmark_provider.dart'
+    show scheduleMissingPoolCover, poolCoverHasReceivedMembership;
 import '../types/pool_bookmark_repository.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_group_repository.dart';
@@ -781,6 +783,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
 
   void _schedulePoolCovers(Iterable<CollectionBookmark> pools) {
     for (final pool in pools) {
+      final library = state.valueOrNull;
+      if (library == null || poolCoverHasReceivedMembership(library, pool))
+        continue;
       unawaited(
         Future<void>.microtask(() => scheduleMissingPoolCover(ref, pool))
             .catchError((Object _) {}),
@@ -797,6 +802,84 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     CollectionBookmark summary, {
     required bool Function() canCommit,
   }) => runSerializedMutation(() async {
+    final storage = await bookmarkRepository;
+    final unified = unifiedBookmarkStorage(storage);
+    if (unified != null) {
+      final id = summary.bookmarkId ?? int.tryParse(summary.localId);
+      final current = id == null ? null : await unified.read(id);
+      if (current == null ||
+          bookmarkContentIdentity(current) !=
+              (
+                siteNamespace: summary.origin.sourceHost,
+                kind: ContentKind.group,
+                sourceKey: 'pool:${summary.referenceId}',
+              ) ||
+          bookmarkEngine(current) != summary.origin.booruType ||
+          !canCommit())
+        return;
+      final memberships = (await (await bookmarkGroupRepository).getGroups())
+          .where((group) => group.bookmarkIds.contains(current.id));
+      final mirrors = storage is BookmarkMirrorReader
+          ? await (storage as BookmarkMirrorReader).readMirrorState()
+          : const BookmarkMirrorState.empty();
+      if (memberships.any((group) => mirrors.isReceived(group.id))) return;
+      if (current is LegacyGroupBookmark) {
+        final updated = current.metadata.withMissingCoverFrom(summary);
+        if (updated == current.metadata || !canCommit()) return;
+        await withBookmarkCommitGuard(
+          () => unified.commitOrganization(
+            records: [current.copyWith(metadata: updated)],
+          ),
+          () {
+            if (!canCommit()) throw StateError('Pool cover access changed');
+          },
+        );
+        return;
+      }
+      if (current is! ContentGroupBookmark || current.summary.cover != null)
+        return;
+      final media = summary.cover;
+      final thumbnail = media?.thumbnail ?? summary.coverUrl;
+      if (thumbnail == null || !canCommit()) return;
+      final old = current.summary;
+      final covered = ContentGroupSummary(
+        reference: old.reference,
+        title: old.title,
+        memberCount: old.memberCount,
+        displayCategory: old.displayCategory,
+        previewTags: old.previewTags,
+        sourceData: old.sourceData,
+        cover: GroupCover(
+          thumbnail: Uri.parse(thumbnail),
+          sample: media == null ? null : Uri.parse(media.sample),
+          original: media == null ? null : Uri.parse(media.original),
+          variants: media?.variants ?? const {},
+        ),
+      );
+      final index = current.snapshot.index;
+      final patched = current.copyWith(
+        snapshot: StoredGroupSnapshot(
+          schemaVersion: current.snapshot.schemaVersion,
+          summary: covered,
+          details: current.snapshot.details,
+          index: GroupBookmarkIndex(
+            tags: index?.tags ?? const {},
+            basis: index?.basis ?? GroupTagIndexBasis.sourceGroup,
+            coverage: index?.coverage ?? MetadataCoverage.unknown,
+            oldestMemberUpload: index?.oldestMemberUpload,
+            newestMemberUpload: index?.newestMemberUpload,
+            coverPolicy: summary.coverPolicy,
+          ),
+        ),
+      );
+      await withBookmarkCommitGuard(
+        () => unified.commitOrganization(records: [patched]),
+        () {
+          if (!canCommit()) throw StateError('Pool cover access changed');
+        },
+      );
+      return;
+    }
     final repository = await bookmarkGroupRepository;
     final pools = await repository.getPoolBookmarks();
     if (!canCommit()) return;
