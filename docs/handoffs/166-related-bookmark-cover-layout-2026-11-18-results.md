@@ -68,11 +68,25 @@ Checked the final runtime/test tree committed with this report, based on
   reception, backup compatibility, and unchanged Series/Collection presentation.
 - Changed Dart files formatted; `git diff --check` passed. Analysis of the 18
   changed Dart files: **0 errors, 0 warnings, 111 informational findings** (exit 1).
+- The runners emitted non-fatal hit-test/locale messages and Dart VM finalizer
+  diagnostics. The VM message is also present in retained pre-correction logs
+  (`.worktrees/_artifacts/166-profile-independent-20261118/preview-full-regression-final.log`).
+  Both final runs completed successfully; these diagnostics are retained in the logs.
 - Logs: `.worktrees/_artifacts/related-cover-layout-20261118/166-*.log`.
 
-Replay this correction into `maintenance/pre-release-bugfix-preview-20261117`
-and verify the combined candidate before publication. The #134 feature correction
-stays on its own branch.
+## Cumulative preview
+
+Runtime correction `abacaa6b9` was replayed without conflicts as
+`4a1c26b8a2d4a61692e6d5f7e836a7629c2a0f3f` on
+`maintenance/pre-release-bugfix-preview-20261117` (parent `8a3736331`). All
+replayed files match the issue branch. The same targeted command above passed
+**274 tests**, with no skips, on that combined candidate; its existing cache tests
+account for the additional case. Preview analysis of the same changed scope
+reported **0 errors, 0 warnings, 111 informational findings** (exit 1). Formatting
+checked all 18 changed Dart files without changes; `git diff --check` passed.
+Logs: `.worktrees/_artifacts/related-cover-layout-20261118/preview-*.log`.
+Subsequent report-only commits reuse these unchanged runtime/test results.
+The #134 feature correction stays on its own branch and is not in the preview.
 
 Full repository regression, native builds, live services, emulators and devices
 were not exercised for this targeted correction. Previous full-suite results do
