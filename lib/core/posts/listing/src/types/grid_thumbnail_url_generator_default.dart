@@ -110,10 +110,39 @@ String defaultStaticGridThumbnailUrl({
   ImageQuality.original => isVideo ? thumbnail : original,
 };
 
+GridThumbnailMedia staticCoverGridThumbnailMedia(
+  GridThumbnailStaticMedia cover, {
+  required String url,
+  required double? Function(GridThumbnailStaticAspectRatios cover) ratio,
+}) {
+  final metadata = cover is GridThumbnailStaticAspectRatios
+      ? cover as GridThumbnailStaticAspectRatios
+      : null;
+  final ratios = metadata?.aspectRatios;
+  // Match the actual selected URL first: a missing source variant may have
+  // fallen back to the thumbnail despite a higher requested quality.
+  final matchesRetainedUrl =
+      url == cover.thumbnail || url == cover.sample || url == cover.original;
+  final aspectRatio = matchesRetainedUrl
+      ? (url == cover.thumbnail ? ratios?.thumbnail : null) ??
+            (url == cover.sample ? ratios?.sample : null) ??
+            (url == cover.original ? ratios?.original : null)
+      : metadata == null
+      ? null
+      : ratio(metadata);
+  return GridThumbnailMedia(
+    url: url,
+    aspectRatio: aspectRatio,
+    placeholderUrl: cover.thumbnail,
+    placeholderAspectRatio: ratios?.thumbnail,
+  );
+}
+
 GridThumbnailMedia defaultStaticCoverGridThumbnailMedia(
   GridThumbnailStaticMedia cover,
   GridThumbnailSettings settings,
-) => GridThumbnailMedia(
+) => staticCoverGridThumbnailMedia(
+  cover,
   url: defaultStaticGridThumbnailUrl(
     thumbnail: cover.thumbnail,
     sample: cover.sample,
@@ -121,9 +150,7 @@ GridThumbnailMedia defaultStaticCoverGridThumbnailMedia(
     isVideo: false,
     settings: settings,
   ),
-  aspectRatio: null,
-  placeholderUrl: cover.thumbnail,
-  placeholderAspectRatio: null,
+  ratio: (_) => null,
 );
 
 // The viewer's isGif also inspects videoUrl, which may be a transcoded sample.
@@ -196,11 +223,10 @@ class DefaultGridThumbnailUrlGenerator
     GridThumbnailStaticMedia cover, {
     required GridThumbnailSettings settings,
   }) => _thumbnailOnly
-      ? GridThumbnailMedia(
+      ? staticCoverGridThumbnailMedia(
+          cover,
           url: cover.thumbnail,
-          aspectRatio: null,
-          placeholderUrl: cover.thumbnail,
-          placeholderAspectRatio: null,
+          ratio: (_) => null,
         )
       : defaultStaticCoverGridThumbnailMedia(cover, settings);
 

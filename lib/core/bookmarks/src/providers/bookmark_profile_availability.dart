@@ -1,16 +1,17 @@
+import 'bookmark_read_access.dart';
+import '../../../boorus/booru/types.dart';
+import '../../../boorus/engine/providers.dart';
 import '../../../content/groups/group_source_provider.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
 import '../../../content/anonymous_source_policy.dart';
 import '../../../content/anonymous_access_provider.dart';
 import '../../../content/types.dart';
 import '../../../posts/details/src/types/post_presentation_fallback_reason.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark_grid_entry.dart';
-import '../types/bookmark_record_fields.dart';
 import '../types/content_group_bookmark.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
@@ -25,6 +26,7 @@ class BookmarkProfileAvailability {
     List<BooruConfig> profiles, {
     AnonymousSourcePolicy policy = const AnonymousSourcePolicy(),
     bool Function(ContentReference reference)? supportsGroup,
+    bool Function(BooruType engine)? supportsPost,
     ContentReferenceCodec references = const ContentReferenceCodec(),
   }) {
     final posts = <int>{};
@@ -32,10 +34,9 @@ class BookmarkProfileAvailability {
     final reasons = <Object, PostPresentationFallbackReason>{};
     for (final bookmark in library.items) {
       final post = bookmark.post;
-      final resolution = const PostOriginResolver().resolve(
-        post.origin,
+      final profile = selectBookmarkReadProfile(
+        BookmarkReaderRequest(post.origin),
         profiles,
-        allowProfileHintFallback: true,
       );
       final source = policy.forNamespace(
         post.origin.booruType,
@@ -53,36 +54,31 @@ class BookmarkProfileAvailability {
             final uri = Uri.tryParse(url);
             return uri != null && source.allowsMedia(uri);
           });
-      switch (resolution) {
-        case ResolvedPostOrigin():
-          posts.add(bookmark.id);
-        case MissingPostOrigin() when hasSafeMedia:
-          posts.add(bookmark.id);
-        case AmbiguousPostOrigin():
-          reasons[bookmark.id] =
-              PostPresentationFallbackReason.ambiguousProfile;
-        case MissingPostOrigin():
-          reasons[bookmark.id] = source == null
-              ? PostPresentationFallbackReason.missingProfile
-              : PostPresentationFallbackReason.unavailableEngine;
+      if (profile != null ||
+          (hasSafeMedia &&
+              (supportsPost?.call(post.origin.booruType) ?? true))) {
+        posts.add(bookmark.id);
+      } else {
+        reasons[bookmark.id] = source == null
+            ? PostPresentationFallbackReason.missingProfile
+            : PostPresentationFallbackReason.unavailableEngine;
       }
     }
+
     for (final collection in library.pools) {
       final profile = resolvePoolBookmarkProfile(collection, profiles);
-      final resolution = const PostOriginResolver().resolve(
-        collection.origin,
-        profiles,
-        allowProfileHintFallback: false,
-      );
       final key = collection.bookmarkId ?? ('pool', collection.localId);
-      if (resolution is AmbiguousPostOrigin) {
-        reasons[key] = PostPresentationFallbackReason.ambiguousProfile;
-        continue;
-      }
       ContentReference? reference;
       final site =
           collection.sourceSite ??
-          (profile == null ? null : Uri.tryParse(profile.url));
+          (profile == null
+              ? policy
+                    .forNamespace(
+                      collection.origin.booruType,
+                      collection.origin.sourceHost,
+                    )
+                    ?.site
+              : Uri.tryParse(profile.url));
       if (site != null &&
           collection.sourceTypeId == collection.origin.booruType.id &&
           normalizePostSourceHost(site.toString()) ==
@@ -128,25 +124,20 @@ class BookmarkProfileAvailability {
       if (record.reference.sourceKey.startsWith('pool:') ||
           record.reference.sourceKey.startsWith('related:'))
         continue;
-      final resolution = const PostOriginResolver().resolve(
-        nativeBookmarkGroupOrigin(record),
+      final profile = selectBookmarkReadProfile(
+        BookmarkReaderRequest.reference(record.reference),
         profiles,
-        allowProfileHintFallback: true,
       );
       final public = policy.resolve(
         record.reference.engine,
         record.reference.site,
       );
       final supported =
-          supportsGroup?.call(record.reference) ??
-          resolution is ResolvedPostOrigin;
-      if (resolution is AmbiguousPostOrigin) {
-        reasons[record.id] = PostPresentationFallbackReason.ambiguousProfile;
-      } else if (supported &&
-          (resolution is ResolvedPostOrigin || public != null)) {
+          supportsGroup?.call(record.reference) ?? profile != null;
+      if (supported && (profile != null || public != null)) {
         native.add(record.id);
       } else {
-        reasons[record.id] = resolution is ResolvedPostOrigin || public != null
+        reasons[record.id] = profile != null || public != null
             ? PostPresentationFallbackReason.unavailableEngine
             : PostPresentationFallbackReason.missingProfile;
       }
@@ -272,13 +263,15 @@ final bookmarkProfileAvailabilityProvider =
     Provider.autoDispose<BookmarkProfileAvailability?>(
       (ref) {
         final library = ref.watch(bookmarkProvider).valueOrNull;
-        final profiles = ref.watch(booruConfigProvider);
+        final profiles = ref.watch(bookmarkReadProfilesProvider);
         return library == null
             ? null
             : BookmarkProfileAvailability(
                 library,
                 profiles,
                 policy: ref.watch(anonymousSourcePolicyProvider),
+                supportsPost: (engine) =>
+                    ref.watch(booruPostCapabilityProvider(engine)) != null,
                 references: library.pools.isEmpty
                     ? const ContentReferenceCodec()
                     : ref.watch(contentReferenceCodecProvider),
@@ -292,9 +285,10 @@ final bookmarkProfileAvailabilityProvider =
       },
       dependencies: [
         bookmarkProvider,
-        booruConfigProvider,
+        bookmarkReadProfilesProvider,
         anonymousSourcePolicyProvider,
         contentReferenceCodecProvider,
         booruGroupCapabilityProvider,
+        booruPostCapabilityProvider,
       ],
     );

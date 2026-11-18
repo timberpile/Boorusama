@@ -58,7 +58,7 @@ void main() {
     );
   });
 
-  test('custom, private, HTTP and unproven legacy locators are not public', () {
+  test('custom, private and HTTP locators are denied; registered legacy namespace is public', () {
     final native = _library([
       _record(1, 'https://custom.example', 'pool:10'),
       _record(2, 'https://192.168.1.5', 'pool:10'),
@@ -86,12 +86,12 @@ void main() {
     ]);
     expect(legacy.pools.single.sourceSite, isNull);
     expect(a.collectionIds, isEmpty);
-    expect(b.collectionIds, isEmpty);
+    expect(b.collectionIds, {testPool().localId});
     expect(a.unavailableReasons.keys, containsAll([1, 2, 3]));
-    expect(b.unavailableReasons, isNotEmpty);
+    expect(b.unavailableReasons, isEmpty);
   });
 
-  test('ambiguous matching profiles never fall back to public', () {
+  test('multiple compatible profiles select the first local reader', () {
     final library = _library([
       _record(1, 'https://danbooru.donmai.us', 'related:10'),
     ]);
@@ -99,11 +99,8 @@ void main() {
       _profile(poolProfile, 'https://danbooru.donmai.us'),
       _profile(poolGroupB, 'https://danbooru.donmai.us'),
     ], supportsGroup: (_) => true);
-    expect(availability.collectionIds, isEmpty);
-    expect(
-      availability.unavailableReasons[1],
-      PostPresentationFallbackReason.ambiguousProfile,
-    );
+    expect(availability.collectionIds, {'1'});
+    expect(availability.unavailableReasons, isEmpty);
   });
 
   test('configured custom HTTP profile supplies its proven locator', () {

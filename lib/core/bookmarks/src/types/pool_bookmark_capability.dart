@@ -32,6 +32,8 @@ final class RemoteBookmarkPool {
     required this.total,
     this.supportsUploadOrder = false,
     this.loadedDetails,
+    this.cachedMembers = const [],
+    this.memberOrderDigest,
   });
   final int id;
   final String title;
@@ -39,4 +41,8 @@ final class RemoteBookmarkPool {
   final int? total;
   final bool supportsUploadOrder;
   final ContentGroupDetails? loadedDetails;
+  final List<Post> cachedMembers;
+
+  /// Source-authoritative order, never a sampled/search member window.
+  final String? memberOrderDigest;
 }

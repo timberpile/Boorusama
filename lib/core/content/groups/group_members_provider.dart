@@ -1,3 +1,5 @@
+import 'related_group_counts.dart';
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -66,6 +68,7 @@ final groupMembersProvider = AsyncNotifierProvider.autoDispose
         contentGroupSourceProvider,
         groupSummaryProvider,
         groupDetailsProvider,
+        relatedGroupCountsProvider,
       ],
     );
 
@@ -145,12 +148,20 @@ class GroupMembersController
       reference: _key.reference,
       orderKey: _key.orderKey,
     );
-    final batch = await _request(source, query, generation);
+    final (batch: batch, countRead: countRead) = await _request(
+      source,
+      query,
+      generation,
+    );
     if (!_current(generation, source)) throw RequestCancelledError();
-    return _append(_empty(generation), query, batch);
+    final result = _append(_empty(generation), query, batch);
+    ref
+        .read(relatedGroupCountsProvider.notifier)
+        .publish(countRead, batch.page.total);
+    return result;
   }
 
-  Future<GroupMemberBatch> _request(
+  Future<({GroupMemberBatch batch, RelatedGroupCountRead? countRead})> _request(
     ContentGroupSource source,
     GroupMemberQuery query,
     int generation,
@@ -158,13 +169,19 @@ class GroupMembersController
     if (!source.access.accepts(query.reference)) {
       throw const FormatException('Foreign Group request');
     }
+    final countRead = ref
+        .read(relatedGroupCountsProvider.notifier)
+        .begin(_key.metadata);
     final batch = await runGroupRead(
       source,
       () => source.loadMembers(query),
       token: _cancel!,
       current: () => _current(generation, source),
     );
-    return validateGroupMemberBatch(query, batch);
+    return (
+      batch: validateGroupMemberBatch(query, batch),
+      countRead: countRead,
+    );
   }
 
   Future<void> loadNext() {
@@ -203,9 +220,17 @@ class GroupMembersController
       cursor: before.next,
     );
     try {
-      final batch = await _request(source, query, generation);
+      final (batch: batch, countRead: countRead) = await _request(
+        source,
+        query,
+        generation,
+      );
       if (_current(generation, source)) {
-        state = AsyncData(_append(before, query, batch));
+        final result = _append(before, query, batch);
+        ref
+            .read(relatedGroupCountsProvider.notifier)
+            .publish(countRead, batch.page.total);
+        state = AsyncData(result);
       }
     } catch (error) {
       if (_current(generation, source)) {
@@ -225,6 +250,7 @@ class GroupMembersController
     // Clear already published members before the provider rebuild. Never publish
     // an empty success while an initial-load future is still pending.
     if (state.hasValue) state = AsyncData(_empty(_generation + 1));
+    ref.read(relatedGroupCountsProvider.notifier).invalidate(_key.metadata);
     source.invalidate(_key.reference);
     ref.invalidate(groupSummaryProvider(_key.metadata));
     ref.invalidate(groupDetailsProvider(_key.metadata));

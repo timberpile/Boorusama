@@ -176,6 +176,18 @@ Object? _withoutBrowsingContext(Object? value) => switch (value) {
   _ => value,
 };
 
+/// Only MiteMite publication strips these local locators. Personal backups and
+/// durable local records keep their existing codec contract.
+Object? _withoutLocalProfileHints(Object? value) => switch (value) {
+  Map() => {
+    for (final entry in value.entries)
+      if (entry.key != 'profileIdHint' && entry.key != 'sourceProfileHint')
+        entry.key as String: _withoutLocalProfileHints(entry.value),
+  },
+  List() => value.map(_withoutLocalProfileHints).toList(),
+  _ => value,
+};
+
 /// File-local IDs, local profile hints, save/observation clocks and Group labels
 /// do not cause payload churn. Actual source dates inside snapshots remain facts.
 String syncBookmarkSemanticHash(
@@ -279,7 +291,11 @@ final class SyncBookmarkPackageBuilder {
                       'version': ValidatedSyncBookmarkPackage.schema,
                       'data': codec
                           .encode(data)
-                          .map(_withoutBrowsingContext)
+                          .map(
+                            (value) => _withoutLocalProfileHints(
+                              _withoutBrowsingContext(value),
+                            ),
+                          )
                           .toList(),
                       ...data.extraFields,
                     }),

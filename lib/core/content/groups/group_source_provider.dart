@@ -1,3 +1,5 @@
+import 'related_group_counts.dart';
+
 import 'dart:async';
 
 import 'package:dio/dio.dart';
@@ -98,6 +100,8 @@ final groupSummaryProvider = FutureProvider.autoDispose
         ref.state = groupSourceFailureState(error, stack);
         rethrow;
       }
+      final counts = ref.read(relatedGroupCountsProvider.notifier);
+      final countRead = counts.begin(key);
       return readGroupSource(
         ref,
         key.access,
@@ -108,9 +112,10 @@ final groupSummaryProvider = FutureProvider.autoDispose
           key.reference,
           summary.reference,
         );
+        counts.publish(countRead, summary.memberCount);
         return summary;
       });
-    }, dependencies: [contentGroupSourceProvider]);
+    }, dependencies: [contentGroupSourceProvider, relatedGroupCountsProvider]);
 
 final groupDetailsProvider = FutureProvider.autoDispose
     .family<ContentGroupDetails, GroupMetadataKey>((ref, key) {
@@ -121,6 +126,8 @@ final groupDetailsProvider = FutureProvider.autoDispose
         ref.state = groupSourceFailureState(error, stack);
         rethrow;
       }
+      final counts = ref.read(relatedGroupCountsProvider.notifier);
+      final countRead = counts.begin(key);
       return readGroupSource(
         ref,
         key.access,
@@ -131,9 +138,10 @@ final groupDetailsProvider = FutureProvider.autoDispose
           key.reference,
           details.summary.reference,
         );
+        counts.publish(countRead, details.summary.memberCount);
         return details;
       });
-    }, dependencies: [contentGroupSourceProvider]);
+    }, dependencies: [contentGroupSourceProvider, relatedGroupCountsProvider]);
 
 /// Riverpod 2.6 retains previous data even when assigning an AsyncError. Losing
 /// the authorized source must erase that data before its failure is published.

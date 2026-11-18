@@ -1,4 +1,12 @@
+import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/content/groups/related_group_counts.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:booru_clients/danbooru.dart';
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+
+import '../../support/fakes/test_post.dart';
+
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
@@ -54,6 +62,10 @@ void main() {
     List<RequestOptions>? calls,
     BooruConfig? source,
     int readers = 1,
+    List<Override> overrides = const [],
+    void Function(ProviderContainer container)? before,
+    void Function(ProviderContainer container)? after,
+    void Function()? onRequest,
   }) async {
     final current = source ?? config;
     final dio = Dio()
@@ -61,6 +73,7 @@ void main() {
         InterceptorsWrapper(
           onRequest: (request, handler) {
             calls?.add(request);
+            onRequest?.call();
             if (fail) {
               handler.reject(DioException(requestOptions: request));
               return;
@@ -92,17 +105,21 @@ void main() {
         danbooruClientProvider.overrideWith(
           (ref, auth) => DanbooruClient(baseUrl: auth.url, dio: dio),
         ),
+        ...overrides,
       ],
     );
     addTearDown(() {
       container.dispose();
       dio.close();
     });
+    before?.call(container);
     final provider = relatedBookmarkRefreshProvider((current, family));
     container.listen(provider, (_, _) {});
-    return (await Future.wait([
+    final result = (await Future.wait([
       for (var i = 0; i < readers; i++) container.read(provider.future),
     ])).first;
+    after?.call(container);
+    return result;
   }
 
   Map<String, Object?> row(
@@ -121,6 +138,116 @@ void main() {
     'image_height': 100,
     'preview_file_url': 'https://media.test/$id.$ext',
   };
+
+  for (final revoke in [false, true]) {
+    test(
+      'explicit Related bookmark refresh updates the shared total only for its current actor (revoke=$revoke)',
+      () async {
+        final access = ContentAccessContext.profile(
+          config: config,
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final metadata = GroupMetadataKey(
+          reference: const ContentReferenceCodec().parse(
+            engine: config.auth.booruType,
+            site: Uri.parse(config.url),
+            kind: ContentKind.group,
+            sourceKey: 'related:10',
+          ),
+          access: access.key,
+        );
+        late ProviderContainer owner;
+        final calls = <RequestOptions>[];
+        await draft(
+          rows: [row(10)],
+          count: 9,
+          calls: calls,
+          overrides: [
+            contentProfileAccessProvider.overrideWith(() => _Access(access)),
+          ],
+          before: (container) {
+            owner = container;
+            container.read(contentProfileAccessProvider(config.id));
+            final counts = container.read(relatedGroupCountsProvider.notifier);
+            counts.publish(counts.begin(metadata), 17);
+          },
+          onRequest: () {
+            if (revoke)
+              (owner.read(
+                contentProfileAccessProvider(config.id).notifier,
+              ) as _Access).revoke();
+          },
+          after: (container) {
+            expect(
+              relatedGroupTotal(
+                container.read(relatedGroupCountsProvider),
+                metadata,
+              ),
+              revoke ? null : 9,
+            );
+          },
+        );
+        expect(calls.map((request) => request.path), [
+          '/posts.json',
+          '/counts/posts.json',
+        ]);
+      },
+    );
+  }
+
+  for (final order in RelatedPostsOrder.values) {
+    test(
+      'new Related uses a source-verified cached static cover without requests ($order)',
+      () async {
+        var requests = 0;
+        final cached = TestPost(
+          id: 10,
+          origin: PostOrigin.fromSource(
+            booruType: config.auth.booruType,
+            booruId: config.booruId,
+            source: config.url,
+            profileIdHint: poolGroupB,
+          ),
+          thumbnailImageUrl: 'https://cdn.donmai.us/10.jpg',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            bookmarkProvider.overrideWith(() => _Library([])),
+            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            originAwarePostRepoProvider.overrideWith((ref, config) {
+              requests++;
+              throw StateError('Save must not fetch');
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(blacklistTagsProvider(config.filter).future);
+        final draft = await container.read(
+          relatedBookmarkCachedDraftProvider(
+            RelatedBookmarkDraftInput(
+              config: config,
+              family: family,
+              order: order,
+              cachedMembers: [
+                TestPost(
+                  id: 999,
+                  origin: cached.origin,
+                  thumbnailImageUrl: 'https://cdn.donmai.us/unrelated.jpg',
+                ),
+                cached,
+              ],
+            ),
+          ).future,
+        );
+        expect(draft.cover?.thumbnail, cached.thumbnailImageUrl);
+        expect(draft.cover?.postId, 10);
+        expect(draft.cover?.visibility?.tags, cached.tags);
+        expect(draft.coverage, PoolTagCoverage.unknown);
+        expect(requests, 0);
+      },
+    );
+  }
 
   test('bounded summary uses the producer count without extra probes or recursive children', () async {
     final calls = <RequestOptions>[];
@@ -226,4 +353,12 @@ void main() {
       expect(value.coverage, PoolTagCoverage.partial);
     },
   );
+}
+
+class _Access extends ContentProfileAccess {
+  _Access(this.access);
+  final ContentAccessContext access;
+  @override
+  ContentAccessContext? build(String arg) => access;
+  void revoke() => state = null;
 }

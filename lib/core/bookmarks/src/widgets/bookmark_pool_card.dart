@@ -1,3 +1,16 @@
+import '../../../content/groups/related_group_counts.dart';
+
+import '../../../posts/listing/src/widgets/related_grid_card.dart';
+import '../../../posts/listing/widgets.dart' show PostGridImage;
+
+import '../providers/bookmark_read_access.dart';
+import '../services/bookmark_presentation_covers.dart';
+import '../types/pool_bookmark_cover.dart';
+
+import 'package:dio/dio.dart';
+
+import '../../../http/client/coordination.dart';
+import '../../../blacklists/providers.dart';
 import 'bookmark_group_viewer_entry.dart';
 import '../providers/related_bookmark_provider.dart';
 import '../../../posts/details/routes.dart';
@@ -12,7 +25,6 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:selection_mode/selection_mode.dart';
 
-import '../../../configs/manage/providers.dart';
 import '../../../configs/manage/widgets.dart';
 import '../../../content/content_access_provider.dart';
 import '../../../content/types.dart';
@@ -35,6 +47,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
     this.groupId,
     this.projected = false,
     this.onOpen,
+    this.relatedGeometry,
     super.key,
   });
   final CollectionBookmark pool;
@@ -42,6 +55,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
   final String? groupId;
   final bool projected;
   final VoidCallback? onOpen;
+  final RelatedGridGeometry? relatedGeometry;
 
   @override
   ConsumerState<BookmarkPoolCard> createState() => _BookmarkPoolCardState();
@@ -49,6 +63,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
 
 class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   var _busy = false;
+  final _relatedGeometry = RelatedGridGeometry();
 
   @override
   Widget build(BuildContext context) {
@@ -56,10 +71,12 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     final selection = SelectionMode.of(context);
     final profile = resolvePoolBookmarkProfile(
       pool,
-      ref.watch(booruConfigProvider),
+      ref.watch(bookmarkReadProfilesProvider),
     );
-    final card = PoolGridItem(
-      total: pool.total,
+    final total = pool.isRelated ? _relatedTotal(pool) : pool.total;
+    Widget buildCard(Widget image) => PoolGridItem(
+      padding: pool.isRelated ? EdgeInsets.zero : const EdgeInsets.all(2),
+      total: total,
       name: pool.isRelated ? null : pool.title,
       kind: pool.isRelated
           ? PoolGridItemKind.related
@@ -89,11 +106,28 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
                 context.t.pool.category.collection,
               BookmarkedPoolCategory.unknown => null,
             },
-      image: BookmarkPoolCoverImage(pool: pool, showLabel: true),
+      image: image,
       onTap: () {
         if (!handleSelectionTap(context, widget.index)) _open();
       },
     );
+    final card = pool.isRelated
+        ? BookmarkPoolCoverImage._related(
+            pool: pool,
+            frame: _RelatedBookmarkCardFrame(
+              geometry: widget.relatedGeometry ?? _relatedGeometry,
+              listType: ref.watch(
+                imageListingSettingsProvider.select((s) => s.imageListType),
+              ),
+              cardBuilder: buildCard,
+            ),
+          )
+        : AspectRatio(
+            aspectRatio: .6,
+            child: buildCard(
+              BookmarkPoolCoverImage(pool: pool, showLabel: true),
+            ),
+          );
     return KurumiContextMenu(
       triggers: !selection.isActive,
       menuItemsBuilder: (_) => [
@@ -136,12 +170,32 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
         child: SelectableBuilder(
           index: widget.index,
           builder: (_, selected) => KurumiSelectableItem(
-            item: AspectRatio(aspectRatio: .6, child: card),
+            item: card,
             onPreview: _open,
             isInSelectionMode: selection.isActive,
             isSelected: selected,
           ),
         ),
+      ),
+    );
+  }
+
+  int? _relatedTotal(CollectionBookmark pool) {
+    final reference = bookmarkGroupReference(
+      pool,
+      ref.watch(bookmarkReadProfilesProvider),
+    );
+    if (reference == null) return null;
+    // Cover rendering resolves this same reader. Observing its count does not
+    // create a Group source or start a summary/member request.
+    final access = ref.watch(
+      bookmarkReadAccessProvider(BookmarkReaderRequest.reference(reference)),
+    );
+    if (access == null || !access.accepts(reference)) return null;
+    final key = GroupMetadataKey(reference: reference, access: access.key);
+    return ref.watch(
+      relatedGroupCountsProvider.select(
+        (counts) => relatedGroupTotal(counts, key, fallback: pool.total),
       ),
     );
   }
@@ -172,13 +226,24 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   }
 
   Future<void> _refresh() => _perform((profile, capability) async {
+    final expectedRecord = ref
+        .read(bookmarkProvider)
+        .asData
+        ?.value
+        .byId[widget.pool.bookmarkId ?? int.tryParse(widget.pool.localId)];
     if (widget.pool.family case final family?) {
       final summary = await ref.read(
         relatedBookmarkRefreshProvider((profile, family)).future,
       );
       if (!mounted || !_currentAccess(profile))
         throw StateError('Related profile changed');
-      await ref.read(bookmarkProvider.notifier).refreshPoolBookmark(summary);
+      await ref
+          .read(bookmarkProvider.notifier)
+          .refreshPoolBookmark(
+            summary,
+            canCommit: () => mounted && _currentAccess(profile),
+            expectedRecord: expectedRecord,
+          );
       return;
     }
     final remote = await capability.getBookmarkPool(
@@ -193,7 +258,13 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     if (!_currentAccess(profile)) {
       throw StateError('Pool profile changed');
     }
-    await ref.read(bookmarkProvider.notifier).refreshPoolBookmark(summary);
+    await ref
+        .read(bookmarkProvider.notifier)
+        .refreshPoolBookmark(
+          summary,
+          canCommit: () => mounted && _currentAccess(profile),
+          expectedRecord: expectedRecord,
+        );
   });
 
   Future<void> _perform(
@@ -202,6 +273,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
     if (_busy) return;
     _busy = true;
     ProviderSubscription<ContentAccessContext?>? subscription;
+    final cancellation = CancelToken();
     try {
       final entry = groupViewerEntryForBookmark(
         ref,
@@ -212,7 +284,11 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       if (binding == null) throw StateError('Pool source unavailable');
       subscription = ref.listenManual(
         viewerSourceAccessProvider(binding),
-        (_, _) {},
+        (_, next) {
+          if (_operationAccess != null &&
+              next?.hasSameAuthorization(_operationAccess!) != true)
+            cancellation.cancel("Bookmark reader revoked");
+        },
       );
       final access = subscription.read();
       final profile = access?.config;
@@ -222,7 +298,14 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       if (profile == null || capability == null || access == null)
         throw StateError('Pool source unavailable');
       _operationAccess = access;
-      await action(profile, capability);
+      await runWithApiRequestContext(
+        ApiRequestContext(
+          cancelToken: cancellation,
+          canStart: () => mounted && _currentAccess(profile),
+          canAdmit: () => mounted && _currentAccess(profile),
+        ),
+        () => action(profile, capability),
+      );
     } catch (_) {
       if (mounted)
         Kurumi.showErrorToast(
@@ -271,86 +354,233 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   }
 }
 
-class BookmarkPoolCoverImage extends ConsumerWidget {
+class BookmarkPoolCoverImage extends ConsumerStatefulWidget {
   const BookmarkPoolCoverImage({
     required this.pool,
     this.showLabel = false,
     super.key,
-  });
+  }) : _frame = null;
+  const BookmarkPoolCoverImage._related({
+    required this.pool,
+    required _RelatedBookmarkCardFrame frame,
+  }) : _frame = frame,
+       showLabel = true;
   final CollectionBookmark pool;
   final bool showLabel;
+  final _RelatedBookmarkCardFrame? _frame;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookmarkPoolCoverImage> createState() =>
+      _BookmarkPoolCoverImageState();
+}
+
+class _BookmarkPoolCoverImageState
+    extends ConsumerState<BookmarkPoolCoverImage> {
+  BooruConfig? _discoveryReader;
+  String? _presentationRevision;
+  bool? _wasVisible;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && _wasVisible == false) _discoveryReader = null;
+    _wasVisible = visible;
+  }
+
+  @override
+  void didUpdateWidget(BookmarkPoolCoverImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pool.localId != widget.pool.localId ||
+        oldWidget.pool.identity != widget.pool.identity ||
+        oldWidget.pool.sourceSite != widget.pool.sourceSite ||
+        oldWidget.pool.observedAt != widget.pool.observedAt)
+      _discoveryReader = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pool = widget.pool;
     final reference = bookmarkGroupReference(
       pool,
-      ref.watch(booruConfigProvider),
+      ref.watch(bookmarkReadProfilesProvider),
     );
     final access = reference == null
         ? null
         : ref.watch(
-            contentAccessForReferenceProvider(
-              ContentAccessRequest(
-                reference: reference,
-                profileIdHint: pool.origin.profileIdHint,
-                allowProfileHintFallback: false,
-              ),
+            bookmarkReadAccessProvider(
+              BookmarkReaderRequest.reference(reference),
             ),
           );
     final profile = access?.config;
-    final policy = profile == null
+    final blacklist = profile == null
         ? null
-        : ref.watch(poolCoverPolicyProvider(profile)).valueOrNull;
-    final radius = ref.watch(
-      imageListingSettingsProvider.select((s) => s.imageBorderRadius),
-    );
+        : ref.watch(blacklistTagsProvider(profile.filter));
+    // Reading an existing receiver choice is independent from starting a new
+    // discovery attempt. A newly selected actor may display the same choice
+    // immediately if its current policy permits it.
+    final presentation = _presentationCover(pool);
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible &&
+        pool.coverUrl == null &&
+        presentation == null &&
+        _discoveryReader == null)
+      _discoveryReader = profile;
+    final reader = _discoveryReader;
+    // A covered route cannot start fresh work. An existing attempt keeps its
+    // actor when profiles/policy change; revocation must not cycle accounts.
+    final backfill =
+        visible &&
+            reader != null &&
+            pool.coverUrl == null &&
+            presentation == null &&
+            pool.groupIds.isNotEmpty
+        ? ref.watch(missingPoolCoverProvider((reader, pool)))
+        : null;
+    if (presentation == null && (backfill?.isLoading ?? false))
+      return _present(const KurumiImagePlaceholder());
+    if ((backfill?.hasError ?? false) && widget.showLabel) {
+      return _present(
+        Center(child: Text(context.t.search.errors.failed_to_load_data)),
+      );
+    }
+    final displayed = presentation == null
+        ? backfill?.asData?.value ?? pool
+        : pool.copyWith(cover: presentation, coverUrl: presentation.thumbnail);
+    final allowed =
+        profile != null &&
+        displayed.coverUrl != null &&
+        displayed.cover != null &&
+        blacklist?.hasValue == true &&
+        !blacklist!.isLoading &&
+        !blacklist.hasError &&
+        bookmarkCoverAllowed(displayed.cover!, profile, blacklist.requireValue);
     if (profile != null &&
-        pool.coverUrl != null &&
-        pool.coverPolicy != null &&
-        pool.coverPolicy == policy) {
-      final cover =
-          pool.cover ??
-          (pool.isRelated
-              ? null
-              : ref
-                    .watch(legacyPoolBookmarkCoverProvider((profile, pool)))
-                    .valueOrNull);
-      final media = cover == null
-          ? null
-          : ref
-                .watch(gridThumbnailUrlGeneratorProvider(profile.auth))
-                .resolveStaticCover(
-                  cover,
-                  settings: ref.watch(
-                    gridThumbnailSettingsProvider(profile.auth),
-                  ),
-                );
-      if (access == null || (cover != null && media == null))
-        return const SizedBox.expand();
+        displayed.cover != null &&
+        displayed.coverUrl != null &&
+        (allowed || widget._frame != null)) {
       return CurrentBooruConfigScope(
         config: profile,
-        accessKey: access.key,
+        accessKey: access!.key,
         requireAccess: true,
         bookmarkId: pool.bookmarkId,
-        child: BooruImage(
-          config: profile.auth,
-          imageUrl: media?.url ?? pool.coverUrl!,
-          placeholderUrl: pool.coverUrl,
-          aspectRatio: .6,
-          fit: BoxFit.cover,
-          borderRadius: BorderRadius.circular(radius),
+        child: _BookmarkPoolCoverMedia(
+          config: profile,
+          cover: displayed.cover!,
+          frame: widget._frame,
+          // Resolve retained metadata before layout even while policy loads;
+          // the image itself remains gated by the unchanged visibility check.
+          placeholder: allowed ? null : _unavailable(context),
         ),
       );
     }
-    return ColoredBox(
-      color: Kurumi.themeOf(context).colorScheme.surfaceContainerLow,
-      child: showLabel
-          ? Center(
-              child: Text(
-                context.t.pool.no_cover_image,
-                textAlign: TextAlign.center,
-              ),
-            )
-          : const SizedBox.expand(),
+    return _present(_unavailable(context));
+  }
+
+  Widget _unavailable(BuildContext context) => ColoredBox(
+    color: Kurumi.themeOf(context).colorScheme.surfaceContainerLow,
+    child: widget.showLabel
+        ? Center(
+            child: Text(
+              context.t.pool.no_cover_image,
+              textAlign: TextAlign.center,
+            ),
+          )
+        : const SizedBox.expand(),
+  );
+
+  Widget _present(Widget image) =>
+      widget._frame?.build(null, (_) => image) ?? image;
+
+  PoolBookmarkCover? _presentationCover(CollectionBookmark pool) {
+    if (pool.coverUrl != null || pool.groupIds.isEmpty) return null;
+    final library = ref.watch(bookmarkProvider).asData?.value;
+    if (library == null) return null;
+    final saved = library.pools
+        .where(
+          (p) =>
+              p.localId == pool.localId &&
+              p.identity == pool.identity &&
+              p.sourceSite == pool.sourceSite &&
+              p.observedAt == pool.observedAt,
+        )
+        .firstOrNull;
+    if (saved == null || !poolCoverHasReceivedMembership(library, saved)) {
+      if (_presentationRevision != null) _discoveryReader = null;
+      _presentationRevision = null;
+      return null;
+    }
+    final revision = bookmarkPresentationCoverKey(library, saved);
+    if (_presentationRevision != revision) _discoveryReader = null;
+    _presentationRevision = revision;
+    return ref.watch(bookmarkPresentationCoversProvider).selected(revision);
+  }
+}
+
+/// Read presentation settings inside the image's established source scope, so
+/// global and source-local listing projections cannot notify sibling scopes
+/// synchronously while a parent listing rebuilds.
+class _BookmarkPoolCoverMedia extends ConsumerWidget {
+  const _BookmarkPoolCoverMedia({
+    required this.config,
+    required this.cover,
+    this.frame,
+    this.placeholder,
+  });
+  final _RelatedBookmarkCardFrame? frame;
+  final Widget? placeholder;
+  final BooruConfig config;
+  final PoolBookmarkCover cover;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(gridThumbnailSettingsProvider(config.auth));
+    final radius = ref.watch(
+      imageListingSettingsProvider.select((s) => s.imageBorderRadius),
+    );
+    final media = ref
+        .watch(gridThumbnailUrlGeneratorProvider(config.auth))
+        .resolveStaticCover(cover, settings: settings);
+    if (frame case final related?) {
+      return related.build(
+        media.aspectRatio,
+        (fit) =>
+            placeholder ??
+            PostGridImage(
+              media: media,
+              config: config.auth,
+              fit: fit,
+              forceCover: fit == BoxFit.cover,
+            ),
+      );
+    }
+    return BooruImage(
+      config: config.auth,
+      imageUrl: media.url,
+      placeholderUrl: cover.thumbnail,
+      aspectRatio: .6,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(radius),
     );
   }
+}
+
+/// The entire card shares the cover's already resolved source scope. Placeholder
+/// paths capture the fallback too, before discovery can provide a later cover.
+class _RelatedBookmarkCardFrame {
+  const _RelatedBookmarkCardFrame({
+    required this.geometry,
+    required this.listType,
+    required this.cardBuilder,
+  });
+  final RelatedGridGeometry geometry;
+  final ImageListType listType;
+  final Widget Function(Widget image) cardBuilder;
+
+  Widget build(double? ratio, Widget Function(BoxFit fit) imageBuilder) =>
+      RelatedGridCard(
+        geometry: geometry,
+        listType: listType,
+        aspectRatio: ratio,
+        builder: (fit) => cardBuilder(imageBuilder(fit)),
+      );
 }

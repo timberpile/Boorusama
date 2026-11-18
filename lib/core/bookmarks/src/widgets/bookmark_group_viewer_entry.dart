@@ -1,10 +1,11 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../content/types.dart';
 import '../../../content/anonymous_access_provider.dart';
-import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
+import '../../../content/anonymous_source_policy.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../posts/post/types.dart';
 import '../providers/pool_bookmark_provider.dart';
@@ -17,14 +18,25 @@ ViewerEntry groupViewerEntryForBookmark(
   CollectionBookmark pool, {
   required Object occurrenceId,
 }) {
-  final reference = bookmarkGroupReference(pool, ref.read(booruConfigProvider));
+  final reference = bookmarkGroupReference(
+    pool,
+    ref.read(bookmarkReadProfilesProvider),
+  );
   if (reference == null) {
     return UnavailableGroupViewerEntry(
       occurrenceId: occurrenceId,
       related: pool.isRelated,
     );
   }
-  var binding = bindViewerOrigin(ref, pool.origin, bookmarkId: pool.bookmarkId);
+  var binding = bookmarkReadBinding(
+    ref,
+    BookmarkReaderRequest(
+      pool.origin,
+      site: pool.sourceSite,
+      kind: ContentKind.group,
+    ),
+    bookmarkId: pool.bookmarkId,
+  );
   if (binding?.publicOrigin != null &&
       ref
               .read(anonymousSourcePolicyProvider)
@@ -58,7 +70,12 @@ ContentReference? bookmarkGroupReference(
     profiles,
   );
   final site =
-      pool.sourceSite ?? (profile == null ? null : Uri.tryParse(profile.url));
+      pool.sourceSite ??
+      (profile == null
+          ? const AnonymousSourcePolicy()
+                .forNamespace(pool.origin.booruType, pool.origin.sourceHost)
+                ?.site
+          : Uri.tryParse(profile.url));
   if (site == null ||
       pool.sourceTypeId != pool.origin.booruType.id ||
       normalizePostSourceHost(site.toString()) != pool.origin.sourceHost) {

@@ -1,3 +1,5 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -8,14 +10,12 @@ import '../../../config_widgets/website_logo.dart';
 import '../../../blacklists/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/widgets.dart';
-import '../../../content/content_access_provider.dart';
 import '../../../content/types.dart';
 import '../../../content/groups/group_capability.dart';
 import '../../../content/groups/group_source_provider.dart';
 import '../../../content/groups/group_visibility.dart';
 import '../../../images/booru_image.dart';
 import '../../../posts/details/src/types/viewer_entry.dart';
-import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
 import '../../../posts/rating/types.dart';
 import '../../../posts/pools/pool_grid_item.dart';
 import '../../../posts/listing/providers.dart';
@@ -35,9 +35,9 @@ GroupViewerEntry nativeGroupViewerEntryForBookmark(
   summary: bookmark.summary,
   storedDetails: bookmark.snapshot.details,
   occurrenceId: occurrenceId,
-  source: bindViewerOrigin(
+  source: bookmarkReadBinding(
     ref,
-    nativeBookmarkGroupOrigin(bookmark),
+    BookmarkReaderRequest.reference(bookmark.reference),
     bookmarkId: bookmark.id,
   ),
 );
@@ -61,11 +61,8 @@ class BookmarkNativeGroupCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selection = SelectionMode.of(context);
     final access = ref.watch(
-      contentAccessForReferenceProvider(
-        ContentAccessRequest(
-          reference: bookmark.reference,
-          profileIdHint: bookmark.sourceProfileHint,
-        ),
+      bookmarkReadAccessProvider(
+        BookmarkReaderRequest.reference(bookmark.reference),
       ),
     );
     final config = access?.config;
@@ -177,41 +174,42 @@ class BookmarkNativeGroupCover extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final origin = nativeBookmarkGroupOrigin(bookmark);
     final access = ref.watch(
-      contentAccessForReferenceProvider(
-        ContentAccessRequest(
-          reference: bookmark.reference,
-          profileIdHint: bookmark.sourceProfileHint,
-        ),
+      bookmarkReadAccessProvider(
+        BookmarkReaderRequest.reference(bookmark.reference),
       ),
     );
     final config = access?.config;
     final cover = bookmark.summary.cover;
-    if (config == null) return BookmarkAccessPlaceholder(origin: origin);
+    if (config == null)
+      return BookmarkAccessPlaceholder(
+        origin: origin,
+        reader: BookmarkReaderRequest.reference(bookmark.reference),
+      );
     if (cover == null) return _NativeCoverFailure(onFailed: onFailed);
     final blacklist = ref.watch(blacklistTagsProvider(config.filter));
     if (!blacklist.hasValue || blacklist.isLoading) {
-      return BookmarkAccessPlaceholder(origin: origin);
+      return BookmarkAccessPlaceholder(
+        origin: origin,
+        reader: BookmarkReaderRequest.reference(bookmark.reference),
+      );
     }
     final visibility = cover.visibility;
     final rating = Rating.parse(visibility?.rating);
     final allowed =
+        visibility != null &&
+        visibility.tagCoverage == MetadataCoverage.complete &&
         !blacklist.hasError &&
         groupAllowsRating(config, rating) &&
-        !(visibility?.deleted ?? false) &&
-        !(visibility?.banned ?? false) &&
-        groupTagsPassBlacklist(
-          visibility == null
-              ? bookmark.snapshot.details?.tags ?? bookmark.summary.previewTags
-              : GroupTags(
-                  values: [
-                    for (final name in visibility.tags) GroupTag(name: name),
-                  ],
-                  coverage: visibility.tagCoverage,
-                ),
+        !visibility.deleted &&
+        !visibility.banned &&
+        groupCoverPassesBlacklist(
+          visibility,
           blacklist.requireValue,
-          rating: rating,
-          sourceUrl: bookmark.reference.site.toString(),
+          postId: cover.representedPost?.sourceKey.startsWith('id:') == true
+              ? int.tryParse(cover.representedPost!.sourceKey.substring(3))
+              : null,
         );
+
     if (!allowed) return _NativeCoverFailure(onFailed: onFailed);
     final selectedUrl = defaultStaticGridThumbnailUrl(
       thumbnail: cover.thumbnail.toString(),

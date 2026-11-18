@@ -1,3 +1,4 @@
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/posts/related/related_posts_order.dart';
 import 'package:boorusama/core/settings/src/types/settings_repository.dart';
@@ -277,19 +278,29 @@ void main() {
       final harness = setup.harness;
       for (final order in RelatedPostsOrder.values) {
         final ids = [for (var id = 10; id < 130; id++) id];
-        harness.booruBackend.enqueuePostSuccess(
-          siteUrl: harness.booruBackend.config.url,
-          query: 'parent:10 ${order.queryOrder}',
-          page: 1,
-          result: PostResult(
-            posts: (order == RelatedPostsOrder.oldest ? ids : ids.reversed)
-                .take(60)
-                .map((id) => testRelatedPost(id, parent: id == 10 ? null : 10))
-                .toList(),
-            total: 120,
-            hasMore: true,
-          ),
-        );
+        // Saved member-order changes perform one bounded cover lookup before
+        // the newly ordered gallery requests its own first page.
+        for (
+          var request = 0;
+          request < (order == RelatedPostsOrder.newest ? 2 : 1);
+          request++
+        ) {
+          harness.booruBackend.enqueuePostSuccess(
+            siteUrl: harness.booruBackend.config.url,
+            query: 'parent:10 ${order.queryOrder}',
+            page: 1,
+            result: PostResult(
+              posts: (order == RelatedPostsOrder.oldest ? ids : ids.reversed)
+                  .take(60)
+                  .map(
+                    (id) => testRelatedPost(id, parent: id == 10 ? null : 10),
+                  )
+                  .toList(),
+              total: 120,
+              hasMore: true,
+            ),
+          );
+        }
       }
       await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
       await harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
@@ -2110,7 +2121,7 @@ void main() {
       final setup = await _mount(
         tester,
         seedReference: true,
-        legacyCover: true,
+        verifiedCover: true,
       );
       final harness = setup.harness;
       final library = await harness.pumpUntilComplete(
@@ -2118,7 +2129,7 @@ void main() {
         setup.container.read(bookmarkProvider.future),
       );
       final saved = library.pools.single;
-      expect(saved.cover, isNull);
+      expect(saved.cover, isNotNull);
       await AppFlowDriver(tester: tester, harness: harness).openBookmarks();
       final notifier = setup.container.read(settingsNotifierProvider.notifier);
       Future<void> quality(ImageQuality value) => harness.pumpUntilComplete(
@@ -2243,7 +2254,7 @@ void main() {
   });
 
   testWidgets(
-    'Pool picker saves its summary without indexing members',
+    'Pool picker saves its summary without waiting for cover indexing',
     (tester) async {
       final setup = await _mount(tester, holdIndex: true);
       final harness = setup.harness;
@@ -2292,11 +2303,48 @@ void main() {
       expect(saved.loadedDetails!.description!.format, GroupTextFormat.dtext);
       expect(saved.loadedDetails!.sourceDates!.createdAt, DateTime.utc(2000));
       expect(saved.loadedDetails!.sourceDates!.updatedAt, DateTime.utc(2026));
+      await harness.settle(tester);
+      expect(
+        resolvePoolBookmarkProfile(
+          saved,
+          setup.container.read(booruConfigProvider),
+        )?.id,
+        harness.booruBackend.config.id,
+      );
+      final backfillProvider = missingPoolCoverProvider((
+        harness.booruBackend.config,
+        saved,
+      ));
+      expect(
+        setup.container.exists(backfillProvider),
+        isTrue,
+        reason: 'save should schedule its cover job',
+      );
+      expect(
+        setup.container.read(backfillProvider).hasError,
+        isFalse,
+        reason: setup.container.read(backfillProvider).toString(),
+      );
+      await harness.pumpUntil(
+        tester,
+        () => harness.booruBackend.requests
+            .whereType<FakeBooruPostRequest>()
+            .any((request) => request.query == 'pool:10'),
+      );
       expect(
         harness.booruBackend.requests.whereType<FakeBooruPostRequest>().where(
           (request) => request.query == 'pool:10',
         ),
-        isEmpty,
+        hasLength(1),
+      );
+      expect(
+        setup.container
+            .read(bookmarkProvider)
+            .requireValue
+            .pools
+            .single
+            .localId,
+        saved.localId,
       );
       expect(setup.postRows.values, isEmpty);
       await _drainNotifications(tester);
@@ -2375,6 +2423,12 @@ void main() {
         buttons: kSecondaryMouseButton,
       );
       await harness.pumpUntilFound(tester, find.text('Refresh metadata'));
+      // Visible cover recovery and explicit refresh are separate metadata reads.
+      harness.booruBackend.enqueuePosts(
+        page: 1,
+        query: 'pool:10',
+        posts: harness.booruBackend.posts,
+      );
       await tester.tap(find.text('Refresh metadata'));
       await harness.pumpUntil(
         tester,
@@ -2672,7 +2726,7 @@ _mount(
   int galleryMemberCount = 20,
   int? memberPageSize,
   double? gridPadding,
-  bool legacyCover = false,
+  bool verifiedCover = false,
   bool seedPosts = false,
   bool holdIndex = false,
   bool holdSeries = false,
@@ -2685,6 +2739,16 @@ _mount(
   Completer<CollectionBookmark>? relatedDraftGate,
 }) async {
   final backend = FakeBooruBackend();
+  if (verifiedCover) {
+    backend.posts[0] = TestPost(
+      id: 101,
+      origin: postOriginFromConfig(backend.config),
+      tags: backend.posts.first.tags,
+      thumbnailImageUrl: '${backend.config.url}thumb-101.jpg',
+      sampleImageUrl: '${backend.config.url}sample-101.jpg',
+      originalImageUrl: '${backend.config.url}original-101.jpg',
+    );
+  }
   if (seedRelated) {
     for (var visit = 0; visit < relatedVisits; visit++) {
       for (final oldest in [true, false]) {
@@ -2821,6 +2885,15 @@ _mount(
   );
   addTearDown(Hive.close);
   await groups.createGroup('Pool target', id: poolGroupA);
+  // Gallery-order fixtures already have a selected cover; discovery has its
+  // own bounded-query tests and must not consume scripted gallery pages.
+  final relatedCover = PoolBookmarkCover.fromPost(
+    TestPost(
+      id: 10,
+      origin: postOriginFromConfig(backend.config),
+      thumbnailImageUrl: '${backend.config.url}related-10.jpg',
+    ),
+  );
   if (seedReference || seedRelated)
     await groups.writePoolBookmarks([
       if (seedRelated)
@@ -2830,6 +2903,7 @@ _mount(
             anchorId: 10,
           ),
           localId: poolGroupB,
+          cover: relatedCover,
           createdAt: testPoolPost(102).createdAt.add(const Duration(hours: 6)),
           observedAt: DateTime.utc(2026),
           groupIds: {poolGroupA},
@@ -2849,7 +2923,8 @@ _mount(
                   .toIso8601String(),
             },
           },
-          if (legacyCover) ...{
+          if (verifiedCover) ...{
+            'cover': PoolBookmarkCover.fromPost(backend.posts.first).toJson(),
             'coverUrl': backend.posts.first.thumbnailImageUrl,
             'coverPolicy': poolCoverPolicy(backend.config, {}),
           },
@@ -3099,7 +3174,11 @@ final class _SavedRelatedOrderNotifier extends BookmarkLibraryNotifier {
   FutureOr<BookmarkLibraryState> build() => library;
 
   @override
-  Future<void> setRelatedOrder(int bookmarkId, RelatedPostsOrder order) async {
+  Future<void> setRelatedOrder(
+    int bookmarkId,
+    RelatedPostsOrder order, {
+    BooruConfig? reader,
+  }) async {
     orderUpdates.add((bookmarkId, order));
   }
 

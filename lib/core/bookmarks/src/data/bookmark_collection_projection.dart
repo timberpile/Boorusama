@@ -42,6 +42,21 @@ CollectionBookmark? bookmarkCollectionProjection(
       ? null
       : PoolBookmarkCover(
           thumbnail: cover.thumbnail.toString(),
+          // Legacy full-media dimensions cannot describe a cropped thumbnail.
+          aspectRatios:
+              cover.aspectRatios ??
+              (cover.width != null && cover.height != null
+                  ? GroupCoverAspectRatios(
+                      original: cover.width! / cover.height!,
+                    )
+                  : null),
+          visibility: cover.visibility,
+          memberOrderDigest: cover.memberOrderDigest,
+          postId: cover.representedPost == null
+              ? null
+              : int.tryParse(
+                  cover.representedPost!.sourceKey.replaceFirst('id:', ''),
+                ),
           sample: (cover.sample ?? cover.thumbnail).toString(),
           original: (cover.original ?? cover.thumbnail).toString(),
           variants: cover.variants,
@@ -176,6 +191,17 @@ Bookmark collectionRecordForSave(
       ? null
       : GroupCover(
           thumbnail: Uri.parse(thumbnail),
+          visibility: selectedCover?.visibility,
+          aspectRatios: selectedCover?.aspectRatios,
+          representedPost: selectedCover?.postId == null
+              ? null
+              : const ContentReferenceCodec().parse(
+                  engine: reference.engine,
+                  site: reference.site,
+                  kind: ContentKind.post,
+                  sourceKey: 'id:${selectedCover!.postId}',
+                ),
+          memberOrderDigest: selectedCover?.memberOrderDigest,
           sample: selectedCover == null
               ? null
               : Uri.parse(selectedCover.sample),

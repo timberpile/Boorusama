@@ -1,3 +1,5 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'dart:async';
 
 import '../../../posts/details/src/types/viewer_entry.dart';
@@ -15,13 +17,11 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
 import '../../../content/content_access_provider.dart';
 import '../../../content/content_media_access.dart';
 import '../../../content/content_media_failures.dart';
 import '../../../downloads/filename/types.dart';
 import '../../../posts/details/types.dart';
-import '../../../posts/details/src/providers/viewer_source_access_provider.dart';
 import '../../../posts/details_parts/types.dart';
 import '../../../posts/details_parts/widgets.dart';
 import '../../../posts/details/widgets.dart';
@@ -113,7 +113,10 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
               post: post,
               occurrenceId: ('bookmark-route', index),
               source:
-                  bindViewerOrigin(ref, post.origin) ??
+                  bookmarkReadBinding(
+                    ref,
+                    BookmarkReaderRequest(post.origin),
+                  ) ??
                   const ViewerSourceBinding(BooruConfig.empty),
             ),
         ]);
@@ -276,14 +279,12 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         ? access == null
               ? null
               : ref.watch(contentAccessContextProvider(access))?.config
-        : switch (const PostOriginResolver().resolve(
-            post.origin,
-            ref.watch(booruConfigProvider),
-            allowProfileHintFallback: false,
-          )) {
-            ResolvedPostOrigin(:final config) => config,
-            _ => null,
-          };
+        : ref
+              .watch(
+                bookmarkReadAccessProvider(BookmarkReaderRequest(post.origin)),
+              )
+              ?.config;
+
     final failed =
         access != null &&
         bookmark != null &&

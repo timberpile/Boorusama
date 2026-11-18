@@ -1,3 +1,4 @@
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
 import 'package:boorusama/core/config_widgets/website_logo.dart';
 import 'package:boorusama/core/images/providers.dart';
@@ -88,6 +89,41 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('Related items use the photo_library symbol', (tester) async {
+    await showTile(tester, kind: PoolGridItemKind.related, total: null);
+    expect(find.byIcon(Symbols.photo_library), findsOneWidget);
+    expect(find.byType(SvgPicture), findsNothing);
+  });
+
+  testWidgets(
+    'Related badges never substitute the displayed subset for a total',
+    (tester) async {
+      await showTile(
+        tester,
+        kind: PoolGridItemKind.related,
+        total: null,
+        displayedCount: 5,
+      );
+      expect(find.byIcon(Symbols.photo_library), findsOneWidget);
+      expect(find.text('5/?'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('pool-badge')),
+          matching: find.byType(Text),
+        ),
+        findsNothing,
+      );
+      await showTile(
+        tester,
+        kind: PoolGridItemKind.related,
+        total: 29,
+        displayedCount: 5,
+      );
+      expect(find.text('29'), findsOneWidget);
+      expect(find.text('5/29'), findsNothing);
+    },
+  );
+
   for (final kind in PoolGridItemKind.values) {
     testWidgets('uses the white $kind icon without a type text label', (
       tester,
@@ -95,8 +131,15 @@ void main() {
       await showTile(tester, kind: kind);
       final icon = find.byKey(ValueKey('pool-kind-' + kind.name));
       expect(icon, findsOneWidget);
-      expect(tester.widget<SvgPicture>(icon).width, 16);
-      expect(find.byType(SvgPicture), findsOneWidget);
+      if (kind == PoolGridItemKind.related) {
+        expect(tester.widget<Icon>(icon).icon, Symbols.photo_library);
+        expect(tester.widget<Icon>(icon).size, 16);
+        expect(tester.widget<Icon>(icon).color, Colors.white);
+        expect(find.byType(SvgPicture), findsNothing);
+      } else {
+        expect(tester.widget<SvgPicture>(icon).width, 16);
+        expect(find.byType(SvgPicture), findsOneWidget);
+      }
       expect(find.text(kind.name), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -239,7 +282,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('unknown total remains explicit in accessibility text', (
+  testWidgets('unknown Related totals use only the accessible group name', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
@@ -249,8 +292,8 @@ void main() {
       total: null,
       displayedCount: 5,
     );
-    expect(find.text('5/?'), findsOneWidget);
-    expect(find.bySemanticsLabel('Related Posts · 5/?'), findsOneWidget);
+    expect(find.text('5/?'), findsNothing);
+    expect(find.bySemanticsLabel('Related Posts'), findsOneWidget);
     expect(tester.takeException(), isNull);
     semantics.dispose();
   });

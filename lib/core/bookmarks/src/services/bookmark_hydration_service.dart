@@ -1,3 +1,5 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'dart:async';
 
 import '../../../configs/config/types.dart';
@@ -243,6 +245,7 @@ class BookmarkHydrationService {
     required Iterable<BooruConfig> configs,
     required BookmarkHydrationCancellation cancellation,
     required void Function(BookmarkHydrationProgress) onProgress,
+    Future<BooruConfig?> Function(PostBookmark)? resolveReader,
   }) async {
     final candidates = bookmarks.where(needsBookmarkHydration).toList();
     final profiles = configs.toList();
@@ -297,23 +300,21 @@ class BookmarkHydrationService {
         <String, List<({PostBookmark bookmark, BooruConfig config})>>{};
     for (final bookmark in candidates) {
       if (cancellation.cancelled) break;
-      switch (const PostOriginResolver().resolve(
-        bookmark.post.origin,
-        profiles,
-      )) {
-        case ResolvedPostOrigin(:final config):
-          sites.putIfAbsent(bookmark.post.origin.sourceHost, () => []).add((
-            bookmark: bookmark,
-            config: config,
-          ));
-        case MissingPostOrigin():
-          skipped++;
-          log(bookmark, BookmarkHydrationLogReason.missingProfile);
-          onProgress(progress(true));
-        case AmbiguousPostOrigin():
-          skipped++;
-          log(bookmark, BookmarkHydrationLogReason.ambiguousProfile);
-          onProgress(progress(true));
+      final config = resolveReader != null
+          ? await resolveReader(bookmark)
+          : selectBookmarkReadProfile(
+              BookmarkReaderRequest(bookmark.post.origin),
+              profiles,
+            );
+      if (config != null) {
+        sites.putIfAbsent(bookmark.post.origin.sourceHost, () => []).add((
+          bookmark: bookmark,
+          config: config,
+        ));
+      } else {
+        skipped++;
+        log(bookmark, BookmarkHydrationLogReason.missingProfile);
+        onProgress(progress(true));
       }
     }
 

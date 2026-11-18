@@ -1,3 +1,6 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:boorusama/core/content/groups/related_group_counts.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -22,6 +25,89 @@ ContentReference _reference(ContentKind kind, String key) =>
     );
 
 void main() {
+  test('Related pager publishes the source total, retains it after navigation and never counts the subset', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final counts = container.read(relatedGroupCountsProvider.notifier);
+    final reference = _reference(ContentKind.group, 'related:42');
+    final source = _Source();
+    final pager = _pager(source, reference: reference, counts: counts);
+    final metadata = GroupMetadataKey(
+      reference: reference,
+      access: source.access.key,
+    );
+    final first = pager.fetch(1);
+    (await source.request(0))
+        .complete(_batch([_member(1, 'a')], total: 42, next: 'next'));
+    expect((await first).posts, isEmpty);
+    expect(
+      relatedGroupTotal(container.read(relatedGroupCountsProvider), metadata),
+      42,
+    );
+    final next = pager.fetch(2);
+    (await source.request(1)).complete(_batch([]));
+    await next;
+    pager.dispose();
+    expect(
+      relatedGroupTotal(container.read(relatedGroupCountsProvider), metadata),
+      42,
+    );
+    expect(source.requests, hasLength(2));
+  });
+
+  test(
+    'Related refresh and access loss reject stale total publication',
+    () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final counts = container.read(relatedGroupCountsProvider.notifier);
+      final reference = _reference(ContentKind.group, 'related:42');
+      final source = _Source(reference: reference);
+      var current = true;
+      final pager = _pager(
+        source,
+        reference: reference,
+        counts: counts,
+        isCurrent: () => current,
+      );
+      addTearDown(pager.dispose);
+      final metadata = GroupMetadataKey(
+        reference: reference,
+        access: source.access.key,
+      );
+      final old = pager.fetch(1);
+      final pending = await source.request(0);
+      final cancelled = expectLater(old, throwsA(isA<RequestCancelledError>()));
+      pager.refresh();
+      pending.complete(_batch([], total: 999));
+      await cancelled;
+      expect(
+        relatedGroupTotal(
+          container.read(relatedGroupCountsProvider),
+          metadata,
+          fallback: 7,
+        ),
+        isNull,
+      );
+      final fresh = pager.fetch(1);
+      (await source.request(1)).complete(_batch([], total: 11, next: 'next'));
+      await fresh;
+      final revoked = pager.fetch(2);
+      final denied = await source.request(2);
+      final failure = expectLater(
+        revoked,
+        throwsA(isA<RequestCancelledError>()),
+      );
+      current = false;
+      denied.complete(_batch([], total: 888));
+      await failure;
+      expect(
+        relatedGroupTotal(container.read(relatedGroupCountsProvider), metadata),
+        11,
+      );
+    },
+  );
+
   test('raw cursor advances over unresolved page and projects duplicate occurrences', () async {
     final source = _Source();
     final pager = _pager(source);
@@ -161,12 +247,18 @@ void main() {
   });
 }
 
-GroupPostPager _pager(_Source source) => GroupPostPager(
+GroupPostPager _pager(
+  _Source source, {
+  ContentReference? reference,
+  RelatedGroupCounts? counts,
+  bool Function()? isCurrent,
+}) => GroupPostPager(
   source: source,
-  reference: _group,
+  reference: reference ?? _group,
+  relatedCounts: counts,
   perPage: 2,
   orderKey: 'order',
-  isCurrent: () => true,
+  isCurrent: isCurrent ?? () => true,
 );
 GroupMember _member(int id, String key) => GroupMember(
   reference: _reference(ContentKind.post, 'id:$id'),
@@ -208,6 +300,9 @@ class _Pending {
 }
 
 class _Source extends ContentGroupSource {
+  _Source({ContentReference? reference})
+    : expectedReference = reference ?? _group;
+  final ContentReference expectedReference;
   @override
   final access = ContentAccessContext.profile(
     config: BooruConfig.fromJson({
@@ -238,7 +333,7 @@ class _Source extends ContentGroupSource {
   });
   @override
   void invalidate(ContentReference reference) {
-    expect(reference, _group);
+    expect(reference, expectedReference);
     invalidations++;
   }
 

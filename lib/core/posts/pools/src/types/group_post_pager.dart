@@ -1,3 +1,5 @@
+import '../../../../content/groups/related_group_counts.dart';
+
 import 'dart:collection';
 
 import 'package:dio/dio.dart';
@@ -18,8 +20,10 @@ final class GroupPostPager {
     required this.isCurrent,
     this.orderKey,
     this.isPaginated,
+    this.relatedCounts,
   });
 
+  final RelatedGroupCounts? relatedCounts;
   final ContentGroupSource source;
   final ContentReference reference;
   final int perPage;
@@ -48,6 +52,9 @@ final class GroupPostPager {
     }
     _initialRequested = true;
     final generation = _generation;
+    final countRead = relatedCounts?.begin(
+      GroupMetadataKey(reference: reference, access: source.access.key),
+    );
     final query = GroupMemberQuery(
       reference: reference,
       orderKey: orderKey,
@@ -114,6 +121,7 @@ final class GroupPostPager {
     } else {
       _lastPage = page;
     }
+    relatedCounts?.publish(countRead, batch.page.total);
     return PostResult(
       posts: visible,
       total: batch.page.total,
@@ -132,7 +140,12 @@ final class GroupPostPager {
     _cursors.clear();
     _members.clear();
     _lastPage = null;
-    if (_initialRequested) source.invalidate(reference);
+    if (_initialRequested) {
+      relatedCounts?.invalidate(
+        GroupMetadataKey(reference: reference, access: source.access.key),
+      );
+      source.invalidate(reference);
+    }
     return _initialRequested;
   }
 

@@ -101,6 +101,18 @@ class CollectionBookmark extends Equatable {
         },
   );
 
+  CollectionBookmark withMissingCoverFrom(CollectionBookmark summary) =>
+      localId != summary.localId ||
+          identity != summary.identity ||
+          coverUrl != null ||
+          summary.cover == null
+      ? this
+      : copyWith(
+          cover: summary.cover,
+          coverUrl: summary.coverUrl,
+          coverPolicy: summary.coverPolicy,
+        );
+
   CollectionBookmark copyWith({
     PostOrigin? origin,
     String? localId,
@@ -110,6 +122,8 @@ class CollectionBookmark extends Equatable {
     Set<String>? groupIds,
     Map<String, DateTime>? addedAt,
     PoolBookmarkCover? cover,
+    String? coverUrl,
+    String? coverPolicy,
   }) => CollectionBookmark._(
     localId: localId ?? this.localId,
     bookmarkId: bookmarkId == null ? this.bookmarkId : bookmarkId(),
@@ -133,9 +147,9 @@ class CollectionBookmark extends Equatable {
     tags: tags,
     coverage: coverage,
     total: total,
-    coverUrl: coverUrl,
+    coverUrl: coverUrl ?? this.coverUrl,
     cover: cover ?? this.cover,
-    coverPolicy: coverPolicy,
+    coverPolicy: coverPolicy ?? this.coverPolicy,
     newestUpload: newestUpload,
     oldestUpload: oldestUpload,
   )._typed();

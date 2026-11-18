@@ -1,3 +1,11 @@
+import '../../../content/content_access_provider.dart';
+import '../../../content/groups/related_group_counts.dart';
+import '../../../content/types.dart';
+
+import 'package:equatable/equatable.dart';
+
+import '../../../posts/related/related_posts_order_value.dart';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -49,6 +57,48 @@ final relatedBookmarkDraftProvider = FutureProvider.autoDispose
       );
     });
 
+/// Immutable, value-equal seeds from an already authorized visible family.
+final class RelatedBookmarkDraftInput extends Equatable {
+  RelatedBookmarkDraftInput({
+    required this.config,
+    required this.family,
+    Iterable<Post> cachedMembers = const [],
+    this.order,
+  }) : cachedMembers = List.unmodifiable(cachedMembers.take(40));
+  final BooruConfig config;
+  final RelatedFamilyReference family;
+  final List<Post> cachedMembers;
+  final RelatedPostsOrder? order;
+  @override
+  List<Object?> get props => [config, family, cachedMembers, order];
+}
+
+final relatedBookmarkCachedDraftProvider = FutureProvider.autoDispose
+    .family<CollectionBookmark, RelatedBookmarkDraftInput>((ref, input) async {
+      final draft = await ref.watch(
+        relatedBookmarkDraftProvider((input.config, input.family)).future,
+      );
+      if (draft.coverUrl != null || input.cachedMembers.isEmpty) return draft;
+      final blacklist = ref
+          .read(blacklistTagsProvider(input.config.filter))
+          .asData
+          ?.value;
+      if (blacklist == null) return draft;
+      final members = input.cachedMembers.where(input.family.contains).toList();
+      final cover = eligiblePoolCover(
+        input.config,
+        blacklist,
+        members,
+      )?.withMemberOrder(poolMemberOrderDigest(members));
+      return cover == null
+          ? draft
+          : draft.copyWith(
+              cover: cover,
+              coverUrl: cover.thumbnail,
+              coverPolicy: poolCoverPolicy(input.config, blacklist),
+            );
+    });
+
 /// One bounded producer request (plus its existing exact-count request). The
 /// provider coalesces requests for the same family and authorization context.
 final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
@@ -60,6 +110,24 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
       if (postOriginFromConfig(config).sourceHost != family.origin.sourceHost ||
           config.auth.booruType != family.origin.booruType)
         throw StateError('Related source mismatch');
+      // Reuse the actor already authorized by the caller; counts never warm a
+      // profile policy or create an extra source/client just for presentation.
+      ContentAccessContext? currentAccess() {
+        final public = config.anonymousReadScope;
+        if (public != null) {
+          return public.isCurrent
+              ? ref.read(contentAccessContextProvider(public.key))
+              : null;
+        }
+        final provider = contentProfileAccessProvider(config.id);
+        return ref.exists(provider) ? ref.read(provider) : null;
+      }
+
+      final access = currentAccess();
+      bool countAccessCurrent() =>
+          access != null &&
+          access.config?.auth == config.auth &&
+          identical(currentAccess(), access);
       final cancellation = CancelToken();
       ref.onDispose(cancellation.cancel);
       final repo = ref.watch(originAwarePostRepoProvider(config));
@@ -71,6 +139,20 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
       final existing = library.pools
           .where((p) => p.identity == family.identity)
           .firstOrNull;
+      final counts = ref.read(relatedGroupCountsProvider.notifier);
+      final metadata = countAccessCurrent()
+          ? GroupMetadataKey(
+              reference: const ContentReferenceCodec().parse(
+                engine: config.auth.booruType,
+                site: Uri.parse(config.url),
+                kind: ContentKind.group,
+                sourceKey: 'related:${family.anchorId}',
+              ),
+              access: access!.key,
+            )
+          : null;
+      if (metadata != null) counts.invalidate(metadata);
+      final countRead = metadata == null ? null : counts.begin(metadata);
       final result = await runWithApiRequestContext(
         ApiRequestContext(cancelToken: cancellation),
         () => repo
@@ -82,6 +164,7 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
         throw StateError('Related request cancelled');
       if (data == null && existing != null)
         throw StateError('Related metadata unavailable');
+      if (countAccessCurrent()) counts.publish(countRead, data?.total);
       final now = DateTime.now().toUtc();
       final members =
           data?.posts.take(40).where(family.contains).toList() ?? <Post>[];
@@ -118,7 +201,12 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
             ? PoolTagCoverage.complete
             : PoolTagCoverage.partial,
         total: data?.total,
-        cover: coverPost == null ? null : PoolBookmarkCover.fromPost(coverPost),
+        cover:
+            existing?.cover ??
+            (coverPost == null
+                ? null
+                : PoolBookmarkCover.fromPost(coverPost)
+                      .withMemberOrder(poolMemberOrderDigest(members))),
         coverPolicy: poolCoverPolicy(config, blacklist),
         newestUpload:
             complete && dates.length == visible.length && dates.isNotEmpty

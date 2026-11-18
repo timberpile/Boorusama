@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/boorus/booru/types.dart';
@@ -18,6 +21,7 @@ import 'pool/types.dart';
 RemoteBookmarkPool danbooruBookmarkPool(
   DanbooruPool pool, {
   Uri? site,
+  List<Post> cachedMembers = const [],
 }) {
   final title = pool.name ?? '';
   final category = switch (pool.category) {
@@ -61,6 +65,10 @@ RemoteBookmarkPool danbooruBookmarkPool(
     total: pool.postCount,
     category: category,
     loadedDetails: loadedDetails,
+    cachedMembers: cachedMembers,
+    memberOrderDigest: pool.postIds == null
+        ? null
+        : sha256.convert(utf8.encode(jsonEncode(pool.postIds))).toString(),
     supportsUploadOrder: true,
   );
 }
@@ -111,6 +119,9 @@ final class DanbooruPoolBookmarks implements PoolBookmarkCapability {
       final summary = danbooruBookmarkPool(
         pool,
         site: Uri.parse(config.url),
+        cachedMembers: posts
+            .where((post) => pool.postIds?.contains(post.id) ?? false)
+            .toList(),
       );
       for (final member in pool.postIds ?? <int>[]) {
         if (requested.contains(member)) (result[member] ??= []).add(summary);
