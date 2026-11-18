@@ -1,32 +1,36 @@
 # Sort Following Topics by Added Date — Technical Handoff
 
-Issue: [#170](https://github.com/timberpile/Boorusama/issues/170)
-Source reviewed: [`develop` at `55cec5ae2b69`](https://github.com/timberpile/Boorusama/tree/55cec5ae2b697612a68af40ed3a8bc4ba1caedbb) (2026-11-17).
-Audience: local implementation agent. Code snippets are **unapplied proposals**, not verified patches.
+Issue: [#170](https://github.com/timberpile/Boorusama/issues/170).
+Branch: `feature/170-following-topics-added-sort`.
 
-## Evidence
+## Accepted behavior
 
-**Source-confirmed:** `lib/core/search/following_topics/src/types/following_topic.dart` defines required `FollowingTopic.createdAt`, set by `FollowingTopic.create`; no new storage field is necessary. Prior source review found no Added At option in the existing topic sort controls. Locate the current sort enum/comparator and persisted sort preference in the local agent's checkout before applying this sketch.
+The Following Topics list has four sort choices, in this order:
 
-## Suggested implementation
+- **Manual** (`manual`): persisted organization order.
+- **Name** (`nameAsc`): alphabetical display names, with query fallback.
+- **Unread First** (`updatesFirst`): unseen Topics first, then latest cached post
+  within the unseen/read groups.
+- **Recently Added** (`addedNewest`): persisted `FollowingTopic.createdAt`, newest
+  first, with position and stable ID breaking equal-date ties.
 
-Extend the *topic list* sorting options (not feed post ordering) with two explicit choices, such as `addedNewest` and `addedOldest`. Compare `createdAt`, then use existing `position` and stable `id` to break ties; preserve existing manual order and folders.
+The owner removed the original oldest-first added-date proposal and the existing
+Oldest Post First option. Both obsolete stored values (`addedOldest` and
+`lastPostOldest`) now resolve to Manual through the existing settings fallback.
+The retained identifiers are unchanged; no timestamp migration is needed.
 
-```dart
-int compareAddedAt(FollowingTopic a, FollowingTopic b, {required bool newest}) {
-  final date = newest
-      ? b.createdAt.compareTo(a.createdAt)
-      : a.createdAt.compareTo(b.createdAt);
-  if (date != 0) return date;
-  final position = a.position.compareTo(b.position);
-  return position != 0 ? position : a.id.compareTo(b.id);
-}
-```
+Sorting changes only a display copy. Preserve organization positions, folder
+membership, creation timestamps, and read-only received-folder controls. Apply
+Recently Added to the final filtered/descendant Topic projection and within each
+direct received publisher section. Keep its folder rows in manual order.
+Separate feed-member and feed-post ordering are outside this change.
 
-Add the relevant localized labels and wire selection persistence through the existing sorter. **Do not use `lastMaterialEditAt` or `lastSuccessfulCheckAt`**: neither represents the time a topic was added. Existing records already carry creation dates; no migration or backfill should be invented.
+## Verification
 
-## Focused verification
+- Check newest-first creation dates, deterministic ties, and unchanged manual inputs.
+- Check settings serialization, provider recreation, and removed-value fallbacks.
+- Check Home, named/nested folders, filtered lists, and direct received sections.
+- Check the four localized menu choices at 320px and 200% text, including an open keyboard.
 
-- Three topics with nonmonotonic position and timestamps sort correctly in both directions.
-- Equal dates use deterministic ties, folder-scoped list changes do not affect another folder, manual order remains available.
-- Sort selection persists across navigation/app restart if other sorts do, and importing older topics preserves their creation timestamps.
+See [verification and remaining acceptance](170-added-sort-verification.md) for
+executed checks and device/integration limits.

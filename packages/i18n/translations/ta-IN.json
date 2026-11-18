@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "புதுப்பிப்புகள் முதலில்",
-    "sort_last_post_oldest": "பழைய இடுகைகள் முதலில்"
+    "sort_manual": "கைமுறை",
+    "sort_unread_first": "படிக்காதவை முதலில்",
+    "sort_recently_added": "சமீபத்தில் சேர்த்தவை"
   },
   "generic": {
     "done": "முடிந்தது",

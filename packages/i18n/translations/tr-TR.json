@@ -1,4 +1,9 @@
 {
+  "following_topics": {
+    "sort_manual": "Elle",
+    "sort_unread_first": "Önce okunmamışlar",
+    "sort_recently_added": "Son eklenenler"
+  },
   "generic": {
     "done": "Tamam",
     "errors": {

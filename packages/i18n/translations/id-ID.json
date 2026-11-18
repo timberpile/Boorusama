@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Pembaruan terlebih dahulu",
-    "sort_last_post_oldest": "Postingan terlama terlebih dahulu"
+    "sort_manual": "Manual",
+    "sort_unread_first": "Belum dibaca dahulu",
+    "sort_recently_added": "Baru ditambahkan"
   },
   "generic": {
     "done": "Selesai",

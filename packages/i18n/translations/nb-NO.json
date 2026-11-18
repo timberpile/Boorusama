@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Oppdateringer først",
-    "sort_last_post_oldest": "Eldste innlegg først"
+    "sort_manual": "Manuell",
+    "sort_unread_first": "Uleste først",
+    "sort_recently_added": "Nylig lagt til"
   },
   "generic": {
     "done": "Ferdig",

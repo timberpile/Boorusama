@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "更新がある検索を優先",
-    "sort_last_post_oldest": "古い投稿を先に"
+    "sort_manual": "手動",
+    "sort_unread_first": "未読優先",
+    "sort_recently_added": "追加が新しい順"
   },
   "generic": {
     "done": "完了",

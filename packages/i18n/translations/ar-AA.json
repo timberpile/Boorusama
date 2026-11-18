@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "التحديثات أولًا",
-    "sort_last_post_oldest": "أقدم المنشورات أولًا"
+    "sort_manual": "يدوي",
+    "sort_unread_first": "غير المقروءة أولًا",
+    "sort_recently_added": "المضافة مؤخرًا"
   },
   "generic": {
     "done": "تم",

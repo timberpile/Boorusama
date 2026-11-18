@@ -172,7 +172,7 @@ class Settings extends Equatable {
           json[legacyFollowingTopicSortKey]) {
         'nameAsc' => 'nameAsc',
         'updatesFirst' => 'updatesFirst',
-        'lastPostOldest' => 'lastPostOldest',
+        'addedNewest' => 'addedNewest',
         _ => 'manual',
       },
       imageCacheMaxSize = switch (json['imageCacheMaxSize']) {

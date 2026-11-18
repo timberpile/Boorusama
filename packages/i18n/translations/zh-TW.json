@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "有更新的搜尋優先",
-    "sort_last_post_oldest": "最舊的貼文優先"
+    "sort_manual": "手動",
+    "sort_unread_first": "未讀優先",
+    "sort_recently_added": "最近新增"
   },
   "generic": {
     "done": "完成",

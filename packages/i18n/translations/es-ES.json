@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Actualizaciones primero",
-    "sort_last_post_oldest": "Publicaciones más antiguas primero"
+    "sort_manual": "Manual",
+    "sort_unread_first": "No leídos primero",
+    "sort_recently_added": "Añadidos recientemente"
   },
   "generic": {
     "done": "Hecho",

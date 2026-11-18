@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Оновлення спочатку",
-    "sort_last_post_oldest": "Найстаріші дописи спочатку"
+    "sort_manual": "Вручну",
+    "sort_unread_first": "Непрочитані спочатку",
+    "sort_recently_added": "Нещодавно додані"
   },
   "generic": {
     "done": "Готово",

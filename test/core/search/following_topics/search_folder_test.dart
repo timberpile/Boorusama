@@ -506,7 +506,7 @@ void main() {
       await harness.pump(tester, const FollowingTopicsPage());
       await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      await tester.tap(find.text('Updates First'));
+      await tester.tap(find.text('Unread First'));
       await settle(tester);
       await drain(tester);
 

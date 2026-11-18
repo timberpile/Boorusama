@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Абнаўленні спачатку",
-    "sort_last_post_oldest": "Найстарэйшыя допісы спачатку"
+    "sort_manual": "Уручную",
+    "sort_unread_first": "Непрачытаныя спачатку",
+    "sort_recently_added": "Нядаўна дададзеныя"
   },
   "generic": {
     "done": "Зроблена",

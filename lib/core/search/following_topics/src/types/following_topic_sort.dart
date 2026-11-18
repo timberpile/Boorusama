@@ -4,12 +4,12 @@ enum FollowingTopicSort {
   manual,
   nameAsc,
   updatesFirst,
-  lastPostOldest;
+  addedNewest;
 
   static FollowingTopicSort parse(Object? value) => switch (value) {
     'nameAsc' => nameAsc,
     'updatesFirst' => updatesFirst,
-    'lastPostOldest' => lastPostOldest,
+    'addedNewest' => addedNewest,
     _ => manual,
   };
 }
@@ -37,26 +37,28 @@ List<FollowingTopic> sortFollowingTopics(
 
   final indexed = items.indexed.toList()
     ..sort((left, right) {
+      if (sort == FollowingTopicSort.addedNewest) {
+        final a = left.$2;
+        final b = right.$2;
+        final date = b.createdAt.compareTo(a.createdAt);
+        if (date != 0) return date;
+        final position = a.position.compareTo(b.position);
+        return position != 0 ? position : a.id.compareTo(b.id);
+      }
       if (sort == FollowingTopicSort.nameAsc) {
         final order = left.$2.displayName.toLowerCase().compareTo(
           right.$2.displayName.toLowerCase(),
         );
         return order != 0 ? order : left.$1.compareTo(right.$1);
       }
-      if (sort == FollowingTopicSort.updatesFirst) {
-        if (left.$2.hasNewPosts != right.$2.hasNewPosts) {
-          return left.$2.hasNewPosts ? -1 : 1;
-        }
+      if (left.$2.hasNewPosts != right.$2.hasNewPosts) {
+        return left.$2.hasNewPosts ? -1 : 1;
       }
       final dateOrder = switch ((left.$2.lastPostAt, right.$2.lastPostAt)) {
         (null, null) => 0,
         (null, _) => 1,
         (_, null) => -1,
-        (final leftDate?, final rightDate?) => switch (sort) {
-          FollowingTopicSort.updatesFirst => rightDate.compareTo(leftDate),
-          FollowingTopicSort.lastPostOldest => leftDate.compareTo(rightDate),
-          FollowingTopicSort.manual || FollowingTopicSort.nameAsc => 0,
-        },
+        (final leftDate?, final rightDate?) => rightDate.compareTo(leftDate),
       };
       return dateOrder != 0 ? dateOrder : left.$1.compareTo(right.$1);
     });

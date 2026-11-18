@@ -1351,26 +1351,15 @@ void main() {
 
       await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      expect(find.byType(PopupMenuItem<FollowingTopicSort>), findsNWidgets(4));
-      expect(
-        tester
-            .widgetList<PopupMenuItem<FollowingTopicSort>>(
-              find.byType(PopupMenuItem<FollowingTopicSort>),
-            )
-            .map((item) => item.value),
-        [
-          FollowingTopicSort.manual,
-          FollowingTopicSort.nameAsc,
-          FollowingTopicSort.updatesFirst,
-          FollowingTopicSort.lastPostOldest,
-        ],
-      );
-      expect(find.text('Manual Order'), findsOneWidget);
-      expect(find.text('Updates First'), findsOneWidget);
-      expect(find.text('Oldest Post First'), findsOneWidget);
+      expect(find.text('Recently Added'), findsOneWidget);
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Manual'), findsOneWidget);
+      expect(find.text('Unread First'), findsOneWidget);
+      expect(find.text('Added Date: Oldest First'), findsNothing);
+      expect(find.text('Oldest Post First'), findsNothing);
       expect(find.text('Unseen first'), findsNothing);
       expect(find.text('Newest post first'), findsNothing);
-      await tester.tap(find.text('Updates First'));
+      await tester.tap(find.text('Unread First'));
       await settle(tester);
 
       expect(
@@ -1385,7 +1374,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      await tester.tap(find.text('Manual Order'));
+      await tester.tap(find.text('Manual'));
       await settle(tester);
       expect(
         tester.getTopLeft(find.text('Cats')).dy,
@@ -1439,7 +1428,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
 
     expect(
@@ -1506,7 +1495,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
@@ -1530,7 +1519,7 @@ void main() {
     expect(harness.requests, isEmpty);
   });
 
-  testWidgets('oldest post view keeps undated cards after dated cards', (
+  testWidgets('unread view keeps undated cards after dated cards', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(800, 1200));
@@ -1559,15 +1548,15 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Oldest Post First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
 
     expect(
-      tester.getTopLeft(find.text('Older')).dy,
-      lessThan(tester.getTopLeft(find.text('Newer')).dy),
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('Older')).dy),
     );
     expect(
-      tester.getTopLeft(find.text('Newer')).dy,
+      tester.getTopLeft(find.text('Older')).dy,
       lessThan(tester.getTopLeft(find.text('Not checked')).dy),
     );
   });
@@ -1624,7 +1613,7 @@ void main() {
     await pump(tester);
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
     await openMenu(tester, 'Dogs');
 
@@ -1633,23 +1622,26 @@ void main() {
     }
   });
 
-  testWidgets('selected date view carries from Home into a folder', (
+  testWidgets('recently added view carries from Home into a folder', (
     tester,
   ) async {
     initialize();
     await harness.seed([
-      topicFixture(
-        name: 'Newer',
-        previewCount: 1,
-        postCreatedAt: DateTime.utc(2026, 9, 13),
-      ),
-      topicFixture(
-        id: 'older',
-        name: 'Older',
+      FollowingTopic.create(
+        id: 'cats',
+        profileId: testProfile.id,
         query: 'older',
+        name: 'Older',
+        position: 0,
+        createdAt: DateTime.utc(2026, 9, 12),
+      ),
+      FollowingTopic.create(
+        id: 'newer',
+        profileId: testProfile.id,
+        query: 'newer',
+        name: 'Newer',
         position: 1,
-        previewCount: 1,
-        postCreatedAt: DateTime.utc(2026, 9, 12),
+        createdAt: DateTime.utc(2026, 9, 13),
       ),
     ]);
     final notifier = harness.container.read(
@@ -1657,20 +1649,20 @@ void main() {
     );
     final folder = await notifier.createSharedFolder('Favorites');
     await notifier.moveTopicToSharedFolder('cats', folder.id);
-    await notifier.moveTopicToSharedFolder('older', folder.id);
+    await notifier.moveTopicToSharedFolder('newer', folder.id);
     await pump(tester);
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Oldest Post First'));
+    await tester.tap(find.text('Recently Added'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
 
     expect(find.widgetWithText(AppBar, 'Favorites'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Older')).dy,
-      lessThan(tester.getTopLeft(find.text('Newer')).dy),
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('Older')).dy),
     );
   });
 

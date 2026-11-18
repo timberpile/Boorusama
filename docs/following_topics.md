@@ -41,9 +41,9 @@ Retention counts cached metadata entries; disabling a feed retains its cache and
 does not change contained Topics' Auto-update preferences.
 
 Collection browsing includes local name/query and optional profile filtering,
-descendant-aware bulk actions, and stable Name, Updates first, Last post oldest,
-and Manual sorting. Selecting folders affects the union of their descendant
-Topic UUIDs; independent copies remain independent. Back or Escape exits
+descendant-aware bulk actions, and stable Manual, Name, Unread First,
+and Recently Added sorting. Selecting folders affects the union of their
+descendant Topic UUIDs; independent copies remain independent. Back or Escape exits
 selection first, failed mutations retain selection, and scoped Unfollow confirms
 the affected Topic count without deleting folders.
 
@@ -72,8 +72,8 @@ demonstrate avoided work on that host only; they are not an Android capacity or
 latency guarantee. No Android profile/release or live-site measurement was run
 for this pass.
 
-**Name (A–Z)** sorts Topics by display name (query fallback) and child folders by
-name, ignoring letter case. Equal Topic names retain manual order. The selection
+**Name** sorts Topics alphabetically (A–Z) by display name (query fallback) and
+child folders by name, ignoring letter case. Equal Topic names retain manual order. The selection
 uses the existing global view preference and survives settings reload; it does
 not rewrite manual positions or folder membership.
 
@@ -383,16 +383,23 @@ rendering and sorting never fetch posts. A pin without a successful baseline
 shows `Not checked`, while a successful empty snapshot shows `No posts`.
 Refresh errors keep the prior cached value and remain visible.
 
-The collection offers Manual order, Updates first, and Oldest post first.
-Updates first places cached NEW searches before read searches,
+The collection offers **Manual**, **Name**, **Unread First**, and **Recently Added**.
+Unread First places cached NEW searches before read searches,
 then sorts each group by its newest cached last-post time. Searches without an
 upload time follow dated searches within their group; manual order breaks equal
 or missing-time ties. The selected view is shared by Home and named folders
-and restored from settings after the app restarts. Folder rows stay in manual
-order, and sorted views disable Move Up and Move Down. Switching back to Manual
-order restores the persisted organization order unchanged. Sorting reads cached
-state only and does not fetch posts or write organization order. Missing or unknown stored
-sort modes resolve to Manual order.
+and restored from settings after the app restarts. Name sorts child folders
+alphabetically; Unread First puts folders with unseen Topics first. Manual and
+Recently Added keep folder rows in manual order. Sorted views disable Move Up and
+Move Down. Switching back to Manual order restores the persisted organization
+order unchanged. Sorting reads cached
+state only and does not fetch posts or write organization order. Recently Added
+orders Topics by persisted creation time, newest first, then position and stable
+ID for equal timestamps. It also applies to the final filtered projection and
+inside each direct received publisher section. It does not change creation dates,
+folder membership, or the independent feed-member sorting controls.
+Missing, unknown, or removed stored sort modes (`addedOldest` and
+`lastPostOldest`) resolve to Manual.
 
 Folder cards provide refresh, rename, manual ordering, and deletion through
 their overflow menus; folder creation is available from the root page overflow.

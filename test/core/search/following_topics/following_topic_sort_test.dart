@@ -4,21 +4,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'following_topic_test_utils.dart';
 
 void main() {
-  final timestamp = DateTime.utc(2026, 9, 14, 10);
-  final items = [
-    topicFixture(id: 'undated-a', checked: false),
-    topicFixture(
-      id: 'dated-a',
-      previewCount: 1,
-      postCreatedAt: timestamp,
-    ),
-    topicFixture(
-      id: 'dated-b',
-      previewCount: 1,
-      postCreatedAt: timestamp,
-    ),
-    topicFixture(id: 'undated-b'),
+  FollowingTopic added(String id, int day, int position) =>
+      FollowingTopic.create(
+        id: id,
+        profileId: 'profile',
+        query: id,
+        name: id,
+        position: position,
+        createdAt: DateTime.utc(2020, 1, day),
+      );
+  final dated = [
+    added('new', 3, 0),
+    added('tie-z', 2, 2),
+    added('old', 1, 9),
+    added('tie-a', 2, 2),
+    added('tie-first', 2, 1),
   ];
+  test('recently added sorts newest first with position and ID ties', () {
+    expect(
+      sortFollowingTopics(
+        dated,
+        FollowingTopicSort.addedNewest,
+      ).map((t) => t.id),
+      ['new', 'tie-first', 'tie-a', 'tie-z', 'old'],
+    );
+    expect(sortFollowingTopics(dated, FollowingTopicSort.manual), dated);
+    expect(dated.map((t) => t.id), [
+      'new',
+      'tie-z',
+      'old',
+      'tie-a',
+      'tie-first',
+    ]);
+  });
+
+  final timestamp = DateTime.utc(2026, 9, 14, 10);
 
   test(
     'alphabetical order uses displayed names and query fallback with stable ties',
@@ -37,23 +57,6 @@ void main() {
         ['a-first', 'a-second', 'query', 'z'],
       );
       expect(topics.map((t) => t.id), ['z', 'a-first', 'query', 'a-second']);
-    },
-  );
-
-  test(
-    'oldest post view keeps manual order within equal and undated groups',
-    () {
-      expect(
-        sortFollowingTopics(items, FollowingTopicSort.lastPostOldest).map(
-          (item) => item.id,
-        ),
-        [
-          'dated-a',
-          'dated-b',
-          'undated-a',
-          'undated-b',
-        ],
-      );
     },
   );
 

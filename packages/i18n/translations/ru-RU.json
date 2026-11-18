@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Обновления сначала",
-    "sort_last_post_oldest": "Сначала старые публикации"
+    "sort_manual": "Вручную",
+    "sort_unread_first": "Непрочитанные сначала",
+    "sort_recently_added": "Недавно добавленные"
   },
   "generic": {
     "done": "Выполнено",

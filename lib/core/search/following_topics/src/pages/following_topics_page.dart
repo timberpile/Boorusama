@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../../../selection/collection_selection_bar.dart';
 import '../../../../widgets/multi_select_button.dart';
-import '../../../../widgets/popup_menu_action_label.dart';
 import '../../../../selection/ordered_selection_canvas.dart';
 
 import 'package:flutter/services.dart';
@@ -396,42 +395,45 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                       onPressed: () => _openFolderFeed(directFolder!.id),
                     ),
                   if (!readOnlyFolder)
-                    PopupMenuButton<FollowingTopicSort>(
+                    KurumiPopupMenuButton(
                       tooltip: context.t.sort.sort_by,
+                      semanticLabel: context.t.sort.sort_by,
                       icon: const Icon(Symbols.sort),
-                      initialValue: ref.watch(followingTopicSortProvider),
-                      onSelected: (sort) => ref
-                          .read(followingTopicSortProvider.notifier)
-                          .select(sort),
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: FollowingTopicSort.manual,
-                          child: PopupMenuActionLabel(
-                            icon: Icons.drag_handle,
-                            label: strings.sort_manual,
+                      iconPadding: const EdgeInsets.all(12),
+                      items: [
+                        for (final (sort, icon, label) in [
+                          (
+                            FollowingTopicSort.manual,
+                            Icons.drag_handle,
+                            strings.sort_manual,
                           ),
-                        ),
-                        PopupMenuItem(
-                          value: FollowingTopicSort.nameAsc,
-                          child: PopupMenuActionLabel(
-                            icon: Icons.sort_by_alpha,
-                            label: context.t.sort.name_asc,
+                          (
+                            FollowingTopicSort.nameAsc,
+                            Icons.sort_by_alpha,
+                            context.t.sort.name,
                           ),
-                        ),
-                        PopupMenuItem(
-                          value: FollowingTopicSort.updatesFirst,
-                          child: PopupMenuActionLabel(
-                            icon: Icons.new_releases_outlined,
-                            label: strings.sort_updates_first,
+                          (
+                            FollowingTopicSort.updatesFirst,
+                            Icons.new_releases_outlined,
+                            strings.sort_unread_first,
                           ),
-                        ),
-                        PopupMenuItem(
-                          value: FollowingTopicSort.lastPostOldest,
-                          child: PopupMenuActionLabel(
-                            icon: Icons.history,
-                            label: strings.sort_last_post_oldest,
+                          (
+                            FollowingTopicSort.addedNewest,
+                            Icons.arrow_downward,
+                            strings.sort_recently_added,
                           ),
-                        ),
+                        ])
+                          KurumiPopupMenuItem(
+                            title: Text(label),
+                            icon: Icon(icon),
+                            trailing:
+                                ref.watch(followingTopicSortProvider) == sort
+                                ? const Icon(Icons.check)
+                                : null,
+                            onTap: () => ref
+                                .read(followingTopicSortProvider.notifier)
+                                .select(sort),
+                          ),
                       ],
                     ),
                   KurumiPopupMenuButton(
@@ -895,7 +897,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
     final strings = context.t.following_topics;
     final profiles = ref.watch(orderedProfileConfigsProvider);
     final activity = ref.watch(followingTopicsProvider).valueOrNull;
-    final visible = ref.watch(visibleFollowingTopicsProvider(_folderId));
+    final visible = ref.watch(organizedFollowingTopicsProvider(_folderId));
     final published = ref.watch(publishedFollowingRootsProvider);
     final syncRevision = ref.exists(miteMiteServiceProvider)
         ? ref.watch(followingSyncPresentationProvider)
@@ -1035,16 +1037,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
           (false, true) => 1,
           _ => 0,
         },
-        FollowingTopicSort.lastPostOldest => switch ((
-          left.lastPost,
-          right.lastPost,
-        )) {
-          (null, null) => 0,
-          (null, _) => 1,
-          (_, null) => -1,
-          (final leftDate?, final rightDate?) => leftDate.compareTo(rightDate),
-        },
-        FollowingTopicSort.manual => 0,
+        FollowingTopicSort.manual || FollowingTopicSort.addedNewest => 0,
       };
       if (order != 0) return order;
       final position = a.position.compareTo(b.position);
@@ -1080,8 +1073,19 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                     const <FolderPlacement>[])
               placement.itemId: placement.folderId,
           };
-          final displayItems = filtering && activity != null
-              ? activity.topics.where((topic) {
+          Iterable<String> orderedIds(String? folder) sync* {
+            if (activity == null) return;
+            yield* activity.organization.directIds(folder);
+            for (final child in activity.organization.tree.children(folder)) {
+              yield* orderedIds(child.id);
+            }
+          }
+
+          final candidates = [
+            for (final id in orderedIds(_folderId)) ?topicsById[id],
+          ];
+          var displayItems = filtering && activity != null
+              ? candidates.where((topic) {
                   final folderId = placements[topic.id];
                   final inScope =
                       _folderId == null ||
@@ -1116,6 +1120,12 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
               }
             }
           }
+          // Sort the final unique projection after filtering and direct received
+          // roots have been added. Publisher sections retain their own hierarchy.
+          displayItems = sortFollowingTopics(
+            {for (final topic in displayItems) topic.id: topic}.values.toList(),
+            selectedSort,
+          );
           _selection.reconcileDuringBuild(
             [
               for (final folder in folders)

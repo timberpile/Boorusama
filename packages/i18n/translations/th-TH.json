@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "รายการอัปเดตก่อน",
-    "sort_last_post_oldest": "โพสต์เก่าที่สุดก่อน"
+    "sort_manual": "ด้วยตนเอง",
+    "sort_unread_first": "ยังไม่อ่านก่อน",
+    "sort_recently_added": "เพิ่มล่าสุด"
   },
   "generic": {
     "done": "เสร็จ",

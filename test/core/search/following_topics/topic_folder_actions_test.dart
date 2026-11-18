@@ -145,7 +145,7 @@ void main() {
       );
       await tester.tap(find.byTooltip('Sort By'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Name (A-Z)'));
+      await tester.tap(find.text('Name'));
       await drain(tester);
       await tester.pumpAndSettle();
       expect(
