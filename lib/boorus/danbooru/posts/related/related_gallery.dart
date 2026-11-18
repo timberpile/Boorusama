@@ -256,7 +256,6 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
               controller: controller,
               scrollController: _scroll,
               selectionModeController: _selection,
-              safeArea: false,
               header: PostGridConfigurationHeader<Post>(
                 additionalControls: [
                   Padding(
