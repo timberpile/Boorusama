@@ -1,5 +1,12 @@
 import 'dart:convert';
 
+import 'package:boorusama/core/bookmarks/providers.dart';
+import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_presentation_covers.dart';
+
+import '../../support/fakes/memory_repositories.dart';
+
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
 import 'package:boorusama/core/content/groups/group_metadata.dart';
@@ -41,6 +48,7 @@ const _otherProfileId = '22222222-2222-4222-8222-222222222222';
 const _savedPolicy = 'approved-cover-policy';
 
 final _currentBlacklist = StateProvider<Set<String>>((ref) => {});
+final _coverVisible = StateProvider<bool>((ref) => true);
 
 final _cover = PoolBookmarkCover(
   thumbnail: 'https://cdn.donmai.us/thumb/pool-cover.jpg',
@@ -59,6 +67,14 @@ final _cover = PoolBookmarkCover(
 
 class _Configs extends BooruConfigNotifier {
   _Configs(List<BooruConfig> configs) : super(initialConfigs: configs);
+  void replace(List<BooruConfig> profiles) => state = profiles;
+}
+
+class _Library extends BookmarkLibraryNotifier {
+  _Library(this.library);
+  final BookmarkLibraryState library;
+  @override
+  Future<BookmarkLibraryState> build() async => library;
 }
 
 class _EmptyBlacklist extends GlobalBlacklistedTagsNotifier {
@@ -136,6 +152,7 @@ Future<_Mounted> _pumpCover(
   AsyncValue<String> coverPolicyState = const AsyncData(_savedPolicy),
   bool allowPublic = true,
   bool privatePolicyReady = true,
+  List<Override> additionalOverrides = const [],
 }) async {
   final sourcePolicy = AnonymousSourcePolicy(enabled: allowPublic);
   final publicSource = const AnonymousSourcePolicy().resolve(
@@ -206,6 +223,7 @@ Future<_Mounted> _pumpCover(
         Settings.defaultSettings.listing,
       ),
       automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+      ...additionalOverrides,
       gridThumbnailUrlGeneratorProvider.overrideWith(
         (ref, config) => _CoverResolver(
           GridThumbnailMedia(url: _cover.sample, aspectRatio: 1),
@@ -226,7 +244,14 @@ Future<_Mounted> _pumpCover(
             ),
             child: child!,
           ),
-          home: Scaffold(body: BookmarkPoolCoverImage(pool: pool)),
+          home: Scaffold(
+            body: Consumer(
+              builder: (_, ref, _) => TickerMode(
+                enabled: ref.watch(_coverVisible),
+                child: BookmarkPoolCoverImage(pool: pool),
+              ),
+            ),
+          ),
         ),
       ),
     ),
@@ -249,6 +274,117 @@ Future<void> _close(WidgetTester tester, _Mounted mounted) async {
 }
 
 void main() {
+  testWidgets(
+    'received sticky choice survives a visible reader change without discovery',
+    (tester) async {
+      final pool = PoolBookmark.fromJson({
+        ..._pool(site: _publicSite, profileHint: _profileId).toJson(),
+        'cover': null,
+        'coverUrl': null,
+        'groupIds': [_otherProfileId],
+      });
+      final library = BookmarkLibraryState(
+        bookmarks: [],
+        groups: [],
+        pools: [pool],
+        mirrors: BookmarkMirrorState(
+          epoch: 1,
+          owners: {
+            _otherProfileId: BookmarkMirrorOwner(
+              publisher: _profileId,
+              source: _otherProfileId,
+              revision: 1,
+              payloadDigest: 'a' * 64,
+              groupDigest: 'b' * 64,
+            ),
+          },
+        ),
+      );
+      final choices = BookmarkPresentationCovers(MemoryPersistentCacheStore());
+      final key = bookmarkPresentationCoverKey(library, pool);
+      await choices.remember(key, _cover, current: () => true);
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        additionalOverrides: [
+          bookmarkProvider.overrideWith(() => _Library(library)),
+          bookmarkPresentationCoversProvider.overrideWithValue(choices),
+          missingPoolCoverProvider.overrideWith(
+            (ref, request) =>
+                throw StateError('A selected cover cannot be rediscovered'),
+          ),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      expect(find.byType(BooruImage), findsOneWidget);
+      (mounted.container.read(booruConfigProvider.notifier) as _Configs)
+          .replace([_config(_profileId, _publicSite, login: 'local-reader')]);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+        _cover.sample,
+      );
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).config.login,
+        'local-reader',
+      );
+      expect(choices.selected(key), _cover);
+      expect(
+        identical(
+          mounted.container.read(bookmarkProvider).requireValue,
+          library,
+        ),
+        isTrue,
+      );
+    },
+  );
+  testWidgets(
+    'fresh visibility selects a reader after a covered attempt is revoked',
+    (tester) async {
+      final pool = PoolBookmark.fromJson({
+        ..._pool(site: _publicSite).toJson(),
+        'cover': null,
+        'coverUrl': null,
+        'groupIds': [_otherProfileId],
+      });
+      final readers = <BooruConfig>[];
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        additionalOverrides: [
+          bookmarkProvider.overrideWith(
+            () => _Library(
+              BookmarkLibraryState(bookmarks: [], groups: [], pools: [pool]),
+            ),
+          ),
+          missingPoolCoverProvider.overrideWith((ref, request) async {
+            readers.add(request.$1);
+            return null;
+          }),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      expect(readers, hasLength(1));
+      expect(readers.single.anonymousReadScope, isNotNull);
+      mounted.container.read(_coverVisible.notifier).state = false;
+      await tester.pump();
+      (mounted.container.read(booruConfigProvider.notifier) as _Configs)
+          .replace([_config(_profileId, _publicSite)]);
+      await tester.pumpAndSettle();
+      expect(
+        readers,
+        hasLength(1),
+        reason: 'Covered tiles cannot start another actor',
+      );
+      mounted.container.read(_coverVisible.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(readers, hasLength(2));
+      expect(readers.last.id, _profileId);
+      expect(readers.last.anonymousReadScope, isNull);
+    },
+  );
   testWidgets(
     'approved public native cover uses the access-scoped image path',
     (

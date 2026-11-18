@@ -1,4 +1,6 @@
 import '../providers/bookmark_read_access.dart';
+import '../services/bookmark_presentation_covers.dart';
+import '../types/pool_bookmark_cover.dart';
 
 import 'package:dio/dio.dart';
 
@@ -305,7 +307,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   }
 }
 
-class BookmarkPoolCoverImage extends ConsumerWidget {
+class BookmarkPoolCoverImage extends ConsumerStatefulWidget {
   const BookmarkPoolCoverImage({
     required this.pool,
     this.showLabel = false,
@@ -314,7 +316,37 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
   final CollectionBookmark pool;
   final bool showLabel;
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookmarkPoolCoverImage> createState() =>
+      _BookmarkPoolCoverImageState();
+}
+
+class _BookmarkPoolCoverImageState
+    extends ConsumerState<BookmarkPoolCoverImage> {
+  BooruConfig? _discoveryReader;
+  String? _presentationRevision;
+  bool? _wasVisible;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && _wasVisible == false) _discoveryReader = null;
+    _wasVisible = visible;
+  }
+
+  @override
+  void didUpdateWidget(BookmarkPoolCoverImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pool.localId != widget.pool.localId ||
+        oldWidget.pool.identity != widget.pool.identity ||
+        oldWidget.pool.sourceSite != widget.pool.sourceSite ||
+        oldWidget.pool.observedAt != widget.pool.observedAt)
+      _discoveryReader = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pool = widget.pool;
     final reference = bookmarkGroupReference(
       pool,
       ref.watch(bookmarkReadProfilesProvider),
@@ -330,18 +362,35 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
     final blacklist = profile == null
         ? null
         : ref.watch(blacklistTagsProvider(profile.filter));
+    // Reading an existing receiver choice is independent from starting a new
+    // discovery attempt. A newly selected actor may display the same choice
+    // immediately if its current policy permits it.
+    final presentation = _presentationCover(pool);
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible &&
+        pool.coverUrl == null &&
+        presentation == null &&
+        _discoveryReader == null)
+      _discoveryReader = profile;
+    final reader = _discoveryReader;
+    // A covered route cannot start fresh work. An existing attempt keeps its
+    // actor when profiles/policy change; revocation must not cycle accounts.
     final backfill =
-        profile != null && pool.coverUrl == null && pool.groupIds.isNotEmpty
-        ? ref.watch(missingPoolCoverProvider((profile, pool)))
+        visible &&
+            reader != null &&
+            pool.coverUrl == null &&
+            presentation == null &&
+            pool.groupIds.isNotEmpty
+        ? ref.watch(missingPoolCoverProvider((reader, pool)))
         : null;
-    if (backfill?.isLoading ?? false) return const KurumiImagePlaceholder();
-    if ((backfill?.hasError ?? false) && showLabel) {
+    if (presentation == null && (backfill?.isLoading ?? false))
+      return const KurumiImagePlaceholder();
+    if ((backfill?.hasError ?? false) && widget.showLabel) {
       return Center(child: Text(context.t.search.errors.failed_to_load_data));
     }
-    final displayed = backfill?.asData?.value ?? pool;
-    final radius = ref.watch(
-      imageListingSettingsProvider.select((s) => s.imageBorderRadius),
-    );
+    final displayed = presentation == null
+        ? backfill?.asData?.value ?? pool
+        : pool.copyWith(cover: presentation, coverUrl: presentation.thumbnail);
     if (profile != null &&
         displayed.coverUrl != null &&
         displayed.cover != null &&
@@ -353,31 +402,21 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
           profile,
           blacklist.requireValue,
         )) {
-      final cover = displayed.cover!;
-      final media = ref
-          .watch(gridThumbnailUrlGeneratorProvider(profile.auth))
-          .resolveStaticCover(
-            cover,
-            settings: ref.watch(gridThumbnailSettingsProvider(profile.auth)),
-          );
       return CurrentBooruConfigScope(
         config: profile,
         accessKey: access!.key,
         requireAccess: true,
         bookmarkId: pool.bookmarkId,
-        child: BooruImage(
-          config: profile.auth,
-          imageUrl: media.url,
-          placeholderUrl: displayed.coverUrl,
-          aspectRatio: .6,
-          fit: BoxFit.cover,
-          borderRadius: BorderRadius.circular(radius),
+        child: _BookmarkPoolCoverMedia(
+          config: profile,
+          cover: displayed.cover!,
         ),
       );
     }
+
     return ColoredBox(
       color: Kurumi.themeOf(context).colorScheme.surfaceContainerLow,
-      child: showLabel
+      child: widget.showLabel
           ? Center(
               child: Text(
                 context.t.pool.no_cover_image,
@@ -385,6 +424,58 @@ class BookmarkPoolCoverImage extends ConsumerWidget {
               ),
             )
           : const SizedBox.expand(),
+    );
+  }
+
+  PoolBookmarkCover? _presentationCover(CollectionBookmark pool) {
+    if (pool.coverUrl != null || pool.groupIds.isEmpty) return null;
+    final library = ref.watch(bookmarkProvider).asData?.value;
+    if (library == null) return null;
+    final saved = library.pools
+        .where(
+          (p) =>
+              p.localId == pool.localId &&
+              p.identity == pool.identity &&
+              p.sourceSite == pool.sourceSite &&
+              p.observedAt == pool.observedAt,
+        )
+        .firstOrNull;
+    if (saved == null || !poolCoverHasReceivedMembership(library, saved)) {
+      if (_presentationRevision != null) _discoveryReader = null;
+      _presentationRevision = null;
+      return null;
+    }
+    final revision = bookmarkPresentationCoverKey(library, saved);
+    if (_presentationRevision != revision) _discoveryReader = null;
+    _presentationRevision = revision;
+    return ref.watch(bookmarkPresentationCoversProvider).selected(revision);
+  }
+}
+
+/// Read presentation settings inside the image's established source scope, so
+/// global and source-local listing projections cannot notify sibling scopes
+/// synchronously while a parent listing rebuilds.
+class _BookmarkPoolCoverMedia extends ConsumerWidget {
+  const _BookmarkPoolCoverMedia({required this.config, required this.cover});
+  final BooruConfig config;
+  final PoolBookmarkCover cover;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(gridThumbnailSettingsProvider(config.auth));
+    final radius = ref.watch(
+      imageListingSettingsProvider.select((s) => s.imageBorderRadius),
+    );
+    final media = ref
+        .watch(gridThumbnailUrlGeneratorProvider(config.auth))
+        .resolveStaticCover(cover, settings: settings);
+    return BooruImage(
+      config: config.auth,
+      imageUrl: media.url,
+      placeholderUrl: cover.thumbnail,
+      aspectRatio: .6,
+      fit: BoxFit.cover,
+      borderRadius: BorderRadius.circular(radius),
     );
   }
 }
