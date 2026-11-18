@@ -47,7 +47,8 @@ class DanbooruGridThumbnailUrlGenerator
     if (cover.variants.isEmpty) {
       return defaultStaticCoverGridThumbnailMedia(cover, settings);
     }
-    return GridThumbnailMedia(
+    return staticCoverGridThumbnailMedia(
+      cover,
       url: _danbooruGridThumbnailUrl(
         post: null,
         isGif: false,
@@ -55,9 +56,14 @@ class DanbooruGridThumbnailUrlGenerator
         variantUrl: (type) => _staticCoverVariantUrl(cover, type),
         settings: settings,
       ),
-      aspectRatio: null,
-      placeholderUrl: cover.thumbnail,
-      placeholderAspectRatio: null,
+      ratio: (metadata) => switch (settings.resolvedImageQuality) {
+        ImageQuality.original => metadata.aspectRatios?.original,
+        ImageQuality.highest
+            when settings.gridSize != GridSize.micro &&
+                settings.gridSize != GridSize.tiny =>
+          metadata.aspectRatios?.sample,
+        _ => metadata.aspectRatios?.thumbnail,
+      },
     );
   }
 }

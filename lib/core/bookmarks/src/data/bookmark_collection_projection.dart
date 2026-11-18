@@ -42,6 +42,14 @@ CollectionBookmark? bookmarkCollectionProjection(
       ? null
       : PoolBookmarkCover(
           thumbnail: cover.thumbnail.toString(),
+          // Legacy full-media dimensions cannot describe a cropped thumbnail.
+          aspectRatios:
+              cover.aspectRatios ??
+              (cover.width != null && cover.height != null
+                  ? GroupCoverAspectRatios(
+                      original: cover.width! / cover.height!,
+                    )
+                  : null),
           visibility: cover.visibility,
           memberOrderDigest: cover.memberOrderDigest,
           postId: cover.representedPost == null
@@ -184,6 +192,7 @@ Bookmark collectionRecordForSave(
       : GroupCover(
           thumbnail: Uri.parse(thumbnail),
           visibility: selectedCover?.visibility,
+          aspectRatios: selectedCover?.aspectRatios,
           representedPost: selectedCover?.postId == null
               ? null
               : const ContentReferenceCodec().parse(

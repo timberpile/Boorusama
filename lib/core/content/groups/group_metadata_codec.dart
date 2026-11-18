@@ -146,6 +146,7 @@ final class GroupMetadataCodec {
     'original': ?cover.original?.toString(),
     'width': ?cover.width,
     'height': ?cover.height,
+    'aspectRatios': ?cover.aspectRatios?.toJson(),
     'representedPost': ?switch (cover.representedPost) {
       final post? => references.encode(post),
       _ => null,
@@ -162,6 +163,9 @@ final class GroupMetadataCodec {
       original: _uri(map['original']),
       width: map['width'] as int?,
       height: map['height'] as int?,
+      aspectRatios: map['aspectRatios'] == null
+          ? null
+          : GroupCoverAspectRatios.fromJson(contentMap(map['aspectRatios'])),
       memberOrderDigest: map['memberOrderDigest'] as String?,
       visibility: map['visibility'] == null
           ? null

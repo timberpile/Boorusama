@@ -1005,6 +1005,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         cover: GroupCover(
           thumbnail: Uri.parse(thumbnail),
           visibility: media?.visibility,
+          aspectRatios: media?.aspectRatios,
           memberOrderDigest: media?.memberOrderDigest,
           representedPost: media?.postId == null
               ? null

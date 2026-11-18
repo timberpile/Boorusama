@@ -36,6 +36,27 @@ void main() {
     },
   );
 
+  test('selected cover retains the Post media ratio before image loading', () {
+    final post = TestPost(
+      id: 7,
+      width: 1200,
+      height: 800,
+      thumbnailImageUrl: 'https://media.example/thumb.jpg',
+      sampleImageUrl: 'https://media.example/sample.jpg',
+      originalImageUrl: 'https://media.example/original.jpg',
+    );
+    final selected = PoolBookmarkCover.fromPost(post);
+    expect(
+      const DefaultGridThumbnailUrlGenerator()
+          .resolveStaticCover(
+            selected,
+            settings: _settings(ImageQuality.low, GridSize.normal),
+          )
+          .aspectRatio,
+      1.5,
+    );
+  });
+
   test(
     'default static cover selection matches the former static Post matrix',
     () {

@@ -33,6 +33,7 @@ class PoolGridItem extends ConsumerWidget {
     this.displayedCount,
     this.kind = PoolGridItemKind.collection,
     this.sourceIcon,
+    this.padding = const EdgeInsets.all(2),
     super.key,
   });
 
@@ -48,6 +49,7 @@ class PoolGridItem extends ConsumerWidget {
   final String? category;
   final PoolGridItemKind kind;
   final Widget? sourceIcon;
+  final EdgeInsetsGeometry padding;
 
   String? _visibleCount(BuildContext context, double availableWidth) {
     final candidates = <String>[
@@ -91,7 +93,7 @@ class PoolGridItem extends ConsumerWidget {
         typeLabel + (fullCount == null ? '' : ' · ' + fullCount);
 
     return Padding(
-      padding: const EdgeInsets.all(2),
+      padding: padding,
       child: Stack(
         children: [
           Column(

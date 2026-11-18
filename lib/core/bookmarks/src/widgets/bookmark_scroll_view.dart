@@ -1,3 +1,5 @@
+import '../../../posts/listing/src/widgets/related_grid_card.dart';
+
 import '../providers/bookmark_read_access.dart';
 import 'bookmark_group_viewer_entry.dart';
 import '../../../backups/mitemite/providers.dart';
@@ -89,6 +91,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     exitWhenSelectionRemoved: true,
   );
   final _refreshGate = BookmarkViewRefreshGate();
+  final _relatedGeometry = <Object, RelatedGridGeometry>{};
   var _refreshScheduled = false;
   var _mediaRetryRevision = 0;
   List<BookmarkGridEntry> _fetchedEntries = const [];
@@ -138,6 +141,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
     final query = widget.searchController.text;
     if (query == _selectionQuery) return;
     _selectionQuery = query;
+    _relatedGeometry.clear();
     _selectionModeController.disable();
   }
 
@@ -145,6 +149,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
   void didUpdateWidget(BookmarkScrollView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.view != widget.view) {
+      _relatedGeometry.clear();
       _seenFilter = BookmarkSeenFilter.all;
       _selectionModeController.synchronizeDuringBuild(
         _selectionModeController.disable,
@@ -682,6 +687,12 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                 )
               : pool != null
               ? BookmarkPoolCard(
+                  relatedGeometry: pool.isRelated
+                      ? _relatedGeometry.putIfAbsent(
+                          item.key,
+                          RelatedGridGeometry.new,
+                        )
+                      : null,
                   pool: pool,
                   index: index,
                   onOpen: () {

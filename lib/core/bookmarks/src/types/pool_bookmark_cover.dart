@@ -8,7 +8,7 @@ import '../../../posts/post/types.dart';
 
 /// Only the selected static cover's media variants, never collection members.
 final class PoolBookmarkCover extends Equatable
-    implements GridThumbnailStaticMedia {
+    implements GridThumbnailStaticMedia, GridThumbnailStaticAspectRatios {
   PoolBookmarkCover({
     required this.thumbnail,
     required this.sample,
@@ -17,10 +17,13 @@ final class PoolBookmarkCover extends Equatable
     this.visibility,
     this.postId,
     this.memberOrderDigest,
+    this.aspectRatios,
   }) : variants = Map.unmodifiable(variants);
   final GroupCoverVisibility? visibility;
   final int? postId;
   final String? memberOrderDigest;
+  @override
+  final GroupCoverAspectRatios? aspectRatios;
   @override
   final String thumbnail;
   @override
@@ -38,6 +41,15 @@ final class PoolBookmarkCover extends Equatable
   factory PoolBookmarkCover.fromPost(Post post) => PoolBookmarkCover(
     thumbnail: post.thumbnailImageUrl,
     postId: post.id,
+    aspectRatios: GroupCoverAspectRatios(
+      thumbnail: post.effectiveThumbnailAspectRatio,
+      sample: isStatic(post.sampleImageUrl)
+          ? post.effectiveSampleAspectRatio
+          : post.effectiveThumbnailAspectRatio,
+      original: isStatic(post.originalImageUrl)
+          ? post.effectiveOriginalAspectRatio
+          : post.effectiveThumbnailAspectRatio,
+    ),
     visibility: GroupCoverVisibility(
       tags: post.tags,
       postFacts: {
@@ -71,6 +83,7 @@ final class PoolBookmarkCover extends Equatable
     visibility: visibility,
     postId: postId,
     memberOrderDigest: digest,
+    aspectRatios: aspectRatios,
   );
 
   Map<String, Object?> toJson() => {
@@ -81,6 +94,7 @@ final class PoolBookmarkCover extends Equatable
     'visibility': ?visibility?.toJson(),
     'postId': ?postId,
     'memberOrderDigest': ?memberOrderDigest,
+    'aspectRatios': ?aspectRatios?.toJson(),
   };
   factory PoolBookmarkCover.fromJson(Map<String, dynamic> json) =>
       PoolBookmarkCover(
@@ -89,6 +103,11 @@ final class PoolBookmarkCover extends Equatable
             ? null
             : GroupCoverVisibility.fromJson(
                 Map<String, dynamic>.from(json['visibility'] as Map),
+              ),
+        aspectRatios: json['aspectRatios'] == null
+            ? null
+            : GroupCoverAspectRatios.fromJson(
+                Map<String, dynamic>.from(json['aspectRatios'] as Map),
               ),
         postId: json['postId'] as int?,
         memberOrderDigest: json['memberOrderDigest'] as String?,
@@ -105,5 +124,6 @@ final class PoolBookmarkCover extends Equatable
     visibility,
     postId,
     memberOrderDigest,
+    aspectRatios,
   ];
 }

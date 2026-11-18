@@ -1,3 +1,6 @@
+import '../../../posts/listing/src/widgets/related_grid_card.dart';
+import '../../../posts/listing/widgets.dart' show PostGridImage;
+
 import '../providers/bookmark_read_access.dart';
 import '../services/bookmark_presentation_covers.dart';
 import '../types/pool_bookmark_cover.dart';
@@ -42,6 +45,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
     this.groupId,
     this.projected = false,
     this.onOpen,
+    this.relatedGeometry,
     super.key,
   });
   final CollectionBookmark pool;
@@ -49,6 +53,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
   final String? groupId;
   final bool projected;
   final VoidCallback? onOpen;
+  final RelatedGridGeometry? relatedGeometry;
 
   @override
   ConsumerState<BookmarkPoolCard> createState() => _BookmarkPoolCardState();
@@ -56,6 +61,7 @@ class BookmarkPoolCard extends ConsumerStatefulWidget {
 
 class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   var _busy = false;
+  final _relatedGeometry = RelatedGridGeometry();
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +71,8 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       pool,
       ref.watch(bookmarkReadProfilesProvider),
     );
-    final card = PoolGridItem(
+    Widget buildCard(Widget image) => PoolGridItem(
+      padding: pool.isRelated ? EdgeInsets.zero : const EdgeInsets.all(2),
       total: pool.total,
       name: pool.isRelated ? null : pool.title,
       kind: pool.isRelated
@@ -96,11 +103,28 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
                 context.t.pool.category.collection,
               BookmarkedPoolCategory.unknown => null,
             },
-      image: BookmarkPoolCoverImage(pool: pool, showLabel: true),
+      image: image,
       onTap: () {
         if (!handleSelectionTap(context, widget.index)) _open();
       },
     );
+    final card = pool.isRelated
+        ? BookmarkPoolCoverImage._related(
+            pool: pool,
+            frame: _RelatedBookmarkCardFrame(
+              geometry: widget.relatedGeometry ?? _relatedGeometry,
+              listType: ref.watch(
+                imageListingSettingsProvider.select((s) => s.imageListType),
+              ),
+              cardBuilder: buildCard,
+            ),
+          )
+        : AspectRatio(
+            aspectRatio: .6,
+            child: buildCard(
+              BookmarkPoolCoverImage(pool: pool, showLabel: true),
+            ),
+          );
     return KurumiContextMenu(
       triggers: !selection.isActive,
       menuItemsBuilder: (_) => [
@@ -143,7 +167,7 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
         child: SelectableBuilder(
           index: widget.index,
           builder: (_, selected) => KurumiSelectableItem(
-            item: AspectRatio(aspectRatio: .6, child: card),
+            item: card,
             onPreview: _open,
             isInSelectionMode: selection.isActive,
             isSelected: selected,
@@ -312,9 +336,15 @@ class BookmarkPoolCoverImage extends ConsumerStatefulWidget {
     required this.pool,
     this.showLabel = false,
     super.key,
-  });
+  }) : _frame = null;
+  const BookmarkPoolCoverImage._related({
+    required this.pool,
+    required _RelatedBookmarkCardFrame frame,
+  }) : _frame = frame,
+       showLabel = true;
   final CollectionBookmark pool;
   final bool showLabel;
+  final _RelatedBookmarkCardFrame? _frame;
   @override
   ConsumerState<BookmarkPoolCoverImage> createState() =>
       _BookmarkPoolCoverImageState();
@@ -384,24 +414,27 @@ class _BookmarkPoolCoverImageState
         ? ref.watch(missingPoolCoverProvider((reader, pool)))
         : null;
     if (presentation == null && (backfill?.isLoading ?? false))
-      return const KurumiImagePlaceholder();
+      return _present(const KurumiImagePlaceholder());
     if ((backfill?.hasError ?? false) && widget.showLabel) {
-      return Center(child: Text(context.t.search.errors.failed_to_load_data));
+      return _present(
+        Center(child: Text(context.t.search.errors.failed_to_load_data)),
+      );
     }
     final displayed = presentation == null
         ? backfill?.asData?.value ?? pool
         : pool.copyWith(cover: presentation, coverUrl: presentation.thumbnail);
-    if (profile != null &&
+    final allowed =
+        profile != null &&
         displayed.coverUrl != null &&
         displayed.cover != null &&
         blacklist?.hasValue == true &&
         !blacklist!.isLoading &&
         !blacklist.hasError &&
-        bookmarkCoverAllowed(
-          displayed.cover!,
-          profile,
-          blacklist.requireValue,
-        )) {
+        bookmarkCoverAllowed(displayed.cover!, profile, blacklist.requireValue);
+    if (profile != null &&
+        displayed.cover != null &&
+        displayed.coverUrl != null &&
+        (allowed || widget._frame != null)) {
       return CurrentBooruConfigScope(
         config: profile,
         accessKey: access!.key,
@@ -410,22 +443,30 @@ class _BookmarkPoolCoverImageState
         child: _BookmarkPoolCoverMedia(
           config: profile,
           cover: displayed.cover!,
+          frame: widget._frame,
+          // Resolve retained metadata before layout even while policy loads;
+          // the image itself remains gated by the unchanged visibility check.
+          placeholder: allowed ? null : _unavailable(context),
         ),
       );
     }
-
-    return ColoredBox(
-      color: Kurumi.themeOf(context).colorScheme.surfaceContainerLow,
-      child: widget.showLabel
-          ? Center(
-              child: Text(
-                context.t.pool.no_cover_image,
-                textAlign: TextAlign.center,
-              ),
-            )
-          : const SizedBox.expand(),
-    );
+    return _present(_unavailable(context));
   }
+
+  Widget _unavailable(BuildContext context) => ColoredBox(
+    color: Kurumi.themeOf(context).colorScheme.surfaceContainerLow,
+    child: widget.showLabel
+        ? Center(
+            child: Text(
+              context.t.pool.no_cover_image,
+              textAlign: TextAlign.center,
+            ),
+          )
+        : const SizedBox.expand(),
+  );
+
+  Widget _present(Widget image) =>
+      widget._frame?.build(null, (_) => image) ?? image;
 
   PoolBookmarkCover? _presentationCover(CollectionBookmark pool) {
     if (pool.coverUrl != null || pool.groupIds.isEmpty) return null;
@@ -456,7 +497,14 @@ class _BookmarkPoolCoverImageState
 /// global and source-local listing projections cannot notify sibling scopes
 /// synchronously while a parent listing rebuilds.
 class _BookmarkPoolCoverMedia extends ConsumerWidget {
-  const _BookmarkPoolCoverMedia({required this.config, required this.cover});
+  const _BookmarkPoolCoverMedia({
+    required this.config,
+    required this.cover,
+    this.frame,
+    this.placeholder,
+  });
+  final _RelatedBookmarkCardFrame? frame;
+  final Widget? placeholder;
   final BooruConfig config;
   final PoolBookmarkCover cover;
 
@@ -469,6 +517,19 @@ class _BookmarkPoolCoverMedia extends ConsumerWidget {
     final media = ref
         .watch(gridThumbnailUrlGeneratorProvider(config.auth))
         .resolveStaticCover(cover, settings: settings);
+    if (frame case final related?) {
+      return related.build(
+        media.aspectRatio,
+        (fit) =>
+            placeholder ??
+            PostGridImage(
+              media: media,
+              config: config.auth,
+              fit: fit,
+              forceCover: fit == BoxFit.cover,
+            ),
+      );
+    }
     return BooruImage(
       config: config.auth,
       imageUrl: media.url,
@@ -478,4 +539,25 @@ class _BookmarkPoolCoverMedia extends ConsumerWidget {
       borderRadius: BorderRadius.circular(radius),
     );
   }
+}
+
+/// The entire card shares the cover's already resolved source scope. Placeholder
+/// paths capture the fallback too, before discovery can provide a later cover.
+class _RelatedBookmarkCardFrame {
+  const _RelatedBookmarkCardFrame({
+    required this.geometry,
+    required this.listType,
+    required this.cardBuilder,
+  });
+  final RelatedGridGeometry geometry;
+  final ImageListType listType;
+  final Widget Function(Widget image) cardBuilder;
+
+  Widget build(double? ratio, Widget Function(BoxFit fit) imageBuilder) =>
+      RelatedGridCard(
+        geometry: geometry,
+        listType: listType,
+        aspectRatio: ratio,
+        builder: (fit) => cardBuilder(imageBuilder(fit)),
+      );
 }

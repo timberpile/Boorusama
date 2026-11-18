@@ -1,3 +1,5 @@
+import 'package:boorusama/core/bookmarks/src/data/bookmark_collection_projection.dart';
+
 import 'dart:io';
 
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
@@ -147,6 +149,11 @@ void main() {
 
   CollectionBookmark summary(CollectionBookmark pool) => pool.copyWith(
     cover: PoolBookmarkCover(
+      aspectRatios: GroupCoverAspectRatios(
+        thumbnail: .5,
+        sample: 1,
+        original: 2,
+      ),
       thumbnail: 'https://danbooru.donmai.us/cover.jpg',
       sample: 'https://danbooru.donmai.us/sample.jpg',
       original: 'https://danbooru.donmai.us/original.jpg',
@@ -198,6 +205,12 @@ void main() {
       saved.summary.cover!.thumbnail,
       Uri.parse('https://danbooru.donmai.us/cover.jpg'),
     );
+    expect(
+      saved.summary.cover!.aspectRatios,
+      summary(pool).cover!.aspectRatios,
+    );
+    final projected = bookmarkCollectionProjection(saved, memberships: {});
+    expect(projected!.cover!.aspectRatios, summary(pool).cover!.aspectRatios);
     expect(saved.summary.reference, original.summary.reference);
     expect(saved.summary.title, original.summary.title);
     expect(saved.summary.memberCount, 23);

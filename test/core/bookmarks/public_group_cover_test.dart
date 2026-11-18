@@ -1,3 +1,24 @@
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/content/content_media_dio.dart';
+import 'package:dio/dio.dart';
+import 'package:extended_image/src/image/raw_image.dart';
+
+import '../posts/details/progressive_image_test_utils.dart'
+    show ControlledImageAdapter, portraitPng, pumpUntil, TestImageCache;
+
+import 'package:boorusama/core/images/types.dart';
+
+import 'dart:async';
+
+import 'package:selection_mode/selection_mode.dart';
+import 'package:boorusama/core/posts/related/related_family.dart';
+import 'package:boorusama/core/posts/listing/types.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/related_grid_card.dart';
+import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
+
 import 'dart:convert';
 
 import 'package:boorusama/core/bookmarks/providers.dart';
@@ -147,7 +168,11 @@ final class _Mounted {
 
 Future<_Mounted> _pumpCover(
   WidgetTester tester, {
-  required PoolBookmark pool,
+  required CollectionBookmark pool,
+  Widget Function(CollectionBookmark pool)? coverBuilder,
+  ImageListingSettings? listing,
+  GridThumbnailUrlGenerator? resolver,
+  bool preloadLibrary = false,
   List<BooruConfig> profiles = const [],
   AsyncValue<String> coverPolicyState = const AsyncData(_savedPolicy),
   bool allowPublic = true,
@@ -220,17 +245,20 @@ Future<_Mounted> _pumpCover(
         (ref, config) => coverPolicyState,
       ),
       imageListingSettingsProvider.overrideWithValue(
-        Settings.defaultSettings.listing,
+        listing ?? Settings.defaultSettings.listing,
       ),
       automaticMediaLoadingEnabledProvider.overrideWithValue(false),
       ...additionalOverrides,
       gridThumbnailUrlGeneratorProvider.overrideWith(
-        (ref, config) => _CoverResolver(
-          GridThumbnailMedia(url: _cover.sample, aspectRatio: 1),
-        ),
+        (ref, config) =>
+            resolver ??
+            _CoverResolver(
+              GridThumbnailMedia(url: _cover.sample, aspectRatio: 1),
+            ),
       ),
     ],
   );
+  if (preloadLibrary) await container.read(bookmarkProvider.future);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -248,7 +276,9 @@ Future<_Mounted> _pumpCover(
             body: Consumer(
               builder: (_, ref, _) => TickerMode(
                 enabled: ref.watch(_coverVisible),
-                child: BookmarkPoolCoverImage(pool: pool),
+                child:
+                    coverBuilder?.call(pool) ??
+                    BookmarkPoolCoverImage(pool: pool),
               ),
             ),
           ),
@@ -274,6 +304,378 @@ Future<void> _close(WidgetTester tester, _Mounted mounted) async {
 }
 
 void main() {
+  for (final mode in ImageListType.values) {
+    for (final ratio in <double?>[.5, 1, 2, null]) {
+      testWidgets('saved Related $mode ratio=$ratio matches the Post cell', (
+        tester,
+      ) async {
+        final cover = PoolBookmarkCover.fromJson({
+          ..._cover.toJson(),
+          if (ratio != null)
+            'aspectRatios': {
+              'thumbnail': ratio,
+              'sample': ratio,
+              'original': ratio,
+            },
+        });
+        final pool = _relatedPool(cover);
+        final mounted = await _pumpCover(
+          tester,
+          pool: pool,
+          listing: Settings.defaultSettings.listing.copyWith(
+            imageListType: mode,
+          ),
+          resolver: const DefaultGridThumbnailUrlGenerator(),
+          coverBuilder: (pool) => _cardBox(pool, mode),
+        );
+        addTearDown(() => _close(tester, mounted));
+        await tester.pumpAndSettle();
+        final image = tester.widget<BooruImage>(find.byType(BooruImage));
+        final cell = find.byType(PoolGridItem);
+        expect(
+          tester.getSize(cell),
+          Size(240, mode == ImageListType.masonry ? 240 / (ratio ?? .6) : 160),
+        );
+        expect(tester.getRect(find.byType(BooruImage)), tester.getRect(cell));
+        expect(
+          image.fit,
+          mode == ImageListType.standard ? BoxFit.cover : BoxFit.contain,
+        );
+        expect(image.forceCover, mode == ImageListType.standard);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets(
+    'saved Masonry locks before discovery, quality and stale cover updates',
+    (tester) async {
+      final completion = Completer<CollectionBookmark?>();
+      var pool = _relatedPool(null, groups: {_otherProfileId});
+      final geometry = RelatedGridGeometry();
+      late StateSetter update;
+      var visible = true;
+      final quality = StateProvider((ref) => ImageQuality.low);
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        resolver: const DefaultGridThumbnailUrlGenerator(),
+        additionalOverrides: [
+          missingPoolCoverProvider.overrideWith(
+            (ref, request) => completion.future,
+          ),
+          imageListingSettingsProvider.overrideWith(
+            (ref) => Settings.defaultSettings.listing.copyWith(
+              imageListType: ImageListType.masonry,
+              imageQuality: ref.watch(quality),
+            ),
+          ),
+        ],
+        coverBuilder: (_) => StatefulBuilder(
+          builder: (_, setState) {
+            update = setState;
+            return visible
+                ? _cardBox(pool, ImageListType.masonry, geometry: geometry)
+                : const SizedBox.shrink();
+          },
+        ),
+      );
+      addTearDown(() => _close(tester, mounted));
+      final initial = tester.getRect(find.byType(PoolGridItem));
+      expect(initial.size, const Size(240, 400));
+      final selected = PoolBookmarkCover.fromJson({
+        ..._cover.toJson(),
+        'aspectRatios': const {'thumbnail': .5, 'sample': 1, 'original': 2},
+      });
+      completion.complete(
+        pool.copyWith(cover: selected, coverUrl: selected.thumbnail),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(BooruImage), findsOneWidget);
+      expect(tester.getRect(find.byType(PoolGridItem)), initial);
+      mounted.container.read(quality.notifier).state = ImageQuality.original;
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+        selected.original,
+      );
+      expect(tester.getRect(find.byType(PoolGridItem)), initial);
+      // A newer selected cover cannot resize this occurrence, nor can a stale
+      // metadata rebuild restore a different geometry.
+      update(
+        () =>
+            pool = pool.copyWith(cover: selected, coverUrl: selected.thumbnail),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byType(PoolGridItem)), initial);
+      update(() => visible = false);
+      await tester.pump();
+      update(() => visible = true);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(find.byType(PoolGridItem)), initial);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final category in [
+    BookmarkedPoolCategory.series,
+    BookmarkedPoolCategory.collection,
+  ]) {
+    testWidgets('$category preserves its portrait cover presentation', (
+      tester,
+    ) async {
+      final pool = CollectionBookmark.fromJson({
+        ..._pool(site: _publicSite).toJson(),
+        'category': category.name,
+      });
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        coverBuilder: (pool) => Center(
+          child: SizedBox(
+            width: 240,
+            child: SelectionMode(child: BookmarkPoolCard(pool: pool, index: 0)),
+          ),
+        ),
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<PoolGridItem>(find.byType(PoolGridItem)).padding,
+        const EdgeInsets.all(2),
+      );
+      final image = tester.widget<BooruImage>(find.byType(BooruImage));
+      expect(image.aspectRatio, .6);
+      expect(image.fit, BoxFit.cover);
+    });
+  }
+
+  testWidgets('received Related uses the receiver-selected cover metadata', (
+    tester,
+  ) async {
+    final pool = _relatedPool(null, groups: {_otherProfileId});
+    final library = BookmarkLibraryState(
+      bookmarks: [],
+      groups: [],
+      pools: [pool],
+      mirrors: BookmarkMirrorState(
+        epoch: 1,
+        owners: {
+          _otherProfileId: BookmarkMirrorOwner(
+            publisher: _profileId,
+            source: _otherProfileId,
+            revision: 1,
+            payloadDigest: 'a' * 64,
+            groupDigest: 'b' * 64,
+          ),
+        },
+      ),
+    );
+    final selected = PoolBookmarkCover.fromJson({
+      ..._cover.toJson(),
+      'aspectRatios': const {'thumbnail': 2, 'sample': .5, 'original': 1},
+    });
+    final choices = BookmarkPresentationCovers(MemoryPersistentCacheStore());
+    final key = bookmarkPresentationCoverKey(library, pool);
+    await choices.remember(key, selected, current: () => true);
+    final mounted = await _pumpCover(
+      tester,
+      pool: pool,
+      preloadLibrary: true,
+      resolver: const DefaultGridThumbnailUrlGenerator(),
+      listing: Settings.defaultSettings.listing.copyWith(
+        imageListType: ImageListType.masonry,
+        imageQuality: ImageQuality.high,
+      ),
+      coverBuilder: (pool) => _cardBox(pool, ImageListType.masonry),
+      additionalOverrides: [
+        bookmarkProvider.overrideWith(() => _Library(library)),
+        bookmarkPresentationCoversProvider.overrideWithValue(choices),
+        missingPoolCoverProvider.overrideWith(
+          (ref, request) =>
+              throw StateError('Sticky cover must not be rediscovered'),
+        ),
+      ],
+    );
+    addTearDown(() => _close(tester, mounted));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(PoolGridItem)), const Size(240, 480));
+    expect(
+      tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+      selected.sample,
+    );
+    expect(choices.selected(key), selected);
+    expect(
+      identical(mounted.container.read(bookmarkProvider).requireValue, library),
+      isTrue,
+    );
+  });
+
+  testWidgets(
+    'late discovery cannot replace a changed cover or resize Masonry',
+    (tester) async {
+      final pending = Completer<CollectionBookmark?>();
+      var pool = _relatedPool(null, groups: {_otherProfileId});
+      late StateSetter update;
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        resolver: const DefaultGridThumbnailUrlGenerator(),
+        listing: Settings.defaultSettings.listing.copyWith(
+          imageListType: ImageListType.masonry,
+        ),
+        coverBuilder: (_) => StatefulBuilder(
+          builder: (_, setState) {
+            update = setState;
+            return _cardBox(pool, ImageListType.masonry);
+          },
+        ),
+        additionalOverrides: [
+          missingPoolCoverProvider.overrideWith(
+            (ref, request) => pending.future,
+          ),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      final initial = tester.getRect(find.byType(PoolGridItem));
+      final newer = PoolBookmarkCover.fromJson({
+        ..._cover.toJson(),
+        'aspectRatios': const {'sample': 2},
+      });
+      update(
+        () => pool = pool.copyWith(cover: newer, coverUrl: newer.thumbnail),
+      );
+      await tester.pumpAndSettle();
+      final stale = PoolBookmarkCover.fromJson({
+        ..._cover.toJson(),
+        'sample': 'https://cdn.donmai.us/stale.jpg',
+        'aspectRatios': const {'sample': .5},
+      });
+      pending.complete(pool.copyWith(cover: stale, coverUrl: stale.thumbnail));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+        newer.sample,
+      );
+      expect(tester.getRect(find.byType(PoolGridItem)), initial);
+    },
+  );
+
+  testWidgets(
+    'decoded cover cannot resize the unknown-ratio Masonry fallback',
+    (tester) async {
+      final adapter = ControlledImageAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      addTearDown(() => dio.close(force: true));
+      final pool = _relatedPool(_cover);
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        resolver: const DefaultGridThumbnailUrlGenerator(),
+        listing: Settings.defaultSettings.listing.copyWith(
+          imageListType: ImageListType.masonry,
+          imageQuality: ImageQuality.low,
+        ),
+        coverBuilder: (pool) => _cardBox(pool, ImageListType.masonry),
+        additionalOverrides: [
+          automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+          contentMediaDioProvider.overrideWith((ref, key) => dio),
+          deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+          defaultImageCacheManagerProvider.overrideWithValue(
+            TestImageCache({}),
+          ),
+          httpHeadersProvider.overrideWith((ref, config) => const {}),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      final initial = tester.getRect(find.byType(PoolGridItem));
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => adapter.pending.containsKey(_cover.thumbnail),
+          reason: 'controlled cover request',
+        ),
+      );
+      adapter.complete(_cover.thumbnail, portraitPng);
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () => tester
+              .widgetList<ExtendedRawImage>(find.byType(ExtendedRawImage))
+              .any((image) => image.image != null),
+          reason: 'decoded cover image',
+        ),
+      );
+      expect(tester.getRect(find.byType(PoolGridItem)), initial);
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).fit,
+        BoxFit.contain,
+      );
+    },
+  );
+
+  testWidgets('Masonry geometry survives actual offscreen tile disposal', (
+    tester,
+  ) async {
+    final geometry = RelatedGridGeometry();
+    final scroll = ScrollController();
+    addTearDown(scroll.dispose);
+    var pool = _relatedPool(_cover);
+    late StateSetter update;
+    final mounted = await _pumpCover(
+      tester,
+      pool: pool,
+      resolver: const DefaultGridThumbnailUrlGenerator(),
+      listing: Settings.defaultSettings.listing.copyWith(
+        imageListType: ImageListType.masonry,
+      ),
+      coverBuilder: (_) => StatefulBuilder(
+        builder: (_, setState) {
+          update = setState;
+          return Center(
+            child: SizedBox(
+              width: 240,
+              height: 500,
+              child: SelectionMode(
+                child: ListView.builder(
+                  controller: scroll,
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(0),
+                  itemCount: 30,
+                  itemBuilder: (_, i) => i == 0
+                      ? BookmarkPoolCard(
+                          pool: pool,
+                          index: 0,
+                          relatedGeometry: geometry,
+                        )
+                      : const SizedBox(height: 150),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+    addTearDown(() => _close(tester, mounted));
+    await tester.pumpAndSettle();
+    final initial = tester.getSize(find.byType(PoolGridItem));
+    scroll.jumpTo(2000);
+    await tester.pumpAndSettle();
+    expect(find.byType(PoolGridItem), findsNothing);
+    update(
+      () => pool = pool.copyWith(
+        cover: PoolBookmarkCover.fromJson({
+          ..._cover.toJson(),
+          'aspectRatios': const {'sample': 2},
+        }),
+        coverUrl: _cover.thumbnail,
+      ),
+    );
+    await tester.pump();
+    scroll.jumpTo(0);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(PoolGridItem)), initial);
+  });
+
   testWidgets(
     'received sticky choice survives a visible reader change without discovery',
     (tester) async {
@@ -514,3 +916,34 @@ void main() {
     },
   );
 }
+
+CollectionBookmark _relatedPool(
+  PoolBookmarkCover? cover, {
+  Set<String> groups = const {},
+}) {
+  final base = _pool(site: _publicSite);
+  return RelatedCollectionBookmark(
+    family: RelatedFamilyReference(origin: base.origin, anchorId: 42),
+    localId: base.localId,
+    sourceSite: base.sourceSite,
+    createdAt: base.createdAt,
+    observedAt: base.observedAt,
+    groupIds: groups,
+    cover: cover,
+    total: 3,
+  );
+}
+
+Widget _cardBox(
+  CollectionBookmark pool,
+  ImageListType mode, {
+  RelatedGridGeometry? geometry,
+}) => Center(
+  child: SizedBox(
+    width: 240,
+    height: mode == ImageListType.masonry ? null : 160,
+    child: SelectionMode(
+      child: BookmarkPoolCard(pool: pool, index: 0, relatedGeometry: geometry),
+    ),
+  ),
+);

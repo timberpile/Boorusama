@@ -2,6 +2,9 @@ import 'package:equatable/equatable.dart';
 
 import '../../boorus/booru/types.dart';
 import '../content_reference.dart';
+import 'group_cover_aspect_ratios.dart';
+
+export 'group_cover_aspect_ratios.dart';
 
 enum MetadataCoverage { unknown, partial, complete }
 
@@ -36,6 +39,7 @@ final class GroupCover extends Equatable {
     this.representedPost,
     this.visibility,
     this.memberOrderDigest,
+    this.aspectRatios,
     Map<String, String> variants = const {},
   }) : variants = Map.unmodifiable(variants) {
     [thumbnail, ?sample, ?original].forEach(validateGroupMetadataUri);
@@ -56,6 +60,7 @@ final class GroupCover extends Equatable {
   final ContentReference? representedPost;
   final GroupCoverVisibility? visibility;
   final String? memberOrderDigest;
+  final GroupCoverAspectRatios? aspectRatios;
   final Map<String, String> variants;
   @override
   List<Object?> get props => [
@@ -68,6 +73,7 @@ final class GroupCover extends Equatable {
     visibility,
     memberOrderDigest,
     variants,
+    aspectRatios,
   ];
 }
 
