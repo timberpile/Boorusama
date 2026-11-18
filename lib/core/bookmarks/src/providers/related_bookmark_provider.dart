@@ -1,3 +1,7 @@
+import '../../../content/content_access_provider.dart';
+import '../../../content/groups/related_group_counts.dart';
+import '../../../content/types.dart';
+
 import 'package:equatable/equatable.dart';
 
 import '../../../posts/related/related_posts_order_value.dart';
@@ -106,6 +110,24 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
       if (postOriginFromConfig(config).sourceHost != family.origin.sourceHost ||
           config.auth.booruType != family.origin.booruType)
         throw StateError('Related source mismatch');
+      // Reuse the actor already authorized by the caller; counts never warm a
+      // profile policy or create an extra source/client just for presentation.
+      ContentAccessContext? currentAccess() {
+        final public = config.anonymousReadScope;
+        if (public != null) {
+          return public.isCurrent
+              ? ref.read(contentAccessContextProvider(public.key))
+              : null;
+        }
+        final provider = contentProfileAccessProvider(config.id);
+        return ref.exists(provider) ? ref.read(provider) : null;
+      }
+
+      final access = currentAccess();
+      bool countAccessCurrent() =>
+          access != null &&
+          access.config?.auth == config.auth &&
+          identical(currentAccess(), access);
       final cancellation = CancelToken();
       ref.onDispose(cancellation.cancel);
       final repo = ref.watch(originAwarePostRepoProvider(config));
@@ -117,6 +139,20 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
       final existing = library.pools
           .where((p) => p.identity == family.identity)
           .firstOrNull;
+      final counts = ref.read(relatedGroupCountsProvider.notifier);
+      final metadata = countAccessCurrent()
+          ? GroupMetadataKey(
+              reference: const ContentReferenceCodec().parse(
+                engine: config.auth.booruType,
+                site: Uri.parse(config.url),
+                kind: ContentKind.group,
+                sourceKey: 'related:${family.anchorId}',
+              ),
+              access: access!.key,
+            )
+          : null;
+      if (metadata != null) counts.invalidate(metadata);
+      final countRead = metadata == null ? null : counts.begin(metadata);
       final result = await runWithApiRequestContext(
         ApiRequestContext(cancelToken: cancellation),
         () => repo
@@ -128,6 +164,7 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
         throw StateError('Related request cancelled');
       if (data == null && existing != null)
         throw StateError('Related metadata unavailable');
+      if (countAccessCurrent()) counts.publish(countRead, data?.total);
       final now = DateTime.now().toUtc();
       final members =
           data?.posts.take(40).where(family.contains).toList() ?? <Post>[];
