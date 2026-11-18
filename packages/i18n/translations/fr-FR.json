@@ -483,5 +483,10 @@
     "options": {
       "save_to_folder": "Enregistrer dans un dossier"
     }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Grouper les publications"
+    }
   }
 }

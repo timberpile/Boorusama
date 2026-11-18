@@ -240,5 +240,10 @@
     "options": {
       "save_to_folder": "Сахраніць у"
     }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Групаваць допісы"
+    }
   }
 }

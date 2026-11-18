@@ -409,5 +409,10 @@
     "options": {
       "save_to_folder": "儲存至資料夾"
     }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "將貼文分組"
+    }
   }
 }

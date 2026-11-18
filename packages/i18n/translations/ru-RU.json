@@ -997,7 +997,8 @@
       "one": "$n пост"
     },
     "actions": {
-      "stats": "Статистика"
+      "stats": "Статистика",
+      "group_posts": "Группировать посты"
     },
     "hidden_count": "$hidden из $total"
   }

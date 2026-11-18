@@ -83,7 +83,10 @@ void main() {
 
         final sorted = tester.widget<PostGrid<Post>>(grid).controller;
         expect(sorted.items.map((post) => post.id), [2, 1, 3]);
-        expect(find.text('Load older posts'), findsNothing);
+        expect(
+          find.byKey(const ValueKey('cached-feed-load-older')),
+          findsNothing,
+        );
         await _fetchMore(tester, sorted);
         expect(historyRequests, isEmpty);
         expect(sorted.items.map((post) => post.id), [2, 1, 3]);
@@ -107,7 +110,14 @@ void main() {
         expect(restored.items.map((post) => post.id), [1, 2, 3]);
         expect(restored.hasMore, isTrue);
         expect(historyRequests, isEmpty);
-        await _fetchMore(tester, restored);
+        final scroll = tester.widget<PostGrid<Post>>(grid).scrollController!;
+        scroll.jumpTo(scroll.position.maxScrollExtent);
+        await drain(tester);
+        final loadOlder = find.byKey(const ValueKey('cached-feed-load-older'));
+        expect(loadOlder, findsOneWidget);
+        await tester.tap(loadOlder);
+        await tester.pump(restored.debounceDuration);
+        await drain(tester);
         expect(historyRequests, [1]);
         expect(tester.takeException(), isNull);
       },

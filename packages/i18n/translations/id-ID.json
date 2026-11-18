@@ -1331,7 +1331,8 @@
       "edit_global_blacklist": "Sunting Daftar Hitam Global",
       "edit_booru_specific_blacklist": "Sunting Daftar Hitam Spesifik Booru",
       "edit_profile_blacklist": "Ubah Daftar Hitam Profil",
-      "stats": "Statistik"
+      "stats": "Statistik",
+      "group_posts": "Kelompokkan Postingan"
     },
     "hidden_count": "$hidden dari $total",
     "counter": {

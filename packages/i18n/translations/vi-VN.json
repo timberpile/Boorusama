@@ -1186,7 +1186,8 @@
       "edit_global_blacklist": "Sửa tag đã chặn (toàn app)",
       "edit_booru_specific_blacklist": "Sửa tag đã chặn của Booru",
       "edit_profile_blacklist": "Sửa tag đã chặn của Hồ sơ",
-      "stats": "Thống kê"
+      "stats": "Thống kê",
+      "group_posts": "Nhóm bài đăng"
     },
     "hidden_count": "$hidden trên $total",
     "counter": {

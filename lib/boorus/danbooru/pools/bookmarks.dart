@@ -111,11 +111,18 @@ final class DanbooruPoolBookmarks implements PoolBookmarkCapability {
     if (dtos.length >= 1000) {
       throw StateError('Series membership response reached the Pool limit');
     }
-    final result = <int, List<RemoteBookmarkPool>>{};
+    final result = <int, List<RemoteBookmarkPool>>{
+      for (final id in requested) id: [],
+    };
     for (final dto in dtos) {
       final pool = poolDtoToDanbooruPool(dto);
-      if (pool == null || pool.category != DanbooruPoolCategory.series)
-        continue;
+      if (pool == null ||
+          pool.category == null ||
+          (pool.category == DanbooruPoolCategory.series &&
+              pool.postIds == null)) {
+        throw const FormatException('Incomplete Series membership response');
+      }
+      if (pool.category != DanbooruPoolCategory.series) continue;
       final summary = danbooruBookmarkPool(
         pool,
         site: Uri.parse(config.url),

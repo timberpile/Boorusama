@@ -1187,7 +1187,8 @@
       "edit_global_blacklist": "உலகளாவிய தடுப்புப்பட்டியலைத் திருத்தவும்",
       "edit_booru_specific_blacklist": "Booru இன் குறிப்பிட்ட தடுப்புப்பட்டியலைத் திருத்தவும்",
       "edit_profile_blacklist": "சுயவிவர தடுப்புப்பட்டியலைத் திருத்து",
-      "stats": "புள்ளிவிவரங்கள்"
+      "stats": "புள்ளிவிவரங்கள்",
+      "group_posts": "இடுகைகளைத் தொகுக்கவும்"
     },
     "hidden_count": "$total இல் $hidden",
     "counter": {

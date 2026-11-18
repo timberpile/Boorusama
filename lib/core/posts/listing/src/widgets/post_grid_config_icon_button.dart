@@ -20,6 +20,7 @@ import '../../../../images/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/routes.dart';
 import '../../../../settings/widgets.dart';
+import '../../../../settings/src/widgets/related_posts_grouping_setting.dart';
 import '../../../post/types.dart';
 import '../types/grid_size.dart';
 import '../types/image_list_type.dart';
@@ -355,6 +356,16 @@ class PostGridActionSheet extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (postController case final controller?)
+                ListenableBuilder(
+                  listenable: controller.grouping,
+                  builder: (_, _) => controller.grouping.supported
+                      ? const RelatedPostsGroupingSetting(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ListingSettingsInteractionBlocker(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 4,

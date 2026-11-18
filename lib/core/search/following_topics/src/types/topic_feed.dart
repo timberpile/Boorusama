@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'feed_series_membership.dart';
+
 import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../posts/post/types.dart';
@@ -77,10 +79,16 @@ class TopicFeed extends Equatable {
     List<StoredPostSnapshot> posts = const [],
     List<String> initializedSourceIds = const [],
     Map<String, List<String>> postSources = const {},
+    Map<String, FeedSeriesMembership> seriesMemberships = const {},
   }) : assert(maxPosts > 0, 'maxPosts must be positive'),
        sourceIds = List.unmodifiable(sourceIds),
        posts = List.unmodifiable(posts.take(maxPosts)),
        initializedSourceIds = List.unmodifiable(initializedSourceIds),
+       seriesMemberships = _trimSeries(
+         seriesMemberships,
+         posts.take(maxPosts),
+         sourceIds,
+       ),
        postSources = Map.unmodifiable({
          for (final entry in postSources.entries)
            entry.key: List<String>.unmodifiable(entry.value),
@@ -120,6 +128,9 @@ class TopicFeed extends Equatable {
                     const <String>[]
               : const <String>[],
       },
+      seriesMemberships: FeedSeriesMembership.readCache(
+        json['seriesMemberships'],
+      ),
       postSources: switch (json['postSources']) {
         final Map values => {
           for (final entry in values.entries)
@@ -152,6 +163,7 @@ class TopicFeed extends Equatable {
 
   /// Provenance of individual cached results; older cache rows may lack it.
   final Map<String, List<String>> postSources;
+  final Map<String, FeedSeriesMembership> seriesMemberships;
 
   TopicFeed copyWith({
     String? profileId,
@@ -162,6 +174,7 @@ class TopicFeed extends Equatable {
     List<StoredPostSnapshot>? posts,
     List<String>? initializedSourceIds,
     Map<String, List<String>>? postSources,
+    Map<String, FeedSeriesMembership>? seriesMemberships,
   }) => TopicFeed(
     id: id,
     profileId: profileId ?? this.profileId,
@@ -172,6 +185,7 @@ class TopicFeed extends Equatable {
     posts: posts ?? this.posts,
     initializedSourceIds: initializedSourceIds ?? this.initializedSourceIds,
     postSources: postSources ?? this.postSources,
+    seriesMemberships: seriesMemberships ?? this.seriesMemberships,
   );
   Map<String, Object?> toJson({bool includeCache = true}) => {
     'id': id,
@@ -183,10 +197,16 @@ class TopicFeed extends Equatable {
     if (includeCache) 'posts': posts.map(feedPostSnapshotToJson).toList(),
     if (includeCache) 'initializedSourceIds': initializedSourceIds,
     if (includeCache) 'postSources': postSources,
+    if (includeCache)
+      'seriesMemberships': {
+        for (final entry in seriesMemberships.entries)
+          entry.key: entry.value.toJson(),
+      },
   };
   TopicFeed merge(
     List<StoredPostSnapshot> incoming, {
     String? sourceId,
+    Map<String, FeedSeriesMembership> seriesMemberships = const {},
   }) {
     final byId = {for (final post in posts) feedPostIdentity(post): post};
     final sources = <String, Set<String>>{
@@ -214,6 +234,7 @@ class TopicFeed extends Equatable {
     final keys = retained.map(feedPostIdentity).toSet();
     return copyWith(
       posts: retained,
+      seriesMemberships: {...this.seriesMemberships, ...seriesMemberships},
       initializedSourceIds:
           sourceId == null || initializedSourceIds.contains(sourceId)
           ? initializedSourceIds
@@ -261,6 +282,7 @@ class TopicFeed extends Equatable {
     posts,
     initializedSourceIds,
     postSources,
+    seriesMemberships,
   ];
 }
 
@@ -414,3 +436,21 @@ Map<String, Object?> feedPostSnapshotToJson(StoredPostSnapshot snapshot) => {
   'snapshotSchemaVersion': 1,
   'postSnapshot': snapshot.toJson(),
 };
+
+Map<String, FeedSeriesMembership> _trimSeries(
+  Map<String, FeedSeriesMembership> memberships,
+  Iterable<StoredPostSnapshot> posts,
+  List<String> sourceIds,
+) {
+  final keys = {
+    for (final p in posts)
+      feedSeriesPostKey(PostOrigin.fromSnapshot(p.origin), feedPostId(p)),
+  };
+  final activeSources = sourceIds.toSet();
+  return Map.unmodifiable({
+    for (final entry in memberships.entries)
+      if (keys.contains(entry.key) &&
+          activeSources.contains(entry.value.sourceId))
+        entry.key: entry.value,
+  });
+}

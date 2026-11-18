@@ -1169,7 +1169,8 @@
       "edit_profile_blacklist": "Редагувати чорний список профілю",
       "stats": "Статистика",
       "view_options": "Параметри перегляду",
-      "edit_blacklist": "Редагувати чорний список"
+      "edit_blacklist": "Редагувати чорний список",
+      "group_posts": "Групувати дописи"
     },
     "hidden_count": "$hidden з $total",
     "counter": {

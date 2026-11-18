@@ -1237,7 +1237,8 @@
       "edit_global_blacklist": "Genel engel listesini düzenle",
       "edit_booru_specific_blacklist": "Booru'nun özel engelini düzenle",
       "edit_profile_blacklist": "Profil engel listesini düzenle",
-      "stats": "İstatistikler"
+      "stats": "İstatistikler",
+      "group_posts": "Gönderileri grupla"
     },
     "hidden_count": "$total öğeden $hidden tanesi gizli",
     "counter": {

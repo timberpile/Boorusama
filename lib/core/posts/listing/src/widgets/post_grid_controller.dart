@@ -15,6 +15,7 @@ import '../../../filter/types.dart';
 import '../../../post/types.dart';
 import '../types/page_mode.dart';
 import '../types/timeline_continuation_controller.dart';
+import '../types/timeline_post_grouping.dart';
 import 'post_duplicate_checker.dart';
 
 const _kFirstPage = 1;
@@ -66,6 +67,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
   var _rulesRevision = 0;
 
   final PostGridFetcher<T> fetcher;
+  final grouping = TimelinePostGrouping();
   PageMode _pageMode;
   final Future<Set<String>> Function()? blacklistedUrlsFetcher;
   Set<String>? blacklistedTags;
@@ -630,6 +632,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
 
   @override
   void dispose() {
+    grouping.dispose();
     _disposed = true;
     _blacklistGeneration++;
     _refreshing = false;

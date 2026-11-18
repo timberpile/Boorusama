@@ -138,6 +138,7 @@ class RecordingFollowingTopicRepository implements FollowingTopicRepository {
   final List<TopicFeed> _feeds;
   final deletedProfileIds = <String>[];
   final restoredProfileIds = <String>[];
+  final seriesInvalidatedProfileIds = <String>[];
   List<FollowingTopic>? restoredSubscriptions;
   Error? deleteFailure;
   Error? invalidateFailure;
@@ -220,6 +221,20 @@ class RecordingFollowingTopicRepository implements FollowingTopicRepository {
         (id) => !removedIds.contains(id),
       ),
     );
+  }
+
+  @override
+  Future<void> invalidateFeedSeriesForProfile(String profileId) async {
+    seriesInvalidatedProfileIds.add(profileId);
+    for (var i = 0; i < _feeds.length; i++) {
+      _feeds[i] = _feeds[i].copyWith(
+        seriesMemberships: {
+          for (final entry in _feeds[i].seriesMemberships.entries)
+            if (entry.value.origin.profileIdHint != profileId)
+              entry.key: entry.value,
+        },
+      );
+    }
   }
 
   @override
@@ -539,6 +554,30 @@ void main() {
           expect(searches.remainingFeeds.single.posts, isEmpty);
         },
       );
+
+      test('credential edits invalidate only Series metadata, keeping Post cache and checkpoints', () async {
+        final searches = repository();
+        final container = createBooruConfigContainer(
+          settingsRepository: InMemorySettingsRepository(),
+          followingTopicRepository: searches,
+        );
+        addTearDown(container.dispose);
+        final notifier = container.read(booruConfigProvider.notifier);
+        await notifier.add(data: original);
+        await notifier.update(
+          booruConfigData: original.copyWith(
+            apiKey: 'replacement',
+            login: 'owner',
+          ),
+          oldConfigId: '00000000-0000-4000-8000-000000000001',
+        );
+        expect(searches.seriesInvalidatedProfileIds, [
+          '00000000-0000-4000-8000-000000000001',
+        ]);
+        expect(searches.remaining.first.runtimeRevision, 0);
+        expect(searches.remaining.first.lastSuccessfulCheckAt, checkedAt);
+        expect(searches.remainingFeeds.single.posts, hasLength(1));
+      });
 
       test(
         'editing the name on an equivalent site preserves feed cache',

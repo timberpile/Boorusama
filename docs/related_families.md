@@ -2,7 +2,7 @@
 
 A Danbooru Related family is one source-scoped parent anchor and its direct
 children. `RelatedFamilyReference` is the semantic reference for saved bookmarks,
-viewer entries and future timeline grouping. Its `ViewerContentIdentity`
+viewer entries and timeline grouping. Its `ViewerContentIdentity`
 contains the engine, normalized source namespace, `related` kind and positive
 anchor ID. A child uses its positive parent ID; a parent uses its own ID.
 References never follow later reparenting or traverse grandchildren.
@@ -75,6 +75,47 @@ and every upload date is known. A failed refresh preserves the saved summary;
 new offline references can be saved with unknown metadata. Covers follow the
 existing visibility-policy check and never resolve using an unrelated profile.
 
-Automatic Search/Artist grouping belongs to #134. The optional exact-parent
+## Timeline grouping
+
+Browse, Search, Artist, and Topic Feed timelines use the shared grouping projection.
+When Related grouping is enabled, an eligible Danbooru Post with verified
+parent/child evidence represents its direct family, including a singleton.
+Later direct-family members join
+that card regardless of distance or appended page. The first thumbnail, position,
+and viewer occurrence remain stable; every member retains its original raw index.
+Series keeps its five-result lookahead and priority for unfrozen results. Late
+metadata never steals a built ordinary, Related, or Series card.
+
+Appearance settings and Timeline View Options offer **Group Related Posts**.
+Both edit the same persisted global preference, which defaults OFF and survives
+query, source/profile, controller, Selection Mode, and viewer/Back changes.
+OFF expands only Related families and restores their individual Related thumbnail
+icons; Series remains grouped. Changing the preference does not refetch or modify
+the raw list. Selection and explicit family/Series searches always show raw Posts.
+Preference changes restore a visible raw member's scroll anchor where practical,
+including under pinned headers, and preserve frozen Series representatives.
+
+Related badges show an access-valid cached full-family total when known; otherwise
+they show only the Related icon. There is no fallback count, placeholder, ratio,
+or extra count request. Tapping still opens the full accessible family gallery.
+The family registry is reconstructed from raw Posts and frozen entries on each
+projection and is never persisted or shared across timelines.
+
+Browse uses the same projection and bounded Series membership admission as
+Search. Mobile trend-tag selections and applied desktop queries update the
+grouping session; explicit family/Series queries remain raw.
+
+Topic Feeds resolve Series membership from optional feed-local cached metadata.
+Opening a cached feed or changing the Related preference makes no Post or Series
+requests. Refresh backfills missing Series metadata; failures preserve loaded
+Posts. Older history still requires explicit continuation. Series cache entries
+remain source/account scoped and are excluded from backups and sharing.
+
+See the [approved #134 handoff](handoffs/134-related-one-card-group-posts-toggle-2026-11-18.md)
+and the revised [global preference](handoffs/134-global-related-grouping-2026-11-18-results.md)
+and [Topic Feed](handoffs/134-topic-feed-grouping-2026-11-18-results.md) implementation notes.
+The [Browse follow-up](handoffs/134-browse-grouping-verification-2026-11-18.md)
+records the missing home-route connection in `e6ccbfbee` and its regression coverage.
+The optional exact-parent
 Search toolbar action is deferred to #115; combined queries are never treated as
 a complete unfiltered family.

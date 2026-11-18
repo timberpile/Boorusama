@@ -1225,7 +1225,8 @@
       "edit_global_blacklist": "Editar Lista Negra Global",
       "edit_booru_specific_blacklist": "Editar Lista Negra Específica ao Booru",
       "edit_profile_blacklist": "Editar Lista Negra de Perfil",
-      "stats": "Estatísticas"
+      "stats": "Estatísticas",
+      "group_posts": "Agrupar publicações"
     },
     "hidden_count": "$hidden de $total",
     "counter": {

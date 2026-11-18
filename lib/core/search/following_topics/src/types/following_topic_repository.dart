@@ -106,6 +106,7 @@ abstract interface class FollowingTopicRepository {
   Future<void> delete(String id);
   Future<void> deleteForProfile(String profileId);
   Future<void> invalidateRuntimeForProfile(String profileId);
+  Future<void> invalidateFeedSeriesForProfile(String profileId);
 
   /// Restore receiver-local definitions/runtime only; preserve source-owned mirrors.
   /// Passing a received ID is rejected even when its profile matches.

@@ -85,6 +85,12 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   add('appearance', 'show_bookmark_count', appearance.show_bookmark_count);
   add(
     'appearance',
+    'group_related_posts',
+    t.posts.actions.group_related_posts,
+    keywords: ['related parent child family grouping timeline'],
+  );
+  add(
+    'appearance',
     'keep_timeline_toolbar_visible',
     t.timelineToolbar.keepVisible,
     description: t.timelineToolbar.scrollDescription,

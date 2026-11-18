@@ -18,10 +18,14 @@ void main() {
   });
   final capabilityProvider = Provider((ref) => DanbooruPoolBookmarks(ref));
 
-  for (final saturated in [false, true]) {
+  for (final mode in ['complete', 'saturated', 'partial']) {
+    final saturated = mode == 'saturated';
+    final partial = mode == 'partial';
     test(
       saturated
           ? 'a saturated Pool response fails instead of caching partial membership'
+          : partial
+          ? 'incomplete Series metadata is unknown, never confirmed empty'
           : 'one metadata request covers 200 IDs and more than 100 Pools',
       () async {
         var requests = 0;
@@ -46,7 +50,7 @@ void main() {
                           'name': 'Series $i',
                           'category': i == 0 ? 'collection' : 'series',
                           'post_count': 500,
-                          'post_ids': [1, 200, 999],
+                          if (!partial) 'post_ids': [1, 200, 999],
                         },
                     ],
                   ),
@@ -73,9 +77,15 @@ void main() {
         );
         if (saturated) {
           await expectLater(pending, throwsStateError);
+        } else if (partial) {
+          await expectLater(pending, throwsFormatException);
         } else {
           final result = await pending;
-          expect(result.keys, unorderedEquals([1, 200]));
+          expect(
+            result.keys,
+            unorderedEquals(List.generate(200, (i) => i + 1)),
+          );
+          expect(result[2], isEmpty);
           expect(result[200], hasLength(149));
           expect(result[200]!.last.total, 500);
           expect(result[200]!.last.id, 150);

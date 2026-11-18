@@ -1159,8 +1159,7 @@ class _ArtistSeriesCapability implements PoolBookmarkCapability {
   ) async {
     calls.add(posts.map((p) => p.id).toList());
     return {
-      for (final p in posts)
-        if (p.id >= 91 && p.id <= 108) p.id: [pool],
+      for (final p in posts) p.id: p.id >= 91 && p.id <= 108 ? [pool] : [],
     };
   }
 

@@ -12,6 +12,7 @@ abstract interface class PoolBookmarkCapability {
   Future<RemoteBookmarkPool?> getBookmarkPool(BooruConfig config, int id);
 
   /// Callers submit at most [membershipBudget] posts in one bounded admission.
+  /// Return an empty list for a confirmed absence; omitted IDs remain unknown.
   Future<Map<int, List<RemoteBookmarkPool>>> getBookmarkSeries(
     BooruConfig config,
     List<Post> posts,

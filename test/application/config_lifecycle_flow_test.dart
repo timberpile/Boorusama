@@ -88,6 +88,11 @@ void main() {
         expect(saved.auth.apiKey, profile.auth.apiKey);
         expect(saved.auth.login, profile.auth.login);
         expect(saved.auth.passHash, profile.auth.passHash);
+        await flow.harness.pumpUntil(
+          tester,
+          () => find.byType(PixivExperimentalNotice).evaluate().isEmpty,
+          description: 'saved Pixiv editor to close',
+        );
         await flow.openEditor(backend.config);
         expect(find.byType(PixivExperimentalNotice), findsNothing);
       },

@@ -8,6 +8,23 @@ class NeighboringSeriesEntry<T> {
   }) : indices = List.unmodifiable(indices),
        posts = List.unmodifiable(posts);
 
+  /// Builds a presentation entry while retaining its original source indices.
+  factory NeighboringSeriesEntry.fromIndices(
+    List<T> source,
+    List<int> indices,
+  ) => NeighboringSeriesEntry._(
+    indices: indices,
+    posts: [for (final index in indices) source[index]],
+    seriesId: null,
+  );
+
+  /// Reserves an already built tile while another projection claims groups.
+  NeighboringSeriesEntry<T> asUngrouped() => NeighboringSeriesEntry._(
+    indices: indices,
+    posts: posts,
+    seriesId: null,
+  );
+
   final List<int> indices;
   final List<T> posts;
   final int? seriesId;

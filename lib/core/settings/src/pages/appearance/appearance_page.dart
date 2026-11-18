@@ -20,6 +20,7 @@ import '../../providers/settings_provider.dart';
 import '../../types/settings.dart';
 import '../../widgets/settings_interaction_blocker.dart';
 import '../../widgets/settings_page_scaffold.dart';
+import '../../widgets/related_posts_grouping_setting.dart';
 import 'image_listing_settings_section.dart';
 
 class AppearancePage extends ConsumerStatefulWidget {
@@ -65,6 +66,7 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
           ),
         const Divider(thickness: 1),
         KurumiSettingsHeader(label: context.t.settings.image_grid.image_grid),
+        const RelatedPostsGroupingSetting(),
         ListingSettingsInteractionBlocker(
           child: ImageListingSettingsSection(
             listing: settings.listing,

@@ -1391,7 +1391,8 @@
       "edit_global_blacklist": "Editar Lista negra Global",
       "edit_booru_specific_blacklist": "Editar Lista negra específica do Booru",
       "edit_profile_blacklist": "Editar Lista negra do Perfil",
-      "stats": "Métricas"
+      "stats": "Métricas",
+      "group_posts": "Agrupar publicações"
     },
     "hidden_count": "$hidden de $total",
     "counter": {

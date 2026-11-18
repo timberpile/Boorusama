@@ -268,5 +268,10 @@
     "options": {
       "save_to_folder": "Lagre i mappe"
     }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Grupper innlegg"
+    }
   }
 }

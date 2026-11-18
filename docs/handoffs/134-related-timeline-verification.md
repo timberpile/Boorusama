@@ -1,0 +1,16 @@
+# #134 Related timeline grouping verification
+
+Base: `4542aaa44e5002f7d546fb4ec96bf4cb0523cee5` (origin/develop, includes #144).
+Branch: `feature/134-related-timeline-groups`. Refs #134; owner acceptance pending.
+
+Ordinary Danbooru Search and Artist grids project Series first, then direct Related families on remaining raw indices with the same rolling five-result algorithm. Shared `RelatedFamilyReference` supplies canonical identity; grandchildren are not flattened. At least two actual timeline results are required. Built ordinary/Series/Related tiles reserve every member index, preserving covers and occurrence identity across pagination. Series takes precedence before Related projection; later metadata does not steal already built tiles.
+
+Related cards reuse `PoolGridItem` styling, the first grouped filtered Post thumbnail, the Related icon and one count: already cached metadata for the current actor/access key when available at projection time, otherwise actual grouped size. No family request/crawl is started to obtain a count. The existing mixed-viewer Group entry opens the full `related:<anchor>` gallery with its established source/pagination contract; no inline partial family is invented. Selection and explicit pool/series/parent/child/id searches show raw posts. Bookmarks and dedicated galleries do not use this search/artist projection. Existing source/auth matching and controller visibility filtering remain in force. #176 UX changes are excluded.
+
+Verification:
+
+- `fvm dart format` on the five changed Dart files; `git diff --check` clean.
+- `fvm flutter test --no-pub --concurrency=6 test/core/posts/listing/neighboring_timeline_groups_test.dart test/core/posts/listing/related_timeline_grid_test.dart test/core/posts/listing/neighboring_series_test.dart test/core/posts/listing/search_series_index_test.dart`: final unchanged candidate passed 35 tests. Covers parents/siblings, rolling extension/gaps/intervening results, Series overlap, direct-family boundaries, scope isolation, frozen pagination, 40 deterministic mixed-index scenarios, existing Series metadata controls, and actual Related cards at 320px/200% text. Production widget tests verify known/fallback count, distinct icon, first thumbnail, real card tap, full-family route/config binding, raw selection and explicit family-query exclusion.
+- Scoped `fvm dart analyze` on those five files: zero errors/warnings, seven informational findings. Initial widget host lacked PostScope's configuration header; the fixture supplies an explicit empty header and selection action host, then both widget cases and the final combination passed. Durable logs: `.worktrees/_artifacts/pre-release-20261117/134-*`.
+
+Not performed: live family crawling/API acceptance, real full-gallery pagination/media decoding, comprehensive rating/blacklist/account navigation integration, Android/emulator/device checks, APK build or complete regression suite. Existing gallery pagination is reused, not re-proven on-device. Owner should compare Search/Artist cards, Series overlap, selection, incremental loading, returning from the Related viewer and restricted-profile behavior on Android. Feature is excluded from bugfix preview; full develop integration verification remains deferred.

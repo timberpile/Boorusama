@@ -246,6 +246,12 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
       final siteChanged = !_sameBooruSite(existingConfig, proposedConfig);
+      final actorChanged =
+          existingConfig.auth.login != proposedConfig.auth.login ||
+          existingConfig.auth.apiKey != proposedConfig.auth.apiKey ||
+          existingConfig.auth.passHash != proposedConfig.auth.passHash ||
+          existingConfig.proxySettings != proposedConfig.proxySettings ||
+          existingConfig.networkSettings != proposedConfig.networkSettings;
       final searches = ref.read(followingTopicsProvider.notifier);
       Future<BooruConfig?> save() => searches.runSerializedMutation((
         searchRepository,
@@ -262,6 +268,8 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             : const <TopicFeed>[];
         if (siteChanged) {
           await searchRepository.invalidateRuntimeForProfile(oldConfigId);
+        } else if (actorChanged) {
+          await searchRepository.invalidateFeedSeriesForProfile(oldConfigId);
         }
         final configRepository = ref.read(booruConfigRepoProvider);
         BooruConfig? updated;
@@ -298,7 +306,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         }
         return updated;
       });
-      final updatedConfig = siteChanged
+      final updatedConfig = siteChanged || actorChanged
           ? await searches.runWithProfileRefreshPaused(oldConfigId, save)
           : await save();
 

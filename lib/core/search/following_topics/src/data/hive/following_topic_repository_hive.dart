@@ -695,6 +695,44 @@ class HiveFollowingTopicRepository
   });
 
   @override
+  Future<void> invalidateFeedSeriesForProfile(String profileId) =>
+      _serialize(() async {
+        final sourceIds = {
+          for (final source in _topics())
+            if (source.profileId == profileId) source.id,
+        };
+        final previous = <String, Object?>{};
+        final next = <String, Object?>{};
+        for (final feed in _feeds()) {
+          if (!feed.seriesMemberships.values.any(
+            (value) =>
+                value.origin.profileIdHint == profileId ||
+                sourceIds.contains(value.sourceId),
+          )) {
+            continue;
+          }
+          final key = 'feed:${feed.id}';
+          previous[key] = _organizationBox?.get(key);
+          next[key] = feed
+              .copyWith(
+                seriesMemberships: {
+                  for (final entry in feed.seriesMemberships.entries)
+                    if (entry.value.origin.profileIdHint != profileId &&
+                        !sourceIds.contains(entry.value.sourceId))
+                      entry.key: entry.value,
+                },
+              )
+              .toJson();
+        }
+        try {
+          await _organizationBox?.putAll(next);
+        } catch (_) {
+          await _organizationBox?.putAll(previous);
+          rethrow;
+        }
+      });
+
+  @override
   Future<void> invalidateRuntimeForProfile(String profileId) =>
       _serialize(() async {
         final originals = {
@@ -1584,7 +1622,13 @@ class HiveFollowingTopicRepository
         for (final feed in referencingFeeds) {
           await _organizationBox?.put(
             'feed:${feed.id}',
-            feed.merge(commit.feedPosts, sourceId: current.id).toJson(),
+            feed
+                .merge(
+                  commit.feedPosts,
+                  sourceId: current.id,
+                  seriesMemberships: commit.feedSeriesMemberships,
+                )
+                .toJson(),
           );
         }
         if (saveEstimate) {

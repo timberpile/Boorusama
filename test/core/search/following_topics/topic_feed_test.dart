@@ -294,6 +294,14 @@ void main() {
     expect(controller().items.map((post) => post.id), [42, 41]);
     expect(controller().hasMore, isTrue);
     await controller().fetcher(2).run();
+    expect(
+      historyRequests,
+      0,
+      reason: 'Calling a fetcher cannot unlock history',
+    );
+    await tester.tap(find.byKey(const ValueKey('cached-feed-load-older')));
+    await tester.pump(controller().debounceDuration);
+    await settle(tester);
     expect(historyRequests, 1);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(await harness.repository.getById(source.id), before);

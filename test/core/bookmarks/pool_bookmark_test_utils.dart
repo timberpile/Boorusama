@@ -65,6 +65,7 @@ PostBookmark testPoolPost(int id, {Set<String> tags = const {}}) {
 Post testRelatedPost(
   int id, {
   int? parent,
+  bool hasChildren = false,
   String host = 'danbooru.donmai.us',
 }) {
   final core = const StoredPostCodec()
@@ -84,7 +85,7 @@ Post testRelatedPost(
       common: {
         ...core,
         'parentId': parent,
-        'hasParentOrChildren': parent != null,
+        'hasParentOrChildren': (parent ?? 0) > 0 || hasChildren,
       },
       custom: const {},
       codecVersion: 1,

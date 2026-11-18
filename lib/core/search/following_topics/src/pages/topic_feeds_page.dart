@@ -47,6 +47,12 @@ import '../services/feed_history_end_policy.dart';
 import '../providers/following_topics_notifier.dart';
 import '../providers/search_refresh_coordinator.dart';
 import '../types/topic_feed.dart';
+import '../types/feed_series_membership.dart';
+import '../services/feed_series_enrichment.dart';
+import '../../../../bookmarks/src/providers/pool_bookmark_provider.dart';
+import '../../../../bookmarks/src/types/pool_bookmark_capability.dart';
+import '../../../../posts/listing/src/widgets/grouped_post_grid.dart';
+import '../../../../posts/details/src/routes/viewer_navigation_scope.dart';
 import '../types/cached_topic_feed_filter.dart';
 import '../widgets/cached_feed_filter_bar.dart';
 import '../types/topic_organization.dart';
@@ -840,6 +846,10 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   PostGridController<Post>? _controller;
   late FeedHistorySession _history;
   late List<StoredPostSnapshot> _filteredSnapshots;
+  var _historyGeneration = 0;
+  var _groupingSession = Object();
+  List<BooruConfig?>? _actors;
+  Map<String, FeedSeriesMembership> _series = {};
   var _historyStarted = false;
   var _hasUpdates = false;
   var _historyCoverageIncomplete = false;
@@ -876,55 +886,97 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     super.dispose();
   }
 
-  void stopHistory() => _history.dispose();
+  void stopHistory() {
+    _historyGeneration++;
+    _history.dispose();
+  }
 
-  FeedHistorySession _createHistory() => FeedHistorySession(
-    sources: widget.sources,
-    confirmExhaustion: (source, page, result) {
-      final owner = ref.read(followingTopicConfigProvider(source.id));
-      return owner != null &&
-          confirmsFeedHistoryEnd(
-            result,
-            booruType: owner.auth.booruType,
-            siteUrl: owner.url,
-            page: page,
-            limit: 20,
-          );
-    },
-    onExhausted: (source, end) async {
-      await ref
-          .read(followingTopicsProvider.notifier)
-          .recordHistoryEnd(source, end);
-    },
-    recent: [
-      for (final post in widget.feed.posts)
-        _decodeFeedPost(ref, post, widget.config),
-    ],
-    fetchPage: (source, page) async {
-      final owner = ref.read(followingTopicConfigProvider(source.id));
-      if (owner == null) throw StateError('Feed source profile unavailable');
-      final adapter = ref
-          .read(booruRepoProvider(owner.auth))
-          ?.searchRefreshQueryAdapter(owner.auth);
-      final plan = adapter?.plan(source.query, after: null);
-      if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
-        final result = await ref
-            .read(originAwarePostRepoProvider(owner))
-            .getPosts(
-              query,
-              page,
+  FeedHistorySession _createHistory() {
+    final generation = ++_historyGeneration;
+    _series = {...widget.feed.seriesMemberships};
+    return FeedHistorySession(
+      sources: widget.sources,
+      confirmExhaustion: (source, page, result) {
+        final owner = ref.read(followingTopicConfigProvider(source.id));
+        return owner != null &&
+            confirmsFeedHistoryEnd(
+              result,
+              booruType: owner.auth.booruType,
+              siteUrl: owner.url,
+              page: page,
               limit: 20,
-              options: PostFetchOptions.raw,
-            )
-            .run();
-        return result.fold(
-          (error) => throw StateError('$error'),
-          (posts) => posts,
-        );
-      }
-      throw StateError('Unsupported feed source');
-    },
-  );
+            );
+      },
+      onExhausted: (source, end) async {
+        await ref
+            .read(followingTopicsProvider.notifier)
+            .recordHistoryEnd(source, end);
+      },
+      recent: [
+        for (final post in widget.feed.posts)
+          _decodeFeedPost(ref, post, widget.config),
+      ],
+      fetchPage: (source, page) async {
+        final owner = ref.read(followingTopicConfigProvider(source.id));
+        if (owner == null) throw StateError('Feed source profile unavailable');
+        final adapter = ref
+            .read(booruRepoProvider(owner.auth))
+            ?.searchRefreshQueryAdapter(owner.auth);
+        final plan = adapter?.plan(source.query, after: null);
+        if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
+          final result = await ref
+              .read(originAwarePostRepoProvider(owner))
+              .getPosts(
+                query,
+                page,
+                limit: 20,
+                options: PostFetchOptions.raw,
+              )
+              .run();
+          final posts = result.fold(
+            (error) => throw StateError('$error'),
+            (posts) => posts,
+          );
+          bool current() =>
+              mounted &&
+              generation == _historyGeneration &&
+              _historyStarted &&
+              !widget.filter.isActive &&
+              feedSeriesSameActor(
+                ref.read(followingTopicConfigProvider(source.id)),
+                owner,
+              ) &&
+              (ref
+                      .read(followingTopicsProvider)
+                      .valueOrNull
+                      ?.topics
+                      .any(
+                        (latest) =>
+                            latest.id == source.id &&
+                            latest.runtimeRevision == source.runtimeRevision,
+                      ) ??
+                  false);
+          var metadata = <String, FeedSeriesMembership>{};
+          try {
+            metadata = await enrichFeedSeries(
+              config: owner,
+              source: source,
+              posts: posts.posts,
+              capability: ref.read(poolBookmarkCapabilityProvider(owner)),
+              isCurrent: current,
+            );
+          } on Object {
+            // Metadata resolution is optional; the fetched Post page is valid.
+          }
+          if (!current()) throw StateError('Feed history source changed');
+          _series.addAll(metadata);
+          return posts;
+        }
+        throw StateError('Unsupported feed source');
+      },
+    );
+  }
+
   @override
   void didUpdateWidget(covariant _CachedFeedGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -975,12 +1027,18 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       oldWidget.feed.posts,
       widget.feed.posts,
     );
+    final metadataChanged = !const MapEquality<String, FeedSeriesMembership>()
+        .equals(
+          oldWidget.feed.seriesMemberships,
+          widget.feed.seriesMemberships,
+        );
+    if (!_historyStarted) _series = {...widget.feed.seriesMemberships};
     if (filterChanged || postsChanged) {
       _filteredSnapshots = widget.filter.apply(widget.feed.posts);
     }
     if (!filterChanged &&
         !widget.filter.isActive &&
-        postsChanged &&
+        (postsChanged || metadataChanged) &&
         _historyStarted &&
         !sourceDefinitionsChanged) {
       _hasUpdates = true;
@@ -996,7 +1054,11 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       }
       return;
     }
-    if (filterChanged || sourceDefinitionsChanged || postsChanged) {
+    if (filterChanged || sourceDefinitionsChanged) _groupingSession = Object();
+    if (filterChanged ||
+        sourceDefinitionsChanged ||
+        postsChanged ||
+        metadataChanged) {
       _history.dispose();
       _history = _createHistory();
       _historyStarted = false;
@@ -1027,12 +1089,18 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   }
 
   Future<void> _openPost(
+    BuildContext tileContext,
     int index,
     AutoScrollController scrollController,
     Post post,
   ) => _feedAction(context, () async {
     final controller = _controller;
     if (controller == null) return;
+    final projected = ViewerNavigationScope.maybeOf(tileContext);
+    if (projected != null) {
+      projected.open(index, post.thumbnailImageUrl);
+      return;
+    }
     final access = _feedPostAccess(ref, post, widget.sources);
     final config = access?.config;
     if (config == null) return;
@@ -1055,8 +1123,55 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     unawaited(controller.fetchMore());
   }
 
+  List<RemoteBookmarkPool> _seriesForPost(
+    Post post,
+    Map<String, int> revisions,
+  ) {
+    final config = _feedPostAccess(ref, post, widget.sources)?.config;
+    final cached = _series[feedSeriesPostKey(post.origin, post.id)];
+    if (config == null ||
+        cached == null ||
+        !feedSeriesMatchesConfig(post.origin, config) ||
+        revisions[cached.sourceId] != cached.sourceRevision) {
+      return const [];
+    }
+    return [for (final series in cached.series) series.toPool()];
+  }
+
   @override
-  Widget build(BuildContext context) => CurrentBooruConfigScope(
+  Widget build(BuildContext context) {
+    final actors = [
+      for (final source in widget.sources)
+        ref.watch(followingTopicConfigProvider(source.id)),
+    ];
+    if (_actors != null &&
+        !const ListEquality<BooruConfig?>().equals(_actors, actors)) {
+      _groupingSession = Object();
+      _history.dispose();
+      _history = _createHistory();
+      final changed = <String>{
+        for (var i = 0; i < actors.length; i++)
+          if (i >= _actors!.length ||
+              !feedSeriesSameActor(_actors![i], actors[i]))
+            widget.sources[i].id,
+      };
+      _series.removeWhere((_, value) => changed.contains(value.sourceId));
+      _historyStarted = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_controller?.refresh() ?? Future.value());
+      });
+    }
+    _actors = actors;
+    return _buildFeed(context, actors, {
+      for (final source in widget.sources) source.id: source.runtimeRevision,
+    });
+  }
+
+  Widget _buildFeed(
+    BuildContext context,
+    List<BooruConfig?> actors,
+    Map<String, int> sourceRevisions,
+  ) => CurrentBooruConfigScope(
     config: widget.config,
     child: PostScope<Post>(
       key: ValueKey(widget.filter),
@@ -1081,9 +1196,8 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 hasMore: false,
               );
             }
-            if (page > 1 && mounted && identical(history, _history)) {
-              // Shared grid prefetch and manual continuation both start history.
-              setState(() => _historyStarted = true);
+            if (page > 1 && !_historyStarted) {
+              throw StateError('Feed history requires explicit continuation');
             }
             final result = await history.load(page);
             WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1123,6 +1237,20 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 automaticContinuationEnabled:
                     _historyStarted && !widget.filter.isActive,
                 controller: controller,
+                gridBuilder: (context, itemBuilder) => GroupedPostGrid(
+                  controller: controller,
+                  sessionKey: _groupingSession,
+                  supported: actors.any(
+                    (config) => config?.auth.booruType == BooruType.danbooru,
+                  ),
+                  configForPost: (post) =>
+                      _feedPostAccess(ref, post, widget.sources)?.config,
+                  seriesForPost: (post) =>
+                      _seriesForPost(post, sourceRevisions),
+                  canContinue: () =>
+                      mounted && _historyStarted && !widget.filter.isActive,
+                  itemBuilder: itemBuilder,
+                ),
                 body: widget.filter.isActive && _filteredSnapshots.isEmpty
                     ? SliverFillRemaining(
                         hasScrollBody: false,
@@ -1174,7 +1302,7 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                         useHero: useHero,
                         config: config.auth,
                         imageConfig: config.auth,
-                        onTap: () => _openPost(index, scroll, post),
+                        onTap: () => _openPost(context, index, scroll, post),
                       ),
                     ),
                   );
@@ -1321,19 +1449,22 @@ ContentAccessContext? _feedPostAccess(
   Post post,
   List<FollowingTopic> sources,
 ) {
-  final ordinary = ref.watch(contentAccessForOriginProvider(post.origin));
-  if (ordinary != null) return ordinary;
-  for (final source in sources) {
-    final config = ref.watch(followingTopicConfigProvider(source.id));
-    final scope = config?.anonymousReadScope;
-    if (scope != null &&
-        scope.isCurrent &&
-        scope.source.engine == post.origin.booruType &&
-        scope.source.site.host == post.origin.sourceHost) {
-      return ref.watch(contentAccessContextProvider(scope.key));
+  if (post.origin.profileIdHint == null) {
+    for (final source in sources) {
+      final config = ref.watch(followingTopicConfigProvider(source.id));
+      final scope = config?.anonymousReadScope;
+      if (scope != null &&
+          scope.isCurrent &&
+          scope.source.engine == post.origin.booruType &&
+          scope.source.site.host == post.origin.sourceHost) {
+        return ref.watch(contentAccessContextProvider(scope.key));
+      }
     }
   }
-  return null;
+  final ordinary = ref.watch(contentAccessForOriginProvider(post.origin));
+  final hint = post.origin.profileIdHint;
+  if (hint != null && ordinary?.key.profileId != hint) return null;
+  return ordinary;
 }
 
 Post _decodeFeedPost(

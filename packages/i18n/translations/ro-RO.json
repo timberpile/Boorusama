@@ -456,5 +456,10 @@
     "options": {
       "save_to_folder": "Salvați într-un dosar"
     }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Grupează postările"
+    }
   }
 }

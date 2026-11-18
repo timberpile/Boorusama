@@ -1457,7 +1457,11 @@
       "one": "$n Beitrag",
       "other": "$n Beiträge"
     },
-    "hidden_count": "$hidden von $total"
+    "hidden_count": "$hidden von $total",
+    "actions": {
+      "group_posts": "Beiträge gruppieren",
+      "group_related_posts": "Verwandte Beiträge gruppieren"
+    }
   },
   "artists": {
     "title": "Künstler",

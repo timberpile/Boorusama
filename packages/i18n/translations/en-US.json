@@ -2330,7 +2330,9 @@
       "edit_global_blacklist": "Edit Global Blacklist",
       "edit_booru_specific_blacklist": "Edit Booru's Specific Blacklist",
       "edit_profile_blacklist": "Edit Profile Blacklist",
-      "stats": "Stats"
+      "stats": "Stats",
+      "group_posts": "Group Posts",
+      "group_related_posts": "Group Related Posts"
     },
     "hidden_count": "$hidden of $total",
     "counter": {

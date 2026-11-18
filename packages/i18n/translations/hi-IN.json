@@ -20,5 +20,10 @@
     "action": {
       "edit_rating": "रेटिंग संपादित करें"
     }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "पोस्ट समूहित करें"
+    }
   }
 }

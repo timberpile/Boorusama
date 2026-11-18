@@ -1231,7 +1231,8 @@
       "edit_global_blacklist": "전역 차단 목록 편집",
       "edit_booru_specific_blacklist": "특정 부루 차단 목록 편집",
       "edit_profile_blacklist": "프로필 차단 목록 편집",
-      "stats": "통계"
+      "stats": "통계",
+      "group_posts": "게시물 그룹화"
     }
   },
   "artists": {

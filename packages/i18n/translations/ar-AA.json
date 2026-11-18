@@ -1237,7 +1237,8 @@
       "edit_global_blacklist": "تعديل القائمة السوداء العامة",
       "edit_booru_specific_blacklist": "تعديل قائمة Booru السوداء",
       "edit_profile_blacklist": "تعديل قائمة الملف الشخصي السوداء",
-      "stats": "الإحصائيات"
+      "stats": "الإحصائيات",
+      "group_posts": "تجميع المنشورات"
     },
     "hidden_count": "$hidden من $total",
     "counter": {

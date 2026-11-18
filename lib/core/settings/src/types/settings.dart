@@ -81,11 +81,13 @@ class Settings extends Equatable {
     this.followingTopicSort = 'manual',
     this.topicFeedMemberSort = 'addedDate',
     this.relatedPostsOrder = RelatedPostsOrder.oldest,
+    this.groupRelatedPosts = false,
     this.automaticUpdateChecks = true,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
     : relatedPostsOrder = RelatedPostsOrder.parse(json['relatedPostsOrder']),
+      groupRelatedPosts = json['groupRelatedPosts'] == true,
       safeMode = json['safeMode'] ?? true,
       listing = ImageListingSettings.fromJson(json),
       viewer = ImageViewerSettings.fromJson(json),
@@ -327,6 +329,7 @@ class Settings extends Equatable {
   final String followingTopicSort;
   final String topicFeedMemberSort;
   final RelatedPostsOrder relatedPostsOrder;
+  final bool groupRelatedPosts;
 
   final CacheSize videoCacheMaxSize;
   final CacheSize imageCacheMaxSize;
@@ -376,6 +379,7 @@ class Settings extends Equatable {
     String? followingTopicSort,
     String? topicFeedMemberSort,
     RelatedPostsOrder? relatedPostsOrder,
+    bool? groupRelatedPosts,
     CacheSize? videoCacheMaxSize,
     CacheSize? imageCacheMaxSize,
   }) => Settings(
@@ -438,6 +442,7 @@ class Settings extends Equatable {
     followingTopicSort: followingTopicSort ?? this.followingTopicSort,
     topicFeedMemberSort: topicFeedMemberSort ?? this.topicFeedMemberSort,
     relatedPostsOrder: relatedPostsOrder ?? this.relatedPostsOrder,
+    groupRelatedPosts: groupRelatedPosts ?? this.groupRelatedPosts,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
     imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
@@ -491,6 +496,7 @@ class Settings extends Equatable {
       'followingTopicSort': followingTopicSort,
       'topicFeedMemberSort': topicFeedMemberSort,
       'relatedPostsOrder': relatedPostsOrder.name,
+      'groupRelatedPosts': groupRelatedPosts,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
       'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
@@ -541,6 +547,7 @@ class Settings extends Equatable {
     followingTopicSort,
     topicFeedMemberSort,
     relatedPostsOrder,
+    groupRelatedPosts,
     videoCacheMaxSize,
     imageCacheMaxSize,
   ];

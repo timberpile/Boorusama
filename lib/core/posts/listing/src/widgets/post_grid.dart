@@ -1,3 +1,4 @@
+import '../types/timeline_post_grouping.dart';
 import '../../../../bookmarks/src/types/bookmark_identity.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
@@ -6,10 +7,12 @@ import 'package:foundation/performance.dart';
 import '../../../../../foundation/performance/performance_navigation.dart';
 
 // Dart imports:
+import 'dart:async';
 import 'dart:math';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart';
 import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -695,6 +698,105 @@ class PostGridScrollAnchor extends StatelessWidget {
   });
   final List<int> indices;
   final Widget child;
+
+  /// Reuses raw-index tags across a grouped/raw presentation change. Capture
+  /// before layout changes, then bring the same raw member back to its offset.
+  static void preservePosition(
+    BuildContext context,
+    VoidCallback change, {
+    bool Function()? isCurrent,
+    TimelinePostGrouping? grouping,
+  }) {
+    final controller = context
+        .getInheritedWidgetOfExactType<_InheritedAutoScrollController>()
+        ?.controller;
+    final viewport = Scrollable.maybeOf(context)?.context.findRenderObject();
+    ({int index, double top})? anchor;
+    if (controller != null &&
+        controller.hasClients &&
+        controller.offset > 0 &&
+        viewport is RenderBox &&
+        viewport.hasSize) {
+      final bounds = viewport.localToGlobal(Offset.zero) & viewport.size;
+      final header = context
+          .findAncestorRenderObjectOfType<RenderSliverPersistentHeader>()
+          ?.child;
+      // Global settings changes originate in the grid, outside its toolbar.
+      // Account for pinned headers even when the caller is not inside one.
+      final renderViewport = context
+          .findAncestorRenderObjectOfType<RenderViewport>();
+      var render = context.findRenderObject();
+      while (render != null && render.parent != renderViewport) {
+        render = render.parent;
+      }
+      final obstruction = renderViewport != null && render is RenderSliver
+          ? renderViewport.maxScrollObstructionExtentBefore(render)
+          : 0.0;
+      final visibleTop = header != null && header.hasSize
+          ? max(
+              bounds.top + obstruction,
+              header.localToGlobal(Offset.zero).dy + header.size.height,
+            )
+          : bounds.top + obstruction;
+      for (final entry in controller.tagMap.entries) {
+        final box = entry.value.context.findRenderObject();
+        if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+        final rect = box.localToGlobal(Offset.zero) & box.size;
+        if (rect.bottom <= visibleTop || rect.top >= bounds.bottom) continue;
+        if (anchor == null ||
+            rect.top < anchor.top ||
+            (rect.top == anchor.top && entry.key < anchor.index)) {
+          anchor = (index: entry.key, top: rect.top);
+        }
+      }
+    }
+    if (anchor != null && controller != null && grouping != null) {
+      final remembered = grouping.rawScrollAnchor;
+      if (remembered != null &&
+          controller.tagMap[remembered] != null &&
+          identical(
+            controller.tagMap[remembered],
+            controller.tagMap[anchor.index],
+          )) {
+        anchor = (index: remembered, top: anchor.top);
+      }
+      grouping.rawScrollAnchor = anchor.index;
+    }
+    change();
+    final target = anchor;
+    if (controller == null || target == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      bool current() =>
+          context.mounted &&
+          controller.hasClients &&
+          (isCurrent?.call() ?? true);
+      if (!current()) return;
+      unawaited(() async {
+        final representative =
+            grouping?.representativeIndex?.call(target.index) ?? target.index;
+        await controller.scrollToIndex(
+          representative,
+          preferPosition: AutoScrollPosition.begin,
+          duration: const Duration(milliseconds: 1),
+        );
+        if (!current()) return;
+        final tag =
+            controller.tagMap[target.index] ??
+            controller.tagMap[representative];
+        if (tag == null || !tag.mounted) return;
+        final box = tag.context.findRenderObject();
+        if (box is! RenderBox || !box.attached || !box.hasSize) return;
+        final delta = box.localToGlobal(Offset.zero).dy - target.top;
+        final position = controller.position;
+        controller.jumpTo(
+          (controller.offset + delta).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          ),
+        );
+      }());
+    });
+  }
 
   @override
   Widget build(BuildContext context) => _ProjectedAutoScrollTag(

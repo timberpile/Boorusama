@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../../../../posts/post/types.dart';
 import 'search_post_preview.dart';
+import 'feed_series_membership.dart';
 import 'following_topic.dart';
 
 enum SearchRefreshErrorKind {
@@ -29,6 +30,7 @@ class SearchRefreshCommit extends Equatable {
     required this.baseline,
     required List<SearchPostPreview> discoveredPosts,
     this.feedPosts = const [],
+    this.feedSeriesMemberships = const {},
     this.delta = false,
     this.truncated = false,
     this.canCommit,
@@ -40,6 +42,7 @@ class SearchRefreshCommit extends Equatable {
   /// Checked after acquiring the serialized write boundary, before mutation.
   final bool Function()? canCommit;
   final List<StoredPostSnapshot> feedPosts;
+  final Map<String, FeedSeriesMembership> feedSeriesMemberships;
   final bool delta;
   final bool truncated;
   final String topicId;
@@ -65,6 +68,7 @@ class SearchRefreshCommit extends Equatable {
     baseline,
     discoveredPosts,
     feedPosts,
+    feedSeriesMemberships,
     delta,
     truncated,
     canCommit,

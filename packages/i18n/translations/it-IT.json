@@ -482,5 +482,10 @@
     "recently_created": "Create recentemente",
     "last_updated": "Ultimo aggiornato",
     "count": "Quantità"
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Raggruppa post"
+    }
   }
 }

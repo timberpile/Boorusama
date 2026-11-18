@@ -1094,7 +1094,8 @@
       "edit_blacklist": "แก้ไขแท็กต้องห้าม",
       "edit_global_blacklist": "แก้ไขแท็กต้องห้ามทั้งระบบ",
       "edit_booru_specific_blacklist": "แก้ไขแท็กต้องห้ามเฉพาะตามเว็บ Booru ที่กำหนด",
-      "edit_profile_blacklist": "แก้ไขแท็กต้องห้ามของโปรไฟล์"
+      "edit_profile_blacklist": "แก้ไขแท็กต้องห้ามของโปรไฟล์",
+      "group_posts": "จัดกลุ่มโพสต์"
     },
     "hidden_count": "ซ่อน $hidden โพสต์จากใน $total",
     "counter": {

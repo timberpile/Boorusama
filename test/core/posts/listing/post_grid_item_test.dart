@@ -62,6 +62,47 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  for (final grouping in [false, true]) {
+    for (final (familyEvidence, parentId) in [
+      (false, null),
+      (true, null),
+      (false, 10),
+      (false, 0),
+    ]) {
+      testWidgets(
+        'raw Related badge follows grouping=$grouping, evidence=$familyEvidence, parent=$parentId',
+        (tester) async {
+          final post = _post(
+            hasParentOrChildren: familyEvidence,
+            parentId: parentId,
+          );
+          await tester.pumpWidget(
+            _TestApp(
+              groupRelatedPosts: grouping,
+              child: PostGridItem(
+                post: post,
+                index: 0,
+                useHero: false,
+                multiSelectEnabled: false,
+                config: _config.auth,
+                onTap: (_) {},
+                presentation: const GenericPostPresentation(),
+                quickActionButton: const SizedBox.shrink(),
+                imageBuilder: (_) => const SizedBox.expand(),
+              ),
+            ),
+          );
+          expect(
+            find.byIcon(Symbols.photo_library),
+            !grouping && (familyEvidence || (parentId ?? 0) > 0)
+                ? findsOneWidget
+                : findsNothing,
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
   for (final layout in [ImageListType.classic, ImageListType.standard]) {
     testWidgets(
       'received marker uses the tile corner in $layout without moving selection controls',
@@ -701,7 +742,7 @@ void main() {
       expect(item.isTranslated, isTrue);
       expect(item.hasComments, isTrue);
       expect(post.hasParentOrChildren, isTrue);
-      expect(find.byIcon(Symbols.photo_library), findsNothing);
+      expect(find.byIcon(Symbols.photo_library), findsOneWidget);
       expect(item.isAI, isTrue);
       expect(item.hasSound, isTrue);
       expect(item.duration, 12);
@@ -778,6 +819,8 @@ Post _post({
   int id = 42,
   BooruPostData data = const EmptyPostData(typeKey: 'test'),
   String? status,
+  bool hasParentOrChildren = true,
+  int? parentId,
 }) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.danbooru,
@@ -802,7 +845,8 @@ Post _post({
     rating: Rating.general,
     hasComment: true,
     isTranslated: true,
-    hasParentOrChildren: true,
+    hasParentOrChildren: hasParentOrChildren,
+    parentId: parentId,
     source: PostSource.none(),
     score: 17,
     artistTags: const {'artist_tag'},
@@ -831,6 +875,7 @@ class _TestApp extends StatelessWidget {
     this.scroll,
     this.longPress,
     this.contextMenuOnLongPress = false,
+    this.groupRelatedPosts = false,
     this.repository,
     this.automaticMediaLoading = false,
     this.thumbnailGenerator = const _ProbeGenerator(),
@@ -845,6 +890,7 @@ class _TestApp extends StatelessWidget {
 
   final String? longPress;
   final bool contextMenuOnLongPress;
+  final bool groupRelatedPosts;
   final BooruRepository? repository;
 
   final SelectionModeController? selection;
@@ -859,6 +905,7 @@ class _TestApp extends StatelessWidget {
         settingsProvider.overrideWithValue(
           Settings.defaultSettings.copyWith(
             postLongPressContextMenu: contextMenuOnLongPress,
+            groupRelatedPosts: groupRelatedPosts,
           ),
         ),
         currentReadOnlyBooruConfigProvider.overrideWithValue(_config),

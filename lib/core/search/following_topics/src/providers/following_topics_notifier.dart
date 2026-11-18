@@ -18,6 +18,7 @@ import '../../../../http/client/providers.dart';
 // Project imports:
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../boorus/engine/providers.dart';
+import '../../../../bookmarks/src/providers/pool_bookmark_provider.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../posts/post/providers.dart';
@@ -142,6 +143,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         repository: repository,
         resolvePostRepository: (config) =>
             ref.read(originAwarePostRepoProvider(config)),
+        resolveSeriesCapability: (config) =>
+            ref.read(poolBookmarkCapabilityProvider(config)),
         resolvePostDataCodec: (config) => ref
             .read(booruEngineRegistryProvider)
             .getPostCapability(config.auth.booruType)

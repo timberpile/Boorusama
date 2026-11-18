@@ -823,7 +823,10 @@
       "one": "$n件の投稿",
       "other": "$n件の投稿"
     },
-    "hidden_count": "$total中$hidden件"
+    "hidden_count": "$total中$hidden件",
+    "actions": {
+      "group_posts": "投稿をグループ化"
+    }
   },
   "artists": {
     "title": "アーティスト",

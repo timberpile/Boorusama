@@ -79,7 +79,22 @@ void main() {
         await drain(tester);
         expect(completed, isTrue);
         await pending;
+        expect(controller.total, 3);
+        expect(find.text('3 posts'), findsOneWidget);
+        expect(requests, isEmpty);
+
+        final scrollController = tester
+            .widget<PostGrid<Post>>(find.byType(PostGrid<Post>))
+            .scrollController!;
+        scrollController.jumpTo(scrollController.position.maxScrollExtent);
+        await drain(tester);
+        await tester.tap(find.byKey(const ValueKey('cached-feed-load-older')));
+        await tester.pump(controller.debounceDuration);
+        await drain(tester);
         expect(controller.total, 4);
+        expect(controller.errors.value, isNull);
+        scrollController.jumpTo(0);
+        await tester.pumpAndSettle();
         expect(find.text('4 posts'), findsOneWidget);
         expect(find.text('9999 posts'), findsNothing);
         expect(requests, [1]);
