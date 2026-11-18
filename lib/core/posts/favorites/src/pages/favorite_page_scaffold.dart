@@ -49,7 +49,6 @@ class FavoritesPageScaffold extends ConsumerWidget {
           sliverHeaders: [
             KurumiSliverAppBar(
               title: Text(context.t.profile.favorites),
-              floating: true,
               elevation: 0,
               shadowColor: Colors.transparent,
               backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
