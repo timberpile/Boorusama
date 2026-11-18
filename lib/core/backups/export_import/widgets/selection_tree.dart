@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 import '../models/export_item_presentation.dart';
 import '../models/export_selection.dart';
+import '../sources/export_selection_ids.dart';
 
 class ExportSelectionTree extends StatelessWidget {
   const ExportSelectionTree({
@@ -177,7 +178,16 @@ class _SelectionNodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final item = presentation.items[node.id];
     final title = _ItemLabel(
-      label: item?.label ?? node.id,
+      label:
+          item?.label ??
+          (ExportSelectionIds.bookmarkFolderId(node.id) != null
+              ? context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .preview_folder
+              : node.id),
       trailingLabel: item?.trailingLabel,
     );
     if (!node.isCollection) {
