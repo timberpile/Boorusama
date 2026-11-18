@@ -11,6 +11,7 @@ import '../../../../navigation/destination_activity.dart';
 import '../providers/viewer_source_access_provider.dart';
 import '../types/viewer_entry.dart';
 import 'group_viewer_scope.dart';
+import 'post_details_page_view_scope.dart';
 import 'viewer_entry_navigation_header.dart';
 
 /// Both stable native routes and mixed entries share this source/metadata/
@@ -22,12 +23,14 @@ class ContentGroupPage extends ConsumerWidget {
     this.active = true,
     this.embedded = true,
     this.prepareSource,
+    this.onDisplayed,
     super.key,
   });
   final GroupViewerEntry entry;
   final bool active;
   final bool embedded;
   final void Function(ContentGroupSource source)? prepareSource;
+  final VoidCallback? onDisplayed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -82,6 +85,7 @@ class ContentGroupPage extends ConsumerWidget {
             entry: entry,
             access: access.key,
             presentation: capability.presentation,
+            onDisplayed: onDisplayed,
           ),
         ),
       ),
@@ -94,10 +98,12 @@ class _RegisteredGroupContent extends ConsumerWidget {
     required this.entry,
     required this.access,
     required this.presentation,
+    this.onDisplayed,
   });
   final GroupViewerEntry entry;
   final ContentAccessKey access;
   final BooruGroupPresentation presentation;
+  final VoidCallback? onDisplayed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -114,7 +120,15 @@ class _RegisteredGroupContent extends ConsumerWidget {
     return ref
         .watch(groupDetailsProvider(key))
         .when(
-          data: (details) => presentation.buildDetails(context, details),
+          data: (details) {
+            final child = presentation.buildDetails(context, details);
+            return onDisplayed == null
+                ? child
+                : _DisplayedGroupContent(
+                    onDisplayed: onDisplayed!,
+                    child: child,
+                  );
+          },
           loading: () => ViewerEntryNavigationStatus(
             actions: actions,
             child: const CircularProgressIndicator(),
@@ -133,5 +147,90 @@ class _RegisteredGroupContent extends ConsumerWidget {
             ),
           ),
         );
+  }
+}
+
+/// A loaded gallery displays the saved Group itself, without displaying any
+/// individual member in the full media Viewer. Loading/error surfaces, retained
+/// neighbors and covered/background routes cannot acknowledge that record.
+class _DisplayedGroupContent extends StatefulWidget {
+  const _DisplayedGroupContent({
+    required this.onDisplayed,
+    required this.child,
+  });
+  final VoidCallback onDisplayed;
+  final Widget child;
+
+  @override
+  State<_DisplayedGroupContent> createState() => _DisplayedGroupContentState();
+}
+
+class _DisplayedGroupContentState extends State<_DisplayedGroupContent>
+    with WidgetsBindingObserver {
+  var _scheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _notifyDisplayed();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _notifyDisplayed();
+  }
+
+  void _notifyDisplayed() {
+    if (_scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted ||
+          !NavigationActivity.of(context) ||
+          !(ModalRoute.of(context)?.isCurrent ?? true) ||
+          (WidgetsBinding.instance.lifecycleState != null &&
+              WidgetsBinding.instance.lifecycleState !=
+                  AppLifecycleState.resumed)) {
+        return;
+      }
+      final pages = PostDetailsPageViewScope.maybeOf(context)?.pageController;
+      if (pages != null &&
+          (!pages.hasClients || pages.position.isScrollingNotifier.value)) {
+        return;
+      }
+      widget.onDisplayed();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pager = PostDetailsPageViewScope.maybeOf(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        if (pager != null) ...[
+          pager.currentPage,
+          pager.precisePage,
+          if (pager.pageController.hasClients)
+            pager.pageController.position.isScrollingNotifier,
+        ],
+      ]),
+      builder: (_, child) {
+        _notifyDisplayed();
+        return child!;
+      },
+      child: widget.child,
+    );
   }
 }

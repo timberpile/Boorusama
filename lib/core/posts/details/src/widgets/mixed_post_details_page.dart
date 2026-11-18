@@ -674,6 +674,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         key: PageStorageKey(entry.occurrenceId),
         entry: entry,
         index: index,
+        onDisplayed: widget.onEntryDisplayed == null
+            ? null
+            : () => widget.onEntryDisplayed!(entry),
       );
     }
     throw StateError('Expected a group viewer entry');

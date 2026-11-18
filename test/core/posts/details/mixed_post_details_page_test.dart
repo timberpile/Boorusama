@@ -122,6 +122,165 @@ import '../../../support/fakes/memory_repositories.dart'
 const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
+  testWidgets(
+    'a loaded Pool gallery reports its displayed occurrence without reading neighbors',
+    (tester) async {
+      _mobileViewport(tester);
+      final displayed = <Object>{};
+      final details = Completer<ContentGroupDetails>();
+      final first = _groupEntry('first', 10, BookmarkedPoolCategory.series);
+      final harness = _Harness(
+        posts: const [],
+        entries: [
+          first,
+          _groupEntry('second', 20, BookmarkedPoolCategory.collection),
+        ],
+        repository: const _GalleryRepository(),
+        loadGroupDetails: (_) => details.future,
+        onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+      );
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pump();
+      expect(displayed, isEmpty, reason: 'Loading a Pool is not display');
+      details.complete(ContentGroupDetails(summary: first.summary));
+      await tester.pumpAndSettle();
+      expect(find.text('gallery-first'), findsOneWidget);
+      expect(displayed, {'first'});
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'a Pool gallery loaded during a swipe waits until its occurrence is active again',
+    (tester) async {
+      _mobileViewport(tester);
+      final displayed = <Object>{};
+      final details = Completer<ContentGroupDetails>();
+      final first = _groupEntry('first', 10, BookmarkedPoolCategory.series);
+      final second = _groupEntry(
+        'second',
+        20,
+        BookmarkedPoolCategory.collection,
+      );
+      final harness = _Harness(
+        posts: const [],
+        entries: [first, second],
+        repository: const _GalleryRepository(),
+        reduceAnimations: false,
+        loadGroupDetails: (key) => key.reference == first.summary.reference
+            ? details.future
+            : Future.value(ContentGroupDetails(summary: second.summary)),
+        onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+      );
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      await tester.pump();
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(PageView).first),
+      );
+      await gesture.moveBy(const Offset(-20, 0));
+      await gesture.moveBy(const Offset(-280, 0));
+      expect(_pageViewController(tester).pageController.page, greaterThan(.5));
+      details.complete(ContentGroupDetails(summary: first.summary));
+      await tester.pump();
+      await tester.pump();
+      expect(displayed, isEmpty, reason: 'A held swipe is not settled display');
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(_pageViewController(tester).page, 1);
+      expect(displayed, {'second'});
+      await tester.drag(find.byType(PageView).first, const Offset(700, 0));
+      await tester.pumpAndSettle();
+      expect(_pageViewController(tester).page, 0);
+      expect(displayed, {'first', 'second'});
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final covered in [false, true]) {
+    testWidgets(
+      'a Pool gallery waits for ${covered ? 'its covering modal to close' : 'the app to resume'} before reporting display',
+      (tester) async {
+        _mobileViewport(tester);
+        final displayed = <Object>{};
+        final details = Completer<ContentGroupDetails>();
+        final entry = _groupEntry('pool', 10, BookmarkedPoolCategory.series);
+        final harness = _Harness(
+          posts: const [],
+          entries: [entry],
+          repository: const _GalleryRepository(),
+          loadGroupDetails: (_) => details.future,
+          onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+        );
+        _disposeAfterUnmount(tester, harness.dispose);
+        await tester.pumpWidget(harness.build());
+        await tester.pump();
+        final context = tester.element(find.byType(MixedPostDetailsPage));
+        Future<void>? closed;
+        if (covered) {
+          closed = showDialog<void>(
+            context: context,
+            builder: (_) => const KurumiDialog(child: Text('Covered Viewer')),
+          );
+          await tester.pump();
+        } else {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.paused,
+          );
+          addTearDown(
+            () => tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.resumed,
+            ),
+          );
+        }
+        details.complete(ContentGroupDetails(summary: entry.summary));
+        await tester.pumpAndSettle();
+        expect(displayed, isEmpty);
+        if (covered) {
+          Navigator.of(context).pop();
+          await closed;
+        } else {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        }
+        await tester.pumpAndSettle();
+        expect(displayed, {'pool'});
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('a failed Pool gallery stays unread until retry succeeds', (
+    tester,
+  ) async {
+    _mobileViewport(tester);
+    final displayed = <Object>{};
+    final entry = _groupEntry('pool', 10, BookmarkedPoolCategory.series);
+    var fail = true;
+    final harness = _Harness(
+      posts: const [],
+      entries: [entry],
+      repository: const _GalleryRepository(),
+      loadGroupDetails: (_) async {
+        if (fail) throw StateError('Pool unavailable');
+        return ContentGroupDetails(summary: entry.summary);
+      },
+      onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+    );
+    _disposeAfterUnmount(tester, harness.dispose);
+    await tester.pumpWidget(harness.build());
+    await tester.pumpAndSettle();
+    expect(displayed, isEmpty);
+    expect(find.text('Retry'), findsOneWidget);
+    fail = false;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(displayed, {'pool'});
+    expect(tester.takeException(), isNull);
+  });
+
   for (final failTarget in [false, true]) {
     testWidgets(
       'image reading ignores a decoded thumbnail while full media is pending or failed (failure=$failTarget)',
@@ -5712,6 +5871,7 @@ class _Harness {
     this.entries,
     this.onEntryDisplayed,
     this.entrySource,
+    Future<ContentGroupDetails> Function(GroupMetadataKey)? loadGroupDetails,
     BooruRepository? repository,
     BooruGroupCapability? mediaCapability,
     BooruPostPresentation? postPresentation,
@@ -5730,6 +5890,10 @@ class _Harness {
     ImageQuality thumbnailQuality = ImageQuality.automatic,
   }) : container = ProviderContainer(
          overrides: [
+           if (loadGroupDetails != null)
+             groupDetailsProvider.overrideWith(
+               (ref, key) => loadGroupDetails(key),
+             ),
            if (mediaState != null)
              mediaGroupProvider.overrideWith(
                (ref, entry) => ref.watch(mediaState),

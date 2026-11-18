@@ -131,10 +131,12 @@ The repository and mutation boundaries enforce these rules beyond the UI.
   publishers, source Groups outside the viewed subtree and local copies are
   unaffected. Captured ownership/source identities are revalidated before
   a delayed write.
-- Full Viewer reading requires a settled, active, foreground occurrence and
-  actual decoded still media or the current video's first rendered frame.
-  Thumbnails, preload, failed media, covered routes and Group opening do not
-  mark content Seen. Viewing a saved Work does not implicitly read its
+- Reading a Post or media Work requires a settled, active, foreground Viewer
+  occurrence and decoded still media or the current video's first rendered frame.
+  Opening a saved Pool gallery marks that saved Group record Seen once its
+  details are loaded and visible; it does not read its individual member Posts.
+  Thumbnails, preload, failed media, covered routes and opening a Bookmark Group
+  do not mark content Seen. Viewing a saved Work does not implicitly read its
   separately bookmarked Pages.
 - Received member thumbnails use a **14dp borderless Unseen dot** at the
   **tile's top-right corner, 6dp inset**; it hides during selection to leave the existing Preview control

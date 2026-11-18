@@ -14,10 +14,12 @@ class ViewerEntryContent extends ConsumerStatefulWidget {
   const ViewerEntryContent({
     required this.entry,
     required this.index,
+    this.onDisplayed,
     super.key,
   });
   final ViewerEntry entry;
   final int index;
+  final VoidCallback? onDisplayed;
   @override
   ConsumerState<ViewerEntryContent> createState() => _ViewerEntryContentState();
 }
@@ -37,6 +39,7 @@ class _ViewerEntryContentState extends ConsumerState<ViewerEntryContent> {
             ? ContentGroupPage(
                 entry: entry,
                 active: page == widget.index && NavigationActivity.of(context),
+                onDisplayed: widget.onDisplayed,
               )
             : ViewerEntryNavigationStatus(
                 child: Text(
