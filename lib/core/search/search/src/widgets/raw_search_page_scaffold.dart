@@ -71,6 +71,8 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     BuildContext context,
     String query,
     int initialPage,
+    int? initialScrollPosition,
+    PageMode? pageMode,
     Widget header,
   )?
   nativeResultBuilder;
@@ -405,6 +407,10 @@ class _SearchPageScaffoldState<T extends Post>
                   context,
                   query,
                   _useRoutePosition ? widget.initialPage ?? 1 : 1,
+                  _useRoutePosition ? widget.initialScrollPosition : null,
+                  _useRoutePosition && widget.initialPage != null
+                      ? PageMode.paginated
+                      : null,
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [

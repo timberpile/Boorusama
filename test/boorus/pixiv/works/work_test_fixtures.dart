@@ -20,6 +20,8 @@ ContentAccessContext workAccess({
 
 PixivIllustDto work({
   int id = 120,
+  int width = 1200,
+  int height = 1800,
   int? pageCount = 3,
   List<Object?>? pages,
   String type = 'manga',
@@ -38,8 +40,8 @@ PixivIllustDto work({
   'caption': '<p>Work caption</p>',
   'user': {'id': 7, 'name': 'Artist', 'account': 'artist'},
   'page_count': pageCount,
-  'width': 1200,
-  'height': 1800,
+  'width': width,
+  'height': height,
   'x_restrict': 0,
   'sanity_level': 2,
   'visible': visible,

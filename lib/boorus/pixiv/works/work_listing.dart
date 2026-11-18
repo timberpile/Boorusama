@@ -4,6 +4,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../core/configs/config/types.dart';
+import '../../../core/http/client/coordination.dart';
 import '../../../core/content/content_access_provider.dart';
 import '../../../core/content/groups/group_source_provider.dart';
 import '../../../core/content/widgets/native_content_grid.dart';
@@ -25,6 +26,7 @@ class PixivWorkGrid extends ConsumerWidget {
     this.header,
     this.sliverHeaders = const [],
     this.initialPage = 1,
+    this.initialScrollPosition,
     this.pageMode,
     super.key,
   });
@@ -34,34 +36,49 @@ class PixivWorkGrid extends ConsumerWidget {
   final Widget? header;
   final List<Widget> sliverHeaders;
   final int initialPage;
+  final int? initialScrollPosition;
   final PageMode? pageMode;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(contentProfileAccessProvider(config.id));
     if (access == null) return const Center(child: CircularProgressIndicator());
     ref.watch(contentGroupSourceProvider(access.key));
+    final effectiveMode =
+        pageMode ?? ref.watch(imageListingSettingsProvider).pageMode;
     return NativeContentGrid(
+      // A route/query or actor change also cancels any pending anchor animation.
+      key: ValueKey((
+        access.key,
+        queryIdentity,
+        initialPage,
+        initialScrollPosition,
+        effectiveMode,
+      )),
       access: access,
       queryIdentity: queryIdentity,
       groupLabel: (context, _) => context.t.content_viewer.work,
       counterLabel: (context, n) => context.t.content_viewer.work_counter(n: n),
       initialPage: initialPage,
-      pageMode: pageMode ?? ref.watch(imageListingSettingsProvider).pageMode,
+      pageMode: effectiveMode,
+      initialScrollPosition: initialScrollPosition,
       allowPageModeChange: pageMode == null,
       header: header,
       sliverHeaders: sliverHeaders,
-      onRefresh: () => ref.invalidate(contentGroupSourceProvider(access.key)),
       fetchPage: (page) async {
+        final request = ApiRequestContext.current();
         final source =
             ref.read(contentGroupSourceProvider(access.key)) as PixivWorkSource;
         final result = await fetchPage(page);
         final blacklist = ref
             .read(contentEffectiveBlacklistProvider(config.id))
             .requireValue;
-        if (!identical(
-          ref.read(contentAccessContextProvider(access.key)),
-          access,
-        )) {
+        if ((request.cancelToken?.isCancelled ?? false) ||
+            !(request.canStart?.call() ?? true) ||
+            !(request.canAdmit?.call() ?? true) ||
+            !identical(
+              ref.read(contentAccessContextProvider(access.key)),
+              access,
+            )) {
           throw StateError('Pixiv Work listing access changed');
         }
         final visible = PixivIllustListResult(
@@ -85,10 +102,13 @@ class PixivWorkGrid extends ConsumerWidget {
         for (final dto in visible.illusts) {
           if (pixivWorkIsVisible(dto) &&
               PixivIllustType.parse(dto.type) != PixivIllustType.ugoira) {
-            source.seedWork(dto);
+            source.seedWork(dto, replaceExisting: true);
           }
         }
+        final legacyPageCounts = pixivWorkLegacyPageCounts(visible.illusts);
         return NativeContentPage(
+          indexForPosition: (position) =>
+              pixivWorkIndexForPagePosition(legacyPageCounts, position),
           entries: pixivWorkListingEntries(visible, access: access),
           hasMore: result.hasMore,
           rawCount: result.illusts.length,

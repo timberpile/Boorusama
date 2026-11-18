@@ -21,16 +21,27 @@ final class GroupEnvelopeCache<T> {
   final _invalidatedSeeds = <ContentReference>{};
 
   /// Admit a real envelope already fetched by the same source route. This does
-  /// not replace pending work or grant access to an imported metadata snapshot.
-  bool seed(ContentReference reference, T value) {
-    if (_disposed || _invalidatedSeeds.contains(reference)) return false;
+  /// not replace pending work unless an authorized fresh listing explicitly asks
+  /// for replacement. It never grants access to an imported metadata snapshot.
+  bool seed(
+    ContentReference reference,
+    T value, {
+    bool replaceExisting = false,
+  }) {
+    if (_disposed ||
+        (!replaceExisting && _invalidatedSeeds.contains(reference)))
+      return false;
     if (reference.kind != ContentKind.group ||
         reference.engine != access.engine ||
         reference.siteNamespace != access.siteNamespace) {
       throw const FormatException('Foreign Group envelope');
     }
     final existing = _entries[reference];
-    if (existing != null) return false;
+    if (existing != null) {
+      if (!replaceExisting) return false;
+      _abort(reference, existing);
+    }
+    if (replaceExisting) _invalidatedSeeds.remove(reference);
     while (_entries.length >= maxEntries) {
       final completed = _entries.entries
           .where((entry) => entry.value.done)
