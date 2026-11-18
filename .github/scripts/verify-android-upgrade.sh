@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Installer/version smoke test only. The caller may supply two builds of the
+# same source tree; that cannot prove persisted-data migration from a release.
+# See docs/testing/released_upgrade_verification.md for the separate data gate.
+
 if (($# != 5)); then
   echo "Usage: $0 <lower-apk> <published-apk> <application-id> <final-version-name> <final-version-code>" >&2
   exit 2
@@ -37,3 +41,4 @@ installed_version_name=$(sed -n 's/.*versionName=\([^[:space:]]*\).*/\1/p' <<< "
 }
 
 echo "Updated $application_id in place from $lower_version_code to $installed_version_code."
+echo "INSTALLER SMOKE ONLY: No persisted-data migration was verified."

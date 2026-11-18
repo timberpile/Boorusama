@@ -134,6 +134,19 @@ release, not these exact entries):
 - 🛠️ Search, Navigation, and Layout Fixes
 ```
 
+## Released-data compatibility gate
+
+Read [release compatibility](../../../docs/release_compatibility.md) and
+[released-upgrade verification](../../../docs/testing/released_upgrade_verification.md).
+Pin the actual published producer and final candidate. For affected persistent
+contracts, require old-writer fixtures, production migration/import and cold-reopen
+checks; require native in-place acceptance where storage/bootstrap/plugin behavior
+changes. A candidate rebuilt with a lower versionCode proves installation only.
+Missing relevant evidence remains a release gate; do not call it a pass or retire
+public formats to avoid testing. No release execution or reset is authorized by
+these verification instructions. Report fixture provenance, exact commands and
+pending acceptance separately from the ordinary full-suite results.
+
 ## Verify and hand off
 
 - Check that the version increased correctly and matches the nonempty top

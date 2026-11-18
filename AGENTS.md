@@ -109,6 +109,18 @@ The same workflow must use consistent presentation patterns across entry points.
 Exceptions require a documented technical justification and must preserve the
 application's established styling.
 
+## Released data and compatibility
+
+Before changing storage, import/export or sync formats, read
+[release compatibility](docs/release_compatibility.md). Establish the actual
+published writer/tag; a develop merge, closed issue or unchanged pubspec version
+does not mean a feature shipped. Preserve supported public data, but do not add
+production migrations solely for unreleased development intermediates. Do not
+remove an intermediate stage still needed by a released-to-current upgrade.
+Use [released-data verification](docs/testing/released_upgrade_verification.md);
+an APK installation/version check alone is not a data-migration test. No silent
+user-data reset or retirement of public support is authorized by this policy.
+
 ## Verification and devices
 
 Format changed Dart files with `fvm dart format`, run directly related behavior
