@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:oktoast/oktoast.dart';
 
 import 'media_query.dart';
+import '../theme/durations.dart';
 
 void kurumiShowSuccessToast(
   BuildContext context,
@@ -131,7 +132,11 @@ void kurumiShowSuccessToast(
     // The full-viewport scope disables native host displacement so keyboard
     // and controls are accounted for once. Legacy hosts retain their policy.
     position: const ToastPosition(align: Alignment.bottomCenter),
-    duration: duration,
+    duration:
+        duration ??
+        (hasAction || MediaQuery.accessibleNavigationOf(context)
+            ? null
+            : KurumiDurations.shortToast),
     handleTouch: true,
     dismissOtherToast: true,
   );

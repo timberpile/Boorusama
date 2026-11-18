@@ -519,6 +519,7 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
           '{results}',
           parts.join(', '),
         ),
+        duration: KurumiDurations.longToast,
       );
     } else {
       Kurumi.showErrorToast(

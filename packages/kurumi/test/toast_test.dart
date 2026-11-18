@@ -6,6 +6,75 @@ import 'package:material_ui/material_ui.dart';
 import 'package:oktoast/oktoast.dart';
 
 void main() {
+  Future<BuildContext> mountToast(
+    WidgetTester tester, {
+    bool accessible = false,
+  }) async {
+    late BuildContext host;
+    addTearDown(dismissAllToast);
+    await tester.pumpWidget(
+      OKToast(
+        duration: const Duration(seconds: 5),
+        child: MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(accessibleNavigation: accessible),
+            child: Builder(
+              builder: (context) {
+                host = context;
+                return const SizedBox.expand();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    return host;
+  }
+
+  testWidgets(
+    'actionless success uses the short confirmation lifetime and replacement timer',
+    (tester) async {
+      final context = await mountToast(tester);
+      Kurumi.showSuccessToast(context, 'Bookmarked');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      Kurumi.showSuccessToast(context, 'Copied');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 650));
+      expect(find.text('Bookmarked'), findsNothing);
+      expect(find.text('Copied'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Copied'), findsNothing);
+    },
+  );
+
+  for (final kind in ['action', 'error', 'detailed', 'accessible']) {
+    testWidgets('$kind toast retains its longer lifetime', (tester) async {
+      final context = await mountToast(
+        tester,
+        accessible: kind == 'accessible',
+      );
+      if (kind == 'error') {
+        Kurumi.showErrorToast(context, 'Message');
+      } else {
+        Kurumi.showSuccessToast(
+          context,
+          'Message',
+          actionLabel: kind == 'action' ? 'Undo' : null,
+          onAction: kind == 'action' ? () {} : null,
+          duration: kind == 'detailed' ? KurumiDurations.longToast : null,
+        );
+      }
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(find.text('Message'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(find.text('Message'), findsNothing);
+    });
+  }
+
   testWidgets(
     'ordinary success toast follows the same live obstruction as Undo',
     (tester) async {
