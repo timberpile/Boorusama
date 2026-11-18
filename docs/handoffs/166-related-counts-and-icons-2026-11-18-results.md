@@ -72,9 +72,23 @@ files: **0 errors, 0 warnings, 52 informational findings** (exit 1). Existing
 non-fatal hit-test messages remain in the test logs.
 Logs: `.worktrees/_artifacts/related-remaining-20261118/166-*.log`, shared and refresh logs.
 
-Replay only these new #166 corrections into
-`maintenance/pre-release-bugfix-preview-20261117` and verify the combined candidate.
-The #134 feature-only timeline changes remain on their issue branch.
+## Cumulative preview
+
+Only the new shared/#166 commits were replayed into
+`maintenance/pre-release-bugfix-preview-20261117`:
+
+- `320da6948` -> `110702f4d` (shared count cache/publication and icons).
+- `8c8c31771` -> `c9a105bf5` (explicit bookmark refresh totals).
+- `e5f5a76fc` -> `a28c4c6da74b09de6b21b93b107e07548769e0f0` (saved-card observer/tests).
+
+The final runtime/test candidate `a28c4c6da` passed the same commands above:
+**139 + 1 tests passed**, no skips. Analysis: **0 errors, 0 warnings,
+52 informational findings** (exit 1). All 19 changed Dart files passed the format
+check without changes; `git diff --check` passed. Every replayed runtime/test file
+matches #166. Subsequent report-only commits reuse those unchanged results.
+Logs: `.worktrees/_artifacts/related-remaining-20261118/preview-*.log`.
+The #134 feature-only timeline changes remain on their issue branch and are
+excluded from the preview.
 
 Full repository regression, native builds, live services, emulators and devices
 were not exercised. Final Android acceptance remains with the owner. General
