@@ -20,6 +20,9 @@ import '../../posts/listing/src/types/page_mode.dart';
 import '../../posts/listing/src/types/grid_utils.dart';
 import '../../posts/listing/src/types/image_list_type.dart';
 import '../../posts/listing/src/widgets/timeline_header_sliver.dart';
+import '../../posts/listing/src/widgets/sliver_post_grid_place_holder.dart';
+import '../../posts/listing/src/_internal/raw_post_grid.dart'
+    show PostGridConstraints;
 import '../../posts/listing/providers.dart';
 import '../../settings/providers.dart';
 import '../../posts/listing/src/types/timeline_continuation_controller.dart';
@@ -202,6 +205,17 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                                 _controller.entries.length,
                               ),
                               allowPageModeChange: widget.allowPageModeChange,
+                            ),
+                          ),
+                        if (_controller.entries.isEmpty &&
+                            !_controller._loaded &&
+                            _controller.errors.value == null)
+                          PostGridConstraints(
+                            crossAxisCount: columns,
+                            child: SliverPostGridPlaceHolder(
+                              listType: listing.imageListType,
+                              spacing: listing.imageGridSpacing,
+                              aspectRatio: listing.imageGridAspectRatio,
                             ),
                           ),
                         SliverPadding(
@@ -506,8 +520,12 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_controller.loadingMore) const CircularProgressIndicator(),
+        if (_controller.loadingMore &&
+            !_controller.refreshing &&
+            _controller.entries.isNotEmpty)
+          const CircularProgressIndicator(),
         if (!_controller.loadingMore &&
+            _controller._loaded &&
             _controller.entries.isEmpty &&
             _controller.errors.value == null)
           Text(context.t.search.no_result),
@@ -602,14 +620,13 @@ final class NativeContentController extends ChangeNotifier
   CancelToken? _request;
 
   Future<void> refresh() async {
+    if (_disposed || !current()) return;
     _generation++;
     _request?.cancel('Native timeline refreshed');
     loadingMore = false;
     refreshing = true;
-    entries.clear();
-    viewerEntries.clear();
+    // Retain usable content and pagination until an authorized replacement.
     _loaded = false;
-    hasMore = true;
     onRefresh?.call();
     await _load(initialPage, replace: true);
   }
@@ -627,7 +644,7 @@ final class NativeContentController extends ChangeNotifier
     }
     return _load(
       _loaded ? page + 1 : initialPage,
-      replace: pageMode == PageMode.paginated,
+      replace: !_loaded || pageMode == PageMode.paginated,
       canStart: canStart,
     );
   }
