@@ -30,7 +30,7 @@ void main() {
   });
 
   test(
-    'a removed hinted account cannot borrow another account on its site',
+    'bookmark reads ignore originating hints and choose first compatible profile',
     () {
       final original = config(poolProfile);
       final other = config(poolGroupB);
@@ -38,7 +38,8 @@ void main() {
         resolvePoolBookmarkProfile(testPool(), [original, other]),
         original,
       );
-      expect(resolvePoolBookmarkProfile(testPool(), [other]), isNull);
+      expect(resolvePoolBookmarkProfile(testPool(), [other, original]), other);
+      expect(resolvePoolBookmarkProfile(testPool(), [other]), other);
       expect(
         resolvePoolBookmarkProfile(testPool(), [
           config(poolProfile, host: 'other.example'),
@@ -55,6 +56,17 @@ void main() {
       expect(resolvePoolBookmarkProfile(future, [original]), isNull);
     },
   );
+
+  test('proven native installation never substitutes another transport', () {
+    final pool = testPool().copyWith(
+      sourceSite: () => Uri.parse('https://danbooru.donmai.us'),
+    );
+    final insecure = BooruConfig.fromJson({
+      ...config(poolProfile).toJson(),
+      'url': 'http://danbooru.donmai.us',
+    });
+    expect(resolvePoolBookmarkProfile(pool, [insecure]), isNull);
+  });
 
   test('cover policy changes for visibility and blacklist but contains no account identity', () {
     final first = config(poolProfile);

@@ -1,3 +1,4 @@
+import 'bookmark_read_access.dart';
 import '../types/bookmark_grid_entry.dart';
 import '../types/pool_bookmark.dart';
 
@@ -15,8 +16,6 @@ import 'package:foundation/performance.dart';
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
-import '../../../posts/post/types.dart';
 import '../../../tags/categories/providers.dart';
 import '../../../tags/tag/colors.dart';
 import '../../../themes/colors/providers.dart';
@@ -35,7 +34,7 @@ import 'local_providers.dart';
 final _allBookmarkTagIndexBuilderProvider = Provider<BookmarkTagIndexBuilder>((
   ref,
 ) {
-  final configs = ref.watch(booruConfigProvider);
+  final configs = ref.watch(bookmarkReadProfilesProvider);
   ref.onDispose(
     () => performanceRecorder.count(PerfCounter.bookmarkTagBuilderDisposed, 1),
   );
@@ -50,7 +49,7 @@ final _bookmarkTagIndexBuilderProvider = Provider.autoDispose
       if (view.kind == BookmarkViewKind.all && source == null) {
         return ref.watch(_allBookmarkTagIndexBuilderProvider);
       }
-      final configs = ref.watch(booruConfigProvider);
+      final configs = ref.watch(bookmarkReadProfilesProvider);
       ref.onDispose(
         () => performanceRecorder.count(
           PerfCounter.bookmarkTagBuilderDisposed,
@@ -62,13 +61,13 @@ final _bookmarkTagIndexBuilderProvider = Provider.autoDispose
 
 BookmarkTagIndexBuilder _tagBuilder(List<BooruConfig> configs) =>
     BookmarkTagIndexBuilder(
-      siteUrl: (bookmark) => switch (const PostOriginResolver().resolve(
-        bookmark.post.origin,
-        configs,
-      )) {
-        ResolvedPostOrigin(:final config) => config.auth.url,
-        _ => bookmarkSourceHost(bookmark) ?? '',
-      },
+      siteUrl: (bookmark) =>
+          selectBookmarkReadProfile(
+            BookmarkReaderRequest(bookmark.post.origin),
+            configs,
+          )?.url ??
+          bookmarkSourceHost(bookmark) ??
+          '',
     );
 
 final bookmarkTagIndexProvider = FutureProvider.autoDispose

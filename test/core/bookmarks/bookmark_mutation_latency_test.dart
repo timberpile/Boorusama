@@ -1,3 +1,6 @@
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
@@ -62,6 +65,7 @@ void main() {
 
   ProviderContainer createContainer() => ProviderContainer(
     overrides: [
+      blacklistTagsProvider.overrideWith((ref, filter) async => {}),
       booruConfigProvider.overrideWith(
         () => BooruConfigNotifier(initialConfigs: [profile]),
       ),
@@ -83,6 +87,8 @@ void main() {
       ...BooruConfig.empty.toJson(),
       'id': '00000000-0000-4000-8000-000000000001',
       'url': 'https://example.com',
+      'booruId': BooruType.gelbooruV2.id,
+      'booruIdHint': BooruType.gelbooruV2.id,
     });
     container = createContainer();
     notifier = container.read(bookmarkProvider.notifier);

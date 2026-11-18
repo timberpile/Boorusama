@@ -35,11 +35,14 @@ final class GroupCover extends Equatable {
     this.height,
     this.representedPost,
     this.visibility,
+    this.memberOrderDigest,
     Map<String, String> variants = const {},
   }) : variants = Map.unmodifiable(variants) {
     [thumbnail, ?sample, ?original].forEach(validateGroupMetadataUri);
     if ((width != null && width! <= 0) ||
         (height != null && height! <= 0) ||
+        (memberOrderDigest != null &&
+            !RegExp(r'^[0-9a-f]{64}$').hasMatch(memberOrderDigest!)) ||
         (representedPost != null &&
             representedPost!.kind != ContentKind.post)) {
       throw const FormatException('Invalid Group cover');
@@ -52,6 +55,7 @@ final class GroupCover extends Equatable {
   final int? height;
   final ContentReference? representedPost;
   final GroupCoverVisibility? visibility;
+  final String? memberOrderDigest;
   final Map<String, String> variants;
   @override
   List<Object?> get props => [
@@ -62,6 +66,7 @@ final class GroupCover extends Equatable {
     height,
     representedPost,
     visibility,
+    memberOrderDigest,
     variants,
   ];
 }
@@ -74,8 +79,23 @@ final class GroupCoverVisibility extends Equatable {
     required this.deleted,
     required this.banned,
     this.tagCoverage = MetadataCoverage.complete,
-  }) : tags = Set.unmodifiable(tags);
+    Map<String, Object?>? postFacts,
+  }) : tags = Set.unmodifiable(tags),
+       postFacts = postFacts == null ? null : Map.unmodifiable(postFacts) {
+    if (postFacts != null &&
+        (postFacts['score'] is! int ||
+            [
+              'downvotes',
+              'uploaderId',
+            ].any((key) => postFacts[key] != null && postFacts[key] is! int) ||
+            ['source', 'uploaderName'].any(
+              (key) => postFacts[key] != null && postFacts[key] is! String,
+            ))) {
+      throw const FormatException('Invalid selected-cover Post facts');
+    }
+  }
   final Set<String> tags;
+  final Map<String, Object?>? postFacts;
   final MetadataCoverage tagCoverage;
   final String rating;
   final bool deleted;
@@ -86,10 +106,14 @@ final class GroupCoverVisibility extends Equatable {
     'deleted': deleted,
     'banned': banned,
     'tagCoverage': tagCoverage.name,
+    'postFacts': ?postFacts,
   };
   factory GroupCoverVisibility.fromJson(Map<String, dynamic> json) =>
       GroupCoverVisibility(
         tags: (json['tags'] as List).cast<String>(),
+        postFacts: json['postFacts'] == null
+            ? null
+            : Map<String, Object?>.from(json['postFacts'] as Map),
         rating: json['rating'] as String,
         deleted: json['deleted'] as bool,
         banned: json['banned'] as bool,
@@ -101,7 +125,14 @@ final class GroupCoverVisibility extends Equatable {
                   MetadataCoverage.unknown,
       );
   @override
-  List<Object?> get props => [tags, rating, deleted, banned, tagCoverage];
+  List<Object?> get props => [
+    tags,
+    rating,
+    deleted,
+    banned,
+    tagCoverage,
+    postFacts,
+  ];
 }
 
 final class GroupDescription extends Equatable {

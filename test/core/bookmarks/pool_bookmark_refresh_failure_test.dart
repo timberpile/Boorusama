@@ -1,4 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
+
+import '../../support/fakes/test_post.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -20,6 +24,75 @@ class _Saved extends BookmarkLibraryNotifier {
 }
 
 void main() {
+  for (final authoritativeChange in [false, true]) {
+    test(
+      'explicit Pool refresh uses source order evidence, not sampled member windows (changed=$authoritativeChange)',
+      () async {
+        final config = BooruConfig.defaultConfig(
+          booruType: BooruType.danbooru,
+          url: 'https://danbooru.donmai.us',
+          customDownloadFileNameFormat: null,
+        );
+        Post member(int id) => TestPost(
+          id: id,
+          origin: postOriginFromConfig(config),
+          thumbnailImageUrl: 'https://danbooru.donmai.us/$id.jpg',
+        );
+        final selected = PoolBookmarkCover.fromPost(member(2))
+            .withMemberOrder('a' * 64);
+        final old = PoolBookmark(
+          localId: '550e8400-e29b-41d4-a716-446655440022',
+          origin: postOriginFromConfig(config),
+          poolId: 10,
+          category: BookmarkedPoolCategory.series,
+          title: 'Series',
+          createdAt: DateTime.utc(2026),
+          observedAt: DateTime.utc(2026),
+          groupIds: {defaultBookmarkGroupId},
+          tags: {},
+          coverage: PoolTagCoverage.partial,
+          cover: selected,
+          coverUrl: selected.thumbnail,
+        );
+        final container = ProviderContainer(
+          overrides: [
+            bookmarkProvider.overrideWith(
+              () => _Saved(
+                BookmarkLibraryState(bookmarks: [], groups: [], pools: [old]),
+              ),
+            ),
+            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            originAwarePostRepoProvider.overrideWith(
+              (ref, config) => PostRepositoryBuilder<Post>(
+                fetch: (tags, page, {limit, options}) async => PostResult(
+                  posts: [member(1), member(2), member(3)],
+                  total: 3,
+                ),
+                fetchSingle: (_, {options}) async => null,
+                getSettings: () async => Settings.defaultSettings.listing,
+                tagComposer: EmptyTagQueryComposer(),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final refreshed = await container.read(
+          poolBookmarkRefreshProvider((
+            config,
+            RemoteBookmarkPool(
+              id: 10,
+              title: 'Series',
+              category: BookmarkedPoolCategory.series,
+              total: 3,
+              memberOrderDigest: (authoritativeChange ? 'b' : 'a') * 64,
+            ),
+          )).future,
+        );
+        expect(refreshed.cover?.postId, authoritativeChange ? 1 : 2);
+        if (!authoritativeChange) expect(refreshed.cover, selected);
+      },
+    );
+  }
   for (final scenario in [
     'offline',
     'date failure',

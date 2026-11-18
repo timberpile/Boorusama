@@ -1,3 +1,7 @@
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_pool_card.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_viewer_entry.dart';
+import 'package:boorusama/core/posts/details/src/types/viewer_entry.dart';
+import 'package:boorusama/core/images/booru_image.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/default_multi_selection_actions.dart';
 import 'package:boorusama/core/widgets/multi_select_button.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -401,6 +405,111 @@ void main() {
     );
     return harness;
   }
+
+  testManagementWidgets(
+    'signed Series receive displays its cover and opens through a public reader without the publisher profile',
+    (tester) async {
+      final preferences = _Store();
+      late MiteMiteService service;
+      late String root;
+      await tester.runAsync(() async {
+        final series = ContentGroupBookmark(
+          id: 0,
+          snapshot: StoredGroupSnapshot(
+            summary: ContentGroupSummary(
+              reference: const ContentReferenceCodec().parse(
+                engine: BooruType.danbooru,
+                site: Uri.parse('https://danbooru.donmai.us'),
+                kind: ContentKind.group,
+                sourceKey: 'pool:42',
+              ),
+              title: 'Received Series',
+              displayCategory: 'series',
+              memberCount: 2,
+              cover: GroupCover(
+                thumbnail: Uri.parse('https://cdn.donmai.us/series.jpg'),
+                visibility: GroupCoverVisibility(
+                  tags: {'cat'},
+                  rating: 'general',
+                  deleted: false,
+                  banned: false,
+                ),
+              ),
+            ),
+          ),
+          createdAt: at,
+          observedAt: at,
+          sourceProfileHint: '11111111-1111-4111-8111-111111111111',
+        );
+        await engine.receive(
+          ticket: await advertise(
+            await publish(parent, [series]),
+            await publish(child, [series]),
+          ),
+          publisherKey: identity.publicKey,
+          directRoots: {parent},
+        );
+        root = (await repository.readMirrorState()).localIdFor(
+          identity.id,
+          parent,
+        )!;
+        service = MiteMiteService(
+          preferences: preferences,
+          store: repository,
+          groups: groups,
+          fs: const IoFileSystem(),
+          codec: codec,
+          storageFor: (_) async => throw StateError('No live storage reads'),
+          identity: await SyncSigningIdentity.create(),
+          mutations: repository.coordinator,
+        );
+      });
+      addTearDown(service.dispose);
+      final harness = await bookmarkHome(tester, service, preferences);
+      final card = find.byKey(ValueKey(('bookmark-card', root)));
+      await tester.ensureVisible(card);
+      await tester.tap(card);
+      await pumpIO(
+        tester,
+        () => find.byType(BookmarkPoolCard).evaluate().isNotEmpty,
+      );
+      await harness.settle(tester);
+      final pool = tester
+          .widget<BookmarkPoolCard>(find.byType(BookmarkPoolCard).first)
+          .pool;
+      expect(pool.origin.profileIdHint, isNull);
+      final imageFinder = find.descendant(
+        of: find.byType(BookmarkPoolCard).first,
+        matching: find.byType(BooruImage),
+      );
+      expect(imageFinder, findsOneWidget);
+      expect(
+        tester.widget<BooruImage>(imageFinder).config.anonymousReadScope,
+        isNotNull,
+      );
+      ViewerEntry? entry;
+      final probe = OverlayEntry(
+        builder: (_) => Consumer(
+          builder: (_, ref, _) {
+            entry = groupViewerEntryForBookmark(
+              ref,
+              pool,
+              occurrenceId: pool.localId,
+            );
+            return const SizedBox();
+          },
+        ),
+      );
+      Overlay.of(tester.element(find.byType(BookmarkPoolCard).first))
+          .insert(probe);
+      await tester.pump();
+      expect(entry, isA<GroupViewerEntry>());
+      expect(entry!.contentReference?.sourceKey, 'pool:42');
+      expect(entry!.source?.publicOrigin, isNotNull);
+      probe.remove();
+      probe.dispose();
+    },
+  );
 
   for (final received in [false, true]) {
     for (final kind in ['Posts', 'Works', 'Pools']) {

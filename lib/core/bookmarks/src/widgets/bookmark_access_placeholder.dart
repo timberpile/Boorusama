@@ -1,24 +1,30 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../blacklists/providers.dart';
-import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../content/content_access_provider.dart';
 import '../../../posts/post/types.dart';
 
-void retryBookmarkPolicy(WidgetRef ref, PostOrigin origin) {
-  final resolved = const PostOriginResolver().resolve(
-    origin,
-    ref.read(booruConfigProvider),
-    allowProfileHintFallback: true,
+void retryBookmarkPolicy(
+  WidgetRef ref,
+  PostOrigin origin, {
+  BookmarkReaderRequest? reader,
+}) {
+  final config = selectBookmarkReadProfile(
+    reader ?? BookmarkReaderRequest(origin),
+    ref.read(bookmarkReadProfilesProvider),
   );
-  if (resolved case ResolvedPostOrigin(:final config)) {
+  if (config != null) {
     ref.invalidate(blacklistedTagsNotifierProvider(config.filter));
     ref.invalidate(blacklistTagsProvider(config.filter));
     ref.invalidate(contentEffectiveBlacklistProvider(config.id));
     ref.invalidate(contentEffectivePolicyProvider(config.id));
+  } else {
+    ref.invalidate(globalBlacklistedTagsProvider);
   }
 }
 
@@ -27,22 +33,23 @@ class BookmarkAccessPlaceholder extends ConsumerWidget {
   const BookmarkAccessPlaceholder({
     required this.origin,
     this.aspectRatio = 1,
+    this.reader,
     super.key,
   });
   final PostOrigin origin;
+  final BookmarkReaderRequest? reader;
   final double aspectRatio;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final resolved = const PostOriginResolver().resolve(
-      origin,
-      ref.watch(booruConfigProvider),
-      allowProfileHintFallback: true,
+    final config = selectBookmarkReadProfile(
+      reader ?? BookmarkReaderRequest(origin),
+      ref.watch(bookmarkReadProfilesProvider),
     );
-    final policy = resolved is ResolvedPostOrigin
-        ? ref.watch(contentEffectivePolicyProvider(resolved.config.id))
-        : null;
-    final loading = policy?.isLoading ?? false;
+    final policy = config != null
+        ? ref.watch(contentEffectivePolicyProvider(config.id))
+        : ref.watch(globalBlacklistedTagsProvider).whenData((_) => "public");
+    final loading = policy.isLoading;
     return AspectRatio(
       aspectRatio: aspectRatio.isFinite && aspectRatio > 0 ? aspectRatio : 1,
       child: ColoredBox(
@@ -59,7 +66,8 @@ class BookmarkAccessPlaceholder extends ConsumerWidget {
               : IconButton(
                   tooltip: context.t.bookmark.unavailable_temporary,
                   icon: const Icon(Icons.cloud_off_outlined),
-                  onPressed: () => retryBookmarkPolicy(ref, origin),
+                  onPressed: () =>
+                      retryBookmarkPolicy(ref, origin, reader: reader),
                 ),
         ),
       ),

@@ -1,4 +1,12 @@
 import 'dart:typed_data';
+import 'dart:convert';
+
+import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
+import 'package:boorusama/core/content/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+
+import '../../bookmarks/pool_bookmark_test_utils.dart';
 
 import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
@@ -175,6 +183,83 @@ void main() {
       throwsFormatException,
     );
     expect(storage.deletes, 0);
+  });
+
+  test('signed MiteMite payload omits local hints for Posts, legacy Groups and native Series; personal backup retains them', () async {
+    final original = data();
+    final at = DateTime.utc(2026);
+    final records = [
+      ...original.records,
+      LegacyGroupBookmark.fromMetadata(id: 2, metadata: testPool()),
+      ContentGroupBookmark(
+        id: 3,
+        snapshot: StoredGroupSnapshot(
+          summary: ContentGroupSummary(
+            reference: const ContentReferenceCodec().parse(
+              engine: BooruType.danbooru,
+              site: Uri.parse('https://danbooru.donmai.us'),
+              kind: ContentKind.group,
+              sourceKey: 'pool:42',
+            ),
+            title: 'Series',
+            displayCategory: 'series',
+          ),
+        ),
+        createdAt: at,
+        observedAt: at,
+        sourceProfileHint: poolProfile,
+      ),
+    ];
+    final snapshot = BookmarkBackupData.unified(
+      records: records,
+      groups: [
+        BookmarkGroupBackup(
+          id: source,
+          name: 'Source',
+          bookmarkIds: records.map((r) => r.id).toList(),
+          addedAt: {for (final r in records) r.id: at},
+        ),
+      ],
+    );
+    final personalBefore = jsonEncode(codec.encode(snapshot));
+    expect(personalBefore, contains('sourceProfileHint'));
+    expect(personalBefore, contains('profileIdHint'));
+    final package = await build(snapshot: snapshot);
+    final revision = await writer.publishRevision(package);
+    final catalog = await writer.publishCatalog(
+      name: 'Publisher',
+      entries: [active(revision)],
+    );
+    final ticket = await accept(catalog);
+    final prepared =
+        await SyncReceivePreparation(
+          storage: storage,
+          fs: fs,
+          codec: codec,
+        ).prepare(
+          catalog: ticket,
+          collection: collection,
+          publisherKey: identity.publicKey,
+        );
+    final wire = jsonEncode(codec.encode(prepared!.package.data));
+    expect(wire, isNot(contains('profileIdHint')));
+    expect(wire, isNot(contains('sourceProfileHint')));
+    expect(prepared.package.data.records.length, records.length);
+    expect(
+      prepared.package.data.records.whereType<ContentGroupBookmark>().map(
+        (r) => r.reference.sourceKey,
+      ),
+      containsAll(['work:120', 'pool:42']),
+    );
+    expect(prepared.package.semanticHash, package.semanticHash);
+    expect(
+      await SyncBookmarkPackageBuilder(
+        fs: fs,
+        codec: codec,
+      ).semanticHash(snapshot),
+      package.semanticHash,
+    );
+    expect(jsonEncode(codec.encode(snapshot)), personalBefore);
   });
 
   test('semantic hash excludes file IDs, record order, archive clocks and Group names', () async {

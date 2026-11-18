@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/boorus/booru/types.dart';
@@ -63,6 +66,9 @@ RemoteBookmarkPool danbooruBookmarkPool(
     category: category,
     loadedDetails: loadedDetails,
     cachedMembers: cachedMembers,
+    memberOrderDigest: pool.postIds == null
+        ? null
+        : sha256.convert(utf8.encode(jsonEncode(pool.postIds))).toString(),
     supportsUploadOrder: true,
   );
 }

@@ -176,11 +176,8 @@ void main() {
       'id': '00000000-0000-4000-8000-000000000002',
     });
     final ambiguous = BookmarkProfileAvailability(safe, [publicConfig, second]);
-    expect(ambiguous.postIds, isEmpty);
-    expect(
-      ambiguous.unavailableReasons[101],
-      PostPresentationFallbackReason.ambiguousProfile,
-    );
+    expect(ambiguous.postIds, {101});
+    expect(ambiguous.unavailableReasons, isEmpty);
     final unavailable = BookmarkProfileAvailability(unsafe, []);
     List<BookmarkGridEntry> selected(
       String group,
@@ -351,10 +348,9 @@ void main() {
             isNull,
           );
           await harness.settle(tester);
-          // A fresh listing can use the sole compatible account; the revoked
-          // originating actor above cannot retarget its pending work. Pool
-          // references retain their strict account binding until P7.
-          media(visible: true, poolsVisible: false);
+          // Fresh Post and Pool reads use the compatible replacement; the
+          // captured actor above remains revoked.
+          media(visible: true);
           expect(
             find.byWidgetPredicate(
               (widget) =>
@@ -384,7 +380,7 @@ void main() {
             'id': '00000000-0000-4000-8000-000000000002',
           });
           await setProfiles([backend.config, second]);
-          media(visible: false);
+          media(visible: true);
           await setProfiles([backend.config]);
           media(visible: true);
           await setProfiles([]);

@@ -1,3 +1,7 @@
+import 'package:equatable/equatable.dart';
+
+import '../../../posts/related/related_posts_order_value.dart';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -47,6 +51,48 @@ final relatedBookmarkDraftProvider = FutureProvider.autoDispose
         tags: const {},
         coverage: PoolTagCoverage.unknown,
       );
+    });
+
+/// Immutable, value-equal seeds from an already authorized visible family.
+final class RelatedBookmarkDraftInput extends Equatable {
+  RelatedBookmarkDraftInput({
+    required this.config,
+    required this.family,
+    Iterable<Post> cachedMembers = const [],
+    this.order,
+  }) : cachedMembers = List.unmodifiable(cachedMembers.take(40));
+  final BooruConfig config;
+  final RelatedFamilyReference family;
+  final List<Post> cachedMembers;
+  final RelatedPostsOrder? order;
+  @override
+  List<Object?> get props => [config, family, cachedMembers, order];
+}
+
+final relatedBookmarkCachedDraftProvider = FutureProvider.autoDispose
+    .family<CollectionBookmark, RelatedBookmarkDraftInput>((ref, input) async {
+      final draft = await ref.watch(
+        relatedBookmarkDraftProvider((input.config, input.family)).future,
+      );
+      if (draft.coverUrl != null || input.cachedMembers.isEmpty) return draft;
+      final blacklist = ref
+          .read(blacklistTagsProvider(input.config.filter))
+          .asData
+          ?.value;
+      if (blacklist == null) return draft;
+      final members = input.cachedMembers.where(input.family.contains).toList();
+      final cover = eligiblePoolCover(
+        input.config,
+        blacklist,
+        members,
+      )?.withMemberOrder(poolMemberOrderDigest(members));
+      return cover == null
+          ? draft
+          : draft.copyWith(
+              cover: cover,
+              coverUrl: cover.thumbnail,
+              coverPolicy: poolCoverPolicy(input.config, blacklist),
+            );
     });
 
 /// One bounded producer request (plus its existing exact-count request). The
@@ -118,7 +164,12 @@ final relatedBookmarkRefreshProvider = FutureProvider.autoDispose
             ? PoolTagCoverage.complete
             : PoolTagCoverage.partial,
         total: data?.total,
-        cover: coverPost == null ? null : PoolBookmarkCover.fromPost(coverPost),
+        cover:
+            existing?.cover ??
+            (coverPost == null
+                ? null
+                : PoolBookmarkCover.fromPost(coverPost)
+                      .withMemberOrder(poolMemberOrderDigest(members))),
         coverPolicy: poolCoverPolicy(config, blacklist),
         newestUpload:
             complete && dates.length == visible.length && dates.isNotEmpty

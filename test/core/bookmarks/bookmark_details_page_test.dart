@@ -1,3 +1,5 @@
+import 'package:boorusama/boorus/danbooru/posts/post/src/danbooru_post_codec.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_scroll_view.dart';
@@ -1766,6 +1768,7 @@ class _BookmarkViewerHarness extends StatelessWidget {
         () => BooruConfigNotifier(initialConfigs: [_config]),
       ),
       if (fixedAccess case final access?) ...[
+        bookmarkReadAccessProvider.overrideWith((ref, target) => access),
         contentAccessEpochsProvider.overrideWithValue(fixedEpochs!),
         contentAccessForOriginProvider.overrideWith((ref, origin) => access),
         contentAccessContextProvider.overrideWith(
@@ -2112,6 +2115,12 @@ final class _CodecRegistry extends BooruEngineRegistry {
           booruType: BooruType.gelbooruV2,
           codec: GelbooruV2PostCodec(),
           presentation: _NativePresentation(),
+        )
+      : type == BooruType.danbooru
+      ? const BooruPostCapability(
+          booruType: BooruType.danbooru,
+          codec: DanbooruPostCodec(),
+          presentation: GenericPostPresentation(),
         )
       : null;
 }

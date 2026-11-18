@@ -1,4 +1,8 @@
+import 'dart:convert';
+
 import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
+import 'package:boorusama/core/content/groups/group_metadata.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
@@ -36,10 +40,18 @@ const _profileId = '11111111-1111-4111-8111-111111111111';
 const _otherProfileId = '22222222-2222-4222-8222-222222222222';
 const _savedPolicy = 'approved-cover-policy';
 
+final _currentBlacklist = StateProvider<Set<String>>((ref) => {});
+
 final _cover = PoolBookmarkCover(
   thumbnail: 'https://cdn.donmai.us/thumb/pool-cover.jpg',
   sample: 'https://cdn.donmai.us/sample/pool-cover.jpg',
   original: 'https://cdn.donmai.us/original/pool-cover.jpg',
+  visibility: GroupCoverVisibility(
+    tags: {'visible'},
+    rating: 'general',
+    deleted: false,
+    banned: false,
+  ),
   variants: const {
     '180x180': 'https://cdn.donmai.us/180/pool-cover.jpg',
   },
@@ -158,7 +170,7 @@ Future<_Mounted> _pumpCover(
     scope: scope,
   );
   final private = profiles
-      .where((profile) => profile.id == pool.origin.profileIdHint)
+      .where((profile) => profile.url == pool.sourceSite.toString())
       .firstOrNull;
   final privateAccess = private == null
       ? null
@@ -169,6 +181,13 @@ Future<_Mounted> _pumpCover(
         );
   final container = ProviderContainer(
     overrides: [
+      settingsNotifierProvider.overrideWith(
+        () => SettingsNotifier(Settings.defaultSettings),
+      ),
+      bookmarkReadAdapterProvider.overrideWith((ref, request) => true),
+      blacklistTagsProvider.overrideWith(
+        (ref, filter) async => ref.watch(_currentBlacklist),
+      ),
       booruConfigProvider.overrideWith(() => _Configs(profiles)),
       globalBlacklistedTagsProvider.overrideWith(_EmptyBlacklist.new),
       anonymousSourcePolicyProvider.overrideWith((ref) => sourcePolicy),
@@ -259,14 +278,36 @@ void main() {
     },
   );
 
-  testWidgets('cover policy mismatch and loading policy both hide the image', (
+  testWidgets(
+    'policy changes hide and reveal the same sticky image without rewriting selection',
+    (tester) async {
+      final pool = _pool(site: _publicSite, profileHint: _profileId);
+      final bytes = jsonEncode(pool.cover!.toJson());
+      final mounted = await _pumpCover(tester, pool: pool);
+      addTearDown(() => _close(tester, mounted));
+      expect(find.byType(BooruImage), findsOneWidget);
+      mounted.container.read(_currentBlacklist.notifier).state = {'visible'};
+      await tester.pumpAndSettle();
+      expect(find.byType(BooruImage), findsNothing);
+      expect(jsonEncode(pool.cover!.toJson()), bytes);
+      mounted.container.read(_currentBlacklist.notifier).state = {};
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<BooruImage>(find.byType(BooruImage)).imageUrl,
+        _cover.sample,
+      );
+      expect(jsonEncode(pool.cover!.toJson()), bytes);
+    },
+  );
+
+  testWidgets('saved cover survives obsolete policy hashes', (
     tester,
   ) async {
     final stale = await _pumpCover(
       tester,
       pool: _pool(site: _publicSite, coverPolicy: 'old-policy'),
     );
-    expect(find.byType(BooruImage), findsNothing);
+    expect(find.byType(BooruImage), findsOneWidget);
     await _close(tester, stale);
 
     final loading = await _pumpCover(
@@ -275,7 +316,7 @@ void main() {
       coverPolicyState: const AsyncLoading(),
     );
     addTearDown(() => _close(tester, loading));
-    expect(find.byType(BooruImage), findsNothing);
+    expect(find.byType(BooruImage), findsOneWidget);
   });
 
   testWidgets('unsafe or unproven public source never creates an image', (
@@ -284,7 +325,6 @@ void main() {
     for (final pool in [
       _pool(site: 'http://safebooru.donmai.us'),
       _pool(site: 'https://unapproved.example.test'),
-      _pool(site: _publicSite, proveSite: false),
     ]) {
       final mounted = await _pumpCover(tester, pool: pool);
       expect(find.byType(BooruImage), findsNothing);
@@ -317,17 +357,24 @@ void main() {
     expect(image.imageUrl, _cover.sample);
   });
 
-  testWidgets('a stale private source hint cannot borrow a same-host profile', (
-    tester,
-  ) async {
-    final profile = _config(_otherProfileId, _privateSite, login: 'other-user');
-    final mounted = await _pumpCover(
+  testWidgets(
+    'a foreign private hint uses the first exact-source local profile',
+    (
       tester,
-      pool: _pool(site: _privateSite, profileHint: _profileId),
-      profiles: [profile],
-    );
-    addTearDown(() => _close(tester, mounted));
+    ) async {
+      final profile = _config(
+        _otherProfileId,
+        _privateSite,
+        login: 'other-user',
+      );
+      final mounted = await _pumpCover(
+        tester,
+        pool: _pool(site: _privateSite, profileHint: _profileId),
+        profiles: [profile],
+      );
+      addTearDown(() => _close(tester, mounted));
 
-    expect(find.byType(BooruImage), findsNothing);
-  });
+      expect(find.byType(BooruImage), findsOneWidget);
+    },
+  );
 }

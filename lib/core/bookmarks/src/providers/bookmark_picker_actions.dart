@@ -28,8 +28,22 @@ void watchBookmarkPickerDraft(WidgetRef ref, BookmarkPickerRequest request) {
   switch (request) {
     case RemotePoolBookmarkPickerRequest(:final source, :final pool):
       ref.watch(poolBookmarkDraftProvider((source, pool)));
-    case RelatedBookmarkPickerRequest(:final source, :final family):
-      ref.watch(relatedBookmarkDraftProvider((source, family)));
+    case RelatedBookmarkPickerRequest(
+      :final source,
+      :final family,
+      :final cachedMembers,
+      :final visibleOrder,
+    ):
+      ref.watch(
+        relatedBookmarkCachedDraftProvider(
+          RelatedBookmarkDraftInput(
+            config: source,
+            family: family,
+            cachedMembers: cachedMembers,
+            order: visibleOrder,
+          ),
+        ),
+      );
     default:
       break;
   }
@@ -116,9 +130,21 @@ class BookmarkPickerActions {
             await container.read(
               poolBookmarkDraftProvider((source, pool)).future,
             ),
-          RelatedBookmarkPickerRequest(:final source, :final family) =>
+          RelatedBookmarkPickerRequest(
+            :final source,
+            :final family,
+            :final cachedMembers,
+            :final visibleOrder,
+          ) =>
             await container.read(
-              relatedBookmarkDraftProvider((source, family)).future,
+              relatedBookmarkCachedDraftProvider(
+                RelatedBookmarkDraftInput(
+                  config: source,
+                  family: family,
+                  cachedMembers: cachedMembers,
+                  order: visibleOrder,
+                ),
+              ).future,
             ),
           PostBookmarkPickerRequest() ||
           SavedBookmarkPickerRequest() ||

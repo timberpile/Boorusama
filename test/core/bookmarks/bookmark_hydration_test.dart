@@ -1,3 +1,5 @@
+import 'package:boorusama/core/blacklists/providers.dart';
+
 import 'dart:async';
 import 'dart:io';
 
@@ -277,7 +279,7 @@ void main() {
       expect(result.processed, 2);
       final expectedReason = switch (scenario) {
         'missing profile' => BookmarkHydrationLogReason.missingProfile,
-        'ambiguous profile' => BookmarkHydrationLogReason.ambiguousProfile,
+        'ambiguous profile' => BookmarkHydrationLogReason.updated,
         'missing ID' => BookmarkHydrationLogReason.missingPostId,
         'removed post' => BookmarkHydrationLogReason.removedPost,
         'unavailable codec' => BookmarkHydrationLogReason.unsupportedSnapshot,
@@ -293,10 +295,11 @@ void main() {
       expect(result.logEntries, hasLength(2));
       if ([
         'missing profile',
-        'ambiguous profile',
         'unavailable codec',
       ].contains(scenario)) {
         expect((result.updated, result.skipped, result.failed), (0, 2, 0));
+      } else if (scenario == 'ambiguous profile') {
+        expect((result.updated, result.skipped, result.failed), (2, 0, 0));
       } else if (scenario == 'request failure') {
         expect((result.updated, result.skipped, result.failed), (1, 0, 1));
       } else {
@@ -656,7 +659,7 @@ void main() {
   );
 
   test(
-    'uses the origin profile hint instead of choosing an arbitrary matching profile',
+    'uses the first compatible reader even when the origin hints at another profile',
     () async {
       final original = legacy(1);
       final post = original.post.copyWith(
@@ -693,7 +696,7 @@ void main() {
           },
         ),
       );
-      expect(used?.id, config.id);
+      expect(used?.id, '00000000-0000-4000-8000-000000000002');
     },
   );
 
@@ -952,6 +955,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           ...storage.overrides,
+          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1101,7 +1105,7 @@ void main() {
   );
 
   test(
-    'profiles on the same site share a sequential queue and keep their own credentials',
+    'profiles on the same site share a sequential queue and use the first reader',
     () async {
       final other = BooruConfig.fromJson({
         ...config.toJson(),
@@ -1149,7 +1153,7 @@ void main() {
         release.complete();
         expect((await future).updated, 2);
       }
-      expect(usedProfiles, [config.id, other.id]);
+      expect(usedProfiles, [config.id, config.id]);
     },
   );
 
@@ -1166,12 +1170,16 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           ...storage.overrides,
+          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
             (ref, _) => const DefaultImageUrlResolver(),
           ),
           settingsProvider.overrideWithValue(Settings.defaultSettings),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: [config]),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -1259,12 +1267,16 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           ...storage.overrides,
+          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
             (ref, _) => const DefaultImageUrlResolver(),
           ),
           settingsProvider.overrideWithValue(Settings.defaultSettings),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: [config]),
+          ),
         ],
       );
       addTearDown(container.dispose);

@@ -1,9 +1,18 @@
 import 'dart:io';
+
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
+import 'package:boorusama/core/cache/hive_persistent_cache_store.dart';
+
 import 'dart:async';
+
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_presentation_covers.dart';
 
 import 'package:boorusama/core/content/anonymous_read_scope.dart';
 import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/content/anonymous_access_provider.dart';
+import 'package:boorusama/core/cache/persistent/providers.dart';
 
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -43,6 +52,7 @@ void main() {
   ProviderContainer? container;
 
   Future<void> open() async {
+    await Hive.openBox<String>('presentation_cache');
     final posts = await Hive.openBox<BookmarkHiveObject>('posts');
     final payloads = await Hive.openBox<dynamic>('posts_unified_payloads');
     final metadata = await Hive.openBox<dynamic>('posts_unified_metadata');
@@ -76,6 +86,9 @@ void main() {
   }) async {
     container = ProviderContainer(
       overrides: [
+        persistentCacheStoreProvider.overrideWithValue(
+          HivePersistentCacheStore(Hive.box<String>('presentation_cache')),
+        ),
         dataMutationCoordinatorProvider.overrideWithValue(
           repository.coordinator,
         ),
@@ -87,6 +100,7 @@ void main() {
         settingsNotifierProvider.overrideWith(
           () => SettingsNotifier(Settings.defaultSettings),
         ),
+        bookmarkReadAdapterProvider.overrideWith((ref, target) => true),
         ...overrides,
       ],
     );
@@ -274,23 +288,43 @@ void main() {
   );
   for (final membership in [
     'local',
+    'local-related',
+    'public-related',
     'received',
     'shared',
     'replaced',
     'revoked',
     'forgotten',
     'public',
+    'public-foreign',
     'public-replaced',
   ]) {
     test(
       'real Hive $membership cover lookup preserves publisher authority',
       () async {
         final id = (await repository.reserveIds(1)).single;
-        final original = record(id).copyWith(
-          sourceProfileHint: membership.startsWith('public')
-              ? () => null
-              : null,
+        final base = record(
+          id,
+          key: membership.endsWith('related') ? 'related:42' : 'pool:42',
         );
+        final original =
+            (membership.endsWith('related')
+                    ? RelatedBookmark(
+                        id: id,
+                        snapshot: base.snapshot,
+                        createdAt: base.createdAt,
+                        observedAt: base.observedAt,
+                        sourceProfileHint: base.sourceProfileHint,
+                        preferredOrder: RelatedPostsOrder.newest,
+                      )
+                    : base)
+                .copyWith(
+                  sourceProfileHint: membership == 'public-foreign'
+                      ? () => poolGroupB
+                      : membership.startsWith('public')
+                      ? () => null
+                      : null,
+                );
         final local = BookmarkGroup(
           id: poolGroupB,
           name: 'Local',
@@ -304,7 +338,7 @@ void main() {
           addedAt: {id: DateTime.utc(2024)},
         );
         var mirrors = const BookmarkMirrorState.empty();
-        if (membership == 'local') {
+        if (membership.startsWith('local')) {
           await repository.commitOrganization(
             records: [original],
             groups: [local],
@@ -379,6 +413,10 @@ void main() {
           profiles: membership.startsWith('public') ? [] : [config],
           overrides: [
             if (publicAccess != null)
+              anonymousContentAccessProvider.overrideWith(
+                (ref, source) => publicAccess,
+              ),
+            if (publicAccess != null)
               contentAccessContextProvider(publicAccess.key)
                   .overrideWith((ref) => publicAccess),
             blacklistTagsProvider.overrideWith((ref, filter) async => {}),
@@ -386,6 +424,14 @@ void main() {
               (ref, config) => PostRepositoryBuilder<Post>(
                 fetch: (tags, page, {limit, options}) async {
                   calls++;
+                  if (membership.endsWith('related')) {
+                    expect(tags.join(' '), contains('parent:42'));
+                    expect(
+                      tags.join(' '),
+                      contains(RelatedPostsOrder.newest.queryOrder),
+                    );
+                    expect(tags.join(' '), isNot(contains('pool:')));
+                  }
                   expect(limit, lessThanOrEqualTo(40));
                   if (interrupted && calls == 1) {
                     entered.complete();
@@ -396,7 +442,7 @@ void main() {
                   return PostResult(
                     posts: [
                       TestPost(
-                        id: 100,
+                        id: membership.endsWith('related') ? 42 : 100,
                         origin: postOriginFromConfig(config),
                         thumbnailImageUrl:
                             'https://danbooru.donmai.us/cover.jpg',
@@ -483,13 +529,214 @@ void main() {
         expect(await repository.readMirrorState(), mirrors);
         expect(await groups.getGroups(), beforeGroups);
         final saved = await repository.read(id) as ContentGroupBookmark;
-        if (membership != 'local') {
+        if (!membership.startsWith('local')) {
           expect(saved, original);
           expect(await repository.readRevision(), revision);
+          final choiceKey = bookmarkPresentationCoverKey(
+            container!.read(bookmarkProvider).requireValue,
+            pool,
+          );
+          container!.dispose();
+          container = null;
+          await Hive.close();
+          await open();
+          final choices = BookmarkPresentationCovers(
+            HivePersistentCacheStore(Hive.box<String>('presentation_cache')),
+          );
+          expect(choices.selected(choiceKey), covered!.cover);
+          expect(await repository.read(id), original);
+          if (membership == 'received') {
+            await repository.commitMirrorOrganization(
+              expected: mirrors,
+              next: BookmarkMirrorState(
+                epoch: 2,
+                owners: {},
+                checkpoints: mirrors.checkpoints,
+                forgotten: {poolProfile},
+              ),
+              removeIds: {id},
+              removeGroupIds: {poolGroupA},
+            );
+            await notifier();
+            expect(
+              container!
+                  .read(bookmarkPresentationCoversProvider)
+                  .selected(choiceKey),
+              isNull,
+            );
+          }
         } else {
           expect(saved.summary.cover, isNotNull);
           expect(saved.snapshot.index!.basis, GroupTagIndexBasis.sourceGroup);
         }
+      },
+    );
+  }
+
+  test(
+    'manual native refresh preserves sourceGroup index and unrelated records',
+    () async {
+      final ids = await repository.reserveIds(2);
+      final original = record(ids[0]);
+      final unrelated = record(ids[1], key: 'pool:43');
+      await repository.commitOrganization(
+        records: [original, unrelated],
+        groups: [
+          BookmarkGroup(
+            id: poolGroupA,
+            name: 'Local',
+            bookmarkIds: ids.toSet(),
+            addedAt: {for (final id in ids) id: DateTime.utc(2024)},
+          ),
+        ],
+      );
+      final service = await notifier();
+      final pool = container!
+          .read(bookmarkProvider)
+          .requireValue
+          .pools
+          .firstWhere((p) => p.bookmarkId == original.id);
+      await service.refreshPoolBookmark(summary(pool));
+      final saved = await repository.read(original.id) as ContentGroupBookmark;
+      expect(saved.snapshot.index, original.snapshot.index);
+      expect(
+        saved.snapshot.details?.description,
+        original.snapshot.details?.description,
+      );
+      expect(saved.createdAt, original.createdAt);
+      expect(await repository.read(unrelated.id), unrelated);
+    },
+  );
+
+  for (final mode in ['success', 'failure', 'superseded', 'revoked']) {
+    test(
+      'Related member-order cover commit is atomic and guarded ($mode)',
+      () async {
+        final id = (await repository.reserveIds(1)).single;
+        final base = record(id, key: 'related:42');
+        final original = RelatedBookmark(
+          id: id,
+          snapshot: base.snapshot,
+          createdAt: base.createdAt,
+          observedAt: base.observedAt,
+          sourceProfileHint: poolGroupB,
+          preferredOrder: RelatedPostsOrder.oldest,
+        );
+        final group = BookmarkGroup(
+          id: poolGroupA,
+          name: 'Local',
+          bookmarkIds: {id},
+          addedAt: {id: DateTime.utc(2024)},
+        );
+        await repository.commitOrganization(
+          records: [original],
+          groups: [group],
+        );
+        final config = BooruConfig.fromJson({
+          ...BooruConfig.empty.toJson(),
+          'id': poolProfile,
+          'url': 'https://danbooru.donmai.us',
+          'booruId': original.reference.engine.id,
+          'booruIdHint': original.reference.engine.id,
+        });
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        var calls = 0;
+        final service = await notifier(
+          profiles: [
+            mode == 'revoked'
+                ? BooruConfig.fromJson({
+                    ...config.toJson(),
+                    'apiKey': 'replacement-credential',
+                  })
+                : config,
+          ],
+          overrides: [
+            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            originAwarePostRepoProvider.overrideWith(
+              (ref, source) => PostRepositoryBuilder<Post>(
+                fetch: (tags, page, {limit, options}) async {
+                  calls++;
+                  expect(tags.join(' '), contains('parent:42'));
+                  expect(
+                    tags.join(' '),
+                    contains(RelatedPostsOrder.newest.queryOrder),
+                  );
+                  expect(tags.join(' '), isNot(contains('pool:')));
+                  expect(limit, 40);
+                  if (mode == 'failure' || mode == 'revoked')
+                    throw StateError('offline');
+                  if (mode == 'superseded') {
+                    entered.complete();
+                    await release.future;
+                  }
+                  return PostResult(
+                    posts: [
+                      TestPost(
+                        id: 42,
+                        origin: postOriginFromConfig(source),
+                        thumbnailImageUrl:
+                            'https://danbooru.donmai.us/newest.jpg',
+                      ),
+                    ],
+                    total: 100,
+                  );
+                },
+                fetchSingle: (_, {options}) async => null,
+                getSettings: () async => Settings.defaultSettings.listing,
+                tagComposer: EmptyTagQueryComposer(),
+              ),
+            ),
+          ],
+        );
+        final staleSummary = summary(
+          container!.read(bookmarkProvider).requireValue.pools.single,
+        );
+        final pending = service.setRelatedOrder(
+          id,
+          RelatedPostsOrder.newest,
+          reader: mode == 'revoked' ? config : null,
+        );
+        if (mode == 'superseded') {
+          await entered.future;
+          await service.setRelatedOrder(id, RelatedPostsOrder.oldest);
+          release.complete();
+        }
+        if (mode == 'failure' || mode == 'revoked')
+          await expectLater(pending, throwsA(anything));
+        else
+          await pending;
+        final saved = await repository.read(id) as RelatedBookmark;
+        if (mode == 'success') {
+          expect(saved.preferredOrder, RelatedPostsOrder.newest);
+          expect(
+            saved.summary.cover?.thumbnail.toString(),
+            endsWith('/newest.jpg'),
+          );
+          expect(saved.summary.cover?.visibility, isNotNull);
+          expect(saved.snapshot.index?.tags, original.snapshot.index?.tags);
+          expect(
+            saved.snapshot.details?.description,
+            original.snapshot.details?.description,
+          );
+          expect(saved.createdAt, original.createdAt);
+          expect(saved.observedAt, original.observedAt);
+        } else
+          expect(saved, original);
+        expect(calls, mode == 'revoked' ? 0 : 1);
+        if (mode == 'success') {
+          await expectLater(
+            service.refreshPoolBookmark(staleSummary, expectedRecord: original),
+            throwsStateError,
+          );
+          expect(
+            await repository.read(id),
+            saved,
+            reason:
+                'A late metadata refresh cannot undo the newer member order',
+          );
+        }
+        expect(await groups.getGroup(poolGroupA), group);
       },
     );
   }

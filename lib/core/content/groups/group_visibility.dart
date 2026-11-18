@@ -47,3 +47,38 @@ bool groupAllowsRating(BooruConfig config, Rating rating) =>
       BooruConfigRatingFilter.custom =>
         config.granularRatingFilters?.ratings.contains(rating) ?? false,
     };
+
+/// Cover tags describe one selected Post. Never substitute a site URL or zero
+/// score for facts needed by a newly applied blacklist expression.
+bool groupCoverPassesBlacklist(
+  GroupCoverVisibility facts,
+  Set<String> blacklist, {
+  int? postId,
+}) {
+  if (facts.tagCoverage != MetadataCoverage.complete) return false;
+  final extra = facts.postFacts;
+  final factExpressions = RegExp(
+    r'(?:^|\s)[~-]?(source|score|downvotes|uploader|uploaderid):',
+    caseSensitive: false,
+  );
+  // Status implementations are engine-specific; deleted/banned flags do not
+  // prove arbitrary status expressions such as pending or flagged.
+  if (blacklist.any(
+    (p) => RegExp(r'(?:^|\s)[~-]?status:', caseSensitive: false).hasMatch(p),
+  ))
+    return false;
+  if (extra == null && blacklist.any(factExpressions.hasMatch)) return false;
+  final data = TagFilterData(
+    tags: facts.tags.map((v) => v.toLowerCase()).toSet(),
+    rating: Rating.parse(facts.rating),
+    score: extra?['score'] as int? ?? 0,
+    downvotes: extra?['downvotes'] as int?,
+    uploaderId: extra?['uploaderId'] as int?,
+    uploaderName: extra?['uploaderName'] as String?,
+    source: extra?['source'] as String?,
+    id: postId,
+  );
+  return !blacklist.any(
+    (pattern) => checkIfTagsContainsRawTagExpression(data, pattern),
+  );
+}

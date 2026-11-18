@@ -152,6 +152,7 @@ final class GroupMetadataCodec {
     },
     'variants': cover.variants,
     'visibility': ?cover.visibility?.toJson(),
+    'memberOrderDigest': ?cover.memberOrderDigest,
   };
   GroupCover _decodeCover(Object? value) {
     final map = contentMap(value);
@@ -161,6 +162,7 @@ final class GroupMetadataCodec {
       original: _uri(map['original']),
       width: map['width'] as int?,
       height: map['height'] as int?,
+      memberOrderDigest: map['memberOrderDigest'] as String?,
       visibility: map['visibility'] == null
           ? null
           : GroupCoverVisibility.fromJson(contentMap(map['visibility'])),

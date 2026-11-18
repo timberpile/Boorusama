@@ -1,3 +1,5 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:i18n/i18n.dart';
@@ -5,7 +7,6 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../configs/manage/widgets.dart';
-import '../../../content/content_access_provider.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/listing/providers.dart';
 import '../../../posts/listing/src/widgets/post_grid_item.dart';
@@ -346,7 +347,7 @@ class _BookmarkGroupPreviewImage extends ConsumerWidget {
       return const SizedBox.expand();
     }
     final access = ref.watch(
-      contentAccessForOriginProvider(bookmark.post.origin),
+      bookmarkReadAccessProvider(BookmarkReaderRequest(bookmark.post.origin)),
     );
     final profile = access?.config;
     if (profile == null) return const SizedBox.expand();

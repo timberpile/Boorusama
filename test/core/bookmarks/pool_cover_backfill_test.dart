@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+
 import 'package:clock/clock.dart';
 
 import 'package:boorusama/core/blacklists/providers.dart';
@@ -17,6 +20,7 @@ import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/search/queries/types.dart';
 import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/core/settings/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -76,6 +80,18 @@ void main() {
       ),
     ) as StoredPostDecodeSuccess).post;
   }
+
+  test('cached same-source members do not require the saving profile UUID', () {
+    final foreign = post().copyWith(
+      origin: PostOrigin.fromSource(
+        booruType: config.auth.booruType,
+        booruId: config.booruId,
+        source: config.url,
+        profileIdHint: poolGroupB,
+      ),
+    );
+    expect(eligiblePoolCover(config, {}, [foreign]), isNotNull);
+  });
 
   test('failed cover jobs retry after cooldown instead of remaining cached forever', () async {
     var now = DateTime.utc(2026);
@@ -170,6 +186,10 @@ void main() {
       var calls = 0;
       final container = ProviderContainer(
         overrides: [
+          booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
+          ),
           bookmarkProvider.overrideWith(() => _Saved(testPool())),
           blacklistTagsProvider.overrideWith((_, _) async => {}),
           originAwarePostRepoProvider.overrideWith((_, _) {
@@ -245,6 +265,10 @@ void main() {
       final profiles = _Profiles([config]);
       final container = ProviderContainer(
         overrides: [
+          booruEngineRegistryProvider.overrideWithValue(BooruEngineRegistry()),
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
+          ),
           bookmarkProvider.overrideWith(() => saved),
           booruConfigProvider.overrideWith(
             () => profiles,

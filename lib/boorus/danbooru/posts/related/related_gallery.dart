@@ -192,7 +192,7 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
       if (savedId != null) {
         await ref
             .read(bookmarkProvider.notifier)
-            .setRelatedOrder(savedId, order);
+            .setRelatedOrder(savedId, order, reader: ref.readConfig);
       }
       if (!mounted) return;
       _selection.disable();
@@ -307,6 +307,9 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
                         config: config,
                         family: _family,
                         visibleOrder: order,
+                        cachedMembers: List.unmodifiable(
+                          controller.items.take(40),
+                        ),
                       ),
                       builder: (context, show) => IconButton(
                         tooltip: context.t.bookmark.bookmark_related,

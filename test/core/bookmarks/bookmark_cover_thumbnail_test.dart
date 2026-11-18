@@ -1,3 +1,4 @@
+import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/boorus/danbooru/posts/listing/src/grid_thumbnail_url.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark_cover.dart';
@@ -138,54 +139,58 @@ void main() {
     }
   });
 
-  testWidgets('a changed cover policy continues to hide the saved cover', (
-    tester,
-  ) async {
-    final config = BooruConfig.fromJson({
-      ...BooruConfig.defaultConfig(
-        booruType: BooruType.danbooru,
-        url: 'https://danbooru.donmai.us',
-        customDownloadFileNameFormat: null,
-      ).toJson(),
-      'id': poolProfile,
-    });
-    final pool = PoolBookmark.fromJson({
-      ...testPool().toJson(),
-      'coverUrl': cover.thumbnail,
-      'coverPolicy': 'old-policy',
-      'cover': cover.toJson(),
-    });
+  testWidgets(
+    'an unverified saved cover remains hidden after a policy change',
+    (
+      tester,
+    ) async {
+      final config = BooruConfig.fromJson({
+        ...BooruConfig.defaultConfig(
+          booruType: BooruType.danbooru,
+          url: 'https://danbooru.donmai.us',
+          customDownloadFileNameFormat: null,
+        ).toJson(),
+        'id': poolProfile,
+      });
+      final pool = PoolBookmark.fromJson({
+        ...testPool().toJson(),
+        'coverUrl': cover.thumbnail,
+        'coverPolicy': 'old-policy',
+        'cover': cover.toJson(),
+      });
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          booruConfigProvider.overrideWith(
-            () => BooruConfigNotifier(initialConfigs: [config]),
-          ),
-          poolCoverPolicyProvider.overrideWith(
-            (ref, config) => const AsyncData('current-policy'),
-          ),
-          imageListingSettingsProvider.overrideWithValue(
-            Settings.defaultSettings.listing,
-          ),
-          automaticMediaLoadingEnabledProvider.overrideWithValue(false),
-        ],
-        child: MaterialApp(
-          theme: ThemeData(extensions: const [KurumiExtendedColorScheme()])
-              .withBoorusamaColors(),
-          builder: (context, child) => KurumiTheme(
-            data: KurumiThemeData.fromMaterial(
-              Theme.of(context).withBoorusamaColors(),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            booruConfigProvider.overrideWith(
+              () => BooruConfigNotifier(initialConfigs: [config]),
             ),
-            child: child!,
+            poolCoverPolicyProvider.overrideWith(
+              (ref, config) => const AsyncData('current-policy'),
+            ),
+            imageListingSettingsProvider.overrideWithValue(
+              Settings.defaultSettings.listing,
+            ),
+            automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(extensions: const [KurumiExtendedColorScheme()])
+                .withBoorusamaColors(),
+            builder: (context, child) => KurumiTheme(
+              data: KurumiThemeData.fromMaterial(
+                Theme.of(context).withBoorusamaColors(),
+              ),
+              child: child!,
+            ),
+            home: Scaffold(body: BookmarkPoolCoverImage(pool: pool)),
           ),
-          home: Scaffold(body: BookmarkPoolCoverImage(pool: pool)),
         ),
-      ),
-    );
+      );
 
-    expect(find.byType(BooruImage), findsNothing);
-  });
+      expect(find.byType(BooruImage), findsNothing);
+    },
+  );
 }
 
 GridThumbnailSettings _settings(ImageQuality quality, GridSize size) =>

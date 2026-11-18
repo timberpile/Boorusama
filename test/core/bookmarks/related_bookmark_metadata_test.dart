@@ -1,4 +1,9 @@
 import 'package:booru_clients/danbooru.dart';
+import 'package:boorusama/core/posts/related/related_posts_order_value.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+
+import '../../support/fakes/test_post.dart';
+
 import 'package:boorusama/boorus/danbooru/client_provider.dart';
 import 'package:boorusama/boorus/danbooru/posts/post/providers.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
@@ -121,6 +126,59 @@ void main() {
     'image_height': 100,
     'preview_file_url': 'https://media.test/$id.$ext',
   };
+
+  for (final order in RelatedPostsOrder.values) {
+    test(
+      'new Related uses a source-verified cached static cover without requests ($order)',
+      () async {
+        var requests = 0;
+        final cached = TestPost(
+          id: 10,
+          origin: PostOrigin.fromSource(
+            booruType: config.auth.booruType,
+            booruId: config.booruId,
+            source: config.url,
+            profileIdHint: poolGroupB,
+          ),
+          thumbnailImageUrl: 'https://cdn.donmai.us/10.jpg',
+        );
+        final container = ProviderContainer(
+          overrides: [
+            bookmarkProvider.overrideWith(() => _Library([])),
+            blacklistTagsProvider.overrideWith((ref, filter) async => {}),
+            originAwarePostRepoProvider.overrideWith((ref, config) {
+              requests++;
+              throw StateError('Save must not fetch');
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+        await container.read(blacklistTagsProvider(config.filter).future);
+        final draft = await container.read(
+          relatedBookmarkCachedDraftProvider(
+            RelatedBookmarkDraftInput(
+              config: config,
+              family: family,
+              order: order,
+              cachedMembers: [
+                TestPost(
+                  id: 999,
+                  origin: cached.origin,
+                  thumbnailImageUrl: 'https://cdn.donmai.us/unrelated.jpg',
+                ),
+                cached,
+              ],
+            ),
+          ).future,
+        );
+        expect(draft.cover?.thumbnail, cached.thumbnailImageUrl);
+        expect(draft.cover?.postId, 10);
+        expect(draft.cover?.visibility?.tags, cached.tags);
+        expect(draft.coverage, PoolTagCoverage.unknown);
+        expect(requests, 0);
+      },
+    );
+  }
 
   test('bounded summary uses the producer count without extra probes or recursive children', () async {
     final calls = <RequestOptions>[];

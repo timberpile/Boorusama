@@ -120,6 +120,7 @@ final class RelatedBookmarkPickerRequest extends BookmarkPickerRequest {
     required BooruConfig config,
     required this.family,
     this.visibleOrder,
+    this.cachedMembers = const [],
   }) : source = config;
   @override
   final BooruConfig source;
@@ -127,8 +128,9 @@ final class RelatedBookmarkPickerRequest extends BookmarkPickerRequest {
   BooruConfigAuth get config => source.auth;
   final RelatedFamilyReference family;
   final RelatedPostsOrder? visibleOrder;
+  final List<Post> cachedMembers;
   @override
   Object get collectionIdentity => family.identity;
   @override
-  List<Object?> get props => [source, family, visibleOrder];
+  List<Object?> get props => [source, family, visibleOrder, cachedMembers];
 }
