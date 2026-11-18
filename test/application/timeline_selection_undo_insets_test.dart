@@ -4,7 +4,7 @@ import 'package:boorusama/core/posts/listing/src/widgets/post_selection_controls
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:oktoast/oktoast.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:selection_mode/selection_mode.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
 
@@ -106,7 +106,6 @@ void main() {
         await tester.tap(find.text('Ordinary success'));
         final success = find.byKey(const ValueKey('kurumi-success-toast'));
         await harness.pumpUntilFound(tester, success);
-        await harness.settle(tester);
         expect(
           container
               .read(bookmarkProvider)
@@ -122,15 +121,30 @@ void main() {
           } else {
             tester.testTextInput.hide();
           }
-          await harness.settle(tester);
+          // Wait for the inset relationship itself; unrelated animations must
+          // not consume the short confirmation's lifetime between checks.
+          await harness.pumpUntil(
+            tester,
+            () =>
+                harness.keyboard.isShown == keyboard &&
+                success.evaluate().isNotEmpty &&
+                (tester.getRect(manager).top -
+                            tester.getRect(success).bottom -
+                            16)
+                        .abs() <=
+                    .5,
+            description:
+                'success toast above selection with keyboard=$keyboard',
+          );
           expect(harness.keyboard.isShown, keyboard);
           expect(
             tester.getRect(manager).top - tester.getRect(success).bottom,
             closeTo(16, .5),
           );
         }
-        dismissAllToast(showAnim: false);
-        await tester.pump(const Duration(seconds: 5));
+        await tester.pump(KurumiDurations.shortToast);
+        await harness.settle(tester);
+        expect(success, findsNothing);
         expect(tester.takeException(), isNull);
       },
     );
