@@ -26,6 +26,7 @@ import '../../posts/listing/src/_internal/raw_post_grid.dart'
     show PostGridConstraints;
 import '../../posts/listing/providers.dart';
 import '../../settings/providers.dart';
+import '../../widgets/viewport_bottom_insets.dart';
 import '../../posts/listing/src/types/timeline_continuation_controller.dart';
 import '../../posts/listing/src/widgets/post_grid_prefetch.dart';
 import '../../posts/listing/src/widgets/post_grid_item.dart';
@@ -36,6 +37,7 @@ import '../../selection/ordered_selection_canvas.dart';
 import '../../selection/selection_input.dart';
 import '../../selection/collection_selection_bar.dart';
 import '../../navigation/destination_activity.dart';
+import '../../navigation/navigation_interaction_scopes.dart';
 import '../content_access_provider.dart';
 import '../groups/group_capability.dart';
 import '../groups/group_source_provider.dart';
@@ -229,6 +231,7 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                   size.maxWidth,
                   listing.gridSize,
                 );
+                final bottomInsets = ViewportBottomInsetsScope.maybeOf(context);
                 final timeline = PostGridPrefetch(
                   controller: _controller,
                   scrollController: _scroll,
@@ -307,6 +310,13 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                                 ),
                         ),
                         SliverToBoxAdapter(child: _footer(context)),
+                        if (bottomInsets != null)
+                          ValueListenableBuilder<ViewportBottomInsets>(
+                            valueListenable: bottomInsets,
+                            builder: (_, insets, _) => SliverToBoxAdapter(
+                              child: SizedBox(height: insets.endClearance),
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -315,25 +325,23 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                 final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
                 final viewport = Stack(
                   children: [
-                    Positioned.fill(child: timeline),
-                    Positioned(
-                      right: 12,
-                      bottom:
-                          (bottomInset > bottomPadding
-                              ? bottomInset
-                              : bottomPadding) +
-                          8,
-                      child: KurumiScrollToTop(
-                        scrollController: _scroll,
-                        layoutChanges: _controller,
-                        child: KurumiScrollToTopButton(
-                          onPressed: () => _scroll.jumpTo(0),
-                        ),
-                      ),
+                    Positioned.fill(
+                      child: NavigationScrollBoundary(child: timeline),
                     ),
+                    if (bottomInsets == null)
+                      _scrollToTop(
+                        bottomInset > bottomPadding
+                            ? bottomInset
+                            : bottomPadding,
+                      )
+                    else
+                      ValueListenableBuilder<ViewportBottomInsets>(
+                        valueListenable: bottomInsets,
+                        builder: (_, insets, _) => _scrollToTop(insets.visible),
+                      ),
                   ],
                 );
-                return SelectionMode(
+                final content = SelectionMode(
                   controller: _selection,
                   options: ref.watch(selectionOptionsProvider),
                   scrollController: _scroll,
@@ -385,6 +393,11 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                       ],
                     ),
                   ),
+                );
+                return NavigationSelectionBridge(
+                  controller: _selection,
+                  selected: false,
+                  child: content,
                 );
               },
             ),
@@ -572,6 +585,16 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
       ),
     );
   }
+
+  Widget _scrollToTop(double obstruction) => Positioned(
+    right: 12,
+    bottom: obstruction + 8,
+    child: KurumiScrollToTop(
+      scrollController: _scroll,
+      layoutChanges: _controller,
+      child: KurumiScrollToTopButton(onPressed: () => _scroll.jumpTo(0)),
+    ),
+  );
 
   Widget _footer(BuildContext context) => Padding(
     padding: const EdgeInsets.all(12),

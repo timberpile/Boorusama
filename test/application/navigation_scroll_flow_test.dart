@@ -1,3 +1,5 @@
+import '../support/navigation_panel_test_utils.dart';
+
 import 'package:boorusama/core/navigation/app_navigation_shell.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
 import 'package:boorusama/core/bookmarks/src/pages/bookmark_page.dart';
@@ -61,18 +63,7 @@ void main() {
           material?.color,
           ui.Theme.of(shell).colorScheme.surfaceContainer,
         );
-        final translation = tester
-            .widget<FractionalTranslation>(
-              find.descendant(
-                of: find.ancestor(
-                  of: find.byKey(const Key('nav-shortcut-browse')),
-                  matching: find.byType(AnimatedSlide),
-                ),
-                matching: find.byType(FractionalTranslation),
-              ),
-            )
-            .translation
-            .dy;
+        final translation = navigationPanelTranslation(tester).dy;
         expect(
           tester.getRect(find.byWidget(material!)).top,
           closeTo(
@@ -82,21 +73,7 @@ void main() {
         );
       }
 
-      double barOffset() {
-        final slide = find.ancestor(
-          of: find.byKey(const Key('nav-shortcut-browse')),
-          matching: find.byType(AnimatedSlide),
-        );
-        return tester
-            .widget<FractionalTranslation>(
-              find.descendant(
-                of: slide,
-                matching: find.byType(FractionalTranslation),
-              ),
-            )
-            .translation
-            .dy;
-      }
+      double barOffset() => navigationPanelTranslation(tester).dy;
 
       verifyMovingSurface();
       chrome.userScroll(

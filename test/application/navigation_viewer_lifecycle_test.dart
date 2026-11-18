@@ -1,3 +1,5 @@
+import '../support/navigation_panel_test_utils.dart';
+
 import 'package:boorusama/core/navigation/app_navigation_shell.dart';
 import 'package:boorusama/core/navigation/destination_id.dart';
 import 'package:boorusama/core/navigation/navigation_controller.dart';
@@ -36,10 +38,7 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AppNavigationShell)),
     );
-    final bar = find.ancestor(
-      of: find.byKey(const Key('nav-shortcut-browse')),
-      matching: find.byType(AnimatedSlide),
-    );
+    final bar = navigationPanel();
     final originalBar = tester.state(bar);
     final originalPosition = tester.getRect(
       find.byKey(const Key('nav-shortcut-browse')),
@@ -71,16 +70,13 @@ void main() {
     expect(find.byType(PostDetailsPageScaffold), findsOneWidget);
     expect(container.read(navigationChromeProvider).viewerOpen, isTrue);
     expect(tester.state(bar), same(originalBar));
-    final translation = find.descendant(
-      of: bar,
-      matching: find.byType(FractionalTranslation),
-    );
+
     final progress = container
         .read(navigationChromeProvider.notifier)
         .viewerRouteProgress
         .value;
     expect(
-      tester.widget<AnimatedSlide>(bar).offset.dy,
+      navigationPanelTranslation(tester).dy,
       closeTo(Curves.easeOutCubic.transform(progress), 0.001),
     );
     expect(
@@ -92,7 +88,7 @@ void main() {
     expect(find.byType(PostDetailsPageScaffold), findsNothing);
     expect(container.read(navigationChromeProvider).viewerClosing, isFalse);
     expect(
-      tester.widget<FractionalTranslation>(translation).translation,
+      navigationPanelTranslation(tester),
       Offset.zero,
     );
     expect(shortcut.hitTestable(), findsOneWidget);

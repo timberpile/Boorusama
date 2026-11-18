@@ -1,3 +1,5 @@
+import '../support/navigation_panel_test_utils.dart';
+
 import 'package:boorusama/boorus/pixiv/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
@@ -114,11 +116,7 @@ void main() {
         void expectHidden() {
           expect(container.read(navigationChromeProvider).viewerOpen, isTrue);
           expect(chrome.viewerRouteProgress.value, 1);
-          final bar = find.ancestor(
-            of: find.byKey(const Key('nav-shortcut-browse')),
-            matching: find.byType(AnimatedSlide),
-          );
-          expect(tester.widget<AnimatedSlide>(bar).offset.dy, 1);
+          expect(navigationPanelTranslation(tester).dy, 1);
           expect(
             find.byKey(const Key('nav-shortcut-browse')).hitTestable(),
             findsNothing,

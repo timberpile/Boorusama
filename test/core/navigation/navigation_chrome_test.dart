@@ -1,3 +1,5 @@
+import '../../support/navigation_panel_test_utils.dart';
+
 import 'package:boorusama/core/navigation/app_navigation_shell.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
@@ -119,19 +121,7 @@ void main() {
       final chrome = scope.read(navigationChromeProvider.notifier);
       final owner = Object();
       if (width < 1000) {
-        final slide = find.ancestor(
-          of: find.byKey(const Key('nav-shortcut-browse')),
-          matching: find.byType(AnimatedSlide),
-        );
-        double offset() => tester
-            .widget<FractionalTranslation>(
-              find.descendant(
-                of: slide,
-                matching: find.byType(FractionalTranslation),
-              ),
-            )
-            .translation
-            .dy;
+        double offset() => navigationPanelTranslation(tester).dy;
         final contents = find
             .ancestor(
               of: find.byKey(const Key('nav-shortcut-browse')),
@@ -170,10 +160,7 @@ void main() {
         if (hiddenByScroll)
           chrome.userScroll(delta: 100, pixels: 100, outOfRange: false);
         await tester.pumpAndSettle();
-        final bar = find.ancestor(
-          of: find.byKey(const Key('nav-shortcut-browse')),
-          matching: find.byType(AnimatedSlide),
-        );
+        final bar = navigationPanel();
         final barState = width < 1000 ? tester.state(bar) : null;
         chrome.setViewerFor(owner, active: true, immersive: false);
         await tester.pumpAndSettle();
@@ -189,13 +176,13 @@ void main() {
           chrome.setViewerProgressFor(owner, 0.25);
           await tester.pump();
           expect(
-            tester.widget<AnimatedSlide>(bar).offset.dy,
+            navigationPanelTranslation(tester).dy,
             closeTo(Curves.easeOutCubic.transform(0.25), 0.001),
           );
           chrome.setViewerProgressFor(owner, 0.75);
           await tester.pump();
           expect(
-            tester.widget<AnimatedSlide>(bar).offset.dy,
+            navigationPanelTranslation(tester).dy,
             closeTo(Curves.easeOutCubic.transform(0.75), 0.001),
           );
           chrome.setViewerProgressFor(owner, 1);
@@ -214,14 +201,7 @@ void main() {
         await tester.pump();
         if (width < 1000) {
           expect(tester.state(bar), same(barState));
-          Offset translation() => tester
-              .widget<FractionalTranslation>(
-                find.descendant(
-                  of: bar,
-                  matching: find.byType(FractionalTranslation),
-                ),
-              )
-              .translation;
+          Offset translation() => navigationPanelTranslation(tester);
           expect(
             translation(),
             hiddenByScroll
@@ -265,19 +245,8 @@ void main() {
         await tester.pump();
         chrome.setViewerFor(owner, active: false, immersive: false);
         await tester.pump();
-        final slide = find.ancestor(
-          of: find.byKey(const Key('nav-shortcut-browse')),
-          matching: find.byType(AnimatedSlide),
-        );
         expect(
-          tester
-              .widget<FractionalTranslation>(
-                find.descendant(
-                  of: slide,
-                  matching: find.byType(FractionalTranslation),
-                ),
-              )
-              .translation,
+          navigationPanelTranslation(tester),
           Offset.zero,
         );
       }

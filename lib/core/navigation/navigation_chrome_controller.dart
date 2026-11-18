@@ -200,6 +200,7 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
     required double pixels,
     required bool outOfRange,
     double extent = kNavigationBarHeight,
+    double? renderedHiddenFraction,
   }) {
     if (state.menuOpen ||
         state.selectionActive ||
@@ -209,10 +210,15 @@ class NavigationChromeController extends Notifier<NavigationChromeState> {
         delta == 0) {
       return;
     }
+    // A fresh drag can interrupt an unfinished snap. Continue from the frame
+    // on screen, rather than jumping to that snap's target before moving.
+    final previous = !state.barScrollActive && renderedHiddenFraction != null
+        ? renderedHiddenFraction
+        : state.barHiddenFraction;
     state = state.copyWith(
       barHiddenFraction: pixels <= 8
           ? 0
-          : (state.barHiddenFraction + delta / extent).clamp(0, 1),
+          : (previous + delta / extent).clamp(0, 1),
       barScrollActive: true,
     );
   }

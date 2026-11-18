@@ -8,6 +8,7 @@ import '../settings/providers.dart';
 import 'destination_activity.dart';
 import 'destination_profile_scope.dart';
 import 'navigation_chrome_controller.dart';
+import 'navigation_panel_geometry.dart';
 
 /// Supplies the actual bar travel, including its system bottom inset.
 class NavigationBarScrollScope extends InheritedWidget {
@@ -48,6 +49,7 @@ class _NavigationScrollBoundaryState
     if (DestinationScope.maybeOf(context) == null) return widget.child;
     final active = NavigationActivity.of(context);
     final extent = NavigationBarScrollScope.of(context);
+    final motion = NavigationPanelScope.maybeOf(context)?.motion;
     final autoHide = ref.watch(
       settingsProvider.select((s) => s.autoHideMainNavigation),
     );
@@ -75,6 +77,7 @@ class _NavigationScrollBoundaryState
                 pixels: event.metrics.pixels,
                 outOfRange: event.metrics.outOfRange,
                 extent: extent,
+                renderedHiddenFraction: motion?.value.hiddenFraction,
               );
         }
         if (event is ScrollEndNotification && _userScroll) {

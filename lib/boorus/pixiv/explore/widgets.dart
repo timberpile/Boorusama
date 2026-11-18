@@ -11,6 +11,7 @@ import '../../../core/configs/config/types.dart';
 import '../../../core/posts/explores/types.dart';
 import '../../../core/posts/explores/widgets.dart';
 import '../client_provider.dart';
+import '../../../core/navigation/navigation_attached_footer.dart';
 import '../works/work_listing.dart';
 import '../configs/extra_data.dart';
 import 'feed.dart';
@@ -56,72 +57,58 @@ class _PixivExplorePageState extends ConsumerState<PixivExplorePage> {
     return Scaffold(
       body: ValueListenableBuilder(
         valueListenable: _feed,
-        // The grid owns its top inset so its floating timeline remains below
-        // the status bar after the source header scrolls away. This outer
-        // inset keeps the fixed date controls clear of system navigation.
-        builder: (context, feed, _) => SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              Expanded(
-                child: PixivWorkGrid(
-                  config: config,
-                  queryIdentity: feed,
-                  fetchPage: (page) {
-                    final client = ref.read(pixivClientProvider(config.auth));
-                    return switch (feed) {
-                      PixivRankingFeed(:final mode, :final date) =>
-                        client.getRanking(
-                          mode: mode,
-                          date: pixivRankingRequestDateFor(date),
-                          page: page,
-                        ),
-                      PixivFollowingFeed(:final restrict) =>
-                        client.getFollowedIllusts(
-                          restrict: restrict,
-                          page: page,
-                        ),
-                      PixivRecommendedFeed() => client.getRecommendedIllusts(
-                        page: page,
-                      ),
-                    };
-                  },
-                  sliverHeaders: [
-                    KurumiSliverAppBar(
-                      title: Text(context.t.pixiv.explore.title),
-                    ),
-                    // Source controls scroll at their natural height. Only the
-                    // independent timeline toolbar returns on reverse scroll.
-                    SliverToBoxAdapter(
-                      child: _HeaderControls(
-                        feed: _feed,
-                        accountXRestrict: accountXRestrict,
-                        onFeedKindChanged: (kind) {
-                          _feed.value = pixivDefaultFeedFor(
-                            kind,
-                            current: _feed.value,
-                            newestRankingDate: pixivRankingNewestDate(),
-                          );
-                        },
-                        onControlsChanged: () => setState(() {}),
-                      ),
-                    ),
-                  ],
+        builder: (context, feed, _) => NavigationAttachedFooter(
+          footer: switch (feed) {
+            final PixivRankingFeed ranking => _RankingDateStepper(
+              ranking: ranking,
+              onChanged: (value) {
+                if (mounted && _feed.value is PixivRankingFeed) {
+                  _feed.value = value;
+                }
+              },
+            ),
+            _ => null,
+          },
+          child: PixivWorkGrid(
+            config: config,
+            queryIdentity: feed,
+            fetchPage: (page) {
+              final client = ref.read(pixivClientProvider(config.auth));
+              return switch (feed) {
+                PixivRankingFeed(:final mode, :final date) => client.getRanking(
+                  mode: mode,
+                  date: pixivRankingRequestDateFor(date),
+                  page: page,
                 ),
-              ),
-              // The date stepper is meaningless outside Ranking and stays
-              // pinned at the bottom, outside the scrolling grid — it does
-              // not float away with the header.
-              ValueListenableBuilder(
-                valueListenable: _feed,
-                builder: (context, feed, _) => switch (feed) {
-                  PixivRankingFeed() => _RankingDateStepper(
-                    feed: _feed,
-                    onChanged: () => setState(() {}),
+                PixivFollowingFeed(:final restrict) =>
+                  client.getFollowedIllusts(
+                    restrict: restrict,
+                    page: page,
                   ),
-                  PixivFollowingFeed() ||
-                  PixivRecommendedFeed() => const SizedBox.shrink(),
-                },
+                PixivRecommendedFeed() => client.getRecommendedIllusts(
+                  page: page,
+                ),
+              };
+            },
+            sliverHeaders: [
+              KurumiSliverAppBar(
+                title: Text(context.t.pixiv.explore.title),
+              ),
+              // Source controls scroll at their natural height. Only the
+              // independent timeline toolbar returns on reverse scroll.
+              SliverToBoxAdapter(
+                child: _HeaderControls(
+                  feed: _feed,
+                  accountXRestrict: accountXRestrict,
+                  onFeedKindChanged: (kind) {
+                    _feed.value = pixivDefaultFeedFor(
+                      kind,
+                      current: _feed.value,
+                      newestRankingDate: pixivRankingNewestDate(),
+                    );
+                  },
+                  onControlsChanged: () => setState(() {}),
+                ),
               ),
             ],
           ),
@@ -269,41 +256,23 @@ class _RankingModePicker extends StatelessWidget {
   }
 }
 
-/// The date stepper for the Ranking feed, pinned at the bottom of the
-/// page, outside the scrolling grid — unlike the rest of the Explore
-/// controls, it does not float away with the header.
+/// A snapshot keeps the retiring footer valid while its geometry collapses
+/// after switching to a different feed. Only Explore owns mutable feed state.
 class _RankingDateStepper extends StatelessWidget {
-  const _RankingDateStepper({
-    required this.feed,
-    required this.onChanged,
-  });
-
-  final ValueNotifier<PixivExploreFeed> feed;
-  final VoidCallback onChanged;
+  const _RankingDateStepper({required this.ranking, required this.onChanged});
+  final PixivRankingFeed ranking;
+  final ValueChanged<PixivRankingFeed> onChanged;
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: feed,
-      builder: (context, value, _) {
-        final ranking = value as PixivRankingFeed;
-        final newestDate = pixivRankingNewestDate();
-
-        return DateTimeSelector(
-          date: ranking.date,
-          scale: _timeScaleOf(ranking.mode),
-          backgroundColor: Colors.transparent,
-          firstDate: kPixivRankingEarliestDate,
-          lastDate: newestDate,
-          onDateChanged: (newDate) {
-            final clamped = clampPixivRankingDate(newDate);
-            feed.value = ranking.copyWith(date: clamped);
-            onChanged();
-          },
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => DateTimeSelector(
+    date: ranking.date,
+    scale: _timeScaleOf(ranking.mode),
+    backgroundColor: Colors.transparent,
+    firstDate: kPixivRankingEarliestDate,
+    lastDate: pixivRankingNewestDate(),
+    onDateChanged: (date) =>
+        onChanged(ranking.copyWith(date: clampPixivRankingDate(date))),
+  );
 }
 
 /// The day/week/month step size the date stepper should use for [mode] —

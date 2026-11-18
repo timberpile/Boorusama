@@ -1,3 +1,5 @@
+import '../support/navigation_panel_test_utils.dart';
+
 import 'package:boorusama/core/configs/config/providers.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
@@ -343,15 +345,11 @@ void main() {
       );
       await tester.longPress(postTile(101));
       await harness.settle(tester);
-      final slide = tester.widget<AnimatedSlide>(
-        find
-            .ancestor(
-              of: find.byKey(const ValueKey('nav-shortcut-browse')),
-              matching: find.byType(AnimatedSlide),
-            )
-            .first,
+      expect(
+        navigationPanelTranslation(tester).dy,
+        1,
+        reason: 'selection hides navigation in the current frame',
       );
-      expect(slide.duration, Duration.zero);
       await tester.tap(
         find.widgetWithText(
           MultiSelectButton,
