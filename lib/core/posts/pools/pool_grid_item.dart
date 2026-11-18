@@ -1,3 +1,4 @@
+import 'package:material_symbols_icons/symbols.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -8,10 +9,10 @@ import 'package:kurumi/material.dart';
 enum PoolGridItemKind { series, collection, related }
 
 extension on PoolGridItemKind {
-  String get iconAsset => switch (this) {
+  String? get iconAsset => switch (this) {
     PoolGridItemKind.series => 'assets/icon/group_series.svg',
     PoolGridItemKind.collection => 'assets/icon/group_collection.svg',
-    PoolGridItemKind.related => 'assets/icon/group_related.svg',
+    PoolGridItemKind.related => null,
   };
 }
 
@@ -52,6 +53,9 @@ class PoolGridItem extends ConsumerWidget {
   final EdgeInsetsGeometry padding;
 
   String? _visibleCount(BuildContext context, double availableWidth) {
+    final displayedCount = kind == PoolGridItemKind.related
+        ? null
+        : this.displayedCount;
     final candidates = <String>[
       if (total != null && displayedCount != null && displayedCount != total)
         '$displayedCount/$total',
@@ -77,6 +81,9 @@ class PoolGridItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final displayedCount = kind == PoolGridItemKind.related
+        ? null
+        : this.displayedCount;
     final typeLabel =
         category ??
         switch (kind) {
@@ -176,12 +183,22 @@ class PoolGridItem extends ConsumerWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      SvgPicture.asset(
-                                        kind.iconAsset,
-                                        key: ValueKey('pool-kind-' + kind.name),
-                                        width: 16,
-                                        height: 16,
-                                      ),
+                                      if (kind.iconAsset case final asset?)
+                                        SvgPicture.asset(
+                                          asset,
+                                          key: ValueKey(
+                                            'pool-kind-' + kind.name,
+                                          ),
+                                          width: 16,
+                                          height: 16,
+                                        )
+                                      else
+                                        const Icon(
+                                          Symbols.photo_library,
+                                          key: ValueKey('pool-kind-related'),
+                                          size: 16,
+                                          color: Colors.white,
+                                        ),
                                       if (count != null) ...[
                                         const SizedBox(width: 4),
                                         Text(

@@ -1,3 +1,5 @@
+import 'package:boorusama/core/content/groups/related_group_counts.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -69,6 +71,97 @@ void main() {
     );
     addTearDown(subscription.close);
   }
+
+  test(
+    'normal Related summary and details reads publish without member requests',
+    () async {
+      final reference = const ContentReferenceCodec().parse(
+        engine: group.engine,
+        site: group.site,
+        kind: ContentKind.group,
+        sourceKey: 'related:42',
+      );
+      final metadata = GroupMetadataKey(
+        reference: reference,
+        access: source.access.key,
+      );
+      source.summaryTotal = 5;
+      source.detailsTotal = 6;
+      final summary = container.listen(
+        groupSummaryProvider(metadata),
+        (_, _) {},
+      );
+      final details = container.listen(
+        groupDetailsProvider(metadata),
+        (_, _) {},
+      );
+      addTearDown(summary.close);
+      addTearDown(details.close);
+      await container.read(groupSummaryProvider(metadata).future);
+      await container.read(groupDetailsProvider(metadata).future);
+      expect(
+        relatedGroupTotal(container.read(relatedGroupCountsProvider), metadata),
+        6,
+      );
+      expect(source.queries, isEmpty);
+      expect(source.summaryCalls, 1);
+      expect(source.detailsCalls, 1);
+    },
+  );
+
+  test(
+    'normal Related member loading and refresh publish exact totals only',
+    () async {
+      final reference = const ContentReferenceCodec().parse(
+        engine: group.engine,
+        site: group.site,
+        kind: ContentKind.group,
+        sourceKey: 'related:42',
+      );
+      final related = GroupLoadKey(
+        reference: reference,
+        access: source.access.key,
+      );
+      listen(related);
+      final initial = container.read(groupMembersProvider(related).future);
+      await source.requested(0);
+      source.complete(0, batch([member(1, 'one', 0)], total: 42));
+      await initial;
+      expect(
+        relatedGroupTotal(
+          container.read(relatedGroupCountsProvider),
+          related.metadata,
+        ),
+        42,
+      );
+      expect(source.summaryCalls, 0);
+      expect(source.detailsCalls, 0);
+      final refresh = container
+          .read(groupMembersProvider(related).notifier)
+          .refresh();
+      expect(
+        relatedGroupTotal(
+          container.read(relatedGroupCountsProvider),
+          related.metadata,
+          fallback: 7,
+        ),
+        isNull,
+      );
+      await source.requested(1);
+      source.complete(1, batch([], total: 43));
+      await refresh;
+      expect(
+        relatedGroupTotal(
+          container.read(relatedGroupCountsProvider),
+          related.metadata,
+        ),
+        43,
+      );
+      expect(source.queries, hasLength(2));
+      expect(source.summaryCalls, 1);
+      expect(source.detailsCalls, 1);
+    },
+  );
 
   for (final hydration in ['first', 'none', 'last']) {
     test(
@@ -700,6 +793,8 @@ class _Source extends ContentGroupSource {
   final responses = <Completer<Either<BooruError, GroupMemberBatch>>>[];
   final signals = <int, Completer<void>>{};
   var invalidations = 0;
+  int? summaryTotal;
+  int? detailsTotal;
   var summaryCalls = 0;
   var detailsCalls = 0;
   Future<void> requested(int index) => queries.length > index
@@ -726,7 +821,9 @@ class _Source extends ContentGroupSource {
     ContentReference reference,
   ) {
     summaryCalls++;
-    return TaskEither.right(ContentGroupSummary(reference: reference));
+    return TaskEither.right(
+      ContentGroupSummary(reference: reference, memberCount: summaryTotal),
+    );
   }
 
   @override
@@ -735,7 +832,12 @@ class _Source extends ContentGroupSource {
   ) {
     detailsCalls++;
     return TaskEither.right(
-      ContentGroupDetails(summary: ContentGroupSummary(reference: reference)),
+      ContentGroupDetails(
+        summary: ContentGroupSummary(
+          reference: reference,
+          memberCount: detailsTotal,
+        ),
+      ),
     );
   }
 

@@ -1,3 +1,5 @@
+import '../../content/groups/related_group_counts.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
@@ -121,6 +123,7 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
           ? null
           : GroupPostPager(
               source: source,
+              relatedCounts: ref.read(relatedGroupCountsProvider.notifier),
               reference: widget.reference,
               orderKey: widget.orderKey,
               perPage: widget.perPage,

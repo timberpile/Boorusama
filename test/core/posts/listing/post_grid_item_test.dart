@@ -1,3 +1,4 @@
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:i18n/i18n.dart';
 
 import 'dart:ui' as ui;
@@ -699,7 +700,8 @@ void main() {
       expect(item.isGif, isFalse);
       expect(item.isTranslated, isTrue);
       expect(item.hasComments, isTrue);
-      expect(item.hasParentOrChildren, isTrue);
+      expect(post.hasParentOrChildren, isTrue);
+      expect(find.byIcon(Symbols.photo_library), findsNothing);
       expect(item.isAI, isTrue);
       expect(item.hasSound, isTrue);
       expect(item.duration, 12);

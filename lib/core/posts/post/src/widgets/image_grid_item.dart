@@ -30,7 +30,6 @@ class ImageGridItem extends StatelessWidget {
     this.onTap,
     this.isAnimated,
     this.hasComments,
-    this.hasParentOrChildren,
     this.isTranslated,
     this.autoScrollOptions,
     this.hideOverlay = false,
@@ -51,7 +50,6 @@ class ImageGridItem extends StatelessWidget {
 
   final bool? isAnimated;
   final bool? hasComments;
-  final bool? hasParentOrChildren;
   final bool? isTranslated;
   final bool hideOverlay;
   final double? duration;
@@ -173,8 +171,6 @@ class ImageGridItem extends StatelessWidget {
               const ImageOverlayIcon(icon: Symbols.g_translate),
             if (hasComments ?? false)
               const ImageOverlayIcon(icon: Symbols.comment),
-            if (hasParentOrChildren ?? false)
-              const ImageOverlayIcon(icon: Symbols.photo_library),
             if (isAI)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
