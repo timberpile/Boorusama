@@ -51,6 +51,32 @@ bool kurumiIsZoomed(Matrix4 matrix) {
   return (x - 1).abs() > 0.001 || (y - 1).abs() > 0.001;
 }
 
+/// Maps an inset of the visible painted image onto its full focal range.
+Offset kurumiRemapDoubleTapFocus(Offset tap, Rect imageRect) {
+  if (![
+        imageRect.left,
+        imageRect.top,
+        imageRect.width,
+        imageRect.height,
+      ].every((value) => value.isFinite) ||
+      imageRect.isEmpty) {
+    return tap;
+  }
+  double axis(double value, double origin, double extent) {
+    final inset = extent * 0.12;
+    final fraction = ((value - origin - inset) / (extent - 2 * inset)).clamp(
+      0.0,
+      1.0,
+    );
+    return origin + fraction * extent;
+  }
+
+  return Offset(
+    axis(tap.dx, imageRect.left, imageRect.width),
+    axis(tap.dy, imageRect.top, imageRect.height),
+  );
+}
+
 /// Separates temporary presentation matrices from the user's zoom gestures.
 class KurumiTransformationController extends TransformationController {
   KurumiTransformationController([super.value]);
@@ -627,9 +653,27 @@ class _KurumiRawInteractiveViewerState extends State<KurumiRawInteractiveViewer>
       targetScale = min(targetScale, maximumScale);
     }
 
+    final containScale = min(
+      bounds.width / image.width,
+      bounds.height / image.height,
+    );
+    final paintedSize = image * containScale;
+    final containedRect = Rect.fromCenter(
+      center: bounds.center(Offset.zero),
+      width: paintedSize.width,
+      height: paintedSize.height,
+    );
+    // Comic reading can extend beyond the viewport. Remap within the current
+    // visible reading region without jumping to an offscreen end of the page.
+    final paintedRect = MatrixUtils.transformRect(
+      baseline,
+      containedRect,
+    ).intersect(Offset.zero & bounds);
+    final focalPoint = kurumiRemapDoubleTapFocus(tapPosition, paintedRect);
+
     _classicReturnMatrix = baseline.clone();
     return _calcZoomMatrixForTargetScale(
-      focalPoint: tapPosition,
+      focalPoint: focalPoint,
       targetScale: targetScale,
     );
   }

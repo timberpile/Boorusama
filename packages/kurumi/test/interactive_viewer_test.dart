@@ -7,6 +7,76 @@ import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/src/vendor/flutter/interactive_viewer.dart' as vendor;
 
 void main() {
+  for (final rect in [
+    const Rect.fromLTWH(0, 0, 400, 400),
+    const Rect.fromLTWH(100, 0, 200, 600),
+    const Rect.fromLTWH(0, 300, 800, 80),
+    const Rect.fromLTWH(0, 240, 400, 400),
+  ]) {
+    test(
+      'inset focus maps corners, center and continuous boundaries: $rect',
+      () {
+        final inset = Offset(rect.width * 0.12, rect.height * 0.12);
+        expect(
+          kurumiRemapDoubleTapFocus(rect.topLeft + inset, rect),
+          offsetMoreOrLessEquals(rect.topLeft),
+        );
+        expect(
+          kurumiRemapDoubleTapFocus(rect.bottomRight - inset, rect),
+          offsetMoreOrLessEquals(rect.bottomRight),
+        );
+        expect(kurumiRemapDoubleTapFocus(rect.center, rect), rect.center);
+        expect(
+          kurumiRemapDoubleTapFocus(rect.topLeft - const Offset(20, 20), rect),
+          offsetMoreOrLessEquals(rect.topLeft),
+        );
+        expect(
+          kurumiRemapDoubleTapFocus(
+            rect.bottomRight + const Offset(20, 20),
+            rect,
+          ),
+          offsetMoreOrLessEquals(rect.bottomRight),
+        );
+        final near = kurumiRemapDoubleTapFocus(
+          rect.topLeft + inset + const Offset(0.001, 0.001),
+          rect,
+        );
+        expect((near - rect.topLeft).distance, lessThan(0.002));
+      },
+    );
+  }
+
+  test('invalid focal geometry preserves the original tap', () {
+    const tap = Offset(30, 40);
+    expect(kurumiRemapDoubleTapFocus(tap, Rect.zero), tap);
+    expect(
+      kurumiRemapDoubleTapFocus(
+        tap,
+        const Rect.fromLTWH(0, 0, double.infinity, 1),
+      ),
+      tap,
+    );
+  });
+
+  testWidgets(
+    'inside-corner taps target the painted letterboxed corner and restore',
+    (tester) async {
+      final controller = await _pumpViewer(
+        tester,
+        contentSize: const Size(1000, 1000),
+        viewportSize: const Size(400, 880),
+        constrainPanToContent: false,
+      );
+      await _doubleTap(tester, position: const Offset(48, 288));
+      // The square is painted at (0, 240); 12% inside maps back to that corner.
+      final corner = controller.toScene(const Offset(0, 240));
+      expect(corner.dx, closeTo(0, 0.001));
+      expect(corner.dy, closeTo(240, 0.001));
+      await _doubleTap(tester, position: const Offset(352, 592));
+      expect(controller.value.isIdentity(), isTrue);
+    },
+  );
+
   testWidgets('toggling interactions retains a stateful media child', (
     tester,
   ) async {
@@ -192,7 +262,7 @@ void main() {
     expect(controller.value.getMaxScaleOnAxis(), closeTo(2.244, 0.001));
   });
 
-  testWidgets('Classic preserves the tap point during detail zoom', (
+  testWidgets('Classic preserves the remapped focal point during detail zoom', (
     tester,
   ) async {
     final controller = await _pumpViewer(
@@ -202,10 +272,14 @@ void main() {
       constrainPanToContent: false,
     );
     const point = Offset(150, 350);
-    final originalPoint = controller.toScene(point);
+    final focus = kurumiRemapDoubleTapFocus(
+      point,
+      const Rect.fromLTWH(0, 240, 400, 400),
+    );
+    final originalPoint = controller.toScene(focus);
     await _doubleTap(tester, position: point);
-    expect(controller.toScene(point).dx, closeTo(originalPoint.dx, 0.001));
-    expect(controller.toScene(point).dy, closeTo(originalPoint.dy, 0.001));
+    expect(controller.toScene(focus).dx, closeTo(originalPoint.dx, 0.001));
+    expect(controller.toScene(focus).dy, closeTo(originalPoint.dy, 0.001));
   });
 
   testWidgets('Classic resets a manually zoomed image directly', (
