@@ -1,3 +1,5 @@
+import '../../../content/groups/related_group_counts.dart';
+
 import '../../../posts/listing/src/widgets/related_grid_card.dart';
 import '../../../posts/listing/widgets.dart' show PostGridImage;
 
@@ -71,9 +73,10 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
       pool,
       ref.watch(bookmarkReadProfilesProvider),
     );
+    final total = pool.isRelated ? _relatedTotal(pool) : pool.total;
     Widget buildCard(Widget image) => PoolGridItem(
       padding: pool.isRelated ? EdgeInsets.zero : const EdgeInsets.all(2),
-      total: pool.total,
+      total: total,
       name: pool.isRelated ? null : pool.title,
       kind: pool.isRelated
           ? PoolGridItemKind.related
@@ -173,6 +176,26 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
             isSelected: selected,
           ),
         ),
+      ),
+    );
+  }
+
+  int? _relatedTotal(CollectionBookmark pool) {
+    final reference = bookmarkGroupReference(
+      pool,
+      ref.watch(bookmarkReadProfilesProvider),
+    );
+    if (reference == null) return null;
+    // Cover rendering resolves this same reader. Observing its count does not
+    // create a Group source or start a summary/member request.
+    final access = ref.watch(
+      bookmarkReadAccessProvider(BookmarkReaderRequest.reference(reference)),
+    );
+    if (access == null || !access.accepts(reference)) return null;
+    final key = GroupMetadataKey(reference: reference, access: access.key);
+    return ref.watch(
+      relatedGroupCountsProvider.select(
+        (counts) => relatedGroupTotal(counts, key, fallback: pool.total),
       ),
     );
   }

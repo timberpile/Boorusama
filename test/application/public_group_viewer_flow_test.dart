@@ -1,3 +1,4 @@
+import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/boorus/danbooru/posts/related/related_gallery.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
@@ -83,6 +84,42 @@ class _Bookmarks extends BookmarkLibraryNotifier {
 }
 
 void main() {
+  testWidgets(
+    'Related gallery publishes its total to the saved card after Back',
+    (tester) async {
+      final f = await _Fixture.mount(tester, related: true);
+      await AppFlowDriver(tester: tester, harness: f.harness).openBookmarks();
+      await f.harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await f.harness.settle(tester);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(BookmarkPoolCard)),
+        listen: false,
+      );
+      final before = container.read(bookmarkProvider).requireValue;
+      expect(
+        tester.widget<PoolGridItem>(find.byType(PoolGridItem)).total,
+        isNull,
+      );
+      await tester.tap(find.byType(BookmarkPoolCard));
+      await f.harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await f.harness.pumpUntilFound(tester, postTile(101));
+      await f.harness.settle(tester);
+      final memberRequests = f.memberQueries.length;
+      await tester.binding.handlePopRoute();
+      await f.harness.pumpUntilFound(tester, find.byType(BookmarkPoolCard));
+      await f.harness.settle(tester);
+      expect(tester.widget<PoolGridItem>(find.byType(PoolGridItem)).total, 2);
+      expect(f.memberQueries, hasLength(memberRequests));
+      expect(f.apiPaths, isEmpty);
+      expect(
+        identical(container.read(bookmarkProvider).requireValue, before),
+        isTrue,
+      );
+      expect(before.pools.single.total, isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final recoveryBrowse in [false, true]) {
     testWidgets(
       'root Group member Back preserves Browse (recovery=$recoveryBrowse)',
@@ -536,6 +573,7 @@ class _Fixture {
   var apiRequests = 0;
   final apiPaths = <String>[];
   var privateRequests = 0;
+  final memberQueries = <String>[];
   BooruConfig? publicConfig;
   BooruConfig? configuredReader;
   BooruConfig get privateConfig => BooruConfig.fromJson({
@@ -546,6 +584,7 @@ class _Fixture {
   static Future<_Fixture> mount(
     WidgetTester tester, {
     bool holdMetadata = false,
+    bool related = false,
     bool configuredSource = false,
     bool recoveryBrowse = false,
     List<int> memberIds = const [101, 102],
@@ -562,20 +601,28 @@ class _Fixture {
       engine: BooruType.danbooru,
       site: Uri.parse(_site),
       kind: ContentKind.group,
-      sourceKey: 'pool:42',
+      sourceKey: related ? 'related:101' : 'pool:42',
     );
-    final saved = ContentGroupBookmark(
-      id: 42,
-      snapshot: StoredGroupSnapshot(
-        summary: ContentGroupSummary(
-          reference: reference,
-          title: 'Saved Pool',
-          memberCount: 2,
-        ),
+    final snapshot = StoredGroupSnapshot(
+      summary: ContentGroupSummary(
+        reference: reference,
+        title: related ? null : 'Saved Pool',
+        memberCount: related ? null : 2,
       ),
-      createdAt: DateTime.utc(2020),
-      observedAt: DateTime.utc(2026),
     );
+    final saved = related
+        ? RelatedBookmark(
+            id: 42,
+            snapshot: snapshot,
+            createdAt: DateTime.utc(2020),
+            observedAt: DateTime.utc(2026),
+          )
+        : ContentGroupBookmark(
+            id: 42,
+            snapshot: snapshot,
+            createdAt: DateTime.utc(2020),
+            observedAt: DateTime.utc(2026),
+          );
     final library = BookmarkLibraryState(
       bookmarks: [],
       groups: [
@@ -674,7 +721,7 @@ class _Fixture {
         }),
         originAwarePostRepoProvider.overrideWith((ref, config) {
           if (config.anonymousReadScope == null) f.privateRequests++;
-          return _Posts(config);
+          return _Posts(config, onFetch: f.memberQueries.add);
         }),
         deterministicImageDioOverride(),
         deterministicFaviconDioOverride(),
@@ -706,7 +753,8 @@ class _Fixture {
 }
 
 class _Posts extends PostRepository<Post> {
-  _Posts(this.config);
+  _Posts(this.config, {this.onFetch});
+  final void Function(String tags)? onFetch;
   final BooruConfig config;
   @override
   PostsOrError<Post> getPostsFromController(
@@ -726,21 +774,25 @@ class _Posts extends PostRepository<Post> {
     int page, {
     int? limit,
     PostFetchOptions? options,
-  }) => TaskEither.right(
-    PostResult<Post>(
-      posts: [
-        for (final id in [101, 102])
-          TestPost(
-            id: id,
-            origin: postOriginFromConfig(config),
-            thumbnailImageUrl: 'https://cdn.donmai.us/sample/$id.jpg',
-            sampleImageUrl: 'https://cdn.donmai.us/sample/$id.jpg',
-            originalImageUrl: 'https://cdn.donmai.us/sample/$id.jpg',
-          ),
-      ],
-      total: 2,
-    ),
-  );
+  }) {
+    onFetch?.call(tags);
+    return TaskEither.right(
+      PostResult<Post>(
+        posts: [
+          for (final id in [101, 102])
+            TestPost(
+              id: id,
+              origin: postOriginFromConfig(config),
+              thumbnailImageUrl: 'https://cdn.donmai.us/sample/$id.jpg',
+              sampleImageUrl: 'https://cdn.donmai.us/sample/$id.jpg',
+              originalImageUrl: 'https://cdn.donmai.us/sample/$id.jpg',
+            ),
+        ],
+        total: 2,
+      ),
+    );
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

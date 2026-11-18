@@ -1,3 +1,6 @@
+import 'package:boorusama/core/content/content_reference.dart';
+import 'package:boorusama/core/content/groups/related_group_counts.dart';
+import 'package:boorusama/core/content/groups/group_source_provider.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/foundation/info/device_info.dart';
@@ -304,6 +307,126 @@ Future<void> _close(WidgetTester tester, _Mounted mounted) async {
 }
 
 void main() {
+  testWidgets(
+    'Related counts update all occurrences and stay scoped to current access',
+    (tester) async {
+      final config = _config(_profileId, _publicSite);
+      final first = ContentAccessContext.profile(
+        config: config,
+        authEpoch: 1,
+        policyEpoch: 1,
+      );
+      final actor = StateProvider<ContentAccessContext?>((ref) => first);
+      final pool = _relatedPool(_cover, groups: {_otherProfileId});
+      final library = BookmarkLibraryState(
+        bookmarks: [],
+        groups: [],
+        pools: [pool],
+        mirrors: BookmarkMirrorState(
+          epoch: 1,
+          owners: {
+            _otherProfileId: BookmarkMirrorOwner(
+              publisher: _profileId,
+              source: _otherProfileId,
+              revision: 1,
+              payloadDigest: 'a' * 64,
+              groupDigest: 'b' * 64,
+            ),
+          },
+        ),
+      );
+      final reference = const ContentReferenceCodec().parse(
+        engine: BooruType.danbooru,
+        site: Uri.parse(_publicSite),
+        kind: ContentKind.group,
+        sourceKey: 'related:42',
+      );
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        profiles: [config],
+        preloadLibrary: true,
+        coverBuilder: (pool) => Row(
+          children: [
+            Expanded(child: _cardBox(pool, ImageListType.standard)),
+            Expanded(
+              child: _cardBox(
+                pool.copyWith(localId: _otherProfileId),
+                ImageListType.standard,
+              ),
+            ),
+          ],
+        ),
+        additionalOverrides: [
+          bookmarkProvider.overrideWith(() => _Library(library)),
+          bookmarkReadAccessProvider.overrideWith(
+            (ref, request) => ref.watch(actor),
+          ),
+          contentAccessContextProvider.overrideWith((ref, key) {
+            final current = ref.watch(actor);
+            return current?.key == key ? current : null;
+          }),
+          contentGroupSourceProvider.overrideWith(
+            (ref, key) => throw StateError('Cards cannot fetch a Group count'),
+          ),
+          groupSummaryProvider.overrideWith(
+            (ref, key) => throw StateError('Cards cannot load a Summary'),
+          ),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      List<int?> totals() => tester
+          .widgetList<PoolGridItem>(find.byType(PoolGridItem))
+          .map((card) => card.total)
+          .toList();
+      expect(totals(), [3, 3]);
+      final cache = mounted.container.read(relatedGroupCountsProvider.notifier);
+      final firstKey = GroupMetadataKey(
+        reference: reference,
+        access: first.key,
+      );
+      cache.publish(cache.begin(firstKey), 17);
+      await tester.pumpAndSettle();
+      expect(totals(), [17, 17]);
+      cache.invalidate(firstKey);
+      await tester.pumpAndSettle();
+      expect(totals(), [null, null]);
+      cache.publish(cache.begin(firstKey), 18);
+      await tester.pumpAndSettle();
+      expect(totals(), [18, 18]);
+      mounted.container.read(actor.notifier).state = null;
+      await tester.pumpAndSettle();
+      expect(totals(), [null, null]);
+      final next = ContentAccessContext.profile(
+        config: config,
+        authEpoch: 2,
+        policyEpoch: 2,
+      );
+      mounted.container.read(actor.notifier).state = next;
+      cache.publish(cache.begin(firstKey), 999);
+      await tester.pumpAndSettle();
+      expect(totals(), [3, 3]);
+      cache.publish(
+        cache.begin(GroupMetadataKey(reference: reference, access: next.key)),
+        11,
+      );
+      await tester.pumpAndSettle();
+      expect(totals(), [11, 11]);
+      expect(pool.total, 3);
+      expect(library.mirrors.isReceived(_otherProfileId), isTrue);
+      expect(
+        identical(
+          mounted.container.read(bookmarkProvider).requireValue,
+          library,
+        ),
+        isTrue,
+      );
+      expect(library.pools.single.total, 3);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final mode in ImageListType.values) {
     for (final ratio in <double?>[.5, 1, 2, null]) {
       testWidgets('saved Related $mode ratio=$ratio matches the Post cell', (
