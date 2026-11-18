@@ -1,3 +1,5 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
@@ -42,6 +44,9 @@ void main() {
     addTearDown(address.dispose);
     final container = ProviderContainer(
       overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(Settings.defaultSettings),
+        ),
         booruConfigProvider.overrideWith(
           () => BooruConfigNotifier(initialConfigs: [unrelated, first, second]),
         ),
@@ -95,6 +100,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
+          ),
           booruConfigProvider.overrideWith(
             () => BooruConfigNotifier(
               initialConfigs: [profile('1', 'other.test')],

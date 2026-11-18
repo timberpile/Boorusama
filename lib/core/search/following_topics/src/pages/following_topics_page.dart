@@ -268,7 +268,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
   @override
   Widget build(BuildContext context) {
     final eligibleProfiles = ref
-        .watch(booruConfigProvider)
+        .watch(orderedProfileConfigsProvider)
         .where(
           (c) => ref.watch(followingTopicTrackingSupportedProvider(c.auth)),
         )
@@ -451,7 +451,8 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                         KurumiPopupMenuItem(
                           title: Text(strings.bulk_add),
                           icon: const Icon(Icons.playlist_add),
-                          onTap: ref.watch(booruConfigProvider).isEmpty
+                          onTap:
+                              ref.watch(orderedProfileConfigsProvider).isEmpty
                               ? null
                               : () => _onPageAction(
                                   _FollowingTopicPageAction.bulkAdd,
@@ -892,7 +893,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
 
   Widget _allProfilesBody(Set<String> refreshableProfileIds) {
     final strings = context.t.following_topics;
-    final profiles = ref.watch(booruConfigProvider);
+    final profiles = ref.watch(orderedProfileConfigsProvider);
     final activity = ref.watch(followingTopicsProvider).valueOrNull;
     final visible = ref.watch(visibleFollowingTopicsProvider(_folderId));
     final published = ref.watch(publishedFollowingRootsProvider);

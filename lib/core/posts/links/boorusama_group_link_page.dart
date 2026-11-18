@@ -1,3 +1,5 @@
+import '../../configs/config/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -5,7 +7,6 @@ import 'package:kurumi/material.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../configs/create/src/types/edit_booru_config_id.dart';
-import '../../configs/manage/providers.dart';
 import '../../content/anonymous_access_provider.dart';
 import '../../content/types.dart';
 import '../../router.dart';
@@ -47,7 +48,7 @@ class _BoorusamaGroupLinkPageState
     final link = BoorusamaGroupLink.tryParse(widget.uri);
     if (link == null) return _message(context.t.post.app_link.invalid);
     final reference = link.reference;
-    final profiles = ref.watch(booruConfigProvider);
+    final profiles = ref.watch(orderedProfileConfigsProvider);
     if (_addingProfile)
       return _frame(const Center(child: CircularProgressIndicator()));
     final origin = PostOrigin.fromSource(

@@ -1,3 +1,6 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -77,6 +80,9 @@ Future<GoRouter> pumpLookup(
     ProviderScope(
       overrides: [
         routerProvider.overrideWithValue(router),
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(Settings.defaultSettings),
+        ),
         booruConfigProvider.overrideWith(() => profiles),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
         defaultImageCacheManagerProvider.overrideWithValue(

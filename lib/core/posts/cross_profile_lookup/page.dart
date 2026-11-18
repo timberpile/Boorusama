@@ -1,3 +1,5 @@
+import '../../configs/config/providers.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -221,7 +223,7 @@ class _PostLookupPageState extends ConsumerState<CrossProfileLookupPage> {
       ref.watch(crossProfileLookupSessionProvider(widget.source!));
     }
     ref.listen(booruConfigProvider, (_, _) => _syncProfiles());
-    final profiles = ref.watch(booruConfigProvider);
+    final profiles = ref.watch(orderedProfileConfigsProvider);
     final sourceConfig = _sourceConfig(profiles);
     final targets = profiles.where(
       (p) => p.id != (sourceConfig?.id ?? widget.source?.origin.profileIdHint),

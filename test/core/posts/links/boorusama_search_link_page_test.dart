@@ -1,3 +1,6 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -80,6 +83,9 @@ Future<GoRouter> _pumpSearchLink(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        settingsNotifierProvider.overrideWith(
+          () => SettingsNotifier(Settings.defaultSettings),
+        ),
         booruConfigProvider.overrideWith(() => profiles),
         defaultImageCacheManagerProvider.overrideWithValue(_Cache()),
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
@@ -106,7 +112,10 @@ Future<GoRouter> _pumpSearchLink(
 }
 
 void main() {
-  final first = config('https://site.test').copyWith(name: 'First');
+  final first = config(
+    'https://site.test',
+    id: '00000000-0000-4000-8000-000000000001',
+  ).copyWith(name: 'First');
   final second = config(
     'https://site.test',
     id: '00000000-0000-4000-8000-000000000002',
@@ -153,7 +162,11 @@ void main() {
         first,
         second,
         config('https://another.test'),
-        config('https://site.test', type: BooruType.moebooru),
+        config(
+          'https://site.test',
+          type: BooruType.moebooru,
+          id: '00000000-0000-4000-8000-000000000004',
+        ),
       ]),
     );
     await tester.pumpAndSettle(

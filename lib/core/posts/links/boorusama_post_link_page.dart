@@ -1,3 +1,5 @@
+import '../../configs/config/providers.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -5,7 +7,6 @@ import 'package:kurumi/material.dart';
 import '../../config_widgets/website_logo.dart';
 import '../../configs/config/types.dart';
 import '../../configs/create/src/types/edit_booru_config_id.dart';
-import '../../configs/manage/providers.dart';
 import '../../errors/types.dart';
 import '../../router.dart';
 import '../details/routes.dart';
@@ -75,7 +76,9 @@ class _BoorusamaPostLinkPageState extends ConsumerState<BoorusamaPostLinkPage> {
   Widget build(BuildContext context) {
     final link = BoorusamaPostLink.tryParse(widget.uri);
     if (link == null) return _message(context.t.post.app_link.invalid);
-    final matches = link.matchingProfiles(ref.watch(booruConfigProvider));
+    final matches = link.matchingProfiles(
+      ref.watch(orderedProfileConfigsProvider),
+    );
     if (_addingProfile) return _loading();
     if (matches.isEmpty) {
       return _message(
