@@ -83,6 +83,7 @@ void main() {
         id: 'feed',
         profileId: '00000000-0000-4000-8000-000000000004',
         name: 'Landscapes',
+        cacheGeneration: 3,
         sourceIds: const ['feed-source'],
         posts: [
           feedPostSnapshotFromPost(testSearchPost(100, checkedAt)),
@@ -105,6 +106,7 @@ void main() {
   });
 
   test('round trips every search and feed runtime field', () {
+    expect(expected.feeds.single.cacheGeneration, 3);
     final decoded = const SearchRuntimeSnapshotCodec().decode(
       const SearchRuntimeSnapshotCodec().encode(expected),
     );

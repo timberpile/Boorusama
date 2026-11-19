@@ -1,5 +1,4 @@
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,14 +17,10 @@ void main() {
                     width: 200,
                     height: 200,
                     child: BookmarkGroupPreviewGrid(
-                      previews: [
+                      cells: [
                         for (var i = 0; i < 4; i++)
-                          PostBookmark.empty.copyWith(id: i),
+                          ColoredBox(key: ValueKey(i), color: Colors.red),
                       ],
-                      itemBuilder: (_, bookmark) => ColoredBox(
-                        key: ValueKey(bookmark.id),
-                        color: Colors.red,
-                      ),
                     ),
                   ),
                 ),

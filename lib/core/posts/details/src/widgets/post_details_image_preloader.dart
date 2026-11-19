@@ -1,3 +1,7 @@
+import '../../../../../boorus/pixiv/works/work_creator_avatar.dart';
+import '../../../../content/groups/group_metadata.dart';
+import 'adjacent_group_preparation.dart';
+
 import 'dart:async';
 
 import '../../../../navigation/destination_activity.dart';
@@ -216,7 +220,7 @@ class _MixedPostDetailsImagePreloaderState
         >[];
     for (final index in indices) {
       final post = widget.postAt(index);
-      if (post == null) continue;
+      if (post == null || post.requiresDetailLookup) continue;
       final config = _configAt(index, post, configs);
       final binding = widget.sequence?.entries[index].source;
       final accessKey = binding == null
@@ -400,6 +404,7 @@ class _MixedPostDetailsImagePreloaderState
 
   @override
   Widget build(BuildContext context) {
+    final groupSlots = <Object, PreparedViewerKey>{};
     final previousWorks = Map<int, MediaGroupState>.of(_workStates);
     _workStates.clear();
     if (_pageViewController != null &&
@@ -425,6 +430,31 @@ class _MixedPostDetailsImagePreloaderState
         final capability = ref.watch(
           booruGroupCapabilityProvider(entry.contentReference.engine),
         );
+        if (capability != null &&
+            capability.presentation.supports(entry.summary) &&
+            capability.presentation.layoutFor(entry.summary) ==
+                GroupLayout.memberGrid &&
+            access.accepts(entry.contentReference)) {
+          final order = preparedGroupOrder(context, ref, entry);
+          if (order != null) {
+            final metadata = GroupMetadataKey(
+              reference: entry.contentReference,
+              access: access.key,
+            );
+            final key = (
+              access: access.key,
+              page: (
+                reference: entry.contentReference,
+                order: order,
+                limit: ref.watch(imageListingSettingsProvider).postsPerPage,
+                revision: ref.watch(groupRefreshRevisionProvider(metadata)),
+              ),
+              foreground: index == _controller.page,
+            );
+            groupSlots[entry.occurrenceId] = key;
+            ref.watch(preparedViewerGroupProvider(key));
+          }
+        }
         if (capability == null ||
             !capability.presentation.supports(entry.summary) ||
             capability.presentation.layoutFor(entry.summary) !=
@@ -474,7 +504,19 @@ class _MixedPostDetailsImagePreloaderState
         _scheduleRefresh();
       }
     });
-    return widget.child;
+    return PreparedGroupWindow(
+      slots: groupSlots,
+      child: PixivWorkAvatarWindow(
+        creators: [
+          for (final state in _workStates.values)
+            if (state.access case final access?)
+              for (final creator
+                  in state.details?.creators ?? const <CreatorRef>[])
+                (creator: creator, access: access),
+        ],
+        child: widget.child,
+      ),
+    );
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:boorusama/boorus/gelbooru_v2/posts/grid_thumbnail_url.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -195,8 +196,7 @@ Widget _app(
             dimension: 200,
             child: BookmarkLocalGroupCard(
               title: 'Saved group',
-              previews: [bookmark],
-              group: null,
+              mosaicCandidates: [BookmarkPostEntry(bookmark)],
               onTap: () {},
               onRename: null,
               onDuplicate: null,

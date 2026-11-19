@@ -6,6 +6,7 @@ import '../../../core/posts/details/types.dart';
 import '../../../core/posts/details/src/providers/media_group_provider.dart';
 import '../../../core/posts/details/src/widgets/group_viewer_scope.dart';
 import '../../../core/posts/details_parts/widgets.dart';
+import 'work_creator_avatar.dart';
 
 /// Work commentary uses the same artist section as ordinary Post details.
 class PixivWorkInformation extends ConsumerWidget {
@@ -26,7 +27,8 @@ class PixivWorkInformation extends ConsumerWidget {
         ),
       );
     }
-    final details = ref.watch(mediaGroupProvider(entry)).details;
+    final state = ref.watch(mediaGroupProvider(entry));
+    final details = state.details ?? entry.storedDetails;
     return SliverToBoxAdapter(
       child: ArtistSection(
         commentary: ArtistCommentary(
@@ -39,6 +41,10 @@ class PixivWorkInformation extends ConsumerWidget {
           for (final creator in details?.creators ?? []) creator.displayName,
         },
         source: InheritedPost.of(context).source,
+        artistAvatarBuilder: pixivWorkCreatorAvatarBuilder(
+          creators: details?.creators ?? const [],
+          access: state.access,
+        ),
       ),
     );
   }

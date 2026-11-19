@@ -1,3 +1,7 @@
+import 'package:boorusama/core/backups/mitemite/reading_state.dart';
+import 'package:boorusama/core/backups/mitemite/protocol.dart';
+import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_header_sliver.dart';
@@ -11,6 +15,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_scroll_view.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_sort_button.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_search_bar.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -33,6 +38,71 @@ const _grandchildId = '10000000-0000-4000-8000-000000000003';
 const _emptyChildId = '10000000-0000-4000-8000-000000000004';
 
 void main() {
+  testWidgets('changing the Bookmark grid sort keeps the folder mosaic order', (
+    tester,
+  ) async {
+    final scenario = await _mount(
+      tester,
+      stateBuilder: (config) {
+        final base = _libraryState(config);
+        return BookmarkLibraryState(
+          bookmarks: base.items,
+          groups: [
+            for (final group in base.groups)
+              if (group.id == _childId)
+                group.copyWith(
+                  bookmarkIds: const {102, 103},
+                  addedAt: {
+                    102: DateTime.utc(2026, 11, 2),
+                    103: DateTime.utc(2026, 11, 3),
+                  },
+                )
+              else
+                group,
+          ],
+        );
+      },
+    );
+    await _openGroup(tester, scenario.harness, _rootId);
+    final card = find.byKey(const ValueKey(('bookmark-card', _childId)));
+    final container = ProviderScope.containerOf(
+      tester.element(card),
+      listen: false,
+    );
+    Iterable<Object> mosaicOrder() => tester
+        .widget<BookmarkLocalGroupCard>(card)
+        .mosaicCandidates
+        .map((entry) => entry.key);
+    expect(mosaicOrder(), [('post', 103), ('post', 102)]);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BookmarkSortButton),
+        matching: find.byType(KurumiPopupMenuButton),
+      ),
+    );
+    await scenario.harness.settle(tester);
+    final oldest = find.descendant(
+      of: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label ==
+                bookmarkSortSemanticLabel(
+                  tester.element(card),
+                  BookmarkSortType.oldest,
+                ),
+      ),
+      matching: find.byType(KurumiPopupMenuItem),
+    );
+    await tester.ensureVisible(oldest);
+    await tester.tap(oldest);
+    await scenario.harness.settle(tester);
+    expect(
+      container.read(selectedBookmarkSortTypeProvider),
+      BookmarkSortType.oldest,
+    );
+    expect(mosaicOrder(), [('post', 103), ('post', 102)]);
+  });
+
   testWidgets('hierarchy timeline honors pinned controls and reduced motion', (
     tester,
   ) async {
@@ -52,6 +122,182 @@ void main() {
     expect(header.reduceMotion, isTrue);
     expect(_groupCardTitles(tester), containsAll(['Child', 'Empty child']));
   });
+
+  testWidgets(
+    'received source menu follows direct and subtree views and clears a removed source',
+    (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final scenario = await _mount(
+        tester,
+        phone: const TestPhone(
+          name: 'received menu',
+          size: Size(320, 900),
+          keyboardHeight: 240,
+        ),
+        stateBuilder: (config) {
+          final base = _libraryState(config);
+          return BookmarkLibraryState(
+            bookmarks: [
+              _record(config, 104, {'local'}),
+              _record(config.copyWith(url: 'https://b.test'), 101, {
+                'received_b',
+              }),
+              _record(config.copyWith(url: 'https://c.test'), 102, {
+                'received_c',
+              }),
+              _record(config.copyWith(url: 'https://d.test'), 103, {
+                'unrelated_d',
+              }),
+            ],
+            groups: [
+              ...base.groups.where((group) => group.id != _grandchildId),
+              BookmarkGroup(
+                id: _grandchildId,
+                name: 'Unrelated publisher',
+                bookmarkIds: {103},
+              ),
+              BookmarkGroup(
+                id: defaultBookmarkGroupId,
+                name: 'Local',
+                bookmarkIds: {104},
+              ),
+            ],
+            mirrors: BookmarkMirrorState(
+              epoch: 1,
+              owners: {
+                for (final id in [
+                  _rootId,
+                  _childId,
+                  _grandchildId,
+                  _emptyChildId,
+                ])
+                  id: BookmarkMirrorOwner(
+                    publisher: _grandchildId,
+                    source: id,
+                    revision: 1,
+                    payloadDigest: 'a' * 64,
+                    groupDigest: 'b' * 64,
+                    reading: SyncGroupReadingState.empty(
+                      SyncCollectionId(
+                        publisher: _grandchildId,
+                        kind: 'bookmarks',
+                        source: id,
+                      ),
+                    ).applyMembership(revision: 1, members: {}).toJson(),
+                  ),
+              },
+            ),
+          );
+        },
+      );
+      await _openGroup(tester, scenario.harness, _rootId);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(BookmarkScrollView)),
+        listen: false,
+      );
+      final before = container.read(bookmarkProvider).requireValue;
+      final requests = scenario.harness.booruBackend.requests.length;
+      Future<void> menu(String label) async {
+        final button = find.byWidgetPredicate(
+          (widget) =>
+              widget is KurumiPopupMenuButton && widget.semanticLabel == label,
+        );
+        await tester.ensureVisible(button);
+        await tester.tap(button);
+        await scenario.harness.settle(tester);
+      }
+
+      Future<void> choose(String label) async {
+        final item = find.ancestor(
+          of: find.text(label),
+          matching: find.byType(KurumiPopupMenuItem),
+        );
+        await tester.ensureVisible(item);
+        await tester.tap(item);
+        await scenario.harness.settle(tester);
+      }
+
+      await menu('Source: All');
+      expect(find.text('b.test'), findsOneWidget);
+      expect(find.text('c.test'), findsNothing);
+      expect(find.text('d.test'), findsNothing);
+      await choose('b.test');
+      expect(container.read(selectedBooruUrlProvider), 'b.test');
+      final view = tester.widget<BookmarkScrollView>(
+        find.byType(BookmarkScrollView),
+      );
+      view.searchController.text = 'no_match';
+      await scenario.harness.settle(tester);
+      await menu('Source: b.test');
+      expect(find.text('b.test'), findsOneWidget);
+      await choose('b.test');
+      expect(container.read(selectedBooruUrlProvider), 'b.test');
+      view.searchController.clear();
+      await tester.tap(find.byKey(const Key('bookmark-group-view-mode')));
+      await scenario.harness.settle(tester);
+      await menu('Source: b.test');
+      expect(find.text('c.test'), findsOneWidget);
+      expect(find.text('d.test'), findsNothing);
+      await choose('c.test');
+      // Return to direct scope: C is only a descendant, so actual controls reset.
+      await tester.tap(find.byKey(const Key('bookmark-group-view-mode')));
+      await scenario.harness.settle(tester);
+      expect(container.read(selectedBooruUrlProvider), isNull);
+      expect(
+        container.read(
+          effectiveBookmarkSourceProvider(BookmarkView.group(_rootId)),
+        ),
+        isNull,
+      );
+      expect(find.text('Source: All'), findsOneWidget);
+      expect(_groupCardTitles(tester), containsAll(['Child', 'Empty child']));
+      // A subscribed revision removes B while keeping the child cards unchanged.
+      container.read(selectedBooruUrlProvider.notifier).state = 'b.test';
+      await scenario.harness.settle(tester);
+      final notifier =
+          container.read(bookmarkProvider.notifier) as _MutableBookmarks;
+      notifier.publish(
+        before.applyCommittedChanges(
+          upserts: [
+            _record(scenario.config.copyWith(url: 'https://e.test'), 101, {
+              'replacement_e',
+            }),
+          ],
+          groups: before.groups,
+          folders: before.folders,
+        ),
+      );
+      await scenario.harness.settle(tester);
+      expect(container.read(selectedBooruUrlProvider), isNull);
+      await menu('Source: All');
+      expect(find.text('e.test'), findsOneWidget);
+      expect(find.text('b.test'), findsNothing);
+      await choose('All');
+      container.read(selectedBooruUrlProvider.notifier).state = 'e.test';
+      await scenario.harness.settle(tester);
+      final emptyChild = find.byWidgetPredicate(
+        (widget) =>
+            widget is BookmarkLocalGroupCard && widget.title == 'Empty child',
+      );
+      await tester.ensureVisible(emptyChild);
+      await tester.tap(
+        find.descendant(of: emptyChild, matching: find.byType(InkWell)).first,
+      );
+      await scenario.harness.settle(tester);
+      expect(find.byType(BookmarkScrollView), findsNothing);
+      expect(container.read(selectedBooruUrlProvider), isNull);
+      await tester.binding.handlePopRoute();
+      await scenario.harness.settle(tester);
+      expect(find.text('Source: All'), findsOneWidget);
+      expect(
+        container.read(bookmarkProvider).requireValue.mirrors,
+        before.mirrors,
+      );
+      expect(scenario.harness.booruBackend.requests.length, requests);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final subtree in [false, true]) {
     testWidgets(
@@ -610,14 +856,17 @@ Future<_Scenario> _mount(
   bool keepControlsVisible = false,
   bool reduceMotion = false,
   bool dense = false,
+  BookmarkLibraryState Function(BooruConfig)? stateBuilder,
 }) async {
   final backend = FakeBooruBackend();
   final store = _MemoryMiscDataStore();
-  final initial = _libraryState(
-    backend.config,
-    rootHasDirectBookmark: rootHasDirectBookmark,
-    dense: dense,
-  );
+  final initial =
+      stateBuilder?.call(backend.config) ??
+      _libraryState(
+        backend.config,
+        rootHasDirectBookmark: rootHasDirectBookmark,
+        dense: dense,
+      );
   final harness = await HeadlessAppHarness.mount(
     tester,
     booruBackend: backend,

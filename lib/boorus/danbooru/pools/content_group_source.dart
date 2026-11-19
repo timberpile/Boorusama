@@ -1,3 +1,9 @@
+import '../../../core/configs/config/types.dart';
+
+import 'dart:async';
+
+import '../../../core/content/groups/owned_read_cache.dart';
+
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -24,20 +30,63 @@ final class DanbooruGroupSource extends ContentGroupSource
     required this.fetchPool,
     required this.postRepository,
     this.defaultLimit = 20,
+    this.fetchPoolPosts,
+    this.fetchRelatedList,
+    this.fetchRelatedCount,
+    this.poolAccessibleCount,
+    this.consumeMembers,
   }) : _pools = GroupEnvelopeCache(access: access.key) {
     _poolMembers = PoolGroupMembers(
       access: access,
+      accessibleTotal: poolAccessibleCount,
       fetchPosts: (ids) async {
+        if (fetchPoolPosts != null) return fetchPoolPosts!(ids);
         final result = await posts
-            .getPosts('id:${ids.join(',')}', 1, limit: ids.length)
+            .getPosts(
+              'id:${ids.join(',')}',
+              1,
+              limit: ids.length,
+              options: PostFetchOptions.raw,
+            )
             .run();
-        return result.fold((error) => throw error, (result) => result.posts);
+        return result.fold(
+          (error) => throw error,
+          (result) => result.posts
+              .where(
+                (post) =>
+                    !post.isFlash &&
+                    !(access
+                            .config!
+                            .search
+                            .filter
+                            .bannedPostVisibility
+                            .isHidden &&
+                        (post.status?.matches('banned') ?? false)),
+              )
+              .toList(),
+        );
       },
     );
   }
 
   @override
   final ContentAccessContext access;
+  final Future<List<Post>> Function(List<int>)? fetchPoolPosts;
+  final Future<PostResult<Post>> Function(String, int, int)? fetchRelatedList;
+  final Future<int?> Function(String)? fetchRelatedCount;
+  final int? Function(List<int>)? poolAccessibleCount;
+  final Future<void> Function(List<Post>)? consumeMembers;
+  @override
+  void didConsumeMembers(List<Post> posts) {
+    final consume = consumeMembers;
+    if (consume != null) unawaited(consume(posts));
+  }
+
+  final _relatedLists =
+      OwnedReadCache<(ContentReference, String, int, int), PostResult<Post>>();
+  final _relatedCounts = OwnedReadCache<ContentReference, int?>();
+  final _relatedKeys =
+      <ContentReference, Set<(ContentReference, String, int, int)>>{};
   final Future<DanbooruPool?> Function(int id) fetchPool;
   final PostRepository<Post> Function() postRepository;
   PostRepository<Post> get posts => postRepository();
@@ -86,7 +135,11 @@ final class DanbooruGroupSource extends ContentGroupSource
       ContentGroupSummary(
         reference: reference,
         title: pool.name,
-        memberCount: pool.postCount,
+        memberCount: poolAccessibleCount == null
+            ? pool.postCount
+            : (pool.manifestComplete && pool.postIds != null
+                  ? poolAccessibleCount!(pool.postIds!)
+                  : null),
         displayCategory: switch (pool.category) {
           DanbooruPoolCategory.series => 'series',
           DanbooruPoolCategory.collection => 'collection',
@@ -172,6 +225,7 @@ final class DanbooruGroupSource extends ContentGroupSource
         ids: pool.postIds,
         defaultLimit: defaultLimit,
         indexedPage: indexedPage,
+        exactTotalAllowed: pool.manifestComplete,
       );
     }
     final order = switch (query.orderKey) {
@@ -211,10 +265,41 @@ final class DanbooruGroupSource extends ContentGroupSource
       ),
       anchorId: int.parse(query.reference.sourceKey.split(':').last),
     );
-    final result = await posts
-        .getPosts('${family.query} ${order.queryOrder}', page, limit: limit)
-        .run()
-        .then((value) => value.fold((e) => throw e, (r) => r));
+    final text = '${family.query} ${order.queryOrder}';
+    final readList = fetchRelatedList;
+    final PostResult<Post> result;
+    if (readList == null) {
+      result = await posts
+          .getPosts(text, page, limit: limit, options: PostFetchOptions.raw)
+          .run()
+          .then((r) => r.fold((e) => throw e, (r) => r));
+    } else {
+      final key = (query.reference, order.name, page, limit);
+      _relatedKeys.putIfAbsent(query.reference, () => {}).add(key);
+      final list = await _relatedLists.load(
+        key,
+        () => readList(text, page, limit),
+      );
+      // A thrown count read leaves the list reusable for foreground count-only
+      // retry. A completed unknown/invalid count remains a successful result.
+      final count =
+          list.total ??
+          (fetchRelatedCount == null
+              ? null
+              : await _relatedCounts.load(
+                  query.reference,
+                  () => fetchRelatedCount!(family.query),
+                ));
+      final unique =
+          list.rawUniquePostCount ?? list.posts.map((p) => p.id).toSet().length;
+      result = list.copyWith(
+        total: () =>
+            count != null && count >= unique && count >= 0 ? count : null,
+        hasMore: () => page == 1 && count != null && count == unique
+            ? false
+            : list.hasMore,
+      );
+    }
     if (_disposed) throw StateError('Related source disposed');
     final hydrated = <ContentIdentity, PostContentEntry>{};
     for (final post in result.posts.where(family.contains)) {
@@ -271,6 +356,10 @@ final class DanbooruGroupSource extends ContentGroupSource
   void invalidate(ContentReference reference) {
     _require(reference);
     _pools.invalidate(reference);
+    _relatedCounts.invalidate(reference);
+    for (final key in _relatedKeys.remove(reference) ?? {}) {
+      _relatedLists.invalidate(key);
+    }
     _poolMembers.invalidate(reference);
   }
 
@@ -279,6 +368,8 @@ final class DanbooruGroupSource extends ContentGroupSource
     _disposed = true;
     _cancellation.cancel('Group source disposed');
     _pools.dispose();
+    _relatedLists.dispose();
+    _relatedCounts.dispose();
     _poolMembers.dispose();
   }
 }

@@ -195,6 +195,16 @@ Future<PostRecoveryResult> _recoverBookmarkPost(
       PostPresentationFallbackReason.refreshFailed,
     );
   try {
+    if (bookmark.post.requiresDetailLookup) {
+      final post = await ref
+          .read(bookmarkRecoveryServiceProvider)
+          .resolveListedPost(bookmark.post, config);
+      return post != null && current()
+          ? PostRecoverySuccess(post)
+          : const PostRecoveryFailure(
+              PostPresentationFallbackReason.refreshFailed,
+            );
+    }
     final result = await ref
         .read(bookmarkRecoveryServiceProvider)
         .recover(bookmark, config);

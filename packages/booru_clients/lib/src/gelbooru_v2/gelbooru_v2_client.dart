@@ -182,6 +182,7 @@ class GelbooruV2Client with GelbooruClientFavorites {
     required PaginationType? paginationType,
     required int? fixedLimit,
     int? page,
+    bool strictRealbooruSync = false,
   }) {
     final p = paginationType ?? this.paginationType;
     final l = fixedLimit ?? this.fixedLimit;
@@ -196,7 +197,10 @@ class GelbooruV2Client with GelbooruClientFavorites {
             limit: l,
           ),
       },
-      context: {P.userId: uid},
+      context: {
+        P.userId: uid,
+        if (strictRealbooruSync) 'strictRealbooruFavorites': true,
+      },
     );
   }
 }

@@ -13,8 +13,12 @@ final class ContentCursor extends Equatable {
 }
 
 final class ContentPage<T> extends Equatable {
-  ContentPage({required Iterable<T> items, this.next, this.total})
-    : items = List.unmodifiable(items) {
+  ContentPage({
+    required Iterable<T> items,
+    this.next,
+    this.total,
+    this.sourceTotal,
+  }) : items = List.unmodifiable(items) {
     if (total != null && total! < 0) {
       throw const FormatException('Invalid content total');
     }
@@ -22,6 +26,9 @@ final class ContentPage<T> extends Equatable {
   final List<T> items;
   final ContentCursor? next;
   final int? total;
+
+  /// Raw manifest extent, independent of the optional authorized count.
+  final int? sourceTotal;
   @override
-  List<Object?> get props => [items, next, total];
+  List<Object?> get props => [items, next, total, sourceTotal];
 }

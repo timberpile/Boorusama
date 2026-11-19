@@ -1,3 +1,5 @@
+import 'package:foundation/performance.dart';
+
 import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_shuffle_provider.dart';
 import 'bookmark.dart';
@@ -122,6 +124,84 @@ List<CollectionBookmark> selectPoolBookmarks({
   }).toList();
 }
 
+/// Folder covers always use membership dates. Their renderer evaluates live
+/// cover access in this order so a missing image cannot hide an eligible one.
+List<BookmarkGridEntry> selectBookmarkMosaicEntries({
+  required BookmarkLibraryState state,
+  required BookmarkView view,
+  Set<int>? availablePostIds,
+  Set<String>? availableCollectionIds,
+  Set<int>? availableNativeGroupIds,
+}) {
+  final ids = state.bookmarkIdsForView(view);
+  return performanceRecorder.measureSync(
+    PerfOperation.bookmarkSelect,
+    () {
+      final dates =
+          bookmarkMembershipDates(
+            state: state,
+            view: view,
+            sortType: BookmarkSortType.newest,
+          ) ??
+          const <int, DateTime>{};
+      final groups = state.groupIdsForView(view);
+      final entries = <BookmarkGridEntry>[
+        for (final id in ids)
+          if ((availablePostIds?.contains(id) ?? true) &&
+              state.bookmarksById[id] != null)
+            BookmarkPostEntry(state.bookmarksById[id]!),
+        ...selectNativeGroupBookmarks(
+          state: state,
+          view: view,
+          selectedTags: const [],
+          availableRecordIds: availableNativeGroupIds,
+        ).map(BookmarkNativeGroupEntry.new),
+        for (final pool in state.pools)
+          if ((availableCollectionIds?.contains(pool.localId) ?? true) &&
+              pool.groupIds.any(groups.contains))
+            BookmarkPoolEntry(pool),
+      ];
+      final poolDates = {
+        for (final entry in entries.whereType<BookmarkPoolEntry>())
+          entry.pool.localId: _mosaicPoolDate(entry.pool, groups),
+      };
+      return entries..sort((a, b) {
+        final dateOrder = _bookmarkDate(
+          b,
+          dates,
+          poolDates,
+        ).compareTo(_bookmarkDate(a, dates, poolDates));
+        return dateOrder == 0
+            ? a.key.toString().compareTo(b.key.toString())
+            : dateOrder;
+      });
+    },
+    items: ids.length,
+  );
+}
+
+DateTime _mosaicPoolDate(CollectionBookmark pool, Set<String> groups) {
+  DateTime? latest;
+  for (final group in pool.groupIds) {
+    if (!groups.contains(group)) continue;
+    final date = pool.addedAt[group] ?? pool.createdAt;
+    if (latest == null || date.isAfter(latest)) latest = date;
+  }
+  return latest ?? pool.createdAt;
+}
+
+DateTime _bookmarkDate(
+  BookmarkGridEntry entry,
+  Map<int, DateTime>? membershipDates,
+  Map<String, DateTime> poolDates,
+) => switch (entry) {
+  BookmarkPostEntry(:final bookmark) =>
+    membershipDates?[bookmark.id] ?? bookmark.createdAt,
+  BookmarkPoolEntry(:final pool) => poolDates[pool.localId] ?? pool.createdAt,
+  BookmarkNativeGroupEntry(:final bookmark) =>
+    membershipDates?[bookmark.id] ?? bookmark.createdAt,
+};
+
 List<BookmarkGridEntry> selectBookmarkGridEntries({
   required BookmarkLibraryState state,
   required BookmarkView view,
@@ -209,16 +289,13 @@ List<BookmarkGridEntry> selectBookmarkGridEntries({
             );
     }
   }
-  DateTime savedAt(BookmarkGridEntry entry) => switch (entry) {
-    BookmarkPostEntry(:final bookmark) =>
-      membershipDates?[bookmark.id] ?? bookmark.createdAt,
-    BookmarkPoolEntry(:final pool) => poolDates[pool.localId] ?? pool.createdAt,
-    BookmarkNativeGroupEntry(:final bookmark) =>
-      membershipDates?[bookmark.id] ?? bookmark.createdAt,
-  };
   entries.sort((a, b) {
-    final ad = uploads ? a.uploadDate(oldest: oldest) : savedAt(a);
-    final bd = uploads ? b.uploadDate(oldest: oldest) : savedAt(b);
+    final ad = uploads
+        ? a.uploadDate(oldest: oldest)
+        : _bookmarkDate(a, membershipDates, poolDates);
+    final bd = uploads
+        ? b.uploadDate(oldest: oldest)
+        : _bookmarkDate(b, membershipDates, poolDates);
     if (ad == null && bd != null) return 1;
     if (ad != null && bd == null) return -1;
     if (ad != null && bd != null) {

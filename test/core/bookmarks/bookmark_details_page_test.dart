@@ -870,17 +870,25 @@ void main() {
       );
       await pumpHeader();
       expect(controller.items.length, expectedCount);
-      // A selected source remains visible even when it has no matches in this view.
+      // Loaded structural data rejects a source outside this view and clears
+      // the actual selection, so it cannot return after later navigation.
       container.read(selectedBooruUrlProvider.notifier).state =
           'missing.example';
       await pumpHeader();
-      expect(controller.items, isEmpty);
-      expect(find.text('0 bookmarks'), findsOneWidget);
-      expect(find.text('Source: missing.example'), findsOneWidget);
-      await _tapFilter(tester, 'Source: missing.example');
+      expect(container.read(selectedBooruUrlProvider), isNull);
+      expect(controller.items.length, expectedCount);
+      expect(find.text('$expectedCount bookmarks'), findsOneWidget);
+      expect(find.text('Source: All'), findsOneWidget);
+      await _tapFilter(tester, 'Source: All');
       await pumpHeader();
       expect(find.byType(ConfigAwareWebsiteLogo), findsWidgets);
-      expect(find.byIcon(Icons.public), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(KurumiPopupMenuItem),
+          matching: find.byIcon(Icons.public),
+        ),
+        findsOneWidget,
+      );
       await tester.tap(
         find.ancestor(
           of: find.text('All'),

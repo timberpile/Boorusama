@@ -55,6 +55,19 @@ class SearchRefreshService {
     bool requireFullSnapshot = false,
     int snapshotPostLimit = 1000,
   }) async {
+    if (!_requestCurrent()) return const SearchRefreshDiscarded();
+    final store = repository;
+    final feeds = store is FollowingRefreshPublicationStore
+        ? (await (store as FollowingRefreshPublicationStore)
+                  .readRefreshPublication(topic.id, includeFeeds: true))
+              .feeds
+        : (await store.getFeeds())
+              .where((feed) => feed.sourceIds.contains(topic.id))
+              .toList();
+    if (!_requestCurrent()) return const SearchRefreshDiscarded();
+    final feedGenerations = {
+      for (final feed in feeds) feed.id: feed.cacheGeneration,
+    };
     final startedAt = _clock.now().toUtc();
     final checkpoint = topic.lastSuccessfulCheckAt;
     final baseline = checkpoint == null;
@@ -218,11 +231,17 @@ class SearchRefreshService {
           for (final post in [...initialPosts, ...posts])
             post.copyWith(origin: origin),
         ];
-        final memberships = await _seriesForRefresh(topic, config, incoming);
+        final memberships = await _seriesForRefresh(
+          topic,
+          config,
+          incoming,
+          feeds,
+        );
         if (!_requestCurrent()) return const SearchRefreshDiscarded();
         final committed = await repository.commitRefresh(
           SearchRefreshCommit(
             topicId: topic.id,
+            expectedFeedGenerations: feedGenerations,
             canCommit: _commitGuard(),
             automaticResolver: automatic,
             feedSeriesMemberships: memberships,
@@ -268,14 +287,11 @@ class SearchRefreshService {
     FollowingTopic topic,
     BooruConfig config,
     List<Post> incoming,
+    List<TopicFeed> feeds,
   ) async {
     final resolve = resolveSeriesCapability;
-    if (resolve == null || !_requestCurrent()) return {};
+    if (resolve == null || feeds.isEmpty || !_requestCurrent()) return {};
     try {
-      final feeds = (await repository.getFeeds())
-          .where((feed) => feed.sourceIds.contains(topic.id))
-          .toList();
-      if (feeds.isEmpty) return {};
       final candidates = <Post>[...incoming];
       for (final feed in feeds) {
         for (final snapshot in feed.posts) {

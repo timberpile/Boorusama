@@ -1,4 +1,5 @@
 import '../providers/bookmark_read_access.dart';
+import '../providers/native_work_mosaic_cover.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -158,6 +159,26 @@ class BookmarkNativeGroupCard extends ConsumerWidget {
   }
 }
 
+bool nativeGroupCoverAllowed(
+  GroupCover? cover,
+  BooruConfig config,
+  Set<String> blacklist,
+) {
+  final visibility = cover?.visibility;
+  return visibility != null &&
+      visibility.tagCoverage == MetadataCoverage.complete &&
+      groupAllowsRating(config, Rating.parse(visibility.rating)) &&
+      !visibility.deleted &&
+      !visibility.banned &&
+      groupCoverPassesBlacklist(
+        visibility,
+        blacklist,
+        postId: cover?.representedPost?.sourceKey.startsWith('id:') == true
+            ? int.tryParse(cover!.representedPost!.sourceKey.substring(3))
+            : null,
+      );
+}
+
 /// The same retained cover/policy/cache path serves native cards and local
 /// mosaics. A known cached sample may replace a missing thumbnail; no original
 /// or member manifest is requested just to fill a small tile.
@@ -165,10 +186,12 @@ class BookmarkNativeGroupCover extends ConsumerWidget {
   const BookmarkNativeGroupCover({
     required this.bookmark,
     this.onFailed,
+    this.recoveredCover,
     super.key,
   });
   final ContentGroupBookmark bookmark;
   final VoidCallback? onFailed;
+  final GroupCover? recoveredCover;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,7 +202,8 @@ class BookmarkNativeGroupCover extends ConsumerWidget {
       ),
     );
     final config = access?.config;
-    final cover = bookmark.summary.cover;
+    final cover =
+        recoveredCover ?? ref.watch(nativeWorkSavedCoverProvider(bookmark));
     if (config == null)
       return BookmarkAccessPlaceholder(
         origin: origin,
@@ -193,24 +217,10 @@ class BookmarkNativeGroupCover extends ConsumerWidget {
         reader: BookmarkReaderRequest.reference(bookmark.reference),
       );
     }
-    final visibility = cover.visibility;
-    final rating = Rating.parse(visibility?.rating);
-    final allowed =
-        visibility != null &&
-        visibility.tagCoverage == MetadataCoverage.complete &&
-        !blacklist.hasError &&
-        groupAllowsRating(config, rating) &&
-        !visibility.deleted &&
-        !visibility.banned &&
-        groupCoverPassesBlacklist(
-          visibility,
-          blacklist.requireValue,
-          postId: cover.representedPost?.sourceKey.startsWith('id:') == true
-              ? int.tryParse(cover.representedPost!.sourceKey.substring(3))
-              : null,
-        );
-
-    if (!allowed) return _NativeCoverFailure(onFailed: onFailed);
+    if (blacklist.hasError ||
+        !nativeGroupCoverAllowed(cover, config, blacklist.requireValue)) {
+      return _NativeCoverFailure(onFailed: onFailed);
+    }
     final selectedUrl = defaultStaticGridThumbnailUrl(
       thumbnail: cover.thumbnail.toString(),
       sample: (cover.sample ?? cover.thumbnail).toString(),

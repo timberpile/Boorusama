@@ -1,0 +1,9 @@
+{
+  "capturedOn": "2026-11-18",
+  "source": "https://realbooru.com/index.php?page=favorites&s=view&id=1",
+  "offsets": {
+    "populated.html": 0,
+    "terminal.html": 50
+  },
+  "sanitization": "Retained Favorites structural markers, exact Post anchors, thumbnail locators and pagination. Replaced tags and uploader with fixture values; removed titles, account/navigation prose, advertising, comments and unrelated scripts."
+}

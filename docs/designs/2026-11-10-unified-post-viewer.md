@@ -79,6 +79,12 @@ A normal horizontal swipe is a **real page drag**, not a delayed fade or thresho
 ### Pager, preloading, and checkpoints
 
 - Reuse/extend the shared outer viewer's existing page sequence. Keep the **previous/current/next** Post/Work entry ready for interactive page movement, with bounded preloading of visible/display media. Never eagerly decode or download all originals or all remote Work Pages.
+- Both immediate Pool and Related neighbors can prepare Details, the first
+  member batch and a bounded set of static thumbnails. An inactive Group shows
+  an inert preview. The selected gallery joins any pending reads under the
+  same source, order, page size and refresh generation, and consumes the
+  prepared member batch through its normal pager. Only a selected gallery
+  performs display acknowledgement and ancillary actions.
 - The immediate neighbor may show an existing cached preview while its display image resolves; its **gesture animation must not wait on network requests**.
 - Keep local checkpoints for each visited viewer occurrence: Details vertical scroll offset and, for Immersive, the last usable zoom/pan transform. Returning to an adjacent entry should not randomly jump to another scroll position or inherit a neighbor's media/metadata.
 - Respect profile/source isolation, refresh generations, Back/restoration, missing media, long feeds, repeated occurrences, cancellation and memory limits. Drop heavy widget/media state outside the narrow active window while retaining lightweight checkpoints.

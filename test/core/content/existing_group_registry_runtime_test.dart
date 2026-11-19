@@ -271,7 +271,10 @@ void main() {
             final projectedFirst = await pager.fetch(1);
             expect(projectedFirst.hasMore, isTrue);
             expect((await pager.fetch(2)).posts.single.id, lastId);
-            expect(postPages, [1, 2, 1, 2]);
+            expect(postPages, [
+              1,
+              2,
+            ], reason: 'Foreground pager must reuse the prepared source list.');
           },
         );
       }

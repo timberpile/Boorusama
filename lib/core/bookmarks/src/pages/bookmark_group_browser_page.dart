@@ -1,3 +1,4 @@
+import '../widgets/bookmark_source_selection_scope.dart';
 import '../../../backups/mitemite/collection_alias_ui.dart';
 import '../../../backups/mitemite/mitemite_icon.dart';
 
@@ -26,20 +27,14 @@ import '../../../selection/ordered_selection_controller.dart';
 import '../../../selection/selection_input.dart';
 import '../../../widgets/multi_select_button.dart';
 import '../../../widgets/widgets.dart';
-import '../providers/bookmark_group_selectors.dart';
 import '../providers/bookmark_group_view_preferences.dart';
 import '../providers/bookmark_provider.dart';
 import '../providers/bookmark_profile_availability.dart';
-import '../providers/bookmark_shuffle_provider.dart';
-import '../providers/local_providers.dart';
 import '../routes/route_utils.dart';
 import '../services/bookmark_library_service.dart';
-import '../types/bookmark.dart';
 import '../types/bookmark_group.dart';
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
-import '../types/pool_bookmark.dart';
-import '../types/content_group_bookmark.dart';
 import '../types/bookmark_grid_entry.dart';
 import '../widgets/bookmark_collection_deletion_summary.dart';
 import '../widgets/bookmark_group_destination_picker.dart';
@@ -73,16 +68,8 @@ class _BookmarkGroupBrowserPageState
   final _search = TextEditingController();
   final _selection = OrderedSelectionController<CollectionSelectionKey>();
   final _scrolls = <Object, AutoScrollController>{};
-  final _previews = <String, List<PostBookmark>>{};
-  final _poolPreviews = <String, List<CollectionBookmark>>{};
-  final _nativePreviews = <String, List<ContentGroupBookmark>>{};
-  (
-    BookmarkLibraryState,
-    BookmarkSortType,
-    BookmarkShuffleState,
-    BookmarkProfileAvailability?,
-  )?
-  _previewInputs;
+  final _previews = <BookmarkView, List<BookmarkGridEntry>>{};
+  (BookmarkLibraryState, BookmarkProfileAvailability?)? _previewInputs;
 
   @override
   void initState() {
@@ -416,7 +403,7 @@ class _BookmarkGroupBrowserPageState
                           ),
                       ];
                       if (id == null || genuinelyEmpty) {
-                        return OrderedSelectionCanvas(
+                        final empty = OrderedSelectionCanvas(
                           controller: _selection,
                           child: CustomScrollView(
                             key: PageStorageKey(scope),
@@ -442,6 +429,12 @@ class _BookmarkGroupBrowserPageState
                             ],
                           ),
                         );
+                        return view == null
+                            ? empty
+                            : BookmarkSourceSelectionScope(
+                                view: view,
+                                child: empty,
+                              );
                       }
                       return OrderedSelectionCanvas(
                         controller: _selection,
@@ -514,22 +507,16 @@ class _BookmarkGroupBrowserPageState
   }) {
     final inputs = (
       state,
-      ref.watch(selectedBookmarkSortTypeProvider),
-      ref.watch(bookmarkShuffleProvider),
       visible
           ? ref.watch(bookmarkProfileAvailabilityProvider)
-          : _previewInputs?.$4 ?? ref.read(bookmarkProfileAvailabilityProvider),
+          : _previewInputs?.$2 ?? ref.read(bookmarkProfileAvailabilityProvider),
     );
     final old = _previewInputs;
     if (old == null ||
         !identical(old.$1, state) ||
-        old.$2 != inputs.$2 ||
-        old.$3 != inputs.$3 ||
-        !identical(old.$4, inputs.$4)) {
+        !identical(old.$2, inputs.$2)) {
       _previewInputs = inputs;
       _previews.clear();
-      _poolPreviews.clear();
-      _nativePreviews.clear();
     }
   }
 
@@ -580,31 +567,17 @@ class _BookmarkGroupBrowserPageState
                     state.groupTree.childrenOf(group.id).isNotEmpty
                 ? BookmarkView.subtree(group.id)
                 : view;
-            final previewGroups = state.groupIdsForView(previewView);
-            final key = view.groupId ?? 'all';
-            final preview = _previews.putIfAbsent(
-              key,
-              () => selectBookmarkPreviews(
+            final availability = _previewInputs!.$2;
+            final previews = _previews.putIfAbsent(
+              previewView,
+              () => selectBookmarkMosaicEntries(
                 state: state,
                 view: previewView,
-                sortType: _previewInputs!.$2,
-                shuffleState: _previewInputs!.$3,
-                availablePostIds: _previewInputs!.$4?.postIds ?? const {},
+                availablePostIds: availability?.postIds ?? const {},
+                availableCollectionIds: availability?.collectionIds ?? const {},
+                availableNativeGroupIds:
+                    availability?.nativeGroupIds ?? const {},
               ),
-            );
-            final pools = _poolPreviews.putIfAbsent(
-              key,
-              () => state.pools
-                  .where(
-                    (pool) =>
-                        (_previewInputs!.$4?.collectionIds.contains(
-                              pool.localId,
-                            ) ??
-                            false) &&
-                        pool.groupIds.any(previewGroups.contains),
-                  )
-                  .take(4)
-                  .toList(),
             );
             final editable =
                 group != null &&
@@ -629,19 +602,7 @@ class _BookmarkGroupBrowserPageState
               unseenCount: group == null
                   ? 0
                   : syncBookmarkUnseenMembers(state, group.id).length,
-              previews: preview,
-              pools: pools,
-              nativeGroups: _nativePreviews.putIfAbsent(
-                key,
-                () => selectNativeGroupBookmarks(
-                  state: state,
-                  view: previewView,
-                  selectedTags: const [],
-                  availableRecordIds:
-                      _previewInputs!.$4?.nativeGroupIds ?? const {},
-                ).take(4).toList(),
-              ),
-              group: group,
+              mosaicCandidates: previews,
               selected: group != null && selected.contains(group.id),
               onTap:
                   !editable && (_selection.isActive || selectionModifierPressed)

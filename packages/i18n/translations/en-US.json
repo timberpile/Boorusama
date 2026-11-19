@@ -767,6 +767,7 @@
     }
   },
   "pool": {
+    "members_unavailable": "Members on this page are unavailable or could not be verified.",
     "pool": "Pool",
     "pools": "Pools",
     "pool_gallery": "Pool Gallery",

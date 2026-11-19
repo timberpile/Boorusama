@@ -1,3 +1,4 @@
+import 'shared_image_read.dart';
 import 'dart:async';
 
 import 'package:cache_manager/cache_manager.dart';
@@ -88,43 +89,61 @@ class CustomCachedNetworkAvifImageProvider
         return cachedBytes;
       }
 
-      if (manager != null) {
-        write = await PendingImageCacheWrite.begin(manager, cacheKey!);
-      }
-
-      final resolved = Uri.base.resolve(url);
-      final response = await tryGetResponse<List<int>>(
-        resolved,
-        dio: dio,
-        cancelToken: requestCancelToken,
-        fetchStrategy: fetchStrategy,
-        options: Options(
-          responseType: ResponseType.bytes,
-          extra: const {'boorusama.request.media': true},
-          headers: headers,
-        ),
-        onReceiveProgress: (count, total) {
-          if (!chunkEvents.isClosed && total >= 0) {
-            chunkEvents.add(
-              ImageChunkEvent(
-                cumulativeBytesLoaded: count,
-                expectedTotalBytes: total,
-              ),
-            );
+      Future<Uint8List> readNetwork(CancelToken transportToken) async {
+        try {
+          if (manager != null) {
+            write = await PendingImageCacheWrite.begin(manager, cacheKey!);
           }
-        },
+
+          final resolved = Uri.base.resolve(url);
+          final response = await tryGetResponse<List<int>>(
+            resolved,
+            dio: dio,
+            cancelToken: transportToken,
+            fetchStrategy: fetchStrategy,
+            options: Options(
+              responseType: ResponseType.bytes,
+              extra: const {'boorusama.request.media': true},
+              headers: headers,
+            ),
+            onReceiveProgress: (count, total) {
+              if (!chunkEvents.isClosed && total >= 0) {
+                chunkEvents.add(
+                  ImageChunkEvent(
+                    cumulativeBytesLoaded: count,
+                    expectedTotalBytes: total,
+                  ),
+                );
+              }
+            },
+          );
+
+          if (response == null || response.data == null) {
+            throw StateError('Failed to load $url: Empty response');
+          }
+
+          final bytes = Uint8List.fromList(response.data!);
+          if (bytes.isEmpty) {
+            throw StateError('$url is empty and cannot be decoded.');
+          }
+
+          if (!transportToken.isCancelled) await write?.save(bytes);
+          return bytes;
+        } finally {
+          await write?.abort();
+        }
+      }
+
+      if (manager == null) return await readNetwork(requestCancelToken);
+      final bytes = await SharedImageRead.run(
+        dio: dio,
+        manager: manager,
+        key: cacheKey!,
+        headers: headers,
+        owner: requestCancelToken,
+        load: readNetwork,
       );
-
-      if (response == null || response.data == null) {
-        throw StateError('Failed to load $url: Empty response');
-      }
-
-      final bytes = Uint8List.fromList(response.data!);
-      if (bytes.isEmpty) {
-        throw StateError('$url is empty and cannot be decoded.');
-      }
-
-      await write?.save(bytes);
+      if (bytes == null) throw StateError('Empty shared AVIF response');
       return bytes;
     } on DioException catch (error) {
       if (error.type == DioExceptionType.cancel) {

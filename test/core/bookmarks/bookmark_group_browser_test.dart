@@ -10,18 +10,12 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 
 void main() {
   testWidgets('preview grid leaves missing cells transparent', (tester) async {
-    final previews = [PostBookmark.empty.copyWith(id: 1)];
-
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: SizedBox.square(
           dimension: 200,
           child: BookmarkGroupPreviewGrid(
-            previews: previews,
-            itemBuilder: (context, bookmark) => Text(
-              '${bookmark.id}',
-              key: ValueKey(bookmark.id),
-            ),
+            cells: [Text('1', key: ValueKey(1))],
           ),
         ),
       ),
@@ -42,12 +36,11 @@ void main() {
 
   testWidgets('preview grid separates all four square cells', (tester) async {
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: SizedBox.square(
           dimension: 200,
           child: BookmarkGroupPreviewGrid(
-            previews: [PostBookmark.empty],
-            itemBuilder: (_, _) => const ColoredBox(color: Colors.red),
+            cells: [ColoredBox(color: Colors.red)],
           ),
         ),
       ),
@@ -88,11 +81,10 @@ void main() {
             width: 200,
             height: 200,
             child: BookmarkGroupPreviewGrid(
-              previews: [
-                for (var i = 0; i < 4; i++) PostBookmark.empty.copyWith(id: i),
+              cells: [
+                for (var i = 0; i < 4; i++)
+                  ColoredBox(key: ValueKey(i), color: Colors.red),
               ],
-              itemBuilder: (_, bookmark) =>
-                  ColoredBox(key: ValueKey(bookmark.id), color: Colors.red),
             ),
           ),
         ),

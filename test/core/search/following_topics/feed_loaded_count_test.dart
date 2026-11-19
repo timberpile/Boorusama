@@ -1,4 +1,5 @@
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -24,7 +25,13 @@ void main() {
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
         final requests = <int>[];
+        final profile = BooruConfig.fromJson({
+          ...testProfile.toJson(),
+          'booruId': BooruType.danbooru.id,
+          'booruIdHint': BooruType.danbooru.id,
+        });
         final harness = FollowingTopicHarness(
+          profiles: [profile],
           overrides: [
             originAwarePostRepoProvider.overrideWith(
               (ref, config) => TestSearchPostRepository((

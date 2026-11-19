@@ -51,6 +51,15 @@ On large Pools, inspect only an allowed subset and any already available metadat
 
 A tag union is not a substitute for individual member rating, blacklist or access restrictions. The visible cover and opened Pool must still enforce the originating profile's normal visibility policy. Stale aggregate tags must be replaceable, not accumulated forever.
 
+Donmai Safebooru discovery checks up to three candidates per Pool in one
+same-reader batch per raw page. Confirmed eligible members establish
+availability, even if none has a usable static cover. Only complete authority
+establishes an exact count or allows discovery to suppress a proven-empty
+Pool. Unknown Pools remain discoverable, and missing IDs do not establish
+ineligibility. The raw continuation survives filtered pages. Direct and saved
+references retain their identity and remain openable.
+
+
 ## Upload date sorting
 
 - **Newest Uploads:** sort a Pool by its newest member upload timestamp.

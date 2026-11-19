@@ -17,6 +17,9 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.
 import 'package:boorusama/core/bookmarks/src/services/bookmark_library_service.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/related/related_family.dart';
@@ -121,6 +124,20 @@ void main() {
         groupId: poolGroupB,
         existingBookmark: post,
       );
+      final other = await seed(2);
+      now = second.add(const Duration(days: 1));
+      await service.addBookmarkToGroup(
+        groupId: poolGroupB,
+        existingBookmark: other,
+      );
+      List<Object> mosaicKeys(BookmarkLibraryState state) =>
+          selectBookmarkMosaicEntries(
+            state: state,
+            view: BookmarkView.group(poolGroupB),
+          ).map((entry) => entry.key).toList();
+      final postKey = BookmarkPostEntry(post).key;
+      final otherKey = BookmarkPostEntry(other).key;
+      expect(mosaicKeys(await service.load()), [otherKey, postKey]);
       now = third;
       expect(
         await service.addBookmarkToGroup(
@@ -152,9 +169,170 @@ void main() {
       final stored = await posts.getAllBookmarksOrThrow(
         imageUrlResolver: resolver,
       );
-      expect(stored.single.createdAt, old);
+      expect(
+        stored.singleWhere((record) => record.id == post.id).createdAt,
+        old,
+      );
+      expect(mosaicKeys(await service.load()), [postKey, otherKey]);
+
+      await groupsBox.close();
+      groupsBox = await Hive.openBox('membership_groups');
+      final reloaded = BookmarkLibraryService(
+        bookmarkRepository: posts,
+        groupRepository: _Groups(
+          groupsBox,
+          organizationBox: MemoryBox<dynamic>(),
+          now: () => now,
+        ),
+        imageUrlResolver: resolver,
+      );
+      expect(mosaicKeys(await reloaded.load()), [postKey, otherKey]);
     },
   );
+
+  test('folder mosaic ranks all types inside each membership scope', () {
+    const other = '550e8400-e29b-41d4-a716-446655440003';
+    const received = '550e8400-e29b-41d4-a716-446655440004';
+    final latestLocal = DateTime.utc(2024);
+    final latestReceived = DateTime.utc(2030);
+    final post = testPoolPost(1).copyWith(createdAt: old);
+    final receivedOnly = testPoolPost(2);
+    ContentGroupBookmark groupRecord(
+      int id,
+      BooruType engine,
+      String site,
+      String key, {
+      DateTime? upload,
+    }) {
+      final summary = ContentGroupSummary(
+        reference: const ContentReferenceCodec().parse(
+          engine: engine,
+          site: Uri.parse(site),
+          kind: ContentKind.group,
+          sourceKey: key,
+        ),
+      );
+      return ContentGroupBookmark(
+        id: id,
+        createdAt: second,
+        observedAt: second,
+        snapshot: StoredGroupSnapshot(
+          summary: summary,
+          index: upload == null
+              ? null
+              : GroupBookmarkIndex(
+                  tags: const {},
+                  basis: GroupTagIndexBasis.memberUnion,
+                  coverage: MetadataCoverage.complete,
+                  newestMemberUpload: upload,
+                ),
+        ),
+      );
+    }
+
+    final work = groupRecord(
+      3,
+      BooruType.pixiv,
+      'https://www.pixiv.net',
+      'work:42',
+    );
+    final pool = groupRecord(
+      4,
+      BooruType.danbooru,
+      'https://danbooru.donmai.us',
+      'pool:42',
+    );
+    final relatedSource = groupRecord(
+      5,
+      BooruType.danbooru,
+      'https://danbooru.donmai.us',
+      'related:42',
+      upload: latestReceived,
+    );
+    final related = RelatedBookmark(
+      id: relatedSource.id,
+      snapshot: relatedSource.snapshot,
+      createdAt: relatedSource.createdAt,
+      observedAt: relatedSource.observedAt,
+    );
+    final state = BookmarkLibraryState(
+      bookmarks: const [],
+      records: [post, receivedOnly, work, pool, related],
+      groups: [
+        BookmarkGroup(
+          id: poolGroupA,
+          name: 'Root',
+          bookmarkIds: {post.id, work.id, pool.id, related.id},
+          addedAt: {post.id: third, pool.id: first, related.id: second},
+        ),
+        BookmarkGroup(
+          id: poolGroupB,
+          name: 'Child',
+          parentGroupId: poolGroupA,
+          bookmarkIds: {work.id, pool.id},
+          addedAt: {work.id: latestLocal, pool.id: second},
+        ),
+        BookmarkGroup(
+          id: other,
+          name: 'Other',
+          bookmarkIds: {pool.id},
+          addedAt: {pool.id: DateTime.utc(2025)},
+        ),
+        BookmarkGroup(
+          id: received,
+          name: 'Received',
+          bookmarkIds: {receivedOnly.id, related.id},
+          addedAt: {related.id: latestReceived},
+        ),
+      ],
+      mirrors: BookmarkMirrorState(
+        owners: {
+          received: BookmarkMirrorOwner(
+            publisher: poolProfile,
+            source: received,
+            revision: 1,
+            payloadDigest: 'a' * 64,
+            groupDigest: 'b' * 64,
+          ),
+        },
+        epoch: 1,
+      ),
+    );
+    final postKey = BookmarkPostEntry(post).key;
+    final workKey = BookmarkNativeGroupEntry(work).key;
+    Object collectionKey(ContentGroupBookmark record) => BookmarkPoolEntry(
+      state.pools.singleWhere((p) => p.bookmarkId == record.id),
+    ).key;
+    final poolKey = collectionKey(pool);
+    final relatedKey = collectionKey(related);
+    expect(
+      selectBookmarkGridEntries(
+        state: state,
+        view: BookmarkView.group(poolGroupA),
+        selectedTags: const [],
+        sortType: BookmarkSortType.newestUpload,
+      ).first.key,
+      relatedKey,
+    );
+    Iterable<Object> keys(BookmarkView view) => selectBookmarkMosaicEntries(
+      state: state,
+      view: view,
+    ).map((entry) => entry.key);
+    expect(keys(BookmarkView.group(poolGroupA)), [
+      postKey,
+      workKey,
+      relatedKey,
+      poolKey,
+    ]);
+    expect(keys(BookmarkView.subtree(poolGroupA)).take(2), [workKey, postKey]);
+    expect(keys(const BookmarkView.all()), [
+      poolKey,
+      workKey,
+      postKey,
+      relatedKey,
+    ]);
+    expect(keys(BookmarkView.group(received)).first, relatedKey);
+  });
 
   test(
     'Posts and typed references sort by current membership dates',

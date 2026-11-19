@@ -11,11 +11,18 @@ import 'post.dart';
 class PostFetchOptions {
   const PostFetchOptions({
     this.cascadeRequest = true,
+    this.prepareGroupRows = false,
   });
 
   final bool cascadeRequest;
+  final bool prepareGroupRows;
 
   static const defaults = PostFetchOptions();
+  static const groupRows = PostFetchOptions(
+    cascadeRequest: false,
+    prepareGroupRows: true,
+  );
+
   static const raw = PostFetchOptions(
     cascadeRequest: false,
   );
@@ -51,6 +58,7 @@ class PostResult<T extends Post> extends Equatable {
     this.maxPage,
     this.hasMore,
     this.rawPostCount,
+    this.rawUniquePostCount,
   });
 
   PostResult.empty()
@@ -58,7 +66,8 @@ class PostResult<T extends Post> extends Equatable {
       total = 0,
       maxPage = null,
       hasMore = null,
-      rawPostCount = null;
+      rawPostCount = null,
+      rawUniquePostCount = null;
 
   PostResult<T> copyWith({
     List<T>? posts,
@@ -66,12 +75,16 @@ class PostResult<T extends Post> extends Equatable {
     int? Function()? maxPage,
     bool? Function()? hasMore,
     int? Function()? rawPostCount,
+    int? Function()? rawUniquePostCount,
   }) => PostResult(
     posts: posts ?? this.posts,
     total: total != null ? total() : this.total,
     maxPage: maxPage != null ? maxPage() : this.maxPage,
     hasMore: hasMore != null ? hasMore() : this.hasMore,
     rawPostCount: rawPostCount != null ? rawPostCount() : this.rawPostCount,
+    rawUniquePostCount: rawUniquePostCount != null
+        ? rawUniquePostCount()
+        : this.rawUniquePostCount,
   );
 
   final List<T> posts;
@@ -82,9 +95,17 @@ class PostResult<T extends Post> extends Equatable {
   /// Number returned by the source before repository visibility transforms.
   /// Consumers needing raw page progress must not infer it from filtered Posts.
   final int? rawPostCount;
+  final int? rawUniquePostCount;
 
   @override
-  List<Object?> get props => [posts, total, maxPage, hasMore, rawPostCount];
+  List<Object?> get props => [
+    posts,
+    total,
+    maxPage,
+    hasMore,
+    rawPostCount,
+    rawUniquePostCount,
+  ];
 }
 
 extension PostResultX<T extends Post> on List<T> {
@@ -93,12 +114,14 @@ extension PostResultX<T extends Post> on List<T> {
     int? maxPage,
     bool? hasMore,
     int? rawPostCount,
+    int? rawUniquePostCount,
   }) => PostResult(
     posts: this,
     total: total,
     maxPage: maxPage,
     hasMore: hasMore,
     rawPostCount: rawPostCount,
+    rawUniquePostCount: rawUniquePostCount,
   );
 }
 
@@ -130,3 +153,9 @@ typedef PostsOrError<T extends Post> = PostsOrErrorCore<T>;
 typedef PostOrErrorCore<T extends Post> = TaskEither<BooruError, T?>;
 
 typedef PostOrError<T extends Post> = PostOrErrorCore<T>;
+
+/// Existing engine ancillary work, invoked only by a selected gallery consuming
+/// prepared rows. Test/custom repositories need not advertise these effects.
+abstract interface class ForegroundPostConsumer<T extends Post> {
+  Future<void> consumePreparedPosts(List<T> posts);
+}

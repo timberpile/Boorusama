@@ -253,19 +253,44 @@ void main() {
     expect(running.refreshingFeedId, feed.id);
     expect(running.feedRefreshChecked, 1);
     expect(running.feedRefreshTotal, 2);
-    expect(find.text('Checked 1 of 2 · 1 remaining'), findsOneWidget);
-    expect(
-      tester
-          .widget<LinearProgressIndicator>(
-            find.byType(LinearProgressIndicator),
-          )
-          .value,
-      0.5,
-    );
-
+    final ring = find.byKey(const ValueKey('feed-refresh-ring'));
+    expect(tester.widget<CircularProgressIndicator>(ring).value, 0.5);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     secondCheck.complete();
     await drain(tester);
-    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(ring, findsNothing);
+  });
+
+  testWidgets('automatic pass progress is intersected with this feed', (
+    tester,
+  ) async {
+    final h = FollowingTopicHarness();
+    addTearDown(h.dispose);
+    final feed = await seed(tester, h, count: 2);
+    await h.pump(
+      tester,
+      TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+    );
+    final ring = find.byKey(const ValueKey('feed-refresh-ring'));
+    final notifier = h.container.read(followingTopicsProvider.notifier);
+    final other = notifier.beginRefreshProgress(['unrelated-only']);
+    await tester.pump();
+    expect(ring, findsNothing);
+
+    final progress = notifier.beginRefreshProgress([
+      ...feed.sourceIds,
+      'unrelated',
+    ]);
+    await tester.pump();
+    expect(tester.widget<CircularProgressIndicator>(ring).value, 0);
+    progress.settle(feed.sourceIds.first);
+    await tester.pump();
+    expect(tester.widget<CircularProgressIndicator>(ring).value, 0.5);
+    progress.settle(feed.sourceIds.last);
+    await tester.pump();
+    expect(ring, findsNothing);
+    progress.close();
+    other.close();
   });
 
   for (final narrow in [false, true]) {

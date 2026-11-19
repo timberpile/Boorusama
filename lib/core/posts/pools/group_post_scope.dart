@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import '../../http/client/coordination.dart';
+import '../details/src/widgets/group_viewer_scope.dart';
+import '../../content/groups/prepared_group_reads.dart';
 import '../../content/groups/related_group_counts.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -55,17 +60,30 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
   ({GroupMetadataKey metadata, int revision})? _ownRefresh;
   var _peerRefreshPending = false;
   var _active = false;
+  var _passive = false;
+  final _activityChanges = StreamController<void>.broadcast();
   int? _peerInitialPage;
 
   @override
   void dispose() {
     _pager?.dispose();
+    unawaited(_activityChanges.close());
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     _active = NavigationActivity.of(context);
+    final passive = GroupViewerScope.maybeOf(context)?.passive ?? false;
+    if (_passive != passive) {
+      _passive = passive;
+      _activityChanges.add(null);
+      if (!passive) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_passive) _pager?.activate();
+        });
+      }
+    }
     final config = ref.watchConfig;
     final inherited = ref.watch(currentContentAccessKeyProvider);
     var access = inherited == null
@@ -108,6 +126,9 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
         if (scroll?.hasClients ?? false) scroll!.jumpTo(0);
       });
     }
+    final prepared = key == null
+        ? null
+        : ref.watch(preparedGroupReadsProvider(key));
     final identity = (
       source,
       key,
@@ -123,6 +144,11 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
           ? null
           : GroupPostPager(
               source: source,
+              preparedReads: prepared,
+              isForeground: () => !_passive,
+              currentRefreshRevision: () => metadata == null
+                  ? 0
+                  : ref.read(groupRefreshRevisionProvider(metadata)),
               relatedCounts: ref.read(relatedGroupCountsProvider.notifier),
               reference: widget.reference,
               orderKey: widget.orderKey,
@@ -153,6 +179,17 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
             ? Future<PostResult<Post>>.error(
                 StateError('Group source unavailable'),
               )
+            : _passive
+            ? runWithApiRequestContext(
+                ApiRequestContext(
+                  requestClassResolver: () => _passive
+                      ? ApiRequestClass.preload
+                      : ApiRequestClass.interactive,
+                  changes: _activityChanges.stream,
+                  allowCooldownRetry: false,
+                ),
+                () => pager.fetch(page),
+              )
             : pager.fetch(page),
         (error, _) => error is BooruError
             ? error
@@ -168,6 +205,7 @@ class _GroupPostScopeState extends ConsumerState<GroupPostScope> {
           : () {
               // Initial grid loading also uses the controller's refresh path.
               // Only a real refresh invalidates metadata observed by siblings.
+              if (_passive) return;
               final invalidated = pager.refresh();
               if (invalidated && metadata != null) {
                 _ownRefresh = (

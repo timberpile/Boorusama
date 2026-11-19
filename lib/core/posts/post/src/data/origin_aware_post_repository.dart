@@ -72,6 +72,7 @@ PostResult<Post> bindPostResultOrigin(
   maxPage: result.maxPage,
   hasMore: result.hasMore,
   rawPostCount: result.rawPostCount,
+  rawUniquePostCount: result.rawUniquePostCount,
 );
 
 PostOrigin postOriginFromConfig(BooruConfig config) => PostOrigin.fromSource(

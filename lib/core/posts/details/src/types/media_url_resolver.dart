@@ -52,7 +52,9 @@ class DefaultMediaUrlResolver implements MediaUrlResolver {
 
   @override
   String resolveMediaUrl(Post post, BooruConfigViewer config) =>
-      _usesOriginal(post, config)
+      post.requiresDetailLookup
+      ? post.thumbnailImageUrl
+      : _usesOriginal(post, config)
       ? originalViewerImageUrl(post)
       : post.isGif
       ? post.sampleImageUrl
@@ -66,7 +68,9 @@ class DefaultMediaUrlResolver implements MediaUrlResolver {
 
   @override
   double? resolveMediaAspectRatio(Post post, BooruConfigViewer config) =>
-      _usesOriginal(post, config)
+      post.requiresDetailLookup
+      ? post.effectiveThumbnailAspectRatio
+      : _usesOriginal(post, config)
       ? originalViewerImageAspectRatio(post)
       : post.isGif
       ? post.effectiveSampleAspectRatio
@@ -103,7 +107,9 @@ class SampleMediaUrlResolver implements MediaUrlResolver {
   String resolveMediaUrl(
     Post post,
     BooruConfigViewer config,
-  ) => !post.isVideo && postQuality == PostQuality.original
+  ) => post.requiresDetailLookup
+      ? post.thumbnailImageUrl
+      : !post.isVideo && postQuality == PostQuality.original
       ? originalViewerImageUrl(post)
       : post.sampleImageUrl;
 

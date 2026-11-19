@@ -113,6 +113,7 @@ void main() {
       fixture.adapter.requireReferer = false;
       for (final url in [
         'https://foreign.test/image.jpg',
+        'https://other.pximg.net/image.jpg',
         'https://i.pximg.net.evil.test/image.jpg',
         'http://i.pximg.net/image.jpg',
         'https://i.pximg.net:8443/image.jpg',

@@ -1,3 +1,4 @@
+import 'bookmark_hydration_provider.dart';
 import '../../../content/content_access_provider.dart';
 import '../types/pool_bookmark_cover.dart';
 import '../services/bookmark_presentation_covers.dart';
@@ -930,6 +931,58 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     );
   }
 
+  Future<void> fillMissingNativeWorkCover(
+    ContentGroupBookmark expected,
+    GroupCover cover, {
+    required bool Function() canCommit,
+  }) => runSerializedMutation(() async {
+    if (expected.reference.engine != BooruType.pixiv ||
+        expected.summary.cover?.visibility?.tagCoverage ==
+            MetadataCoverage.complete ||
+        cover.visibility?.tagCoverage != MetadataCoverage.complete) {
+      return;
+    }
+    final repository = await bookmarkRepository;
+    final storage = unifiedBookmarkStorage(repository);
+    if (storage == null ||
+        !canCommit() ||
+        await storage.read(expected.id) != expected) {
+      return;
+    }
+    final groups = await (await bookmarkGroupRepository).getGroups();
+    final mirrors = repository is BookmarkMirrorReader
+        ? await (repository as BookmarkMirrorReader).readMirrorState()
+        : const BookmarkMirrorState.empty();
+    if (!groups.any((group) => group.bookmarkIds.contains(expected.id)) ||
+        groups.any(
+          (group) =>
+              group.bookmarkIds.contains(expected.id) &&
+              mirrors.isReceived(group.id),
+        ) ||
+        !canCommit())
+      return;
+    final prior = expected.summary;
+    final summary = ContentGroupSummary(
+      reference: prior.reference,
+      title: prior.title,
+      memberCount: prior.memberCount,
+      displayCategory: prior.displayCategory,
+      previewTags: prior.previewTags,
+      sourceData: prior.sourceData,
+      cover: cover,
+    );
+    await withBookmarkCommitGuard(
+      () => storage.commitOrganization(
+        records: [
+          expected.copyWith(snapshot: expected.snapshot.withSummary(summary)),
+        ],
+      ),
+      () {
+        if (!canCommit()) throw StateError('Bookmark cover access changed');
+      },
+    );
+  });
+
   Future<void> fillMissingPoolCover(
     CollectionBookmark summary, {
     required bool Function() canCommit,
@@ -989,7 +1042,9 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         return;
       }
       if (current is! ContentGroupBookmark ||
-          (!replaceExisting && current.summary.cover != null))
+          (!replaceExisting &&
+              current.summary.cover?.visibility?.tagCoverage ==
+                  MetadataCoverage.complete))
         return;
       final media = summary.cover;
       final thumbnail = media?.thumbnail ?? summary.coverUrl;
@@ -1058,7 +1113,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       for (final pool in pools)
         if (pool.localId == summary.localId &&
             pool.identity == summary.identity &&
-            pool.coverUrl == null)
+            pool.needsCoverFacts)
           pool.withMissingCoverFrom(summary)
         else
           pool,
@@ -1508,6 +1563,8 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     if (canUpgrade?.call() == false) return;
     final current = snapshot.bookmarksById[bookmark.id];
     if (current is! PostBookmark ||
+        (!identical(current, bookmark) ||
+            !snapshot.localBookmarkIds.contains(bookmark.id)) ||
         current.uniqueId != bookmark.uniqueId ||
         current.post.origin.booruType != bookmark.post.origin.booruType) {
       return;
@@ -1521,10 +1578,16 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     }
     final service = await _service;
     if (canUpgrade?.call() == false) return;
-    await service.upgradeBookmarkSnapshot(
-      bookmark: current,
-      post: post,
-      dataCodec: codec,
+    await withBookmarkCommitGuard(
+      () => service.upgradeBookmarkSnapshot(
+        bookmark: current,
+        post: post.copyWith(origin: bookmark.post.origin),
+        dataCodec: codec,
+      ),
+      () {
+        if (canUpgrade?.call() == false)
+          throw StateError('Bookmark recovery revoked');
+      },
     );
     await _publishCommittedMutation();
   });
@@ -2361,7 +2424,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     final sourceIndices = <Post, int>{};
     final engines = ref.read(booruEngineRegistryProvider);
     final blacklists = <BooruConfig, Set<String>>{};
-    for (final bookmark in bookmarks) {
+    for (var bookmark in bookmarks) {
       final origin = bookmark.post.origin;
       final source = switch (const PostOriginResolver().resolve(
         origin,
@@ -2377,6 +2440,21 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       final blacklist = blacklists[source] ??= await ref.read(
         blacklistTagsProvider(source.filter).future,
       );
+      if (bookmark.post.requiresDetailLookup) {
+        final resolved = await ref
+            .read(bookmarkRecoveryServiceProvider)
+            .resolveListedPost(bookmark.post, source);
+        if (resolved == null) continue;
+        bookmark = PostBookmark.fromSnapshot(
+          id: bookmark.id,
+          createdAt: bookmark.createdAt,
+          updatedAt: bookmark.updatedAt,
+          snapshot: bookmark.snapshot,
+          post: resolved,
+          postId: bookmark.postId,
+          sourceUrl: bookmark.sourceUrl,
+        );
+      }
       if (!isExactLookupPostVisible(bookmark.post, source, blacklist)) continue;
       final sourceKey = (source, origin.booruType.id, origin.sourceHost);
       sourceIndices[bookmark.post] =

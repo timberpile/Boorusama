@@ -102,6 +102,14 @@ void main() {
       );
       await tester.tap(find.byType(BookmarkPoolCard));
       await f.harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+      await f.harness.settle(tester);
+      final preparedGrid = find.byType(PostGrid<Post>);
+      if (preparedGrid.evaluate().isNotEmpty) {
+        final debugController = tester
+            .widget<PostGrid<Post>>(preparedGrid.last)
+            .controller;
+        expect(debugController.errors.value, isNull);
+      }
       await f.harness.pumpUntilFound(tester, postTile(101));
       await f.harness.settle(tester);
       final memberRequests = f.memberQueries.length;
@@ -506,7 +514,7 @@ void main() {
       hasLength(1),
       reason: 'all API paths: ${f.apiPaths}',
     );
-    expect(f.apiPaths, ['/pools/42.json']);
+    expect(f.apiPaths, ['/pools/42.json', '/posts.json']);
     expect(f.privateRequests, 0);
     expect(tester.takeException(), isNull);
   });
@@ -646,6 +654,38 @@ class _Fixture {
             f.apiPaths.add(options.path);
             if (!f.apiStarted.isCompleted) f.apiStarted.complete();
             await f.gate?.future;
+            if (options.path == '/posts.json') {
+              final ids = options.queryParameters['tags']
+                  .toString()
+                  .replaceFirst('id:', '')
+                  .split(',')
+                  .map(int.parse);
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: [
+                    for (final id in ids)
+                      {
+                        'id': id,
+                        'rating': 'g',
+                        'is_deleted': false,
+                        'is_banned': false,
+                        'tag_string': 'fixture',
+                        'file_ext': 'jpg',
+                        'image_width': 100,
+                        'image_height': 100,
+                        'file_url': 'https://cdn.donmai.us/sample/$id.jpg',
+                        'large_file_url':
+                            'https://cdn.donmai.us/sample/$id.jpg',
+                        'preview_file_url':
+                            'https://cdn.donmai.us/sample/$id.jpg',
+                      },
+                  ],
+                ),
+              );
+              return;
+            }
             handler.resolve(
               Response<dynamic>(
                 requestOptions: options,

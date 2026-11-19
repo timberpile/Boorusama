@@ -1,7 +1,9 @@
+import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/posts/listing/src/widgets/timeline_toolbar.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_option_selector.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -17,7 +19,121 @@ import 'package:kurumi/material.dart';
 import 'following_topic_test_utils.dart';
 import 'topic_test_utils.dart';
 
+final _feedProfile = BooruConfig.fromJson({
+  ...testProfile.toJson(),
+  'booruId': BooruType.danbooru.id,
+  'booruIdHint': BooruType.danbooru.id,
+});
+
 void main() {
+  for (final empty in [false, true]) {
+    testWidgets(
+      'background results remain pending through filtered/empty feed=$empty',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final harness = FollowingTopicHarness(profiles: [_feedProfile]);
+        addTearDown(harness.dispose);
+        final source = topicFixture(query: 'cat');
+        await harness.seed([source]);
+        final feed = TopicFeed(
+          id: 'pending',
+          profileId: testProfile.id,
+          name: 'Pending',
+          sourceIds: [source.id],
+          initializedSourceIds: [source.id],
+          posts: empty ? [] : [_snapshot(1, 1)],
+        );
+        await harness.repository.restoreFeeds(testProfile.id, [feed]);
+        await harness.pump(
+          tester,
+          MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+          ),
+        );
+        await drain(tester);
+        if (!empty) {
+          final input = find.byType(TextField).first;
+          await tester.enterText(input, 'missing_tag');
+          await tester.testTextInput.receiveAction(TextInputAction.search);
+          await tester.pumpAndSettle();
+        }
+        final updates = find.byKey(const ValueKey('feed-show-updates'));
+        Future<void> publish(int id) async {
+          await harness.repository.restoreFeeds(testProfile.id, [
+            feed.copyWith(posts: [_snapshot(id, id), ...feed.posts]),
+          ]);
+          await harness.container
+              .read(followingTopicsProvider.notifier)
+              .reloadFromStorage();
+          await drain(tester);
+        }
+
+        for (final id in [2, 3]) {
+          await publish(id);
+          expect(updates, findsOneWidget);
+          final grid = find.byType(PostGrid<Post>);
+          if (!empty && grid.evaluate().isNotEmpty) {
+            expect(
+              tester.widget<PostGrid<Post>>(grid).controller.items,
+              isEmpty,
+            );
+          }
+          expect(harness.requests, isEmpty);
+          await tester.tap(updates);
+          await drain(tester);
+          expect(updates, findsNothing);
+        }
+        await publish(3);
+        expect(updates, findsNothing);
+        expect(harness.requests, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('the first feed row follows the filters at scale $scale', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final harness = FollowingTopicHarness(profiles: [_feedProfile]);
+      addTearDown(harness.dispose);
+      final source = topicFixture(query: 'cat');
+      await harness.seed([source]);
+      final feed = TopicFeed(
+        id: 'grid-top',
+        profileId: testProfile.id,
+        name: 'Grid',
+        sourceIds: [source.id],
+        initializedSourceIds: [source.id],
+        posts: [_snapshot(1, 1)],
+      );
+      await harness.repository.restoreFeeds(testProfile.id, [feed]);
+      await harness.pump(
+        tester,
+        MediaQuery(
+          data: MediaQueryData(
+            size: const Size(320, 640),
+            textScaler: TextScaler.linear(scale),
+          ),
+          child: TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+        ),
+      );
+      await drain(tester);
+      final filter = tester.getRect(find.byType(TextField).first);
+      final first = tester.getRect(find.byType(DefaultImageGridItem).first);
+      expect(first.top - filter.bottom, lessThan(80));
+    });
+  }
+
   for (final scale in [1.0, 2.0]) {
     testWidgets(
       'cached sort blocks history and Newest restores it at scale $scale',
@@ -27,6 +143,7 @@ void main() {
         addTearDown(tester.view.reset);
         final historyRequests = <int>[];
         final harness = FollowingTopicHarness(
+          profiles: [_feedProfile],
           overrides: [
             originAwarePostRepoProvider.overrideWith(
               (ref, config) => TestSearchPostRepository((
@@ -126,7 +243,7 @@ void main() {
   testWidgets(
     'the actual Feed bar hides down and returns after a slight upward scroll',
     (tester) async {
-      final harness = FollowingTopicHarness();
+      final harness = FollowingTopicHarness(profiles: [_feedProfile]);
       addTearDown(harness.dispose);
       final source = topicFixture(query: 'cat');
       await harness.seed([source]);

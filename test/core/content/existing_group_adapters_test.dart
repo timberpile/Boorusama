@@ -245,6 +245,17 @@ class _Fixture {
       ..interceptors.add(
         InterceptorsWrapper(
           onRequest: (options, handler) {
+            if (options.path == '/counts/posts.json') {
+              handler.resolve(
+                Response<dynamic>(
+                  requestOptions: options,
+                  data: {
+                    'counts': {'posts': null},
+                  },
+                ),
+              );
+              return;
+            }
             poolRequests++;
             expect(options.path, '/pools/42.json');
             handler.resolve(

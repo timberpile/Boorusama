@@ -1,3 +1,8 @@
+import 'package:dio/dio.dart';
+
+import '../../../../http/client/coordination.dart';
+import '../../../../../boorus/pixiv/works/work_creator_avatar.dart';
+
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
@@ -324,6 +329,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   PostDetailsPageViewController? _mediaPager;
 
   void _mediaPageChanged() {
+    for (final entry in _recoveryOwners.entries) {
+      if (entry.key != _mediaPager?.page) entry.value.cancel('Viewer moved');
+    }
     if (mounted) {
       _scheduleMediaCleanup();
       setState(() {});
@@ -571,11 +579,15 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   final _isInitPage = ValueNotifier(true);
   final _fallbackReasons = <int, PostPresentationFallbackReason>{};
   final _recovering = <int>{};
+  final _recoveryOwners = <int, CancelToken>{};
   final _automaticRecoveryAttempted = <int>{};
 
   @override
   void dispose() {
     _disposing = true;
+    for (final owner in _recoveryOwners.values) {
+      owner.cancel('Viewer closed');
+    }
     _mediaPager?.currentPage.removeListener(_mediaPageChanged);
     for (final controller in _mediaControllers.values) {
       controller.dispose();
@@ -603,6 +615,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
           listenable: Listenable.merge([
             pager.currentPage,
             if (details != null) details.controller.currentPost,
+            if (details != null) details.controller.currentSettledPage,
           ]),
           builder: (context, _) {
             final sequence = widget.sequence;
@@ -886,7 +899,12 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       _ => null,
     };
     final startAutomaticRecovery =
-        recovery != null && _automaticRecoveryAttempted.add(currentIndex);
+        recovery != null &&
+        (!currentPost.requiresDetailLookup ||
+            (NavigationActivity.of(context) &&
+                ref.watch(automaticMediaLoadingEnabledProvider) &&
+                controller.currentSettledPage.value == currentIndex)) &&
+        _automaticRecoveryAttempted.add(currentIndex);
     if (startAutomaticRecovery) {
       // Reserve the attempt before the next frame so rebuilds cannot queue it twice.
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1004,22 +1022,47 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         ? null
         : ref.read(viewerSourceAccessProvider(binding))?.key;
     if (binding != null && startedAccess == null) return;
-    final originalIdentity = postViewerIdentity(
-      details.controller.postAtPage(index)!,
-    );
+    final original = details.controller.postAtPage(index);
+    if (original == null) return;
+    final originalIdentity = postViewerIdentity(original);
+    final owner = original.requiresDetailLookup ? CancelToken() : null;
+    bool listedCurrent() =>
+        mounted &&
+        NavigationActivity.of(context) &&
+        !owner!.isCancelled &&
+        details.controller.currentPage.value == index;
+    if (owner != null) {
+      if (!listedCurrent()) {
+        _automaticRecoveryAttempted.remove(index);
+        return;
+      }
+      _recoveryOwners[index] = owner;
+    }
     setState(() => _recovering.add(index));
     late final PostRecoveryResult result;
     try {
-      result = await recovery();
+      result = owner == null
+          ? await recovery()
+          : await runWithApiRequestContext(
+              ApiRequestContext(cancelToken: owner, canStart: listedCurrent),
+              recovery,
+            );
     } catch (_) {
       result = const PostRecoveryFailure(
         PostPresentationFallbackReason.refreshFailed,
       );
     }
+    _recoveryOwners.remove(index);
     if (!mounted) return;
-    if (details.controller.postAtPage(index) == null ||
-        postViewerIdentity(details.controller.postAtPage(index)!) !=
-            originalIdentity) {
+    if (owner != null && !listedCurrent()) {
+      setState(() {
+        _automaticRecoveryAttempted.remove(index);
+        _recovering.remove(index);
+      });
+      return;
+    }
+    final latest = details.controller.postAtPage(index);
+    if (latest == null || postViewerIdentity(latest) != originalIdentity) {
       setState(() => _recovering.remove(index));
       return;
     }
@@ -1090,6 +1133,10 @@ class _GroupSummaryInformation extends ConsumerWidget {
           translatedDescription: '',
         ),
         artistTags: {for (final creator in creators) creator.displayName},
+        artistAvatarBuilder: pixivWorkCreatorAvatarBuilder(
+          creators: creators,
+          access: state.access,
+        ),
         source:
             InheritedPost.maybeOf<Post>(context)?.source ?? PostSource.none(),
       ),

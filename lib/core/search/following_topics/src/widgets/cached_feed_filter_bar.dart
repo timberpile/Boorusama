@@ -28,10 +28,12 @@ class CachedFeedFilterBar extends ConsumerStatefulWidget {
   const CachedFeedFilterBar({
     required this.snapshots,
     required this.onChanged,
+    this.filter,
     super.key,
   });
 
   final List<StoredPostSnapshot> snapshots;
+  final CachedTopicFeedFilter? filter;
   final ValueChanged<CachedTopicFeedFilter> onChanged;
 
   @override
@@ -52,6 +54,16 @@ class _CachedFeedFilterBarState extends ConsumerState<CachedFeedFilterBar> {
     super.initState();
     _search = BookmarkSearchController(_query);
     _query.addListener(_publish);
+  }
+
+  @override
+  void didUpdateWidget(CachedFeedFilterBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.filter case final filter?) {
+      _sourceHost = filter.sourceHost;
+      _sort = filter.sort;
+      _published = filter;
+    }
   }
 
   BookmarkTagIndex get _index => ref.read(

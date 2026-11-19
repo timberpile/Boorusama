@@ -27,6 +27,7 @@ class ArtistSection extends ConsumerStatefulWidget {
     required this.source,
     this.inlineAction,
     this.onArtistTap,
+    this.artistAvatarBuilder,
     super.key,
   });
 
@@ -35,6 +36,7 @@ class ArtistSection extends ConsumerStatefulWidget {
   final PostSource source;
   final Widget? inlineAction;
   final ValueChanged<String>? onArtistTap;
+  final Widget Function(String name, Widget placeholder)? artistAvatarBuilder;
 
   @override
   ConsumerState<ArtistSection> createState() => _ArtistSectionState();
@@ -79,6 +81,7 @@ class _ArtistSectionState extends ConsumerState<ArtistSection> {
               url: usableUrl,
               inlineAction: widget.inlineAction,
               onArtistTap: widget.onArtistTap,
+              artistAvatarBuilder: widget.artistAvatarBuilder,
               onChanged: onChanged,
             ),
           KurumiAnimatedCrossFade(
@@ -148,6 +151,7 @@ class _Link extends StatelessWidget {
     required this.onChanged,
     this.inlineAction,
     this.onArtistTap,
+    this.artistAvatarBuilder,
     this.url,
   });
 
@@ -158,6 +162,7 @@ class _Link extends StatelessWidget {
   final void Function(TranlationState state) onChanged;
   final Widget? inlineAction;
   final ValueChanged<String>? onArtistTap;
+  final Widget Function(String name, Widget placeholder)? artistAvatarBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -165,52 +170,54 @@ class _Link extends StatelessWidget {
       name: artistTags.first,
       title: Text(artistTags.join(' ')),
       url: url,
-      avatarBuilder: onArtistTap == null
-          ? null
-          : (avatar) {
-              final label = context.t.post.action.view_artist;
-              if (artistTags.length == 1) {
-                final artist = artistTags.single;
-                return IconButton(
-                  tooltip: '$label: $artist',
-                  padding: const EdgeInsets.all(4),
-                  iconSize: 40,
-                  icon: avatar,
-                  onPressed: () => onArtistTap!(artist),
-                );
-              }
-              final artists = artistTags.toList()..sort();
-              return Tooltip(
-                message: label,
-                child: KurumiPopupMenuButton(
-                  semanticLabel: label,
-                  maxWidth: 320,
-                  items: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.sizeOf(context).height * .5,
-                      ),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final artist in artists)
-                              KurumiPopupMenuItem(
-                                title: Text(artist),
-                                onTap: () => onArtistTap!(artist),
-                              ),
-                          ],
+      avatarBuilder: (placeholder) {
+        final avatar =
+            artistAvatarBuilder?.call(artistTags.first, placeholder) ??
+            placeholder;
+        if (onArtistTap == null) return avatar;
+        final label = context.t.post.action.view_artist;
+        if (artistTags.length == 1) {
+          final artist = artistTags.single;
+          return IconButton(
+            tooltip: '$label: $artist',
+            padding: const EdgeInsets.all(4),
+            iconSize: 40,
+            icon: avatar,
+            onPressed: () => onArtistTap!(artist),
+          );
+        }
+        final artists = artistTags.toList()..sort();
+        return Tooltip(
+          message: label,
+          child: KurumiPopupMenuButton(
+            semanticLabel: label,
+            maxWidth: 320,
+            items: [
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .5,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final artist in artists)
+                        KurumiPopupMenuItem(
+                          title: Text(artist),
+                          onTap: () => onArtistTap!(artist),
                         ),
-                      ),
-                    ),
-                  ],
-                  child: SizedBox.square(
-                    dimension: 48,
-                    child: Center(child: avatar),
+                    ],
                   ),
                 ),
-              );
-            },
+              ),
+            ],
+            child: SizedBox.square(
+              dimension: 48,
+              child: Center(child: avatar),
+            ),
+          ),
+        );
+      },
       actionBuilder: () {
         final actions = <Widget>[
           if (commentary.isTranslated)

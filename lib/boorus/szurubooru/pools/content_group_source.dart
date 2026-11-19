@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:foundation/foundation.dart';
 
@@ -19,12 +21,18 @@ final class SzurubooruGroupSource extends ContentGroupSource
     required this.fetchPool,
     required this.postRepository,
     this.defaultLimit = 20,
+    this.consumeMembers,
   }) : _pools = GroupEnvelopeCache(access: access.key) {
     _members = PoolGroupMembers(
       access: access,
       fetchPosts: (ids) async {
         final result = await posts
-            .getPosts('id:${ids.join(',')}', 1, limit: ids.length)
+            .getPosts(
+              'id:${ids.join(',')}',
+              1,
+              limit: ids.length,
+              options: PostFetchOptions.groupRows,
+            )
             .run();
         return result.fold((error) => throw error, (result) => result.posts);
       },
@@ -33,6 +41,13 @@ final class SzurubooruGroupSource extends ContentGroupSource
 
   @override
   final ContentAccessContext access;
+  final Future<void> Function(List<Post>)? consumeMembers;
+  @override
+  void didConsumeMembers(List<Post> posts) {
+    final consume = consumeMembers;
+    if (consume != null) unawaited(consume(posts));
+  }
+
   final Future<SzurubooruPool?> Function(int id) fetchPool;
   final PostRepository<Post> Function() postRepository;
   PostRepository<Post> get posts => postRepository();

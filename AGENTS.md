@@ -87,7 +87,12 @@ publication, releases, or upstream synchronization.
 - For shared UI consistency work, consult `docs/ui_style_guide.md` as a proposed
   baseline until #136 is accepted; preserve approved feature behavior and inspect
   the current Kurumi API before introducing new visual patterns.
-- Localize user-facing strings and use `context.t`.
+- Localize user-facing strings and use `context.t`. Author new or changed strings
+  in `packages/i18n/translations/en-US.json` only; do not author German or other
+  translations unless explicitly requested. Use the existing English fallback
+  for missing translations and preserve existing locales and translated prose.
+  Normal code generation for supported locales is still required when inputs
+  change; never manually edit generated Dart.
 - Treat external/site/API data as nullable; use `equatable` when useful.
 - Prefer readable pattern matching; comment non-obvious decisions.
 

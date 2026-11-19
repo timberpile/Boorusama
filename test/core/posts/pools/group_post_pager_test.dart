@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+import 'package:boorusama/core/content/groups/prepared_group_reads.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/core/content/groups/related_group_counts.dart';
 
@@ -25,6 +27,56 @@ ContentReference _reference(ContentKind kind, String key) =>
     );
 
 void main() {
+  test('actual first-page pager joins pending preparation, survives one owner and reuses completion', () async {
+    final source = _Source();
+    final reads = PreparedGroupReads(source);
+    addTearDown(reads.dispose);
+    final token = CancelToken();
+    final key = (
+      reference: _group,
+      order: null as String?,
+      limit: 2,
+      revision: 0,
+    );
+    final passive = runWithApiRequestContext(
+      ApiRequestContext(
+        requestClass: ApiRequestClass.preload,
+        cancelToken: token,
+      ),
+      () => reads.firstPage(key),
+    );
+    final cancelled = expectLater(
+      passive,
+      throwsA(isA<RequestCancelledError>()),
+    );
+    final pager = GroupPostPager(
+      source: source,
+      reference: _group,
+      perPage: 2,
+      isCurrent: () => true,
+      preparedReads: reads,
+    );
+    addTearDown(pager.dispose);
+    final selected = pager.fetch(1);
+    final response = await source.request(0);
+    token.cancel('Neighbor selected');
+    await cancelled;
+    response.complete(_batch([_member(1, 'first')], next: 'next'));
+    expect((await selected).hasMore, isTrue);
+    await pager.fetch(1);
+    expect(source.requests, hasLength(1));
+    final reverse = GroupPostPager(
+      source: source,
+      reference: _group,
+      perPage: 2,
+      isCurrent: () => true,
+      preparedReads: reads,
+    );
+    addTearDown(reverse.dispose);
+    await reverse.fetch(1);
+    expect(source.requests, hasLength(1));
+  });
+
   test('Related pager publishes the source total, retains it after navigation and never counts the subset', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);

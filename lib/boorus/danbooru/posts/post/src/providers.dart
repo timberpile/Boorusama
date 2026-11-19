@@ -35,6 +35,13 @@ final danbooruPostRepoProvider =
       final tagComposer = ref.watch(danbooruTagQueryComposerProvider(config));
 
       return PostRepositoryBuilder(
+        onConsumePreparedPosts: (posts) async {
+          await transformPosts(
+            ref,
+            PostResult(posts: posts, total: null),
+            config,
+          );
+        },
         tagComposer: tagComposer,
         fetchSingle: (id, {options}) async {
           final numericId = id as NumericPostId?;
@@ -70,7 +77,8 @@ final danbooruPostRepoProvider =
           int? total;
           bool? hasMore;
           int? rawPostCount;
-          if (tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
+          if (!(options?.prepareGroupRows ?? false) &&
+              tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
             // Preserve the existing exact-completeness contract for ordinary
             // Search. Groups additionally need raw progress before filtering.
             rawPostCount = posts.length;
@@ -93,7 +101,8 @@ final danbooruPostRepoProvider =
           final result = posts.toResult(
             total: total,
             hasMore: hasMore,
-            rawPostCount: rawPostCount,
+            rawPostCount: rawPostCount ?? posts.length,
+            rawUniquePostCount: posts.map((p) => p.id).toSet().length,
           );
           return (options?.cascadeRequest ?? true)
               ? transformPosts(ref, result, config)
@@ -113,7 +122,7 @@ Future<PostResult<Post>> transformPosts(
   PostResult<Post> r,
   BooruConfigSearch config,
 ) async {
-  final posts = _filter(
+  final posts = filterDanbooruPosts(
     r.posts,
     config.filter.bannedPostVisibility.isHidden,
   );
@@ -161,7 +170,8 @@ Future<PostResult<Post>> transformPosts(
   );
 }
 
-List<Post> _filter(List<Post> posts, bool hideBannedPosts) {
+List<Post> filterDanbooruPosts(List<Post> source, bool hideBannedPosts) {
+  final posts = List<Post>.of(source);
   posts.removeWhere(
     (e) =>
         (hideBannedPosts && e.isBanned) ||

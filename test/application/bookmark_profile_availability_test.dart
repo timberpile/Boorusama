@@ -5,7 +5,6 @@ import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_profile_availability.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_group_selectors.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/content/anonymous_source_policy.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
 import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
@@ -15,6 +14,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/stored_group_snapshot.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_pool_card.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_unavailable_indicator.dart';
@@ -317,8 +317,14 @@ void main() {
                   widget is BookmarkLocalGroupCard && widget.title == 'Child',
             ),
           );
-          expect(child.previews.length, visible ? 1 : 0);
-          expect(child.pools.length, visiblePools ? 1 : 0);
+          expect(
+            child.mosaicCandidates.whereType<BookmarkPostEntry>(),
+            hasLength(visible ? 1 : 0),
+          );
+          expect(
+            child.mosaicCandidates.whereType<BookmarkPoolEntry>(),
+            hasLength(visiblePools ? 1 : 0),
+          );
           retained();
         }
 

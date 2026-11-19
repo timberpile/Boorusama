@@ -1,3 +1,11 @@
+import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox;
+
+import '../../../blacklists/providers.dart';
+import '../../../content/content_media_access.dart';
+import '../../../content/types.dart';
+import '../../../navigation/destination_activity.dart';
+import '../providers/native_work_mosaic_cover.dart';
+import '../providers/pool_bookmark_provider.dart';
 import '../providers/bookmark_read_access.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,24 +21,22 @@ import '../../../posts/listing/src/widgets/post_grid_item.dart';
 import '../../../posts/listing/types.dart';
 import '../../../settings/providers.dart';
 import '../types/bookmark.dart';
-import '../types/bookmark_group.dart';
+import '../types/bookmark_grid_entry.dart';
 import '../types/pool_bookmark.dart';
 import 'bookmark_pool_card.dart';
+import 'bookmark_group_viewer_entry.dart';
 import 'bookmark_native_group_card.dart';
 import '../types/content_group_bookmark.dart';
 
 /// A locally saved Group with its own direct Bookmark members.
-final class BookmarkLocalGroupCard extends StatefulWidget {
+final class BookmarkLocalGroupCard extends ConsumerStatefulWidget {
   const BookmarkLocalGroupCard({
     required this.title,
-    required this.previews,
-    required this.group,
+    required this.mosaicCandidates,
     required this.onTap,
     required this.onRename,
     required this.onDuplicate,
     required this.onDelete,
-    this.pools = const [],
-    this.nativeGroups = const [],
     this.selected = false,
     this.onSelect,
     this.onMove,
@@ -49,40 +55,232 @@ final class BookmarkLocalGroupCard extends StatefulWidget {
   final VoidCallback? onSelect;
   final VoidCallback? onMove;
   final String title;
-  final List<PostBookmark> previews;
-  final List<CollectionBookmark> pools;
-  final List<ContentGroupBookmark> nativeGroups;
-  final BookmarkGroup? group;
+  final List<BookmarkGridEntry> mosaicCandidates;
   final VoidCallback? onTap;
   final VoidCallback? onRename;
   final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
 
   @override
-  State<BookmarkLocalGroupCard> createState() => _BookmarkLocalGroupCardState();
+  ConsumerState<BookmarkLocalGroupCard> createState() =>
+      _BookmarkLocalGroupCardState();
 }
 
-class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
+class _BookmarkLocalGroupCardState
+    extends ConsumerState<BookmarkLocalGroupCard> {
   final _cardFocus = FocusNode();
   final _menuFocus = FocusNode();
+  ScrollPosition? _position;
+  var _visibilityQueued = false;
+  var _visible = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final position = Scrollable.maybeOf(context)?.position;
+    if (_position != position) {
+      _position?.removeListener(_checkVisibility);
+      _position = position;
+      _position?.addListener(_checkVisibility);
+    }
+    _checkVisibility();
+  }
+
+  void _checkVisibility() {
+    if (_visibilityQueued) return;
+    _visibilityQueued = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _visibilityQueued = false;
+      if (!mounted) return;
+      final box = context.findRenderObject();
+      if (box is! RenderBox || !box.hasSize) return;
+      final Object? viewport = RenderAbstractViewport.maybeOf(box);
+      final visible = viewport is RenderBox && viewport.hasSize
+          ? (box.localToGlobal(Offset.zero, ancestor: viewport) & box.size)
+                .overlaps(Offset.zero & viewport.size)
+          : (box.localToGlobal(Offset.zero) & box.size).overlaps(
+              Offset.zero & MediaQuery.sizeOf(context),
+            );
+      if (_visible != visible) setState(() => _visible = visible);
+    });
+  }
+
   @override
   void dispose() {
     _cardFocus.dispose();
     _menuFocus.dispose();
+    _position?.removeListener(_checkVisibility);
     super.dispose();
+  }
+
+  bool _allowsCoverUrl(BooruConfig config, String url) {
+    if (url.isEmpty) return false;
+    final source = config.anonymousReadScope?.source;
+    final uri = Uri.tryParse(url);
+    return source == null || (uri != null && source.allowsMedia(uri));
+  }
+
+  Widget? _postCover(PostBookmark bookmark) {
+    final settings = ref.watch(imageListingSettingsProvider);
+    final autoplayGif =
+        settings.animatedPostsDefaultState ==
+        AnimatedPostsDefaultState.autoplay;
+    final isGif = _bookmarkGroupPreviewIsGif(bookmark);
+    final preview = bookmarkGroupPreviewUrl(bookmark, autoplayGif: autoplayGif);
+    if (isGif && preview.isEmpty) {
+      return null;
+    }
+    final access = ref.watch(
+      bookmarkReadAccessProvider(BookmarkReaderRequest(bookmark.post.origin)),
+    );
+    final profile = access?.config;
+    if (access == null || profile == null) return null;
+    final config = profile.auth;
+    if (!watchContentMediaAccess(
+      ref,
+      config,
+      key: access.key,
+      post: bookmark.post,
+    ).allowed) {
+      return null;
+    }
+    // Preserve the established GIF sample/poster contract while static source
+    // thumbnails use the same quality and fallback policy as the timeline.
+    final media = isGif
+        ? GridThumbnailMedia(url: preview, aspectRatio: null)
+        : ref
+              .watch(gridThumbnailUrlGeneratorProvider(config))
+              .resolve(
+                bookmark.post,
+                settings: ref.watch(gridThumbnailSettingsProvider(config)),
+              );
+    final urls = [
+      media.url,
+      ?media.fallbackUrl,
+      ...media.fallbackUrls,
+      ?media.placeholderUrl,
+    ];
+    if (!urls.any((url) => _allowsCoverUrl(profile, url))) return null;
+    return CurrentBooruConfigScope(
+      config: profile,
+      accessKey: access.key,
+      requireAccess: true,
+      bookmarkId: bookmark.id,
+      child: PostGridImage(
+        post: bookmark.post,
+        media: media,
+        config: config,
+        forceCover: true,
+        fit: BoxFit.cover,
+        borderRadius: BorderRadius.zero,
+      ),
+    );
+  }
+
+  ContentAccessContext? _poolAccess(CollectionBookmark pool) {
+    final reference = bookmarkGroupReference(
+      pool,
+      ref.watch(bookmarkReadProfilesProvider),
+    );
+    return reference == null
+        ? null
+        : ref.watch(
+            bookmarkReadAccessProvider(
+              BookmarkReaderRequest.reference(reference),
+            ),
+          );
+  }
+
+  Widget? _poolCover(CollectionBookmark pool) =>
+      ref.watch(storedBookmarkPoolCoverEligibleProvider(pool))
+      ? BookmarkPoolCoverImage(pool: pool, allowBackfill: false)
+      : null;
+
+  Widget? _nativeCover(
+    ContentGroupBookmark bookmark,
+    GroupCover? cover,
+    BooruConfig? config,
+  ) {
+    if (cover == null || config == null) return null;
+    final blacklist = ref.watch(blacklistTagsProvider(config.filter));
+    if (blacklist.isLoading ||
+        !blacklist.hasValue ||
+        blacklist.hasError ||
+        !nativeGroupCoverAllowed(cover, config, blacklist.requireValue) ||
+        ![cover.thumbnail, ?cover.sample].any(
+          (url) => _allowsCoverUrl(config, url.toString()),
+        )) {
+      return null;
+    }
+    return BookmarkNativeGroupCover(bookmark: bookmark, recoveredCover: cover);
+  }
+
+  List<Widget> _mosaicCells({required bool canRepair}) {
+    final cells = <Widget>[];
+    // Check missing covers only while they could outrank a displayed cover.
+    // A pending or failed lookup consumes its type's repair slot for this card.
+    var canRepairPool = canRepair;
+    var canRepairWork = canRepair;
+    for (final entry in widget.mosaicCandidates) {
+      if (cells.length == 4) break;
+      Widget? cover;
+      switch (entry) {
+        case BookmarkPostEntry(:final bookmark):
+          cover = _postCover(bookmark);
+        case BookmarkPoolEntry(:final pool):
+          cover = _poolCover(pool);
+          if (cover == null &&
+              canRepairPool &&
+              pool.needsCoverFacts &&
+              pool.groupIds.isNotEmpty &&
+              ref.watch(storedBookmarkPoolCoverProvider(pool)) == null) {
+            final config = _poolAccess(pool)?.config;
+            if (config != null) {
+              canRepairPool = false;
+              final repaired = ref
+                  .watch(missingPoolCoverProvider((config, pool)))
+                  .asData
+                  ?.value;
+              if (repaired != null) cover = _poolCover(repaired);
+            }
+          }
+        case BookmarkNativeGroupEntry(:final bookmark):
+          final access = ref.watch(
+            bookmarkReadAccessProvider(
+              BookmarkReaderRequest.reference(bookmark.reference),
+            ),
+          );
+          final saved = ref.watch(nativeWorkSavedCoverProvider(bookmark));
+          cover = _nativeCover(bookmark, saved, access?.config);
+          if (cover == null &&
+              canRepairWork &&
+              access != null &&
+              needsNativeWorkCover(bookmark) &&
+              saved?.visibility?.tagCoverage != MetadataCoverage.complete) {
+            canRepairWork = false;
+            final repaired = ref
+                .watch(missingNativeWorkCoverProvider((bookmark, access.key)))
+                .asData
+                ?.value;
+            cover = _nativeCover(bookmark, repaired, access.config);
+          }
+      }
+      if (cover != null) {
+        cells.add(KeyedSubtree(key: ValueKey(entry.key), child: cover));
+      }
+    }
+    return cells;
   }
 
   @override
   Widget build(BuildContext context) {
+    _checkVisibility();
     final BookmarkLocalGroupCard(
       :title,
-      :previews,
       :onTap,
       :onRename,
       :onDuplicate,
       :onDelete,
-      :pools,
-      :nativeGroups,
       :selected,
       :onSelect,
       :onMove,
@@ -90,6 +288,12 @@ class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
       :syncIndicator,
       :unseenCount,
     ) = widget;
+    final canRepair =
+        _visible &&
+        TickerMode.valuesOf(context).enabled &&
+        NavigationActivity.of(context) &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    final cells = _mosaicCells(canRepair: canRepair);
     final borderRadius = BorderRadius.circular(12);
     final hasActions =
         onMove != null ||
@@ -141,17 +345,7 @@ class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
                   child: Stack(
                     children: [
                       Positioned.fill(
-                        child: BookmarkGroupPreviewGrid(
-                          previews: previews,
-                          additionalPreviews: [
-                            for (final group in nativeGroups)
-                              BookmarkNativeGroupCover(bookmark: group),
-                            for (final pool in pools)
-                              BookmarkPoolCoverImage(pool: pool),
-                          ],
-                          itemBuilder: (_, bookmark) =>
-                              _BookmarkGroupPreviewImage(bookmark: bookmark),
-                        ),
+                        child: BookmarkGroupPreviewGrid(cells: cells),
                       ),
                       const Positioned.fill(
                         child: DecoratedBox(
@@ -229,7 +423,9 @@ class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
                                 ),
                               if (onRename != null)
                                 KurumiPopupMenuItem(
-                                  title: Text(context.t.bookmark.groups.rename),
+                                  title: Text(
+                                    context.t.bookmark.groups.rename,
+                                  ),
                                   icon: const Icon(Icons.edit_outlined),
                                   onTap: onRename,
                                 ),
@@ -243,7 +439,9 @@ class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
                                 ),
                               if (onDelete != null)
                                 KurumiPopupMenuItem(
-                                  title: Text(context.t.bookmark.groups.delete),
+                                  title: Text(
+                                    context.t.bookmark.groups.delete,
+                                  ),
                                   icon: const Icon(Icons.delete_outline),
                                   onTap: onDelete,
                                 ),
@@ -263,25 +461,14 @@ class _BookmarkLocalGroupCardState extends State<BookmarkLocalGroupCard> {
 }
 
 class BookmarkGroupPreviewGrid extends StatelessWidget {
-  const BookmarkGroupPreviewGrid({
-    required this.previews,
-    required this.itemBuilder,
-    this.additionalPreviews = const [],
-    super.key,
-  });
+  const BookmarkGroupPreviewGrid({required this.cells, super.key});
 
-  final List<PostBookmark> previews;
-  final List<Widget> additionalPreviews;
-  final Widget Function(BuildContext context, PostBookmark bookmark)
-  itemBuilder;
+  final List<Widget> cells;
 
   @override
   Widget build(BuildContext context) {
-    Widget cell(int index) => index < previews.length
-        ? itemBuilder(context, previews[index])
-        : index - previews.length < additionalPreviews.length
-        ? additionalPreviews[index - previews.length]
-        : const SizedBox.expand();
+    Widget cell(int index) =>
+        index < cells.length ? cells[index] : const SizedBox.expand();
     return Padding(
       padding: const EdgeInsets.all(2),
       child: Column(
@@ -309,6 +496,7 @@ String bookmarkGroupPreviewUrl(
   PostBookmark bookmark, {
   bool autoplayGif = true,
 }) {
+  if (bookmark.post.requiresDetailLookup) return bookmark.thumbnailUrl;
   if (bookmark.isVideo) return bookmark.thumbnailUrl;
   final isGif = _bookmarkGroupPreviewIsGif(bookmark);
   if (autoplayGif || !isGif) return bookmark.sampleUrl;
@@ -329,55 +517,6 @@ bool _bookmarkGroupPreviewIsGif(PostBookmark bookmark) =>
     [bookmark.sampleUrl, bookmark.originalUrl].any(
       (url) => Uri.tryParse(url)?.path.toLowerCase().endsWith('.gif') ?? false,
     );
-
-class _BookmarkGroupPreviewImage extends ConsumerWidget {
-  const _BookmarkGroupPreviewImage({required this.bookmark});
-
-  final PostBookmark bookmark;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(imageListingSettingsProvider);
-    final autoplayGif =
-        settings.animatedPostsDefaultState ==
-        AnimatedPostsDefaultState.autoplay;
-    final isGif = _bookmarkGroupPreviewIsGif(bookmark);
-    final preview = bookmarkGroupPreviewUrl(bookmark, autoplayGif: autoplayGif);
-    if (isGif && preview.isEmpty) {
-      return const SizedBox.expand();
-    }
-    final access = ref.watch(
-      bookmarkReadAccessProvider(BookmarkReaderRequest(bookmark.post.origin)),
-    );
-    final profile = access?.config;
-    if (profile == null) return const SizedBox.expand();
-    final config = profile.auth;
-    // Preserve the established GIF sample/poster contract while static source
-    // thumbnails use the same quality and fallback policy as the timeline.
-    final media = isGif
-        ? GridThumbnailMedia(url: preview, aspectRatio: null)
-        : ref
-              .watch(gridThumbnailUrlGeneratorProvider(config))
-              .resolve(
-                bookmark.post,
-                settings: ref.watch(gridThumbnailSettingsProvider(config)),
-              );
-    return CurrentBooruConfigScope(
-      config: profile,
-      accessKey: access!.key,
-      requireAccess: true,
-      bookmarkId: bookmark.id,
-      child: PostGridImage(
-        post: bookmark.post,
-        media: media,
-        config: config,
-        forceCover: true,
-        fit: BoxFit.cover,
-        borderRadius: BorderRadius.zero,
-      ),
-    );
-  }
-}
 
 class _UnseenCountBadge extends StatelessWidget {
   const _UnseenCountBadge({required this.count});

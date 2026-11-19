@@ -1,3 +1,5 @@
+import 'dart:developer' show Timeline;
+
 import '../../../../../backups/mitemite/activity_log.dart';
 
 import 'package:foundation/performance.dart';
@@ -44,6 +46,7 @@ part 'following_mirror_storage.dart';
 class HiveFollowingTopicRepository
     implements
         FollowingTopicRepository,
+        FollowingRefreshPublicationStore,
         FollowingMirrorStore,
         FollowingDefinitionReceiptStore,
         FollowingNotificationReceiptStore,
@@ -163,6 +166,12 @@ class HiveFollowingTopicRepository
     );
   });
 
+  int _feedGeneration(String id) =>
+      switch (_organizationBox?.get('feed-reset:$id')) {
+        final int value => value,
+        _ => 0,
+      };
+
   List<TopicFeed> _feeds() {
     final performanceSpan = performanceRecorder.begin(
       PerfOperation.feedRepositoryRead,
@@ -176,14 +185,7 @@ class HiveFollowingTopicRepository
               when json['id'] is String &&
                   isCanonicalProfileId(json['profileId']) &&
                   json['name'] is String)
-            TopicFeed.fromJson({
-              ...json,
-              if (json['sourceIds'] is! List)
-                'sourceIds': [
-                  for (final search in _box.values)
-                    if (search.feedId == json['id']) search.id,
-                ],
-            }),
+            _decodeFeed(json),
       ];
       final ordered = feeds.indexed.toList()
         ..sort((left, right) {
@@ -198,6 +200,48 @@ class HiveFollowingTopicRepository
       performanceSpan.finish(failed: performanceFailed);
     }
   }
+
+  TopicFeed _decodeFeed(Map json) => Timeline.timeSync(
+    'Following decode stored feed',
+    () => TopicFeed.fromJson({
+      ...json,
+      'cacheGeneration': _feedGeneration(json['id'] as String),
+      if (json['sourceIds'] is! List)
+        'sourceIds': [
+          for (final search in _box.values)
+            if (search.feedId == json['id']) search.id,
+        ],
+    }),
+  );
+
+  Iterable<TopicFeed> _decodeFeedRows(
+    Iterable<TopicFeedMetadata> metadata,
+  ) sync* {
+    for (final row in metadata) {
+      if (_organizationBox?.get('feed:${row.id}') case final Map json) {
+        yield _decodeFeed(json);
+      }
+    }
+  }
+
+  @override
+  Future<({FollowingTopic? topic, List<TopicFeed> feeds})>
+  readRefreshPublication(
+    String topicId, {
+    required bool includeFeeds,
+  }) => _serialize(() async {
+    final stored = _box.get(topicId);
+    return (
+      topic: stored == null ? null : _toTopic(stored),
+      feeds: includeFeeds
+          ? _decodeFeedRows(
+              _feedMetadata().where(
+                (feed) => feed.sourceIds.contains(topicId),
+              ),
+            ).toList()
+          : const <TopicFeed>[],
+    );
+  });
 
   Set<String> _feedSourceIds() {
     final stored = _organizationBox?.get('search:organization');
@@ -472,9 +516,15 @@ class HiveFollowingTopicRepository
     final previous = {
       for (final feed in feeds)
         'feed:${feed.id}': storage.get('feed:${feed.id}'),
+      for (final feed in feeds)
+        'feed-reset:${feed.id}': storage.get('feed-reset:${feed.id}'),
     };
     try {
       for (final feed in feeds) {
+        await storage.put(
+          'feed-reset:${feed.id}',
+          _feedGeneration(feed.id) + 1,
+        );
         final key = 'feed:${feed.id}';
         if (folderIds.contains(feed.id)) {
           await storage.delete(key);
@@ -509,7 +559,18 @@ class HiveFollowingTopicRepository
     if (!organization.folders.any((f) => f.id == folderId)) {
       throw StateError('Folder not found');
     }
-    await _organizationBox?.delete('feed:$folderId');
+    final storage = _organizationBox;
+    if (storage == null) return;
+    final previous = storage.get('feed:$folderId');
+    final generation = _feedGeneration(folderId);
+    try {
+      await storage.delete('feed:$folderId');
+      await storage.put('feed-reset:$folderId', generation + 1);
+    } catch (_) {
+      if (previous != null) await storage.put('feed:$folderId', previous);
+      await storage.put('feed-reset:$folderId', generation);
+      rethrow;
+    }
   });
 
   @override
@@ -617,6 +678,7 @@ class HiveFollowingTopicRepository
     final feed = feeds.where((item) => item.id == id).firstOrNull;
     if (feed == null) return;
     if (_organization().folders.any((folder) => folder.id == id)) {
+      await _organizationBox?.put('feed-reset:$id', _feedGeneration(id) + 1);
       await _organizationBox?.delete('feed:$id');
       return;
     }
@@ -632,6 +694,7 @@ class HiveFollowingTopicRepository
     await _organizationBox?.delete('feed:$id');
     try {
       await _box.deleteAll(orphanIds);
+      await _organizationBox?.put('feed-reset:$id', _feedGeneration(id) + 1);
     } catch (_) {
       await _organizationBox?.put('feed:$id', feed.toJson());
       await _box.putAll(sources);
@@ -691,6 +754,8 @@ class HiveFollowingTopicRepository
     );
     await _organizationBox?.putAll({
       for (final f in feeds) 'feed:${f.id}': f.toJson(),
+      // Rollback restores the captured cache and its read-admission generation.
+      for (final f in feeds) 'feed-reset:${f.id}': f.cacheGeneration,
     });
   });
 
@@ -933,12 +998,18 @@ class HiveFollowingTopicRepository
       final priorCaches = {
         for (final feed in affected)
           'feed:${feed.id}': storage.get('feed:${feed.id}'),
+        for (final feed in affected)
+          'feed-reset:${feed.id}': storage.get('feed-reset:${feed.id}'),
       };
       try {
         await _box.deleteAll(previousTopics.keys);
         await storage.put('search:organization', nextOrganization.toJson());
         for (final feed in affected) {
           if (removed.contains(feed.id)) {
+            await storage.put(
+              'feed-reset:${feed.id}',
+              _feedGeneration(feed.id) + 1,
+            );
             await storage.delete('feed:${feed.id}');
           } else {
             final reconciled = feed.reconcileSources(
@@ -1575,16 +1646,25 @@ class HiveFollowingTopicRepository
         lastSuccessfulCheckAt: commit.startedAt,
       );
       final object = _toObject(updated);
-      final folderStates = {
-        for (final folder in _organization().folders) folder.id: folder,
-      };
-      final referencingFeeds = _feeds()
-          .where(
-            (feed) =>
-                feed.sourceIds.contains(current.id) &&
-                (folderStates[feed.id]?.feedEnabled ?? true),
-          )
-          .toList();
+      final folderStates = <String, bool>{};
+      final organization = _organizationBox?.get('search:organization');
+      if (organization is Map && organization['folders'] is List) {
+        for (final row in organization['folders'] as List) {
+          if (row case {'id': final String id}) {
+            folderStates[id] = row['feedEnabled'] == true;
+          }
+        }
+      }
+      final referencingFeeds = _decodeFeedRows(
+        _feedMetadata().where(
+          (feed) =>
+              feed.sourceIds.contains(current.id) &&
+              (folderStates[feed.id] ?? true) &&
+              (commit.expectedFeedGenerations == null ||
+                  commit.expectedFeedGenerations![feed.id] ==
+                      _feedGeneration(feed.id)),
+        ),
+      ).toList();
       final previousFeeds = <String, Object?>{
         for (final feed in referencingFeeds)
           feed.id: _organizationBox?.get('feed:${feed.id}'),
@@ -1620,16 +1700,20 @@ class HiveFollowingTopicRepository
       }
       try {
         for (final feed in referencingFeeds) {
-          await _organizationBox?.put(
-            'feed:${feed.id}',
-            feed
-                .merge(
-                  commit.feedPosts,
-                  sourceId: current.id,
-                  seriesMemberships: commit.feedSeriesMemberships,
-                )
-                .toJson(),
+          final updated = Timeline.timeSync(
+            'Following merge feed',
+            () => feed.merge(
+              commit.feedPosts,
+              sourceId: current.id,
+              seriesMemberships: commit.feedSeriesMemberships,
+            ),
           );
+          if (updated != feed) {
+            await _organizationBox?.put(
+              'feed:${feed.id}',
+              Timeline.timeSync('Following encode feed', updated.toJson),
+            );
+          }
         }
         if (saveEstimate) {
           await _organizationBox.put('search:new_post_estimates', estimates);

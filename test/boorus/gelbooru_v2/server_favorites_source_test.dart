@@ -13,11 +13,12 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _favorites = '''
-<span class="thumb"><a href="index.php?page=post&amp;s=view&amp;id=42">
-<img src="https://realbooru.com/thumbnails/ab/cd/thumbnail_0123456789abcdef0123456789abcdef.jpg"></a></span>
-<script>posts[42] = {'tags': 'portrait', 'rating': 'safe', 'score': '1', 'user': 'fixture'};</script>
-''';
+final _favorites = File(
+  'packages/booru_clients/test/gelbooru_v2/fixtures/realbooru_favorites/populated.html',
+).readAsStringSync();
+final _terminal = File(
+  'packages/booru_clients/test/gelbooru_v2/fixtures/realbooru_favorites/terminal.html',
+).readAsStringSync();
 
 void main() {
   late ProviderContainer container;
@@ -34,7 +35,7 @@ void main() {
       'booruId': BooruType.gelbooruV2.id,
       'booruIdHint': BooruType.gelbooruV2.id,
       'url': 'https://realbooru.com',
-      'login': '123',
+      'login': '1',
       'apiKey': null,
       'passHash': 'synthetic-cookie',
       'alwaysIncludeTags': 'excluded_by_browsing_filter',
@@ -56,7 +57,7 @@ void main() {
                   statusCode: 200,
                   data: options.uri.queryParameters['pid'] == '0'
                       ? _favorites
-                      : '<div id="content"></div>',
+                      : _terminal,
                 ),
               );
             } else if (detail case final pending?) {
@@ -91,7 +92,7 @@ void main() {
   });
   tearDown(() => container.dispose());
 
-  test('Realbooru uses cookie credentials and favorites offsets, and resolves originals', () async {
+  test('Realbooru uses cookie credentials and favorites offsets, and persists explicit previews', () async {
     expect(
       container.read(serverFavoriteAvailabilityProvider(profile.auth)),
       isNull,
@@ -100,10 +101,10 @@ void main() {
     final source = container.read(serverFavoriteSourceProvider(profile));
     final first = await source.fetchPage(1);
     final post = first.posts.single;
-    expect(post.id, 42);
+    expect(post.id, 646949);
     expect(
       post.originalImageUrl,
-      'https://realbooru.com/images/ab/cd/0123456789abcdef0123456789abcdef.jpeg',
+      '',
     );
     expect(post.origin.sourceHost, 'realbooru.com');
     expect(post.origin.profileIdHint, profile.id);
@@ -112,7 +113,7 @@ void main() {
         .where((r) => r.uri.queryParameters['page'] == 'favorites')
         .toList();
     expect(pages.map((r) => r.uri.queryParameters['pid']), ['0', '50']);
-    expect(pages.every((r) => r.uri.queryParameters['id'] == '123'), isTrue);
+    expect(pages.every((r) => r.uri.queryParameters['id'] == '1'), isTrue);
     expect(
       requests.every(
         (r) =>
@@ -124,7 +125,7 @@ void main() {
   });
 
   test(
-    'Realbooru nested detail requests inherit bulk import pacing',
+    'Realbooru cold import makes only paced listing requests',
     () async {
       final source = container.read(serverFavoriteSourceProvider(profile));
       final cancellation = ServerFavoriteCancellation();
@@ -136,12 +137,13 @@ void main() {
         ),
         () => source.fetchPage(1, cancellation: cancellation),
       );
-      expect(page.posts.single.id, 42);
+      expect(page.posts.single.id, 646949);
+      expect(page.posts.single.requiresDetailLookup, isTrue);
       expect(
         requests.map((r) => r.uri.queryParameters['page']),
-        ['favorites', 'post'],
+        ['favorites'],
       );
-      expect(requestContexts, hasLength(2));
+      expect(requestContexts, hasLength(1));
       for (final context in requestContexts) {
         expect(context.requestClass, ApiRequestClass.bulkTransfer);
         expect(context.allowCooldownRetry, isFalse);
@@ -152,31 +154,15 @@ void main() {
     },
   );
 
-  test(
-    'cancelling while resolving a thumbnail stops the source immediately',
-    () async {
-      detailRequested = Completer();
-      detail = Completer();
-      final cancellation = ServerFavoriteCancellation();
-      final source = container.read(serverFavoriteSourceProvider(profile));
-      final fetch = source.fetchPage(1, cancellation: cancellation);
-      final expectation = expectLater(
-        fetch,
-        throwsA(isA<ServerFavoriteCancelled>()),
-      );
-      await detailRequested!.future;
-      cancellation.cancel();
-      await expectation;
-      detail!.complete(
-        Response<String>(
-          requestOptions: requests.last,
-          statusCode: 200,
-          data: File('test/boorus/gelbooru_v2/fixtures/realbooru_post.html')
-              .readAsStringSync(),
-        ),
-      );
-    },
-  );
+  test('cancelled listing import dispatches no detail requests', () async {
+    final cancellation = ServerFavoriteCancellation()..cancel();
+    final source = container.read(serverFavoriteSourceProvider(profile));
+    await expectLater(
+      source.fetchPage(1, cancellation: cancellation),
+      throwsA(isA<ServerFavoriteCancelled>()),
+    );
+    expect(requests, isEmpty);
+  });
 
   test('a profile without cookie or API credentials is unavailable without requests', () {
     final signedOut = BooruConfig.fromJson({

@@ -32,6 +32,7 @@ class FeedHistorySession {
   final Map<int, PostResult<Post>> _loadedPages = {};
   final List<Post> _pendingPosts = [];
   var _initialized = false;
+  var recoveryRevision = 0;
   var _disposed = false;
 
   Set<String> get unavailableSourceIds => {
@@ -54,6 +55,7 @@ class FeedHistorySession {
 
   void allowRecovery() {
     if (_disposed) return;
+    recoveryRevision++;
     for (final cursor in _cursors) {
       if (cursor.failure != null) {
         cursor.hasMore = true;
@@ -100,12 +102,9 @@ class FeedHistorySession {
           .where((cursor) => cursor.current != null)
           .toList();
       if (available.isEmpty) break;
-      available.sort((left, right) {
-        final date = right.current!.createdAt!.compareTo(
-          left.current!.createdAt!,
-        );
-        return date == 0 ? right.current!.id.compareTo(left.current!.id) : date;
-      });
+      available.sort(
+        (left, right) => compareFeedHistoryPosts(left.current!, right.current!),
+      );
       final cursor = available.first;
       final post = cursor.current!;
       cursor.offset++;
@@ -156,14 +155,10 @@ class FeedHistorySession {
               )) {
             throw StateError('History pagination did not advance');
           }
-          cursor.posts =
-              [
-                for (final post in result.posts)
-                  if (post.createdAt != null) post,
-              ]..sort((left, right) {
-                final date = right.createdAt!.compareTo(left.createdAt!);
-                return date == 0 ? right.id.compareTo(left.id) : date;
-              });
+          cursor.posts = [
+            for (final post in result.posts)
+              if (post.createdAt != null) post,
+          ]..sort(compareFeedHistoryPosts);
           cursor.offset = 0;
           if (cursor.posts.isNotEmpty) {
             cursor.oldestIdentity = _postIdentity(cursor.posts.last);
@@ -241,4 +236,18 @@ class _FeedCursor {
   (Object, StackTrace)? failure;
 
   Post? get current => offset < posts.length ? posts[offset] : null;
+}
+
+/// Deterministic across sources with colliding numeric post IDs.
+int compareFeedHistoryPosts(Post left, Post right) {
+  final date = (right.createdAt ?? DateTime(1970)).compareTo(
+    left.createdAt ?? DateTime(1970),
+  );
+  if (date != 0) return date;
+  final id = right.id.compareTo(left.id);
+  if (id != 0) return id;
+  final site = left.origin.sourceHost.compareTo(right.origin.sourceHost);
+  return site != 0
+      ? site
+      : left.origin.booruType.id.compareTo(right.origin.booruType.id);
 }

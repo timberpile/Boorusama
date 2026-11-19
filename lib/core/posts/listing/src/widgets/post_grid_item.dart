@@ -1,3 +1,5 @@
+import '../../../details/src/widgets/group_viewer_scope.dart';
+
 // Package imports:
 import 'dart:typed_data';
 
@@ -27,6 +29,7 @@ import '../types/grid_thumbnail_url_generator_default.dart';
 import '../types/animated_posts_default_state.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/image_list_type.dart';
+import '../types/grid_utils.dart';
 import 'default_image_quick_actions.dart';
 import 'default_selectable_item.dart';
 import 'post_preview.dart';
@@ -156,8 +159,34 @@ class PostGridItem extends ConsumerWidget {
             post,
             settings: thumbnailSettings,
           );
+    final passiveGallery = GroupViewerScope.maybeOf(context)?.passive ?? false;
+    if (passiveGallery) {
+      bool staticMedia(String url) =>
+          url != post.originalImageUrl &&
+          safeMedia(url) &&
+          RegExp(
+            r'\.(jpg|jpeg|png|bmp)$',
+            caseSensitive: false,
+          ).hasMatch(Uri.tryParse(url)?.path ?? '');
+      final columns = calculateGridCount(
+        MediaQuery.sizeOf(context).width,
+        thumbnailSettings.gridSize,
+      );
+      final url = index >= (columns * 2).clamp(0, 8)
+          ? ''
+          : staticMedia(resolvedMedia.url)
+          ? resolvedMedia.url
+          : staticMedia(post.thumbnailImageUrl)
+          ? post.thumbnailImageUrl
+          : '';
+      resolvedMedia = GridThumbnailMedia(
+        url: url,
+        aspectRatio: resolvedMedia.aspectRatio,
+      );
+    }
     Uint8List? cachedGif;
     if (access.allowed &&
+        !passiveGallery &&
         imageUrl == null &&
         imageBuilder == null &&
         isOriginalGridGif(post) &&
@@ -254,7 +283,12 @@ class PostGridItem extends ConsumerWidget {
     final effectiveBlockOverlay =
         blockOverlay ?? resolvedAdditions.blockOverlay;
     final image =
-        imageBuilder?.call(media) ??
+        (passiveGallery && media.url.isEmpty
+            ? AspectRatio(
+                aspectRatio: media.aspectRatio ?? 1,
+                child: const KurumiImagePlaceholder(),
+              )
+            : imageBuilder?.call(media)) ??
         PostGridImage(
           post: post,
           media: media,

@@ -15,6 +15,7 @@ class DanbooruPool extends Equatable {
     required this.name,
     required this.createdAt,
     required this.updatedAt,
+    this.manifestComplete = false,
   });
 
   factory DanbooruPool.empty() => DanbooruPool(
@@ -40,8 +41,10 @@ class DanbooruPool extends Equatable {
     name: name,
     createdAt: createdAt,
     updatedAt: updatedAt,
+    manifestComplete: manifestComplete,
   );
 
+  final bool manifestComplete;
   final PoolId id;
   final List<int>? postIds;
   final DanbooruPoolCategory? category;
@@ -54,6 +57,7 @@ class DanbooruPool extends Equatable {
   @override
   List<Object?> get props => [
     id,
+    manifestComplete,
     postIds,
     category,
     description,

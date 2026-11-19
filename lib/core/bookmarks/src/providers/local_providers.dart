@@ -15,6 +15,8 @@ import '../../../tags/tag/providers.dart';
 import '../../../tags/tag/types.dart';
 import '../../providers.dart';
 import '../types/content_group_bookmark.dart';
+import '../types/bookmark_view.dart';
+import '../types/bookmark_grid_entry.dart';
 import '../types/bookmark_record_fields.dart';
 
 export 'bookmark_group_selectors.dart' show BookmarkSortType, filterBookmarks;
@@ -98,6 +100,55 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
   );
   return hosts.toList();
 });
+
+/// Structural source scope, independent of query, Seen, sorting or readers.
+final availableBookmarkViewSourcesProvider = FutureProvider.autoDispose
+    .family<List<String>, BookmarkView>((ref, view) async {
+      if (view.kind == BookmarkViewKind.all) {
+        return ref.watch(availableBooruUrlsProvider.future);
+      }
+      final library = await ref.watch(bookmarkProvider.future);
+      final ids = library.bookmarkIdsForView(view);
+      final hosts = <String>{
+        for (final id in ids)
+          if (library.bookmarksById[id] case final bookmark?)
+            ?bookmarkSourceHost(bookmark),
+        for (final pool in selectPoolBookmarks(
+          state: library,
+          view: view,
+          selectedTags: const [],
+        ))
+          if (Uri.tryParse('https://${pool.origin.sourceHost}')?.host
+              case final host? when host.isNotEmpty)
+            host.toLowerCase(),
+        for (final record in selectNativeGroupBookmarks(
+          state: library,
+          view: view,
+          selectedTags: const [],
+        ))
+          record.reference.siteNamespace,
+      };
+      return hosts.toList();
+    });
+
+/// Pending data cannot invalidate a carried-over choice. All consumers use the
+/// same effective value while the mounted active picker clears obsolete state.
+final effectiveBookmarkSourceProvider = Provider.autoDispose
+    .family<String?, BookmarkView>((ref, view) {
+      final selected = ref.watch(selectedBooruUrlProvider);
+      final sources = ref.watch(availableBookmarkViewSourcesProvider(view));
+      if (selected == null ||
+          sources.isLoading ||
+          sources.hasError ||
+          !sources.hasValue) {
+        return selected;
+      }
+      return sources.requireValue.any(
+            (source) => bookmarkSourceMatchesHost(source, selected),
+          )
+          ? selected
+          : null;
+    });
 
 final bookmarkTagGroupsProvider = FutureProvider.autoDispose
     .family<List<TagGroupItem>?, (BooruConfigAuth, Post)>((

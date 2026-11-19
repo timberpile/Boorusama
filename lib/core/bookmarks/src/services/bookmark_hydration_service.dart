@@ -4,6 +4,7 @@ import 'dart:async';
 
 import '../../../configs/config/types.dart';
 import '../../../errors/types.dart';
+import '../../../http/client/coordination.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_hydration_log.dart';
@@ -11,7 +12,7 @@ import 'bookmark_library_service.dart';
 
 bool needsBookmarkHydration(PostBookmark bookmark) =>
     switch (bookmark.post.booruData) {
-      LegacyPostData() || UnknownPostData() => true,
+      LegacyPostData() || UnknownPostData() || ListedPostData() => true,
       _ => false,
     };
 
@@ -71,10 +72,58 @@ class BookmarkRecoveryService {
   const BookmarkRecoveryService({
     required this.fetchPost,
     required this.codecFor,
+    this.fetchListedPost,
+    this.latestBookmark,
+    this.commitResolved,
+    this.canUseResolved,
+    this.resolutionGuard,
   });
 
   final Future<Post?> Function(BooruConfig config, int postId) fetchPost;
   final BooruPostDataCodec? Function(Post post) codecFor;
+  final Future<Post?> Function(BooruConfig config, int postId)? fetchListedPost;
+
+  final Future<PostBookmark?> Function(Post)? latestBookmark;
+  final Future<void> Function(PostBookmark, Post, bool Function())?
+  commitResolved;
+  final Future<bool> Function(Post, BooruConfig)? canUseResolved;
+  final bool Function() Function(BooruConfig)? resolutionGuard;
+
+  /// Listing evidence never grants permission to resolved exact media.
+  Future<Post?> resolveListedPost(Post post, BooruConfig config) async {
+    if (!post.requiresDetailLookup) return post;
+    final sourceCurrent = resolutionGuard?.call(config) ?? () => true;
+    final caller = ApiRequestContext.current();
+    bool current() =>
+        sourceCurrent() &&
+        !(caller.cancelToken?.isCancelled ?? false) &&
+        (caller.canStart?.call() ?? true);
+    if (!current()) return null;
+    final bookmark = await latestBookmark?.call(post);
+    if (bookmark == null || !current()) return null;
+    if (!bookmark.post.requiresDetailLookup) {
+      return await canUseResolved?.call(bookmark.post, config) != false &&
+              current()
+          ? bookmark.post
+          : null;
+    }
+    final result = await recover(bookmark, config);
+    if (result is! BookmarkRecoverySuccess || !current()) return null;
+    final resolved = result.post.copyWith(origin: bookmark.post.origin);
+    if (await canUseResolved?.call(resolved, config) == false || !current())
+      return null;
+    final latest = await latestBookmark?.call(post);
+    if (latest == null || !current()) return null;
+    if (!latest.post.requiresDetailLookup) {
+      return await canUseResolved?.call(latest.post, config) != false &&
+              current()
+          ? latest.post
+          : null;
+    }
+    if (latest != bookmark) return null;
+    await commitResolved?.call(bookmark, resolved, current);
+    return current() ? resolved : null;
+  }
 
   Future<BookmarkRecovery> recover(
     PostBookmark bookmark,
@@ -87,8 +136,21 @@ class BookmarkRecoveryService {
       );
     }
     try {
-      final post = await fetchPost(config, id);
+      final fetch = bookmark.post.requiresDetailLookup
+          ? fetchListedPost ?? fetchPost
+          : fetchPost;
+      final post = await fetch(config, id);
       if (post == null) return const BookmarkRecoveryRemoved();
+      if (post.id != id ||
+          post.origin.booruType != bookmark.post.origin.booruType ||
+          post.origin.sourceHost != bookmark.post.origin.sourceHost ||
+          post.requiresDetailLookup) {
+        return const BookmarkRecoverySkipped();
+      }
+      if (bookmark.post.requiresDetailLookup &&
+          await canUseResolved?.call(post, config) == false) {
+        return const BookmarkRecoverySkipped();
+      }
       final codec = codecFor(post);
       if (codec == null ||
           post.booruData is LegacyPostData ||

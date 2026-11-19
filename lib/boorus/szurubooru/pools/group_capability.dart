@@ -1,3 +1,5 @@
+import '../../../core/posts/post/types.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -29,6 +31,13 @@ BooruGroupCapability createSzurubooruGroupCapability(
     }
     return SzurubooruGroupSource(
       access: access,
+      consumeMembers: (posts) async {
+        final repo = ref.read(szurubooruPostRepoProvider(config.search));
+        if (repo is ForegroundPostConsumer<Post>)
+          await (repo as ForegroundPostConsumer<Post>).consumePreparedPosts(
+            posts,
+          );
+      },
       fetchPool: (id) =>
           ref.read(szurubooruPoolRepoProvider(config.auth)).getPool(id),
       // Resolve the native repository through the caller's authorized scope.

@@ -31,6 +31,7 @@ class SearchRefreshCommit extends Equatable {
     required List<SearchPostPreview> discoveredPosts,
     this.feedPosts = const [],
     this.feedSeriesMemberships = const {},
+    this.expectedFeedGenerations,
     this.delta = false,
     this.truncated = false,
     this.canCommit,
@@ -43,6 +44,7 @@ class SearchRefreshCommit extends Equatable {
   final bool Function()? canCommit;
   final List<StoredPostSnapshot> feedPosts;
   final Map<String, FeedSeriesMembership> feedSeriesMemberships;
+  final Map<String, int>? expectedFeedGenerations;
   final bool delta;
   final bool truncated;
   final String topicId;
@@ -69,6 +71,7 @@ class SearchRefreshCommit extends Equatable {
     discoveredPosts,
     feedPosts,
     feedSeriesMemberships,
+    expectedFeedGenerations,
     delta,
     truncated,
     canCommit,

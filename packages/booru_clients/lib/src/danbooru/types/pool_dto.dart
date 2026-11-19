@@ -17,18 +17,23 @@ class PoolDto {
     name: json['name'],
     createdAt: json['created_at'] == null
         ? null
-        : DateTime.parse(json['created_at']),
+        : DateTime.tryParse(json['created_at'].toString()),
     updatedAt: json['updated_at'] == null
         ? null
-        : DateTime.parse(json['updated_at']),
+        : DateTime.tryParse(json['updated_at'].toString()),
     description: json['description'],
     isActive: json['is_active'],
     isDeleted: json['is_deleted'],
-    postIds: json['post_ids'] == null
-        ? null
-        : List<int>.from(json['post_ids'].map((x) => x)),
+    postIds: switch (json['post_ids']) {
+      final List rows when rows.every((id) => id is int && id > 0) =>
+        List<int>.from(rows),
+      _ => null,
+    },
     category: json['category'],
-    postCount: json['post_count'],
+    postCount: switch (json['post_count']) {
+      final int count when count >= 0 => count,
+      _ => null,
+    },
   );
 
   final int? id;

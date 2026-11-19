@@ -47,7 +47,12 @@ final class StoredPostCodec {
     BooruPostDataCodec<D>? dataCodec,
   }) {
     final data = post.booruData;
+    if (data is ListedPostData) _validateListed(post.origin, post.core);
     final (custom, codecVersion) = switch (data) {
+      ListedPostData() => (
+        const <String, Object?>{'snapshotKind': 'listed'},
+        3,
+      ),
       UnknownPostData(:final custom, :final schemaVersion) => (
         custom,
         schemaVersion,
@@ -110,6 +115,25 @@ final class StoredPostCodec {
       );
     }
 
+    // This discriminant belongs to the shared envelope, never an engine codec.
+    // Invalid marked data must not fall back to generic actionable media.
+    if (snapshot.custom['snapshotKind'] == 'listed') {
+      try {
+        if (snapshot.codecVersion != 3 || snapshot.custom.length != 1) {
+          throw const FormatException('Invalid listed snapshot version');
+        }
+        _validateListed(origin, core);
+        return StoredPostDecodeSuccess(
+          Post(origin: origin, core: core, booruData: const ListedPostData()),
+        );
+      } catch (error, stackTrace) {
+        return StoredPostDecodeFailure(
+          StoredPostDecodeFailureReason.malformedCommonData,
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
     final data = _decodeCustom(snapshot, origin, dataCodec);
 
     return StoredPostDecodeSuccess(
@@ -194,6 +218,47 @@ final class StoredPostCodec {
         reason: UnknownPostDataReason.malformedData,
       );
     }
+  }
+}
+
+void _validateListed(PostOrigin origin, PostCoreData core) {
+  if (origin.booruType != BooruType.gelbooruV2 ||
+      !const {
+        'realbooru.com',
+        'www.realbooru.com',
+      }.contains(origin.sourceHost) ||
+      core.id <= 0 ||
+      core.sampleImageUrl.isNotEmpty ||
+      core.originalImageUrl.isNotEmpty ||
+      core.videoUrl.isNotEmpty ||
+      core.videoThumbnailUrl.isNotEmpty ||
+      (core.mediaVariants?.isNotEmpty ?? false) ||
+      core.duration != -1 ||
+      core.artistTags != null ||
+      core.characterTags != null ||
+      core.copyrightTags != null ||
+      core.downvotes != null ||
+      core.uploaderId != null ||
+      core.width != 0 ||
+      core.height != 0 ||
+      core.fileSize != 0 ||
+      core.format.isNotEmpty ||
+      core.md5.isNotEmpty ||
+      core.createdAt != null ||
+      core.metadata != null ||
+      core.source.url != null ||
+      core.detailFacts != const PostDetailFacts() ||
+      core.hasComment ||
+      core.isTranslated ||
+      core.hasParentOrChildren ||
+      core.parentId != null ||
+      core.hasSound != null ||
+      core.status != null ||
+      core.sampleAspectRatio != null ||
+      core.originalAspectRatio != null ||
+      core.videoAspectRatio != null ||
+      core.videoThumbnailAspectRatio != null) {
+    throw const FormatException('Contradictory listed snapshot');
   }
 }
 

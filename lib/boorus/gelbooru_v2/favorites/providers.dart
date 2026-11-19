@@ -50,6 +50,30 @@ final gelbooruV2FavoritesPostRepoProvider =
       },
     );
 
+final realbooruFavoritesListingRepoProvider =
+    Provider.family<PostRepository<Post>, (BooruConfigSearch, String)>((
+      ref,
+      params,
+    ) {
+      final (config, userId) = params;
+      final client = ref.watch(gelbooruV2ClientProvider(config.auth));
+      return GelbooruV2PostRepository(
+        listedFavorites: true,
+        fetcher: (tags, page, {limit, options}) => client.getFavorites(
+          uid: userId,
+          page: page,
+          paginationType: PaginationType.offset,
+          fixedLimit: 50,
+          strictRealbooruSync: true,
+        ),
+        fetchSingle: (id, {options}) => client.getPost(id),
+        imageUrlResolver: ref.watch(gelbooruV2PostImageUrlResolverProvider),
+        tagComposer: ref.watch(gelbooruV2TagQueryComposerProvider(config)),
+        getSettings: () async =>
+            ref.read(listingSettingsForAuthProvider(config.auth)),
+      );
+    });
+
 final gelbooruV2FavoriteRepoProvider =
     Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {

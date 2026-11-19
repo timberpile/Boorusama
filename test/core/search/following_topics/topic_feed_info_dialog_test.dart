@@ -85,7 +85,7 @@ void main() {
           .read(followingTopicsProvider.notifier)
           .refreshFeed(feed.id);
       await drain(tester);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.byKey(const ValueKey('feed-refresh-ring')), findsOneWidget);
       expect(find.textContaining('sources checked'), findsNothing);
       h.refreshGate!.complete();
       await drain(tester);
@@ -242,13 +242,13 @@ void main() {
     },
   );
 
-  testWidgets('feed Info omits the redundant topic entries list', (
+  testWidgets('feed Info lists only sources that need attention', (
     tester,
   ) async {
     final feed = await seed(tester);
     await h.pump(tester, TopicFeedInfoDialog(feedId: feed.id));
     expect(find.text('Artists'), findsOneWidget);
-    expect(find.text('Cats'), findsNothing);
+    expect(find.text('Cats'), findsOneWidget);
     expect(find.text('Dogs'), findsNothing);
     expect(find.byType(TextButton), findsOneWidget);
     expect(h.requests, isEmpty);

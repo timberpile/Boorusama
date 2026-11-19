@@ -1,3 +1,6 @@
+import '../../../bookmarks/src/providers/bookmark_hydration_provider.dart';
+import '../../../content/content_access_provider.dart';
+
 // Package imports:
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -58,19 +61,36 @@ class ShareService {
 
   final Ref ref;
 
-  void sharePost(
-    Post post,
+  Future<void> sharePost(
+    Post requestedPost,
     BooruConfigAuth config, {
     required BuildContext context,
     required BooruConfigViewer configViewer,
     required BooruConfigDownload download,
     required DownloadFilenameGenerator? filenameBuilder,
     required ImageCacheManager imageCacheManager,
-  }) {
+  }) async {
+    var post = requestedPost;
     final caller = ProviderScope.containerOf(context, listen: false);
     final accessKey =
         config.anonymousReadScope?.key ??
         caller.read(currentContentAccessKeyProvider);
+    if (post.requiresDetailLookup && accessKey != null) {
+      final source = caller.read(contentAccessContextProvider(accessKey));
+      final reader = source?.config;
+      if (reader != null && reader.auth == config) {
+        final resolved = await ref
+            .read(bookmarkRecoveryServiceProvider)
+            .resolveListedPost(post, reader);
+        if (!context.mounted ||
+            caller
+                    .read(contentAccessContextProvider(accessKey))
+                    ?.hasSameAuthorization(source!) !=
+                true)
+          return;
+        post = resolved ?? post;
+      }
+    }
     final requireAccess =
         config.anonymousReadScope != null ||
         caller.read(contentAccessRequiredProvider);

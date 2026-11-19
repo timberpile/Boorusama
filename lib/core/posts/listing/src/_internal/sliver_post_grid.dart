@@ -32,12 +32,14 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
     this.httpHandshakeErrorActionBuilder,
     this.showRule34ChallengeRecovery = false,
     this.displayItemCount,
+    this.emptyBuilder,
   });
 
   final PostGridController<T> postController;
 
   /// Typed display projection; the controller retains only actual Posts.
   final int? displayItemCount;
+  final WidgetBuilder? emptyBuilder;
   final EdgeInsetsGeometry? padding;
   final ImageListType? listType;
   final double? spacing;
@@ -216,10 +218,10 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
                     ),
                   ),
                 }
-              : const SliverToBoxAdapter(
+              : SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.only(bottom: 48),
-                    child: NoDataBox(),
+                    padding: const EdgeInsets.only(bottom: 48),
+                    child: emptyBuilder?.call(context) ?? const NoDataBox(),
                   ),
                 );
         },

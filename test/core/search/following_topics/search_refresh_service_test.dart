@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/http/client/coordination.dart';
 import 'package:dio/dio.dart';
@@ -15,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:foundation/foundation.dart';
 
 import 'topic_test_utils.dart';
+
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
 
@@ -141,12 +143,11 @@ void main() {
           name: null,
           id: 'cat',
         );
-        box.block = true;
-        final renaming = repository.rename('cat', 'Renamed');
-        await box.entered.future;
         final fetched = Completer<void>();
+        final releaseResponse = Completer<void>();
         posts = TestSearchPostRepository((_, _, _) async {
           fetched.complete();
+          await releaseResponse.future;
           return failure
               ? Either.left(
                   AppError(
@@ -164,6 +165,10 @@ void main() {
           () => service().refresh(topic, BooruConfig.empty),
         );
         await fetched.future;
+        box.block = true;
+        final renaming = repository.rename('cat', 'Renamed');
+        await box.entered.future;
+        releaseResponse.complete();
         await Future<void>.delayed(Duration.zero);
         token.cancel();
         box.release.complete();

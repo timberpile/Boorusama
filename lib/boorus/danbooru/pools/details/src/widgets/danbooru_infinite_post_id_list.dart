@@ -1,3 +1,6 @@
+import 'package:i18n/i18n.dart';
+
+import '../../../pool/src/types/safebooru_pool_availability.dart';
 import '../../../../../../core/content/types.dart';
 import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/posts/pools/group_post_scope.dart';
@@ -70,6 +73,21 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
         },
         builder: (context, controller) {
           final grid = PostGrid(
+            gridBuilder: isDonmaiSafebooru(config.url)
+                ? (context, itemBuilder) => PostGridSliver<Post>(
+                    postController: controller,
+                    itemBuilder: itemBuilder,
+                    emptyBuilder: (context) => controller.count.value == null
+                        ? Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              context.t.pool.members_unavailable,
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : const NoDataBox(),
+                  )
+                : null,
             header: PostGridConfigurationHeader<Post>(
               additionalControls: [
                 if (orderControl case final control?) control,

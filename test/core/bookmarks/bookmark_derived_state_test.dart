@@ -234,7 +234,10 @@ void main() {
       );
       expect(groupBefore.byName['shared']!.count, 2);
       container.read(selectedBooruUrlProvider.notifier).state = 'a.test';
-      expect((await container.read(groupProvider.future)).entries, isEmpty);
+      expect(
+        (await container.read(groupProvider.future)).byName.keys,
+        unorderedEquals(['shared', 'b']),
+      );
       expect(
         (await container.read(allProvider.future)).byName.keys,
         unorderedEquals(['shared', 'a']),

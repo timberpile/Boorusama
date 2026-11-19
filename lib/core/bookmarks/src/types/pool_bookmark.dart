@@ -80,6 +80,10 @@ class CollectionBookmark extends Equatable {
 
   /// Digest of non-secret visibility settings and effective blacklist.
   final String? coverPolicy;
+
+  bool get needsCoverFacts =>
+      coverUrl == null ||
+      cover?.visibility?.tagCoverage != MetadataCoverage.complete;
   final DateTime? newestUpload;
   final DateTime? oldestUpload;
 
@@ -104,8 +108,9 @@ class CollectionBookmark extends Equatable {
   CollectionBookmark withMissingCoverFrom(CollectionBookmark summary) =>
       localId != summary.localId ||
           identity != summary.identity ||
-          coverUrl != null ||
-          summary.cover == null
+          !needsCoverFacts ||
+          summary.cover == null ||
+          (coverUrl != null && summary.needsCoverFacts)
       ? this
       : copyWith(
           cover: summary.cover,

@@ -123,6 +123,94 @@ const _viewerCaptureDirectory = String.fromEnvironment('VIEWER_CAPTURE_DIR');
 
 void main() {
   testWidgets(
+    'both Group neighbors prepare a first batch without reporting display',
+    (tester) async {
+      _mobileViewport(tester);
+      final pool = _groupEntry('previous', 10, BookmarkedPoolCategory.series);
+      final related = GroupViewerEntry(
+        summary: ContentGroupSummary(
+          reference: const ContentReferenceCodec().parse(
+            engine: BooruType.danbooru,
+            site: Uri.parse(_configs.first.url),
+            kind: ContentKind.group,
+            sourceKey: 'related:20',
+          ),
+        ),
+        occurrenceId: 'next',
+        source: ViewerSourceBinding(_configs.first),
+      );
+      final queries = <GroupMemberQuery>[];
+      final pending = <ContentReference, Completer<GroupMemberBatch>>{
+        for (final entry in [pool, related])
+          entry.summary.reference: Completer<GroupMemberBatch>(),
+      };
+      final displayed = <Object>{};
+      final harness = _Harness(
+        posts: const [],
+        entries: [
+          pool,
+          PostViewerEntry(
+            post: _posts.first,
+            occurrenceId: 'current',
+            source: ViewerSourceBinding(_configs.first),
+          ),
+          related,
+        ],
+        initialIndex: 1,
+        mediaCapability: BooruGroupCapability(
+          engine: BooruType.danbooru,
+          keyCodec: const BooruContentKeyCodec(BooruType.danbooru),
+          presentation: const _GalleryGroupPresentation(),
+          createSource: (_, access) => _GalleryGroupSource(
+            access,
+            fetch: (query) {
+              queries.add(query);
+              return pending[query.reference]!.future;
+            },
+          ),
+        ),
+        onEntryDisplayed: (entry) => displayed.add(entry.occurrenceId),
+      );
+      _disposeAfterUnmount(tester, harness.dispose);
+      await tester.pumpWidget(harness.build());
+      for (var i = 0; i < 10 && queries.length < 2; i++) {
+        await tester.pump();
+      }
+      expect(
+        queries.map((query) => query.reference),
+        unorderedEquals(pending.keys),
+      );
+      expect(queries.every((query) => query.cursor == null), isTrue);
+      expect(_pageViewController(tester).page, 1);
+      for (final result in pending.values) {
+        result.complete((
+          page: ContentPage<GroupMember>(items: const [], total: 0),
+          resolved: const <ContentEntry>[],
+        ));
+      }
+      await tester.pumpAndSettle();
+      final gallery = find.text('gallery-next', skipOffstage: false);
+      expect(gallery, findsOneWidget);
+      final prepared = tester.element(gallery);
+      final swipe = await tester.startGesture(
+        tester.getCenter(find.byType(PageView).first),
+      );
+      await swipe.moveBy(const Offset(-24, 0));
+      await swipe.moveBy(const Offset(-260, 0));
+      await tester.pump();
+      expect(tester.element(gallery), same(prepared));
+      expect(displayed.intersection({'previous', 'next'}), isEmpty);
+      await swipe.up();
+      await tester.pumpAndSettle();
+      expect(_pageViewController(tester).page, 2);
+      expect(tester.element(gallery), same(prepared));
+      expect(displayed, contains('next'));
+      expect(queries, hasLength(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'a loaded Pool gallery reports its displayed occurrence without reading neighbors',
     (tester) async {
       _mobileViewport(tester);
@@ -769,6 +857,93 @@ void main() {
       }
     },
   );
+
+  for (final readablePage in [true, false]) {
+    testWidgets(
+      'Pixiv Work information shows saved creator avatar with readable Page=$readablePage at enlarged text',
+      (tester) async {
+        _mobileViewport(tester);
+        const avatar = 'https://i.pximg.net/user-profile/artist.jpg';
+        final access = ContentAccessContext.profile(
+          config: _configs[2],
+          authEpoch: 1,
+          policyEpoch: 1,
+        );
+        final dto = works.work(
+          pageCount: 1,
+          avatar: avatar,
+          pages: readablePage
+              ? null
+              : [
+                  {
+                    'image_urls': {'original': 'invalid'},
+                  },
+                ],
+        );
+        const codec = GroupMetadataCodec();
+        final stored = codec.decodeDetails(
+          codec.encodeDetails(pixivWorkDetails(dto, access)),
+        );
+        var metadataCalls = 0;
+        final harness = _Harness(
+          posts: const [],
+          loadMedia: false,
+          entries: [
+            GroupViewerEntry(
+              summary: stored.summary,
+              storedDetails: stored,
+              occurrenceId: 'avatar-information',
+              source: ViewerSourceBinding(_configs[2]),
+            ),
+          ],
+          mediaCapability: BooruGroupCapability(
+            engine: BooruType.pixiv,
+            keyCodec: const BooruContentKeyCodec(BooruType.pixiv),
+            presentation: const PixivWorkPresentation(),
+            createSource: (_, actor) => PixivWorkSource(
+              access: actor,
+              fetchWork: (_) async {
+                metadataCalls++;
+                return dto;
+              },
+            )..seedWork(dto),
+          ),
+        );
+        try {
+          await tester.pumpWidget(harness.build(textScale: 2));
+          await tester.pumpAndSettle();
+          await _pageViewController(tester).expandToSnapPoint();
+          await tester.pumpAndSettle();
+          final sections = tester
+              .widgetList<ArtistSection>(
+                find.byType(ArtistSection, skipOffstage: false),
+              )
+              .where((section) => section.artistTags.contains('Artist'))
+              .toList();
+          expect(sections, isNotEmpty);
+          expect(
+            sections.first.commentary.originalDescription,
+            '<p>Work caption</p>',
+          );
+          if (!readablePage) expect(sections.first.source, PostSource.none());
+          final images = tester
+              .widgetList<BooruImage>(
+                find.byType(BooruImage, skipOffstage: false),
+              )
+              .where((image) => image.imageUrl == avatar)
+              .toList();
+          expect(images, isNotEmpty);
+          expect(images.first.config, _configs[2].auth);
+          expect(metadataCalls, 0);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          harness.dispose();
+          await tester.pump();
+        }
+      },
+    );
+  }
 
   testWidgets(
     'Pixiv Work Details show listing metadata before its manifest loads',
@@ -6701,7 +6876,9 @@ BooruGroupCapability _galleryGroupCapability() => BooruGroupCapability(
 );
 
 class _GalleryGroupSource extends ContentGroupSource {
-  _GalleryGroupSource(this.access);
+  _GalleryGroupSource(this.access, {this.fetch});
+
+  final Future<GroupMemberBatch> Function(GroupMemberQuery)? fetch;
 
   @override
   final ContentAccessContext access;
@@ -6721,10 +6898,16 @@ class _GalleryGroupSource extends ContentGroupSource {
   @override
   TaskEither<BooruError, GroupMemberBatch> loadMembers(
     GroupMemberQuery query,
-  ) => TaskEither.right((
-    page: ContentPage<GroupMember>(items: const [], total: 0),
-    resolved: const <ContentEntry>[],
-  ));
+  ) {
+    final loader = fetch;
+    if (loader != null) {
+      return TaskEither(() async => Either.of(await loader(query)));
+    }
+    return TaskEither.right((
+      page: ContentPage<GroupMember>(items: const [], total: 0),
+      resolved: const <ContentEntry>[],
+    ));
+  }
 }
 
 class _GalleryGroupPresentation implements BooruGroupPresentation {

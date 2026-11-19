@@ -1,3 +1,4 @@
+import 'shared_image_read.dart';
 // Flutter imports:
 import 'package:cache_manager/cache_manager.dart';
 import 'package:flutter/foundation.dart';
@@ -52,26 +53,36 @@ class ImagePreloader {
       return;
     }
 
-    final write = await PendingImageCacheWrite.begin(cacheManager, cacheKey);
     try {
-      _log('Preloading image: $url');
-
-      final bytes = await ImageFetcher.fetchImageBytes(
-        url: url,
+      await SharedImageRead.run(
         dio: dio,
+        manager: cacheManager,
+        key: cacheKey,
         headers: headers,
-        fetchStrategy: fetchStrategy,
-        cancelToken: cancelToken,
-        printError: enableLogging,
+        owner: cancelToken,
+        load: (sharedToken) async {
+          final write = await PendingImageCacheWrite.begin(
+            cacheManager,
+            cacheKey,
+          );
+          try {
+            final bytes = await ImageFetcher.fetchImageBytes(
+              url: url,
+              dio: dio,
+              headers: headers,
+              fetchStrategy: fetchStrategy,
+              cancelToken: sharedToken,
+              printError: enableLogging,
+            );
+            if (!sharedToken.isCancelled) await write.save(bytes);
+            return bytes;
+          } finally {
+            await write.abort();
+          }
+        },
       );
-
-      await write.save(bytes);
-      _log('Successfully preloaded: $url');
-    } catch (e) {
-      _log('Failed to preload $url: $e');
+    } catch (_) {
       if (propagateErrors) rethrow;
-    } finally {
-      await write.abort();
     }
   }
 

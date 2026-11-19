@@ -7,6 +7,7 @@ import 'package:equatable/equatable.dart';
 // Project imports:
 import '../types/bookmark.dart';
 import '../types/bookmark_library_state.dart';
+import '../types/bookmark_record_fields.dart';
 import '../types/bookmark_search_token.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_shuffle_provider.dart';
@@ -69,7 +70,12 @@ Map<int, DateTime>? bookmarkMembershipDates({
     if (view.kind == BookmarkViewKind.all && state.mirrors.isReceived(group.id))
       continue;
     for (final id in group.bookmarkIds) {
-      final date = group.addedAt[id] ?? state.bookmarksById[id]?.createdAt;
+      final date =
+          group.addedAt[id] ??
+          switch (state.byId[id]) {
+            final record? => bookmarkCreatedAt(record),
+            null => null,
+          };
       if (date == null) continue;
       final previous = dates[id];
       if (previous == null ||

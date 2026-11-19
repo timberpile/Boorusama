@@ -4,6 +4,7 @@ import '../../../../settings/providers.dart';
 
 // Dart imports:
 import 'dart:async';
+import 'dart:developer' show Timeline;
 
 // Package imports:
 import 'package:collection/collection.dart';
@@ -40,6 +41,8 @@ final followingTopicsProvider =
       FollowingTopicsNotifier.new,
     );
 
+typedef SearchRefreshPass = ({Set<String> planned, Set<String> pending});
+
 class FollowingTopicsState extends Equatable {
   FollowingTopicsState({
     required List<FollowingTopic> topics,
@@ -51,6 +54,7 @@ class FollowingTopicsState extends Equatable {
     this.feedRefreshChecked = 0,
     this.feedRefreshTotal = 0,
     Set<String> pendingRefreshIds = const {},
+    this.refreshPasses = const [],
     this.feeds = const [],
     required this.organization,
     this.mirrors = const FollowingMirrorState.empty(),
@@ -61,6 +65,7 @@ class FollowingTopicsState extends Equatable {
   final List<FollowingTopic> topics;
   final Set<String> refreshingIds;
   final Set<String> pendingRefreshIds;
+  final List<SearchRefreshPass> refreshPasses;
   final int batchCompleted;
   final int batchTotal;
   final String? batchProfileId;
@@ -76,6 +81,7 @@ class FollowingTopicsState extends Equatable {
     topics,
     refreshingIds,
     pendingRefreshIds,
+    refreshPasses,
     batchCompleted,
     batchTotal,
     batchProfileId,
@@ -94,7 +100,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
-  final Map<Object, Set<String>> _refreshPlans = {};
+  final _refreshPlans = <Object, SearchRefreshPass>{};
   final Map<String, int> _pausedProfileRefreshes = {};
   final _refreshTokens = <String, CancelToken>{};
   final _refreshOperations = <String, _SourceRefreshOperation>{};
@@ -164,7 +170,12 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     final key = Object();
     void update(Iterable<String> ids) {
       if (_disposed) return;
-      _refreshPlans[key] = ids.toSet();
+      final pending = Set<String>.unmodifiable(ids);
+      final previous = _refreshPlans[key];
+      final planned = previous == null || previous.planned.isEmpty
+          ? pending
+          : previous.planned;
+      _refreshPlans[key] = (planned: planned, pending: pending);
       _publishActivity();
     }
 
@@ -1387,6 +1398,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     _publishActivity();
     final repository = await _repository;
     ProviderSubscription<BooruConfig?>? accessLease;
+    SearchRefreshOutcome? completed;
+    var unexpectedFailure = false;
     try {
       final topic = await repository.getById(id);
       if (_disposed || topic == null) {
@@ -1434,7 +1447,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
               .toList() ??
           <TopicFeed>[];
       final inherited = ApiRequestContext.current();
-      return await runWithApiRequestContext(
+      final outcome = await runWithApiRequestContext(
         ApiRequestContext(
           requestClass: inherited.requestClass,
           requestClassResolver: inherited.requestClassResolver,
@@ -1488,12 +1501,96 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
           requireFullSnapshot: initializingFeeds.isNotEmpty,
         ),
       );
+      completed = outcome;
+      return outcome;
     } catch (_) {
+      unexpectedFailure = true;
       return const SearchRefreshFailed(SearchRefreshErrorKind.other);
     } finally {
       accessLease?.close();
-      if (!_disposed) await _serialize(() => _reload(repository));
+      if (!_disposed) {
+        if (unexpectedFailure ||
+            repository is! FollowingRefreshPublicationStore) {
+          await _serialize(() => _reload(repository));
+        } else if (completed is SearchRefreshSucceeded ||
+            completed is SearchRefreshFailed) {
+          await _serialize(
+            () => _publishRefresh(
+              repository,
+              id,
+              includeFeeds: completed is SearchRefreshSucceeded,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  Future<void> _publishRefresh(
+    FollowingTopicRepository repository,
+    String id, {
+    required bool includeFeeds,
+  }) async {
+    final result = await (repository as FollowingRefreshPublicationStore)
+        .readRefreshPublication(
+          id,
+          includeFeeds: includeFeeds,
+        );
+    final current = state.valueOrNull;
+    if (_disposed || current == null) return;
+
+    if (includeFeeds) {
+      final previous = {
+        for (final feed in _feeds)
+          if (feed.sourceIds.contains(id)) feed.id: feed,
+      };
+      // A concurrent structural mutation may invalidate the projection even
+      // when the source refresh itself committed successfully.
+      final definitionsMatch =
+          previous.length == result.feeds.length &&
+          result.feeds.every((feed) {
+            final prior = previous[feed.id];
+            return prior != null &&
+                prior.profileId == feed.profileId &&
+                prior.cacheGeneration == feed.cacheGeneration &&
+                const ListEquality<String>().equals(
+                  prior.sourceIds,
+                  feed.sourceIds,
+                );
+          });
+      if (!definitionsMatch) {
+        await _reload(repository);
+        return;
+      }
+    }
+    Timeline.timeSync('Following publish refreshed rows', () {
+      final stored = result.topic;
+      final previous = current.topics.firstWhereOrNull(
+        (topic) => topic.id == id,
+      );
+      final refreshedFeeds = {for (final feed in result.feeds) feed.id: feed};
+      var changed = previous != null && stored != previous;
+      if (includeFeeds) {
+        final next = <TopicFeed>[];
+        for (final feed in _feeds) {
+          final updated = refreshedFeeds[feed.id];
+          if (updated != null && updated != feed) {
+            next.add(updated);
+            changed = true;
+          } else {
+            next.add(feed);
+          }
+        }
+        if (changed) _feeds = next;
+      }
+      if (!changed) return;
+      state = AsyncData(
+        _snapshot([
+          for (final topic in current.topics)
+            if (topic.id != id) topic else if (stored != null) stored,
+        ]),
+      );
+    });
   }
 
   Future<List<SearchRefreshOutcome>> refreshAll(
@@ -1751,8 +1848,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         refreshingIds: _inFlight.keys.toSet(),
         pendingRefreshIds: {
           ..._inFlight.keys,
-          for (final ids in _refreshPlans.values) ...ids,
+          for (final pass in _refreshPlans.values) ...pass.pending,
         }.intersection(topics.map((item) => item.id).toSet()),
+        refreshPasses: List.unmodifiable(_refreshPlans.values),
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,

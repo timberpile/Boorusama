@@ -98,6 +98,25 @@ class PostGridController<T extends Post> extends ChangeNotifier
   var _hasLoadedPage = false;
   var _total = 0;
 
+  /// Reorder retained data without resetting the source page/cursor or filters.
+  /// Callers must defer this while a viewer or selection depends on indices.
+  bool reorderLoadedItems(Comparator<T> compare) {
+    if (_disposed || loadingMore || refreshing) return false;
+    final ordered = [..._items]..sort(compare);
+    if (listEquals(ordered, _items)) return false;
+    _items = ordered;
+    _setFilteringItems([..._filteredItems]..sort(compare));
+    notifyListeners();
+    return true;
+  }
+
+  /// Reopen a failed history cursor without discarding loaded pages or selection.
+  void resumeContinuation() {
+    if (_disposed || _pageMode != PageMode.infinite || !_hasLoadedPage) return;
+    _hasMore = true;
+    notifyListeners();
+  }
+
   Iterable<T> get items => _filteredItems;
   Iterable<T> get allItems => _items;
   @override

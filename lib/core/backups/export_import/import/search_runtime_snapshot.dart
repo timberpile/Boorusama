@@ -42,7 +42,10 @@ final class SearchRuntimeSnapshotCodec {
   String encode(SearchRuntimeSnapshot snapshot) => jsonEncode({
     'version': _version,
     'searches': snapshot.searches.map(_searchToJson).toList(),
-    'feeds': snapshot.feeds.map((feed) => feed.toJson()).toList(),
+    'feeds': [
+      for (final feed in snapshot.feeds)
+        {...feed.toJson(), 'cacheGeneration': feed.cacheGeneration},
+    ],
     'organization': snapshot.organization.toJson(),
     'folderScopes': {
       for (final folder in snapshot.organization.folders)

@@ -9,14 +9,22 @@ import '../../../../settings/types.dart';
 import '../types/post.dart';
 import '../types/post_repository.dart';
 
-class PostRepositoryBuilder<T extends Post> implements PostRepository<T> {
+class PostRepositoryBuilder<T extends Post>
+    implements PostRepository<T>, ForegroundPostConsumer<T> {
   PostRepositoryBuilder({
     required this.fetch,
     required this.fetchSingle,
     required this.getSettings,
     required this.tagComposer,
     this.fetchFromController,
+    this.onConsumePreparedPosts,
   });
+
+  final Future<void> Function(List<T>)? onConsumePreparedPosts;
+  @override
+  Future<void> consumePreparedPosts(List<T> posts) async {
+    await onConsumePreparedPosts?.call(posts);
+  }
 
   final PostFutureFetcher<T> fetch;
   final PostSingleFutureFetcher<T> fetchSingle;

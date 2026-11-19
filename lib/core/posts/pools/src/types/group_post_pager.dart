@@ -1,3 +1,7 @@
+import '../../../../content/groups/prepared_group_reads.dart';
+
+import 'package:foundation/foundation.dart';
+
 import '../../../../content/groups/related_group_counts.dart';
 
 import 'dart:collection';
@@ -21,7 +25,28 @@ final class GroupPostPager {
     this.orderKey,
     this.isPaginated,
     this.relatedCounts,
+    this.preparedReads,
+    this.currentRefreshRevision,
+    this.isForeground,
   });
+
+  final PreparedGroupReads? preparedReads;
+  final int Function()? currentRefreshRevision;
+  final bool Function()? isForeground;
+  ({List<Post> posts, int? count})? _preparedConsumption;
+
+  void activate() {
+    if (_disposed || !isCurrent() || isForeground?.call() == false) return;
+    final prepared = _preparedConsumption;
+    _preparedConsumption = null;
+    if (prepared == null) return;
+    source.didConsumeMembers(prepared.posts);
+    final key = GroupMetadataKey(
+      reference: reference,
+      access: source.access.key,
+    );
+    relatedCounts?.publish(relatedCounts?.begin(key), prepared.count);
+  }
 
   final RelatedGroupCounts? relatedCounts;
   final ContentGroupSource source;
@@ -40,7 +65,10 @@ final class GroupPostPager {
 
   Future<PostResult<Post>> fetch(int page) async {
     if (page < 1 || perPage < 1) throw ArgumentError('Invalid Group page');
-    if (_disposed || _cancellation.isCancelled || !isCurrent()) {
+    if (_disposed ||
+        _cancellation.isCancelled ||
+        !isCurrent() ||
+        page > 1 && isForeground?.call() == false) {
       throw RequestCancelledError();
     }
     final indexed = source is IndexedGroupMemberSource;
@@ -65,16 +93,34 @@ final class GroupPostPager {
       query,
       await runGroupRead(
         source,
-        () => switch (source) {
-          final IndexedGroupMemberSource indexedSource =>
-            indexedSource.loadMemberPage(
-              query,
-              page: page,
-            ),
-          _ => source.loadMembers(query),
-        },
+        () => page == 1 && preparedReads != null
+            ? TaskEither.tryCatch(
+                () => preparedReads!.firstPage((
+                  reference: reference,
+                  order: orderKey,
+                  limit: perPage,
+                  revision: currentRefreshRevision?.call() ?? 0,
+                )),
+                (error, _) => error is BooruError
+                    ? error
+                    : UnknownError(
+                        error: error,
+                        message: 'Prepared page failed',
+                      ),
+              )
+            : switch (source) {
+                final IndexedGroupMemberSource indexedSource =>
+                  indexedSource.loadMemberPage(
+                    query,
+                    page: page,
+                  ),
+                _ => source.loadMembers(query),
+              },
         token: _cancellation,
-        current: () => generation == _generation && isCurrent(),
+        current: () =>
+            generation == _generation &&
+            isCurrent() &&
+            (page == 1 || isForeground?.call() != false),
       ),
     );
     if (generation != _generation ||
@@ -121,13 +167,19 @@ final class GroupPostPager {
     } else {
       _lastPage = page;
     }
-    relatedCounts?.publish(countRead, batch.page.total);
+    if (isForeground?.call() == false) {
+      _preparedConsumption = (posts: visible, count: batch.page.total);
+    } else {
+      source.didConsumeMembers(visible);
+      relatedCounts?.publish(countRead, batch.page.total);
+    }
     return PostResult(
       posts: visible,
       total: batch.page.total,
-      maxPage: batch.page.total == null
+      maxPage: (batch.page.sourceTotal ?? batch.page.total) == null
           ? null
-          : (batch.page.total! + perPage - 1) ~/ perPage,
+          : ((batch.page.sourceTotal ?? batch.page.total)! + perPage - 1) ~/
+                perPage,
       hasMore: next != null,
     );
   }
@@ -139,8 +191,13 @@ final class GroupPostPager {
     _generation++;
     _cursors.clear();
     _members.clear();
+    _preparedConsumption = null;
     _lastPage = null;
     if (_initialRequested) {
+      preparedReads?.invalidate(
+        reference,
+        currentRefreshRevision?.call() ?? 0,
+      );
       relatedCounts?.invalidate(
         GroupMetadataKey(reference: reference, access: source.access.key),
       );

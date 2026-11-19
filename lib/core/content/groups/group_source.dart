@@ -1,3 +1,5 @@
+import '../../posts/post/types.dart';
+
 import 'package:foundation/foundation.dart';
 
 import '../../errors/types.dart';
@@ -16,6 +18,9 @@ abstract class ContentGroupSource {
     ContentReference reference,
   );
   TaskEither<BooruError, GroupMemberBatch> loadMembers(GroupMemberQuery query);
+
+  /// Foreground gallery consumption may run existing ancillary actions once.
+  void didConsumeMembers(List<Post> posts) {}
 
   /// Cached adapters invalidate their raw envelope; uncached adapters need no work.
   void invalidate(ContentReference reference) {}

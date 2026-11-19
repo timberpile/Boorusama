@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:boorusama/core/bookmarks/src/types/bookmark_view.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_shuffle_provider.dart';
 import 'package:boorusama/core/bookmarks/src/providers/local_providers.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_list_controls.dart';
@@ -18,12 +21,20 @@ import '../posts/details/progressive_image_test_utils.dart';
 
 const _longSource = 'very-long-source-with-a-full-host-name.example.com';
 
+final _view = StateProvider<BookmarkView>((ref) => const BookmarkView.all());
+final _active = StateProvider<bool>((ref) => true);
+
 void main() {
   Future<ProviderContainer> pumpControls(
     WidgetTester tester, {
+    List<Override> overrides = const [],
     double scale = 1,
     bool showCount = true,
-    List<String> sources = const ['one.example', _longSource],
+    List<String> sources = const [
+      'one.example',
+      _longSource,
+      '$_longSource.$_longSource',
+    ],
     Widget? unavailableIndicator,
     Widget? seenFilter,
     TextDirection direction = TextDirection.ltr,
@@ -41,6 +52,7 @@ void main() {
         availableBooruUrlsProvider.overrideWith(
           (ref) => Future.value(sources),
         ),
+        ...overrides,
       ],
     );
     addTearDown(container.dispose);
@@ -67,11 +79,17 @@ void main() {
             home: Scaffold(
               body: Align(
                 alignment: Alignment.topLeft,
-                child: BookmarkListControls(
-                  count: 12,
-                  seenFilter: seenFilter,
-                  gridConfig: const Icon(Icons.settings),
-                  unavailableIndicator: unavailableIndicator,
+                child: Consumer(
+                  builder: (context, ref, _) => TickerMode(
+                    enabled: ref.watch(_active),
+                    child: BookmarkListControls(
+                      view: ref.watch(_view),
+                      count: 12,
+                      seenFilter: seenFilter,
+                      gridConfig: const Icon(Icons.settings),
+                      unavailableIndicator: unavailableIndicator,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -82,6 +100,66 @@ void main() {
     await tester.pumpAndSettle();
     return container;
   }
+
+  testWidgets(
+    'pending and inactive scopes cannot clear a valid carried selection',
+    (tester) async {
+      final pending = Completer<List<String>>();
+      final first = BookmarkView.group('550e8400-e29b-41d4-a716-446655440000');
+      final second = BookmarkView.group('550e8400-e29b-41d4-a716-446655440001');
+      final container = await pumpControls(
+        tester,
+        overrides: [
+          availableBookmarkViewSourcesProvider.overrideWith(
+            (ref, view) =>
+                view == second ? pending.future : Future.value(['one.example']),
+          ),
+        ],
+      );
+      container.read(_view.notifier).state = first;
+      container.read(selectedBooruUrlProvider.notifier).state = 'one.example';
+      await tester.pumpAndSettle();
+      container.read(_view.notifier).state = second;
+      await tester.pump();
+      expect(container.read(selectedBooruUrlProvider), 'one.example');
+      container.read(_active.notifier).state = false;
+      pending.complete(['two.example']);
+      await tester.pumpAndSettle();
+      expect(container.read(selectedBooruUrlProvider), 'one.example');
+      // An obsolete reset scheduled for second must not erase first's choice.
+      container.read(_view.notifier).state = first;
+      container.read(_active.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(container.read(selectedBooruUrlProvider), 'one.example');
+      container.read(_view.notifier).state = second;
+      await tester.pumpAndSettle();
+      expect(container.read(selectedBooruUrlProvider), isNull);
+      container.read(_view.notifier).state = first;
+      await tester.pumpAndSettle();
+      expect(find.text('Source: All'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a failed scope load cannot confirm that a selected source disappeared',
+    (tester) async {
+      final pending = Completer<List<String>>();
+      final container = await pumpControls(
+        tester,
+        overrides: [
+          availableBookmarkViewSourcesProvider.overrideWith(
+            (ref, view) => pending.future,
+          ),
+        ],
+      );
+      container.read(selectedBooruUrlProvider.notifier).state = 'one.example';
+      pending.completeError(StateError('unavailable library'));
+      await tester.pumpAndSettle();
+      expect(container.read(selectedBooruUrlProvider), 'one.example');
+      expect(find.text('Source: one.example'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final direction in TextDirection.values) {
     for (final hasSeen in [false, true]) {
@@ -179,13 +257,13 @@ void main() {
               BookmarkSortType.random;
           await tester.pumpAndSettle();
           container.read(selectedBooruUrlProvider.notifier).state =
-              '$_longSource/$_longSource';
+              '$_longSource.$_longSource';
           await tester.pumpAndSettle();
           final divider = tester.getRect(find.byType(VerticalDivider));
           final sort = tester.getRect(find.text('Random'));
           final shuffle = tester.getRect(find.byType(IconButton));
           final sourceRect = tester.getRect(
-            find.text('Source: $_longSource/$_longSource'),
+            find.text('Source: $_longSource.$_longSource'),
           );
           expect(divider.height, 24);
           expect(divider.left, greaterThanOrEqualTo(sort.right));
@@ -201,7 +279,7 @@ void main() {
             lessThanOrEqualTo(1),
           );
           final source = tester.widget<Text>(
-            find.text('Source: $_longSource/$_longSource'),
+            find.text('Source: $_longSource.$_longSource'),
           );
           expect(source.overflow, isNull);
           expect(tester.widget<Text>(count).overflow, isNull);
@@ -331,7 +409,7 @@ void main() {
     await tester.pumpAndSettle();
     await _tapFilter(tester, 'Source: All');
     await tester.pumpAndSettle();
-    expect(find.byType(KurumiPopupMenuItem), findsNWidgets(3));
+    expect(find.byType(KurumiPopupMenuItem), findsNWidgets(4));
     expect(find.byType(Divider), findsNothing);
     expect(tester.takeException(), isNull);
   });

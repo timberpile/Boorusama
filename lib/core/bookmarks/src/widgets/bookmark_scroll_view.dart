@@ -222,7 +222,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             final view = widget.view;
             final searchTags = _parseTagsFromText(widget.searchController.text);
             final sortType = ref.read(selectedBookmarkSortTypeProvider);
-            final selectedBooruUrl = ref.read(selectedBooruUrlProvider);
+            final selectedBooruUrl = ref.read(
+              effectiveBookmarkSourceProvider(widget.view),
+            );
             final shuffleState = ref.read(bookmarkShuffleProvider);
             final library = await ref.read(bookmarkProvider.future);
             final availability =
@@ -290,11 +292,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
             ..listen(anonymousSourcePolicyProvider, (_, _) {
               _scheduleRefresh(controller);
             })
-            ..listen(selectedBooruUrlProvider, (_, _) {
+            ..listen(effectiveBookmarkSourceProvider(widget.view), (_, _) {
               _selectionModeController.disable();
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                controller.refresh();
-              });
+              _scheduleRefresh(controller);
             })
             ..listen(selectedBookmarkSortTypeProvider, (_, _) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -433,6 +433,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                     ValueListenableBuilder(
                       valueListenable: controller.itemsNotifier,
                       builder: (_, posts, _) => BookmarkListControls(
+                        view: widget.view,
                         count: _entries.length,
                         seenFilter: _reading?.showFilter(_seenFilter) ?? false
                             ? BookmarkSeenFilterButton(
@@ -507,7 +508,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       activeFailures.putIfAbsent(id, () => failure.value);
     }
     final tags = widget.searchController.text;
-    final source = ref.watch(selectedBooruUrlProvider);
+    final source = ref.watch(effectiveBookmarkSourceProvider(widget.view));
     // Availability has identity equality and changes with the library/profiles.
     // Only the bounded failure map needs a value comparison.
     final inputs = (availability, widget.view, tags, source);
@@ -537,7 +538,7 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
       view: widget.view,
       selectedTags: _parseTagsFromText(widget.searchController.text),
       sortType: ref.read(selectedBookmarkSortTypeProvider),
-      selectedBooruUrl: ref.read(selectedBooruUrlProvider),
+      selectedBooruUrl: ref.read(effectiveBookmarkSourceProvider(widget.view)),
     );
     final ids = {
       for (final entry in selected.whereType<BookmarkPostEntry>())

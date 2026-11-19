@@ -10,9 +10,14 @@ import 'pool_details_order.dart';
 /// Bridges the existing Pool manifest into shared membership values. Positions
 /// belong to the source manifest, before display sorting or Post filtering.
 final class PoolGroupMembers {
-  PoolGroupMembers({required this.access, required this.fetchPosts});
+  PoolGroupMembers({
+    required this.access,
+    required this.fetchPosts,
+    this.accessibleTotal,
+  });
 
   final ContentAccessContext access;
+  final int? Function(List<int>)? accessibleTotal;
   final Future<List<Post>> Function(List<int> ids) fetchPosts;
   final _cursorScope = const Uuid().v4();
   final _resolved = <ContentReference, PostContentEntry>{};
@@ -37,6 +42,7 @@ final class PoolGroupMembers {
     required List<int>? ids,
     required int defaultLimit,
     int? indexedPage,
+    bool exactTotalAllowed = true,
   }) async {
     if (_disposed ||
         !access.accepts(query.reference) ||
@@ -143,7 +149,12 @@ final class PoolGroupMembers {
                   : MemberAvailability.unknown,
             ),
         ],
-        total: ids.length,
+        sourceTotal: ids.length,
+        total: accessibleTotal == null
+            ? ids.length
+            : exactTotalAllowed
+            ? accessibleTotal!(ids)
+            : null,
         next: end >= ids.length
             ? null
             : ContentCursor(

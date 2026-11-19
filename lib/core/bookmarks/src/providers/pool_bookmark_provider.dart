@@ -366,7 +366,7 @@ final missingPoolCoverProvider = FutureProvider.autoDispose
             )
             .firstOrNull;
         if (saved == null) return null;
-        if (saved.coverUrl != null) return saved;
+        if (!saved.needsCoverFacts) return saved;
         final target = BookmarkReaderRequest(
           pool.origin,
           site: pool.sourceSite,
@@ -462,7 +462,7 @@ final missingPoolCoverProvider = FutureProvider.autoDispose
     });
 
 Future<void> scheduleMissingPoolCover(Ref ref, CollectionBookmark saved) async {
-  if (saved.coverUrl != null) return;
+  if (!saved.needsCoverFacts) return;
   final selected = resolvePoolBookmarkProfile(
     saved,
     ref.read(bookmarkReadProfilesProvider),

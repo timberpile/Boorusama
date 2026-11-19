@@ -9,6 +9,36 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'shared read settles before asynchronous owner policy teardown',
+    () async {
+      final gate = Completer<void>();
+      final policy = StreamController<void>(onCancel: () => gate.future);
+      final cache = GroupEnvelopeCache<int>(
+        access: ContentAccessKey(
+          engine: BooruType.danbooru,
+          siteNamespace: 'example.test',
+          authEpoch: 1,
+          policyEpoch: 1,
+        ),
+      );
+      final reference = const ContentReferenceCodec().parse(
+        engine: BooruType.danbooru,
+        site: Uri.parse('https://example.test'),
+        kind: ContentKind.group,
+        sourceKey: 'pool:1',
+      );
+      final request = runWithApiRequestContext(
+        ApiRequestContext(changes: policy.stream),
+        () => cache.load(reference, () async => 7),
+      );
+      expect(await request.timeout(const Duration(seconds: 10)), 7);
+      gate.complete();
+      await policy.close();
+      cache.dispose();
+    },
+  );
+
   final access = ContentAccessKey(
     engine: BooruType.danbooru,
     siteNamespace: 'example.test',

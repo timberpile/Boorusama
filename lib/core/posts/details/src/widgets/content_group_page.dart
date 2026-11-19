@@ -11,6 +11,7 @@ import '../../../../navigation/destination_activity.dart';
 import '../providers/viewer_source_access_provider.dart';
 import '../types/viewer_entry.dart';
 import 'group_viewer_scope.dart';
+import 'adjacent_group_preparation.dart';
 import 'post_details_page_view_scope.dart';
 import 'viewer_entry_navigation_header.dart';
 
@@ -22,6 +23,8 @@ class ContentGroupPage extends ConsumerWidget {
     required this.entry,
     this.active = true,
     this.embedded = true,
+    this.prepared,
+    this.suspendWhenInactive = false,
     this.prepareSource,
     this.onDisplayed,
     super.key,
@@ -29,6 +32,8 @@ class ContentGroupPage extends ConsumerWidget {
   final GroupViewerEntry entry;
   final bool active;
   final bool embedded;
+  final PreparedViewerKey? prepared;
+  final bool suspendWhenInactive;
   final void Function(ContentGroupSource source)? prepareSource;
   final VoidCallback? onDisplayed;
 
@@ -81,10 +86,13 @@ class ContentGroupPage extends ConsumerWidget {
         child: GroupViewerScope(
           entry: entry,
           embedded: embedded,
+          passive: suspendWhenInactive && !active,
           child: _RegisteredGroupContent(
             entry: entry,
             access: access.key,
             presentation: capability.presentation,
+            prepared: prepared?.access == access.key ? prepared : null,
+            active: !suspendWhenInactive || active,
             onDisplayed: onDisplayed,
           ),
         ),
@@ -93,49 +101,71 @@ class ContentGroupPage extends ConsumerWidget {
   }
 }
 
-class _RegisteredGroupContent extends ConsumerWidget {
+class _RegisteredGroupContent extends ConsumerStatefulWidget {
   const _RegisteredGroupContent({
     required this.entry,
     required this.access,
     required this.presentation,
+    required this.prepared,
+    required this.active,
     this.onDisplayed,
   });
   final GroupViewerEntry entry;
   final ContentAccessKey access;
   final BooruGroupPresentation presentation;
+  final PreparedViewerKey? prepared;
+  final bool active;
   final VoidCallback? onDisplayed;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RegisteredGroupContent> createState() =>
+      _RegisteredGroupContentState();
+}
+
+class _RegisteredGroupContentState
+    extends ConsumerState<_RegisteredGroupContent> {
+  (GroupMetadataKey, int)? _retainedKey;
+  ContentGroupDetails? _retained;
+
+  @override
+  Widget build(BuildContext context) {
+    final presentation = widget.presentation;
+    final onDisplayed = widget.onDisplayed;
     final key = GroupMetadataKey(
-      reference: entry.summary.reference,
-      access: access,
+      reference: widget.entry.summary.reference,
+      access: widget.access,
     );
+    final revision = ref.watch(groupRefreshRevisionProvider(key));
+    final saved = (key, revision);
+    if (_retainedKey != saved) {
+      _retainedKey = saved;
+      _retained = null;
+    }
+    final prepared = widget.prepared;
+    final preparation = prepared == null
+        ? null
+        : ref.watch(preparedViewerDetailsProvider(prepared));
+    final state = widget.active || prepared == null && _retained == null
+        ? ref.watch(groupDetailsProvider(key))
+        : preparation;
+    _retained = state?.valueOrNull ?? _retained;
+    final value = _retained;
+    if (value != null && state?.hasError != true) {
+      final child = presentation.buildDetails(context, value);
+      return onDisplayed == null
+          ? child
+          : _DisplayedGroupContent(onDisplayed: onDisplayed, child: child);
+    }
     final actions = presentation is BooruGroupStatusPresentation
         ? (presentation as BooruGroupStatusPresentation).buildStatusActions(
             context,
-            entry.summary,
+            widget.entry.summary,
           )
         : const <Widget>[];
-    return ref
-        .watch(groupDetailsProvider(key))
-        .when(
-          data: (details) {
-            final child = presentation.buildDetails(context, details);
-            return onDisplayed == null
-                ? child
-                : _DisplayedGroupContent(
-                    onDisplayed: onDisplayed!,
-                    child: child,
-                  );
-          },
-          loading: () => ViewerEntryNavigationStatus(
-            actions: actions,
-            child: const CircularProgressIndicator(),
-          ),
-          error: (_, _) => ViewerEntryNavigationStatus(
-            actions: actions,
-            child: Column(
+    return ViewerEntryNavigationStatus(
+      actions: actions,
+      child: state?.hasError == true
+          ? Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(context.t.bookmark.pool_unavailable),
@@ -144,9 +174,9 @@ class _RegisteredGroupContent extends ConsumerWidget {
                   child: Text(context.t.generic.action.retry),
                 ),
               ],
-            ),
-          ),
-        );
+            )
+          : const CircularProgressIndicator(),
+    );
   }
 }
 

@@ -9,15 +9,19 @@ class GroupViewerScope extends InheritedWidget {
     required this.entry,
     required super.child,
     this.embedded = true,
+    this.passive = false,
     super.key,
   });
   final GroupViewerEntry entry;
   final bool embedded;
+  final bool passive;
   static GroupViewerScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<GroupViewerScope>();
   static GroupViewerEntry? maybeEntryOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<GroupViewerScope>()?.entry;
   @override
   bool updateShouldNotify(GroupViewerScope oldWidget) =>
-      entry != oldWidget.entry || embedded != oldWidget.embedded;
+      entry != oldWidget.entry ||
+      embedded != oldWidget.embedded ||
+      passive != oldWidget.passive;
 }

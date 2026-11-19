@@ -625,21 +625,21 @@ fails, the previous cache is restored only after verifying that the persisted
 site is still the old one. An interrupted update can leave that cache empty;
 the feed rebuilds it through later source refreshes.
 
-Each feed persists a chronological, deduplicated recent snapshot of at most 500
-posts. Successful source snapshots merge into it; failures preserve the cache
-and source status. Opening the feed renders this snapshot without a source
-scan. Approaching the end starts a session-only chronological merge of older
-pages from the member sources. Source pagination buffers and older post IDs are
-discarded when the feed view closes. History loading starts after actual
-scrolling; very short cached lists expose a Load older posts button. An empty
-recent snapshot waits for foreground source refreshes. Older browsing may
-require many network requests for a large feed, while opening its recent cache
-remains immediate. The feed grid uses infinite scrolling regardless of the
-global page mode. When new posts arrive during history browsing, the current
-session stays in place until the user chooses Show updated posts. Failed page
-loads keep their source cursor and offer Retry. Gelbooru OR batching and an OS
-background service are
-separate future work.
+Each feed persists a chronological, deduplicated recent snapshot. A mounted
+feed accepts that cache when it opens, with a finite initialization window if
+the cache has yet to be populated. After initialization, successful background
+and manual refreshes update storage and stage the latest result for **Show
+Updates**. The displayed Posts, filters, sort order and viewer sequence use the
+accepted snapshot. Applying pending results requires no network request. A
+material definition or access change supersedes stale data, and a local reset
+generation prevents an older source refresh from reviving a cleared feed.
+
+After history starts, its session merges older pages from the member sources.
+Failure keeps loaded posts and the source cursor. When coverage recovers, the
+grid reorders retained history without resetting to page one and restores the
+visible anchor. A viewer or active selection defers the reorder. Closing the
+feed discards the history session. The feed grid uses infinite scrolling
+regardless of the global page mode.
 
 Each cached feed row stores the same versioned post snapshot used by bookmarks,
 including common media data, origin identity, and engine-specific data. The

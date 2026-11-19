@@ -45,7 +45,7 @@ final _allBookmarkTagIndexBuilderProvider = Provider<BookmarkTagIndexBuilder>((
 // every possible combination. They cannot overwrite the unfiltered All cache.
 final _bookmarkTagIndexBuilderProvider = Provider.autoDispose
     .family<BookmarkTagIndexBuilder, BookmarkView>((ref, view) {
-      final source = ref.watch(selectedBooruUrlProvider);
+      final source = ref.watch(effectiveBookmarkSourceProvider(view));
       if (view.kind == BookmarkViewKind.all && source == null) {
         return ref.watch(_allBookmarkTagIndexBuilderProvider);
       }
@@ -84,7 +84,7 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
         return ref.state.valueOrNull ?? BookmarkTagIndex(const []);
       }
       final libraryFuture = ref.watch(bookmarkProvider.future);
-      final source = ref.watch(selectedBooruUrlProvider);
+      final source = ref.watch(effectiveBookmarkSourceProvider(view));
       var obsolete = false;
       ref.onDispose(() => obsolete = true);
       final library = await libraryFuture;

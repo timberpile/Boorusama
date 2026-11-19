@@ -161,7 +161,7 @@ void main() {
   );
 
   testWidgets(
-    'refreshing only membership metadata reprojections cached tiles without requests',
+    'membership updates keep their grouping pending until Show Updates',
     (tester) async {
       final f = _FeedFixture(cacheSeries: false);
       addTearDown(f.dispose);
@@ -193,6 +193,9 @@ void main() {
             ),
           );
       await tester.pumpAndSettle();
+      expect(f.cards(tester).single.kind, PoolGridItemKind.related);
+      await tester.tap(find.text('Show Updates'));
+      await tester.pumpAndSettle();
       expect(f.cards(tester).map((card) => card.kind), [
         PoolGridItemKind.related,
         PoolGridItemKind.series,
@@ -202,6 +205,32 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('invalidated Series facts are removed from an open feed', (
+    tester,
+  ) async {
+    final f = _FeedFixture();
+    addTearDown(f.dispose);
+    await f.mount(tester);
+    expect(f.cards(tester).map((card) => card.kind), [
+      PoolGridItemKind.related,
+      PoolGridItemKind.series,
+    ]);
+
+    await f.harness.container
+        .read(followingTopicsProvider.notifier)
+        .runSerializedMutation(
+          (repository) => repository.invalidateFeedSeriesForProfile(
+            feedGroupingConfig.id,
+          ),
+        );
+    await tester.pumpAndSettle();
+
+    expect(f.cards(tester).single.kind, PoolGridItemKind.related);
+    expect(find.text('Show Updates'), findsNothing);
+    expect(f.historyRequests, 0);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets(
     'overlapping Series representative leaves the distant Related Post navigable',

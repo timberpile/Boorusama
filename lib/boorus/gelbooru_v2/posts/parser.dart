@@ -92,3 +92,31 @@ bool _checkIfHasNotes(PostV2Dto dto) {
   final tags = dto.tags.splitTagString();
   return tags.contains('translated') && !tags.contains('hard_translated');
 }
+
+/// Favorites membership supplies a locator and preview, never original facts.
+Post realbooruFavoriteListedPost(PostV2Dto dto) => Post(
+  origin: PostOrigin.forBooruType(BooruType.gelbooruV2),
+  booruData: const ListedPostData(),
+  core: PostCoreData(
+    id: dto.id!,
+    thumbnailImageUrl: dto.previewUrl ?? '',
+    sampleImageUrl: '',
+    originalImageUrl: '',
+    videoUrl: '',
+    videoThumbnailUrl: '',
+    width: 0,
+    height: 0,
+    format: '',
+    md5: '',
+    fileSize: 0,
+    duration: kNoduration,
+    tags: dto.tags.splitTagString(),
+    rating: Rating.parseLegacy(dto.rating),
+    hasComment: false,
+    isTranslated: false,
+    hasParentOrChildren: false,
+    source: PostSource.none(),
+    score: dto.score ?? 0,
+    uploaderName: dto.owner,
+  ),
+);

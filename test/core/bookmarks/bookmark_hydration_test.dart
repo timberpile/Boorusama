@@ -3,6 +3,8 @@ import 'package:boorusama/core/blacklists/providers.dart';
 import 'dart:async';
 import 'dart:io';
 
+import 'package:booru_clients/src/gelbooru_v2/post_v2_dto.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/parser.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
@@ -134,6 +136,77 @@ void main() {
         cancellation: cancellation ?? BookmarkHydrationCancellation(),
         onProgress: onProgress ?? (_) {},
       );
+
+  test(
+    'listed detail lookup preserves the bookmark and rechecks access',
+    () async {
+      final reader = BooruConfig.fromJson({
+        ...config.toJson(),
+        'url': 'https://realbooru.com',
+      });
+      final original = legacy(42, profile: reader);
+      final exact = original.post.copyWith(
+        booruData: const GelbooruV2PostData(hasNotes: true),
+      );
+      final listed = realbooruFavoriteListedPost(
+        PostV2Dto(id: exact.id, previewUrl: exact.thumbnailImageUrl),
+      ).copyWith(origin: exact.origin);
+      final preview = original.copyWith(
+        post: listed,
+        snapshot: const StoredPostCodec().encode(listed),
+      );
+      var saved = preview;
+      var requests = 0;
+      var upgrades = 0;
+      var authorized = true;
+      var visible = false;
+      final service = BookmarkRecoveryService(
+        fetchPost: (_, _) async => throw StateError('Legacy recovery selected'),
+        fetchListedPost: (config, id) async {
+          expect(config, reader);
+          expect(id, exact.id);
+          requests++;
+          return exact;
+        },
+        latestBookmark: (_) async => saved,
+        codecFor: (_) => const GelbooruV2PostCodec(),
+        resolutionGuard: (_) =>
+            () => authorized,
+        canUseResolved: (_, _) async => visible,
+        commitResolved: (existing, resolved, current) async {
+          expect(existing, same(preview));
+          expect(current(), isTrue);
+          saved = existing.copyWith(
+            post: resolved,
+            snapshot: const StoredPostCodec().encode(
+              resolved,
+              dataCodec: const GelbooruV2PostCodec(),
+            ),
+          );
+          upgrades++;
+        },
+      );
+
+      expect(await service.resolveListedPost(preview.post, reader), isNull);
+      expect(saved, same(preview));
+      expect(upgrades, 0);
+
+      visible = true;
+      expect(await service.resolveListedPost(preview.post, reader), exact);
+      expect(saved.id, preview.id);
+      expect(saved.createdAt, preview.createdAt);
+      expect(saved.post.origin, preview.post.origin);
+      expect(upgrades, 1);
+      expect(await service.resolveListedPost(preview.post, reader), exact);
+
+      visible = false;
+      expect(await service.resolveListedPost(preview.post, reader), isNull);
+      authorized = false;
+      expect(await service.resolveListedPost(preview.post, reader), isNull);
+      expect(requests, 2);
+      expect(upgrades, 1);
+    },
+  );
 
   test(
     'detects legacy and unknown snapshots while leaving native snapshots alone',

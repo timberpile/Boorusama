@@ -25,6 +25,12 @@ final szurubooruPostRepoProvider =
         );
 
         return PostRepositoryBuilder(
+          onConsumePreparedPosts: (posts) async {
+            ref.read(favoritesProvider(config.auth).notifier).preload(posts);
+            await ref
+                .read(szurubooruPostVotesProvider(config.auth).notifier)
+                .getVotes(posts);
+          },
           tagComposer: tagComposer,
           fetchSingle: (id, {options}) async {
             final numericId = id as NumericPostId?;
@@ -50,9 +56,11 @@ final szurubooruPostRepoProvider =
               limit: pageLimit,
             );
 
-            final categories = await ref.read(
-              szurubooruTagCategoriesProvider(config.auth).future,
-            );
+            final categories = options?.prepareGroupRows == true
+                ? await readSzurubooruCategories(ref, config.auth)
+                : await ref.read(
+                    szurubooruTagCategoriesProvider(config.auth).future,
+                  );
 
             final data = posts.posts
                 .map(

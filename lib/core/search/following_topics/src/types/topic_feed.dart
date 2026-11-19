@@ -74,6 +74,7 @@ class TopicFeed extends Equatable {
     required this.profileId,
     required this.name,
     this.position = 0,
+    this.cacheGeneration = 0,
     this.maxPosts = topicFeedRetention,
     List<String> sourceIds = const [],
     List<StoredPostSnapshot> posts = const [],
@@ -104,6 +105,9 @@ class TopicFeed extends Equatable {
         _ => throw const FormatException('Invalid feed id'),
       },
       profileId: profileId,
+      cacheGeneration: json['cacheGeneration'] is int
+          ? json['cacheGeneration'] as int
+          : 0,
       name: switch (json['name']) {
         final String value when value.trim().isNotEmpty => value.trim(),
         _ => throw const FormatException('Invalid feed name'),
@@ -155,6 +159,9 @@ class TopicFeed extends Equatable {
   final String name;
   final int position;
   final int maxPosts;
+
+  /// Local reset incarnation; never exported as feed definition or cache data.
+  final int cacheGeneration;
   final List<String> sourceIds;
   final List<StoredPostSnapshot> posts;
 
@@ -170,6 +177,7 @@ class TopicFeed extends Equatable {
     String? name,
     int? position,
     int? maxPosts,
+    int? cacheGeneration,
     List<String>? sourceIds,
     List<StoredPostSnapshot>? posts,
     List<String>? initializedSourceIds,
@@ -181,6 +189,7 @@ class TopicFeed extends Equatable {
     name: name ?? this.name,
     position: position ?? this.position,
     maxPosts: maxPosts ?? this.maxPosts,
+    cacheGeneration: cacheGeneration ?? this.cacheGeneration,
     sourceIds: sourceIds ?? this.sourceIds,
     posts: posts ?? this.posts,
     initializedSourceIds: initializedSourceIds ?? this.initializedSourceIds,
@@ -281,6 +290,7 @@ class TopicFeed extends Equatable {
     sourceIds,
     posts,
     initializedSourceIds,
+    cacheGeneration,
     postSources,
     seriesMemberships,
   ];

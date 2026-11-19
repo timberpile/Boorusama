@@ -16,6 +16,30 @@ Future<T> read<T>(TaskEither<BooruError, T> result) async =>
     (await result.run()).fold((error) => throw error, (value) => value);
 
 void main() {
+  test('seeded Work retains its supplied creator image through saved metadata without lookups', () async {
+    final access = workAccess();
+    final source = PixivWorkSource(
+      access: access,
+      fetchWork: (_) async =>
+          throw StateError('Seeded Work must not look up metadata'),
+    );
+    addTearDown(source.dispose);
+    const avatar = 'https://i.pximg.net/user-profile/artist.jpg';
+    source.seedWork(work(avatar: avatar));
+    final details = await read(
+      source.loadDetails(pixivWorkReference(access, 120)),
+    );
+    expect(details.creators!.single.avatar.toString(), avatar);
+    const codec = GroupMetadataCodec();
+    final saved = codec.decodeDetails(codec.encodeDetails(details));
+    expect(saved.creators!.single.avatar.toString(), avatar);
+    await read(
+      source.loadMembers(
+        GroupMemberQuery(reference: details.summary.reference),
+      ),
+    );
+  });
+
   test(
     'a list envelope without its Page manifest resolves details only on open',
     () async {

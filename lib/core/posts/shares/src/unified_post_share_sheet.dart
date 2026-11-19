@@ -274,7 +274,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           .watch(mediaUrlResolverProvider(widget.auth))
           .resolveMediaUrl(post, widget.viewer),
     );
-    _beginImageMetadataLookup(imageUrl, manager);
+    if (!post.requiresDetailLookup)
+      _beginImageMetadataLookup(imageUrl, manager);
     final booruLink = ref
         .watch(postLinkGeneratorProvider(widget.auth))
         .getLink(post);
@@ -285,10 +286,14 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     final extractor = ref.watch(downloadFileUrlExtractorProvider(widget.auth));
     final payloads = PostSharePayloads.build(
       isVideo: post.isVideo,
-      includeImage: widget.postQuality != PostQuality.original,
-      canResolveExactOriginal: hasExactOriginalSource(post, extractor),
-      canResolveExactVideo: hasExactVideoSource(post, extractor),
-      viewerImageUrl: imageUrl,
+      includeImage:
+          !post.requiresDetailLookup &&
+          widget.postQuality != PostQuality.original,
+      canResolveExactOriginal:
+          !post.requiresDetailLookup && hasExactOriginalSource(post, extractor),
+      canResolveExactVideo:
+          !post.requiresDetailLookup && hasExactVideoSource(post, extractor),
+      viewerImageUrl: post.requiresDetailLookup ? '' : imageUrl,
       originalUrl: post.isVideo ? post.videoUrl : post.originalImageUrl,
       booruLink: booruLink,
       sourceLink: sourceLink,

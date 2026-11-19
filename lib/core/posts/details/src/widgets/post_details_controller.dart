@@ -133,7 +133,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
       _originalImagePostKeys.value.contains(postViewerIdentity(post));
 
   void loadOriginalImage(Post post) {
-    if (usesOriginalImage(post)) return;
+    if (!post.hasOriginalMedia || usesOriginalImage(post)) return;
 
     _originalImagePostKeys.value = {
       ..._originalImagePostKeys.value,

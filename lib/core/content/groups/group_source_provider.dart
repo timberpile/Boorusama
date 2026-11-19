@@ -1,3 +1,4 @@
+import 'prepared_group_reads.dart';
 import 'related_group_counts.dart';
 
 import 'dart:async';
@@ -118,30 +119,51 @@ final groupSummaryProvider = FutureProvider.autoDispose
     }, dependencies: [contentGroupSourceProvider, relatedGroupCountsProvider]);
 
 final groupDetailsProvider = FutureProvider.autoDispose
-    .family<ContentGroupDetails, GroupMetadataKey>((ref, key) {
-      final ContentGroupSource source;
-      try {
-        source = ref.watch(contentGroupSourceProvider(key.access));
-      } catch (error, stack) {
-        ref.state = groupSourceFailureState(error, stack);
-        rethrow;
-      }
-      final counts = ref.read(relatedGroupCountsProvider.notifier);
-      final countRead = counts.begin(key);
-      return readGroupSource(
-        ref,
-        key.access,
-        source,
-        () => source.loadDetails(key.reference),
-      ).then((details) {
-        const ContentReferenceCodec().requireCompatible(
-          key.reference,
-          details.summary.reference,
-        );
-        counts.publish(countRead, details.summary.memberCount);
-        return details;
-      });
-    }, dependencies: [contentGroupSourceProvider, relatedGroupCountsProvider]);
+    .family<ContentGroupDetails, GroupMetadataKey>(
+      (ref, key) {
+        final ContentGroupSource source;
+        try {
+          source = ref.watch(contentGroupSourceProvider(key.access));
+        } catch (error, stack) {
+          ref.state = groupSourceFailureState(error, stack);
+          rethrow;
+        }
+        final counts = ref.read(relatedGroupCountsProvider.notifier);
+        final countRead = counts.begin(key);
+        final prepared = ref.watch(preparedGroupReadsProvider(key.access));
+        // Explicit invalidation preserves the current gallery while details
+        // reload for the newer revision.
+        final revision = ref.read(groupRefreshRevisionProvider(key));
+        return readGroupSource(
+          ref,
+          key.access,
+          source,
+          () => TaskEither.tryCatch(
+            () => prepared == null
+                ? Future<ContentGroupDetails>.error(RequestCancelledError())
+                : prepared.details(key.reference, revision),
+            (error, _) => error is BooruError
+                ? error
+                : UnknownError(
+                    error: error,
+                    message: 'Prepared Details failed',
+                  ),
+          ),
+        ).then((details) {
+          const ContentReferenceCodec().requireCompatible(
+            key.reference,
+            details.summary.reference,
+          );
+          counts.publish(countRead, details.summary.memberCount);
+          return details;
+        });
+      },
+      dependencies: [
+        contentGroupSourceProvider,
+        relatedGroupCountsProvider,
+        preparedGroupReadsProvider,
+      ],
+    );
 
 /// Riverpod 2.6 retains previous data even when assigning an AsyncError. Losing
 /// the authorized source must erase that data before its failure is published.

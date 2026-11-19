@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../settings/providers.dart';
+import '../types/bookmark_view.dart';
 import 'bookmark_booru_type_selector.dart';
 import 'bookmark_shuffle_button.dart';
 import 'bookmark_sort_button.dart';
@@ -13,6 +14,7 @@ import 'bookmark_sort_button.dart';
 class BookmarkListControls extends ConsumerWidget {
   const BookmarkListControls({
     required this.count,
+    this.view = const BookmarkView.all(),
     this.gridConfig,
     this.unavailableIndicator,
     this.seenFilter,
@@ -20,6 +22,7 @@ class BookmarkListControls extends ConsumerWidget {
   });
 
   final int count;
+  final BookmarkView view;
   final Widget? gridConfig;
   final Widget? unavailableIndicator;
   final Widget? seenFilter;
@@ -35,7 +38,7 @@ class BookmarkListControls extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [BookmarkSortButton(), BookmarkShuffleButton()],
       ),
-      const BookmarkBooruSourceUrlSelector(),
+      BookmarkBooruSourceUrlSelector(view: view),
     ];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),

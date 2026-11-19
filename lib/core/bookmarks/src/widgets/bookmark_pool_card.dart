@@ -354,19 +354,78 @@ class _BookmarkPoolCardState extends ConsumerState<BookmarkPoolCard> {
   }
 }
 
+/// Facts retained on the record or chosen locally for the current received revision.
+final storedBookmarkPoolCoverProvider = Provider.autoDispose
+    .family<PoolBookmarkCover?, CollectionBookmark>((ref, pool) {
+      if (!pool.needsCoverFacts) return pool.cover;
+      if (pool.groupIds.isNotEmpty) {
+        final library = ref.watch(bookmarkProvider).asData?.value;
+        final saved = library?.pools
+            .where(
+              (saved) =>
+                  saved.localId == pool.localId &&
+                  saved.identity == pool.identity &&
+                  saved.sourceSite == pool.sourceSite &&
+                  saved.observedAt == pool.observedAt,
+            )
+            .firstOrNull;
+        if (library != null &&
+            saved != null &&
+            poolCoverHasReceivedMembership(library, saved)) {
+          return ref
+              .watch(bookmarkPresentationCoversProvider)
+              .selected(
+                bookmarkPresentationCoverKey(library, saved),
+              );
+        }
+      }
+      return null;
+    });
+
+/// Evaluate retained facts without starting a member or cover lookup.
+final storedBookmarkPoolCoverEligibleProvider = Provider.autoDispose
+    .family<bool, CollectionBookmark>((ref, pool) {
+      final cover = ref.watch(storedBookmarkPoolCoverProvider(pool));
+      if (cover == null) return false;
+      final reference = bookmarkGroupReference(
+        pool,
+        ref.watch(bookmarkReadProfilesProvider),
+      );
+      if (reference == null) return false;
+      final access = ref.watch(
+        bookmarkReadAccessProvider(
+          BookmarkReaderRequest.reference(reference),
+        ),
+      );
+      final profile = access?.config;
+      if (profile == null) return false;
+      final blacklist = ref.watch(blacklistTagsProvider(profile.filter));
+      if (blacklist.isLoading || !blacklist.hasValue || blacklist.hasError) {
+        return false;
+      }
+      final publicSource = profile.anonymousReadScope?.source;
+      final thumbnail = Uri.tryParse(cover.thumbnail);
+      return (publicSource == null ||
+              (thumbnail != null && publicSource.allowsMedia(thumbnail))) &&
+          bookmarkCoverAllowed(cover, profile, blacklist.requireValue);
+    });
+
 class BookmarkPoolCoverImage extends ConsumerStatefulWidget {
   const BookmarkPoolCoverImage({
     required this.pool,
     this.showLabel = false,
+    this.allowBackfill = true,
     super.key,
   }) : _frame = null;
   const BookmarkPoolCoverImage._related({
     required this.pool,
     required _RelatedBookmarkCardFrame frame,
   }) : _frame = frame,
-       showLabel = true;
+       showLabel = true,
+       allowBackfill = true;
   final CollectionBookmark pool;
   final bool showLabel;
+  final bool allowBackfill;
   final _RelatedBookmarkCardFrame? _frame;
   @override
   ConsumerState<BookmarkPoolCoverImage> createState() =>
@@ -420,8 +479,9 @@ class _BookmarkPoolCoverImageState
     // immediately if its current policy permits it.
     final presentation = _presentationCover(pool);
     final visible = TickerMode.valuesOf(context).enabled;
-    if (visible &&
-        pool.coverUrl == null &&
+    if (widget.allowBackfill &&
+        visible &&
+        pool.needsCoverFacts &&
         presentation == null &&
         _discoveryReader == null)
       _discoveryReader = profile;
@@ -429,9 +489,10 @@ class _BookmarkPoolCoverImageState
     // A covered route cannot start fresh work. An existing attempt keeps its
     // actor when profiles/policy change; revocation must not cycle accounts.
     final backfill =
-        visible &&
+        widget.allowBackfill &&
+            visible &&
             reader != null &&
-            pool.coverUrl == null &&
+            pool.needsCoverFacts &&
             presentation == null &&
             pool.groupIds.isNotEmpty
         ? ref.watch(missingPoolCoverProvider((reader, pool)))
@@ -492,7 +553,7 @@ class _BookmarkPoolCoverImageState
       widget._frame?.build(null, (_) => image) ?? image;
 
   PoolBookmarkCover? _presentationCover(CollectionBookmark pool) {
-    if (pool.coverUrl != null || pool.groupIds.isEmpty) return null;
+    if (!pool.needsCoverFacts || pool.groupIds.isEmpty) return null;
     final library = ref.watch(bookmarkProvider).asData?.value;
     if (library == null) return null;
     final saved = library.pools

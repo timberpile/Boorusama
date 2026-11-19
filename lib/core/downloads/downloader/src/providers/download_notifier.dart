@@ -1,3 +1,8 @@
+import '../../../../bookmarks/src/providers/bookmark_hydration_provider.dart';
+import '../../../../configs/manage/providers.dart';
+import '../../../../content/content_access_provider.dart';
+import '../../../../http/client/coordination.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -153,7 +158,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
 
 Future<DownloadTaskInfo?> _download(
   Ref ref,
-  Post downloadable, {
+  Post requestedPost, {
   required DownloadNotifierParams params,
   PermissionStatus? permission,
   String? group,
@@ -168,6 +173,42 @@ Future<DownloadTaskInfo?> _download(
   bool Function()? isCurrent,
 }) async {
   if (!(isCurrent?.call() ?? true)) return null;
+  var downloadable = requestedPost;
+  final requestedQuality =
+      quality ??
+      (overrideUrl != null ? 'custom' : params.settings.downloadQuality.name);
+  if (downloadable.requiresDetailLookup && requestedQuality != 'preview') {
+    final profiles = ref.read(booruConfigProvider);
+    final reader = switch (const PostOriginResolver().resolve(
+      downloadable.origin,
+      profiles,
+      allowProfileHintFallback: false,
+    )) {
+      ResolvedPostOrigin(:final config) when config.auth == params.auth =>
+        config,
+      _ => null,
+    };
+    if (reader != null) {
+      final access = ref.read(contentProfileAccessProvider(reader.id));
+      bool current() =>
+          (isCurrent?.call() ?? true) &&
+          access != null &&
+          ref
+                  .read(contentAccessContextProvider(access.key))
+                  ?.hasSameAuthorization(access) ==
+              true;
+      if (current()) {
+        final resolved = await runWithApiRequestContext(
+          ApiRequestContext(canStart: current, canAdmit: current),
+          () => ref
+              .read(bookmarkRecoveryServiceProvider)
+              .resolveListedPost(downloadable, reader),
+        );
+        if (!current()) return null;
+        if (resolved != null) downloadable = resolved;
+      }
+    }
+  }
   final downloadConfig = params.download;
   final service = params.downloader;
   final fileNameBuilder = params.filenameBuilder;
@@ -182,7 +223,14 @@ Future<DownloadTaskInfo?> _download(
   final effectiveQuality =
       quality ??
       (overrideUrl != null ? 'custom' : params.settings.downloadQuality.name);
-  final urlData = overrideUrl != null
+  final unavailable =
+      (downloadable.requiresDetailLookup && effectiveQuality != 'preview') ||
+      (downloadable.isRealbooru &&
+          effectiveQuality == 'original' &&
+          !downloadable.hasOriginalMedia);
+  final urlData = unavailable
+      ? null
+      : overrideUrl != null
       ? DownloadUrlData.urlOnly(overrideUrl, resolvedQuality: effectiveQuality)
       : await params.downloadFileUrlExtractor.getDownloadFileUrl(
           post: downloadable,

@@ -1,4 +1,7 @@
-import 'package:boorusama/core/content/content_reference.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_native_group_card.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_local_group_card.dart';
+import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/content/groups/related_group_counts.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
@@ -30,10 +33,10 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_presentation_covers.dart';
 
 import '../../support/fakes/memory_repositories.dart';
+import '../../support/fakes/test_post.dart';
 
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_read_access.dart';
-import 'package:boorusama/core/content/groups/group_metadata.dart';
 import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
@@ -45,7 +48,6 @@ import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/content/anonymous_access_provider.dart';
 import 'package:boorusama/core/content/anonymous_read_scope.dart';
 import 'package:boorusama/core/content/anonymous_source_policy.dart';
-import 'package:boorusama/core/content/content_access.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:boorusama/core/content/content_media_access.dart';
 import 'package:boorusama/core/developer_options/providers.dart';
@@ -306,7 +308,313 @@ Future<void> _close(WidgetTester tester, _Mounted mounted) async {
   mounted.scope?.dispose();
 }
 
+BookmarkPostEntry _mosaicPost(int id) {
+  final post = TestPost(
+    id: id,
+    booruData: const LegacyPostData(typeKey: 'legacy_danbooru', custom: {}),
+    origin: PostOrigin.fromSource(
+      booruType: BooruType.danbooru,
+      booruId: BooruType.danbooru.id,
+      source: _publicSite,
+    ),
+    thumbnailImageUrl: _cover.thumbnail,
+    sampleImageUrl: _cover.sample,
+  );
+  return BookmarkPostEntry(
+    PostBookmark.fromSnapshot(
+      id: id,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      postId: id,
+      snapshot: const StoredPostCodec().encode(post),
+      post: post,
+    ),
+  );
+}
+
+const _mosaicResolver = DefaultGridThumbnailUrlGenerator();
+
+Widget _folderMosaic(List<BookmarkGridEntry> entries) => Center(
+  child: SizedBox.square(
+    dimension: 200,
+    child: BookmarkLocalGroupCard(
+      title: 'Mixed folder',
+      mosaicCandidates: entries,
+      onTap: () {},
+      onRename: null,
+      onDuplicate: null,
+      onDelete: null,
+    ),
+  ),
+);
+
+List<Key?> _mosaicKeys(WidgetTester tester) => tester
+    .widget<BookmarkGroupPreviewGrid>(find.byType(BookmarkGroupPreviewGrid))
+    .cells
+    .map((cell) => cell.key)
+    .toList();
+
 void main() {
+  testWidgets(
+    'four newer Posts outrank an older Pool without cover discovery',
+    (
+      tester,
+    ) async {
+      final eligible = _pool(site: _publicSite)
+          .copyWith(groupIds: {_otherProfileId});
+      final missing = CollectionBookmark.fromJson({
+        ...eligible.toJson(),
+        'localId': 'missing',
+        'cover': null,
+        'coverUrl': null,
+      });
+      final posts = [for (var id = 1; id <= 4; id++) _mosaicPost(id)];
+      final discoveries = <String>[];
+      final mounted = await _pumpCover(
+        tester,
+        pool: eligible,
+        resolver: _mosaicResolver,
+        coverBuilder: (_) => _folderMosaic([
+          ...posts,
+          BookmarkPoolEntry(missing),
+          BookmarkPoolEntry(eligible),
+        ]),
+        additionalOverrides: [
+          missingPoolCoverProvider.overrideWith((ref, request) {
+            discoveries.add(request.$2.localId);
+            return null;
+          }),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      expect(_mosaicKeys(tester), posts.map((entry) => ValueKey(entry.key)));
+      expect(find.byType(BookmarkPoolCoverImage), findsNothing);
+      expect(discoveries, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'repair waits for visibility and restores the original position',
+    (
+      tester,
+    ) async {
+      final original = _pool(site: _publicSite)
+          .copyWith(groupIds: {_otherProfileId});
+      final missing = CollectionBookmark.fromJson({
+        ...original.toJson(),
+        'cover': null,
+        'coverUrl': null,
+      });
+      final blocked = original.copyWith(
+        localId: 'blocked',
+        cover: PoolBookmarkCover.fromJson({
+          ..._cover.toJson(),
+          'visibility': _cover.visibility!.toJson()..['banned'] = true,
+        }),
+      );
+      final posts = [for (var id = 1; id <= 4; id++) _mosaicPost(id)];
+      final repair = Completer<CollectionBookmark?>();
+      final discoveries = <String>[];
+      final mounted = await _pumpCover(
+        tester,
+        pool: original,
+        resolver: _mosaicResolver,
+        coverBuilder: (_) => _folderMosaic([
+          BookmarkPoolEntry(blocked),
+          posts.first,
+          BookmarkPoolEntry(missing),
+          ...posts.skip(1),
+          BookmarkPoolEntry(missing.copyWith(localId: 'older')),
+        ]),
+        additionalOverrides: [
+          _coverVisible.overrideWith((ref) => false),
+          missingPoolCoverProvider.overrideWith((ref, request) {
+            discoveries.add(request.$2.localId);
+            return repair.future;
+          }),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      expect(discoveries, isEmpty);
+      expect(_mosaicKeys(tester), posts.map((entry) => ValueKey(entry.key)));
+
+      mounted.container.read(_coverVisible.notifier).state = true;
+      await tester.pumpAndSettle();
+      expect(discoveries, [missing.localId]);
+      expect(_mosaicKeys(tester), posts.map((entry) => ValueKey(entry.key)));
+
+      repair.complete(original);
+      await tester.pumpAndSettle();
+      expect(_mosaicKeys(tester), [
+        ValueKey(posts[0].key),
+        ValueKey(BookmarkPoolEntry(original).key),
+        ValueKey(posts[1].key),
+        ValueKey(posts[2].key),
+      ]);
+      expect(discoveries, [missing.localId]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  test('URL-only serialized Pool can fill missing cover facts', () {
+    final verified = _pool(site: _publicSite);
+    final old = CollectionBookmark.fromJson({
+      ...verified.toJson(),
+      'cover': null,
+    });
+    expect(old.coverUrl, isNotNull);
+    expect(old.needsCoverFacts, isTrue);
+    final repaired = old.withMissingCoverFrom(verified);
+    expect(repaired.cover, verified.cover);
+    expect(repaired.needsCoverFacts, isFalse);
+    expect(repaired.createdAt, old.createdAt);
+    expect(repaired.addedAt, old.addedAt);
+  });
+
+  testWidgets('a Pixiv Work and Pool use their positions among Posts', (
+    tester,
+  ) async {
+    final pool = _pool(site: _publicSite).copyWith(groupIds: {_otherProfileId});
+    final pixiv = BooruConfig.fromJson({
+      ...BooruConfig.empty.toJson(),
+      'id': _profileId,
+      'url': 'https://www.pixiv.net',
+      'booruId': BooruType.pixiv.id,
+      'booruIdHint': BooruType.pixiv.id,
+    });
+    ContentGroupBookmark work(int id, {bool eligible = false}) =>
+        ContentGroupBookmark(
+          id: id,
+          createdAt: DateTime.utc(2024),
+          observedAt: DateTime.utc(2024),
+          snapshot: StoredGroupSnapshot(
+            summary: ContentGroupSummary(
+              reference: const ContentReferenceCodec().parse(
+                engine: BooruType.pixiv,
+                site: Uri.parse(pixiv.url),
+                kind: ContentKind.group,
+                sourceKey: 'work:${1000 + id}',
+              ),
+              cover: eligible
+                  ? GroupCover(
+                      thumbnail: Uri.parse('https://i.pximg.net/cover.jpg'),
+                      visibility: GroupCoverVisibility(
+                        tags: const {},
+                        rating: 'g',
+                        deleted: false,
+                        banned: false,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+        );
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final selected = work(14, eligible: true);
+    final entries = [
+      _mosaicPost(1),
+      BookmarkNativeGroupEntry(selected),
+      BookmarkPoolEntry(pool),
+      _mosaicPost(2),
+      _mosaicPost(3),
+      BookmarkNativeGroupEntry(work(15, eligible: true)),
+    ];
+    final mounted = await _pumpCover(
+      tester,
+      pool: pool,
+      profiles: [pixiv],
+      resolver: _mosaicResolver,
+      coverBuilder: (_) => _folderMosaic(entries),
+    );
+    addTearDown(() => _close(tester, mounted));
+    await tester.pumpAndSettle();
+    expect(
+      _mosaicKeys(tester),
+      entries.take(4).map((entry) => ValueKey(entry.key)),
+    );
+    expect(
+      tester
+          .widget<BookmarkNativeGroupCover>(
+            find.byType(BookmarkNativeGroupCover),
+          )
+          .bookmark,
+      selected,
+    );
+    expect(
+      tester
+          .widget<BookmarkPoolCoverImage>(find.byType(BookmarkPoolCoverImage))
+          .pool,
+      pool,
+    );
+    expect(
+      tester.getSize(find.byType(BookmarkGroupPreviewGrid)),
+      const Size(200, 200),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'mosaic receiver choice survives policy suppression and restoration without discovery',
+    (tester) async {
+      final pool = _relatedPool(null, groups: {_otherProfileId});
+      final library = BookmarkLibraryState(
+        bookmarks: [],
+        groups: [],
+        pools: [pool],
+        mirrors: BookmarkMirrorState(
+          epoch: 1,
+          owners: {
+            _otherProfileId: BookmarkMirrorOwner(
+              publisher: _profileId,
+              source: _otherProfileId,
+              revision: 1,
+              payloadDigest: 'a' * 64,
+              groupDigest: 'b' * 64,
+            ),
+          },
+        ),
+      );
+      final choices = BookmarkPresentationCovers(MemoryPersistentCacheStore());
+      final key = bookmarkPresentationCoverKey(library, pool);
+      await choices.remember(key, _cover, current: () => true);
+      final mounted = await _pumpCover(
+        tester,
+        pool: pool,
+        preloadLibrary: true,
+        coverBuilder: (_) => _folderMosaic([BookmarkPoolEntry(pool)]),
+        additionalOverrides: [
+          bookmarkProvider.overrideWith(() => _Library(library)),
+          bookmarkPresentationCoversProvider.overrideWithValue(choices),
+          missingPoolCoverProvider.overrideWith(
+            (ref, request) => throw StateError('No mosaic discovery'),
+          ),
+        ],
+      );
+      addTearDown(() => _close(tester, mounted));
+      await tester.pumpAndSettle();
+      expect(find.byType(BookmarkPoolCoverImage), findsOneWidget);
+      mounted.container.read(_currentBlacklist.notifier).state = {'visible'};
+      await tester.pumpAndSettle();
+      expect(find.byType(BookmarkPoolCoverImage), findsNothing);
+      mounted.container.read(_currentBlacklist.notifier).state = {};
+      await tester.pumpAndSettle();
+      expect(find.byType(BookmarkPoolCoverImage), findsOneWidget);
+      expect(choices.selected(key), _cover);
+      expect(
+        mounted.container.read(bookmarkProvider).requireValue,
+        same(library),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets(
     'Related counts update all occurrences and stay scoped to current access',
     (tester) async {

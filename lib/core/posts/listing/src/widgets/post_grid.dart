@@ -861,12 +861,14 @@ class PostGridSliver<T extends Post> extends ConsumerWidget {
     required this.itemBuilder,
     required this.postController,
     this.displayItemCount,
+    this.emptyBuilder,
     super.key,
   });
 
   final IndexedWidgetBuilder itemBuilder;
   final PostGridController<T> postController;
   final int? displayItemCount;
+  final WidgetBuilder? emptyBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -909,6 +911,7 @@ class PostGridSliver<T extends Post> extends ConsumerWidget {
       itemBuilder: itemBuilder,
       postController: postController,
       displayItemCount: displayItemCount,
+      emptyBuilder: emptyBuilder,
       errorTranslator: appErrorTranslator,
       showRule34ChallengeRecovery: Uri.tryParse(auth.url)?.host == 'rule34.xxx',
       padding: EdgeInsets.symmetric(

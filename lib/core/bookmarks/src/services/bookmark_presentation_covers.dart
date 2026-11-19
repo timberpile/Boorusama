@@ -1,3 +1,6 @@
+import '../types/content_group_bookmark.dart';
+import '../../../boorus/booru/types.dart';
+
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -30,6 +33,39 @@ String bookmarkPresentationCoverKey(
             pool.isRelated,
             pool.referenceId,
             pool.observedAt.toUtc().toIso8601String(),
+            owners,
+          ]),
+        ),
+      )
+      .toString();
+}
+
+String? nativeWorkPresentationCoverKey(
+  BookmarkLibraryState library,
+  ContentGroupBookmark bookmark,
+) {
+  if (bookmark.reference.engine != BooruType.pixiv) return null;
+  final memberships = [
+    for (final group in library.groups)
+      if (group.bookmarkIds.contains(bookmark.id) &&
+          library.mirrors.isReceived(group.id))
+        group.id,
+  ]..sort();
+  final owners = [
+    for (final id in memberships)
+      if (library.mirrors.owners[id] case final owner?)
+        [owner.publisher, owner.source, owner.revision, owner.payloadDigest],
+  ];
+  if (owners.isEmpty) return null;
+  return sha256
+      .convert(
+        utf8.encode(
+          jsonEncode([
+            'pixiv-work',
+            bookmark.id,
+            bookmark.reference.siteNamespace,
+            bookmark.reference.sourceKey,
+            bookmark.observedAt.toIso8601String(),
             owners,
           ]),
         ),
@@ -91,6 +127,10 @@ class BookmarkPresentationCovers {
       for (final pool in library.pools)
         if (pool.groupIds.any(library.mirrors.isReceived))
           bookmarkPresentationCoverKey(library, pool),
+      for (final bookmark
+          in library.byId.values.whereType<ContentGroupBookmark>())
+        if (nativeWorkPresentationCoverKey(library, bookmark) case final key?)
+          key,
     };
     final choices = _read();
     final oldLength = choices.length;

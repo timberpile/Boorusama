@@ -9,6 +9,8 @@ GridThumbnailMedia gelbooruV2ThumbnailOnlyGridThumbnailMedia(
   Post post,
   GridThumbnailSettings settings,
 ) {
+  if (post.requiresDetailLookup)
+    return GridThumbnailMedia(url: post.thumbnailImageUrl, aspectRatio: null);
   final isVideoPreview = switch (post.booruData) {
     GelbooruV2PostData(isVideoPreview: true) => true,
     _ => false,
