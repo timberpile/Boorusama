@@ -1547,34 +1547,20 @@ void main() {
     );
   }
 
-  test('private folder digest upgrades neither invent Activity nor acknowledge source changes', () async {
+  test('unchanged folder sync emits no Activity and real definition changes remain unread', () async {
     await publishAndReceive();
     final before = await b.following.readMirrorSnapshot();
     final id = before.mirrors.localIdFor(a.identity.id, rootId)!;
-    final owner = before.mirrors.owners[id]!;
-    final digest = followingDefinitionDigest(
-      kind: owner.kind,
-      parentSource: owner.parentSource,
-      position: owner.position,
-      folder: before.organization.folders.single,
-      version: 2,
+    await b.following.acknowledgeMirrorDefinition(
+      id,
+      definitionDigest: before.mirrors.owners[id]!.definitionDigest,
     );
-    final json = before.mirrors.toJson();
-    (json['owners']! as Map)[id] = {
-      ...owner.toJson(),
-      'definitionVersion': 2,
-      'definitionDigest': digest,
-      'seenDefinitionDigest': digest,
-    };
-    await Hive.box<dynamic>('b_following_metadata')
-        .put('search:sync_mirrors', json);
     final history = b.service.events.history
         .map((event) => event.toJson())
         .toList();
     await b.service.synchronize();
     final upgraded =
         (await b.following.readMirrorSnapshot()).mirrors.owners[id]!;
-    expect(upgraded.definitionVersion, 3);
     expect(upgraded.hasDefinitionChange, isFalse);
     expect(
       b.service.events.history.map((event) => event.toJson()).toList(),

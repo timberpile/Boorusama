@@ -224,6 +224,15 @@ void main() {
           reason: boundary,
         );
 
+        final recoveredGroups = await active.getGroups();
+        await restart();
+        expect(await (await migration().open()).getGroups(), recoveredGroups);
+        expect(await storage.repository(posts).readAll(), records);
+        expect(
+          storage.metadataBox.containsKey(BookmarkStorageMigration.pendingKey),
+          isFalse,
+        );
+
         // Each phase starts from the same legacy source, but does not reuse its
         // source files or migration metadata from the previous iteration.
         if (boundary != boundaries.last) {

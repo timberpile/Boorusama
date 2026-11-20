@@ -105,7 +105,7 @@ void main() {
     },
   );
 
-  test('v10 backup keeps Work/Page identities, cover policy and separate memberships', () {
+  test('v6 backup keeps Work/Page identities, cover policy and separate memberships', () {
     final codec = BookmarkBackupCodec(
       postDataCodec: (_) => const PixivPostCodec(),
     );
@@ -122,7 +122,7 @@ void main() {
       ],
     );
     final wire = jsonEncode({
-      'version': 10,
+      'version': 6,
       'data': codec.encode(data),
       ...data.extraFields,
     });

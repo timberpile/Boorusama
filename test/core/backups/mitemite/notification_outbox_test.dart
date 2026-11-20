@@ -71,7 +71,7 @@ void main() {
   });
 
   test(
-    'legacy mixed pending offers split without losing exact retry identity',
+    'obsolete mixed pending offers fail before loading the outbox',
     () {
       final outbox = SyncNotificationOutbox.empty();
       outbox.seedOffers(
@@ -109,29 +109,12 @@ void main() {
           },
         ],
       }..remove('unseenOffers');
-      final restored = SyncNotificationOutbox.fromJson(legacy);
-      expect(restored.pending.map((notice) => notice.kind).toSet(), {
-        SyncNoticeKind.offers,
-        SyncNoticeKind.followingOffers,
-      });
       expect(
-        restored.pending.every(
-          (notice) => notice.batch == 1 && notice.generation == 3,
-        ),
-        isTrue,
+        () => SyncNotificationOutbox.fromJson(legacy),
+        throwsFormatException,
       );
-      expect(
-        restored.pending
-            .expand((notice) => notice.items)
-            .map((item) => item.key)
-            .toSet(),
-        items.map((item) => item.key).toSet(),
-      );
-      expect(
-        restored.unseenOffers,
-        isEmpty,
-        reason: 'Legacy viewed state cannot be inferred from OS delivery',
-      );
+      final restored = SyncNotificationOutbox.fromJson(current);
+      expect(restored.toJson(), current);
     },
   );
 

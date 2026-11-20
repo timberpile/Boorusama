@@ -107,8 +107,8 @@ void main() {
         null,
         'download',
         'mitemite:v3:bookmarks',
-        'mitemite:v2:invalid',
-        'mitemite:v2:' + 'a' * 100000,
+        'mitemite:v1:invalid',
+        'mitemite:v1:' + 'a' * 100000,
       ]) {
         expect(SyncNotificationIntent.tryParse(payload), isNull);
       }

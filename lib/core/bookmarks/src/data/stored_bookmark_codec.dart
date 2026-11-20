@@ -11,7 +11,7 @@ import '../types/legacy_group_bookmark.dart';
 import 'legacy_group_codec.dart';
 import 'stored_group_codec.dart';
 
-/// A tagged record shared by durable mutation journals and v10 transfers. IDs
+/// A tagged record shared by durable mutation journals and Bookmark transfers. IDs
 /// in a transfer are file-local; only the repository may publish a local ID.
 final class StoredBookmarkCodec {
   const StoredBookmarkCodec({

@@ -27,7 +27,7 @@ final class SyncNotificationIntent extends Equatable {
   final String? event;
 
   String get payload =>
-      'mitemite:v2:' +
+      'mitemite:v1:' +
       base64Url.encode(
         utf8.encode(
           canonicalSyncJson({
@@ -52,12 +52,12 @@ final class SyncNotificationIntent extends Equatable {
     }
     if (payload == null ||
         payload.length > miteMiteMaxMetadataBytes ||
-        !payload.startsWith('mitemite:v2:'))
+        !payload.startsWith('mitemite:v1:'))
       return null;
     try {
       final value = jsonDecode(
         utf8.decode(
-          base64Url.decode(payload.substring('mitemite:v2:'.length)),
+          base64Url.decode(payload.substring('mitemite:v1:'.length)),
         ),
       );
       if (value is! Map<String, dynamic> ||

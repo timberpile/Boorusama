@@ -48,6 +48,7 @@ void main() {
   late DateTime dateB;
   String? failAfter;
   int? observedJournalVersion;
+  Object? observedOperation;
   var sawJournal = false;
 
   Future<void> sync(Iterable<BoxBase<dynamic>> boxes) async {
@@ -66,6 +67,7 @@ void main() {
     if (journal != null) {
       sawJournal = true;
       observedJournalVersion = journal['version'] as int;
+      observedOperation = journal['operation'];
     }
     // Reservation and initialization syncs happen before the mutation journal;
     // they are never mistaken for the requested cleanup boundary.
@@ -416,7 +418,8 @@ void main() {
           reason: boundary,
         );
         expect(sawJournal, isTrue, reason: boundary);
-        expect(observedJournalVersion, 3, reason: boundary);
+        expect(observedJournalVersion, 1, reason: boundary);
+        expect(observedOperation, 'restore', reason: boundary);
         await restart();
         expect(
           {

@@ -27,6 +27,8 @@ import '../../../posts/post/types.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../preparation/version_checking.dart';
 import '../../sources/bookmark_backup_data.dart';
+import '../../sources/bookmark_backup_schema.dart';
+import '../../utils/data_converter.dart';
 import '../../sources/bookmark_import_planner.dart';
 import '../../sources/bookmark_import_service.dart';
 import '../../sources/topic_feed_backup_data.dart';
@@ -1403,7 +1405,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Future<void> _applyBookmarks(
     BookmarkBackupData incoming,
     ResolvedImportSource resolution, {
-    bool preserveOrigins = false,
+    int? rollbackBookmarkVersion,
   }) async {
     final library = ref.read(bookmarkProvider.notifier);
     final bookmarkRepository = await library.bookmarkRepository;
@@ -1417,7 +1419,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
                 ref.read(bookmarkUrlResolverProvider(booruId)),
           )
         : await localStore.readAll();
-    final mapped = preserveOrigins
+    final mapped = rollbackBookmarkVersion != null
         ? const <int, Bookmark>{}
         : mapBookmarkImportProfiles(
             incoming: selectedProfileRecords(incoming, resolution),
@@ -1445,7 +1447,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
       );
-      if (preserveOrigins) {
+      if (rollbackBookmarkVersion == kBookmarksBackupVersion) {
         await service.restoreLocalSnapshot(data);
       } else {
         await service.replace(data);
@@ -1586,9 +1588,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
     }
     switch (source) {
       case final JsonBackupSource jsonSource:
-        final preparation = await jsonSource.prepareRollback(
-          await fs.readString(rollbackPath),
-        );
+        final encoded = await fs.readString(rollbackPath);
+        final preparation = await jsonSource.prepareRollback(encoded);
         final replace = ResolvedImportSource(
           id: id,
           action: ImportAction.replace,
@@ -1596,7 +1597,13 @@ final class PackageTransactionSource implements ImportTransactionSource {
         );
         switch (preparation.preparedData) {
           case final BookmarkBackupData data:
-            await _applyBookmarks(data, replace, preserveOrigins: true);
+            // Released rollback exports predate the local ID authority and
+            // can reference rows already deleted by a partially applied import.
+            await _applyBookmarks(
+              data,
+              replace,
+              rollbackBookmarkVersion: decodeData(data: encoded).version,
+            );
           case final FollowingTopicBackupData data:
             await _applyFollowingTopics(
               data,

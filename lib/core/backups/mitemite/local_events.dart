@@ -32,12 +32,13 @@ final class SyncLocalEvents {
     if (encoded == null)
       return {
         'version': 1,
+        'notificationOutbox': SyncNotificationOutbox.empty().toJson(),
         'discoveries': <String, dynamic>{},
         'events': <dynamic>[],
       };
     final value = jsonDecode(encoded);
     if (value is! Map<String, dynamic> ||
-        !const [1, 2].contains(value['version']) ||
+        value['version'] != 1 ||
         value['discoveries'] is! Map<String, dynamic> ||
         value['events'] is! List) {
       throw const FormatException('Invalid local Sync events');
@@ -52,7 +53,7 @@ final class SyncLocalEvents {
       if (entry.value is! bool)
         throw const FormatException('Invalid discovery delivery state');
     }
-    if (value['version'] == 2 && value['notificationOutbox'] is! Map)
+    if (value['notificationOutbox'] is! Map)
       throw const FormatException('Missing typed notification outbox');
     final cursors = value['activityCursors'];
     if (cursors != null &&
@@ -473,34 +474,8 @@ final class SyncLocalEvents {
     });
   }
 
-  SyncNotificationOutbox _outbox(Map<String, dynamic> state) {
-    if (state['notificationOutbox'] != null)
-      return SyncNotificationOutbox.fromJson(state['notificationOutbox']);
-    final outbox = SyncNotificationOutbox.empty();
-    // Legacy true means consumed, including the old denied/disabled bug. Those
-    // receipts cannot be reinterpreted as unsent without replaying real alerts.
-    // Only still-pending, dated, recent discoveries can safely migrate.
-    for (final entry
-        in (state['discoveries'] as Map<String, dynamic>).entries) {
-      if (entry.value != false) continue;
-      final discovery = _discovery(entry.key);
-      DateTime? at;
-      for (final raw in state['events'] as List) {
-        if (raw is Map &&
-            raw['kind'] == SyncEventKind.discovered.name &&
-            raw['publisher'] == discovery.publisher) {
-          final candidate = DateTime.parse(raw['at'] as String).toUtc();
-          if (at == null || candidate.isAfter(at)) at = candidate;
-        }
-      }
-      if (at != null &&
-          !at.isBefore(
-            now().toUtc().subtract(SyncNotificationOutbox.freshness),
-          ))
-        outbox.discover(discovery.publisher, discovery.fingerprint, at);
-    }
-    return outbox;
-  }
+  SyncNotificationOutbox _outbox(Map<String, dynamic> state) =>
+      SyncNotificationOutbox.fromJson(state['notificationOutbox']);
 
   Future<void> _save(
     Map<String, dynamic> state, {
@@ -519,7 +494,6 @@ final class SyncLocalEvents {
       if (discoveries[key] == false && !pendingDevices.contains(key))
         discoveries[key] = true;
     }
-    state['version'] = 2;
     state['notificationOutbox'] = value.toJson();
     final encoded = canonicalSyncJson(state);
     if (force || preferences.get(_key) != encoded)

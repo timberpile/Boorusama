@@ -373,7 +373,7 @@ void main() {
       );
       final codec = BookmarkBackupCodec();
       final bytes = encodeData(
-        version: 10,
+        version: 6,
         exportDate: DateTime.utc(2026, 11, 10),
         exportVersion: null,
         payload: codec.encode(data),

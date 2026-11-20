@@ -3700,7 +3700,7 @@ void main() {
     );
   });
 
-  for (final schema in [10, 11]) {
+  for (final schema in [6, 7]) {
     test(
       'same applied bytes cannot bypass schema or descriptor checks: $schema',
       () async {
@@ -3747,9 +3747,7 @@ void main() {
         await expectLater(
           engine.receive(ticket: ticket, publisherKey: identity.publicKey),
           throwsA(
-            schema == 11
-                ? isA<SyncUpdateRequired>()
-                : isA<SyncReplayRejected>(),
+            schema == 7 ? isA<SyncUpdateRequired>() : isA<SyncReplayRejected>(),
           ),
         );
         expect(await repository.readMirrorState(), before);

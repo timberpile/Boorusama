@@ -79,7 +79,8 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
     fs: _fs,
     revision: () async => _readFollowingMirrorSnapshot().structureDigest,
     capture: () async => jsonEncode({
-      'version': 2,
+      'version': 1,
+      'metadataEncoding': 'typedMaps',
       'topicIds': topicIds.toList()..sort(),
       'runtime': const SearchRuntimeSnapshotCodec().encode(
         SearchRuntimeSnapshot(
@@ -103,13 +104,16 @@ extension _FollowingMirrorStorage on HiveFollowingTopicRepository {
     sync: _syncFollowingStorage,
     restore: (encoded) async {
       final data = jsonDecode(encoded) as Map<String, dynamic>;
-      if (!const [1, 2].contains(data['version']) || data['metadata'] is! Map) {
+      if (data['version'] != 1 ||
+          data['metadataEncoding'] != 'typedMaps' ||
+          data['metadata'] is! Map) {
         throw const FormatException('Invalid Following Sync rollback');
       }
       final ids = (data['topicIds'] as List).cast<String>().toSet();
-      final metadata = data['version'] == 2
-          ? _followingRollbackMetadata(data['metadata'] as Map, encode: false)
-          : data['metadata'] as Map;
+      final metadata = _followingRollbackMetadata(
+        data['metadata'] as Map,
+        encode: false,
+      );
       final owned = metadata[_followingMirrorKey] is Map
           ? FollowingMirrorState.fromJson(
               Map<String, dynamic>.from(metadata[_followingMirrorKey] as Map),

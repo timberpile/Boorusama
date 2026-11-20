@@ -220,13 +220,13 @@ void main() {
                   sources: [
                     ExportPackageSourceBuild(
                       id: 'bookmarks',
-                      schemaVersion: 10,
+                      schemaVersion: 6,
                       parts: [
                         ExportPackagePartBuild(
                           path: 'sources/bookmarks.json',
                           write: (path) => fs.writeString(
                             path,
-                            '{"version":10,"data":[],"organizationSchema":"nestedGroups","groups":[]}',
+                            '{"version":6,"data":[],"organizationSchema":"nestedGroups","groups":[]}',
                           ),
                         ),
                       ],
@@ -335,7 +335,7 @@ class _GatedSource extends JsonBackupSource<BookmarkBackupData> {
     : super(
         id: 'bookmarks',
         priority: 2,
-        version: 10,
+        version: 6,
         appVersion: null,
         dataGetter: () async =>
             throw StateError('A disposed load must not capture local state'),

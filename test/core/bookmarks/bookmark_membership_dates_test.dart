@@ -646,7 +646,8 @@ void main() {
         () => codec.parse(
           decodeData(
             data: jsonEncode({
-              'version': 9,
+              'version': 6,
+              'organizationSchema': 'nestedGroups',
               'data': codec.encode(data),
               'groups': [
                 {
@@ -654,6 +655,8 @@ void main() {
                   'name': 'A',
                   'bookmarkIds': [1],
                   'addedAt': raw,
+                  'parentGroupId': null,
+                  'position': 0,
                 },
               ],
             }),

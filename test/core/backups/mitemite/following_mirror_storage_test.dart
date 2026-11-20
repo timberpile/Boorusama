@@ -94,6 +94,13 @@ void main() {
         position: 0,
         topic: topic,
         folder: folder,
+        children: [
+          FollowingDefinitionChild(
+            source: sourceTopic,
+            kind: FollowingMirrorKind.topic,
+            position: 0,
+          ),
+        ],
       ),
       seenDefinitionDigest: before
           .mirrors

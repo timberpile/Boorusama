@@ -677,7 +677,7 @@ void main() {
   });
 
   test(
-    'v10 file IDs above local range and zero resolve to reserved content IDs',
+    'v6 file IDs above local range and zero resolve to reserved content IDs',
     () async {
       const highFileId = 9007199254740991;
       expect(highFileId, greaterThan(maxBookmarkId));
@@ -701,7 +701,7 @@ void main() {
       );
       final codec = BookmarkBackupCodec();
       final payload = <String, dynamic>{
-        'version': 10,
+        'version': 6,
         'data': codec.encode(source),
         ...source.extraFields,
       };
@@ -802,7 +802,7 @@ void main() {
           BookmarkBackupData transfer(BookmarkBackupData data) => codec.parse(
             decodeData(
               data: encodeData(
-                version: 10,
+                version: 6,
                 exportDate: DateTime.utc(2026),
                 exportVersion: null,
                 payload: codec.encode(data),

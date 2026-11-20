@@ -28,7 +28,7 @@ void main() {
   const codec = StoredPostCodec();
   test('listed snapshot round trips with no installed engine codec', () {
     final snapshot = codec.encode(post);
-    expect(snapshot.codecVersion, 3);
+    expect(snapshot.codecVersion, 1);
     expect(snapshot.custom, {'snapshotKind': 'listed'});
     final restored = StoredPostSnapshot.fromJson(
       jsonDecode(jsonEncode(snapshot.toJson())),
@@ -52,7 +52,7 @@ void main() {
           origin: snapshot.origin,
           common: {...snapshot.common, field: 'invented'},
           custom: snapshot.custom,
-          codecVersion: 3,
+          codecVersion: snapshot.codecVersion,
         );
         expect(codec.decode(invalid), isA<StoredPostDecodeFailure>());
       }

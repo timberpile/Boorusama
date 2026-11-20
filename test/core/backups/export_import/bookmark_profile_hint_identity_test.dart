@@ -113,7 +113,7 @@ void main() {
     expect(mapped.sourceUrl, original.sourceUrl);
   });
 
-  test('v10 codec normalizes the hint and preserves null outer Post ID', () {
+  test('v6 codec normalizes the hint and preserves null outer Post ID', () {
     final original = _opaquePostBookmark(2);
     final hinted = bookmarkWithProfileHint(original, _profile);
     final codec = BookmarkBackupCodec();
@@ -122,7 +122,7 @@ void main() {
       groups: const [],
     );
     final payload = encodeData(
-      version: 10,
+      version: 6,
       exportDate: DateTime.utc(2026, 1, 1),
       exportVersion: null,
       payload: codec.encode(data),

@@ -246,6 +246,18 @@ void main() {
     expect(groups, isEmpty);
   });
 
+  test('missing initialized ownership fails closed on cold open', () async {
+    final id = (await repository.reserveIds(1)).single;
+    await repository.upsert(group(id));
+    expect(metadata.get('repositorySchema'), 1);
+    await metadata.delete('receivedBookmarkOwnership');
+    await metadata.flush();
+    await restart();
+    await expectLater(repository.readAll(), throwsFormatException);
+    expect(metadata.containsKey('receivedBookmarkOwnership'), isFalse);
+    expect(groups.containsKey(id), isTrue);
+  });
+
   test('startup rejects a corrupt reservation counter', () async {
     await metadata.put('idReservation', {'version': 1, 'nextId': -1});
     await metadata.flush();

@@ -110,7 +110,7 @@ void main() {
         ...data.extraFields,
       });
       final rollback = encodeData(
-        version: 10,
+        version: 6,
         exportVersion: Version.parse('4.7.0'),
         exportDate: exportDate,
         payload: codec.encodeLocalRecovery(data),
@@ -120,7 +120,7 @@ void main() {
       expect(
         await worker.encodeRollback(
           data,
-          version: 10,
+          version: 6,
           exportVersion: Version.parse('4.7.0'),
           exportDate: exportDate,
         ),
@@ -162,7 +162,7 @@ void main() {
     () async {
       final encoded = await worker.encodeRollback(
         data,
-        version: 10,
+        version: 6,
         exportVersion: null,
         exportDate: exportDate,
       );
@@ -192,7 +192,7 @@ void main() {
     () async {
       final encoded = await worker.encodeRollback(
         data,
-        version: 10,
+        version: 6,
         exportVersion: null,
         exportDate: exportDate,
       );
@@ -203,7 +203,7 @@ void main() {
       final preparation =
           await ImportPreparationBuilder<BookmarkBackupData>(
             converter: DataBackupConverter(
-              version: 10,
+              version: 6,
               exportVersion: null,
             ),
             currentVersion: null,

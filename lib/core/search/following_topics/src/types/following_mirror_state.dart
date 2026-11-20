@@ -54,7 +54,6 @@ String followingDefinitionDigest({
   required int position,
   FollowingTopic? topic,
   TopicFolder? folder,
-  int version = 1,
   Map<String, dynamic>? profile,
   Iterable<FollowingDefinitionChild> children = const [],
 }) => sha256
@@ -68,15 +67,14 @@ String followingDefinitionDigest({
             'name': topic!.name,
             'query': topic.query,
             'queryStructure': topic.queryStructure?.toJson(),
-            if (version >= 2) 'profile': followingDefinitionProfile(profile),
+            'profile': followingDefinitionProfile(profile),
           } else ...{
             'name': folder!.name,
             'feedEnabled': folder.feedEnabled,
             'feedMaxPosts': folder.feedMaxPosts,
-            if (version >= 3)
-              'children': orderedFollowingDefinitionChildren(children)
-                  .map((child) => child.toJson())
-                  .toList(),
+            'children': orderedFollowingDefinitionChildren(children)
+                .map((child) => child.toJson())
+                .toList(),
           },
         }),
       ),
@@ -128,7 +126,6 @@ final class FollowingMirrorOwner extends Equatable {
     String? parentSource,
     this.position = 0,
     this.retired = false,
-    this.definitionVersion = 1,
     Map<String, dynamic>? profile,
   }) : publisher = _uuid(publisher),
        source = _uuid(source),
@@ -140,31 +137,32 @@ final class FollowingMirrorOwner extends Equatable {
            ? null
            : _digest(seenDefinitionDigest),
        _profile = profile == null ? null : jsonEncode(profile) {
-    if (revision < 1 ||
-        position < 0 ||
-        parentSource == source ||
-        definitionVersion < 1 ||
-        definitionVersion > 3) {
+    if (revision < 1 || position < 0 || parentSource == source) {
       throw const FormatException('Invalid Following mirror revision');
     }
   }
 
-  factory FollowingMirrorOwner.fromJson(Map<String, dynamic> json) =>
-      FollowingMirrorOwner(
-        publisher: json['publisher'] as String,
-        source: json['source'] as String,
-        kind: FollowingMirrorKind.values.byName(json['kind'] as String),
-        revision: json['revision'] as int,
-        payloadDigest: json['payloadDigest'] as String,
-        descriptorDigest: json['descriptorDigest'] as String,
-        definitionDigest: json['definitionDigest'] as String,
-        seenDefinitionDigest: json['seenDefinitionDigest'] as String?,
-        parentSource: json['parent'] as String?,
-        position: json['position'] as int,
-        retired: json['retired'] as bool? ?? false,
-        profile: (json['profile'] as Map?)?.cast<String, dynamic>(),
-        definitionVersion: json['definitionVersion'] as int? ?? 1,
+  factory FollowingMirrorOwner.fromJson(Map<String, dynamic> json) {
+    if (json['definitionSchema'] != 'profileAndChildren') {
+      throw const FormatException(
+        'Unsupported Following mirror definition schema',
       );
+    }
+    return FollowingMirrorOwner(
+      publisher: json['publisher'] as String,
+      source: json['source'] as String,
+      kind: FollowingMirrorKind.values.byName(json['kind'] as String),
+      revision: json['revision'] as int,
+      payloadDigest: json['payloadDigest'] as String,
+      descriptorDigest: json['descriptorDigest'] as String,
+      definitionDigest: json['definitionDigest'] as String,
+      seenDefinitionDigest: json['seenDefinitionDigest'] as String?,
+      parentSource: json['parent'] as String?,
+      position: json['position'] as int,
+      retired: json['retired'] as bool? ?? false,
+      profile: (json['profile'] as Map?)?.cast<String, dynamic>(),
+    );
+  }
 
   final String publisher;
   final String source;
@@ -175,7 +173,6 @@ final class FollowingMirrorOwner extends Equatable {
   final String payloadDigest;
   final String descriptorDigest;
   final String definitionDigest;
-  final int definitionVersion;
   final String? seenDefinitionDigest;
   final bool retired;
   final String? _profile;
@@ -199,7 +196,6 @@ final class FollowingMirrorOwner extends Equatable {
     payloadDigest: payloadDigest,
     descriptorDigest: descriptorDigest,
     definitionDigest: definitionDigest,
-    definitionVersion: definitionVersion,
     seenDefinitionDigest: acknowledge ? definitionDigest : seenDefinitionDigest,
     retired: retired ?? this.retired,
     profile: profile,
@@ -215,7 +211,7 @@ final class FollowingMirrorOwner extends Equatable {
     'payloadDigest': payloadDigest,
     'descriptorDigest': descriptorDigest,
     'definitionDigest': definitionDigest,
-    'definitionVersion': definitionVersion,
+    'definitionSchema': 'profileAndChildren',
     'seenDefinitionDigest': seenDefinitionDigest,
     'retired': retired,
     'profile': profile,
@@ -232,7 +228,6 @@ final class FollowingMirrorOwner extends Equatable {
     payloadDigest,
     descriptorDigest,
     definitionDigest,
-    definitionVersion,
     seenDefinitionDigest,
     retired,
     _profile,
@@ -408,12 +403,10 @@ Map<String, List<FollowingDefinitionChild>> followingFolderDefinitionChildren(
   });
 }
 
-/// Validate source-owned fields using their stored format. Activity comparison
-/// can request current formats so a private upgrade is not a source change.
+/// Compute the stored definition digest for each source-owned row.
 Map<String, String> followingSnapshotDefinitionDigests(
-  FollowingMirrorSnapshot snapshot, {
-  bool useCurrentVersion = false,
-}) {
+  FollowingMirrorSnapshot snapshot,
+) {
   final topics = {for (final topic in snapshot.topics) topic.id: topic};
   final folders = {
     for (final folder in snapshot.organization.folders) folder.id: folder,
@@ -451,11 +444,6 @@ Map<String, String> followingSnapshotDefinitionDigests(
     // while that parent is absent locally. Virtual root links do not copy it.
     result[entry.key] = followingDefinitionDigest(
       kind: owner.kind,
-      version: useCurrentVersion
-          ? owner.kind == FollowingMirrorKind.folder
-                ? 3
-                : 2
-          : owner.definitionVersion,
       profile: owner.profile,
       parentSource: owner.parentSource,
       position: owner.kind == FollowingMirrorKind.topic

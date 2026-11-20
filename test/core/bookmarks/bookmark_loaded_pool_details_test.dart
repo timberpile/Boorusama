@@ -43,7 +43,7 @@ import 'pool_bookmark_test_utils.dart';
 
 void main() {
   test(
-    'Danbooru Pool loaded details survive draft save, reopen and v10 export',
+    'Danbooru Pool loaded details survive draft save, reopen and v6 export',
     () async {
       final site = Uri.parse('http://dan.local:8081/install');
       final created = DateTime.utc(2021, 2, 3, 4, 5, 6);
@@ -74,7 +74,7 @@ void main() {
   );
 
   test(
-    'Szurubooru Pool loaded details survive draft save, reopen and v10 export',
+    'Szurubooru Pool loaded details survive draft save, reopen and v6 export',
     () async {
       final site = Uri.parse('http://szuru.local:8092/install');
       final created = DateTime.utc(2020, 3, 4, 5, 6, 7);
@@ -319,7 +319,7 @@ Future<void> _verifyLoadedDetails({
     );
     final codec = BookmarkBackupCodec();
     final payload = <String, dynamic>{
-      'version': 10,
+      'version': 6,
       'data': codec.encode(backup),
       ...backup.extraFields,
     };

@@ -131,7 +131,7 @@ void main() {
     );
   });
 
-  test('signed descriptor-last publication and validated v10 receive preserve Work/Page identities', () async {
+  test('signed descriptor-last publication and validated v6 receive preserve Work/Page identities', () async {
     final package = await build();
     final revision = await writer.publishRevision(package);
     expect(storage.writes, [

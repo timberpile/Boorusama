@@ -373,86 +373,25 @@ void main() {
     expect(snapshot.topics.single.runtimeRevision, 0);
   });
 
-  for (final version in [1, 2]) {
-    for (final seen in [false, true]) {
-      for (final addChild in [false, true]) {
-        test(
-          'folder digest v$version migration preserves seen=$seen and detects child change=$addChild',
-          () async {
-            final folder = await publish(
-              folderId,
-              name: 'Artists',
-              folder: true,
-            );
-            final topic = await publish(topicId);
-            await receive(await advertise([folder, topic]), {folderId});
-            final before = await repository.readMirrorSnapshot();
-            final id = before.mirrors.localIdFor(identity.id, folderId)!;
-            final old = before.mirrors.owners[id]!;
-            final digest = followingDefinitionDigest(
-              kind: old.kind,
-              parentSource: old.parentSource,
-              position: old.position,
-              folder: before.organization.folders.single,
-              version: version,
-            );
-            final json = before.mirrors.toJson();
-            (json['owners']! as Map)[id] = {
-              ...old.toJson(),
-              'definitionVersion': version,
-              'definitionDigest': digest,
-              'seenDefinitionDigest': seen ? digest : null,
-            };
-            await Hive.box<dynamic>('metadata')
-                .put('search:sync_mirrors', json);
-            final topicLocal = before.topics.single.id;
-            await repository.setAutoUpdate([topicLocal], false);
-            final future = addChild
-                ? await publish(futureId, query: 'dog')
-                : null;
-            await receive(
-              await advertise([folder, topic, if (future != null) future]),
-            );
-            final after = await repository.readMirrorSnapshot();
-            final upgraded = after.mirrors.owners[id]!;
-            expect(upgraded.definitionVersion, 3);
-            expect(upgraded.hasDefinitionChange, !seen || addChild);
-            expect(upgraded.revision, old.revision);
-            expect(
-              (await repository.getById(topicLocal))!.autoUpdateEnabled,
-              isFalse,
-            );
-            expect((await repository.getById(topicLocal))!.runtimeRevision, 0);
-            await repository.acknowledgeMirrorDefinition(
-              id,
-              definitionDigest: digest,
-            );
-            expect(
-              (await repository.readMirrorSnapshot())
-                  .mirrors
-                  .owners[id]!
-                  .hasDefinitionChange,
-              !seen || addChild,
-            );
-            await receive(
-              await advertise([folder, topic, if (future != null) future]),
-            );
-            expect(
-              (await repository.readMirrorSnapshot()).mirrors.owners[id],
-              upgraded,
-            );
-            expect(
-              () => FollowingMirrorOwner.fromJson({
-                ...upgraded.toJson(),
-                'definitionVersion': 4,
-              }),
-              throwsFormatException,
-            );
-          },
-        );
-      }
-    }
-  }
+  test(
+    'obsolete definition formats fail closed and preserve stored ownership',
+    () async {
+      final folder = await publish(folderId, name: 'Artists', folder: true);
+      final topic = await publish(topicId);
+      await receive(await advertise([folder, topic]), {folderId});
+      final before = await repository.readMirrorSnapshot();
+      final id = before.mirrors.localIdFor(identity.id, folderId)!;
+      final json = before.mirrors.toJson();
+      final old = before.mirrors.owners[id]!.toJson()
+        ..remove('definitionSchema')
+        ..['definitionVersion'] = 2;
+      (json['owners']! as Map)[id] = old;
+      final metadata = Hive.box<dynamic>('metadata');
+      await metadata.put('search:sync_mirrors', json);
+      await expectLater(repository.readMirrorSnapshot(), throwsFormatException);
+      expect(metadata.get('search:sync_mirrors'), json);
+    },
+  );
 
   test('rename preserves local settings, query edit resets only affected runtime and unavailable payload retains data', () async {
     final folder = await publish(folderId, name: 'Artists', folder: true);

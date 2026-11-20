@@ -47,7 +47,7 @@ void main() {
     );
     expect(log.entries, hasLength(200));
     expect(log.pendingPosts, hasLength(500));
-    expect(log.toJson()['version'], 2);
+    expect(log.toJson()['version'], 1);
     final restored = SyncActivityLog.fromJson(
       Map<String, dynamic>.from(log.toJson()),
     );

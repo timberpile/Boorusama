@@ -5,14 +5,17 @@
   "contracts": [
     {
       "id": "bookmark-export",
-      "path": "lib/core/backups/sources/bookmarks_source.dart",
-      "pattern": "\\bconst\\s+(?:int\\s+)?kBookmarksBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+      "path": "lib/core/backups/sources/bookmark_backup_schema.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kBookmarksBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "baseline_path": "lib/core/backups/sources/bookmarks_source.dart"
     },
     {
       "id": "bookmark-import-readers",
       "path": "lib/core/backups/sources/bookmark_backup_codec.dart",
-      "pattern": "metadata\\.version\\s*!=\\s*(?P<version>[0-9]+)",
-      "reader_for": "bookmark-export"
+      "pattern": "metadata\\.version\\s*(?:!=\\s*(?=[0-9])|==\\s*(?=kBookmarksBackupVersion\\b))(?P<version>[0-9]+|kBookmarksBackupVersion)",
+      "reader_for": "bookmark-export",
+      "baseline_pattern": "metadata\\.version\\s*!=\\s*(?P<version>[0-9]+)",
+      "shared_symbol": "kBookmarksBackupVersion"
     },
     {
       "id": "profiles-export",
@@ -82,8 +85,10 @@
     {
       "id": "mitemite-bookmark-payload",
       "path": "lib/core/backups/mitemite/bookmark_package.dart",
-      "pattern": "\\bstatic const schema\\s*=\\s*(?P<version>[0-9]+)\\s*;",
-      "same_as": "bookmark-export"
+      "pattern": "\\bstatic const schema\\s*=\\s*(?P<version>kBookmarksBackupVersion)\\s*;",
+      "same_as": "bookmark-export",
+      "baseline_pattern": "\\bstatic const schema\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "shared_symbol": "kBookmarksBackupVersion"
     },
     {
       "id": "mitemite-following-payload",
@@ -94,7 +99,7 @@
     {
       "id": "bookmark-organization",
       "path": "lib/core/bookmarks/src/services/bookmark_storage_migration.dart",
-      "pattern": "organization\\.putAll\\(\\{\\s*'version':\\s*(?P<version>[0-9]+),\\s*'legacyFolderGroupIds'",
+      "pattern": "\\bstatic const schemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
       "baseline_path": "lib/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart",
       "baseline_pattern": "storage\\.put\\('version',\\s*(?P<version>[0-9]+)\\)"
     },
@@ -106,12 +111,52 @@
     {
       "id": "bookmark-mutation-journal",
       "path": "lib/core/bookmarks/src/data/hive/unified_bookmark_repository.dart",
-      "pattern": "(?s)final journal\\s*=\\s*\\{\\s*'version':\\s*(?P<version>[^,]+),",
-      "literal_ternary": true
+      "pattern": "(?s)final journal\\s*=\\s*\\{\\s*'version':\\s*(?P<version>[0-9]+),"
     },
     {
       "id": "bookmark-mirror-state",
       "path": "lib/core/bookmarks/src/types/bookmark_mirror_state.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'epoch'"
+    },
+    {
+      "id": "post-listed-payload",
+      "path": "lib/core/posts/post/src/types/booru_post_data.dart",
+      "pattern": "\\bstatic const payloadVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "baseline_absent": true
+    },
+    {
+      "id": "post-gelbooru-v2-payload",
+      "path": "lib/boorus/gelbooru_v2/posts/post_codec.dart",
+      "pattern": "\\bint get currentVersion\\s*=>\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "mitemite-activity",
+      "path": "lib/core/backups/mitemite/activity_log.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'sequence'"
+    },
+    {
+      "id": "mitemite-local-events",
+      "path": "lib/core/backups/mitemite/local_events.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'notificationOutbox'"
+    },
+    {
+      "id": "mitemite-notification-outbox",
+      "path": "lib/core/backups/mitemite/notification_outbox.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'unseenOffers'"
+    },
+    {
+      "id": "following-mirror-rollback",
+      "path": "lib/core/search/following_topics/src/data/hive/following_mirror_storage.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'metadataEncoding'"
+    },
+    {
+      "id": "mitemite-notification-intent",
+      "path": "lib/core/backups/mitemite/notification_intent.dart",
+      "pattern": "'mitemite:v(?P<version>[0-9]+):'"
+    },
+    {
+      "id": "following-mirror-state",
+      "path": "lib/core/search/following_topics/src/types/following_mirror_state.dart",
       "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'epoch'"
     }
   ]

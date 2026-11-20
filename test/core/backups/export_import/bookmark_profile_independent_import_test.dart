@@ -71,7 +71,7 @@ void main() {
     ImportAction.replace,
   ]) {
     testWidgets(
-      'nested v10 mixed bookmarks import twice without profiles ($mode)',
+      'nested v6 mixed bookmarks import twice without profiles ($mode)',
       (
         tester,
       ) async {

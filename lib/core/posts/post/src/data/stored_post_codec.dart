@@ -51,7 +51,7 @@ final class StoredPostCodec {
     final (custom, codecVersion) = switch (data) {
       ListedPostData() => (
         const <String, Object?>{'snapshotKind': 'listed'},
-        3,
+        ListedPostData.payloadVersion,
       ),
       UnknownPostData(:final custom, :final schemaVersion) => (
         custom,
@@ -119,7 +119,8 @@ final class StoredPostCodec {
     // Invalid marked data must not fall back to generic actionable media.
     if (snapshot.custom['snapshotKind'] == 'listed') {
       try {
-        if (snapshot.codecVersion != 3 || snapshot.custom.length != 1) {
+        if (snapshot.codecVersion != ListedPostData.payloadVersion ||
+            snapshot.custom.length != 1) {
           throw const FormatException('Invalid listed snapshot version');
         }
         _validateListed(origin, core);

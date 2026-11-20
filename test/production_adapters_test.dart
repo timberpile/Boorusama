@@ -189,10 +189,10 @@ void main() {
     final activeOrganization = metadata.get(
       BookmarkStorageMigration.activeKey,
     ) as Map;
-    expect(activeOrganization['version'], 3);
+    expect(activeOrganization['version'], 2);
     expect(activeOrganization['generation'], {
-      'groups': '${boxName}_bookmark_groups_hierarchy_v3',
-      'organization': '${boxName}_bookmark_folders_hierarchy_v3',
+      'groups': '${boxName}_bookmark_groups_hierarchy_v2',
+      'organization': '${boxName}_bookmark_folders_hierarchy_v2',
     });
 
     final store = bookmarkRepository as UnifiedBookmarkStore;
@@ -252,7 +252,7 @@ void main() {
       (Hive.box<dynamic>('${boxName}_content_metadata').get(
         BookmarkStorageMigration.activeKey,
       ) as Map)['version'],
-      3,
+      2,
     );
     expect(
       (await (reopenedOrganization as PoolBookmarkRepository)

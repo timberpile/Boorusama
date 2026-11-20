@@ -1,0 +1,41 @@
+part of 'released_bookmark_writer_test.dart';
+
+Future<BookmarkGroupRepositoryHive> _openGroups() async {
+  final groups = BookmarkGroupRepositoryHive(
+    await Hive.openBox<BookmarkGroupHiveObject>('bookmark_groups'),
+    organizationBox: await Hive.openBox<dynamic>('bookmark_folders'),
+  );
+  await groups.initializeFolders();
+  return groups;
+}
+
+Future<BookmarkBackupData> _buildBackup(
+  List<Bookmark> bookmarks,
+  BookmarkGroupRepositoryHive groups,
+) async {
+  final defaultGroup = await groups.createGroup('Default', id: defaultBookmarkGroupId);
+  await groups.addBookmarks(defaultGroup.id, {27});
+  await groups.recordManualGroupInteraction(_firstGroup);
+  await groups.writeOrganization(
+    const [
+      CollectionFolder(id: _firstGroup, name: 'Folder', position: 1),
+      CollectionFolder(
+        id: '550e8400-e29b-41d4-a716-446655440002',
+        name: 'Empty Folder',
+        parentId: _firstGroup,
+        position: 0,
+      ),
+    ],
+    [
+      (await groups.getGroup(_firstGroup))!.copyWith(folderId: _firstGroup, position: 1),
+      (await groups.getGroup(_secondGroup))!.copyWith(home: true, position: 2),
+      (await groups.getGroup(defaultGroup.id))!.copyWith(home: true, position: 0),
+    ],
+  );
+  return buildBookmarkBackupData(
+    bookmarks: bookmarks,
+    groups: await groups.getGroups(),
+    folders: await groups.readFolders(),
+    scope: const BookmarkExportScope.all(),
+  );
+}

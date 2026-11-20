@@ -63,6 +63,12 @@ def validate_rules(rules: object) -> list[dict]:
                 raise AuditError(f"{rule['id']}: invalid {field}") from error
             if 'version' not in compiled.groupindex:
                 raise AuditError(f"{rule['id']}: pattern needs named version capture")
+        if 'shared_symbol' in rule and (
+            not (rule.get('same_as') or rule.get('reader_for'))
+            or not isinstance(rule['shared_symbol'], str)
+            or not re.fullmatch(r'[A-Za-z_]\w*', rule['shared_symbol'])
+        ):
+            raise AuditError('A shared version symbol requires a contract relation and valid identifier')
         if rule.get('same_as') and rule.get('reader_for'):
             raise AuditError('A contract cannot be both an alias and a reader')
         if 'baseline_absent' in rule and type(rule['baseline_absent']) is not bool:
@@ -74,13 +80,22 @@ def validate_rules(rules: object) -> list[dict]:
     return rules
 
 
-def versions(source: str | None, pattern: str, ternary: bool = False) -> list[int] | None:
+def versions(
+    source: str | None,
+    pattern: str,
+    ternary: bool = False,
+    shared: tuple[str, list[int]] | None = None,
+) -> list[int] | None:
     if source is None:
         return None
     matches = [m.group('version') for m in re.finditer(pattern, without_comments(source), re.MULTILINE)]
+    if shared is not None and matches.count(shared[0]) != 1:
+        raise AuditError('Shared version symbol missing or ambiguous')
     values: set[int] = set()
     for expression in matches:
-        if re.fullmatch(r'[0-9]{1,9}', expression or ''):
+        if shared is not None and expression == shared[0]:
+            values.update(shared[1])
+        elif re.fullmatch(r'[0-9]{1,9}', expression or ''):
             values.add(int(expression))
         elif ternary and re.fullmatch(r'(?:[A-Za-z_]\w*(?:\s*(?:==|!=)\s*(?:null|true|false))?\s*\?\s*[0-9]{1,9}\s*:\s*)+[0-9]{1,9}', expression.strip()):
             values.update(int(v) for v in re.findall(r'[?:]\s*([0-9]+)', expression))
@@ -116,7 +131,12 @@ def audit_contracts(rules: list[dict], before: Callable[[str], str | None], afte
                 old = None
             else:
                 old = versions(old_source, old_pattern, rule.get('literal_ternary', False))
-            new = versions(after(rule['path']), rule['pattern'], rule.get('literal_ternary', False))
+            shared = None
+            if 'shared_symbol' in rule:
+                if not parent['current']:
+                    raise AuditError('Referenced contract has incomplete evidence')
+                shared = (rule['shared_symbol'], parent['current'])
+            new = versions(after(rule['path']), rule['pattern'], rule.get('literal_ternary', False), shared)
             row.update(released=old, current=new)
             if new is None:
                 raise AuditError('Candidate contract is missing; removal needs an explicit review')

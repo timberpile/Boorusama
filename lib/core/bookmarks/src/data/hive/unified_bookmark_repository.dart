@@ -98,10 +98,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
 
   Future<T> _ready<T>(Future<T> Function() action) =>
       coordinator.runExclusive(() async {
-        if (_metadata.containsKey('organizationMigration') &&
-            (_metadata.get('activeOrganization') == null ||
-                contentMap(_metadata.get('organizationMigration'))['version'] ==
-                    3) &&
+        if (_metadata.containsKey(BookmarkStorageMigration.pendingKey) &&
             !identical(Zone.current[_migrationZone], this)) {
           throw StateError(
             'Bookmark organization migration requires recovery before library access',
@@ -189,9 +186,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
   Future<void> _initialize() async {
     final schema = _metadata.get(_schema);
     if (schema != null) {
-      if (schema != 1 && schema != 2) {
+      if (schema != 1) {
         throw const FormatException('Unsupported Bookmark repository schema');
       }
+      _mirrors();
       final bound = await _ids.readNextId();
       final floor = _metadata.get(_floor);
       if (bound == null ||
@@ -206,9 +204,13 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
       }
       return;
     }
-    if (_metadata.containsKey(_journal)) {
+    final initialMirrors = const BookmarkMirrorState.empty().toJson();
+    if (_metadata.containsKey(_journal) ||
+        _metadata.containsKey(BookmarkStorageMigration.activeKey) ||
+        (_metadata.containsKey(_mirrorStateKey) &&
+            !_same(_metadata.get(_mirrorStateKey), initialMirrors))) {
       throw const FormatException(
-        'Mutation journal has no repository generation',
+        'Bookmark state has no repository generation',
       );
     }
     final records = performanceRecorder.measureSync(
@@ -263,7 +265,12 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     await _ids.writeNextId(
       oldBound != null && oldBound > floor ? oldBound : floor,
     );
-    await _metadata.putAll({...entries, _revision: 0, _floor: floor});
+    await _metadata.putAll({
+      ...entries,
+      _revision: 0,
+      _floor: floor,
+      _mirrorStateKey: initialMirrors,
+    });
     await _sync([_metadata]);
     // The activation marker follows a separate durable index boundary.
     await _metadata.put(_schema, 1);
@@ -528,12 +535,10 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
 
   BookmarkMirrorState _mirrors() {
     final raw = _metadata.get(_mirrorStateKey);
-    if (raw == null && _metadata.get(_schema) == 2) {
+    if (raw == null) {
       throw const FormatException('Received Bookmark ownership is missing');
     }
-    return raw == null
-        ? const BookmarkMirrorState.empty()
-        : BookmarkMirrorState.fromJson(raw);
+    return BookmarkMirrorState.fromJson(raw);
   }
 
   @override
@@ -762,15 +767,11 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
         },
       if (restoreLocalPreimage) 'restoredIds': restoredIds.toList()..sort(),
     };
+    final operation = _journalOperation(plan);
     final journal = {
-      'version': mirrorState != null
-          ? 4
-          : restoreLocalPreimage
-          ? 3
-          : organization == null
-          ? 1
-          : 2,
-      'hash': _hash(plan),
+      'version': 1,
+      'operation': operation,
+      'hash': _hash([operation, plan]),
       'plan': plan,
     };
     validateBookmarkCommitGuard();
@@ -788,19 +789,31 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
 
   static String _hash(Object value) =>
       sha256.convert(utf8.encode(jsonEncode(value))).toString();
+  static String _journalOperation(Map<String, Object?> plan) {
+    final organization = plan.containsKey('organization');
+    final restoration = plan.containsKey('restoredIds');
+    final mirrors = plan.containsKey('mirrors');
+    if ((restoration && (!organization || mirrors)) ||
+        (restoration && plan['restoredIds'] is! List) ||
+        (organization && plan['organization'] is! Map) ||
+        (mirrors && plan['mirrors'] is! Map)) {
+      throw const FormatException('Invalid Bookmark journal operation');
+    }
+    if (mirrors) return 'mirrors';
+    if (restoration) return 'restore';
+    return organization ? 'organization' : 'records';
+  }
+
   Future<void> _recover() async {
     try {
       final raw = _metadata.get(_journal);
       if (raw == null) return;
       final journal = contentMap(raw);
       final plan = contentMap(journal['plan']);
-      if (!const {1, 2, 3, 4}.contains(journal['version']) ||
-          (journal['version'] == 1 && plan.containsKey('organization')) ||
-          (const {2, 3}.contains(journal['version']) &&
-              !plan.containsKey('organization')) ||
-          (journal['version'] == 3) != plan.containsKey('restoredIds') ||
-          (journal['version'] == 4) != plan.containsKey('mirrors') ||
-          journal['hash'] != _hash(plan)) {
+      final operation = journal['operation'];
+      if (journal['version'] != 1 ||
+          operation != _journalOperation(plan) ||
+          journal['hash'] != _hash([operation, plan])) {
         throw const FormatException('Invalid Bookmark mutation journal');
       }
       await _apply(plan);
@@ -989,10 +1002,7 @@ class BookmarkHiveRepository extends BookmarkRepository<Post>
     await _metadata.putAll({
       ...indexWrites,
       _revision: target,
-      if (nextMirrors != null) ...{
-        _mirrorStateKey: nextMirrors.toJson(),
-        _schema: 2,
-      },
+      if (nextMirrors != null) _mirrorStateKey: nextMirrors.toJson(),
     });
     await _sync([_metadata]);
     await _metadata.delete(_journal);

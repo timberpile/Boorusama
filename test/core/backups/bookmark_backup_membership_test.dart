@@ -52,34 +52,6 @@ void main() {
       ),
     ],
   );
-  Map<String, dynamic> wire(BookmarkBackupData data) => {
-    'version': 9,
-    'data': [
-      {
-        'localId': post.id,
-        'updatedAt': post.updatedAt.toIso8601String(),
-        'snapshot': post.snapshot.toJson(),
-        'postId': post.postId,
-        'identity': BookmarkIdentity.tryFromPost(post.post)!.toJson(),
-      },
-    ],
-    'groups': [
-      for (final group in data.groups)
-        if (group.bookmarkIds.contains(post.id))
-          BookmarkGroupBackup(
-            id: group.id,
-            name: group.name,
-            bookmarkIds: [post.id],
-            addedAt: {post.id: group.addedAt[post.id]!},
-          ).toJson(),
-    ],
-    'folders': const [],
-    if (data.pools.isNotEmpty)
-      'collectionBookmarks': [
-        pool.toJson()..remove('createdAt'),
-        related.toJson()..remove('createdAt'),
-      ],
-  };
   Map<String, dynamic> currentWire(BookmarkBackupData data) => {
     'version': kBookmarksBackupVersion,
     'data': codec.encode(data),
@@ -103,31 +75,9 @@ void main() {
   );
 
   test(
-    'v9 input stores only membership dates for Posts and collection references',
+    'v6 round trip preserves both directional All orders and group dates',
     () {
-      expect(kBookmarksBackupVersion, 10);
-      expect(wire(data)['version'], 9);
-      final json = wire(data);
-      for (final row in [
-        ...json['data'] as List,
-        ...json['collectionBookmarks'] as List,
-      ]) {
-        expect((row as Map).containsKey('createdAt'), isFalse);
-      }
-      final decoded = read(json);
-      expect(decoded.bookmarks.single.createdAt, first);
-      expect(decoded.pools.first.createdAt, DateTime.utc(2022));
-      expect(decoded.pools.last.createdAt, early);
-      expect(decoded.pools.last.addedAt[poolGroupA], early);
-      expect(decoded.bookmarks.single.updatedAt, post.updatedAt);
-      expect(decoded.pools.last.observedAt, related.observedAt);
-    },
-  );
-
-  test(
-    'v9 round trip preserves both directional All orders and group dates',
-    () {
-      final decoded = read(wire(data));
+      final decoded = read(currentWire(data));
       for (final sort in [BookmarkSortType.newest, BookmarkSortType.oldest]) {
         List<Object> keys(BookmarkBackupData data) => selectBookmarkGridEntries(
           state: library(data),
@@ -144,8 +94,8 @@ void main() {
     },
   );
 
-  test('v9 compatibility projections do not create phantom import changes', () {
-    final incoming = read(wire(data));
+  test('v6 compatibility projections do not create phantom import changes', () {
+    final incoming = read(currentWire(data));
     final state = library(data);
     final summary = const ImportPlannedChangeProjector().bookmarks(
       local: BookmarkImportLocalSnapshot(
@@ -165,36 +115,18 @@ void main() {
     expect(summary.previewRows, isEmpty);
   });
 
-  test('v9 ignores a legacy global date when memberships are supplied', () {
-    final json = wire(data);
-    (json['data'] as List).first['createdAt'] = '1900-01-01T00:00:00.000Z';
-    (json['collectionBookmarks'] as List).first['createdAt'] =
-        '1900-01-01T00:00:00.000Z';
-    final decoded = read(json);
-    expect(decoded.bookmarks.single.createdAt, first);
-    expect(decoded.pools.first.createdAt, DateTime.utc(2022));
+  test('v6 rejects missing membership dates and ungrouped records', () {
+    final missingDates = currentWire(data);
+    ((missingDates['groups'] as List).first as Map).remove('addedAt');
+    expect(
+      () => read(missingDates),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
+    expect(
+      () => read(currentWire(data)..['groups'] = []),
+      throwsA(isA<InvalidBackupFormatException>()),
+    );
   });
-
-  test('v9 rejects missing Post or reference membership dates', () {
-    for (final reference in [false, true]) {
-      final json = wire(data);
-      final row =
-          ((json[reference ? 'collectionBookmarks' : 'groups'] as List).first
-              as Map);
-      row.remove('addedAt');
-      expect(() => read(json), throwsA(isA<InvalidBackupFormatException>()));
-    }
-  });
-
-  test(
-    'v9 rejects ungrouped payload rows instead of inventing a timestamp',
-    () {
-      final json = wire(data)
-        ..['groups'] = []
-        ..remove('collectionBookmarks');
-      expect(() => read(json), throwsA(isA<InvalidBackupFormatException>()));
-    },
-  );
 
   test(
     're-export of legacy ungrouped data assigns a dated Default membership',
@@ -208,15 +140,10 @@ void main() {
     },
   );
 
-  for (final version in [4, 5, 6, 7, 8]) {
+  for (final version in [4, 5]) {
     test(
       'legacy v$version reads global dates and transfers them to memberships',
       () {
-        final legacyPools = version < 6
-            ? <CollectionBookmark>[]
-            : version < 7
-            ? [pool]
-            : [pool, related];
         final json = <String, dynamic>{
           'version': version,
           'data': [
@@ -241,11 +168,6 @@ void main() {
                   bookmarkIds: [post.id],
                 ).toJson()..remove('addedAt'),
           ],
-          if (legacyPools.isNotEmpty)
-            'collectionBookmarks': [
-              for (final value in legacyPools)
-                value.toJson()..remove('addedAt'),
-            ],
         };
         final decoded = read(json);
         final plan = BookmarkImportPlanner().plan(
@@ -258,11 +180,8 @@ void main() {
             expect(group.addedAt[post.id], post.createdAt);
           }
         }
-        for (final pool in decoded.pools) {
-          expect(pool.addedAt.values, everyElement(pool.createdAt));
-        }
         final rewritten = currentWire(decoded);
-        expect(rewritten['version'], 10);
+        expect(rewritten['version'], 6);
         expect(
           (rewritten['data'] as List).every(
             (row) => (row as Map).containsKey('createdAt'),

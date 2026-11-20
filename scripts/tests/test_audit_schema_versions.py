@@ -77,6 +77,23 @@ class RuleTests(unittest.TestCase):
         rows = self.run_audit({'lib/export.dart': 'const schema = 5;'}, {'lib/export.dart': 'const schema = 6;', 'lib/sync.dart': 'const schema = 6;'}, rules)
         self.assertEqual([r['status'] for r in rows], ['ok', 'ok'])
 
+    def test_shared_symbol_counts_as_final_reader_and_fails_when_missing(self):
+        legacy = r'reads (?P<version>[0-9]+)'
+        rules = [
+            rule(),
+            rule('reader', 'lib/reader.dart',
+                 r'reads (?P<version>[0-9]+|schema)',
+                 baseline_pattern=legacy, reader_for='bookmarks',
+                 shared_symbol='schema'),
+        ]
+        before = {'lib/export.dart': 'const schema = 5;', 'lib/reader.dart': 'reads 4; reads 5;'}
+        after = {'lib/export.dart': 'const schema = 6;', 'lib/reader.dart': 'reads 4; reads 5;'}
+        self.assertEqual(self.run_audit(before, after, rules)[1]['status'], 'error')
+        after['lib/reader.dart'] += ' reads schema;'
+        row = self.run_audit(before, after, rules)[1]
+        self.assertEqual(row['status'], 'ok')
+        self.assertEqual(row['current'], [4, 5, 6])
+
     def test_alias_mismatch_and_alias_of_violation_fail(self):
         for primary, alias in ((6, 5), (10, 10)):
             with self.subTest(primary=primary, alias=alias):
