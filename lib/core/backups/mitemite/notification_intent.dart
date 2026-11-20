@@ -26,18 +26,21 @@ final class SyncNotificationIntent extends Equatable {
   final String? sourceKind;
   final String? event;
 
-  String get payload =>
-      'mitemite:v1:' +
-      base64Url.encode(
-        utf8.encode(
-          canonicalSyncJson({
-            'destination': destination.name,
-            if (publisher != null) 'publisher': publisher,
-            if (sourceKind != null) 'kind': sourceKind,
-            if (event != null) 'event': event,
-          }),
-        ),
-      );
+  static const payloadPrefix = 'mitemite:v1:';
+
+  String get payload {
+    final body = base64Url.encode(
+      utf8.encode(
+        canonicalSyncJson({
+          'destination': destination.name,
+          if (publisher != null) 'publisher': publisher,
+          if (sourceKind != null) 'kind': sourceKind,
+          if (event != null) 'event': event,
+        }),
+      ),
+    );
+    return '$payloadPrefix$body';
+  }
 
   static SyncNotificationIntent? tryParse(String? payload) {
     if (payload == 'mitemite:bookmarks') {
@@ -52,12 +55,12 @@ final class SyncNotificationIntent extends Equatable {
     }
     if (payload == null ||
         payload.length > miteMiteMaxMetadataBytes ||
-        !payload.startsWith('mitemite:v1:'))
+        !payload.startsWith(payloadPrefix))
       return null;
     try {
       final value = jsonDecode(
         utf8.decode(
-          base64Url.decode(payload.substring('mitemite:v1:'.length)),
+          base64Url.decode(payload.substring(payloadPrefix.length)),
         ),
       );
       if (value is! Map<String, dynamic> ||

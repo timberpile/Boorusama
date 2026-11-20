@@ -2,25 +2,38 @@ import 'dart:io';
 
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
+import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
+import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_planner.dart';
 import 'package:boorusama/core/backups/sources/bookmark_import_service.dart';
+import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+import 'package:boorusama/core/cache/misc_data_store.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/bookmarks/src/data/providers.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_factory_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/factory.dart';
 import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
-import 'package:boorusama/core/bookmarks/src/types/bookmark_repository_factory.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/foundation/data_mutation_coordinator.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/info/package_info.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:path/path.dart' as p;
+
+import '../../support/fakes/memory_repositories.dart';
 
 const _fixtures = 'test/fixtures/released_upgrade';
 const _baseline = 'v4.6.1-timberpile.3';
@@ -42,16 +55,19 @@ typedef _Library = ({
   BookmarkRepository repository,
   UnifiedBookmarkStore records,
   BookmarkGroupRepository groups,
+  DataMutationCoordinator coordinator,
 });
 
 Future<_Library> _open(String root) async {
   Hive.init(root);
+  final coordinator = DataMutationCoordinator();
   final repository = await const HiveBookmarkRepositoryFactory().create(
-    storage: BookmarkStorageContext(coordinator: DataMutationCoordinator()),
+    storage: BookmarkStorageContext(coordinator: coordinator),
     postDataCodec: _engine,
   );
   return (
     repository: repository,
+    coordinator: coordinator,
     records: unifiedBookmarkStorage(repository)!,
     groups: await const HiveBookmarkGroupRepositoryFactory()
         .createWithBookmarkRepository(repository),
@@ -109,6 +125,13 @@ BookmarkImportService _importer(_Library library) => BookmarkImportService(
   groupRepository: library.groups,
   imageUrlResolver: (_) => const DefaultImageUrlResolver(),
 );
+
+Future<String> _packageBookmarkBytes() async {
+  final staged = await const ExportPackageReader(fs: IoFileSystem())
+      .stage('$_fixtures/$_baseline/released.bsexport');
+  addTearDown(staged.dispose);
+  return File(staged.pathFor('sources/bookmarks/data.json')).readAsString();
+}
 
 void main() {
   late Directory work;
@@ -174,6 +197,58 @@ void main() {
     expect(await Hive.boxExists('bookmark_groups_hierarchy_v2'), isTrue);
   });
 
+  test(
+    'released rollback restores records missing after a partial import',
+    () async {
+      final library = await _open(work.path);
+      // The released importer could remove the old rows before a crash.
+      expect(await library.records.read(12), isNull);
+      expect(await library.records.read(27), isNull);
+      final container = ProviderContainer(
+        overrides: [
+          dataMutationCoordinatorProvider.overrideWithValue(
+            library.coordinator,
+          ),
+          bookmarkRepoProvider.overrideWith((_) => library.repository),
+          bookmarkGroupRepoProvider.overrideWith((_) => library.groups),
+          bookmarkUrlResolverProvider.overrideWith(
+            (_, _) => const DefaultImageUrlResolver(),
+          ),
+          booruEngineRegistryProvider.overrideWith(
+            (_) => BooruEngineRegistry(),
+          ),
+          appVersionProvider.overrideWithValue(null),
+          miscDataStoreProvider.overrideWithValue(MemoryMiscDataStore()),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: []),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final recovery = Provider(
+        (ref) => PackageTransactionSource(
+          source: ref.read(bookmarksBackupSourceProvider),
+          incomingPath: null,
+          fs: const IoFileSystem(),
+          ref: ref,
+          credentialsIncluded: false,
+        ),
+      );
+      await container
+          .read(bookmarkProvider.notifier)
+          .runWithLibrary(
+            () => container
+                .read(recovery)
+                .restore('$_fixtures/$_baseline/bookmarks.json'),
+          );
+      await _expectLibrary(library, inPlace: false, withFolders: true);
+      expect((await library.records.readAll()).map((record) => record.id), [
+        0,
+        1,
+      ]);
+    },
+  );
+
   for (final (tag, version) in [
     ('v4.5.0-timberpile.3', 4),
     ('v4.5.0-timberpile.4', 4),
@@ -185,7 +260,11 @@ void main() {
     test('$tag Bookmark export imports, re-exports and reopens', () async {
       final encoded = await File('$_fixtures/$tag/bookmarks.json')
           .readAsString();
-      final payload = decodeData(data: encoded);
+      final incomingBytes = tag == _baseline
+          ? await _packageBookmarkBytes()
+          : encoded;
+      expect(incomingBytes, encoded);
+      final payload = decodeData(data: incomingBytes);
       final withFolders = version == 5;
       expect(payload.version, version);
       final incoming = _codec.parse(payload);
@@ -217,7 +296,7 @@ void main() {
       );
       // One copy shares its existing records rather than allocating duplicates.
       final shared = plan.groups.singleWhere((group) => group.id == _shared);
-      final copyId = '550e8400-e29b-41d4-a716-446655440088';
+      const copyId = '550e8400-e29b-41d4-a716-446655440088';
       await importer.apply(
         plan.resolveActions({
           for (final group in plan.groups)

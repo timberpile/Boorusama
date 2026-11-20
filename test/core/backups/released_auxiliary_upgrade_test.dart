@@ -19,7 +19,6 @@ import 'package:boorusama/core/search/following_topics/src/data/hive/following_t
 import 'package:boorusama/core/search/histories/src/data/repo_sqlite.dart';
 import 'package:boorusama/core/search/selected_tags/types.dart';
 import 'package:boorusama/core/settings/src/data/setting_repository_hive.dart';
-import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/tags/favorites/src/data/favorite_tag_hive_object.dart';
 import 'package:boorusama/core/tags/favorites/src/data/favorite_tag_repository_hive.dart';
 import 'package:boorusama/foundation/filesystem.dart';
