@@ -222,12 +222,13 @@ class GitTests(unittest.TestCase):
         self.assertEqual(self.cli().returncode, 2)
 
 class CatalogPatternTests(unittest.TestCase):
-    """Minimal source syntax samples only; these are not released data fixtures."""
+    """Minimal source syntax samples for the registered candidate locators."""
+
     def samples(self):
         catalog = json.loads((ROOT / 'scripts/schema_contracts.json').read_text())
         before, after = {}, {}
-        constant_names = {
-            'bookmark-export': ('kBookmarksBackupVersion', 5, 10),
+        constants = {
+            'bookmark-export': ('kBookmarksBackupVersion', 5, 6),
             'profiles-export': ('kBooruConfigsExporterImporterVersion', 1, 1),
             'settings-export': ('kSettingsBackupVersion', 1, 1),
             'favorite-tags-export': ('kFavoriteTagsBackupVersion', 1, 1),
@@ -238,57 +239,67 @@ class CatalogPatternTests(unittest.TestCase):
             'post-common-snapshot': ('commonSchemaVersion', 2, 2),
             'mitemite-protocol': ('miteMiteProtocol', None, 1),
         }
+        final_only = {
+            'mitemite-bookmark-payload': 'static const schema = kBookmarksBackupVersion;',
+            'mitemite-following-payload': 'static const schema = 2;',
+            'group-snapshot': 'this.schemaVersion = 1,',
+            'bookmark-mutation-journal': "final journal = {'version': 1, 'operation': kind};",
+            'bookmark-repository-schema': '_metadata.put(_schema, 1);',
+            'bookmark-mirror-state': "'version': 1, 'epoch': epoch,",
+            'post-listed-payload': 'static const payloadVersion = 1;',
+            'mitemite-activity': "'version': 1, 'sequence': sequence,",
+            'mitemite-local-events': "'version': 1, 'notificationOutbox': outbox,",
+            'mitemite-notification-outbox': "'version': 1, 'unseenOffers': receipts,",
+            'following-mirror-rollback': "'version': 1, 'metadataEncoding': 'typedMaps',",
+            'mitemite-notification-intent': "static const payloadPrefix = 'mitemite:v1:';",
+            'following-mirror-state': "'version': 1, 'epoch': epoch,",
+        }
         for rule_ in catalog['contracts']:
             name, path = rule_['id'], rule_['path']
-            if name in constant_names:
-                symbol, old, new = constant_names[name]
+            if name in constants:
+                symbol, old, new = constants[name]
                 if old is not None:
-                    before[path] = f'const {symbol} = {old};'
+                    before[rule_.get('baseline_path', path)] = f'const {symbol} = {old};'
                 after[path] = f'const {symbol} = {new};'
+            elif name in final_only:
+                after[path] = after.get(path, '') + '\n' + final_only[name]
             elif name == 'bookmark-import-readers':
-                before[path] = 'metadata.version != 4 && metadata.version != 5'
-                after[path] = ' && '.join(f'metadata.version != {i}' for i in range(4, 11))
+                legacy = 'metadata.version != 4 && metadata.version != 5'
+                before[path] = legacy
+                after[path] = f'final nested = metadata.version == kBookmarksBackupVersion; {legacy}'
             elif name in ('following-export', 'feeds-export'):
                 cls, v = ('FollowingTopicsBackupSource', 2) if name == 'following-export' else ('TopicFeedsBackupSource', 1)
                 before[path] = after[path] = f'class {cls} {{ version: {v}, }}'
             elif name == 'link-file':
                 before[path] = after[path] = "'format': 'boorusama-link', 'version': 1,"
-            elif name == 'group-snapshot':
-                after[path] = 'this.schemaVersion = 1,'
-            elif name in ('mitemite-bookmark-payload', 'mitemite-following-payload'):
-                after[path] = 'static const schema = ' + ('10;' if 'bookmark' in name else '2;')
+            elif name == 'post-gelbooru-v2-payload':
+                before[path] = after[path] = 'int get currentVersion => 2;'
             elif name == 'bookmark-organization':
                 before[rule_['baseline_path']] = "await storage.put('version', 1);"
-                after[path] = "await organization.putAll({'version': 3, 'legacyFolderGroupIds': map});"
-            elif name == 'bookmark-repository-schema':
-                after[path] = '_metadata.put(_schema, 1);\n_schema: 2,\n'
-            elif name == 'bookmark-mutation-journal':
-                after[path] += "final journal = {'version': mirrorState != null ? 4 : restoreLocalPreimage ? 3 : organization == null ? 1 : 2, 'hash': hash};"
-            elif name == 'bookmark-mirror-state':
-                after[path] = "'version': 1, 'epoch': epoch,"
+                after[path] = 'static const schemaVersion = 2;'
             else:
                 self.fail('Add a source-syntax sample for ' + name)
         return catalog['contracts'], before, after
 
-    def test_reviewed_locators_identify_six_checks_for_four_root_problems(self):
+    def test_reviewed_locators_still_reject_the_four_original_contract_violations(self):
         rules, before, after = self.samples()
+        paths = {r['id']: r['path'] for r in rules}
+        after[paths['bookmark-export']] = 'const kBookmarksBackupVersion = 10;'
+        after[paths['bookmark-organization']] = 'static const schemaVersion = 3;'
+        repository = paths['bookmark-repository-schema']
+        after[repository] = after[repository].replace('_schema, 1', '_schema, 2')
+        after[repository] = after[repository].replace("'version': 1", "'version': 4")
         rows = audit.audit_contracts(rules, before.get, after.get)
-        self.assertEqual(len(rows), 21)
         self.assertEqual({r['id'] for r in rows if r['status'] != 'ok'}, {
             'bookmark-export', 'bookmark-import-readers', 'mitemite-bookmark-payload',
             'bookmark-organization', 'bookmark-repository-schema', 'bookmark-mutation-journal',
         })
         self.assertFalse(any(r['status'] == 'error' for r in rows))
 
-    def test_intended_final_numbers_pass_without_raising_ceiling(self):
+    def test_zero_or_one_increment_passes_for_all_registered_contracts(self):
         rules, before, after = self.samples()
-        for path in after:
-            after[path] = after[path].replace('kBookmarksBackupVersion = 10;', 'kBookmarksBackupVersion = 6;').replace('static const schema = 10;', 'static const schema = 6;')
-        by_id = {r['id']: r['path'] for r in rules}
-        after[by_id['bookmark-import-readers']] = 'metadata.version != 4 && metadata.version != 5 && metadata.version != 6'
-        after[by_id['bookmark-organization']] = "organization.putAll({'version': 2, 'legacyFolderGroupIds': map});"
-        after[by_id['bookmark-repository-schema']] = "_metadata.put(_schema, 1);\n_schema: 1,\nfinal journal = {'version': 1, 'operation': kind, 'hash': hash};"
         rows = audit.audit_contracts(rules, before.get, after.get)
+        self.assertEqual(len(rows), 29)
         self.assertEqual({r['status'] for r in rows}, {'ok'})
 
 
