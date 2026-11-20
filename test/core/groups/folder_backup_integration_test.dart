@@ -2,6 +2,7 @@ import 'package:boorusama/core/backups/export_import/import/collection_import_ac
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
+import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';
 import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_topic_import_service.dart';
@@ -318,7 +319,12 @@ void main() {
       );
       final canonical = data.asHierarchy();
       final parsedCanonical = BookmarkBackupCodec().parse(
-        _payload('bookmarks', 10, [], extra: canonical.extraFields),
+        _payload(
+          'bookmarks',
+          kBookmarksBackupVersion,
+          [],
+          extra: canonical.extraFields,
+        ),
       );
       expect(parsedCanonical, canonical);
       expect(parsedCanonical.folders, isEmpty);

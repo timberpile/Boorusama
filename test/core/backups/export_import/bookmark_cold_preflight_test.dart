@@ -164,7 +164,7 @@ void main() {
             sources: [
               ExportPackageSourceBuild(
                 id: 'bookmarks',
-                schemaVersion: 4,
+                schemaVersion: source.version,
                 selection: const ExportNodeSelection.all('bookmarks'),
                 recommendedAction: ImportAction.configureItems,
                 parts: [

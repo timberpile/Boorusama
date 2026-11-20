@@ -445,7 +445,7 @@ void main() {
   });
 
   test(
-    'version 10 export/restore remaps local IDs and preserves membership dates',
+    'version 6 export/restore remaps local IDs and preserves membership dates',
     () async {
       final post = await seed(1);
       await service.addBookmarkToGroup(
