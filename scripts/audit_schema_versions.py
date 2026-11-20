@@ -149,7 +149,7 @@ def audit_contracts(rules: list[dict], before: Callable[[str], str | None], afte
                     detail = f"Shares {relation}; this is not a separate protocol version"
                 else:
                     allowed = sorted(set(old or []) | set(parent['current'] or []))
-                    ok = set(old or []).issubset(new) and set(new).issubset(allowed) and parent['status'] == 'ok'
+                    ok = set(new) == set(allowed) and parent['status'] == 'ok'
                     detail = f"Keep released reader versions and the single final {relation} shape"
             else:
                 if old is not None and len(old) != 1:

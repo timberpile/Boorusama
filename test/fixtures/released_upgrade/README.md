@@ -12,10 +12,16 @@ production code from these pinned release commits.
 | `v4.6.1-timberpile.2` | `6875e0ce778aecfb2b83780c2185ce9273a9b2cc` | 5 |
 | `v4.6.1-timberpile.3` | `422aeae087c1108e655d85d1a3dac25120456cd6` | 5 |
 
+Use a fresh capture output directory. Existing per-tag outputs are rejected,
+not skipped: a `bookmarks.json` file may have been written before test teardown
+or Hive flushing failed. Preserve failed captures for diagnosis and rerun into
+a new directory; do not overwrite the tracked fixtures automatically.
+
 From the candidate checkout, with FVM installed and all six tags fetched:
 
 ```bash
 root="$(pwd)"
+mkdir -p "$root/../_artifacts/release-compatibility-policy"
 artifact="$(realpath "$root/../_artifacts/release-compatibility-policy")"
 git worktree add --detach "$artifact/released-writer" v4.6.1-timberpile.3
 (

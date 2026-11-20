@@ -84,3 +84,5 @@ jobs:
           .github/scripts/test-android-release-scripts.sh
           python3 -m unittest discover -s scripts/tests -p 'test_audit_schema_versions.py'
           python3 -m unittest discover -s scripts/tests -p 'test_schema_audit_workflow.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_schema_reader_roundtrip.py'
+          python3 -m unittest discover -s scripts/tests -p 'test_released_fixture_capture.py'

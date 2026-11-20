@@ -16,10 +16,17 @@ if git symbolic-ref -q HEAD || [[ -n "$(git status --porcelain --untracked-files
   exit 2
 fi
 
-for tag in v4.5.0-timberpile.{3,4,5} v4.6.1-timberpile.{1,2,3}; do
-  if [[ -e "$output/$tag/bookmarks.json" ]]; then
-    continue
+tags=(v4.5.0-timberpile.{3,4,5} v4.6.1-timberpile.{1,2,3})
+# A JSON file can precede failed test teardown or an interrupted Hive flush.
+# Never silently reuse it as evidence of a successfully completed capture.
+for tag in "${tags[@]}"; do
+  if [[ -e "$output/$tag" || -L "$output/$tag" ]]; then
+    printf 'Existing capture for %s; use a fresh output directory. Existing files are preserved.\n' "$tag" >&2
+    exit 2
   fi
+done
+
+for tag in "${tags[@]}"; do
   git switch --detach "$tag"
   layout=5
   case "$tag" in
