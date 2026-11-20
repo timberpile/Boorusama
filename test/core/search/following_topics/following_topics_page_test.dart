@@ -813,11 +813,11 @@ void main() {
         expect(find.text('1 item selected'), findsNothing);
         await tester.tapAt(const Offset(5, 5));
         await settle(tester);
-        final previewsBeforeSelection = tester
+        final previewTopicsBeforeSelection = tester
             .widget<FollowingTopicFolderCard>(
               find.byType(FollowingTopicFolderCard),
             )
-            .previews;
+            .previewTopics;
         await tester.longPress(find.text(start));
         await settle(tester);
         expect(
@@ -826,8 +826,8 @@ void main() {
                 .widget<FollowingTopicFolderCard>(
                   find.byType(FollowingTopicFolderCard),
                 )
-                .previews,
-            previewsBeforeSelection,
+                .previewTopics,
+            previewTopicsBeforeSelection,
           ),
           isTrue,
         );

@@ -1,36 +1,23 @@
-import 'package:kurumi/kurumi.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../providers/following_topic_config_provider.dart';
-import '../providers/following_topics_notifier.dart';
-import '../providers/untracked_topic_preview_provider.dart';
-
 // Package imports:
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 // Project imports:
 import '../../../../configs/config/types.dart';
+import '../../../../developer_options/providers.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../navigation/destination_activity.dart';
 import '../../../../widgets/popup_menu_action_label.dart';
+import '../providers/following_topic_config_provider.dart';
+import '../providers/untracked_topic_preview_provider.dart';
 import '../types/topic_organization.dart';
 import '../types/following_topic_sort.dart';
 import '../types/following_topic.dart';
 import 'following_topic_card.dart';
 import 'topic_new_posts_badge.dart';
-
-final class FollowingTopicFolderPreview {
-  const FollowingTopicFolderPreview({
-    required this.thumbnailUrl,
-    required this.config,
-    this.topicId,
-  });
-
-  final String thumbnailUrl;
-  final BooruConfigAuth config;
-  final String? topicId;
-}
 
 final class FollowingTopicFolderLastPost {
   const FollowingTopicFolderLastPost({
@@ -65,29 +52,6 @@ FollowingTopicFolderLastPost selectFollowingTopicFolderLastPost({
   );
 }
 
-List<FollowingTopicFolderPreview> selectFollowingTopicFolderPreviews({
-  required TopicFolder folder,
-  required Map<String, FollowingTopic> topics,
-  required Map<String, BooruConfig> profiles,
-}) {
-  final previews = <FollowingTopicFolderPreview>[];
-  for (final id in folder.searchIds) {
-    final topic = topics[id];
-    final profile = topic == null ? null : profiles[topic.profileId];
-    final preview = topic?.previews.firstOrNull;
-    if (profile == null || preview == null) continue;
-    previews.add(
-      FollowingTopicFolderPreview(
-        thumbnailUrl: preview.thumbnailUrl,
-        config: profile.auth,
-        topicId: id,
-      ),
-    );
-    if (previews.length == 4) break;
-  }
-  return previews;
-}
-
 bool canRefreshFollowingTopicFolder({
   required TopicFolder? folder,
   required Iterable<FollowingTopic> topics,
@@ -110,7 +74,7 @@ class FollowingTopicFolderCard extends StatelessWidget {
     required this.itemCount,
     required this.newPostCount,
     this.newPostCountIsLowerBound = false,
-    required this.previews,
+    required this.previewTopics,
     required this.lastPostAt,
     required this.hasBaseline,
     required this.refreshing,
@@ -136,7 +100,7 @@ class FollowingTopicFolderCard extends StatelessWidget {
   final int itemCount;
   final int newPostCount;
   final bool newPostCountIsLowerBound;
-  final List<FollowingTopicFolderPreview> previews;
+  final Iterable<FollowingTopic> previewTopics;
   final DateTime? lastPostAt;
   final bool hasBaseline;
   final bool refreshing;
@@ -289,28 +253,7 @@ class FollowingTopicFolderCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                if (previews.isNotEmpty)
-                  Padding(
-                    padding: followingTopicCardPreviewPadding,
-                    child: Row(
-                      children: [
-                        for (final preview in previews.take(4))
-                          Expanded(
-                            child: Padding(
-                              padding: followingTopicCardThumbnailPadding,
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: _FollowingFolderPreviewImage(
-                                  preview: preview,
-                                ),
-                              ),
-                            ),
-                          ),
-                        for (var i = previews.length; i < 4; i++)
-                          const Spacer(),
-                      ],
-                    ),
-                  ),
+                _FollowingFolderPreviewStrip(topics: previewTopics),
                 FollowingTopicCardMetadata(
                   leading: strings.folder_item_count.replaceAll(
                     '{count}',
@@ -335,42 +278,77 @@ class FollowingTopicFolderCard extends StatelessWidget {
   }
 }
 
-class _FollowingFolderPreviewImage extends ConsumerWidget {
-  const _FollowingFolderPreviewImage({required this.preview});
-  final FollowingTopicFolderPreview preview;
+class _FollowingFolderPreviewStrip extends ConsumerWidget {
+  const _FollowingFolderPreviewStrip({required this.topics});
+
+  static const _slotCount = 4;
+  final Iterable<FollowingTopic> topics;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (preview.config.anonymousReadScope == null) {
-      return BooruImage(
-        imageUrl: preview.thumbnailUrl,
-        config: preview.config,
-        fit: BoxFit.cover,
-      );
+    final canLoadPreviews =
+        ref.watch(automaticMediaLoadingEnabledProvider) &&
+        NavigationActivity.of(context) &&
+        TickerMode.valuesOf(context).enabled &&
+        (ModalRoute.isCurrentOf(context) ?? true);
+    var candidateCount = 0;
+    final tiles = <Widget>[];
+    for (final topic in topics) {
+      final storedUrl = topic.previews.firstOrNull?.thumbnailUrl;
+      final canFetch = canLoadPreviews && candidateCount < _slotCount;
+      final hasStoredUrl = storedUrl != null && storedUrl.isNotEmpty;
+      if (!canFetch && !hasStoredUrl) continue;
+
+      final config = ref.watch(followingTopicConfigProvider(topic.id));
+      if (config == null || config.anonymousReadScope?.isCurrent == false) {
+        continue;
+      }
+      if (config.anonymousReadScope == null &&
+          storedUrl != null &&
+          storedUrl.isNotEmpty) {
+        candidateCount++;
+        tiles.add(
+          BooruImage(
+            imageUrl: storedUrl,
+            config: config.auth,
+            fit: BoxFit.cover,
+          ),
+        );
+      } else if (canFetch) {
+        final key = ref.watch(
+          untrackedTopicPreviewKeyProvider((topic, config)),
+        );
+        if (key == null) continue;
+        // Empty and failed lookups still count against the first four
+        // candidates. Later stored previews can fill their slots.
+        candidateCount++;
+        final previews = ref.watch(untrackedTopicPreviewProvider(key));
+        if (previews.isLoading) {
+          tiles.add(const KurumiImagePlaceholder());
+        } else if (previews case AsyncData(value: [final url, ...])) {
+          tiles.add(
+            BooruImage(imageUrl: url, config: config.auth, fit: BoxFit.cover),
+          );
+        }
+      }
+      if (tiles.length == _slotCount) break;
     }
-    final id = preview.topicId;
-    if (id == null) return const KurumiImagePlaceholder();
-    final config = ref.watch(followingTopicConfigProvider(id));
-    final topic = ref
-        .watch(followingTopicsProvider)
-        .valueOrNull
-        ?.topics
-        .where((topic) => topic.id == id)
-        .firstOrNull;
-    if (config == null || topic == null) return const KurumiImagePlaceholder();
-    final url = ref
-        .watch(
-          untrackedTopicPreviewProvider((
-            config: config,
-            query: topic.query,
-            structure: topic.queryStructure,
-            revision: topic.runtimeRevision,
-            attemptedAt: topic.lastAttemptAt,
-          )),
-        )
-        .valueOrNull
-        ?.firstOrNull;
-    return url == null
-        ? const KurumiImagePlaceholder()
-        : BooruImage(imageUrl: url, config: config.auth, fit: BoxFit.cover);
+
+    if (tiles.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: followingTopicCardPreviewPadding,
+      child: Row(
+        children: [
+          for (final tile in tiles)
+            Expanded(
+              child: Padding(
+                padding: followingTopicCardThumbnailPadding,
+                child: AspectRatio(aspectRatio: 1, child: tile),
+              ),
+            ),
+          for (var i = tiles.length; i < _slotCount; i++) const Spacer(),
+        ],
+      ),
+    );
   }
 }

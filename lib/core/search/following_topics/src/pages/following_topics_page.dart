@@ -962,7 +962,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
             bool countIsLowerBound,
             DateTime? lastPost,
             FollowingTopicFolderLastPost lastPostInfo,
-            List<FollowingTopicFolderPreview> previews,
+            Iterable<FollowingTopic> previewTopics,
             bool canRefresh,
             bool refreshing,
             int remainingRefreshes,
@@ -996,17 +996,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                 ),
                 lastPost: lastPost.lastPostAt,
                 lastPostInfo: lastPost,
-                previews: selectFollowingTopicFolderPreviews(
-                  folder: summary,
-                  topics: topicsById,
-                  profiles: {
-                    ...profilesById,
-                    for (final topic in activity.topics)
-                      if (ref.read(followingTopicConfigProvider(topic.id))
-                          case final config?)
-                        topic.profileId: config,
-                  },
-                ),
+                previewTopics: summary.searchIds
+                    .map((id) => topicsById[id])
+                    .nonNulls,
                 canRefresh: canRefreshFollowingTopicFolder(
                   folder: summary,
                   topics: activity.topics,
@@ -1458,8 +1450,8 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                                     newPostCountIsLowerBound:
                                         folderSummaries[folder.id]!
                                             .countIsLowerBound,
-                                    previews:
-                                        folderSummaries[folder.id]!.previews,
+                                    previewTopics: folderSummaries[folder.id]!
+                                        .previewTopics,
                                     lastPostAt: lastPost.lastPostAt,
                                     hasBaseline: lastPost.hasBaseline,
                                     refreshing:

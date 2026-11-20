@@ -1,20 +1,36 @@
 import 'dart:async';
 
+import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/blacklists/src/types/blacklisted_tag.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/content/content_access_provider.dart';
+import 'package:boorusama/core/debug/src/logging/app_logger.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/http/client/coordination.dart';
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/navigation/destination_activity.dart';
+import 'package:boorusama/core/posts/post/providers.dart';
+import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/pages/following_topics_page.dart';
+import 'package:boorusama/core/search/following_topics/src/providers/untracked_topic_preview_provider.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
+import 'package:boorusama/foundation/loggers.dart';
 import 'package:clock/clock.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:i18n/i18n.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:foundation/foundation.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../application/support/fake_image_dio.dart';
 import 'following_topic_test_utils.dart';
+import 'topic_test_utils.dart';
 
 void main() {
   late FollowingTopicHarness harness;
@@ -31,6 +47,35 @@ void main() {
   Finder folderCard(String folderId) => find.byKey(
     ValueKey('following-topic-folder-$folderId'),
   );
+
+  Finder folderImages(String folderId) => find.descendant(
+    of: folderCard(folderId),
+    matching: find.byType(BooruImage),
+  );
+
+  Future<String> seedPreviewFolder(
+    WidgetTester tester,
+    List<FollowingTopic> topics, {
+    List<FollowingTopic> nested = const [],
+  }) async => (await tester.runAsync(() async {
+    await harness.seed([...topics, ...nested]);
+    await harness.container.read(followingTopicsProvider.future);
+    final notifier = harness.container.read(followingTopicsProvider.notifier);
+    final folder = await notifier.createSharedFolder('Animals');
+    for (final topic in topics) {
+      await notifier.moveTopicToSharedFolder(topic.id, folder.id);
+    }
+    if (nested.isNotEmpty) {
+      final child = await notifier.createSharedFolder(
+        'Kittens',
+        parentId: folder.id,
+      );
+      for (final topic in nested) {
+        await notifier.moveTopicToSharedFolder(topic.id, child.id);
+      }
+    }
+    return folder.id;
+  }))!;
 
   Future<void> openFolderMenu(WidgetTester tester, String folderId) async {
     await tester.tap(
@@ -531,17 +576,411 @@ void main() {
     },
   );
 
+  for (final topicCount in [1, 2, 4, 5]) {
+    testWidgets(
+      'parent folder and Realbooru Topic share previews with $topicCount untracked members',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 800);
+        tester.view.devicePixelRatio = 1;
+        tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final realbooru = BooruConfig.fromJson({
+          ...BooruConfig.defaultConfig(
+            booruType: BooruType.gelbooruV2,
+            url: 'https://realbooru.com/',
+            customDownloadFileNameFormat: null,
+          ).toJson(),
+          'id': testProfile.id,
+        });
+        final topics = [
+          for (var i = 0; i < topicCount; i++)
+            topicFixture(
+              id: 'cats-$i',
+              profileId: realbooru.id,
+              query: 'cat_$i',
+              error: SearchRefreshErrorKind.unsupported,
+              checked: false,
+            ),
+        ];
+        final topic = topics.first;
+        List<String> urlsFor(String query) => [
+          for (var i = 0; i < 4; i++) 'https://realbooru.com/$query-$i.jpg',
+        ];
+        final requests = <UntrackedTopicPreviewKey>[];
+        harness.dispose();
+        harness = FollowingTopicHarness(
+          profiles: [realbooru, otherTestProfile],
+          supported: false,
+          loadImages: true,
+          overrides: [
+            deterministicImageDioOverride(),
+            untrackedTopicPreviewProvider.overrideWith((ref, key) {
+              requests.add(key);
+              return Future.value(urlsFor(key.query));
+            }),
+          ],
+        );
+        harness.container
+            .read(selectedTestProfileProvider.notifier)
+            .select(otherTestProfile);
+        final folderId = await seedPreviewFolder(tester, topics);
+        final before = await tester.runAsync(harness.repository.getAll);
+        final mutations = harness.box.mutationCount;
+
+        Widget topicCard() => FollowingTopicCard(
+          topic: topic,
+          config: realbooru.auth,
+          refreshing: false,
+          onOpen: () {},
+          onAction: (_) {},
+        );
+        final showTopic = ValueNotifier(false);
+        addTearDown(showTopic.dispose);
+        await harness.pump(
+          tester,
+          Column(
+            children: [
+              const Expanded(child: FollowingTopicsPage()),
+              ValueListenableBuilder(
+                valueListenable: showTopic,
+                builder: (_, visible, _) =>
+                    visible ? topicCard() : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        );
+
+        final folderThumbnails = folderImages(folderId);
+        final visibleTopics = topics.take(4);
+        final thumbnails = tester.widgetList<BooruImage>(folderThumbnails);
+        expect(thumbnails.map((image) => image.imageUrl), [
+          for (final member in visibleTopics) urlsFor(member.query).first,
+        ]);
+        for (final image in thumbnails) {
+          expect(image.config, realbooru.auth);
+          final size = tester.getSize(find.byWidget(image));
+          expect(size.width, size.height);
+        }
+        expect(requests.map((key) => (key.config, key.query)), [
+          for (final member in visibleTopics) (realbooru, member.query),
+        ]);
+
+        showTopic.value = true;
+        await settle(tester);
+        final topicImages = find.descendant(
+          of: find.byType(FollowingTopicCard),
+          matching: find.byType(BooruImage),
+        );
+        expect(
+          tester.widgetList<BooruImage>(topicImages).map((i) => i.imageUrl),
+          urlsFor(topic.query),
+        );
+        expect(folderThumbnails, findsNWidgets(visibleTopics.length));
+        expect(requests, hasLength(visibleTopics.length));
+        expect(harness.requests, isEmpty);
+        expect(harness.box.mutationCount, mutations);
+        expect(await tester.runAsync(harness.repository.getAll), before);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets(
+    'nested folder previews backfill empty and failed slots without starting more searches',
+    (tester) async {
+      final pending = Completer<void>();
+      final queries = <String>[];
+      FollowingTopic transient(String id) => topicFixture(
+        id: id,
+        query: id,
+        error: SearchRefreshErrorKind.unsupported,
+        checked: false,
+      );
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        loadImages: true,
+        overrides: [
+          deterministicImageDioOverride(),
+          loggerProvider.overrideWithValue(AppLogger()),
+          originAwarePostRepoProvider.overrideWith(
+            (_, config) => TestSearchPostRepository((query, page, limit) async {
+              expect(config, testProfile);
+              expect((page, limit), (1, 4));
+              queries.add(query);
+              if (query == 'pending') await pending.future;
+              if (query == 'failed') throw StateError('Preview request failed');
+              final posts = switch (query) {
+                'pending' => [_previewPost(''), testSearchPost(1, null)],
+                'ready order:score' => [
+                  testSearchPost(2, null),
+                  testSearchPost(3, null),
+                ],
+                _ => <Post>[],
+              };
+              return Either.of(PostResult(posts: posts, total: posts.length));
+            }),
+          ),
+        ],
+      );
+      final folderId = await seedPreviewFolder(
+        tester,
+        [transient('pending')],
+        nested: [
+          transient('empty'),
+          transient('failed'),
+          topicFixture(id: 'ready', query: 'ready order:score', checked: false),
+          for (var i = 0; i < 40; i++) transient('later-$i'),
+          for (final id in ['cached-first', 'cached-second', 'cached-excluded'])
+            cachedFixture(id: id, postCreatedAts: [checkedAt, checkedAt]),
+        ],
+      );
+      final before = await tester.runAsync(harness.repository.getAll);
+      final mutations = harness.box.mutationCount;
+      final images = folderImages(folderId);
+      Iterable<String> urls() =>
+          tester.widgetList<BooruImage>(images).map((image) => image.imageUrl);
+      const storedUrls = [
+        'https://images.example/cached-first-0.jpg',
+        'https://images.example/cached-second-0.jpg',
+      ];
+
+      await harness.pump(tester, const FollowingTopicsPage());
+      const expectedQueries = [
+        'pending',
+        'empty',
+        'failed',
+        'ready order:score',
+      ];
+      expect(queries, expectedQueries);
+      expect(urls(), ['https://example.com/2-thumb.jpg', ...storedUrls]);
+      final readyImage = images.first;
+      final width = tester.getSize(readyImage).width;
+      final slot = find
+          .ancestor(of: readyImage, matching: find.byType(AspectRatio))
+          .first;
+      final row = find.ancestor(of: slot, matching: find.byType(Row)).first;
+      const padding = followingTopicCardThumbnailPadding;
+      expect(tester.widget<Row>(row).children, hasLength(4));
+      expect(
+        tester.getTopLeft(slot).dx - tester.getTopLeft(row).dx,
+        closeTo(width + padding.horizontal + padding.left, 0.01),
+      );
+
+      pending.complete();
+      await settle(tester);
+      const populated = [
+        'https://example.com/1-thumb.jpg',
+        'https://example.com/2-thumb.jpg',
+        ...storedUrls,
+      ];
+      expect(urls(), populated);
+      for (final image in tester.widgetList<BooruImage>(images)) {
+        expect(tester.getSize(find.byWidget(image)), Size.square(width));
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump();
+      await harness.pump(tester, const FollowingTopicsPage());
+      expect(urls(), populated);
+      expect(queries, expectedQueries);
+      expect(harness.requests, isEmpty);
+      expect(harness.box.mutationCount, mutations);
+      expect(await tester.runAsync(harness.repository.getAll), before);
+      await tester.pumpWidget(const SizedBox());
+      harness.dispose();
+    },
+  );
+
+  testWidgets(
+    'folder previews stop with inactive routes, disabled media, and removed or changed profiles',
+    (tester) async {
+      final mediaEnabled = StateProvider((_) => false);
+      final active = ValueNotifier(false);
+      addTearDown(active.dispose);
+      final firstResult = Completer<void>();
+      final requests = <(BooruConfig, ApiRequestContext)>[];
+      final newProfile = testProfile.copyWith(apiKey: 'test-profile-update');
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        supported: false,
+        overrides: [
+          deterministicImageDioOverride(),
+          automaticMediaLoadingEnabledProvider.overrideWith(
+            (ref) => ref.watch(mediaEnabled),
+          ),
+          booruConfigProvider.overrideWith(_PreviewProfiles.new),
+          originAwarePostRepoProvider.overrideWith(
+            (_, config) => TestSearchPostRepository((_, _, _) async {
+              requests.add((config, ApiRequestContext.current()));
+              if (requests.length == 1) await firstResult.future;
+              final id = config == newProfile ? 2 : 1;
+              return Either.of(
+                PostResult(posts: [testSearchPost(id, null)], total: 1),
+              );
+            }),
+          ),
+        ],
+      );
+      final folderId = await seedPreviewFolder(tester, [
+        topicFixture(query: 'cat'),
+      ]);
+      final page = ValueListenableBuilder(
+        valueListenable: active,
+        builder: (_, isActive, child) =>
+            NavigationActivity(active: isActive, child: child!),
+        child: const FollowingTopicsPage(),
+      );
+      final images = folderImages(folderId);
+      await harness.pump(tester, page);
+      active.value = true;
+      await settle(tester);
+      expect(requests, isEmpty);
+      expect(images, findsNothing);
+
+      active.value = false;
+      harness.container.read(mediaEnabled.notifier).state = true;
+      await settle(tester);
+      expect(requests, isEmpty);
+      active.value = true;
+      await settle(tester);
+      expect(requests.single.$1, testProfile);
+
+      final navigator = tester.state<NavigatorState>(find.byType(Navigator));
+      navigator.push<void>(
+        MaterialPageRoute(
+          builder: (_) => const Scaffold(body: Text('Outside Following')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(requests.single.$2.cancelToken!.isCancelled, isTrue);
+      firstResult.complete();
+      await settle(tester);
+      expect(find.byType(BooruImage, skipOffstage: false), findsNothing);
+
+      navigator.pop();
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(2));
+      expect(
+        tester.widget<BooruImage>(images).imageUrl,
+        'https://example.com/1-thumb.jpg',
+      );
+      final profiles = harness.container.read(
+        booruConfigProvider.notifier,
+      ) as _PreviewProfiles;
+      profiles.replace([newProfile, otherTestProfile]);
+      await settle(tester);
+      expect(requests.last.$1, newProfile);
+      expect(tester.widget<BooruImage>(images).config, newProfile.auth);
+      expect(
+        tester.widget<BooruImage>(images).imageUrl,
+        'https://example.com/2-thumb.jpg',
+      );
+
+      profiles.replace([otherTestProfile]);
+      await settle(tester);
+      expect(folderCard(folderId), findsOneWidget);
+      expect(images, findsNothing);
+      expect(requests, hasLength(3));
+      await tester.pumpWidget(const SizedBox());
+      harness.dispose();
+    },
+  );
+
+  testWidgets(
+    'public folder previews enforce the current media allowlist and blacklist',
+    (tester) async {
+      final requests = <BooruConfig>[];
+      final topic = FollowingTopic(
+        id: 'public-cats',
+        profileId: testProfile.id,
+        localSource: FollowingTopicSource(
+          booruType: 'gelbooruV2',
+          url: 'https://safebooru.org',
+        ),
+        query: 'cat',
+        position: 0,
+        createdAt: checkedAt,
+        previews: topicFixture(previewCount: 1).previews,
+        recentPostIdentities: const [],
+        unreadCount: 0,
+      );
+      const permitted = 'https://wimg.safebooru.org/images/1.jpg';
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        profiles: [],
+        loadImages: true,
+        overrides: [
+          deterministicImageDioOverride(),
+          globalBlacklistedTagsProvider.overrideWith(_PreviewBlacklist.new),
+          contentEffectivePolicyProvider.overrideWith(
+            (_, _) => const AsyncData('safe'),
+          ),
+          originAwarePostRepoProvider.overrideWith(
+            (_, config) => TestSearchPostRepository((_, _, _) async {
+              requests.add(config);
+              return Either.of(
+                PostResult(
+                  posts: [
+                    _previewPost(
+                      'https://unlisted.example/1.jpg',
+                      public: true,
+                    ),
+                    _previewPost(permitted, public: true),
+                  ],
+                  total: 2,
+                ),
+              );
+            }),
+          ),
+        ],
+      );
+      final folderId = await seedPreviewFolder(tester, [topic]);
+      final images = folderImages(folderId);
+      await harness.pump(tester, const FollowingTopicsPage());
+      final scope = requests.single.anonymousReadScope!;
+      expect(scope.isCurrent, isTrue);
+      expect(requests.single.auth.apiKey, isNull);
+      expect(tester.widget<BooruImage>(images).imageUrl, permitted);
+      expect(tester.widget<BooruImage>(images).config, requests.single.auth);
+
+      (harness.container.read(
+        globalBlacklistedTagsProvider.notifier,
+      ) as _PreviewBlacklist).blockGeneral();
+      await settle(tester);
+      expect(folderCard(folderId), findsOneWidget);
+      expect(scope.isCurrent, isFalse);
+      expect(requests, hasLength(2));
+      expect(images, findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      harness.dispose();
+    },
+  );
+
   testWidgets(
     'folder previews use one cached image from the first four populated members in order',
     (tester) async {
+      harness.dispose();
+      var previewSearches = 0;
+      harness = FollowingTopicHarness(
+        loadImages: true,
+        overrides: [
+          deterministicImageDioOverride(),
+          untrackedTopicPreviewProvider.overrideWith((_, _) {
+            previewSearches++;
+            return const <String>[];
+          }),
+        ],
+      );
       FollowingTopic fixture({
         required String id,
         required String profileId,
         required List<String> thumbnails,
+        String? query,
       }) => FollowingTopic(
         id: id,
         profileId: profileId,
-        query: id,
+        query: query ?? id,
         name: id.toUpperCase(),
         position: 0,
         createdAt: checkedAt,
@@ -565,6 +1004,7 @@ void main() {
           id: 'first',
           profileId: '00000000-0000-4000-8000-00000000000c',
           thumbnails: ['https://images.example/first.jpg'],
+          query: 'first order:score',
         ),
         fixture(
           id: 'empty',
@@ -628,6 +1068,7 @@ void main() {
         final size = tester.getSize(find.byWidget(image));
         expect(size.width, size.height);
       }
+      expect(previewSearches, 0);
       expect(harness.requests, isEmpty);
     },
   );
@@ -1184,5 +1625,42 @@ void main() {
       expect(find.byType(ReorderableListView), findsNothing);
       expect(harness.requests, isEmpty);
     },
+  );
+}
+
+Post _previewPost(String url, {bool public = false}) {
+  final post = testSearchPost(1, null);
+  return post.copyWith(
+    origin: public
+        ? PostOrigin.fromSource(
+            booruType: BooruType.gelbooruV2,
+            booruId: BooruType.gelbooruV2.id,
+            source: 'https://safebooru.org',
+          )
+        : null,
+    core: PostCoreData.fromPost(post, thumbnailImageUrl: url),
+  );
+}
+
+class _PreviewProfiles extends BooruConfigNotifier {
+  _PreviewProfiles() : super(initialConfigs: [testProfile, otherTestProfile]);
+
+  void replace(List<BooruConfig> profiles) => state = profiles;
+}
+
+class _PreviewBlacklist extends GlobalBlacklistedTagsNotifier {
+  @override
+  IList<BlacklistedTag> build() => <BlacklistedTag>[].lock;
+
+  void blockGeneral() => state = AsyncData(
+    [
+      BlacklistedTag(
+        id: 1,
+        name: 'rating:general',
+        isActive: true,
+        createdDate: checkedAt,
+        updatedDate: checkedAt,
+      ),
+    ].lock,
   );
 }

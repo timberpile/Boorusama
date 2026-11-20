@@ -2,6 +2,7 @@ import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/search/search/src/pages/search_page.dart';
 import 'package:boorusama/core/content/anonymous_access_provider.dart';
 import 'package:boorusama/core/content/anonymous_source_policy.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
 
 import '../../../support/fakes/memory_app_file_system.dart';
 
@@ -2083,6 +2084,7 @@ void main() {
           );
           container = ProviderContainer(
             overrides: [
+              automaticMediaLoadingEnabledProvider.overrideWithValue(false),
               followingTopicRepositoryProvider.overrideWith(
                 () => _Repository(b.following),
               ),

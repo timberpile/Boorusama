@@ -1,15 +1,11 @@
-import '../providers/following_topic_config_provider.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
-import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
+import '../providers/following_topic_config_provider.dart';
 import '../providers/untracked_topic_preview_provider.dart';
-import '../providers/following_topic_selectors.dart';
-import '../refresh/search_refresh_query_adapter.dart';
 import '../types/following_topic.dart';
 import '../types/search_refresh.dart';
 
@@ -34,31 +30,16 @@ class FollowingTopicPreview extends ConsumerWidget {
     if (fallback case final preview?) return preview;
     final resolved = ref.watch(followingTopicConfigProvider(topic.id));
     final owner = resolved?.auth == auth ? resolved : null;
-    final adapter = owner == null
+    final key = owner == null
         ? null
-        : ref
-              .watch(booruRepoProvider(owner.auth))
-              ?.searchRefreshQueryAdapter(owner.auth);
-    final untracked =
-        owner != null &&
-        (topic.lastErrorKind == SearchRefreshErrorKind.unsupported ||
-            !ref.watch(followingTopicTrackingSupportedProvider(owner.auth)) ||
-            !supportsSearchRefreshQuery(adapter, topic.query));
+        : ref.watch(untrackedTopicPreviewKeyProvider((topic, owner)));
     final stored = topic.previews
         .map((preview) => preview.thumbnailUrl)
         .toList();
-    final public = owner?.anonymousReadScope != null;
-    if (!untracked && !public) return fallback ?? _images(stored);
+    if (key == null) return _images(stored);
 
-    final previews = ref.watch(
-      untrackedTopicPreviewProvider((
-        config: owner!,
-        query: topic.query,
-        structure: topic.queryStructure,
-        revision: topic.runtimeRevision,
-        attemptedAt: topic.lastAttemptAt,
-      )),
-    );
+    final public = key.config.anonymousReadScope != null;
+    final previews = ref.watch(untrackedTopicPreviewProvider(key));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
