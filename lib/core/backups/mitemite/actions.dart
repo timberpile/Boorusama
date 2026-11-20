@@ -100,19 +100,45 @@ Future<void> runSyncAction(
   }
 }
 
+/// Recheck captured resources after dialogs/awaits and before starting an action.
+/// A replacement must not silently borrow the previous instance's authority.
+bool isCurrentSyncService(BuildContext context, MiteMiteService service) =>
+    context.mounted &&
+    identical(
+      ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(currentMiteMiteServiceProvider),
+      service,
+    );
+
+Future<void> runCurrentSyncAction(
+  BuildContext context,
+  MiteMiteService service,
+  Future<void> Function() action,
+) => runSyncAction(context, () async {
+  if (context.mounted && isCurrentSyncService(context, service)) await action();
+});
+
 Future<bool> chooseSyncFolder(
   BuildContext context,
   WidgetRef ref,
   MiteMiteService service,
 ) async {
+  if (!context.mounted || !isCurrentSyncService(context, service)) return false;
   final location = ref.read(appPlatformProvider).isAndroid
       ? await AutoBackupRepositoryAndroid.pickDirectory()
       : await ref.read(appFilePickerProvider).pickDirectory();
-  if (location == null || !context.mounted) return false;
+  if (location == null ||
+      !context.mounted ||
+      !isCurrentSyncService(context, service))
+    return false;
   try {
     await service.configure(location);
   } finally {
-    if (context.mounted && service.configured) {
+    if (context.mounted &&
+        isCurrentSyncService(context, service) &&
+        service.configured) {
       ref.read(miteMiteActivationProvider.notifier).state = true;
     }
   }
@@ -127,12 +153,12 @@ Future<void> publishBookmarkGroup(
   String source,
 ) => runSyncAction(context, () async {
   final service = await ref.read(miteMiteServiceProvider.future);
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   if (!service.configured && !await chooseSyncFolder(context, ref, service))
     return;
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   var state = await ref.read(bookmarkProvider.future);
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   var group = state.groupsById[source];
   if (group == null || state.mirrors.isReceived(source))
     throw const BookmarkMirrorReadOnly();
@@ -143,9 +169,10 @@ Future<void> publishBookmarkGroup(
     context.t.mitemite.confirm_publish(name: group.name),
   ))
     return;
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   // The dialog may have outlived a rename, deletion or ownership change.
   await ref.read(bookmarkProvider.notifier).refresh();
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   state = ref.read(bookmarkProvider).requireValue;
   group = state.groupsById[source];
   if (group == null || state.mirrors.isReceived(source))
@@ -174,7 +201,10 @@ Future<void> stopBookmarkPublication(
   String source,
 ) => runSyncAction(context, () async {
   final state = await ref.read(bookmarkProvider.future);
-  if (!context.mounted || !service.publishedRoots.contains(source)) return;
+  if (!context.mounted ||
+      !isCurrentSyncService(context, service) ||
+      !service.publishedRoots.contains(source))
+    return;
   final local = state.groups
       .where((group) => !state.mirrors.isReceived(group.id))
       .toList();
@@ -191,7 +221,7 @@ Future<void> stopBookmarkPublication(
     '${context.t.mitemite.publication_impact(removed: before.difference(after).length, retained: before.intersection(after).length)}',
   ))
     return;
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   await service.stopPublishingGroup(source);
   if (context.mounted)
     Kurumi.showSuccessToast(context, context.t.mitemite.publication_stopped);

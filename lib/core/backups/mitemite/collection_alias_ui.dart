@@ -67,6 +67,7 @@ List<Widget> collectionAliasMenu(
   final alias = ref.read(syncCollectionAliasesProvider)[id];
   Future<void> save(String? value) => runSyncAction(context, () async {
     final service = await ref.read(miteMiteServiceProvider.future);
+    if (!context.mounted || !isCurrentSyncService(context, service)) return;
     await service.setCollectionAlias(id, value);
   });
   return [

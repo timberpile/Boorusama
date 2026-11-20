@@ -46,6 +46,7 @@ class MiteMitePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => ref
       .watch(miteMiteServiceProvider)
+      .unwrapPrevious()
       .when(
         loading: () => Scaffold(
           appBar: KurumiAppBar(title: Text(context.t.mitemite.title)),
@@ -85,6 +86,9 @@ class MiteMitePage extends ConsumerWidget {
                   ))
                 entry.key,
           };
+          // Exit acknowledgement runs after route disposal. Its service lifetime
+          // belongs to the container, independently of this page's context.
+          final container = ProviderScope.containerOf(context, listen: false);
           return SyncOfferVisit(
             ready:
                 ref.watch(bookmarkProvider).hasValue &&
@@ -92,7 +96,14 @@ class MiteMitePage extends ConsumerWidget {
                 !service.isReconciling &&
                 service.activityFailure == null,
             keys: displayed,
-            onLeave: service.acknowledgeOffers,
+            onLeave: (keys) async {
+              if (identical(
+                container.read(currentMiteMiteServiceProvider),
+                service,
+              )) {
+                await service.acknowledgeOffers(keys);
+              }
+            },
             child: page,
           );
         },
@@ -125,7 +136,11 @@ class MiteMitePage extends ConsumerWidget {
           trailing: TextButton(
             onPressed: service.isActionPending('activity')
                 ? null
-                : () => runSyncAction(context, service.retryActivity),
+                : () => runCurrentSyncAction(
+                    context,
+                    service,
+                    service.retryActivity,
+                  ),
             child: Text(context.t.generic.action.retry),
           ),
         ),
@@ -138,7 +153,8 @@ class MiteMitePage extends ConsumerWidget {
           title: Text(t.maintenance_pending),
           subtitle: Text(t.maintenance_pending_detail),
           trailing: TextButton(
-            onPressed: () => runSyncAction(context, service.synchronize),
+            onPressed: () =>
+                runCurrentSyncAction(context, service, service.synchronize),
             child: Text(context.t.generic.action.retry),
           ),
         ),
@@ -153,7 +169,11 @@ class MiteMitePage extends ConsumerWidget {
           trailing: TextButton(
             onPressed: service.isActionPending('projection')
                 ? null
-                : () => runSyncAction(context, service.retryProjection),
+                : () => runCurrentSyncAction(
+                    context,
+                    service,
+                    service.retryProjection,
+                  ),
             child: Text(context.t.generic.action.retry),
           ),
         ),
@@ -167,7 +187,7 @@ class MiteMitePage extends ConsumerWidget {
           leading: const Icon(Icons.folder_open),
           onTap: service.isActionPending('location')
               ? null
-              : () => runSyncAction(context, () async {
+              : () => runCurrentSyncAction(context, service, () async {
                   await chooseSyncFolder(context, ref, service);
                 }),
         ),
@@ -184,7 +204,7 @@ class MiteMitePage extends ConsumerWidget {
           trailing: const Icon(Icons.folder_open),
           onTap: service.isActionPending('location')
               ? null
-              : () => runSyncAction(context, () async {
+              : () => runCurrentSyncAction(context, service, () async {
                   await chooseSyncFolder(context, ref, service);
                 }),
         ),
@@ -215,8 +235,9 @@ class MiteMitePage extends ConsumerWidget {
                       initial: service.name,
                     );
                     if (name != null && context.mounted) {
-                      await runSyncAction(
+                      await runCurrentSyncAction(
                         context,
+                        service,
                         () => service.rename(name),
                       );
                     }
@@ -354,7 +375,11 @@ class MiteMitePage extends ConsumerWidget {
                   : const Icon(Icons.sync),
               onPressed: !service.configured
                   ? null
-                  : () => runSyncAction(context, service.synchronize),
+                  : () => runCurrentSyncAction(
+                      context,
+                      service,
+                      service.synchronize,
+                    ),
             ),
         ],
       ),
@@ -540,13 +565,14 @@ class MiteMitePage extends ConsumerWidget {
                   child: Text(t.trust),
                   onPressed: service.isActionPending('trust:${device.id}')
                       ? null
-                      : () => runSyncAction(context, () async {
+                      : () => runCurrentSyncAction(context, service, () async {
                           if (await confirmSyncAction(
                                 context,
                                 t.trust,
                                 '${t.trust_prompt}\n\n${device.name}\n${t.device_id}: ${device.id}\n${t.fingerprint}: ${device.fingerprint}',
                               ) &&
-                              context.mounted) {
+                              context.mounted &&
+                              isCurrentSyncService(context, service)) {
                             await service.approve(device);
                           }
                         }),
@@ -656,8 +682,9 @@ class MiteMitePage extends ConsumerWidget {
                   onPressed: service.isActionPending('alias:${device.id}')
                       ? null
                       : () async {
-                          await runSyncAction(
+                          await runCurrentSyncAction(
                             context,
+                            service,
                             () => editSyncDeviceAlias(
                               context,
                               service: service,
@@ -821,7 +848,7 @@ class MiteMitePage extends ConsumerWidget {
               (sourceKind == 'following_topics' &&
                   service.followingStore == null)
           ? null
-          : () => runSyncAction(context, () async {
+          : () => runCurrentSyncAction(context, service, () async {
               if (sourceKind == 'following_topics') {
                 if (subscribed) {
                   await unsubscribeFollowingDefinition(
@@ -841,7 +868,8 @@ class MiteMitePage extends ConsumerWidget {
                       t.unsubscribe,
                       syncRemovalMessage(context, library, publisher, source),
                     ) &&
-                    context.mounted) {
+                    context.mounted &&
+                    isCurrentSyncService(context, service)) {
                   await service.unsubscribe(publisher, source);
                 }
               } else {
@@ -887,13 +915,14 @@ class MiteMitePage extends ConsumerWidget {
     MiteMiteService service,
     BookmarkLibraryState library,
     String publisher,
-  ) => runSyncAction(context, () async {
+  ) => runCurrentSyncAction(context, service, () async {
     if (await confirmSyncAction(
           context,
           context.t.mitemite.forget,
           '${syncRemovalMessage(context, library, publisher)}\n${context.t.mitemite.following_category}: ${service.receiverFollowing == null ? 0 : followingReceivedScope(service.receiverFollowing!.mirrors, publisher).covered.length}',
         ) &&
-        context.mounted) {
+        context.mounted &&
+        isCurrentSyncService(context, service)) {
       await service.forget(publisher);
     }
   });

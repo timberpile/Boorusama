@@ -1,3 +1,5 @@
+import '../../../backups/mitemite/actions.dart' show isCurrentSyncService;
+
 import '../widgets/bookmark_source_selection_scope.dart';
 import '../../../backups/mitemite/collection_alias_ui.dart';
 import '../../../backups/mitemite/mitemite_icon.dart';
@@ -696,8 +698,9 @@ class _BookmarkGroupBrowserPageState
         title: Text(context.t.mitemite.copy),
         icon: const Icon(Icons.copy),
         onTap: () => runSyncAction(context, () async {
-          await (await ref.read(miteMiteServiceProvider.future))
-              .localCopy(group.id);
+          final service = await ref.read(miteMiteServiceProvider.future);
+          if (!mounted || !isCurrentSyncService(context, service)) return;
+          await service.localCopy(group.id);
           if (mounted)
             Kurumi.showSuccessToast(
               context,
@@ -714,12 +717,20 @@ class _BookmarkGroupBrowserPageState
           icon: const Icon(Icons.link_off),
           onTap: () => runSyncAction(context, () async {
             if (await confirmSyncAction(
-              context,
-              context.t.mitemite.unsubscribe,
-              syncRemovalMessage(context, state, owner.publisher, owner.source),
-            ))
-              await (await ref.read(miteMiteServiceProvider.future))
-                  .unsubscribe(owner.publisher, owner.source);
+                  context,
+                  context.t.mitemite.unsubscribe,
+                  syncRemovalMessage(
+                    context,
+                    state,
+                    owner.publisher,
+                    owner.source,
+                  ),
+                ) &&
+                mounted) {
+              final service = await ref.read(miteMiteServiceProvider.future);
+              if (!mounted || !isCurrentSyncService(context, service)) return;
+              await service.unsubscribe(owner.publisher, owner.source);
+            }
           }),
         ),
     ];

@@ -200,6 +200,112 @@ void main() {
     },
   );
 
+  for (final change in ['loading', 'policy error', 'profile removal']) {
+    test(
+      'scheduled $change clears source and metadata without a future waiter',
+      () async {
+        final visibility = StateProvider<AsyncValue<String>>(
+          (_) => const AsyncData('visible'),
+        );
+        final sources = <_Source>[];
+        final container = ProviderContainer(
+          overrides: [
+            booruEngineRegistryProvider.overrideWith(
+              (ref) => _registry(
+                ref,
+                () => _capability((access) {
+                  final source = _Source(access);
+                  sources.add(source);
+                  return source;
+                }),
+              ),
+            ),
+            booruConfigProvider.overrideWith(() => _Configs([_profile()])),
+            contentEffectivePolicyProvider.overrideWith(
+              (ref, _) => ref.watch(visibility),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final request = ContentAccessRequest(reference: group);
+        final access = container.read(
+          contentAccessForReferenceProvider(request),
+        )!;
+        final metadata = GroupMetadataKey(reference: group, access: access.key);
+        final members = GroupLoadKey(reference: group, access: access.key);
+        container.listen(
+          contentGroupSourceStateProvider(access.key),
+          (_, _) {},
+        );
+        container.listen(groupSummaryProvider(metadata), (_, _) {});
+        container.listen(groupDetailsProvider(metadata), (_, _) {});
+        container.listen(groupMembersProvider(members), (_, _) {});
+        final source = sources.single;
+        source.completeEnvelope();
+        await container.pump();
+        expect(container.read(groupSummaryProvider(metadata)).hasValue, isTrue);
+        expect(container.read(groupDetailsProvider(metadata)).hasValue, isTrue);
+        expect(container.read(groupMembersProvider(members)).hasValue, isTrue);
+        final calls = (
+          source.rawCalls,
+          source.summaryCalls,
+          source.detailsCalls,
+          source.memberCalls,
+        );
+        switch (change) {
+          case 'loading':
+            container.read(visibility.notifier).state = const AsyncLoading();
+          case 'policy error':
+            container.read(visibility.notifier).state = AsyncError(
+              StateError('Policy unavailable'),
+              StackTrace.current,
+            );
+          case 'profile removal':
+            (container.read(booruConfigProvider.notifier) as _Configs).replace(
+              [],
+            );
+        }
+        await container.pump();
+        expect(source.disposed, isTrue);
+        for (final state in <AsyncValue<Object?>>[
+          container.read(contentGroupSourceStateProvider(access.key)),
+          container.read(groupSummaryProvider(metadata)),
+          container.read(groupDetailsProvider(metadata)),
+          container.read(groupMembersProvider(members)),
+        ]) {
+          expect(state.hasError, isTrue);
+          expect(state.valueOrNull, isNull);
+        }
+        expect((
+          source.rawCalls,
+          source.summaryCalls,
+          source.detailsCalls,
+          source.memberCalls,
+        ), calls);
+        container.read(visibility.notifier).state = const AsyncData('visible');
+        (container.read(booruConfigProvider.notifier) as _Configs).replace([
+          _profile(),
+        ]);
+        final fresh = container.read(
+          contentAccessForReferenceProvider(request),
+        )!;
+        expect(fresh.key, isNot(access.key));
+        expect(
+          container.read(contentAccessContextProvider(access.key)),
+          isNull,
+        );
+        container.listen(contentGroupSourceStateProvider(fresh.key), (_, _) {});
+        final recovered = GroupMetadataKey(reference: group, access: fresh.key);
+        container.listen(groupSummaryProvider(recovered), (_, _) {});
+        sources.last.completeEnvelope();
+        await container.pump();
+        expect(
+          container.read(groupSummaryProvider(recovered)).requireValue.title,
+          'Fixture pool',
+        );
+      },
+    );
+  }
   test('unsupported engine fails before policy preparation', () {
     var policyReads = 0;
     final unsupported = const ContentReferenceCodec().parse(
@@ -422,4 +528,9 @@ class _Envelope {
   final List<Post> posts;
   final ContentGroupSummary summary;
   final ContentGroupDetails details;
+}
+
+class _Configs extends BooruConfigNotifier {
+  _Configs(List<BooruConfig> profiles) : super(initialConfigs: profiles);
+  void replace(List<BooruConfig> profiles) => state = profiles;
 }

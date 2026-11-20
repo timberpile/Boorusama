@@ -42,7 +42,9 @@ class PixivWorkGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(contentProfileAccessProvider(config.id));
     if (access == null) return const Center(child: CircularProgressIndicator());
-    ref.watch(contentGroupSourceProvider(access.key));
+    // Source loss can reach the subscription before the access-driven rebuild.
+    // Observe it as async state; page requests retain their normal error UI.
+    ref.watch(contentGroupSourceStateProvider(access.key));
     final effectiveMode =
         pageMode ?? ref.watch(imageListingSettingsProvider).pageMode;
     return NativeContentGrid(

@@ -2,6 +2,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
+import 'actions.dart';
 import 'service.dart';
 
 /// Shared alias workflow for Devices and the receiver's Bookmark Home header.
@@ -12,6 +13,7 @@ Future<void> editSyncDeviceAlias(
   required String publisher,
   required String? alias,
 }) async {
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   final value = await showSyncNameDialog(
     context,
     title: context.t.mitemite.alias,
@@ -19,7 +21,9 @@ Future<void> editSyncDeviceAlias(
     hint: context.t.mitemite.alias_hint,
     allowEmpty: true,
   );
-  if (value != null && context.mounted) {
+  if (value != null &&
+      context.mounted &&
+      isCurrentSyncService(context, service)) {
     await service.setDeviceAlias(publisher, value);
   }
 }

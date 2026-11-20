@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../../backups/mitemite/providers.dart';
+import '../../../../backups/mitemite/actions.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../../../../backups/mitemite/service.dart';
 
@@ -70,6 +71,7 @@ class _FollowingDefinitionEntryState
     try {
       final service = await ref.read(miteMiteServiceProvider.future);
       if (!mounted ||
+          !isCurrentSyncService(context, service) ||
           !widget.ready ||
           !(ModalRoute.of(context)?.isCurrent ?? true) ||
           !NavigationActivity.of(context))

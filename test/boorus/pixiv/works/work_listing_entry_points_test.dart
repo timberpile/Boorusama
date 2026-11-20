@@ -1,10 +1,19 @@
+import 'dart:async';
+
 import 'package:booru_clients/pixiv.dart';
 import 'package:boorusama/boorus/pixiv/client_provider.dart';
 import 'package:boorusama/boorus/pixiv/pixiv_builder.dart';
 import 'package:boorusama/boorus/pixiv/works/search_page.dart';
+import 'package:boorusama/boorus/pixiv/works/work_listing.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
 import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/bookmarks/src/pages/bookmark_group_browser_page.dart';
+import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_library_state.dart';
+import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/content/widgets/native_content_grid.dart';
@@ -20,6 +29,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
 
 import '../../../core/search/following_topics/following_topic_test_utils.dart';
+import '../../../support/fakes/memory_repositories.dart';
 import 'work_test_fixtures.dart';
 
 void main() {
@@ -234,6 +244,15 @@ void main() {
       expect((await source.loadSummary(reference).run()).isRight(), isTrue);
       expect(controller.errors.value, isNotNull);
       expect(tester.takeException(), isNull);
+      client.offline = false;
+      await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+      await drain(tester);
+      expect(controller.errors.value, isNull);
+      expect(
+        harness.container.read(contentGroupSourceProvider(access.key)),
+        same(source),
+      );
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
@@ -286,6 +305,309 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+  for (final change in [
+    'policy loading',
+    'policy failure',
+    'profile removal',
+  ]) {
+    testWidgets(
+      'mounted Work grids tolerate scheduled $change and recover with a fresh key',
+      (tester) async {
+        final config = workAccess().config!;
+        final visibility = StateProvider<AsyncValue<String>>(
+          (_) => const AsyncData('visible'),
+        );
+        final client = _Client();
+        final harness = FollowingTopicHarness(
+          profiles: [config],
+          overrides: [
+            booruConfigProvider.overrideWith(() => _Configs([config])),
+            contentEffectivePolicyProvider.overrideWith(
+              (ref, _) => ref.watch(visibility),
+            ),
+            pixivClientProvider.overrideWith((ref, _) => client),
+            booruGroupCapabilityProvider.overrideWith(
+              (ref, _) => createPixivGroupCapability(ref),
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        await harness.pump(
+          tester,
+          Scaffold(
+            body: PixivWorkGrid(
+              config: config,
+              queryIdentity: 'source-loss',
+              fetchPage: (page) => client.getRanking(page: page),
+            ),
+          ),
+        );
+        await drain(tester);
+        final before = harness.container.read(
+          contentProfileAccessProvider(config.id),
+        )!;
+        expect(find.byType(NativeContentGrid), findsOneWidget);
+        final calls = client.calls.length;
+        switch (change) {
+          case 'policy loading':
+            harness.container.read(visibility.notifier).state =
+                const AsyncLoading();
+          case 'policy failure':
+            harness.container.read(visibility.notifier).state = AsyncError(
+              StateError('Policy unavailable'),
+              StackTrace.current,
+            );
+          case 'profile removal':
+            (harness.container.read(booruConfigProvider.notifier) as _Configs)
+                .replace([]);
+        }
+        // Let Riverpod refresh subscriptions on its scheduler; do not await .future
+        // or manually read/rebuild the source before this intermediate frame.
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ErrorWidget), findsNothing);
+        expect(find.byType(NativeContentGrid), findsNothing);
+        expect(client.calls, hasLength(calls));
+        harness.container.read(visibility.notifier).state = const AsyncData(
+          'visible',
+        );
+        (harness.container.read(booruConfigProvider.notifier) as _Configs)
+            .replace([config]);
+        await drain(tester);
+        final after = harness.container.read(
+          contentProfileAccessProvider(config.id),
+        )!;
+        expect(after.key, isNot(before.key));
+        expect(
+          harness.container.read(contentAccessContextProvider(before.key)),
+          isNull,
+        );
+        expect(find.byType(NativeContentGrid), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  testWidgets(
+    'pending listing results cannot publish after revocation or unmount',
+    (tester) async {
+      final config = workAccess().config!;
+      final visibility = StateProvider<AsyncValue<String>>(
+        (_) => const AsyncData('visible'),
+      );
+      final requests = <Completer<PixivIllustListResult>>[];
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        overrides: [
+          contentEffectivePolicyProvider.overrideWith(
+            (ref, _) => ref.watch(visibility),
+          ),
+          pixivClientProvider.overrideWith((ref, _) => _Client()),
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, _) => createPixivGroupCapability(ref),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: PixivWorkGrid(
+            config: config,
+            queryIdentity: 'pending-source-loss',
+            fetchPage: (_) {
+              final request = Completer<PixivIllustListResult>();
+              requests.add(request);
+              return request.future;
+            },
+          ),
+        ),
+      );
+      expect(requests, hasLength(1));
+      harness.container.read(visibility.notifier).state = const AsyncLoading();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      requests.first.complete(PixivIllustListResult(illusts: [work(id: 999)]));
+      await drain(tester);
+      expect(find.byType(NativeContentGrid), findsNothing);
+      expect(tester.takeException(), isNull);
+      harness.container.read(visibility.notifier).state = const AsyncData(
+        'visible',
+      );
+      await drain(tester);
+      expect(requests, hasLength(2));
+      requests.last.complete(PixivIllustListResult(illusts: [work(id: 222)]));
+      await drain(tester);
+      final view = find.descendant(
+        of: find.byType(NativeContentGrid),
+        matching: find.byType(CustomScrollView),
+      );
+      final controller = NativeContentGrid.controllerOf(tester.element(view));
+      expect(controller.entries.map((e) => e.reference.sourceKey), [
+        'work:222',
+      ]);
+      final refresh = controller.refresh();
+      await tester.pump();
+      expect(requests, hasLength(3));
+      await tester.pumpWidget(const SizedBox.shrink());
+      requests.last.complete(PixivIllustListResult(illusts: [work(id: 333)]));
+      await refresh;
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'initial policy loading blocks source creation and source errors remain visible through recovery',
+    (tester) async {
+      final config = workAccess().config!;
+      final visibility = StateProvider<AsyncValue<String>>(
+        (_) => const AsyncLoading(),
+      );
+      final failure = StateError('Source client unavailable');
+      var unavailable = true;
+      var clientReads = 0;
+      final client = _Client();
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        overrides: [
+          contentEffectivePolicyProvider.overrideWith(
+            (ref, _) => ref.watch(visibility),
+          ),
+          pixivClientProvider.overrideWith((ref, _) {
+            clientReads++;
+            if (unavailable) throw failure;
+            return client;
+          }),
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, _) => createPixivGroupCapability(ref),
+          ),
+        ],
+      );
+      addTearDown(harness.dispose);
+      await harness.pump(
+        tester,
+        Scaffold(
+          body: PixivWorkGrid(
+            config: config,
+            queryIdentity: 'initial-loading',
+            fetchPage: (page) => client.getRanking(page: page),
+          ),
+        ),
+      );
+      expect(clientReads, 0);
+      expect(find.byType(NativeContentGrid), findsNothing);
+      expect(tester.takeException(), isNull);
+      harness.container.read(visibility.notifier).state = const AsyncData(
+        'visible',
+      );
+      await drain(tester);
+      final view = find.descendant(
+        of: find.byType(NativeContentGrid),
+        matching: find.byType(CustomScrollView),
+      );
+      final controller = NativeContentGrid.controllerOf(tester.element(view));
+      expect(controller.errors.value, same(failure));
+      expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      unavailable = false;
+      final access = harness.container.read(
+        contentProfileAccessProvider(config.id),
+      )!;
+      harness.container.invalidate(pixivClientProvider(config.auth));
+      harness.container.invalidate(contentGroupSourceProvider(access.key));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+      await drain(tester);
+      expect(controller.entries, hasLength(3));
+      expect(controller.errors.value, isNull);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'repeated Bookmarks visits retain a safe background Work subscription',
+    (tester) async {
+      final config = workAccess().config!;
+      final visibility = StateProvider<AsyncValue<String>>(
+        (_) => const AsyncData('visible'),
+      );
+      final client = _Client();
+      final harness = FollowingTopicHarness(
+        profiles: [config],
+        overrides: [
+          contentEffectivePolicyProvider.overrideWith(
+            (ref, _) => ref.watch(visibility),
+          ),
+          pixivClientProvider.overrideWith((ref, _) => client),
+          booruGroupCapabilityProvider.overrideWith(
+            (ref, _) => createPixivGroupCapability(ref),
+          ),
+          bookmarkProvider.overrideWith(_EmptyLibrary.new),
+          miscDataStoreProvider.overrideWithValue(MemoryMiscDataStore()),
+        ],
+      );
+      addTearDown(harness.dispose);
+      var bookmarksVisible = false;
+      late StateSetter update;
+      await harness.pump(
+        tester,
+        StatefulBuilder(
+          builder: (_, setState) {
+            update = setState;
+            return IndexedStack(
+              index: bookmarksVisible ? 1 : 0,
+              children: [
+                Scaffold(
+                  body: PixivWorkGrid(
+                    config: config,
+                    queryIdentity: 'background-source',
+                    fetchPage: (page) => client.getRanking(page: page),
+                  ),
+                ),
+                const BookmarkGroupBrowserPage(),
+              ],
+            );
+          },
+        ),
+      );
+      await drain(tester);
+      for (var visit = 0; visit < 3; visit++) {
+        final oldAccess = harness.container.read(
+          contentProfileAccessProvider(config.id),
+        )!;
+        update(() => bookmarksVisible = true);
+        await tester.pump();
+        expect(find.byType(BookmarkGroupBrowserPage), findsOneWidget);
+        final calls = client.calls.length;
+        harness.container.read(visibility.notifier).state =
+            const AsyncLoading();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ErrorWidget), findsNothing);
+        expect(client.calls, hasLength(calls));
+        harness.container.read(visibility.notifier).state = const AsyncData(
+          'visible',
+        );
+        await drain(tester);
+        expect(
+          harness.container.read(contentAccessContextProvider(oldAccess.key)),
+          isNull,
+        );
+        expect(tester.takeException(), isNull);
+        update(() => bookmarksVisible = false);
+        await tester.pump();
+        expect(find.byType(NativeContentGrid), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.container.read(visibility.notifier).state = const AsyncLoading();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
     },
   );
   testWidgets('explicit Post-only session retains the compatibility page', (
@@ -364,4 +686,15 @@ class _Client extends PixivClient {
   @override
   Future<PixivIllustDto?> getIllustDetail({required int illustId}) =>
       throw StateError('A card must not fetch artwork details');
+}
+
+class _Configs extends BooruConfigNotifier {
+  _Configs(List<BooruConfig> profiles) : super(initialConfigs: profiles);
+  void replace(List<BooruConfig> profiles) => state = profiles;
+}
+
+class _EmptyLibrary extends BookmarkNotifier {
+  @override
+  Future<BookmarkLibraryState> build() async =>
+      BookmarkLibraryState(bookmarks: const [], groups: const []);
 }

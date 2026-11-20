@@ -1292,8 +1292,9 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                               final name = publisher.isEmpty
                                   ? context.t.mitemite.local
                                   : ref
-                                            .read(miteMiteServiceProvider)
-                                            .valueOrNull
+                                            .read(
+                                              currentMiteMiteServiceProvider,
+                                            )
                                             ?.receiverMirrors
                                             ?.aliases[publisher] ??
                                         activity

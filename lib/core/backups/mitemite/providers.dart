@@ -138,18 +138,25 @@ final miteMiteServiceProvider = FutureProvider<MiteMiteService>((
   return service;
 });
 
+/// Excludes retained resources from previous async generations. The source
+/// provider remains the only owner of service disposal.
+final currentMiteMiteServiceProvider = Provider<MiteMiteService?>(
+  (ref) => ref.watch(miteMiteServiceProvider).unwrapPrevious().valueOrNull,
+  dependencies: [miteMiteServiceProvider],
+);
+
 /// FutureProvider owns the service lifetime. This bridge observes mutations
 /// without giving a second provider ownership/disposal of the ChangeNotifier.
 final miteMiteChangesProvider = NotifierProvider<MiteMiteChanges, int>(
   MiteMiteChanges.new,
-  dependencies: [miteMiteServiceProvider],
+  dependencies: [currentMiteMiteServiceProvider],
 );
 
 class MiteMiteChanges extends Notifier<int> {
   var _revision = 0;
   @override
   int build() {
-    final service = ref.watch(miteMiteServiceProvider).valueOrNull;
+    final service = ref.watch(currentMiteMiteServiceProvider);
     void changed() {
       state = ++_revision;
     }
@@ -165,7 +172,7 @@ final publishedBookmarkRootsProvider = Provider<Set<String>>(
     if (!ref.watch(miteMiteActivationProvider) &&
         !ref.exists(miteMiteServiceProvider))
       return const {};
-    final service = ref.watch(miteMiteServiceProvider).valueOrNull;
+    final service = ref.watch(currentMiteMiteServiceProvider);
     return ref.watch(
       miteMiteChangesProvider.select(
         (_) => service?.publishedRoots ?? const <String>{},
@@ -174,6 +181,7 @@ final publishedBookmarkRootsProvider = Provider<Set<String>>(
   },
   dependencies: [
     miteMiteServiceProvider,
+    currentMiteMiteServiceProvider,
     miteMiteChangesProvider,
     miteMiteActivationProvider,
   ],
@@ -182,7 +190,7 @@ final publishedBookmarkRootsProvider = Provider<Set<String>>(
 final publishedFollowingRootsProvider = Provider<Set<String>>(
   (ref) {
     if (!ref.exists(miteMiteServiceProvider)) return const {};
-    final service = ref.watch(miteMiteServiceProvider).valueOrNull;
+    final service = ref.watch(currentMiteMiteServiceProvider);
     return ref.watch(
       miteMiteChangesProvider.select(
         (_) => service?.publishedFollowingRoots ?? const <String>{},
@@ -191,6 +199,7 @@ final publishedFollowingRootsProvider = Provider<Set<String>>(
   },
   dependencies: [
     miteMiteServiceProvider,
+    currentMiteMiteServiceProvider,
     miteMiteChangesProvider,
     miteMiteActivationProvider,
   ],
@@ -198,7 +207,7 @@ final publishedFollowingRootsProvider = Provider<Set<String>>(
 
 final followingSyncPresentationProvider = Provider<Object?>(
   (ref) {
-    final service = ref.watch(miteMiteServiceProvider).valueOrNull;
+    final service = ref.watch(currentMiteMiteServiceProvider);
     return ref.watch(
       miteMiteChangesProvider.select(
         (_) => service?.receiverFollowing?.mirrors,
@@ -207,6 +216,7 @@ final followingSyncPresentationProvider = Provider<Object?>(
   },
   dependencies: [
     miteMiteServiceProvider,
+    currentMiteMiteServiceProvider,
     miteMiteChangesProvider,
     miteMiteActivationProvider,
   ],
@@ -217,18 +227,18 @@ final followingSyncPresentationProvider = Provider<Object?>(
 final syncCollectionAliasesProvider = Provider<Map<SyncCollectionId, String>>((
   ref,
 ) {
-  final service = ref.watch(miteMiteServiceProvider).valueOrNull;
+  final service = ref.watch(currentMiteMiteServiceProvider);
   if (service == null) return const {};
   return ref.watch(
     miteMiteChangesProvider.select((_) => service.collectionAliases),
   );
-}, dependencies: [miteMiteServiceProvider, miteMiteChangesProvider]);
+}, dependencies: [currentMiteMiteServiceProvider, miteMiteChangesProvider]);
 
 // Operational timestamps must not rebuild collection lists on every poll.
 final miteMiteManagementViewProvider = Provider.autoDispose
     .family<_ManagementView, String?>((ref, section) {
       ref.watch(miteMiteChangesProvider);
-      final service = ref.watch(miteMiteServiceProvider).valueOrNull;
+      final service = ref.watch(currentMiteMiteServiceProvider);
       if (service == null) return const _ManagementView([]);
       Object? kind(Object? error) =>
           error == null ? null : syncFailureKind(error);
@@ -266,7 +276,7 @@ final miteMiteManagementViewProvider = Provider.autoDispose
           service.isReconciling,
         ],
       ]);
-    }, dependencies: [miteMiteServiceProvider, miteMiteChangesProvider]);
+    }, dependencies: [currentMiteMiteServiceProvider, miteMiteChangesProvider]);
 
 final class _ManagementView extends Equatable {
   const _ManagementView(this.values);
@@ -290,9 +300,19 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   String? _watchedLocation;
   MiteMiteService? _service;
   bool _foreground = true;
-  bool _syncing = false;
+  MiteMiteService? _syncingService;
   bool _requested = false;
   bool _dirtySource = false;
+
+  // Widget rebuilds lag provider disposal. Scheduled callbacks must recheck the
+  // source generation even while the previous instance is still attached here.
+  MiteMiteService? get _currentService {
+    final service = _service;
+    return service != null &&
+            identical(ref.read(currentMiteMiteServiceProvider), service)
+        ? service
+        : null;
+  }
 
   @override
   void initState() {
@@ -319,7 +339,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
         unawaited(_sync());
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
+        if (mounted && _foreground && identical(service, _currentService)) {
           ref.invalidate(publishedFollowingRootsProvider);
           _watchDirectory();
           unawaited(_sync(SyncTrigger.startup));
@@ -330,7 +350,9 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
 
   void _changed() {
     _watchDirectory();
-    if (_requested && !_syncing && !(_service?.busy ?? true))
+    if (_requested &&
+        !identical(_syncingService, _currentService) &&
+        !(_currentService?.busy ?? true))
       _debounce(SyncTrigger.watcher);
   }
 
@@ -348,14 +370,14 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   }
 
   Future<void> _sync([SyncTrigger trigger = SyncTrigger.poll]) async {
-    final service = _service;
+    final service = _currentService;
     if (!_foreground || service == null) {
       _requested = true;
       return;
     }
     // A poll/resume during an update joins that update. A real local mutation
     // independently retains _requested through _debounce and its durable epoch.
-    if (_syncing || service.isReconciling) {
+    if (identical(_syncingService, service) || service.isReconciling) {
       if (trigger == SyncTrigger.resume || trigger == SyncTrigger.startup) {
         unawaited(service.synchronize(trigger: trigger));
       }
@@ -367,14 +389,18 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
     }
     _requested = false;
     _dirtySource = false;
-    _syncing = true;
+    _syncingService = service;
     try {
       await service.synchronize(trigger: trigger);
     } catch (_) {
       /* Localized service state remains visible and retries are bounded. */
     } finally {
-      _syncing = false;
-      if (mounted && _foreground && _requested) _debounce(SyncTrigger.watcher);
+      if (identical(_syncingService, service)) _syncingService = null;
+      if (mounted &&
+          identical(service, _currentService) &&
+          _foreground &&
+          _requested)
+        _debounce(SyncTrigger.watcher);
     }
   }
 
@@ -385,7 +411,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   }
 
   void _watchDirectory() {
-    final service = _service;
+    final service = _currentService;
     final location = service?.location;
     if (!_foreground ||
         location == null ||
@@ -404,12 +430,13 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
           .listen(
             (event) {
               if (mounted &&
-                  identical(service, _service) &&
+                  identical(service, _currentService) &&
                   !event.path.startsWith(ownPrefix))
                 _debounce(SyncTrigger.watcher);
             },
             onError: (Object _) {
-              _stopWatcher();
+              if (mounted && identical(service, _currentService))
+                _stopWatcher();
             },
             cancelOnError: true,
           );
@@ -423,11 +450,11 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    _service?.setForeground(_foreground);
+    _currentService?.setForeground(_foreground);
     _poll?.cancel();
     _dirty?.cancel();
     _stopWatcher();
-    if (_foreground && _service != null) {
+    if (_foreground && _currentService != null) {
       _poll = Timer.periodic(const Duration(minutes: 1), (_) {
         _watchDirectory();
         unawaited(_sync());
@@ -440,7 +467,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   @override
   Widget build(BuildContext context) {
     if (ref.watch(miteMiteActivationProvider)) {
-      _attach(ref.watch(miteMiteServiceProvider).valueOrNull);
+      _attach(ref.watch(currentMiteMiteServiceProvider));
       ref.listen(followingTopicsProvider, (previous, next) {
         final before = previous?.valueOrNull;
         final after = next.valueOrNull;
@@ -453,7 +480,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
         if (previous != next) _localChanged();
       });
       ref.listen(bookmarkProvider, (previous, next) {
-        final service = _service;
+        final service = _currentService;
         final before = previous?.valueOrNull;
         final after = next.valueOrNull;
         if (service == null ||
@@ -469,7 +496,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
           } catch (_) {
             /* Startup/resume performs a full reconciliation as well. */
           }
-          if (mounted && identical(_service, service)) _debounce();
+          if (mounted && identical(_currentService, service)) _debounce();
         }());
       });
     } else {
@@ -479,7 +506,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
   }
 
   void _localChanged() {
-    final service = _service;
+    final service = _currentService;
     if (service == null) return;
     unawaited(() async {
       try {
@@ -487,7 +514,7 @@ class _MiteMiteLifecycleState extends ConsumerState<MiteMiteLifecycle>
       } catch (_) {
         /* Startup reconciliation remains available. */
       }
-      if (mounted && identical(_service, service)) _debounce();
+      if (mounted && identical(_currentService, service)) _debounce();
     }());
   }
 

@@ -151,14 +151,15 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
     _scheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _scheduled = false;
-      if (!_foreground ||
+      if (!mounted ||
+          !_foreground ||
           !ref.read(miteMiteActivationProvider) ||
           ref.read(appPlatformProvider) != AppPlatform.android)
         return;
       final notifications = ref.read(downloadNotificationsProvider);
       try {
         await notifications.initialize();
-        if (!_foreground) return;
+        if (!mounted || !_foreground) return;
         if (SyncNotificationIntent.tryParse(notifications.launchPayload)
             case final intent?) {
           _acceptTap(intent);
@@ -169,7 +170,8 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
         } else {
           _tapBlocked.value = false;
         }
-        final service = ref.read(miteMiteServiceProvider).valueOrNull;
+        if (!mounted) return;
+        final service = ref.read(currentMiteMiteServiceProvider);
         if (service == null ||
             service.busy ||
             service.isReconciling ||
@@ -185,6 +187,8 @@ class _MiteMiteNotificationsState extends ConsumerState<MiteMiteNotifications>
           events: service.events,
           enabled: () => service.discoveryNotifications,
           current: () =>
+              mounted &&
+              identical(ref.read(currentMiteMiteServiceProvider), service) &&
               _foreground &&
               ref.read(miteMiteActivationProvider) &&
               !service.busy &&

@@ -58,7 +58,7 @@ Future<void> unsubscribeFollowingDefinition(
   MiteMiteService service,
   String publisher,
   String source,
-) => runSyncAction(context, () async {
+) => runCurrentSyncAction(context, service, () async {
   final state = service.receiverFollowing?.mirrors;
   if (state == null) return;
   final scope = followingReceivedScope(state, publisher);
@@ -70,7 +70,8 @@ Future<void> unsubscribeFollowingDefinition(
         context.t.mitemite.unsubscribe,
         context.t.mitemite.confirm_following_remove(count: count),
       ) &&
-      context.mounted) {
+      context.mounted &&
+      isCurrentSyncService(context, service)) {
     await service.unsubscribeFollowing(publisher, source);
   }
 });
@@ -80,13 +81,14 @@ Future<void> stopFollowingPublication(
   MiteMiteService service,
   String source,
   String label,
-) => runSyncAction(context, () async {
+) => runCurrentSyncAction(context, service, () async {
   if (await confirmSyncAction(
         context,
         context.t.mitemite.stop_publishing,
         context.t.mitemite.confirm_following_stop(name: label),
       ) &&
-      context.mounted) {
+      context.mounted &&
+      isCurrentSyncService(context, service)) {
     await service.stopPublishingFollowing(source);
   }
 });
@@ -97,12 +99,12 @@ Future<void> publishFollowingDefinition(
   String id,
 ) => runSyncAction(context, () async {
   final service = await ref.read(miteMiteServiceProvider.future);
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   if (!service.configured && !await chooseSyncFolder(context, ref, service))
     return;
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   final state = await ref.read(followingTopicsProvider.future);
-  if (!context.mounted) return;
+  if (!context.mounted || !isCurrentSyncService(context, service)) return;
   if (state.mirrors.isReceived(id)) throw const FollowingMirrorReadOnly();
   final label = state.organization.folders
       .where((f) => f.id == id)
@@ -115,7 +117,8 @@ Future<void> publishFollowingDefinition(
         context.t.mitemite.publish,
         context.t.mitemite.confirm_following_publish(name: label),
       ) &&
-      context.mounted) {
+      context.mounted &&
+      isCurrentSyncService(context, service)) {
     await service.publishFollowing(id);
     ref.invalidate(publishedFollowingRootsProvider);
   }
@@ -160,6 +163,7 @@ List<Widget> followingSyncMenu(
       icon: const Icon(Icons.copy),
       onTap: () => runSyncAction(context, () async {
         final service = await ref.read(miteMiteServiceProvider.future);
+        if (!context.mounted || !isCurrentSyncService(context, service)) return;
         await service.localFollowingCopy(id);
       }),
     ),

@@ -1,3 +1,5 @@
+import '../../../backups/mitemite/actions.dart' show isCurrentSyncService;
+
 import '../../../posts/listing/src/widgets/related_grid_card.dart';
 
 import '../providers/bookmark_read_access.dart';
@@ -364,6 +366,9 @@ class _BookmarkScrollViewState extends ConsumerState<BookmarkScrollView> {
                       final service = await ref.read(
                         miteMiteServiceProvider.future,
                       );
+                      if (!context.mounted ||
+                          !isCurrentSyncService(context, service))
+                        return;
                       await service.markReadTargets(targets);
                       if (mounted) _selectionModeController.disable();
                     }),

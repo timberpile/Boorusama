@@ -4,6 +4,7 @@ import 'dart:async';
 
 import '../../../posts/details/src/types/viewer_entry.dart';
 import '../../../backups/mitemite/providers.dart';
+import '../../../backups/mitemite/actions.dart';
 import '../../../backups/mitemite/reading_state.dart';
 import '../types/bookmark_view.dart';
 import '../services/bookmark_read_projection.dart';
@@ -83,16 +84,19 @@ class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
     unawaited(() async {
       try {
         final service = await pendingService;
-        if (mounted)
-          await service.markReadTargets([
-            captured ??
-                BookmarkReadTarget(
-                  groupId: groupId,
-                  publisher: library.mirrors.owners[groupId]!.publisher,
-                  source: library.mirrors.owners[groupId]!.source,
-                  member: syncBookmarkMemberKey(record),
-                ),
-          ]);
+        if (!mounted || !isCurrentSyncService(context, service)) {
+          _displayed.remove(entry.occurrenceId);
+          return;
+        }
+        await service.markReadTargets([
+          captured ??
+              BookmarkReadTarget(
+                groupId: groupId,
+                publisher: library.mirrors.owners[groupId]!.publisher,
+                source: library.mirrors.owners[groupId]!.source,
+                member: syncBookmarkMemberKey(record),
+              ),
+        ]);
       } catch (_) {
         // Failed local acknowledgement leaves the entry unread for retry.
         _displayed.remove(entry.occurrenceId);
