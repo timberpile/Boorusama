@@ -57,7 +57,7 @@ void main() {
           originalUrl: post.originalImageUrl,
           booruLink: 'https://site.test/posts/42',
           sourceLink: null,
-          postId: 42,
+          postId: '42',
         );
         final image = payloads.media.firstWhere(
           (value) => value.id == SharePayloadId.image,
@@ -94,7 +94,7 @@ void main() {
       originalUrl: post.videoUrl,
       booruLink: '',
       sourceLink: null,
-      postId: 43,
+      postId: '43',
     );
     expect(payloads.media.map((value) => value.id), [SharePayloadId.video]);
     expect(payloads.media.single.available, isFalse);

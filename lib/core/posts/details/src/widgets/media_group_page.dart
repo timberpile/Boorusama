@@ -1,3 +1,5 @@
+import '../../../../boorus/booru/types.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -6,6 +8,8 @@ import '../../../../configs/config/types.dart';
 import '../../../../images/booru_image.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../content/groups/group_members_provider.dart';
+import '../../../../content/types.dart';
+import '../../../../content/groups/group_source_provider.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../../../../settings/providers.dart';
 import '../../../../developer_options/providers.dart';
@@ -17,6 +21,7 @@ import '../../../media_preload/types.dart';
 import '../../../media_preload/src/viewer_preload_metadata.dart';
 import '../../../../content/content_access_provider.dart';
 import '../providers/media_group_provider.dart';
+import '../providers/group_reading_provider.dart';
 import '../providers/providers.dart';
 import '../types/media_group_checkpoint.dart';
 import '../types/post_details.dart';
@@ -26,6 +31,7 @@ import 'post_details_item.dart';
 import 'post_details_page_view_scope.dart';
 import 'post_viewer_auto_comic_strip.dart';
 import 'post_viewer_transformation_scope.dart';
+import 'media_group_page_indicator.dart';
 
 /// Only this media region owns the inner pager. The outer viewer retains
 /// Details, its vertical transition, system chrome, overlay and Work paging.
@@ -65,7 +71,45 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
   final _directions = DirectionHistory();
   var _preloadScheduled = false;
   Object? _currentCoverKey;
+  Object? _sequenceKey;
+  Object _pagerIdentity = Object();
+  ({GroupLoadKey key, int generation})? _reindex;
   Object? _completedCoverKey;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.checkpoint.adoptMediaOrder = _adoptMediaOrder;
+  }
+
+  bool _adoptMediaOrder(
+    GroupLoadKey key,
+    GroupMembersState snapshot,
+  ) {
+    if (!mounted) return false;
+    final oldMembers = ref
+        .read(mediaGroupProvider(widget.entry))
+        .members
+        ?.members;
+    final checkpoint = widget.checkpoint;
+    final previousMember =
+        checkpoint.memberKey ?? oldMembers?.firstOrNull?.memberKey;
+    if (snapshot.members.firstOrNull?.memberKey != previousMember) {
+      PostDetailsPageViewScope.of(context).synchronizeZoom(false);
+    }
+    final pages = _pages;
+    if (pages == null || !pages.hasClients) return true;
+    _reindex = (
+      key: key,
+      generation: snapshot.generation,
+    );
+    if (snapshot.members.isNotEmpty) pages.jumpToPage(0);
+    final reindex = _reindex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_reindex == reindex) _reindex = null;
+    });
+    return true;
+  }
 
   void _finishCoverHandoff(Object key) {
     if (!mounted || key != _currentCoverKey || key == _completedCoverKey) {
@@ -118,6 +162,9 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
 
   @override
   void dispose() {
+    if (widget.checkpoint.adoptMediaOrder == _adoptMediaOrder) {
+      widget.checkpoint.adoptMediaOrder = null;
+    }
     widget.checkpoint.navigate = null;
     _preloader?.cancelAll();
     if (identical(widget.checkpoint.pages, _pages)) {
@@ -149,6 +196,22 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
     });
   }
 
+  Future<void> _retry(MediaGroupState state) async {
+    ref.read(groupReadingProvider(widget.entry).notifier).cancelOrder();
+    final key = state.loadKey;
+    if (key == null) {
+      if (state.access case final access?)
+        ref.invalidate(contentGroupSourceProvider(access.key));
+      return;
+    }
+    if (state.failed) {
+      ref.invalidate(groupDetailsProvider(key.metadata));
+      await ref.read(groupMembersProvider(key).notifier).refresh();
+    } else {
+      await ref.read(groupMembersProvider(key).notifier).retryNext();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final outer = PostDetailsPageViewScope.of(context);
@@ -170,6 +233,7 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
             : widget.checkpoint.indexIn(members);
         final unavailable =
             state.failed ||
+            state.members?.nextPageError != null ||
             (members != null && state.members?.next == null && index == null);
         // The first Work may already have a decoded timeline cover when its
         // Page manifest arrives. Keep that same cover element mounted over
@@ -191,6 +255,8 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         );
         _currentCoverKey = coverKey;
         final showCover =
+            widget.entry.contentReference.engine == BooruType.pixiv &&
+            widget.entry.contentReference.sourceKey.startsWith('work:') &&
             autoLoad &&
             _completedCoverKey != coverKey &&
             !unavailable &&
@@ -231,18 +297,52 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
         if (index == null || (state.details == null && !state.failed)) {
           if (index == null && state.members?.next != null) _loadNext(state);
           return withCover(
-            Center(
-              child: unavailable
-                  ? Text(context.t.content_viewer.page_unavailable)
-                  : const CircularProgressIndicator(),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: outer.showAllUI,
+              child: Center(
+                child: unavailable
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(context.t.content_viewer.page_unavailable),
+                          if ((state.failed ||
+                                  state.members?.nextPageError != null) &&
+                              state.access != null)
+                            TextButton(
+                              onPressed: () => _retry(state),
+                              child: Text(context.t.generic.action.retry),
+                            ),
+                        ],
+                      )
+                    : const CircularProgressIndicator(),
+              ),
             ),
           );
         }
         // The bounded occurrence checkpoint is the only reading-state owner.
         // PageStorage must not resurrect an evicted Work's previous Page.
+        final sequenceKey = (state.loadKey, state.members?.generation);
+        if (_sequenceKey != sequenceKey) {
+          _sequenceKey = sequenceKey;
+          final reindex = _reindex;
+          if (reindex == null ||
+              reindex.key != state.loadKey ||
+              reindex.generation != state.members?.generation) {
+            _pagerIdentity = Object();
+            final oldPages = _pages;
+            _pages = null;
+            if (oldPages != null) {
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => oldPages.dispose(),
+              );
+            }
+          }
+        }
         _pages ??= PageController(initialPage: index, keepPage: false);
         widget.checkpoint.pages = _pages;
         widget.checkpoint.navigate = (target) {
+          ref.read(groupReadingProvider(widget.entry).notifier).cancelOrder();
           if (_pages?.hasClients ?? false) {
             _pages!.animateToPage(
               target,
@@ -265,69 +365,118 @@ class _MediaGroupPageState extends ConsumerState<MediaGroupPage> {
           _preloader?.cancelAll();
         }
         return withCover(
-          CurrentBooruConfigScope(
-            config: config,
-            accessKey: state.access!.key,
-            requireAccess: true,
-            child: ValueListenableBuilder(
-              valueListenable: outer.zoom,
-              builder: (context, zoomed, _) => PageView.builder(
-                key: ValueKey((widget.entry.occurrenceId, state.access!.key)),
-                controller: _pages,
-                allowImplicitScrolling: true,
-                // The complete media frame routes drags to this pager or the
-                // outer pager. The transformed image cannot own that decision.
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: members.length,
-                onPageChanged: (selected) {
-                  _directions.addDirection(selected, index);
-                  widget.checkpoint.select(members[selected]);
-                  // Keep matrices bounded; neighboring widgets retain their own.
-                  while (widget.checkpoint.transforms.length > 16) {
-                    widget.checkpoint.transforms.remove(
-                      widget.checkpoint.transforms.keys.first,
-                    );
-                  }
-                  outer.synchronizeZoom(false);
-                  setState(() {});
-                  widget.onSelected();
-                },
-                itemBuilder: (context, pageIndex) {
-                  final member = members[pageIndex];
-                  final post = state.postAt(pageIndex);
-                  if (post == null) {
-                    return Center(
-                      child: Text(context.t.content_viewer.page_unavailable),
-                    );
-                  }
-                  return PostViewerOccurrence(
-                    key: ValueKey(member.memberKey),
-                    occurrence: member.memberKey,
-                    checkpoints: widget.checkpoint.transforms,
-                    child: _MediaPage(
-                      key: ValueKey((member.memberKey, state.access!.key)),
-                      post: post,
-                      controller: widget.controllerForPost(post),
-                      onControllerReleased: widget.onControllerReleased,
-                      onControllerAttached: widget.onControllerAttached,
-                      config: config,
-                      outerIndex: widget.index,
-                      onDisplayed: widget.onDisplayed,
-                      onImageReady: pageIndex == index
-                          ? () => _finishCoverHandoff(coverKey)
-                          : null,
-                      onImageUnavailable: pageIndex == index
-                          ? () => _finishCoverHandoff(coverKey)
-                          : null,
-                      active:
-                          outerIndex == widget.index &&
-                          pageIndex == index &&
-                          NavigationActivity.of(context),
-                    ),
-                  );
-                },
+          Stack(
+            fit: StackFit.expand,
+            children: [
+              CurrentBooruConfigScope(
+                config: config,
+                accessKey: state.access!.key,
+                requireAccess: true,
+                child: ValueListenableBuilder(
+                  valueListenable: outer.zoom,
+                  builder: (context, zoomed, _) => PageView.builder(
+                    key: ValueKey((
+                      widget.entry.occurrenceId,
+                      state.access!.key,
+                      _pagerIdentity,
+                    )),
+                    controller: _pages,
+                    allowImplicitScrolling: true,
+                    // The complete media frame routes drags to this pager or the
+                    // outer pager. The transformed image cannot own that decision.
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: members.length,
+                    findChildIndexCallback: (key) {
+                      if (key is! ValueKey<String>) return null;
+                      final position = members.indexWhere(
+                        (m) => m.memberKey == key.value,
+                      );
+                      return position < 0 ? null : position;
+                    },
+                    onPageChanged: (selected) {
+                      if (_reindex != null) return;
+                      ref
+                          .read(groupReadingProvider(widget.entry).notifier)
+                          .cancelOrder();
+                      _directions.addDirection(selected, index);
+                      widget.checkpoint.select(members[selected]);
+                      // Keep matrices bounded; neighboring widgets retain their own.
+                      while (widget.checkpoint.transforms.length > 16) {
+                        widget.checkpoint.transforms.remove(
+                          widget.checkpoint.transforms.keys.first,
+                        );
+                      }
+                      outer.synchronizeZoom(false);
+                      setState(() {});
+                      widget.onSelected();
+                    },
+                    itemBuilder: (context, pageIndex) {
+                      final member = members[pageIndex];
+                      final post = state.postAt(pageIndex);
+                      if (post == null) {
+                        return GestureDetector(
+                          key: ValueKey(member.memberKey),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: outer.showAllUI,
+                          child: Center(
+                            child: Text(
+                              context.t.content_viewer.page_unavailable,
+                            ),
+                          ),
+                        );
+                      }
+                      return PostViewerOccurrence(
+                        key: ValueKey(member.memberKey),
+                        occurrence: member.memberKey,
+                        checkpoints: widget.checkpoint.transforms,
+                        child: _MediaPage(
+                          key: ValueKey((member.memberKey, state.access!.key)),
+                          post: post,
+                          memberKey: member.memberKey,
+                          memberNumber:
+                              (widget.entry.contentReference.sourceKey
+                                      .startsWith('work:')
+                                  ? member.sourcePosition ?? pageIndex
+                                  : pageIndex) +
+                              1,
+                          memberCount:
+                              state.members?.sourceTotal ?? members.length,
+                          controller: widget.controllerForPost(post),
+                          onControllerReleased: widget.onControllerReleased,
+                          onControllerAttached: widget.onControllerAttached,
+                          config: config,
+                          outerIndex: widget.index,
+                          onDisplayed: widget.onDisplayed,
+                          onImageReady: pageIndex == index
+                              ? () => _finishCoverHandoff(coverKey)
+                              : null,
+                          onImageUnavailable: pageIndex == index
+                              ? () => _finishCoverHandoff(coverKey)
+                              : null,
+                          active:
+                              outerIndex == widget.index &&
+                              pageIndex == index &&
+                              NavigationActivity.of(context),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
+              if (state.members?.nextPageError != null &&
+                  index == members.length - 1)
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: SafeArea(
+                    minimum: const EdgeInsets.only(bottom: 80),
+                    child: TextButton.icon(
+                      onPressed: () => _retry(state),
+                      icon: const Icon(Icons.refresh),
+                      label: Text(context.t.generic.action.retry),
+                    ),
+                  ),
+                ),
+            ],
           ),
         );
       },
@@ -344,6 +493,9 @@ class _MediaPage extends ConsumerStatefulWidget {
     required this.config,
     required this.outerIndex,
     required this.active,
+    required this.memberKey,
+    required this.memberNumber,
+    required this.memberCount,
     this.onImageReady,
     this.onDisplayed,
     this.onImageUnavailable,
@@ -356,6 +508,9 @@ class _MediaPage extends ConsumerStatefulWidget {
   final BooruConfig config;
   final int outerIndex;
   final bool active;
+  final String memberKey;
+  final int memberNumber;
+  final int memberCount;
   final VoidCallback? onImageReady;
   final VoidCallback? onDisplayed;
   final VoidCallback? onImageUnavailable;
@@ -368,7 +523,6 @@ class _MediaPageState extends ConsumerState<_MediaPage> {
   final _initial = ValueNotifier(true);
   Size? _contentSize;
   Size? _pendingSize;
-
   void _onImageSize(Size size) {
     if (size == _contentSize || size == _pendingSize) return;
     _pendingSize = size;
@@ -489,7 +643,21 @@ class _MediaPageState extends ConsumerState<_MediaPage> {
         ),
       ),
     );
-    return ViewerMediaViewport.maybeOf(context)?.present(contentSize, media) ??
-        media;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ViewerMediaViewport.maybeOf(context)?.present(contentSize, media) ??
+            media,
+        if (widget.active && widget.memberCount > 1)
+          Positioned.fill(
+            child: MediaGroupPageIndicator(
+              memberKey: widget.memberKey,
+              page: widget.memberNumber,
+              total: widget.memberCount,
+              disableAnimation: ref.watch(settingsProvider).reduceAnimations,
+            ),
+          ),
+      ],
+    );
   }
 }

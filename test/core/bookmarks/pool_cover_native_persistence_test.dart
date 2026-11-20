@@ -1,4 +1,5 @@
 import 'package:boorusama/core/bookmarks/src/data/bookmark_collection_projection.dart';
+import 'package:dio/dio.dart';
 
 import 'dart:io';
 
@@ -621,7 +622,14 @@ void main() {
     },
   );
 
-  for (final mode in ['success', 'failure', 'superseded', 'revoked']) {
+  for (final mode in [
+    'success',
+    'failure',
+    'superseded',
+    'revoked',
+    'caller cancelled',
+    'record changed',
+  ]) {
     test(
       'Related member-order cover commit is atomic and guarded ($mode)',
       () async {
@@ -654,6 +662,12 @@ void main() {
         });
         final entered = Completer<void>();
         final release = Completer<void>();
+        final controlled = [
+          'superseded',
+          'caller cancelled',
+          'record changed',
+        ].contains(mode);
+        final cancellation = CancelToken();
         var calls = 0;
         final service = await notifier(
           profiles: [
@@ -679,7 +693,7 @@ void main() {
                   expect(limit, 40);
                   if (mode == 'failure' || mode == 'revoked')
                     throw StateError('offline');
-                  if (mode == 'superseded') {
+                  if (controlled) {
                     entered.complete();
                     await release.future;
                   }
@@ -705,20 +719,39 @@ void main() {
         final staleSummary = summary(
           container!.read(bookmarkProvider).requireValue.pools.single,
         );
-        final pending = service.setRelatedOrder(
+        final pending = service.commitRelatedOrder(
           id,
           RelatedPostsOrder.newest,
           reader: mode == 'revoked' ? config : null,
+          expectedRecord: original,
+          callerCancellation: cancellation,
         );
-        if (mode == 'superseded') {
+        final changed = original.copyWith(observedAt: DateTime.utc(2030));
+        if (controlled) {
           await entered.future;
-          await service.setRelatedOrder(id, RelatedPostsOrder.oldest);
+          switch (mode) {
+            case 'superseded':
+              expect(
+                await service.commitRelatedOrder(id, RelatedPostsOrder.oldest),
+                RelatedOrderCommitResult.alreadyApplied,
+              );
+            case 'caller cancelled':
+              cancellation.cancel();
+            case 'record changed':
+              await repository.upsert(changed);
+          }
           release.complete();
         }
-        if (mode == 'failure' || mode == 'revoked')
+        if (mode == 'failure' || mode == 'revoked') {
           await expectLater(pending, throwsA(anything));
-        else
-          await pending;
+        } else {
+          expect(
+            await pending,
+            mode == 'success'
+                ? RelatedOrderCommitResult.applied
+                : RelatedOrderCommitResult.stale,
+          );
+        }
         final saved = await repository.read(id) as RelatedBookmark;
         if (mode == 'success') {
           expect(saved.preferredOrder, RelatedPostsOrder.newest);
@@ -734,8 +767,9 @@ void main() {
           );
           expect(saved.createdAt, original.createdAt);
           expect(saved.observedAt, original.observedAt);
-        } else
-          expect(saved, original);
+        } else {
+          expect(saved, mode == 'record changed' ? changed : original);
+        }
         expect(calls, mode == 'revoked' ? 0 : 1);
         if (mode == 'success') {
           await expectLater(

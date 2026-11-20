@@ -19,14 +19,14 @@ class ViewerMediaViewport extends InheritedWidget {
   static ViewerMediaViewport? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<ViewerMediaViewport>();
 
-  Widget present(Size size, Widget child) {
-    final content =
-        size.width.isFinite &&
-            size.height.isFinite &&
-            size.width > 0 &&
-            size.height > 0
-        ? size
-        : viewport;
+  bool _valid(Size size) =>
+      size.width.isFinite &&
+      size.height.isFinite &&
+      size.width > 0 &&
+      size.height > 0;
+
+  ({double scale, Offset offset}) _geometry(Size size) {
+    final content = _valid(size) ? size : viewport;
     final immersiveFit = applyBoxFit(
       BoxFit.contain,
       content,
@@ -48,7 +48,14 @@ class ViewerMediaViewport extends InheritedWidget {
               : details.height / 2,
         ) -
         viewport.center(Offset.zero) * scale;
-    final currentScale = lerpDouble(1, scale, progress)!;
+    return (
+      scale: lerpDouble(1, scale, progress)!,
+      offset: offset * progress,
+    );
+  }
+
+  Widget present(Size size, Widget child) {
+    final geometry = _geometry(size);
     return ClipRect(
       child: OverflowBox(
         alignment: Alignment.topLeft,
@@ -60,12 +67,12 @@ class ViewerMediaViewport extends InheritedWidget {
           alignment: Alignment.topLeft,
           transform: Matrix4.identity()
             ..translateByDouble(
-              offset.dx * progress,
-              offset.dy * progress,
+              geometry.offset.dx,
+              geometry.offset.dy,
               0,
               1,
             )
-            ..scaleByDouble(currentScale, currentScale, 1, 1),
+            ..scaleByDouble(geometry.scale, geometry.scale, 1, 1),
           child: child,
         ),
       ),

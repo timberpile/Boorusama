@@ -39,7 +39,7 @@ void main() {
               ),
             ),
           );
-          final back = find.byIcon(Symbols.arrow_back_ios);
+          final back = find.byIcon(Symbols.arrow_back_ios_new);
           expect(
             back,
             hidden && detailsEnabled ? findsNothing : findsOneWidget,

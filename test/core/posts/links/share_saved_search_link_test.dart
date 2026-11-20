@@ -10,7 +10,7 @@ import '../../search/following_topics/following_topic_test_utils.dart';
 void main() {
   for (final inFeed in [false, true]) {
     testWidgets(
-      'Following Topic menu omits Boorusama Link File: feed=$inFeed',
+      'Following Topic menu omits Link File: feed=$inFeed',
       (tester) async {
         final owner = BooruConfig.fromJson({
           ...otherTestProfile.toJson(),
@@ -51,7 +51,7 @@ void main() {
         );
         await settle(tester);
         expect(find.text('Refresh'), findsOneWidget);
-        expect(find.text('Boorusama Link File'), findsNothing);
+        expect(find.text('Link File'), findsNothing);
         expect(h.requests, isEmpty);
         await tester.pumpWidget(const SizedBox());
       },

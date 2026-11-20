@@ -25,32 +25,30 @@ class FavoritePostButton extends StatelessWidget {
   final Future<void> Function() addFavorite;
   final Future<void> Function() removeFavorite;
 
+  VoidCallback? action(BuildContext context) => isFaved == null
+      ? null
+      : () {
+          if (!context.mounted) return;
+          if (!isAuthorized) {
+            Kurumi.showSimpleSnackBar(
+              context: context,
+              content: Text(context.t.post.detail.login_required_notice),
+              duration: KurumiDurations.shortToast,
+            );
+            return;
+          }
+          unawaited(
+            runFavoriteAction(context, isFaved! ? removeFavorite : addFavorite),
+          );
+        };
+
   @override
   Widget build(BuildContext context) {
     return KurumiTooltip(
       message: context.t.post.action.favorite,
       child: IconButton(
         splashRadius: 16,
-        onPressed: isFaved != null
-            ? () {
-                if (!isAuthorized) {
-                  Kurumi.showSimpleSnackBar(
-                    context: context,
-                    content: Text(
-                      context.t.post.detail.login_required_notice,
-                    ),
-                    duration: KurumiDurations.shortToast,
-                  );
-
-                  return;
-                }
-                if (isFaved!) {
-                  unawaited(runFavoriteAction(context, removeFavorite));
-                } else {
-                  unawaited(runFavoriteAction(context, addFavorite));
-                }
-              }
-            : null,
+        onPressed: action(context),
         icon: (isFaved ?? false)
             ? Icon(
                 Symbols.favorite,

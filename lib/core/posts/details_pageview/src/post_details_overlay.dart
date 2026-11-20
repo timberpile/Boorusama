@@ -6,12 +6,14 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../widgets/widgets.dart';
 import 'post_details_page_view_controller.dart';
+import 'viewer_overlay_icon_button.dart';
 
 class PostDetailsOverlay extends StatelessWidget {
   const PostDetailsOverlay({
     required this.controller,
     required this.leftActions,
     required this.actions,
+    this.headerActions = const [],
     required this.isLargeScreen,
     required this.overlayCurvedAnimation,
     this.detailsEnabled = true,
@@ -20,6 +22,7 @@ class PostDetailsOverlay extends StatelessWidget {
 
   final PostDetailsPageViewController controller;
   final List<Widget> leftActions;
+  final List<Widget> headerActions;
   final List<Widget> actions;
   final bool isLargeScreen;
   final Animation<double>? overlayCurvedAnimation;
@@ -96,29 +99,31 @@ class PostDetailsOverlay extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Flexible(
+            flex: 1,
             child: OverflowBar(
+              spacing: 4,
               children: [
-                KurumiCircularIconButton(
-                  icon: const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(
-                      Symbols.arrow_back_ios,
-                    ),
-                  ),
+                ViewerOverlayIconButton(
+                  icon: const Icon(Symbols.arrow_back_ios_new, size: 24),
+                  semanticLabel: MaterialLocalizations.of(context)
+                      .backButtonTooltip,
                   onPressed: Navigator.of(context).maybePop,
-                ),
-                const SizedBox(
-                  width: 4,
                 ),
                 ...leftActions,
               ],
             ),
           ),
           Flexible(
-            child: OverflowBar(
+            flex: headerActions.isEmpty ? 1 : 5,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                // Existing engine actions may collapse to zero width.
                 ...actions,
-                const SizedBox(width: 8),
+                for (final (index, action) in headerActions.indexed) ...[
+                  if (index > 0) const SizedBox(width: 4),
+                  action,
+                ],
                 if (detailsEnabled)
                   ListenableBuilder(
                     listenable: Listenable.merge([
@@ -132,16 +137,34 @@ class PostDetailsOverlay extends StatelessWidget {
                           (1 - progress * 2).clamp(0.0, 1.0) *
                           (overlayCurvedAnimation?.value ??
                               (controller.overlay.value ? 1 : 0));
-                      return Offstage(
-                        offstage: opacity == 0,
-                        child: ExcludeFocus(
-                          excluding: controller.isExpanded || progress > 0,
-                          child: IgnorePointer(
-                            ignoring: controller.isExpanded || progress > 0,
-                            child: Opacity(
-                              opacity: opacity,
-                              child: _SheetControlButton(
-                                controller: controller,
+                      final interactive = progress == 0 && opacity > 0;
+                      return ClipRect(
+                        child: SizedBox(
+                          width:
+                              (48 +
+                                  (headerActions.isNotEmpty ||
+                                          actions.isNotEmpty
+                                      ? 4
+                                      : 0)) *
+                              (1 - progress),
+                          height: 48,
+                          child: OverflowBox(
+                            alignment: Alignment.centerRight,
+                            minWidth: 48,
+                            maxWidth: 48,
+                            child: ExcludeSemantics(
+                              excluding: !interactive,
+                              child: ExcludeFocus(
+                                excluding: !interactive,
+                                child: IgnorePointer(
+                                  ignoring: !interactive,
+                                  child: Opacity(
+                                    opacity: opacity,
+                                    child: _SheetControlButton(
+                                      controller: controller,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -163,7 +186,7 @@ class _SheetControlButton extends StatelessWidget {
   final PostDetailsPageViewController controller;
 
   @override
-  Widget build(BuildContext context) => KurumiCircularIconButton(
+  Widget build(BuildContext context) => ViewerOverlayIconButton(
     onPressed: controller.expandToSnapPoint,
     icon: const KurumiInfoCircleIcon(),
   );

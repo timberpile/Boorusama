@@ -8,6 +8,6 @@ export 'related_posts_order_value.dart';
 extension RelatedPostsOrderLocalization on RelatedPostsOrder {
   String localize(BuildContext context) => switch (this) {
     RelatedPostsOrder.oldest => context.t.explore.oldest,
-    RelatedPostsOrder.newest => context.t.explore.newest,
+    RelatedPostsOrder.newest => context.t.explore.latest,
   };
 }

@@ -1,10 +1,9 @@
-import 'dart:math';
-
 import 'package:anchor_ui/anchor_ui.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../foundation/platform.dart';
 import 'anchor.dart';
+import 'popup_menu.dart' show popupMenuViewportConstraints;
 
 const double _kMinButtonWidth = 40;
 const double _kMaxButtonWidth = 150;
@@ -53,6 +52,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
     this.onOpened,
     this.onClosed,
     this.onMenuTap,
+    this.invokeAfterClose = false,
     this.reduceAnimation,
     super.key,
   });
@@ -71,6 +71,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
     VoidCallback? onOpened,
     VoidCallback? onClosed,
     VoidCallback? onMenuTap,
+    bool invokeAfterClose = false,
     bool? reduceAnimation,
     Key? key,
   }) => KurumiAdaptiveButtonRow._(
@@ -88,6 +89,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
     onOpened: onOpened,
     onClosed: onClosed,
     onMenuTap: onMenuTap,
+    invokeAfterClose: invokeAfterClose,
     reduceAnimation: reduceAnimation,
     key: key,
   );
@@ -153,6 +155,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
   final VoidCallback? onOpened;
   final VoidCallback? onClosed;
   final VoidCallback? onMenuTap;
+  final bool invokeAfterClose;
   final ScrollController? scrollController;
   final double runSpacing;
 
@@ -163,6 +166,7 @@ class KurumiAdaptiveButtonRow extends StatefulWidget {
 
 class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
   final _controller = AnchorController();
+  VoidCallback? _pendingMenuAction;
 
   @override
   void dispose() {
@@ -410,38 +414,40 @@ class _KurumiAdaptiveButtonRowState extends State<KurumiAdaptiveButtonRow> {
     return KurumiAnchor(
       controller: _controller,
       onShow: widget.onOpened,
-      onHide: widget.onClosed,
+      onHide: () {
+        final action = _pendingMenuAction;
+        _pendingMenuAction = null;
+        widget.onClosed?.call();
+        if (mounted) action?.call();
+      },
       spacing: 12,
+      constrainToViewport: true,
       reduceAnimation: widget.reduceAnimation,
       overlayBuilder: (context) => Container(
         padding: const EdgeInsets.symmetric(
           horizontal: 8,
           vertical: 8,
         ),
-        constraints: BoxConstraints(
-          maxWidth: min(MediaQuery.widthOf(context), 200),
-        ),
+        constraints: popupMenuViewportConstraints(context),
         child: SingleChildScrollView(
+          primary: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: overflowButtons.asMap().entries.map(
               (entry) {
-                final enabled = entry.value.enabled;
+                final globalIndex = entry.key + visibleCount;
+                final onOverflow = widget.onOverflow;
+                final action =
+                    entry.value.onTap ??
+                    (onOverflow == null ? null : () => onOverflow(globalIndex));
+                final enabled = entry.value.enabled && action != null;
 
                 void handleTap() {
-                  if (!enabled) return;
-
-                  final controller = AnchorData.maybeOf(
-                    context,
-                  )?.controller;
-                  controller?.hide();
+                  if (!enabled || !_controller.isShowing) return;
+                  if (widget.invokeAfterClose) _pendingMenuAction = action;
+                  _controller.hide();
                   widget.onMenuTap?.call();
-                  final globalIndex = entry.key + visibleCount;
-                  if (entry.value.onTap != null) {
-                    entry.value.onTap!();
-                  } else {
-                    widget.onOverflow?.call(globalIndex);
-                  }
+                  if (!widget.invokeAfterClose) action();
                 }
 
                 return Semantics(

@@ -1,3 +1,4 @@
+import 'package:visibility_detector/visibility_detector.dart';
 import 'package:booru_clients/szurubooru.dart' as szuru;
 import 'package:boorusama/boorus/danbooru/pools/details/src/widgets/danbooru_infinite_post_id_list.dart';
 import 'package:boorusama/boorus/danbooru/pools/group_capability.dart';
@@ -46,6 +47,10 @@ void main() {
   testWidgets(
     'native ContentGroupPage refresh updates Header and members without reseeding',
     (tester) async {
+      final detector = VisibilityDetectorController.instance;
+      final interval = detector.updateInterval;
+      detector.updateInterval = Duration.zero;
+      addTearDown(() => detector.updateInterval = interval);
       final config = BooruConfig.fromJson({
         ...testProfile.toJson(),
         'booruId': BooruType.danbooru.id,
@@ -57,7 +62,7 @@ void main() {
         postIds: version == 1 ? [1, 2, 3] : [1, 3, 2, 3],
         postCount: version == 1 ? 3 : 4,
         description: version == 1 ? 'old description' : 'new description',
-        category: DanbooruPoolCategory.series,
+        category: DanbooruPoolCategory.collection,
         createdAt: null,
         updatedAt: null,
       );
@@ -167,6 +172,9 @@ void main() {
         reason: 'Metadata and manifest share exactly one new envelope',
       );
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      harness.dispose();
+      await tester.pump();
     },
   );
 

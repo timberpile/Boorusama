@@ -41,6 +41,7 @@ class PostDetailsPageView extends StatefulWidget {
     this.swipeDownThreshold = 20,
     this.actions = const [],
     this.leftActions = const [],
+    this.headerActions = const [],
     this.bottomSheet,
     this.bottomPreviewBuilder,
     this.pageWrapperBuilder,
@@ -75,6 +76,7 @@ class PostDetailsPageView extends StatefulWidget {
   final double swipeDownThreshold;
   final List<Widget> actions;
   final List<Widget> leftActions;
+  final List<Widget> headerActions;
   final Widget? bottomSheet;
   final VoidCallback? onSwipeDownThresholdReached;
   final VoidCallback? onExit;
@@ -105,7 +107,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   }
 
   final _interacting = ValueNotifier(false);
-  final _scrollOffsets = <Object, double>{};
+  final _scrollOffsets = <Object, Map<String?, double>>{};
   EdgeInsets _safeInsets = EdgeInsets.zero;
   Size? _viewportSize;
   static const _edgeSlideDistance = 24.0;
@@ -148,7 +150,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     _controller.sheetState.addListener(_onModeChanged);
     _controller.attachOverlayAnimController(_overlayAnimController);
     _controller.attachBottomSheetAnimController(_bottomInfoAnimController);
-    if (!widget.detailsEnabled) _controller.showOverlay();
+    _controller.detailsAvailable = widget.detailsEnabled;
     if (widget.detailsEnabled &&
         isLargeScreen &&
         (widget.sheetStateStorage?.loadExpandedState() ?? false)) {
@@ -165,11 +167,10 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
   @override
   void didUpdateWidget(covariant PostDetailsPageView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _controller.detailsAvailable = widget.detailsEnabled;
     if (oldWidget.detailsEnabled && !widget.detailsEnabled) {
-      _controller.sheetState.value = SheetState.collapsed;
-      _controller.stopSlideshow();
+      _controller.stopSlideshow(restoreUI: false);
       _controller.disableHoverToControlOverlay();
-      _controller.showOverlay();
     }
     if (oldWidget.itemCount != widget.itemCount ||
         oldWidget.disableAnimation != widget.disableAnimation) {
@@ -185,7 +186,9 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
       widget.onShrink?.call();
     }
     if (isLargeScreen) {
-      widget.sheetStateStorage?.persistExpandedState(_controller.isExpanded);
+      widget.sheetStateStorage?.persistExpandedState(
+        _controller.detailsPreferred,
+      );
     }
   }
 
@@ -216,9 +219,6 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
     _controller.enableAllSwiping();
     if (!(widget.isPostPage?.call(number) ?? true)) {
       _controller.bottomObstruction.value = 0;
-      _controller.showOverlay();
-    } else if (!_controller.isExpanded && _controller.initialHideOverlay) {
-      _controller.hideAllUI();
     }
   }
 
@@ -370,6 +370,7 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                 PostDetailsOverlay(
                   controller: _controller,
                   leftActions: widget.leftActions,
+                  headerActions: widget.headerActions,
                   actions: widget.actions,
                   detailsEnabled: widget.detailsEnabled,
                   isLargeScreen: isLargeScreen,
@@ -466,6 +467,9 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
               itemCount: widget.itemCount,
               itemBuilder: (context, index) {
                 final key = widget.occurrenceKeyBuilder?.call(index) ?? index;
+                final member = widget.mediaNavigationBuilder
+                    ?.call(index)
+                    ?.memberKey;
                 final page = _ViewerPage(
                   key: ValueKey(key),
                   index: index,
@@ -484,11 +488,15 @@ class _PostDetailsPageViewState extends State<PostDetailsPageView>
                   previewBuilder: (context) =>
                       widget.bottomPreviewBuilder?.call(context, index) ??
                       widget.bottomSheet,
-                  savedOffset: () => _scrollOffsets[key] ?? 0,
+                  memberKey: member,
+                  savedOffset: () => _scrollOffsets[key]?[member] ?? 0,
                   saveOffset: (value) {
-                    if (_controller.retainsStateFor(index)) {
-                      _scrollOffsets[key] = value;
-                    }
+                    if (!_controller.retainsStateFor(index)) return;
+                    final offsets = _scrollOffsets.putIfAbsent(key, () => {});
+                    offsets.remove(member);
+                    offsets[member] = value;
+                    // Keep only nearby reading checkpoints within each Group.
+                    if (offsets.length > 5) offsets.remove(offsets.keys.first);
                   },
                   onSwipeDown: widget.onSwipeDownThresholdReached,
                   swipeDownThreshold: widget.swipeDownThreshold,
@@ -613,6 +621,7 @@ class _ViewerPage extends StatefulWidget {
     required this.itemBuilder,
     required this.detailsBuilder,
     required this.previewBuilder,
+    required this.memberKey,
     required this.savedOffset,
     required this.saveOffset,
     required this.onSwipeDown,
@@ -630,6 +639,7 @@ class _ViewerPage extends StatefulWidget {
   final WidgetBuilder itemBuilder;
   final List<Widget> Function(BuildContext) detailsBuilder;
   final Widget? Function(BuildContext) previewBuilder;
+  final String? memberKey;
   final double Function() savedOffset;
   final ValueChanged<double> saveOffset;
   final VoidCallback? onSwipeDown;
@@ -658,6 +668,9 @@ class _ViewerPageState extends State<_ViewerPage>
   var _dragging = false;
   var _returningDismiss = false;
   var _ownsDismissGesture = false;
+  Object? _modeTransitionOwner;
+  ViewerDismissalScope? _dismissalScope;
+  ModalRoute<dynamic>? _dismissalRoute;
   var _dismissResetSerial = 0;
   var _cancelledMediaDrag = false;
   var _overlayWasVisible = false;
@@ -742,6 +755,8 @@ class _ViewerPageState extends State<_ViewerPage>
         _dragging = true;
         // Dismissal has a separate gate from animated mode transitions.
         if (_current) {
+          _dismissalScope = ViewerDismissalScope.maybeOf(context);
+          _dismissalRoute = ModalRoute.of(context);
           widget.controller.beginDismissGesture(this);
           _ownsDismissGesture = true;
         }
@@ -750,7 +765,7 @@ class _ViewerPageState extends State<_ViewerPage>
         _mode.stop();
         _scrubbing = true;
         _mountedDetails = true;
-        if (_current) widget.controller.animating.value = true;
+        _beginModeTransition();
       }
     }
     if (_scrubbing) {
@@ -806,7 +821,7 @@ class _ViewerPageState extends State<_ViewerPage>
       // Restore synchronously before the scale recognizer handles a second
       // pointer. No competing vertical recognizer has claimed the image.
       _mode.value = _startedInDetails ? 1 : 0;
-      if (_current) widget.controller.animating.value = false;
+      _endModeTransition(_modeTransitionOwner);
     }
     _resetDismiss();
   }
@@ -938,7 +953,7 @@ class _ViewerPageState extends State<_ViewerPage>
     });
   }
 
-  bool get _details => widget.isPost && widget.controller.isExpanded;
+  bool get _details => widget.isPost && widget.controller.detailsPreferred;
   bool get _reduceMotion =>
       widget.disableAnimation || MediaQuery.disableAnimationsOf(context);
 
@@ -969,8 +984,14 @@ class _ViewerPageState extends State<_ViewerPage>
     }
   }
 
+  var _restoringMemberOffset = false;
+
   void _saveScroll() {
-    if (_details && !_scrubbing && !_mode.isAnimating && _scroll.hasClients) {
+    if (!_restoringMemberOffset &&
+        _details &&
+        !_scrubbing &&
+        !_mode.isAnimating &&
+        _scroll.hasClients) {
       widget.saveOffset(_scroll.offset);
     }
   }
@@ -982,9 +1003,15 @@ class _ViewerPageState extends State<_ViewerPage>
   @override
   void didUpdateWidget(covariant _ViewerPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_details && !_mountedDetails) {
-      _mountedDetails = true;
-      if (!_mode.isAnimating && !_scrubbing) _mode.value = 1;
+    if (oldWidget.isPost && !widget.isPost) _abandonPresentation();
+    if (!oldWidget.isPost && widget.isPost) {
+      _mountedDetails = _details;
+      _mode.value = _details ? 1 : 0;
+    }
+    if (_details &&
+        (!oldWidget.isPost || oldWidget.memberKey != widget.memberKey)) {
+      _restoringMemberOffset = true;
+      _restoreOffset();
     }
   }
 
@@ -1042,12 +1069,55 @@ class _ViewerPageState extends State<_ViewerPage>
     _settleMode();
   }
 
+  Object? _beginModeTransition() {
+    if (!_current) return null;
+    final owner = Object();
+    _modeTransitionOwner = owner;
+    widget.controller.beginModeTransition(owner);
+    return owner;
+  }
+
+  void _endModeTransition(Object? owner) {
+    if (owner == null) return;
+    widget.controller.endModeTransition(owner);
+    if (identical(_modeTransitionOwner, owner)) _modeTransitionOwner = null;
+  }
+
+  void _abandonPresentation() {
+    final owner = _modeTransitionOwner;
+    _modeTransitionOwner = null;
+    if (owner != null) widget.controller.abandonModeTransition(owner);
+    _mode.stop();
+    if (_ownsDismissGesture) {
+      final scope = _dismissalScope;
+      final route = _dismissalRoute;
+      widget.controller.abandonDismissGesture(
+        this,
+        onReleased: () {
+          // A mode switch keeps the route. A real pop owns its reverse offset.
+          if ((route?.isCurrent ?? false) &&
+              route?.animation?.status != AnimationStatus.reverse) {
+            if (scope != null) unawaited(scope.restore(true));
+          }
+        },
+      );
+      _ownsDismissGesture = false;
+    }
+    ++_dismissResetSerial;
+    _dragging = _returningDismiss = _scrubbing = false;
+    _cancelledMediaDrag = true;
+    _dismissOffset = Offset.zero;
+    _pointers.clear();
+    _dragOrigin = _pointerPosition = null;
+    _velocity = null;
+  }
+
   void _settleMode() {
-    if (_current) widget.controller.animating.value = true;
+    final owner = _beginModeTransition();
     if (_reduceMotion) {
       _mode.value = _details ? 1 : 0;
       _restoreOffset();
-      if (_current) widget.controller.animating.value = false;
+      _endModeTransition(owner);
     } else {
       _mode
           .animateTo(
@@ -1060,9 +1130,10 @@ class _ViewerPageState extends State<_ViewerPage>
             (_) {
               if (!mounted) return;
               _restoreOffset();
-              if (_current) widget.controller.animating.value = false;
+              _endModeTransition(owner);
             },
             onError: (Object error) {
+              if (mounted) _endModeTransition(owner);
               if (error is! TickerCanceled) {
                 Error.throwWithStackTrace(error, StackTrace.current);
               }
@@ -1073,7 +1144,9 @@ class _ViewerPageState extends State<_ViewerPage>
 
   void _restoreOffset() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_details || !_scroll.hasClients) return;
+      if (!mounted) return;
+      _restoringMemberOffset = false;
+      if (!_details || !_scroll.hasClients) return;
       _scroll.jumpTo(
         widget.savedOffset().clamp(0, _scroll.position.maxScrollExtent),
       );
@@ -1082,9 +1155,7 @@ class _ViewerPageState extends State<_ViewerPage>
 
   @override
   void dispose() {
-    if (_ownsDismissGesture) {
-      widget.controller.abandonDismissGesture(this);
-    }
+    _abandonPresentation();
     widget.controller.sheetState.removeListener(_modeChanged);
     widget.controller.zoom.removeListener(_zoomChanged);
     widget.interacting.removeListener(_onInteractionChanged);

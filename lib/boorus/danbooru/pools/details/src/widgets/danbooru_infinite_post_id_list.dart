@@ -2,6 +2,7 @@ import 'package:i18n/i18n.dart';
 
 import '../../../pool/src/types/safebooru_pool_availability.dart';
 import '../../../../../../core/content/types.dart';
+import '../../../../../../core/posts/details/src/widgets/group_viewer_scope.dart';
 import '../../../../../../core/configs/config/types.dart';
 import '../../../../../../core/posts/pools/group_post_scope.dart';
 import '../../../content_group_source.dart';
@@ -62,7 +63,7 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
     return CustomContextMenuOverlay(
       child: GroupPostScope(
         scrollController: scrollController,
-        key: ValueKey((pool.id, selectedOrder, perPage)),
+        key: ValueKey((pool.id, perPage)),
         reference: reference,
         orderKey: selectedOrder.name,
         perPage: perPage,
@@ -88,6 +89,7 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
                         : const NoDataBox(),
                   )
                 : null,
+            refreshAtStart: !controller.hasLoadedPage,
             header: PostGridConfigurationHeader<Post>(
               additionalControls: [
                 if (orderControl case final control?) control,
@@ -106,14 +108,23 @@ class DanbooruInfinitePostIdList extends ConsumerWidget {
                     // A Pool can contain the same Post more than once, so
                     // Post-identity Hero tags are not unique in this gallery.
                     useHero: false,
-                    onTap: () => goToPostDetailsPageFromController(
-                      ref: ref,
-                      initialIndex: index,
-                      controller: controller,
-                      initialThumbnailUrl: null,
-                      config: config,
-                      hero: false,
-                    ),
+                    onTap: () {
+                      if (GroupViewerScope.openMember(
+                        context,
+                        controller.selectionKeysBuilder
+                            ?.call(controller.items.toList())
+                            .elementAtOrNull(index),
+                      ))
+                        return;
+                      goToPostDetailsPageFromController(
+                        ref: ref,
+                        initialIndex: index,
+                        controller: controller,
+                        initialThumbnailUrl: null,
+                        config: config,
+                        hero: false,
+                      );
+                    },
                   ),
                 ),
             sliverHeaders: [

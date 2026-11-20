@@ -20,6 +20,11 @@ class UpvotePostButton extends StatelessWidget {
   final void Function() onUpvote;
   final void Function()? onRemoveUpvote;
 
+  VoidCallback? get action => switch (voteState) {
+    VoteState.upvoted => onRemoveUpvote,
+    _ => onUpvote,
+  };
+
   @override
   Widget build(BuildContext context) {
     return KurumiTooltip(
@@ -30,10 +35,7 @@ class UpvotePostButton extends StatelessWidget {
           color: voteState.isUpvoted ? context.colors.upvoteColor : null,
         ),
         splashRadius: 16,
-        onPressed: switch (voteState) {
-          VoteState.upvoted => onRemoveUpvote,
-          _ => onUpvote,
-        },
+        onPressed: action,
       ),
     );
   }
@@ -51,6 +53,11 @@ class DownvotePostButton extends StatelessWidget {
   final void Function() onDownvote;
   final void Function()? onRemoveDownvote;
 
+  VoidCallback? get action => switch (voteState) {
+    VoteState.downvoted => onRemoveDownvote,
+    _ => onDownvote,
+  };
+
   @override
   Widget build(BuildContext context) {
     return KurumiTooltip(
@@ -61,10 +68,7 @@ class DownvotePostButton extends StatelessWidget {
           color: voteState.isDownvoted ? context.colors.downvoteColor : null,
         ),
         splashRadius: 16,
-        onPressed: switch (voteState) {
-          VoteState.downvoted => onRemoveDownvote,
-          _ => onDownvote,
-        },
+        onPressed: action,
       ),
     );
   }

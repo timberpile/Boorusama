@@ -33,7 +33,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
   final int? maxVisibleButtons;
   final void Function(Post post)? onDownload;
   final void Function() onStartSlideshow;
-  final Widget? favoriteButton;
+  final FavoritePostButton? favoriteButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,6 +44,15 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
     final viewer = ref.watchConfigViewer;
     final download = ref.watchConfigDownload;
 
+    final share = SharePostButton(
+      post: post,
+      auth: auth,
+      configViewer: viewer,
+      download: download,
+    );
+    final downloadAction = DownloadPostButton.action(context, ref, post);
+    final favoriteAction = favoriteButton?.action(context);
+
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: onStartSlideshow,
@@ -53,12 +62,18 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
       builder: (context, buttons) {
         return BooruMenuButtonRow(
           crossAxisAlignment: CrossAxisAlignment.start,
+          invokeAfterClose: true,
           maxVisibleButtons: maxVisibleButtons,
           buttons: [
             if (favoriteButton case final btn?)
               ButtonData(
-                required: true,
+                required:
+                    PostActionToolbarScope.maybeOf(context)
+                        ?.groupBookmarkButton ==
+                    null,
                 widget: btn,
+                onTap: favoriteAction,
+                enabled: favoriteAction != null,
                 title: context.t.post.action.favorite,
                 icon: const Icon(Icons.favorite_border),
               ),
@@ -70,21 +85,35 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
               title: context.t.post.action.bookmark,
               icon: const Icon(Icons.bookmark_border),
             ),
-            if (auth.anonymousReadScope == null)
+            if (PostActionToolbarScope.maybeOf(context)?.groupBookmarkButton
+                case final groupBookmark?)
               ButtonData(
                 required: true,
-                widget: DownloadPostButton(post: post),
+                widget: groupBookmark,
+                title: context.t.content_viewer.bookmark_group,
+                icon: const Icon(Icons.bookmark_border),
+              ),
+            if (downloadAction != null)
+              ButtonData(
+                required:
+                    PostActionToolbarScope.maybeOf(context)
+                        ?.groupBookmarkButton ==
+                    null,
+                widget: DownloadPostButton(
+                  post: post,
+                  download: downloadAction,
+                ),
+                onTap: downloadAction,
                 title: context.t.download.download,
                 icon: const Icon(Icons.download),
               ),
             ButtonData(
-              required: true,
-              widget: SharePostButton(
-                post: post,
-                auth: auth,
-                configViewer: viewer,
-                download: download,
-              ),
+              required:
+                  PostActionToolbarScope.maybeOf(context)
+                      ?.groupBookmarkButton ==
+                  null,
+              widget: share,
+              onTap: share.action(context, ref),
               title: context.t.post.action.share,
               icon: const Icon(Icons.share),
             ),
@@ -173,14 +202,17 @@ class PostActionToolbarScope extends InheritedWidget {
     required this.additionalButtons,
     required super.child,
     this.bookmarkButton,
+    this.groupBookmarkButton,
     super.key,
   });
   final List<ButtonData> additionalButtons;
   final Widget? bookmarkButton;
+  final Widget? groupBookmarkButton;
   static PostActionToolbarScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PostActionToolbarScope>();
   @override
   bool updateShouldNotify(PostActionToolbarScope oldWidget) =>
       additionalButtons != oldWidget.additionalButtons ||
-      bookmarkButton != oldWidget.bookmarkButton;
+      bookmarkButton != oldWidget.bookmarkButton ||
+      groupBookmarkButton != oldWidget.groupBookmarkButton;
 }

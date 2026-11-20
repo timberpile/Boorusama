@@ -14,6 +14,8 @@ import '../../../core/widgets/adaptive_button_row.dart';
 import '../client_provider.dart';
 import 'work_source.dart';
 import 'bookmark_actions.dart';
+import 'work_timeline.dart';
+import '../../../core/posts/details/src/widgets/group_viewer_scope.dart';
 
 BooruGroupCapability createPixivGroupCapability(Ref _) => BooruGroupCapability(
   engine: BooruType.pixiv,
@@ -39,6 +41,7 @@ class PixivWorkPresentation
     implements
         BooruGroupPresentation,
         BooruMediaGroupBookmarkPresentation,
+        BooruScopedGroupBookmarkPresentation,
         BooruGroupSelectionPresentation,
         BooruGroupKindPresentation {
   const PixivWorkPresentation();
@@ -63,6 +66,13 @@ class PixivWorkPresentation
     key: ValueKey((data.summary.reference.identity, data.access.key)),
     data: data,
   );
+
+  @override
+  Widget buildScopedBookmarkButton(
+    BuildContext context,
+    GroupBookmarkPresentationData data, {
+    required bool wholeGroup,
+  }) => PixivScopedBookmarkButton(data: data, wholeGroup: wholeGroup);
 
   @override
   List<ButtonData> buildBookmarkMenuButtons(
@@ -97,5 +107,8 @@ class PixivWorkPresentation
   // another fullscreen viewer through this legacy standalone details hook.
   @override
   Widget buildDetails(BuildContext context, ContentGroupDetails details) =>
-      Text(details.summary.title ?? '');
+      switch (GroupViewerScope.maybeEntryOf(context)) {
+        final entry? => PixivWorkTimeline(entry: entry),
+        _ => const SizedBox.shrink(),
+      };
 }

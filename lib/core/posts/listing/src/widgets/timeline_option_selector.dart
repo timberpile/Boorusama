@@ -14,6 +14,10 @@ class TimelineOptionSelector<T> extends StatelessWidget {
     this.optionLeading,
     this.optionSemanticLabel,
     this.prefixLabel,
+    this.compact = false,
+    this.buttonBuilder,
+    this.triggerSemanticLabel,
+    this.pending = false,
     super.key,
   });
 
@@ -26,6 +30,10 @@ class TimelineOptionSelector<T> extends StatelessWidget {
   final Widget Function(T)? optionLeading;
   final String Function(T)? optionSemanticLabel;
   final String? prefixLabel;
+  final bool compact;
+  final Widget Function(BuildContext, VoidCallback?)? buttonBuilder;
+  final String? triggerSemanticLabel;
+  final bool pending;
 
   Widget _optionTitle(T option) {
     final icon = optionIcon?.call(option);
@@ -53,9 +61,41 @@ class TimelineOptionSelector<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
-    final selectedSemanticLabel = optionSemanticLabel?.call(value) ?? label;
+    final selectedSemanticLabel =
+        triggerSemanticLabel ?? optionSemanticLabel?.call(value) ?? label;
+    Widget labelWidget() => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (prefixLabel case final prefix?) ...[
+            Text('${prefix}:', maxLines: 1),
+            const SizedBox(width: 6),
+          ],
+          if (optionLeading != null || optionIcon != null) ...[
+            if (optionLeading != null)
+              optionLeading!(value)
+            else
+              Icon(optionIcon!(value), size: 18),
+            const SizedBox(width: 6),
+          ],
+          if (compact)
+            Flexible(child: KurumiFittedText(Text(label, maxLines: 1)))
+          else
+            Text(label, maxLines: 1),
+          if (pending)
+            const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            const Icon(Icons.arrow_drop_down, size: 18),
+        ],
+      ),
+    );
     return KurumiPopupMenuButton(
       semanticLabel: selectedSemanticLabel,
+      enabled: !pending,
       maxWidth: 320,
       items: [
         ConstrainedBox(
@@ -90,30 +130,9 @@ class TimelineOptionSelector<T> extends StatelessWidget {
           ),
         ),
       ],
-      child: Tooltip(
-        message: selectedSemanticLabel,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (prefixLabel case final prefix?) ...[
-                Text('${prefix}:', maxLines: 1),
-                const SizedBox(width: 6),
-              ],
-              if (optionLeading != null || optionIcon != null) ...[
-                if (optionLeading != null)
-                  optionLeading!(value)
-                else
-                  Icon(optionIcon!(value), size: 18),
-                const SizedBox(width: 6),
-              ],
-              Text(label, maxLines: 1),
-              const Icon(Icons.arrow_drop_down, size: 18),
-            ],
-          ),
-        ),
-      ),
+      tooltip: selectedSemanticLabel,
+      buttonBuilder: buttonBuilder,
+      child: buttonBuilder == null ? labelWidget() : null,
     );
   }
 }

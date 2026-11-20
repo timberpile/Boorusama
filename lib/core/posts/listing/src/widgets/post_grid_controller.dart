@@ -48,6 +48,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
     this.blacklistCounter,
     this.onRefresh,
     this.selectionKeysBuilder,
+    this.initialFilterSelection = const {},
   }) : _pageMode = pageMode,
        _duplicateTracker = duplicateTracker,
        _eventController = StreamController<PostControllerEvent>.broadcast() {
@@ -60,6 +61,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
   /// Invalidates source caches for explicit refresh, but not page navigation.
   final VoidCallback? onRefresh;
   final List<Object> Function(List<T>)? selectionKeysBuilder;
+  final Map<String, bool> initialFilterSelection;
   final int? initialPage;
   var _initialPagePending = true;
   final PostBlacklistCounter? blacklistCounter;
@@ -130,6 +132,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
   int get continuationDispatchRevision => _continuationDispatchRevision;
   @override
   bool get refreshing => _refreshing;
+  bool get hasLoadedPage => _hasLoadedPage;
   bool get preserveSelectionOnRefresh => _preserveSelectionOnRefresh;
   int get page => pageNotifier.value;
   int get total => _total;
@@ -197,7 +200,8 @@ class PostGridController<T extends Post> extends ChangeNotifier
         .toList();
     blacklistedTags = _cachedParsedTags.map((rule) => rule.rawString).toSet();
     activeFilters.value = {
-      for (final key in blacklistedTags!) key: activeFilters.value[key] ?? true,
+      for (final key in blacklistedTags!)
+        key: activeFilters.value[key] ?? initialFilterSelection[key] ?? true,
     };
     _rulesRevision++;
   }
@@ -332,6 +336,28 @@ class PostGridController<T extends Post> extends ChangeNotifier
     preserveSelection: preserveSelection,
     invalidateSource: true,
   );
+
+  /// Loads a detached controller through the ordinary filtering pipeline.
+  Future<void> prepareInitialPage({int additionalEmptyPages = 0}) async {
+    if (_hasLoadedPage || _refreshing) {
+      throw StateError('A prepared grid must start with a fresh controller');
+    }
+    await _refresh(maintainPage: false, invalidateSource: false);
+    for (
+      var i = 0;
+      i < additionalEmptyPages &&
+          _hasLoadedPage &&
+          errors.value == null &&
+          _hasMore &&
+          items.isEmpty;
+      i++
+    ) {
+      await fetchMore(immediately: true);
+    }
+    if (!_hasLoadedPage || errors.value != null || _disposed) {
+      throw StateError('Unable to prepare the ordered grid');
+    }
+  }
 
   Future<void> _refresh({
     required bool maintainPage,
@@ -468,6 +494,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
   Future<void> fetchMore({
     VoidCallback? onNoMoreData,
     bool Function()? canStart,
+    bool immediately = false,
   }) {
     if (_disposed || _refreshing) return Future.value();
     if (_pendingFetchMore case final pending?) {
@@ -490,7 +517,7 @@ class PostGridController<T extends Post> extends ChangeNotifier
     final pending = _pendingFetchMore = Completer<void>();
     _pendingFetchMoreCanStart = canStart;
     _debounceTimer?.cancel();
-    _debounceTimer = Timer(debounceDuration, () async {
+    _debounceTimer = Timer(immediately ? Duration.zero : debounceDuration, () async {
       final previousPage = _page;
       try {
         if (!_isCurrentRequest(generation) ||

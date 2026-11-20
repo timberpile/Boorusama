@@ -154,9 +154,13 @@ abstract final class Kurumi {
     Offset? anchorPoint,
     AnimationStyle? sheetAnimationStyle,
     bool? requestFocus,
+    bool includeAppChromeInsets = true,
   }) => material.showModalBottomSheet<T>(
     context: context,
-    builder: (context) => KurumiOverlayMediaQuery(builder: builder),
+    builder: (context) => KurumiOverlayMediaQuery(
+      includeAppChromeInsets: includeAppChromeInsets,
+      builder: builder,
+    ),
     backgroundColor: backgroundColor,
     barrierLabel: barrierLabel,
     elevation: elevation,

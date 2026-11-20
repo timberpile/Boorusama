@@ -4,12 +4,19 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../../router.dart';
+import 'group_viewer_scope.dart';
+import 'group_reading_controls.dart';
 
 /// Content-owned navigation shares the gallery's viewport and scroll lifetime.
 class ViewerEntryNavigationHeader extends StatelessWidget {
-  const ViewerEntryNavigationHeader({this.actions = const [], super.key});
+  const ViewerEntryNavigationHeader({
+    this.actions = const [],
+    this.title,
+    super.key,
+  });
 
   final List<Widget> actions;
+  final Widget? title;
 
   @override
   Widget build(BuildContext context) => KurumiSliverAppBar(
@@ -20,15 +27,16 @@ class ViewerEntryNavigationHeader extends StatelessWidget {
     backgroundColor: Kurumi.themeOf(context).colorScheme.surface,
     scrolledUnderElevation: 0,
     toolbarHeight: 56,
+    title: title,
     leadingWidth: 56,
     leading: Center(
       child: KurumiCircularIconButton(
         semanticLabel: context.t.generic.action.back,
+        visualSize: 40,
         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-        icon: const Padding(
-          padding: EdgeInsets.only(left: 8),
-          child: Icon(Symbols.arrow_back_ios),
-        ),
+        backgroundColor: Colors.transparent,
+        iconColor: Kurumi.themeOf(context).colorScheme.onSurface,
+        icon: const Icon(Symbols.arrow_back_ios_new, size: 24),
         onPressed: () async {
           if (!await Navigator.of(context).maybePop() && context.mounted) {
             GoRouter.maybeOf(context)?.go('/');
@@ -36,7 +44,12 @@ class ViewerEntryNavigationHeader extends StatelessWidget {
         },
       ),
     ),
-    actions: actions,
+    actions: [
+      if (GroupViewerScope.maybeOf(context) case final scope?
+          when scope.onOpenMember != null)
+        GroupViewToggle(entry: scope.entry),
+      ...actions,
+    ],
   );
 }
 

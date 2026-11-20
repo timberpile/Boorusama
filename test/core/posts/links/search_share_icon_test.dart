@@ -54,7 +54,7 @@ void main() {
                 .getSemantics(find.byType(IconButton))
                 .getSemanticsData()
                 .tooltip,
-            'Boorusama Link File',
+            'Link File',
           );
           expect(tester.takeException(), isNull);
         } finally {

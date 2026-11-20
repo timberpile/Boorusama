@@ -62,6 +62,15 @@ abstract interface class BooruMediaGroupBookmarkPresentation {
   );
 }
 
+/// Optional direct member/Group targets for the shared two-slot viewer toolbar.
+abstract interface class BooruScopedGroupBookmarkPresentation {
+  Widget buildScopedBookmarkButton(
+    BuildContext context,
+    GroupBookmarkPresentationData data, {
+    required bool wholeGroup,
+  });
+}
+
 abstract interface class BooruGroupKindPresentation {
   String kindLabel(BuildContext context, ContentGroupSummary summary);
 }

@@ -133,7 +133,7 @@ void main() {
         'boorusama://group/open?v=1&engine=danbooru&site=https%3A%2F%2Fdanbooru.donmai.us&key=pool%3A42';
     final file = BoorusamaLinkFile.fromUri(uri);
     expect(file.uri.toString(), uri);
-    expect(file.fileName, 'boorusama-group-pool-42.bslink');
+    expect(file.fileName, 'danbooru-pool-42.bslink');
     final encoded =
         jsonDecode(utf8.decode(file.encode())) as Map<String, dynamic>;
     expect(encoded.keys.toSet(), {'format', 'version', 'uri'});

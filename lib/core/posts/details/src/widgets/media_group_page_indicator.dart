@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../details_pageview/src/viewer_media_viewport.dart';
 import 'post_details_page_view_scope.dart';
 
 /// A brief reading hint that never changes overlay or Android chrome state.
@@ -60,51 +62,66 @@ class _MediaGroupPageIndicatorState extends State<MediaGroupPageIndicator> {
     final viewer = PostDetailsPageViewScope.of(context);
     return IgnorePointer(
       child: ListenableBuilder(
-        listenable: Listenable.merge([viewer.overlay, viewer.sheetState]),
-        builder: (context, _) {
-          final overlay = viewer.overlay.value;
-          final details = viewer.isExpanded;
-          return SafeArea(
-            top: overlay,
-            minimum: EdgeInsets.only(
-              top: overlay ? 12 : 4,
-              left: 12,
-              right: 12,
-              bottom: 12,
-            ),
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                // Leave the existing Info/Back overlay's hit areas unobstructed.
-                padding: EdgeInsets.only(top: overlay && !details ? 52 : 0),
-                child: ExcludeSemantics(
-                  excluding: !_visible,
-                  child: AnimatedOpacity(
-                    opacity: _visible ? 1 : 0,
-                    duration:
-                        widget.disableAnimation ||
-                            MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : const Duration(milliseconds: 180),
-                    child: Semantics(
-                      label:
-                          '${context.t.content_viewer.pages}: ${widget.page} / ${widget.total}',
-                      child: ExcludeSemantics(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: .28),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              '${widget.page} / ${widget.total}',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
+        listenable: Listenable.merge([
+          viewer.bottomObstruction,
+          viewer.presentationProgress,
+        ]),
+        builder: (context, _) => LayoutBuilder(
+          builder: (context, constraints) {
+            final viewport = ViewerMediaViewport.maybeOf(context);
+            final host = Offset.zero & constraints.biggest;
+            final progress =
+                viewport?.progress ?? viewer.presentationProgress.value;
+            final safe = MediaQuery.viewPaddingOf(context);
+            final visible = Rect.fromLTRB(
+              safe.left * (1 - progress),
+              safe.top * (1 - progress),
+              host.right - safe.right * (1 - progress),
+              host.bottom -
+                  math.max(
+                    safe.bottom * (1 - progress),
+                    viewer.bottomObstruction.value,
+                  ),
+            );
+            if (visible.width <= 16 || visible.height <= 16) {
+              return const SizedBox.shrink();
+            }
+            return Stack(
+              children: [
+                Positioned.fromRect(
+                  rect: visible.deflate(8),
+                  child: Align(
+                    alignment: Alignment.bottomRight,
+                    child: ExcludeSemantics(
+                      excluding: !_visible,
+                      child: AnimatedOpacity(
+                        opacity: _visible ? 1 : 0,
+                        duration:
+                            widget.disableAnimation ||
+                                MediaQuery.disableAnimationsOf(context)
+                            ? Duration.zero
+                            : const Duration(milliseconds: 180),
+                        child: Semantics(
+                          label:
+                              '${context.t.content_viewer.pages}: ${widget.page} / ${widget.total}',
+                          child: ExcludeSemantics(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: .28),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                child: Text(
+                                  '${widget.page} / ${widget.total}',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -113,10 +130,10 @@ class _MediaGroupPageIndicatorState extends State<MediaGroupPageIndicator> {
                     ),
                   ),
                 ),
-              ),
-            ),
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

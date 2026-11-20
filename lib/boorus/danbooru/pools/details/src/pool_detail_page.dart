@@ -1,9 +1,14 @@
+import '../../../../../core/posts/details/src/widgets/group_reading_controls.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/configs/config/types.dart';
 import '../../../../../core/boorus/booru/types.dart';
 import '../../../../../core/content/types.dart';
 import '../../../../../core/posts/details/src/types/viewer_entry.dart';
-import '../../../../../core/posts/details/src/widgets/content_group_page.dart';
+import '../../../../../core/posts/details/src/widgets/group_viewer_scope.dart';
+import '../../../../../core/posts/details/src/providers/group_reading_provider.dart';
+import '../../../../../core/posts/details/src/widgets/mixed_post_details_page.dart';
+import '../../../../../core/posts/details/src/providers/viewer_source_access_provider.dart';
+import '../../../../../core/content/groups/group_source_provider.dart';
 import '../../../../../core/posts/details/src/widgets/viewer_entry_navigation_header.dart';
 import '../../content_group_source.dart';
 
@@ -56,6 +61,7 @@ class _PoolDetailPageState extends ConsumerState<PoolDetailPage> {
           reference: reference,
           title: widget.pool.name,
           memberCount: widget.pool.postCount,
+          displayCategory: widget.pool.category?.name,
         ),
         occurrenceId: Object(),
         source: config.anonymousReadScope == null
@@ -76,20 +82,28 @@ class _PoolDetailPageState extends ConsumerState<PoolDetailPage> {
   @override
   Widget build(BuildContext context) {
     final entry = _entry;
-    return entry == null
-        ? ViewerEntryNavigationStatus(
-            child: Text(context.t.bookmark.pool_unavailable),
-          )
-        : ContentGroupPage(
-            entry: entry,
-            embedded: false,
-            prepareSource: (source) {
-              if (source is DanbooruGroupSource &&
-                  widget.pool.postIds != null) {
-                source.seedPool(entry.summary.reference, widget.pool);
-              }
-            },
-          );
+    if (entry == null)
+      return ViewerEntryNavigationStatus(
+        child: Text(context.t.bookmark.pool_unavailable),
+      );
+    final access = ref.watch(viewerSourceAccessProvider(entry.source!));
+    if (access != null) {
+      final source = ref
+          .watch(contentGroupSourceStateProvider(access.key))
+          .asData
+          ?.value;
+      if (source is DanbooruGroupSource && widget.pool.postIds != null) {
+        source.seedPool(entry.summary.reference, widget.pool);
+      }
+    }
+    return MixedPostDetailsPage(
+      posts: const [],
+      entries: [entry],
+      initialIndex: 0,
+      initialThumbnailUrl: null,
+      scrollController: null,
+      disclaimer: null,
+    );
   }
 }
 
@@ -113,6 +127,7 @@ class _PoolDetailContentState extends ConsumerState<PoolDetailContent> {
   final _scrollController = AutoScrollController();
   PostDetailsPageViewController? _outerPager;
   var _restored = false;
+  Object? _scrollOrder;
   var _selectionActive = false;
 
   @override
@@ -164,15 +179,49 @@ class _PoolDetailContentState extends ConsumerState<PoolDetailContent> {
   @override
   Widget build(BuildContext context) {
     final pool = widget.pool;
+    final entry = GroupViewerScope.maybeEntryOf(context);
+    final reading = entry == null
+        ? null
+        : ref.watch(groupReadingProvider(entry));
+    final order = reading?.orderKey == null
+        ? _order
+        : PoolDetailsOrder.values.byName(reading!.orderKey!);
+    if (_scrollOrder != null && _scrollOrder != order) {
+      PageStorage.maybeOf(context)?.writeState(
+        context,
+        null,
+        identifier: (widget.storageId ?? widget.pool.id, 'viewport', order),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _scrollOrder != order) return;
+        if (_selectionActive) {
+          _selectionActive = false;
+          _outerPager?.enableAllSwiping();
+          _outerPager?.enableKeyboardShortcuts();
+        }
+        if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      });
+    }
+    _scrollOrder = order;
     return SafeArea(
       top: false,
       bottom: false,
       child: DanbooruInfinitePostIdList(
         pool: pool,
-        order: _order,
-        orderControl: PoolOrderSelector(value: _order, onChanged: _setOrder),
+        order: order,
+        orderControl: PoolOrderSelector(
+          value: order,
+          pending: reading?.sorting ?? false,
+          onChanged: (value) {
+            if (entry == null) {
+              _setOrder(value);
+              return;
+            }
+            requestGroupSort(context, ref, entry, value.name);
+          },
+        ),
         checkpointIdentity: widget.embedded
-            ? (widget.storageId ?? pool.id, 'viewport', _order)
+            ? (widget.storageId ?? pool.id, 'viewport', order)
             : null,
         scrollController: _scrollController,
         onSelectionChanged: widget.embedded

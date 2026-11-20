@@ -20,20 +20,27 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
+import '../../../../boorus/booru/types.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../artists/types.dart';
 import '../../../../content/groups/group_capability.dart';
 import '../../../../content/groups/group_source_provider.dart';
+import '../../../../content/groups/group_summary.dart';
+import '../../../../content/types.dart' show GroupMetadataKey;
 import '../../../../configs/config/types.dart';
 import '../../../../navigation/destination_activity.dart';
 import '../../../../developer_options/providers.dart';
 import 'group_viewer_scope.dart';
+import 'adjacent_group_preparation.dart';
+import 'group_reading_controls.dart';
+import '../providers/group_reading_provider.dart';
 import '../../../../notes/note/widgets.dart';
 import '../../../../settings/providers.dart';
 import '../../../details_parts/types.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../details_parts/widgets.dart';
 import '../../../post/types.dart';
+import '../../../pools/src/types/pool_details_order.dart';
 import '../../../sources/types.dart';
 import '../providers/providers.dart';
 import '../providers/viewer_source_access_provider.dart';
@@ -45,7 +52,6 @@ import '../types/media_group_checkpoint.dart';
 import '../providers/media_group_provider.dart';
 import 'media_group_page.dart';
 import 'media_group_actions.dart';
-import 'media_group_page_indicator.dart';
 import 'native_metadata_selection.dart';
 import 'viewer_entry_content.dart';
 import 'post_details_page_view_scope.dart';
@@ -327,12 +333,83 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   final _viewerScaffoldKey = GlobalKey();
   final _transformController = TransformationController();
   PostDetailsPageViewController? _mediaPager;
+  GroupViewerEntry? _observedGroup;
+  GroupLayout? _carriedGroupLayout;
+  ProviderSubscription<MediaGroupState>? _activeGroupSubscription;
+  ProviderSubscription<GroupReadingState>? _activeReadingSubscription;
+  GroupReadingController? _activeReader;
+
+  void _observeActiveGroup() {
+    final entry = widget.sequence?.entries[_mediaPager!.page];
+    final group = entry is GroupViewerEntry && supportsGroupReading(entry)
+        ? entry
+        : null;
+    if (_observedGroup == group) return;
+    _activeReader?.cancelOrder();
+    _activeGroupSubscription?.close();
+    _activeReadingSubscription?.close();
+    _activeReadingSubscription = null;
+    _observedGroup = group;
+    _activeReader = group == null
+        ? null
+        : ref.read(groupReadingProvider(group).notifier);
+    if (_carriedGroupLayout case final layout?) {
+      _activeReader?.followSwipe(layout);
+    }
+    if (group != null) {
+      final checkpoint = ref.read(groupReadingProvider(group)).checkpoint;
+      checkpoint.canAdoptOrder = () {
+        final pager = _mediaPager!;
+        bool scrolling(PageController? controller) =>
+            controller != null &&
+            controller.hasClients &&
+            controller.position.isScrollingNotifier.value;
+        return mounted &&
+            _observedGroup == group &&
+            !scrolling(pager.pageController) &&
+            !scrolling(checkpoint.pages) &&
+            !pager.animating.value &&
+            !pager.freestyleMoving.value;
+      };
+    }
+    if (group != null && group.contentReference.sourceKey.startsWith('pool:')) {
+      final bucket = PageStorage.maybeOf(context);
+      final identifier = (group.occurrenceId, 'order');
+      final saved = bucket?.readState(context, identifier: identifier);
+      if (saved is PoolDetailsOrder) {
+        ref
+            .read(groupReadingProvider(group).notifier)
+            .restorePoolOrder(saved.name);
+      }
+      _activeReadingSubscription = ref.listenManual(
+        groupReadingProvider(group),
+        (_, next) {
+          if (!next.initializing) {
+            bucket?.writeState(
+              context,
+              PoolDetailsOrder.values.byName(next.orderKey ?? 'order'),
+              identifier: identifier,
+            );
+          }
+        },
+      );
+    }
+    // The page event precedes the next widget build. Retain the active source
+    // immediately so replacing its presentation cannot cancel its first read.
+    _activeGroupSubscription = group == null
+        ? null
+        : ref.listenManual(mediaGroupProvider(group), (_, _) {});
+  }
 
   void _mediaPageChanged() {
     for (final entry in _recoveryOwners.entries) {
       if (entry.key != _mediaPager?.page) entry.value.cancel('Viewer moved');
     }
     if (mounted) {
+      if (_observedGroup case final group? when _canShowTimeline(group)) {
+        _carriedGroupLayout = ref.read(groupReadingProvider(group)).layout;
+      }
+      _observeActiveGroup();
       _scheduleMediaCleanup();
       setState(() {});
     }
@@ -346,6 +423,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       _mediaPager?.currentPage.removeListener(_mediaPageChanged);
       _mediaPager = pager;
       pager.currentPage.addListener(_mediaPageChanged);
+      _observeActiveGroup();
     }
   }
 
@@ -482,41 +560,205 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     _scheduleMediaCleanup();
   }
 
-  Widget? _pageIndicator(int index) {
-    if (!_hasMediaPager(index)) return null;
-    final entry = widget.sequence!.entries[index] as GroupViewerEntry;
-    final state = ref.read(mediaGroupProvider(entry));
-    final members = state.members?.members;
-    final selected = members == null
-        ? null
-        : _checkpoint(entry).indexIn(members);
-    final total = state.members?.sourceTotal ?? members?.length ?? 0;
-    if (selected == null || total < 2) return null;
-    return MediaGroupPageIndicator(
-      key: ValueKey((entry.occurrenceId, state.access?.key)),
-      memberKey: members![selected].memberKey,
-      page: (members[selected].sourcePosition ?? selected) + 1,
-      total: total,
-      disableAnimation: ref.read(settingsProvider).reduceAnimations,
-    );
-  }
-
   bool _hasMediaPager(int index) {
     final entry = widget.sequence?.entries[index];
     if (entry is! GroupViewerEntry) return false;
+    // PageView can build a jump destination before its current-page event.
+    // Do not start an unobserved source read outside the retained window.
+    if (_mediaPager?.retainsStateFor(index) == false) return false;
     final presentation = ref
         .read(booruGroupCapabilityProvider(entry.contentReference.engine))
         ?.presentation;
     return presentation != null &&
         presentation.supports(entry.summary) &&
-        presentation.layoutFor(entry.summary) == GroupLayout.mediaPager;
+        _layoutFor(entry, index) == GroupLayout.mediaPager;
+  }
+
+  bool _canShowTimeline(GroupViewerEntry entry, {bool active = true}) {
+    if (entry.contentReference.engine != BooruType.pixiv) return true;
+    final provider = mediaGroupProvider(entry);
+    final listedCount = active ? null : entry.summary.memberCount;
+    // The active Work owns its metadata read. Neighbors can reuse an existing
+    // result or use their listing without starting an offscreen request.
+    if (!active && !ref.exists(provider)) return (listedCount ?? 0) > 1;
+    final media = ref.read(provider);
+    final count =
+        media.details?.summary.memberCount ??
+        media.members?.sourceTotal ??
+        media.members?.members.length ??
+        listedCount ??
+        0;
+    return !media.failed && count > 1;
+  }
+
+  final _preparedLayouts = <GroupViewerEntry, GroupLayout>{};
+
+  GroupLayout _layoutFor(GroupViewerEntry entry, int index) =>
+      index == _mediaPager?.page
+      ? _resolveLayout(entry, active: true)
+      : _preparedLayouts[entry] ?? _resolveLayout(entry, active: false);
+
+  GroupLayout _resolveLayout(
+    GroupViewerEntry entry, {
+    required bool active,
+    ContentGroupSummary? preparedSummary,
+  }) {
+    GroupLayout? layout;
+    if (!active && supportsGroupReading(entry)) {
+      final group = _observedGroup;
+      layout = group != null && _canShowTimeline(group)
+          ? ref.read(groupReadingProvider(group)).layout
+          : _carriedGroupLayout;
+    }
+    layout ??= active
+        ? ref.read(groupReadingProvider(entry)).layout
+        : ref
+                  .read(
+                    booruGroupCapabilityProvider(entry.contentReference.engine),
+                  )
+                  ?.presentation
+                  .layoutFor(preparedSummary ?? entry.summary) ??
+              GroupLayout.memberGrid;
+    if (layout == GroupLayout.memberGrid &&
+        !_canShowTimeline(entry, active: active)) {
+      return GroupLayout.mediaPager;
+    }
+    return layout;
+  }
+
+  Map<Object, PreparedViewerKey> _prepareGroupWindow(
+    BuildContext context,
+    PostDetailsPageViewController pager,
+  ) {
+    _preparedLayouts.clear();
+    final slots = <Object, PreparedViewerKey>{};
+    final entries = widget.sequence?.entries;
+    if (entries == null ||
+        !NavigationActivity.of(context) ||
+        !ref.watch(automaticMediaLoadingEnabledProvider)) {
+      return slots;
+    }
+
+    for (final index in [pager.page - 1, pager.page, pager.page + 1]) {
+      if (index < 0 || index >= entries.length) continue;
+      final entry = entries[index];
+      if (entry is! GroupViewerEntry || entry.source == null) continue;
+      final reference = entry.contentReference;
+      final access = ref.watch(viewerSourceAccessProvider(entry.source!));
+      final capability = ref.watch(
+        booruGroupCapabilityProvider(reference.engine),
+      );
+      if (access == null ||
+          !access.accepts(reference) ||
+          capability?.presentation.supports(entry.summary) != true) {
+        continue;
+      }
+
+      final active = index == pager.page;
+      final metadata = GroupMetadataKey(
+        reference: reference,
+        access: access.key,
+      );
+      final order = preparedGroupOrder(context, ref, entry);
+      final key = (
+        access: access.key,
+        page: (
+          reference: reference,
+          order: order,
+          limit: ref
+              .watch(listingSettingsForAccessProvider(access.key))
+              .postsPerPage,
+          revision: ref.watch(groupRefreshRevisionProvider(metadata)),
+        ),
+        foreground: active,
+      );
+      final work = reference.engine == BooruType.pixiv;
+      if (work) ref.watch(mediaGroupProvider(entry));
+      // Pool metadata can correct a stale category on the listing. Stage it
+      // through the same low-priority read used by the passive gallery.
+      final summary = !active && reference.sourceKey.startsWith('pool:')
+          ? ref.watch(preparedViewerDetailsProvider(key)).asData?.value.summary
+          : null;
+      final layout = _resolveLayout(
+        entry,
+        active: active,
+        preparedSummary: summary,
+      );
+      if (!active) _preparedLayouts[entry] = layout;
+      if (layout != GroupLayout.memberGrid) continue;
+
+      slots[entry.occurrenceId] = key;
+      if (!work && order != null) ref.watch(preparedViewerGroupProvider(key));
+    }
+    return slots;
   }
 
   MediaGroupCheckpoint _checkpoint(GroupViewerEntry entry) =>
       _mediaCheckpoints.putIfAbsent(
         entry.occurrenceId,
-        () => MediaGroupCheckpoint(memberKey: entry.initialMemberKey),
+        () => ref.read(groupReadingProvider(entry)).checkpoint,
       );
+
+  void _openGroupMember(GroupViewerEntry entry, String memberKey) {
+    final binding = entry.source;
+    final access = binding == null
+        ? null
+        : ref.read(viewerSourceAccessProvider(binding));
+    if (access == null || !access.accepts(entry.contentReference)) return;
+    final profile = access.config?.viewerConfigs;
+    final viewer = profile != null && profile.enable
+        ? profile.settings
+        : ref.read(settingsProvider).viewer;
+    final pager = _mediaPager!;
+    unawaited(pager.resetSheet());
+    pager.synchronizeZoom(false);
+    if (viewer.postDetailsOverlayInitialState.isHide) {
+      pager.hideAllUI(immediately: true);
+    } else {
+      pager.showAllUI(immediately: true);
+    }
+    ref
+        .read(groupReadingProvider(entry).notifier)
+        .show(
+          GroupLayout.mediaPager,
+          memberKey: memberKey,
+          drillIn: true,
+        );
+  }
+
+  Widget _groupSummaryPreview(BuildContext context, int index) =>
+      !_hasMediaPager(index)
+      ? const SizedBox.shrink()
+      : ColoredBox(
+          color: Theme.of(context).colorScheme.surface,
+          child: CustomScrollView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            slivers: [
+              const MediaGroupSummaryActions(),
+              SliverToBoxAdapter(
+                child: SizedBox(height: MediaQuery.paddingOf(context).bottom),
+              ),
+            ],
+          ),
+        );
+
+  List<Widget> get _groupHeaderActions {
+    final entry = widget.sequence?.entries[_mediaPager!.page];
+    if (entry is! GroupViewerEntry ||
+        !supportsGroupReading(entry) ||
+        !_hasMediaPager(_mediaPager!.page))
+      return const [];
+    final summary =
+        ref.read(mediaGroupProvider(entry)).details?.summary ?? entry.summary;
+    final sortable =
+        summary.reference.sourceKey.startsWith('related:') ||
+        summary.reference.sourceKey.startsWith('pool:');
+    return [
+      if (sortable) GroupOrderSelector(entry: entry, compact: true),
+      if (_canShowTimeline(entry)) GroupViewToggle(entry: entry, overlay: true),
+    ];
+  }
 
   MediaPageNavigation? _mediaNavigation(int index) {
     if (!_hasMediaPager(index)) return null;
@@ -551,6 +793,7 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
             state.members!.nextPageError == null);
     return MediaPageNavigation(
       pageController: () => checkpoint.pages,
+      memberKey: selected == null ? null : members![selected].memberKey,
       atStart: atStart,
       atEnd: atEnd,
       previousId: atStart
@@ -584,6 +827,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
 
   @override
   void dispose() {
+    _activeReader?.cancelOrder();
+    _activeGroupSubscription?.close();
+    _activeReadingSubscription?.close();
     _disposing = true;
     for (final owner in _recoveryOwners.values) {
       owner.cancel('Viewer closed');
@@ -601,54 +847,86 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
   Widget build(BuildContext context) {
     final details = PostDetails.maybeOf<Post>(context);
     final pager = PostDetailsPageViewScope.of(context);
+    final preparedSlots = _prepareGroupWindow(context, pager);
+    for (final index in pager.retainedStatePages) {
+      final retained = widget.sequence?.entries[index];
+      if (retained is GroupViewerEntry &&
+          (index == pager.page ||
+              _mediaCheckpoints.containsKey(retained.occurrenceId))) {
+        final reading = ref.watch(groupReadingProvider(retained));
+        _mediaCheckpoints[retained.occurrenceId] = reading.checkpoint;
+      }
+    }
     // The active occurrence keeps its source observers alive while metadata
     // and media compose into separate regions of the shared viewer.
     final entry = widget.sequence?.entries[pager.page];
-    if (entry is GroupViewerEntry && _hasMediaPager(pager.page)) {
+    if (entry is GroupViewerEntry &&
+        (supportsGroupReading(entry) || _hasMediaPager(pager.page))) {
       ref.watch(mediaGroupProvider(entry));
     }
-    return NativeMetadataSelectionScope(
-      child: MixedPostDetailsImagePreloader(
-        posts: details?.posts ?? const [],
-        sequence: widget.sequence,
-        child: ListenableBuilder(
-          listenable: Listenable.merge([
-            pager.currentPage,
-            if (details != null) details.controller.currentPost,
-            if (details != null) details.controller.currentSettledPage,
-          ]),
-          builder: (context, _) {
-            final sequence = widget.sequence;
-            final post = sequence == null
-                ? details!.controller.currentPost.value
-                : sequence.postAt(pager.page) ?? _mediaPostAt(pager.page);
-            if (post == null) {
-              _selectedMediaControllers.remove(pager.page);
-              _scheduleMediaCleanup();
-            }
-            final activeDetails = _hasMediaPager(pager.page) && post != null
-                ? _mediaDetails(pager.page, post)
-                : details;
-            return PostPagePresentationScope(
-              post: post,
-              sourceBinding: widget.sequence?.entries[pager.page].source,
-              fallbackConfig: widget.fallbackConfig,
-              groupBuilder: (context) => CurrentPostDetailsNotes(
-                post: null,
-                viewerConfig: BooruConfig.empty.viewer,
-                authConfig: BooruConfig.empty.auth,
-                enabled: false,
-                child: Stack(children: [_buildGroupViewer(context, details)]),
-              ),
-              builder: (context, ref, presentation) => _buildViewer(
-                context,
-                ref,
-                activeDetails!,
-                presentation,
-                regularDetails: details,
-              ),
-            );
-          },
+    final drillIn =
+        entry is GroupViewerEntry &&
+        ref.watch(groupReadingProvider(entry)).returnToTimeline &&
+        _canShowTimeline(entry);
+    return PopScope(
+      canPop: !drillIn,
+      onPopInvokedWithResult: (didPop, _) {
+        _activeReader?.cancelOrder();
+        if (!didPop && drillIn) {
+          pager.resetSheet();
+          pager.synchronizeZoom(false);
+          ref
+              .read(groupReadingProvider(entry).notifier)
+              .show(GroupLayout.memberGrid);
+        }
+      },
+      child: NativeMetadataSelectionScope(
+        child: PreparedGroupWindow(
+          slots: preparedSlots,
+          child: MixedPostDetailsImagePreloader(
+            posts: details?.posts ?? const [],
+            sequence: widget.sequence,
+            child: ListenableBuilder(
+              listenable: Listenable.merge([
+                pager.currentPage,
+                if (details != null) details.controller.currentPost,
+              ]),
+              builder: (context, _) {
+                final sequence = widget.sequence;
+                final post = sequence == null
+                    ? details!.controller.currentPost.value
+                    : sequence.postAt(pager.page) ?? _mediaPostAt(pager.page);
+                if (post == null) {
+                  _selectedMediaControllers.remove(pager.page);
+                  _scheduleMediaCleanup();
+                }
+                final activeDetails = _hasMediaPager(pager.page) && post != null
+                    ? _mediaDetails(pager.page, post)
+                    : details;
+                return PostPagePresentationScope(
+                  post: post,
+                  sourceBinding: widget.sequence?.entries[pager.page].source,
+                  fallbackConfig: widget.fallbackConfig,
+                  groupBuilder: (context) => CurrentPostDetailsNotes(
+                    post: null,
+                    viewerConfig: BooruConfig.empty.viewer,
+                    authConfig: BooruConfig.empty.auth,
+                    enabled: false,
+                    child: Stack(
+                      children: [_buildGroupViewer(context, details)],
+                    ),
+                  ),
+                  builder: (context, ref, presentation) => _buildViewer(
+                    context,
+                    ref,
+                    activeDetails!,
+                    presentation,
+                    regularDetails: details,
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -690,6 +968,9 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
         onDisplayed: widget.onEntryDisplayed == null
             ? null
             : () => widget.onEntryDisplayed!(entry),
+        onOpenMember: entry is GroupViewerEntry && supportsGroupReading(entry)
+            ? (key) => _openGroupMember(entry, key)
+            : null,
       );
     }
     throw StateError('Expected a group viewer entry');
@@ -704,7 +985,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
     hasMediaPager: _hasMediaPager,
     mediaNavigationBuilder: _mediaNavigation,
     pagePostBuilder: _mediaPostAt,
-    pageIndicatorBuilder: _pageIndicator,
+    groupHeaderActions: _groupHeaderActions,
+    pageSummaryPreviewBuilder: _groupSummaryPreview,
     pageWrapperBuilder: (context, index, child) =>
         _wrapPage(context, index, child, details),
     controller: details?.controller,
@@ -783,10 +1065,11 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
               child: MediaGroupActions(entry: entry, child: result),
             ),
           );
+          final selected = PostDetailsPageViewScope.of(context).page == index;
           result = NavigationActivity(
-            active:
-                PostDetailsPageViewScope.of(context).page == index &&
-                NavigationActivity.of(context),
+            active: selected && NavigationActivity.of(context),
+            selectionChromeActive:
+                selected && NavigationActivity.selectionChromeOf(context),
             child: result,
           );
         }
@@ -934,7 +1217,8 @@ class _MixedPostDetailsViewState extends ConsumerState<_MixedPostDetailsView> {
       hasMediaPager: _hasMediaPager,
       mediaNavigationBuilder: _mediaNavigation,
       pagePostBuilder: _mediaPostAt,
-      pageIndicatorBuilder: _pageIndicator,
+      groupHeaderActions: _groupHeaderActions,
+      pageSummaryPreviewBuilder: _groupSummaryPreview,
       pageWrapperBuilder: (context, index, child) =>
           _wrapPage(context, index, child, regularDetails),
       transformController: _transformController,
@@ -1117,7 +1401,8 @@ class _GroupSummaryInformation extends ConsumerWidget {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
     final state = ref.watch(mediaGroupProvider(entry));
-    if (state.access == null) {
+    if (state.access == null ||
+        !entry.contentReference.sourceKey.startsWith('work:')) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
     final details = state.details ?? entry.storedDetails;

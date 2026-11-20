@@ -1,3 +1,4 @@
+import 'package:boorusama/core/posts/links/boorusama_group_link.dart';
 import 'package:boorusama/core/posts/links/boorusama_post_link.dart';
 import 'package:boorusama/core/posts/links/boorusama_search_link.dart';
 import 'package:boorusama/core/posts/links/link_share_message.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _postCaption = 'Post {id} on {profile}';
 const _postArtistCaption = 'Post {id} by {artist} on {profile}';
+const _workArtistCaption = '{group} by {artist} on {profile}';
 const _searchCaption = "Search '{query}' on {profile}";
 
 BoorusamaPostLink _post(String engine, String key) => BoorusamaPostLink.parse(
@@ -59,6 +61,49 @@ String _searchMessage(
 );
 
 void main() {
+  test(
+    'group captions use the sanitized title or an identifiable fallback',
+    () {
+      final group = BoorusamaGroupLink.parse(
+        'boorusama://group/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&key=related%3A42',
+      );
+      String caption(String? groupName, String? profileName) =>
+          groupLinkShareMessage(
+            group,
+            profileName: profileName,
+            groupName: groupName,
+            groupTemplate: '{group} on {profile}',
+            pixivWorkByArtistTemplate: _workArtistCaption,
+            unnamedGroupTemplate: 'Related Posts #{id}',
+          );
+      expect(
+        caption('Summer\nCollection', 'My\u202e Danbooru'),
+        'Summer Collection on My Danbooru',
+      );
+      expect(caption('  ', null), 'Related Posts #42 on site.test');
+      expect(caption('a' * 200, 'b' * 200).runes.length, 224);
+    },
+  );
+
+  test('Pixiv Work captions use the site name and available creator', () {
+    final work = BoorusamaGroupLink.parse(
+      'boorusama://group/open?v=1&engine=pixiv&site=https%3A%2F%2Fwww.pixiv.net&key=work%3A42',
+    );
+    String caption(String? title, String? author) => groupLinkShareMessage(
+      work,
+      profileName: 'Reading Profile',
+      groupName: title,
+      author: author,
+      groupTemplate: '{group} on {profile}',
+      pixivWorkByArtistTemplate: _workArtistCaption,
+      unnamedGroupTemplate: 'Work #{id}',
+    );
+    expect(caption('Blue_Hour', 'Aki\n夜\u202e'), 'Blue_Hour by Aki 夜 on Pixiv');
+    expect(caption('Blue Hour', null), 'Blue Hour on Pixiv');
+    expect(caption(null, 'Aki'), 'Work #42 by Aki on Pixiv');
+    expect(caption(null, '\u202e'), 'Work #42 on Pixiv');
+  });
+
   test('post caption uses the real ID and profile name without extra text', () {
     expect(_postMessage(_post('danbooru', 'id:42')), 'Post 42 on My Danbooru');
     expect(

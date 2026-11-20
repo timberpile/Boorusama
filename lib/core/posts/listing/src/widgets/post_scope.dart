@@ -7,11 +7,58 @@ import '../../../../../foundation/loggers.dart';
 import '../../../../blacklists/providers.dart';
 import '../../../../bookmarks/providers.dart';
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/config/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../post/types.dart';
 import '../types/page_mode.dart';
 import 'post_duplicate_checker.dart';
 import 'post_grid_controller.dart';
+
+typedef PostScopeReader = R Function<R>(ProviderListenable<R> provider);
+
+/// Shares the same filter policy for mounted and prepared grid controllers.
+PostGridController<T> createScopedPostGridController<T extends Post>({
+  required PostScopeReader read,
+  required BooruConfigFilter Function() filter,
+  required PostGridFetcher<T> fetcher,
+  required PageMode pageMode,
+  required bool Function() mounted,
+  DuplicateCheckMode duplicateCheckMode = DuplicateCheckMode.id,
+  Object? Function(T)? duplicateIdentity,
+  int? initialPage,
+  bool forcedPageMode = false,
+  VoidCallback? onRefresh,
+  List<Object> Function(List<T>)? selectionKeysBuilder,
+  Map<String, bool> initialFilterSelection = const {},
+}) => PostGridController<T>(
+  fetcher: fetcher,
+  duplicateTracker: PostDuplicateTracker<T>(
+    mode: duplicateCheckMode,
+    identityExtractor: duplicateIdentity,
+  ),
+  blacklistedTagsFetcher: () => mounted()
+      ? read(blacklistTagsProvider(filter()).future)
+      : Future.value({}),
+  pageMode: pageMode,
+  blacklistedUrlsFetcher: () async {
+    try {
+      if (!read(settingsProvider).bookmarkFilterType.shouldFilterBookmarks) {
+        return const {};
+      }
+      final bookmarks = await read(bookmarkProvider.future);
+      return bookmarks.items.map((bookmark) => bookmark.originalUrl).toSet();
+    } catch (_) {
+      return const {};
+    }
+  },
+  mountedChecker: mounted,
+  forcedPageMode: forcedPageMode,
+  initialPage: initialPage,
+  onRefresh: onRefresh,
+  selectionKeysBuilder: selectionKeysBuilder,
+  onError: (message) => read(loggerProvider).error('Posts', message),
+  initialFilterSelection: initialFilterSelection,
+);
 
 class PostScope<T extends Post> extends ConsumerStatefulWidget {
   const PostScope({
@@ -38,6 +85,14 @@ class PostScope<T extends Post> extends ConsumerStatefulWidget {
   final PageMode? pageMode;
   final int? initialPage;
   final DuplicateCheckMode duplicateCheckMode;
+
+  static Widget borrow<T extends Post>({
+    required PostGridController<T> controller,
+    required WidgetBuilder builder,
+  }) => _PostScope<T>(
+    controller: controller,
+    child: Builder(builder: builder),
+  );
 
   static PostGridController<T>? maybeOf<T extends Post>(BuildContext context) {
     final inherited = context
@@ -68,47 +123,22 @@ class _PostScopeState<T extends Post> extends ConsumerState<PostScope<T>> {
   void initState() {
     super.initState();
 
-    _controller = PostGridController<T>(
+    _controller = createScopedPostGridController<T>(
+      read: ref.read,
+      filter: () => ref.readConfigFilter,
       fetcher: widget.fetcher,
-      duplicateTracker: PostDuplicateTracker<T>(
-        mode: widget.duplicateCheckMode,
-        identityExtractor: widget.duplicateIdentity,
-      ),
-      blacklistedTagsFetcher: () {
-        if (!mounted) return Future.value({});
-
-        return ref.read(blacklistTagsProvider(ref.readConfigFilter).future);
-      },
+      duplicateIdentity: widget.duplicateIdentity,
+      duplicateCheckMode: widget.duplicateCheckMode,
       pageMode:
           widget.pageMode ??
           ref.read(
             imageListingSettingsProvider.select((value) => value.pageMode),
           ),
-      blacklistedUrlsFetcher: () async {
-        try {
-          final settings = ref.read(settingsProvider);
-
-          if (!settings.bookmarkFilterType.shouldFilterBookmarks) {
-            return const {};
-          }
-
-          final bookmarkState = await ref.read(bookmarkProvider.future);
-
-          return bookmarkState.items
-              .map((bookmark) => bookmark.originalUrl)
-              .toSet();
-        } catch (_) {
-          return const {};
-        }
-      },
-      mountedChecker: () => mounted,
+      mounted: () => mounted,
       forcedPageMode: widget.pageMode != null,
       initialPage: widget.initialPage,
       onRefresh: widget.onRefresh,
       selectionKeysBuilder: widget.selectionKeysBuilder,
-      onError: (message) {
-        ref.read(loggerProvider).error('Posts', message);
-      },
     );
   }
 

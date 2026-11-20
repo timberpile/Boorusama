@@ -70,7 +70,9 @@ class PostDetailsPageViewController extends ChangeNotifier {
     }
   }
 
-  bool get isExpanded => sheetState.value.isExpanded;
+  bool detailsAvailable = true;
+  bool get detailsPreferred => sheetState.value.isExpanded;
+  bool get isExpanded => detailsAvailable && detailsPreferred;
 
   PageController get pageController => _pageController;
   DraggableScrollableController get sheetController => _sheetController;
@@ -103,6 +105,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final freestyleMoveOffset = ValueNotifier(Offset.zero);
   final freestyleMoving = ValueNotifier(false);
   Object? _dismissGestureOwner;
+  Object? _modeTransitionOwner;
   var _disposed = false;
 
   void beginDismissGesture(Object owner) {
@@ -119,13 +122,33 @@ class PostDetailsPageViewController extends ChangeNotifier {
   // A Page can unmount during a route transition while the widget tree is
   // locked. Release ownership immediately, but notify surviving listeners
   // only after the teardown frame has finished.
-  void abandonDismissGesture(Object owner) {
+  void abandonDismissGesture(Object owner, {VoidCallback? onReleased}) {
     if (!identical(_dismissGestureOwner, owner)) return;
     _dismissGestureOwner = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_disposed && _dismissGestureOwner == null) {
         _clearDismissGesture();
+        onReleased?.call();
       }
+    });
+  }
+
+  void beginModeTransition(Object owner) {
+    _modeTransitionOwner = owner;
+    animating.value = true;
+  }
+
+  void endModeTransition(Object owner) {
+    if (!identical(_modeTransitionOwner, owner)) return;
+    _modeTransitionOwner = null;
+    animating.value = false;
+  }
+
+  void abandonModeTransition(Object owner) {
+    if (!identical(_modeTransitionOwner, owner)) return;
+    _modeTransitionOwner = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && _modeTransitionOwner == null) animating.value = false;
     });
   }
 
@@ -342,9 +365,15 @@ class PostDetailsPageViewController extends ChangeNotifier {
     }
   }
 
-  void hideAllUI() {
+  void hideAllUI({bool immediately = false}) {
     if (overlay.value) hideOverlay();
     if (bottomSheet.value) hideBottomSheet();
+    if (immediately) {
+      _overlayAnimController?.value = 0;
+      _bottomSheetAnimController?.value = 0;
+      forceHideOverlay.value = disableAnimation;
+      forceHideBottomSheet.value = disableAnimation;
+    }
   }
 
   void dragUpdate(DragUpdateDetails details) {
@@ -466,7 +495,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
   }
 
   Future<void> expandToSnapPoint() async {
-    if (isExpanded) return;
+    if (!detailsAvailable || detailsPreferred) return;
     zoom.value = false;
     enableAllSwiping();
     verticalPosition.value = 0;
@@ -576,8 +605,8 @@ class PostDetailsPageViewController extends ChangeNotifier {
     );
   }
 
-  void stopSlideshow() {
-    if (!initialHideOverlay) {
+  void stopSlideshow({bool restoreUI = true}) {
+    if (restoreUI && !initialHideOverlay) {
       showAllUI();
     }
 

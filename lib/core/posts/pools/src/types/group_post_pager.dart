@@ -9,6 +9,7 @@ import 'dart:collection';
 import 'package:dio/dio.dart';
 
 import '../../../../content/groups/group_source_provider.dart';
+import '../../../../content/groups/group_members_provider.dart';
 import '../../../../content/types.dart';
 import '../../../../errors/types.dart';
 import '../../../post/types.dart';
@@ -28,6 +29,7 @@ final class GroupPostPager {
     this.preparedReads,
     this.currentRefreshRevision,
     this.isForeground,
+    this.loadSharedPage,
   });
 
   final PreparedGroupReads? preparedReads;
@@ -49,6 +51,7 @@ final class GroupPostPager {
   }
 
   final RelatedGroupCounts? relatedCounts;
+  final Future<GroupMemberBatch> Function(int page)? loadSharedPage;
   final ContentGroupSource source;
   final ContentReference reference;
   final int perPage;
@@ -91,41 +94,44 @@ final class GroupPostPager {
     );
     final batch = validateGroupMemberBatch(
       query,
-      await runGroupRead(
-        source,
-        () => page == 1 && preparedReads != null
-            ? TaskEither.tryCatch(
-                () => preparedReads!.firstPage((
-                  reference: reference,
-                  order: orderKey,
-                  limit: perPage,
-                  revision: currentRefreshRevision?.call() ?? 0,
-                )),
-                (error, _) => error is BooruError
-                    ? error
-                    : UnknownError(
-                        error: error,
-                        message: 'Prepared page failed',
-                      ),
-              )
-            : switch (source) {
-                final IndexedGroupMemberSource indexedSource =>
-                  indexedSource.loadMemberPage(
-                    query,
-                    page: page,
-                  ),
-                _ => source.loadMembers(query),
-              },
-        token: _cancellation,
-        current: () =>
-            generation == _generation &&
-            isCurrent() &&
-            (page == 1 || isForeground?.call() != false),
-      ),
+      await (loadSharedPage != null && isForeground?.call() != false
+          ? loadSharedPage!(page)
+          : runGroupRead(
+              source,
+              () => page == 1 && preparedReads != null
+                  ? TaskEither.tryCatch(
+                      () => preparedReads!.firstPage((
+                        reference: reference,
+                        order: orderKey,
+                        limit: perPage,
+                        revision: currentRefreshRevision?.call() ?? 0,
+                      )),
+                      (error, _) => error is BooruError
+                          ? error
+                          : UnknownError(
+                              error: error,
+                              message: 'Prepared page failed',
+                            ),
+                    )
+                  : switch (source) {
+                      final IndexedGroupMemberSource indexedSource =>
+                        indexedSource.loadMemberPage(
+                          query,
+                          page: page,
+                        ),
+                      _ => source.loadMembers(query),
+                    },
+              token: _cancellation,
+              current: () =>
+                  generation == _generation &&
+                  isCurrent() &&
+                  (page == 1 || isForeground?.call() != false),
+            )),
     );
     if (generation != _generation ||
         _cancellation.isCancelled ||
-        !isCurrent()) {
+        !isCurrent() ||
+        page > 1 && isForeground?.call() == false) {
       throw RequestCancelledError();
     }
     final resolved = {
@@ -227,4 +233,44 @@ final class GroupPostPager {
     _disposed = true;
     _cancellation.cancel('Group Post projection disposed');
   }
+}
+
+/// Projects one already shared source page, including an empty filtered page.
+/// Source page boundaries prevent filling a grid by crawling extra API pages.
+Future<GroupMemberBatch> readSharedGroupPostPage({
+  required int page,
+  required Future<GroupMembersState> Function() read,
+  required Future<void> Function() loadNext,
+}) async {
+  var snapshot = await read();
+  while (snapshot.pageEnds.length < page && snapshot.next != null) {
+    if (snapshot.nextPageError case final error?) throw error;
+    final before = snapshot.pageEnds.length;
+    await loadNext();
+    snapshot = await read();
+    if (snapshot.nextPageError case final error?) throw error;
+    if (snapshot.pageEnds.length <= before) break;
+  }
+  final offset = page <= 1
+      ? 0
+      : snapshot.pageEnds.elementAtOrNull(page - 2) ?? snapshot.members.length;
+  final end =
+      snapshot.pageEnds.elementAtOrNull(page - 1) ?? snapshot.members.length;
+  final rows = snapshot.members.sublist(offset, end);
+  final readable = rows
+      .where((m) => m.availability != MemberAvailability.unavailable)
+      .map((m) => m.reference.identity)
+      .toSet();
+  return (
+    page: ContentPage(
+      items: rows,
+      total: snapshot.sourceTotal,
+      next: snapshot.pageEnds.length > page || snapshot.next != null
+          ? ContentCursor('shared-page:${page + 1}')
+          : null,
+    ),
+    resolved: snapshot.resolved.values
+        .where((entry) => readable.contains(entry.reference.identity))
+        .toList(),
+  );
 }

@@ -4,6 +4,55 @@ import 'package:kurumi/kurumi.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  testWidgets('styled trigger keeps menu semantics and keyboard focus', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final focus = FocusNode();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: KurumiPopupMenuButton(
+                semanticLabel: 'Order',
+                buttonBuilder: (context, onPressed) => TextButton(
+                  focusNode: focus,
+                  onPressed: onPressed,
+                  style: TextButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Oldest'),
+                ),
+                items: [
+                  KurumiPopupMenuItem(
+                    title: const Text('Newest'),
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      focus.requestFocus();
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(find.semantics.byLabel('Newest'), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.text('Newest'), findsNothing);
+      expect(focus.hasPrimaryFocus, isTrue);
+    } finally {
+      await tester.pumpWidget(const SizedBox());
+      focus.dispose();
+      semantics.dispose();
+    }
+  });
+
   for (final custom in [false, true]) {
     testWidgets(
       'trigger tooltip preserves rooted popup semantics (custom=$custom)',

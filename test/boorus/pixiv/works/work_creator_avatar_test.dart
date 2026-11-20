@@ -110,6 +110,49 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('popup coverage keeps a mounted avatar for its current actor', (
+    tester,
+  ) async {
+    final fixture = _Fixture('https://i.pximg.net/user-profile/popup.png');
+    addTearDown(fixture.dispose);
+    final avatar = find.byType(BooruImage);
+    final decoded = find.byType(ExtendedRawImage);
+    await tester.pumpWidget(fixture.build(active: false, popupCovered: true));
+    await tester.pumpAndSettle();
+    expect(avatar, findsNothing);
+    expect(fixture.adapter.requests, isEmpty);
+
+    await tester.pumpWidget(fixture.build());
+    await tester.runAsync(
+      () => pumpUntil(
+        tester,
+        () => fixture.adapter.requests.isNotEmpty,
+        reason: 'selected work starts the avatar request',
+      ),
+    );
+    fixture.adapter.complete(fixture.url, portraitPng);
+    await tester.runAsync(
+      () => pumpUntil(
+        tester,
+        () => tester
+            .widgetList<ExtendedRawImage>(decoded)
+            .any((widget) => widget.image != null),
+        reason: 'selected work has a decoded avatar',
+      ),
+    );
+    final before = tester.element(avatar);
+    await tester.pumpWidget(fixture.build(active: false, popupCovered: true));
+    expect(tester.element(avatar), same(before));
+    expect(tester.widget<ExtendedRawImage>(decoded).image, isNotNull);
+    expect(fixture.adapter.requests, hasLength(1));
+
+    fixture.container.read(fixture.actor.notifier).state = null;
+    await tester.pump();
+    expect(avatar, findsNothing);
+    expect(find.text('A'), findsOneWidget);
+    expect(fixture.adapter.requests, hasLength(1));
+  });
+
   testWidgets(
     'switching the current profile during loading retains the captured Work actor',
     (tester) async {
@@ -303,49 +346,52 @@ class _Fixture {
   var authCalls = 0;
   var artistTaps = 0;
 
-  Widget build({bool active = true, double scale = 1, bool prepare = false}) =>
-      UncontrolledProviderScope(
-        container: container,
-        child: testApp(
-          MediaQuery(
-            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
-            child: PixivWorkAvatarWindow(
-              creators: [
-                if (prepare)
-                  (
-                    creator: CreatorRef(
+  Widget build({
+    bool active = true,
+    double scale = 1,
+    bool prepare = false,
+    bool popupCovered = false,
+  }) => UncontrolledProviderScope(
+    container: container,
+    child: testApp(
+      MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+        child: PixivWorkAvatarWindow(
+          creators: [
+            if (prepare)
+              (
+                creator: CreatorRef(
+                  displayName: 'Artist',
+                  avatar: Uri.tryParse(url),
+                ),
+                access: access,
+              ),
+          ],
+          child: NavigationActivity(
+            active: active,
+            selectionChromeActive: active || popupCovered,
+            child: Consumer(
+              builder: (context, ref, _) => ArtistSection(
+                commentary: const ArtistCommentary.description('Caption'),
+                artistTags: const {'Artist'},
+                source: PostSource.none(),
+                onArtistTap: (_) => artistTaps++,
+                artistAvatarBuilder: pixivWorkCreatorAvatarBuilder(
+                  creators: [
+                    CreatorRef(
                       displayName: 'Artist',
-                      avatar: Uri.tryParse(url),
+                      avatar: url.startsWith('http') ? Uri.tryParse(url) : null,
                     ),
-                    access: access,
-                  ),
-              ],
-              child: NavigationActivity(
-                active: active,
-                child: Consumer(
-                  builder: (context, ref, _) => ArtistSection(
-                    commentary: const ArtistCommentary.description('Caption'),
-                    artistTags: const {'Artist'},
-                    source: PostSource.none(),
-                    onArtistTap: (_) => artistTaps++,
-                    artistAvatarBuilder: pixivWorkCreatorAvatarBuilder(
-                      creators: [
-                        CreatorRef(
-                          displayName: 'Artist',
-                          avatar: url.startsWith('http')
-                              ? Uri.tryParse(url)
-                              : null,
-                        ),
-                      ],
-                      access: ref.watch(actor),
-                    ),
-                  ),
+                  ],
+                  access: ref.watch(actor),
                 ),
               ),
             ),
           ),
         ),
-      );
+      ),
+    ),
+  );
   void dispose() {
     container.dispose();
     dio.close(force: true);

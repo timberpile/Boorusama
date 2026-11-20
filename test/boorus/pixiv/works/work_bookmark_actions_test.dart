@@ -2,6 +2,7 @@ import 'package:boorusama/boorus/pixiv/posts/types.dart';
 import 'package:boorusama/boorus/pixiv/works/bookmark_actions.dart';
 import 'package:boorusama/boorus/pixiv/works/work_presentation.dart';
 import 'package:boorusama/core/bookmarks/providers.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/scoped_bookmark_button.dart';
 import 'package:boorusama/core/bookmarks/src/types/content_group_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/types/post_bookmark.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_group_picker.dart';
@@ -17,6 +18,141 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'work_bookmark_widget_fixture.dart';
 
 void main() {
+  for (final narrow in [false, true]) {
+    testWidgets(
+      'direct viewer buttons save and remove independent Page and Work targets, narrow=$narrow',
+      (tester) async {
+        final fixture = await mountWorkBookmarks(
+          tester,
+          narrow: narrow,
+          directTargets: true,
+        );
+        expect(
+          find.byType(ScopedBookmarkButton).hitTestable(),
+          findsNWidgets(2),
+        );
+        await tester.tap(find.byTooltip('Bookmark: Current Page'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<BookmarkGroupPicker>(find.byType(BookmarkGroupPicker))
+              .request,
+          isA<PostBookmarkPickerRequest>(),
+        );
+        await saveBookmark(tester, fixture);
+        expect(
+          fixture.container.read(bookmarkProvider).requireValue.records.single,
+          isA<PostBookmark>(),
+        );
+        ScopedBookmarkIcon icon(BookmarkTargetScope scope) => tester
+            .widgetList<ScopedBookmarkIcon>(find.byType(ScopedBookmarkIcon))
+            .singleWhere((w) => w.scope == scope);
+        expect(icon(BookmarkTargetScope.member).saved, isTrue);
+        expect(icon(BookmarkTargetScope.group).saved, isFalse);
+        await tester.tap(find.byTooltip('Bookmark: Entire Work'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<BookmarkGroupPicker>(find.byType(BookmarkGroupPicker))
+              .request,
+          isA<ContentGroupBookmarkPickerRequest>(),
+        );
+        await saveBookmark(tester, fixture);
+        expect(
+          fixture.container.read(bookmarkProvider).requireValue.records,
+          hasLength(2),
+        );
+        expect(icon(BookmarkTargetScope.member).saved, isTrue);
+        expect(icon(BookmarkTargetScope.group).saved, isTrue);
+        await tester.tap(find.byTooltip('Bookmark: Current Page'));
+        await tester.pumpAndSettle();
+        await saveBookmark(tester, fixture, keepUndo: true);
+        expect(
+          fixture.container
+              .read(bookmarkProvider)
+              .requireValue
+              .records
+              .whereType<PostBookmark>(),
+          isEmpty,
+        );
+        expect(icon(BookmarkTargetScope.member).saved, isFalse);
+        expect(icon(BookmarkTargetScope.group).saved, isTrue);
+        await commitBookmarkInteraction(
+          tester,
+          fixture,
+          () => tester.tap(find.text('Undo')),
+        );
+        expect(icon(BookmarkTargetScope.member).saved, isTrue);
+        expect(icon(BookmarkTargetScope.group).saved, isTrue);
+        expect(tester.takeException(), isNull);
+      },
+    );
+    testWidgets(
+      'one-Page Work keeps both direct Bookmark targets, narrow=$narrow',
+      (tester) async {
+        final fixture = await mountWorkBookmarks(
+          tester,
+          narrow: narrow,
+          directTargets: true,
+        );
+        fixture.data.value = bookmarkData(
+          fixture.access,
+          pageCount: 1,
+          page: 0,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(ScopedBookmarkButton).hitTestable(),
+          findsNWidgets(2),
+        );
+        await tester.tap(find.byTooltip('Bookmark: Current Page'));
+        await tester.pumpAndSettle();
+        await saveBookmark(tester, fixture);
+        expect(
+          fixture.container.read(bookmarkProvider).requireValue.records.single,
+          isA<PostBookmark>(),
+        );
+        expect(
+          tester
+              .widgetList<ScopedBookmarkIcon>(find.byType(ScopedBookmarkIcon))
+              .singleWhere((icon) => icon.scope == BookmarkTargetScope.group)
+              .saved,
+          isFalse,
+        );
+        await tester.tap(find.byTooltip('Bookmark: Entire Work'));
+        await tester.pumpAndSettle();
+        await saveBookmark(tester, fixture);
+        expect(
+          fixture.container.read(bookmarkProvider).requireValue.records,
+          hasLength(2),
+        );
+      },
+    );
+    testWidgets(
+      'revoked access cannot save an open direct Page picker, narrow=$narrow',
+      (tester) async {
+        final fixture = await mountWorkBookmarks(
+          tester,
+          narrow: narrow,
+          directTargets: true,
+        );
+        await tester.tap(find.byTooltip('Bookmark: Current Page'));
+        await tester.pumpAndSettle();
+        fixture.container.read(fixture.current.notifier).state = null;
+        await tester.pumpAndSettle();
+        final row = find.byKey(
+          ValueKey(('bookmark-picker-group', fixture.destinationId)),
+        );
+        if (row.evaluate().isNotEmpty) await tester.tap(row);
+        await tester.pumpAndSettle();
+        expect(
+          fixture.container.read(bookmarkProvider).requireValue.records,
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   for (final narrow in [false, true]) {
     for (final choosePage in [false, true]) {
       testWidgets(

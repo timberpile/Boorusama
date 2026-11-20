@@ -133,6 +133,10 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
     controller.addListener(_onControllerChange);
     controller.activeFilters.addListener(_onFilterChanged);
     items = controller.items.toList();
+    hasMore = controller.hasMore;
+    loading.value = controller.loading;
+    refreshing.value = controller.refreshing;
+    pageMode = controller.pageMode;
     _filterScope = Map.of(controller.activeFilters.value);
     _syncSelection(duringBuild: true);
     if (widget.refreshAtStart) {

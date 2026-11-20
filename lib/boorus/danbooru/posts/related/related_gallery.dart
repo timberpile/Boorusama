@@ -1,23 +1,17 @@
+import '../../../../core/posts/details/src/widgets/group_reading_controls.dart';
+import '../../../../core/posts/pools/src/widgets/group_sort_icon.dart';
 import '../../../../core/posts/links/share_group_link_button.dart';
+import '../../../../core/posts/details/src/widgets/group_viewer_scope.dart';
+import '../../../../core/posts/details/src/providers/group_reading_provider.dart';
+import '../../../../core/posts/details/src/widgets/group_bookmark_button.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
-import 'package:kurumi/kurumi.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
 
-import '../../../../../core/boorus/booru/types.dart';
-import '../../../../../core/bookmarks/src/widgets/bookmark_group_picker.dart';
-import '../../../../../core/bookmarks/src/providers/bookmark_provider.dart';
-import '../../../../../core/bookmarks/src/types/content_group_bookmark.dart'
-    as native_bookmarks;
-import '../../../../../core/bookmarks/src/types/legacy_group_bookmark.dart'
-    as legacy_bookmarks;
-import '../../../../../core/bookmarks/src/types/bookmark_library_state.dart';
 import '../../../../../core/configs/config/providers.dart';
-import '../../../../../core/content/content_reference.dart';
 import '../../../../../core/content/groups/group_summary.dart';
 import '../../../../../core/posts/details/routes.dart';
 import '../../../../../core/posts/details/src/widgets/post_details_page_view_scope.dart';
@@ -78,8 +72,7 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   final _selection = SelectionModeController();
   PostDetailsPageViewController? _pager;
   bool _selecting = false;
-  RelatedPostsOrder? _order;
-  var _savingOrder = false;
+  Object? _scrollOrder;
 
   @override
   void initState() {
@@ -91,67 +84,6 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _pager = PostDetailsPageViewScope.maybeOf(context);
-  }
-
-  RelatedFamilyReference get _family {
-    final reference = widget.entry.summary.reference;
-    if (reference.engine != BooruType.danbooru ||
-        reference.kind != ContentKind.group ||
-        !reference.sourceKey.startsWith('related:')) {
-      throw const FormatException('Invalid Related Group reference');
-    }
-    const BooruContentKeyCodec(BooruType.danbooru)
-        .canonicalize(ContentKind.group, reference.sourceKey);
-    return RelatedFamilyReference(
-      origin: PostOrigin.fromSource(
-        booruType: reference.engine,
-        booruId: reference.engine.id,
-        source: reference.site.toString(),
-      ),
-      anchorId: int.parse(reference.sourceKey.substring('related:'.length)),
-    );
-  }
-
-  Object? _savedRelatedRecord(BookmarkLibraryState library) {
-    final id =
-        library.idByContent[(
-          siteNamespace: _family.origin.sourceHost,
-          kind: ContentKind.group,
-          sourceKey: 'related:${_family.anchorId}',
-        )];
-    final record = id == null ? null : library.byId[id];
-    return switch (record) {
-      native_bookmarks.RelatedBookmark() => record,
-      legacy_bookmarks.LegacyRelatedGroupBookmark() => record,
-      _ => null,
-    };
-  }
-
-  RelatedPostsOrder? _savedRelatedOrder(BookmarkLibraryState library) =>
-      switch (_savedRelatedRecord(library)) {
-        native_bookmarks.RelatedBookmark(:final preferredOrder?) =>
-          preferredOrder,
-        legacy_bookmarks.LegacyRelatedGroupBookmark(:final preferredOrder?) =>
-          preferredOrder,
-        _ => null,
-      };
-
-  void _initializeOrder(BookmarkLibraryState? library) {
-    if (_order != null) return;
-    final pageOrder = PageStorage.maybeOf(context)?.readState(
-      context,
-      identifier: (widget.entry.occurrenceId, 'related-order'),
-    ) as RelatedPostsOrder?;
-    final initial =
-        pageOrder ??
-        (library == null ? null : _savedRelatedOrder(library)) ??
-        ref.read(settingsProvider).relatedPostsOrder;
-    _order = initial;
-    PageStorage.maybeOf(context)?.writeState(
-      context,
-      initial,
-      identifier: (widget.entry.occurrenceId, 'related-order'),
-    );
   }
 
   void _selectionChanged() {
@@ -179,61 +111,34 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
   }
 
   Future<void> _setOrder(RelatedPostsOrder order) async {
-    if (order == _order || _savingOrder) return;
-    setState(() => _savingOrder = true);
-    try {
-      final library = ref.read(bookmarkProvider).valueOrNull;
-      final record = library == null ? null : _savedRelatedRecord(library);
-      final savedId = switch (record) {
-        native_bookmarks.RelatedBookmark(:final id) => id,
-        legacy_bookmarks.LegacyRelatedGroupBookmark(:final id) => id,
-        _ => null,
-      };
-      if (savedId != null) {
-        await ref
-            .read(bookmarkProvider.notifier)
-            .setRelatedOrder(savedId, order, reader: ref.readConfig);
-      }
-      if (!mounted) return;
-      _selection.disable();
-      PageStorage.maybeOf(context)?.writeState(
-        context,
-        null,
-        identifier: (widget.entry.occurrenceId, 'related-viewport', order),
-      );
-      PageStorage.maybeOf(context)?.writeState(
-        context,
-        order,
-        identifier: (widget.entry.occurrenceId, 'related-order'),
-      );
-      if (_scroll.hasClients) _scroll.jumpTo(0);
-      setState(() => _order = order);
-    } catch (_) {
-      if (mounted)
-        Kurumi.showErrorToast(
-          context,
-          context.t.bookmark.groups.operation_failed,
-        );
-    } finally {
-      if (mounted) setState(() => _savingOrder = false);
-    }
+    final applied = await requestGroupSort(
+      context,
+      ref,
+      widget.entry,
+      order.name,
+    );
+    if (mounted && applied) _selection.disable();
   }
 
   @override
   Widget build(BuildContext context) {
     final config = ref.watchConfig;
-    final libraryState = ref.watch(bookmarkProvider);
-    final library = libraryState.valueOrNull;
-    if (_order == null) {
-      if (library == null && libraryState.isLoading) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      _initializeOrder(library);
+    final reading = ref.watch(groupReadingProvider(widget.entry));
+    if (reading.initializing)
+      return const Center(child: CircularProgressIndicator());
+    final order = RelatedPostsOrder.values.byName(reading.orderKey!);
+    if (_scrollOrder != null && _scrollOrder != order) {
+      PageStorage.maybeOf(context)?.writeState(
+        context,
+        null,
+        identifier: (widget.entry.occurrenceId, 'related-viewport', order),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _scrollOrder == order && _scroll.hasClients)
+          _scroll.jumpTo(0);
+      });
     }
-    final order = _order!;
-    final saved = library?.pools
-        .where((p) => p.identity == _family.identity)
-        .firstOrNull;
+    _scrollOrder = order;
     final perPage = ref.watch(
       imageListingSettingsProvider.select((s) => s.postsPerPage),
     );
@@ -243,7 +148,7 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
       child: CustomContextMenuOverlay(
         child: GroupPostScope(
           scrollController: _scroll,
-          key: ValueKey((widget.entry.occurrenceId, config, perPage, order)),
+          key: ValueKey((widget.entry.occurrenceId, config, perPage)),
           reference: widget.entry.summary.reference,
           orderKey: order.name,
           perPage: perPage,
@@ -254,6 +159,7 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
             perPage: perPage,
             child: PostGrid<Post>(
               controller: controller,
+              refreshAtStart: !controller.hasLoadedPage,
               scrollController: _scroll,
               selectionModeController: _selection,
               header: PostGridConfigurationHeader<Post>(
@@ -263,9 +169,11 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
                     child: TimelineOptionSelector<RelatedPostsOrder>(
                       label: order.localize(context),
                       value: order,
+                      pending: reading.sorting,
                       options: RelatedPostsOrder.values,
                       optionLabel: (value) => value.localize(context),
-                      optionIcon: (_) => Symbols.swap_vert,
+                      optionLeading: (order) =>
+                          GroupSortIcon(order.name, size: 18),
                       onSelected: _setOrder,
                     ),
                   ),
@@ -300,25 +208,13 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
               ),
               sliverHeaders: [
                 ViewerEntryNavigationHeader(
+                  title: Text(context.t.post.detail.related_posts),
                   actions: [
                     const GroupLinkShareButton(),
-                    BookmarkGroupPickerAnchor(
-                      request: RelatedBookmarkPickerRequest(
-                        config: config,
-                        family: _family,
-                        visibleOrder: order,
-                        cachedMembers: List.unmodifiable(
-                          controller.items.take(40),
-                        ),
-                      ),
-                      builder: (context, show) => IconButton(
-                        tooltip: context.t.bookmark.bookmark_related,
-                        onPressed: show,
-                        icon: Icon(
-                          Symbols.bookmark,
-                          fill: saved?.groupIds.isNotEmpty == true ? 1 : 0,
-                        ),
-                      ),
+                    GroupScopedBookmarkButton(
+                      entry: widget.entry,
+                      wholeGroup: true,
+                      cachedMembers: controller.items.toList(),
                     ),
                   ],
                 ),
@@ -332,14 +228,23 @@ class _RelatedGalleryState extends ConsumerState<RelatedGallery> {
                       autoScrollController: scroll,
                       controller: controller,
                       useHero: false,
-                      onTap: () => goToPostDetailsPageFromController(
-                        ref: ref,
-                        initialIndex: index,
-                        controller: controller,
-                        initialThumbnailUrl: null,
-                        config: config,
-                        hero: false,
-                      ),
+                      onTap: () {
+                        if (GroupViewerScope.openMember(
+                          context,
+                          controller.selectionKeysBuilder
+                              ?.call(controller.items.toList())
+                              .elementAtOrNull(index),
+                        ))
+                          return;
+                        goToPostDetailsPageFromController(
+                          ref: ref,
+                          initialIndex: index,
+                          controller: controller,
+                          initialThumbnailUrl: null,
+                          config: config,
+                          hero: false,
+                        );
+                      },
                     ),
                   ),
             ),

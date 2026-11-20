@@ -90,7 +90,7 @@ Widget Function(String, Widget) pixivWorkCreatorAvatarBuilder({
       placeholder: placeholder,
     );
 
-class _WorkCreatorAvatar extends StatelessWidget {
+class _WorkCreatorAvatar extends StatefulWidget {
   const _WorkCreatorAvatar({
     required this.creator,
     required this.access,
@@ -102,31 +102,53 @@ class _WorkCreatorAvatar extends StatelessWidget {
   final Widget placeholder;
 
   @override
+  State<_WorkCreatorAvatar> createState() => _WorkCreatorAvatarState();
+}
+
+class _WorkCreatorAvatarState extends State<_WorkCreatorAvatar> {
+  ({ContentAccessContext access, String url})? _mountedImage;
+
+  @override
   Widget build(BuildContext context) {
-    final url = pixivFollowingImageUrl(creator?.avatar?.toString());
-    final image = switch (access?.config?.auth) {
-      final config?
-          when config.booruType == BooruType.pixiv &&
-              url != null &&
-              (NavigationActivity.of(context) &&
-                      TickerMode.valuesOf(context).enabled ||
-                  _PreparedWorkAvatars.contains(context, access!.key, url)) =>
-        CurrentBooruConfigScope(
-          config: access!.config!,
-          accessKey: access!.key,
+    final access = widget.access;
+    final config = access?.config;
+    final url = pixivFollowingImageUrl(widget.creator?.avatar?.toString());
+    final mountedImage = _mountedImage;
+    _mountedImage = null;
+    Widget image = widget.placeholder;
+    if (access != null &&
+        config != null &&
+        config.auth.booruType == BooruType.pixiv &&
+        url != null) {
+      final active =
+          NavigationActivity.of(context) &&
+          TickerMode.valuesOf(context).enabled;
+      final prepared = _PreparedWorkAvatars.contains(context, access.key, url);
+      // A popup can suspend input and preloading while the selected row
+      // remains visible. Keep an existing image under the same authorization.
+      final retained =
+          NavigationActivity.selectionChromeOf(context) &&
+          mountedImage != null &&
+          mountedImage.url == url &&
+          mountedImage.access.hasSameAuthorization(access);
+      if (active || prepared || retained) {
+        _mountedImage = (access: access, url: url);
+        image = CurrentBooruConfigScope(
+          config: config,
+          accessKey: access.key,
           requireAccess: true,
           child: BooruImage(
-            key: ValueKey((access!.key, config, url)),
-            config: config,
+            key: ValueKey((access.key, config.auth, url)),
+            config: config.auth,
             imageUrl: url,
             fit: BoxFit.cover,
             borderRadius: BorderRadius.zero,
-            placeholderWidget: placeholder,
-            errorWidget: placeholder,
+            placeholderWidget: widget.placeholder,
+            errorWidget: widget.placeholder,
           ),
-        ),
-      _ => placeholder,
-    };
+        );
+      }
+    }
     return SizedBox.square(
       dimension: 40,
       child: ClipOval(child: image),

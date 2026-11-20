@@ -126,7 +126,9 @@ final class MemoryAppFileSystem implements AppFileSystem {
 
   @override
   DateTime lastModifiedSync(String path) {
-    if (!fileExistsSync(path)) throw StateError('File does not exist: $path');
+    if (!fileExistsSync(path) && !directoryExistsSync(path)) {
+      throw StateError('Path does not exist: $path');
+    }
     return _modified[path] ?? DateTime.utc(2020);
   }
 

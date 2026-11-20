@@ -10,6 +10,7 @@ import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../boorus/pixiv/posts/post_data.dart';
 import '../../../../foundation/clipboard.dart';
 import '../../../../foundation/filesystem.dart';
 import '../../../../foundation/loggers.dart';
@@ -31,6 +32,7 @@ import '../../links/boorusama_post_link.dart';
 import '../../links/boorusama_link_file.dart';
 import '../../links/boorusama_link_file_share.dart';
 import '../../links/link_file_labels.dart';
+import '../../links/link_share_message.dart';
 import '../../post/providers.dart';
 import '../../post/types.dart';
 import '../../sources/types.dart';
@@ -48,6 +50,7 @@ import 'share_media_url_resolution.dart';
 import 'share_media_preparation.dart';
 import 'share_payload_tile.dart';
 import 'share_payloads.dart';
+import 'share_group_target.dart';
 
 enum _ShareSegment { media, links }
 
@@ -58,6 +61,7 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
     required this.viewer,
     required this.imageCacheManager,
     this.accessKey,
+    this.group,
     this.requireAccess = false,
     this.postQuality = PostQuality.high,
     this.shareAdapter,
@@ -71,7 +75,8 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
   final ContentAccessKey? accessKey;
   final bool requireAccess;
   final PostQuality postQuality;
-  final Post post;
+  final Post? post;
+  final ShareGroupTarget? group;
   final BooruConfigAuth auth;
   final BooruConfigViewer viewer;
   final ImageCacheManager imageCacheManager;
@@ -89,7 +94,9 @@ class UnifiedPostShareSheet extends ConsumerStatefulWidget {
 
 class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     with WidgetsBindingObserver {
-  _ShareSegment _segment = _ShareSegment.media;
+  late _ShareSegment _segment = widget.post == null
+      ? _ShareSegment.links
+      : _ShareSegment.media;
   CancelToken? _cancelToken;
   SharePayload? _active;
   double? _progress;
@@ -142,30 +149,51 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     }
   }
 
-  bool _accessCurrent() {
+  bool _accessCurrent([SharePayload? payload]) {
     if (!mounted) return false;
+    final group = widget.group;
+    final isGroupAction = switch (payload?.id) {
+      SharePayloadId.groupLinkFile || SharePayloadId.poolLink => true,
+      SharePayloadId.booruLink || SharePayloadId.postId => widget.post == null,
+      _ => false,
+    };
+    if (isGroupAction) {
+      if (group == null) return false;
+      final current = ref.read(contentAccessContextProvider(group.access.key));
+      final expected = switch (payload!.id) {
+        SharePayloadId.groupLinkFile => group.link.uri.toString(),
+        SharePayloadId.poolLink => group.poolUrl?.toString(),
+        SharePayloadId.booruLink => group.pixivArtwork?.url.toString(),
+        SharePayloadId.postId => group.pixivArtwork?.id,
+        _ => null,
+      };
+      return current?.hasSameAuthorization(group.access) == true &&
+          current!.accepts(group.link.reference) &&
+          expected != null &&
+          payload.value == expected;
+    }
     final key =
         _boundKey ?? widget.accessKey ?? widget.auth.anonymousReadScope?.key;
     if (key == null) return !_accessRequired;
     final context = ref.read(contentAccessContextProvider(key));
+    final post = widget.post;
     return context != null &&
-        (ref
-                .read(
-                  contentPostVisibilityProvider((
-                    access: key,
-                    post: widget.post,
-                  )),
-                )
-                .asData
-                ?.value ==
-            true) &&
+        (post == null ||
+            ref
+                    .read(
+                      contentPostVisibilityProvider((access: key, post: post)),
+                    )
+                    .asData
+                    ?.value ==
+                true) &&
         context.config?.auth == widget.auth &&
         (widget.auth.anonymousReadScope?.isCurrent ?? true);
   }
 
-  void _checkAccess() {
-    if (!_accessCurrent())
+  void _checkAccess(SharePayload payload) {
+    if (!_accessCurrent(payload)) {
       throw const ShareMediaException(ShareMediaFailure.cancelled);
+    }
   }
 
   bool _permittedMedia(String url) {
@@ -175,23 +203,25 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     return uri != null && source.allowsMedia(uri);
   }
 
-  void _beginImageMetadataLookup(String imageUrl, ImageCacheManager manager) {
+  void _beginImageMetadataLookup(
+    Post post,
+    String imageUrl,
+    ImageCacheManager manager,
+  ) {
     if (_imageMetadataUrl == imageUrl &&
         identical(_imageMetadataCacheManager, manager) &&
         identical(_imageMetadataAuth, widget.auth) &&
-        identical(_imageMetadataPost, widget.post)) {
+        identical(_imageMetadataPost, post)) {
       return;
     }
 
     _imageMetadataUrl = imageUrl;
     _imageMetadataCacheManager = manager;
     _imageMetadataAuth = widget.auth;
-    _imageMetadataPost = widget.post;
+    _imageMetadataPost = post;
     _cachedImageDescription = null;
     final revision = ++_imageMetadataRevision;
-    if (!widget.post.isVideo &&
-        imageUrl.isNotEmpty &&
-        _permittedMedia(imageUrl)) {
+    if (!post.isVideo && imageUrl.isNotEmpty && _permittedMedia(imageUrl)) {
       unawaited(
         _loadCachedImageDescription(
           imageUrl,
@@ -268,47 +298,47 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
             )),
           );
     final post = widget.post;
-    final imageUrl = resolveShareImageUrl(
-      post: post,
-      viewerImageUrl: ref
-          .watch(mediaUrlResolverProvider(widget.auth))
-          .resolveMediaUrl(post, widget.viewer),
-    );
-    if (!post.requiresDetailLookup)
-      _beginImageMetadataLookup(imageUrl, manager);
-    final booruLink = ref
-        .watch(postLinkGeneratorProvider(widget.auth))
-        .getLink(post);
-    final sourceLink = switch (post.source) {
+    final capturedGroup = widget.group;
+    final group =
+        capturedGroup != null &&
+            access.context?.hasSameAuthorization(capturedGroup.access) == true
+        ? capturedGroup
+        : null;
+    final imageUrl = post == null
+        ? ''
+        : resolveShareImageUrl(
+            post: post,
+            viewerImageUrl: ref
+                .watch(mediaUrlResolverProvider(widget.auth))
+                .resolveMediaUrl(post, widget.viewer),
+          );
+    if (post != null && !post.requiresDetailLookup) {
+      _beginImageMetadataLookup(post, imageUrl, manager);
+    }
+    final sourceLink = switch (post?.source) {
       final WebSource source => source.uri.toString(),
       _ => null,
     };
-    final extractor = ref.watch(downloadFileUrlExtractorProvider(widget.auth));
-    final payloads = PostSharePayloads.build(
-      isVideo: post.isVideo,
-      includeImage:
-          !post.requiresDetailLookup &&
-          widget.postQuality != PostQuality.original,
-      canResolveExactOriginal:
-          !post.requiresDetailLookup && hasExactOriginalSource(post, extractor),
-      canResolveExactVideo:
-          !post.requiresDetailLookup && hasExactVideoSource(post, extractor),
-      viewerImageUrl: post.requiresDetailLookup ? '' : imageUrl,
-      originalUrl: post.isVideo ? post.videoUrl : post.originalImageUrl,
-      booruLink: booruLink,
-      sourceLink: sourceLink,
-      postId: post.id,
-      boorusamaLink: BoorusamaPostLink.fromPost(
-        post,
-        auth: widget.auth,
-      )?.uri.toString(),
-    );
+    final groupFile = group?.link.uri.toString();
+    final poolLink = group?.poolUrl?.toString();
+    final payloads = post == null
+        ? PostSharePayloads(
+            media: const [],
+            links: groupShareLinks(
+              groupFile,
+              poolLink,
+              pixivArtwork: group?.pixivArtwork,
+            ),
+          )
+        : _postPayloads(post, imageUrl, sourceLink, groupFile, poolLink);
     final capabilities = SharePlatformCapabilities.forPlatform(
       currentAppPlatform(),
     );
     final canShareMedia =
         capabilities.canShareMedia && !_nativeMediaShareUnsupported;
-    final gifBackend = ref.watch(gifEncoderBackendProvider);
+    final gifBackend = post == null
+        ? null
+        : ref.watch(gifEncoderBackendProvider);
     final videoPayload = payloads.media
         .where((p) => p.id == SharePayloadId.video)
         .firstOrNull;
@@ -327,101 +357,93 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      context.t.post.action.share,
-                      style: theme.textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 12),
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 4,
                       children: [
-                        for (final segment in _ShareSegment.values)
-                          ChoiceChip(
-                            label: Text(switch (segment) {
-                              _ShareSegment.media =>
-                                context.t.post.action.media,
-                              _ShareSegment.links =>
-                                context.t.post.action.links,
-                            }),
-                            selected: _segment == segment,
-                            onSelected: (_) =>
-                                setState(() => _segment = segment),
+                        Text(
+                          context.t.post.action.share,
+                          style: theme.textTheme.titleLarge,
+                        ),
+                        if (post != null)
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              for (final segment in _ShareSegment.values)
+                                ChoiceChip(
+                                  label: Text(switch (segment) {
+                                    _ShareSegment.media =>
+                                      context.t.post.action.media,
+                                    _ShareSegment.links =>
+                                      context.t.post.action.links,
+                                  }),
+                                  selected: _segment == segment,
+                                  onSelected: (_) =>
+                                      setState(() => _segment = segment),
+                                ),
+                            ],
                           ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     if (!canShareMedia &&
                         (_segment == _ShareSegment.media ||
                             payloads.links.any(
                               (payload) =>
-                                  payload.id == SharePayloadId.boorusamaLink &&
-                                  payload.available,
+                                  payload.isLinkFile && payload.available,
                             )))
                       Text(context.t.post.action.media_platform_unavailable),
                     if (_segment == _ShareSegment.media &&
-                        !post.isVideo &&
+                        post?.isVideo == false &&
                         !capabilities.canCopyImage)
                       Text(
                         context.t.post.action.image_copy_platform_unavailable,
                       ),
-                    for (final payload in switch (_segment) {
-                      _ShareSegment.media => payloads.media,
-                      _ShareSegment.links => payloads.links,
-                    }) ...[
-                      SharePayloadTile(
-                        key: payload.id == SharePayloadId.boorusamaLink
-                            ? const ValueKey('share-bslink-file')
-                            : ValueKey(payload.id),
-                        leading: _leadingIcon(payload.id, sourceLink),
-                        title: _title(context, payload.id),
-                        value: payload.value,
-                        deferred: payload.deferred,
-                        showValue:
-                            !payload.isMedia &&
-                            payload.id != SharePayloadId.boorusamaLink,
-                        reserveDescriptionSpace:
-                            payload.id == SharePayloadId.image,
-                        description:
-                            payload.id == SharePayloadId.image &&
-                                _cachedImageDescription != null
-                            ? _cachedImageDescription
-                            : shareMediaDescription(
-                                post: post,
-                                payload: payload,
-                                viewerImageUrl: imageUrl,
-                              ),
-                        unavailable: context.t.post.action.unavailable,
-                        copyTooltip: _copyTooltip(context, payload.id),
-                        shareTooltip: _shareTooltip(context, payload.id),
-                        onCopy:
-                            payload.canCopy &&
-                                (payload.id == SharePayloadId.video ||
-                                    !payload.isMedia ||
-                                    capabilities.canCopyImage)
-                            ? () => _perform(payload, share: false)
-                            : null,
-                        onShare:
-                            payload.canShare &&
-                                (!payload.sharesMedia || canShareMedia)
-                            ? () => _perform(payload, share: true)
-                            : null,
-                        trailing: payload.id == SharePayloadId.boorusamaLink
-                            ? IconButton(
-                                tooltip: context.linkFileLabel,
-                                icon: const Icon(Icons.share),
-                                onPressed:
-                                    _active == null &&
-                                        canShareMedia &&
-                                        payload.available
-                                    ? () => _perform(payload, share: true)
-                                    : null,
-                              )
-                            : null,
-                        busy: _active != null,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
+                    if (_segment == _ShareSegment.links)
+                      ..._buildLinks(
+                        context,
+                        payloads.links,
+                        sourceLink,
+                        canShareMedia,
+                      )
+                    else if (post != null)
+                      for (final payload in payloads.media) ...[
+                        SharePayloadTile(
+                          key: ValueKey(payload.id),
+                          leading: _leadingIcon(payload.id, sourceLink),
+                          title: _title(context, payload.id),
+                          value: payload.value,
+                          deferred: payload.deferred,
+                          showValue: false,
+                          reserveDescriptionSpace:
+                              payload.id == SharePayloadId.image,
+                          description:
+                              payload.id == SharePayloadId.image &&
+                                  _cachedImageDescription != null
+                              ? _cachedImageDescription
+                              : shareMediaDescription(
+                                  post: post,
+                                  payload: payload,
+                                  viewerImageUrl: imageUrl,
+                                ),
+                          unavailable: context.t.post.action.unavailable,
+                          copyTooltip: _copyTooltip(context, payload.id),
+                          shareTooltip: _shareTooltip(context, payload.id),
+                          onCopy:
+                              payload.canCopy &&
+                                  (payload.id == SharePayloadId.video ||
+                                      capabilities.canCopyImage)
+                              ? () => _perform(payload, share: false)
+                              : null,
+                          onShare: payload.canShare && canShareMedia
+                              ? () => _perform(payload, share: true)
+                              : null,
+                          busy: _active != null,
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                     if (_segment == _ShareSegment.media &&
                         gifBackend != null &&
                         videoPayload != null) ...[
@@ -525,18 +547,121 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     );
   }
 
+  PostSharePayloads _postPayloads(
+    Post post,
+    String imageUrl,
+    String? sourceLink,
+    String? groupFile,
+    String? poolLink,
+  ) {
+    final extractor = ref.watch(downloadFileUrlExtractorProvider(widget.auth));
+    return PostSharePayloads.build(
+      isVideo: post.isVideo,
+      includeImage:
+          !post.requiresDetailLookup &&
+          widget.postQuality != PostQuality.original,
+      canResolveExactOriginal:
+          !post.requiresDetailLookup && hasExactOriginalSource(post, extractor),
+      canResolveExactVideo:
+          !post.requiresDetailLookup && hasExactVideoSource(post, extractor),
+      viewerImageUrl: post.requiresDetailLookup ? '' : imageUrl,
+      originalUrl: post.isVideo ? post.videoUrl : post.originalImageUrl,
+      booruLink: ref
+          .watch(postLinkGeneratorProvider(widget.auth))
+          .getLink(post),
+      sourceLink: sourceLink,
+      postId: post.sitePostId,
+      boorusamaLink: BoorusamaPostLink.fromPost(
+        post,
+        auth: widget.auth,
+      )?.uri.toString(),
+      groupLinkFile: groupFile,
+      poolLink: poolLink,
+    );
+  }
+
+  List<Widget> _buildLinks(
+    BuildContext context,
+    List<SharePayload> links,
+    String? sourceLink,
+    bool canShareFiles,
+  ) {
+    final files = links.where((payload) => payload.isLinkFile).toList();
+    return [
+      if (files.isNotEmpty) ...[
+        SharePayloadTile(
+          key: const ValueKey('share-bslink-file'),
+          compact: true,
+          leading: _leadingIcon(files.first.id, sourceLink),
+          title: context.linkFileLabel,
+          value: null,
+          showValue: false,
+          unavailable: context.t.post.action.unavailable,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final payload in files)
+                IconButton(
+                  key: ValueKey(payload.id),
+                  tooltip: _shareTooltip(context, payload.id),
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
+                  icon: _ShareScopeIcon(
+                    group: payload.id == SharePayloadId.groupLinkFile,
+                  ),
+                  onPressed:
+                      _active == null && canShareFiles && payload.available
+                      ? () => _perform(payload, share: true)
+                      : null,
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+      ],
+      for (final payload in links)
+        if (!payload.isLinkFile) ...[
+          SharePayloadTile(
+            key: ValueKey(payload.id),
+            compact: true,
+            showValue: payload.id == SharePayloadId.postId,
+            leading: _leadingIcon(payload.id, sourceLink),
+            title: _title(context, payload.id),
+            value: payload.value,
+            unavailable: context.t.post.action.unavailable,
+            copyTooltip: _copyTooltip(context, payload.id),
+            shareTooltip: _shareTooltip(context, payload.id),
+            onCopy: payload.canCopy
+                ? () => _perform(payload, share: false)
+                : null,
+            onShare: payload.canShare
+                ? () => _perform(payload, share: true)
+                : null,
+            busy: _active != null,
+          ),
+          const SizedBox(height: 4),
+        ],
+    ];
+  }
+
   Widget _leadingIcon(SharePayloadId id, String? sourceLink) => switch (id) {
-    SharePayloadId.booruLink || SharePayloadId.sourceLink
-        when widget.auth.anonymousReadScope != null =>
+    SharePayloadId.booruLink ||
+    SharePayloadId.poolLink ||
+    SharePayloadId.sourceLink when widget.auth.anonymousReadScope != null =>
       const Icon(Icons.link),
     SharePayloadId.image => const Icon(Icons.image_outlined),
     SharePayloadId.original => const Icon(Icons.photo_outlined),
     SharePayloadId.video => const Icon(Icons.movie_outlined),
-    SharePayloadId.booruLink => ConfigAwareWebsiteLogo.fromConfig(
+    SharePayloadId.booruLink ||
+    SharePayloadId.poolLink => ConfigAwareWebsiteLogo.fromConfig(
       widget.auth,
       width: 24,
       height: 24,
-      customIconUrl: widget.profileIconUrl,
+      customIconUrl: id == SharePayloadId.poolLink
+          ? widget.group?.access.config?.profileIcon?.url
+          : widget.profileIconUrl,
     ),
     SharePayloadId.sourceLink => ConfigAwareWebsiteLogo(
       url: sourceLink,
@@ -544,9 +669,8 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     ),
     SharePayloadId.imageLink => const Icon(Icons.link),
     SharePayloadId.postId => const Icon(Icons.tag),
-    // The launcher asset includes generous transparent padding. Crop that
-    // padding so its artwork fills the same 24 dp leading slot as other icons.
-    SharePayloadId.boorusamaLink => ClipRect(
+    // Crop the launcher's transparent padding to fit the 24 dp leading slot.
+    SharePayloadId.boorusamaLink || SharePayloadId.groupLinkFile => ClipRect(
       child: OverflowBox(
         maxWidth: 56,
         maxHeight: 56,
@@ -565,10 +689,12 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     required bool share,
     bool asGif = false,
   }) async {
-    if (_active != null || !payload.available || !_accessCurrent()) return;
-    final isLinkFile = payload.id == SharePayloadId.boorusamaLink;
+    if (_active != null || !payload.available || !_accessCurrent(payload))
+      return;
+    final isLinkFile = payload.isLinkFile;
     if (isLinkFile && !share) return;
     final post = widget.post;
+    if (post == null && payload.isMedia) return;
     final auth = widget.auth;
     final accessKey =
         _boundKey ?? widget.accessKey ?? widget.auth.anonymousReadScope?.key;
@@ -602,15 +728,19 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
     ShareMediaLease? lease;
     try {
       final value = payload.value;
-      if (isLinkFile &&
-          BoorusamaPostLink.fromPost(post, auth: auth)?.uri.toString() !=
-              value) {
+      if (payload.id == SharePayloadId.boorusamaLink &&
+          (post == null ||
+              BoorusamaPostLink.fromPost(post, auth: auth)?.uri.toString() !=
+                  value)) {
         throw const ShareMediaException(ShareMediaFailure.unavailable);
       }
       if (isLinkFile) {
-        final outcome = await _shareLinkFile(value!, token: token);
+        final outcome = await _shareLinkFile(payload, token: token);
         if (mounted) _handleShareOutcome(payload, share, outcome);
-      } else if (payload.id == SharePayloadId.video && !share && !asGif) {
+      } else if (post != null &&
+          payload.id == SharePayloadId.video &&
+          !share &&
+          !asGif) {
         final request = await resolveShareMediaUrl(
           payload: payload,
           post: post,
@@ -618,13 +748,13 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           cancelToken: token,
         );
         checkShareCancellation(token);
-        _checkAccess();
+        _checkAccess(payload);
         if (!mounted) return;
         if (!_permittedMedia(request.url))
           throw const ShareMediaException(ShareMediaFailure.unavailable);
         _beginClipboardHandoff();
         await AppClipboard.copy(request.url);
-      } else if (payload.isMedia) {
+      } else if (post != null && payload.isMedia) {
         final fs = ref.read(appFileSystemProvider);
         String? rootPath;
         try {
@@ -638,7 +768,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           throw const ShareMediaException(ShareMediaFailure.storage);
         }
         checkShareCancellation(token);
-        _checkAccess();
+        _checkAccess(payload);
         if (!mounted) return;
         if (rootPath == null) {
           throw const ShareMediaException(ShareMediaFailure.storage);
@@ -650,7 +780,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           cancelToken: token,
         );
         checkShareCancellation(token);
-        _checkAccess();
+        _checkAccess(payload);
         if (!mounted) return;
         if (!_permittedMedia(request.url)) {
           throw const ShareMediaException(ShareMediaFailure.unavailable);
@@ -688,7 +818,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           }
         }
         checkShareCancellation(token);
-        _checkAccess();
+        _checkAccess(payload);
         if (!mounted) return;
         final requestHeaders = {
           ...media.headers,
@@ -725,7 +855,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           );
           try {
             checkShareCancellation(token);
-            _checkAccess();
+            _checkAccess(payload);
             if (!mounted) return;
             _cancelToken = null;
             _progressVisibilityTimer?.cancel();
@@ -737,7 +867,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
                   service: converter,
                   fileName: 'boorusama_${post.id}.gif',
                   share: (output) async {
-                    _checkAccess();
+                    _checkAccess(payload);
                     if (isAndroid() && widget.shareAdapter == null) {
                       await AppClipboard.shareImageFile(
                         output.path,
@@ -772,7 +902,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           },
         );
         checkShareCancellation(token);
-        _checkAccess();
+        _checkAccess(payload);
         if (!mounted) return;
         // Preparation commits cache bytes before returning. Reuse them without
         // delaying the native handoff or fetching media just for the subtitle.
@@ -838,7 +968,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
               throw const ShareMediaException(ShareMediaFailure.storage);
             }
             checkShareCancellation(token);
-            _checkAccess();
+            _checkAccess(payload);
             _beginClipboardHandoff();
             await (widget.imageClipboardWriter ?? AppClipboard.copyImageBytes)(
               bytes,
@@ -846,7 +976,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
           }
         }
       } else if (share) {
-        _checkAccess();
+        _checkAccess(payload);
         final adapter =
             widget.shareAdapter ?? ShareActionAdapter(SharePlus.instance.share);
         final outcome = payload.id == SharePayloadId.postId
@@ -854,7 +984,7 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
             : await adapter.shareLink(Uri.parse(value!));
         _handleShareOutcome(payload, share, outcome);
       } else {
-        _checkAccess();
+        _checkAccess(payload);
         await AppClipboard.copy(value!);
       }
       if (mounted && !share) {
@@ -944,9 +1074,39 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   }
 
   Future<ShareActionOutcome> _shareLinkFile(
-    String uri, {
+    SharePayload payload, {
     CancelToken? token,
   }) async {
+    final uri = payload.value!;
+    final post = widget.post;
+    final work = widget.group;
+    final matchingWork =
+        post != null &&
+            work != null &&
+            work.access.key == (_boundKey ?? widget.accessKey) &&
+            work.matchesPixivPage(post) &&
+            ref
+                    .read(contentAccessContextProvider(work.access.key))
+                    ?.hasSameAuthorization(work.access) ==
+                true
+        ? work
+        : null;
+    final creator = linkShareAuthor(post?.pixivData?.userName);
+    final group = payload.id == SharePayloadId.groupLinkFile ? work : null;
+    final profileName = group == null ? widget.profileName : group.profileName;
+    final caption = group != null
+        ? context.groupLinkFileMessage(
+            group.link,
+            profileName: profileName,
+            groupName: group.groupName,
+            author: group.author ?? (matchingWork == null ? null : creator),
+          )
+        : context.postLinkFileMessage(
+            uri,
+            profileName: profileName ?? post!.origin.sourceHost,
+            author: creator ?? matchingWork?.author,
+            artists: post?.artistTags ?? const {},
+          );
     final box = context.findRenderObject();
     final origin = box is RenderBox && box.hasSize
         ? box.localToGlobal(Offset.zero) & box.size
@@ -956,16 +1116,12 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
       adapter:
           widget.shareAdapter ?? ShareActionAdapter(SharePlus.instance.share),
     ).share(
-      BoorusamaLinkFile.fromUri(uri),
-      text: context.postLinkFileMessage(
-        uri,
-        profileName: widget.profileName ?? widget.post.origin.sourceHost,
-        artists: widget.post.artistTags ?? const {},
-      ),
+      BoorusamaLinkFile.fromUri(uri, profileName: profileName),
+      text: caption,
       sharePositionOrigin: origin,
       beforeHandoff: () {
         checkShareCancellation(token);
-        _checkAccess();
+        _checkAccess(payload);
         if (!mounted) {
           throw const ShareMediaException(ShareMediaFailure.cancelled);
         }
@@ -1029,15 +1185,47 @@ class _UnifiedPostShareSheetState extends ConsumerState<UnifiedPostShareSheet>
   }
 }
 
+class _ShareScopeIcon extends StatelessWidget {
+  const _ShareScopeIcon({required this.group});
+
+  final bool group;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 28,
+    child: Stack(
+      children: [
+        const Icon(Icons.share),
+        PositionedDirectional(
+          end: 0,
+          bottom: 0,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              group ? Icons.layers_outlined : Icons.image_outlined,
+              size: 12,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 String _title(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.image => context.t.post.action.image,
   SharePayloadId.original => context.t.post.action.original,
   SharePayloadId.video => context.t.post.action.video,
-  SharePayloadId.booruLink => context.t.post.action.booru_link,
+  SharePayloadId.booruLink => context.t.post.action.post_link,
+  SharePayloadId.poolLink => context.t.post.action.pool_link,
   SharePayloadId.sourceLink => context.t.post.action.source_link,
   SharePayloadId.imageLink => context.t.post.action.image_link,
   SharePayloadId.postId => context.t.post.action.post_id,
-  SharePayloadId.boorusamaLink => context.linkFileLabel,
+  SharePayloadId.boorusamaLink ||
+  SharePayloadId.groupLinkFile => context.linkFileLabel,
 };
 
 String? _copyTooltip(BuildContext context, SharePayloadId id) => switch (id) {
@@ -1048,7 +1236,8 @@ String? _copyTooltip(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.sourceLink => context.t.post.action.copy_source_link,
   SharePayloadId.imageLink => context.t.post.action.copy_image_link,
   SharePayloadId.postId => context.t.post.action.copy_post_id,
-  SharePayloadId.boorusamaLink => null,
+  SharePayloadId.poolLink => context.t.post.action.copy_pool_link,
+  SharePayloadId.boorusamaLink || SharePayloadId.groupLinkFile => null,
 };
 
 String _shareTooltip(BuildContext context, SharePayloadId id) => switch (id) {
@@ -1059,7 +1248,11 @@ String _shareTooltip(BuildContext context, SharePayloadId id) => switch (id) {
   SharePayloadId.sourceLink => context.t.post.action.share_source_link,
   SharePayloadId.imageLink => context.t.post.action.share_image_link,
   SharePayloadId.postId => context.t.post.action.share_post_id,
-  SharePayloadId.boorusamaLink => context.linkFileLabel,
+  SharePayloadId.boorusamaLink =>
+    context.t.post.action.share_current_post_link_file,
+  SharePayloadId.groupLinkFile =>
+    context.t.post.action.share_collection_link_file,
+  SharePayloadId.poolLink => context.t.post.action.share_pool_link,
 };
 
 String _mediaError(BuildContext context, ShareMediaFailure failure) =>

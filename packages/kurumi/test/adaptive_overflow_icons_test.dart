@@ -61,15 +61,19 @@ void main() {
   });
   testWidgets('long icon menus scroll within a short viewport', (tester) async {
     final semantics = tester.ensureSemantics();
-    tester.view.physicalSize = const Size(320, 320);
+    tester.view.physicalSize = const Size(320, 420);
     tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.padding = const FakeViewPadding(top: 24);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 140);
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     try {
       var invoked = false;
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
+            resizeToAvoidBottomInset: false,
             body: Center(
               child: SizedBox(
                 width: 280,
@@ -89,7 +93,7 @@ void main() {
                     for (var i = 0; i < 12; i++)
                       KurumiButtonData(
                         widget: const SizedBox.shrink(),
-                        title: 'Action $i with a longer label',
+                        title: 'Long action $i',
                         icon: const Icon(Icons.open_in_browser),
                         placement: KurumiButtonPlacement.menuOnly,
                         onTap: () => invoked = true,
@@ -104,16 +108,24 @@ void main() {
       await tester.tap(find.bySemanticsLabel('More'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      final last = find.text('Action 11 with a longer label');
-      await tester.scrollUntilVisible(
-        last,
-        100,
-        scrollable: find.byType(Scrollable).last,
+      final last = find.text('Long action 11');
+      final scroller = find.byType(Scrollable).last;
+      final position = tester.state<ScrollableState>(scroller).position;
+      expect(position.maxScrollExtent, greaterThan(0));
+
+      for (var i = 0; i < 32 && position.extentAfter > 0; i++) {
+        await tester.drag(scroller, const Offset(0, -140));
+        await tester.pumpAndSettle();
+      }
+      expect(
+        position.extentAfter,
+        0,
+        reason: 'viewport: ${tester.getRect(scroller)}',
       );
-      await tester.pumpAndSettle();
-      final bounds = tester.getRect(last);
-      expect(bounds.top, greaterThanOrEqualTo(0));
-      expect(bounds.bottom, lessThanOrEqualTo(320));
+      final viewport = tester.getRect(scroller);
+      expect(viewport.top, greaterThanOrEqualTo(36));
+      expect(viewport.bottom, lessThanOrEqualTo(268));
+      expect(last.hitTestable(), findsOneWidget);
       await tester.tap(last);
       await tester.pumpAndSettle();
       expect(invoked, isTrue);

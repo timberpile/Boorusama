@@ -21,6 +21,7 @@ class KurumiPopupMenuButton extends StatefulWidget {
     this.child,
     this.enabled = true,
     this.focusNode,
+    this.buttonBuilder,
   });
 
   final List<Widget> items;
@@ -34,6 +35,10 @@ class KurumiPopupMenuButton extends StatefulWidget {
   final Widget? child;
   final bool enabled;
   final FocusNode? focusNode;
+
+  /// Supplies a styled trigger while retaining the shared menu and semantics.
+  final Widget Function(BuildContext context, VoidCallback? onPressed)?
+  buttonBuilder;
 
   @override
   State<KurumiPopupMenuButton> createState() => _KurumiPopupMenuButtonState();
@@ -58,7 +63,12 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
       _controller.toggle();
     }
 
+    final customButton = widget.buttonBuilder?.call(
+      context,
+      widget.enabled ? toggleMenu : null,
+    );
     final button =
+        customButton ??
         widget.child ??
         Material(
           color: widget.iconBackgroundColor ?? Colors.transparent,
@@ -85,53 +95,35 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
       enabled: widget.enabled,
       label: widget.semanticLabel,
       onTap: widget.enabled ? toggleMenu : null,
-      excludeSemantics: widget.child != null,
-      child: widget.child != null
-          ? Material(
-              color: Colors.transparent,
-              child: InkWell(
-                focusNode: widget.focusNode,
-                onTap: widget.enabled ? toggleMenu : null,
-                child: IgnorePointer(child: button),
-              ),
-            )
-          : button,
+      excludeSemantics: widget.child != null || customButton != null,
+      child:
+          customButton ??
+          (widget.child != null
+              ? Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    focusNode: widget.focusNode,
+                    onTap: widget.enabled ? toggleMenu : null,
+                    child: IgnorePointer(child: button),
+                  ),
+                )
+              : button),
     );
 
     return KurumiAnchor(
       controller: _controller,
       constrainToViewport: true,
-      overlayBuilder: (context) {
-        final media = MediaQuery.of(context);
-        final margin = kurumiIsDesktopPlatform() ? 4.0 : 12.0;
-        final bottom = max(media.padding.bottom, media.viewInsets.bottom);
-        return Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 8,
-            vertical: 8,
-          ),
-          constraints: BoxConstraints(
-            maxWidth: min(
-              max(
-                0.0,
-                media.size.width - media.padding.horizontal - margin * 2,
-              ),
-              widget.maxWidth ?? 200,
-            ),
-            maxHeight: max(
-              0.0,
-              media.size.height - media.padding.top - bottom - margin * 2,
-            ),
-          ),
-          child: SingleChildScrollView(
-            primary: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: widget.items,
-            ),
-          ),
-        );
-      },
+      overlayBuilder: (context) => Container(
+        padding: const EdgeInsets.all(8),
+        constraints: popupMenuViewportConstraints(
+          context,
+          maxWidth: widget.maxWidth,
+        ),
+        child: SingleChildScrollView(
+          primary: false,
+          child: Column(mainAxisSize: MainAxisSize.min, children: widget.items),
+        ),
+      ),
       // Keep the tooltip below the anchor's OverlayPortal. An outer tooltip
       // can detach the popup's semantics traversal subtree on mobile.
       child: switch (widget.tooltip) {
@@ -144,6 +136,25 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
       },
     );
   }
+}
+
+BoxConstraints popupMenuViewportConstraints(
+  BuildContext context, {
+  double? maxWidth,
+}) {
+  final media = MediaQuery.of(context);
+  final margin = kurumiIsDesktopPlatform() ? 4.0 : 12.0;
+  final bottom = max(media.padding.bottom, media.viewInsets.bottom);
+  return BoxConstraints(
+    maxWidth: min(
+      max(0.0, media.size.width - media.padding.horizontal - margin * 2),
+      maxWidth ?? 200,
+    ),
+    maxHeight: max(
+      0.0,
+      media.size.height - media.padding.top - bottom - margin * 2,
+    ),
+  );
 }
 
 class KurumiPopupMenuItem extends StatelessWidget {

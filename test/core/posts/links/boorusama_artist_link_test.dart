@@ -176,7 +176,7 @@ void main() {
         'site': 'https://danbooru.test',
       },
     );
-    expect(file.fileName, 'boorusama-search.bslink');
+    expect(file.fileName, 'danbooru-search.bslink');
     expect(file.uri, canonical);
     expect(BoorusamaLinkFile.decode(file.encode()).uri, canonical);
   });

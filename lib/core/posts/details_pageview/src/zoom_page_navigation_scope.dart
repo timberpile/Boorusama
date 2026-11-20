@@ -51,6 +51,7 @@ class MediaPageNavigation {
     this.onNext,
     this.previousId,
     this.nextId,
+    this.memberKey,
     this.pageController,
     this.atStart = false,
     this.atEnd = false,
@@ -59,6 +60,7 @@ class MediaPageNavigation {
   final VoidCallback? onNext;
   final Object? previousId;
   final Object? nextId;
+  final String? memberKey;
   // Resolve after the media region mounts, rather than capturing a null pager
   // during the surrounding frame's first build.
   final PageController? Function()? pageController;

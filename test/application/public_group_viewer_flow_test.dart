@@ -1,3 +1,7 @@
+import 'package:boorusama/core/posts/details/src/widgets/media_group_page.dart';
+
+import 'support/group_view_driver.dart';
+
 import 'package:boorusama/core/posts/pools/pool_grid_item.dart';
 import 'package:boorusama/core/bookmarks/src/types/pool_bookmark.dart';
 import 'package:boorusama/boorus/danbooru/posts/related/related_gallery.dart';
@@ -101,8 +105,7 @@ void main() {
         isNull,
       );
       await tester.tap(find.byType(BookmarkPoolCard));
-      await f.harness.pumpUntilFound(tester, find.byType(RelatedGallery));
-      await f.harness.settle(tester);
+      await showGroupTimeline(tester, f.harness, find.byType(RelatedGallery));
       final preparedGrid = find.byType(PostGrid<Post>);
       if (preparedGrid.evaluate().isNotEmpty) {
         final debugController = tester
@@ -155,7 +158,11 @@ void main() {
         );
         final router = container.read(routerProvider);
         router.go(BoorusamaGroupLink.fromReference(reference).uri.toString());
-        await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+        await showGroupTimeline(
+          tester,
+          f.harness,
+          find.byType(PoolDetailContent),
+        );
         await f.harness.settle(tester);
         final caller = router.routerDelegate.currentConfiguration.uri;
         await f.harness.pumpUntilFound(tester, postTile(101));
@@ -189,7 +196,7 @@ void main() {
             anchorId: 101,
           ),
         );
-        await f.harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+        await showGroupTimeline(tester, f.harness, find.byType(RelatedGallery));
         await f.harness.settle(tester);
         await f.harness.pumpUntilFound(tester, postTile(101));
         await f.harness.settle(tester);
@@ -211,7 +218,7 @@ void main() {
         await f.harness.settle(tester);
         await tester.binding.handlePopRoute();
         await f.harness.settle(tester);
-        await f.harness.pumpUntilFound(tester, find.byType(RelatedGallery));
+        await showGroupTimeline(tester, f.harness, find.byType(RelatedGallery));
         await f.harness.settle(tester);
         await tester.binding.handlePopRoute();
         await f.harness.settle(tester);
@@ -267,7 +274,11 @@ void main() {
         );
         final router = container.read(routerProvider);
         router.go(BoorusamaGroupLink.fromReference(reference).uri.toString());
-        await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+        await showGroupTimeline(
+          tester,
+          f.harness,
+          find.byType(PoolDetailContent),
+        );
         await f.harness.settle(tester);
         final caller = router.routerDelegate.currentConfiguration.uri;
         await tester.tap(find.byTooltip('Search'));
@@ -305,7 +316,7 @@ void main() {
     container
         .read(routerProvider)
         .go(BoorusamaGroupLink.fromReference(reference).uri.toString());
-    await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    await showGroupTimeline(tester, f.harness, find.byType(PoolDetailContent));
     await f.harness.pumpUntilFound(tester, postTile(101));
     await tester.tap(postTile(101));
     await f.harness.pumpUntil(
@@ -335,7 +346,7 @@ void main() {
     );
     expect(f.privateRequests, 0);
     await tester.binding.handlePopRoute();
-    await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    await showGroupTimeline(tester, f.harness, find.byType(PoolDetailContent));
     expect(tester.takeException(), isNull);
   });
 
@@ -433,21 +444,42 @@ void main() {
         () => gallery.controller.items.length == 3,
       );
       expect(gallery.controller.items.map((post) => post.id), [101, 102, 101]);
+      final selectedKey =
+          (gallery
+                      .controller
+                      .selectionKeysBuilder!(gallery.controller.items.toList())
+                      .last
+                  as (ContentReference, String?, String))
+              .$3;
       await tester.tap(postTile(101).last);
       await f.harness.pumpUntil(
         tester,
         () => tester
-            .widgetList<PostDetailsPageScaffold>(postDetailsScaffold())
-            .any((page) => page.controller?.currentPage.value == 2),
+            .widgetList<MediaGroupPage>(find.byType(MediaGroupPage))
+            .any((page) => page.checkpoint.memberKey == selectedKey),
       );
-      final page = tester
-          .widgetList<PostDetailsPageScaffold>(postDetailsScaffold())
-          .firstWhere((page) => page.controller?.currentPage.value == 2);
-      expect(page.controller!.posts.map((post) => post.id), [101, 102, 101]);
-      expect(page.controller!.currentPost.value.id, 101);
+      expect(
+        tester
+            .widget<PostDetailsPageScaffold>(postDetailsScaffold())
+            .controller!
+            .currentPost
+            .value
+            .id,
+        101,
+      );
       await tester.binding.handlePopRoute();
       await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
-      expect(gallery.controller.items.map((post) => post.id), [101, 102, 101]);
+      final restored = tester.widget<PostGrid<Post>>(
+        find.descendant(
+          of: find.byType(PoolDetailContent),
+          matching: find.byType(PostGrid<Post>),
+        ),
+      );
+      await f.harness.pumpUntil(
+        tester,
+        () => restored.controller.items.length == 3,
+      );
+      expect(restored.controller.items.map((post) => post.id), [101, 102, 101]);
       expect(f.privateRequests, 0);
       expect(tester.takeException(), isNull);
     },
@@ -508,7 +540,7 @@ void main() {
       isTrue,
     );
     await tester.binding.handlePopRoute();
-    await f.harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    await showGroupTimeline(tester, f.harness, find.byType(PoolDetailContent));
     expect(
       f.apiPaths.where((path) => path == '/pools/42.json'),
       hasLength(1),
@@ -788,7 +820,7 @@ class _Fixture {
 
   Future<void> open(WidgetTester tester) async {
     await openCard(tester);
-    await harness.pumpUntilFound(tester, find.byType(PoolDetailContent));
+    await showGroupTimeline(tester, harness, find.byType(PoolDetailContent));
   }
 }
 

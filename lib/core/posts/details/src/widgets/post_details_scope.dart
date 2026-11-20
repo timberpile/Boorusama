@@ -154,7 +154,7 @@ class _PostDetailsLayoutSwitcherState<T extends Post>
     _syncNavigationChrome();
     final active = NavigationActivity.of(context);
     _controller?.setNavigationActive(active);
-    if (!active) _pageViewController.stopSlideshow();
+    if (!active) _pageViewController.stopSlideshow(restoreUI: false);
   }
 
   @override

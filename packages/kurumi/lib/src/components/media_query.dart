@@ -99,15 +99,35 @@ class _KurumiOverlayInsetsData extends InheritedWidget {
 /// Apply at a route's overlay boundary, before constructing its content.
 /// A root-Navigator overlay outside the scope retains its normal MediaQuery.
 class KurumiOverlayMediaQuery extends StatelessWidget {
-  const KurumiOverlayMediaQuery({required this.builder, super.key});
+  const KurumiOverlayMediaQuery({
+    required this.builder,
+    this.includeAppChromeInsets = true,
+    super.key,
+  });
 
   final WidgetBuilder builder;
+  final bool includeAppChromeInsets;
 
   @override
   Widget build(BuildContext context) {
+    final data = MediaQuery.of(context);
+    if (!includeAppChromeInsets) {
+      final native = MediaQueryData.fromView(View.of(context));
+      return MediaQuery(
+        data: data.copyWith(
+          padding: data.padding.copyWith(bottom: native.padding.bottom),
+          viewPadding: data.viewPadding.copyWith(
+            bottom: native.viewPadding.bottom,
+          ),
+          viewInsets: data.viewInsets.copyWith(
+            bottom: native.viewInsets.bottom,
+          ),
+        ),
+        child: Builder(builder: builder),
+      );
+    }
     final insets = KurumiOverlayInsetsScope.maybeOf(context);
     if (insets == null) return Builder(builder: builder);
-    final data = MediaQuery.of(context);
     return MediaQuery(
       data: data.copyWith(
         padding: data.padding.copyWith(bottom: insets.bottomPadding),

@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../configs/config/providers.dart';
 import '../../../configs/config/types.dart';
@@ -10,6 +9,7 @@ import '../../../posts/post/types.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/pool_bookmark_capability.dart';
 import 'bookmark_group_picker.dart';
+import 'scoped_bookmark_button.dart';
 
 class PoolBookmarkButton extends ConsumerWidget {
   const PoolBookmarkButton({required this.pool, super.key});
@@ -41,7 +41,10 @@ class PoolBookmarkButton extends ConsumerWidget {
             icon: Badge(
               isLabelVisible: saved != null && saved.groupIds.length > 1,
               label: Text('${saved?.groupIds.length ?? 0}'),
-              child: Icon(Symbols.bookmark, fill: isBookmarked ? 1 : 0),
+              child: ScopedBookmarkIcon(
+                scope: BookmarkTargetScope.group,
+                saved: isBookmarked,
+              ),
             ),
           ),
         ),

@@ -77,6 +77,34 @@ void main() {
     expect(source.requests, hasLength(1));
   });
 
+  test(
+    'shared continuation stops projecting after the viewer swipes away',
+    () async {
+      final source = _Source();
+      final next = Completer<GroupMemberBatch>();
+      var foreground = true;
+      final pager = GroupPostPager(
+        source: source,
+        reference: _group,
+        perPage: 2,
+        isCurrent: () => true,
+        isForeground: () => foreground,
+        loadSharedPage: (page) async => page == 1
+            ? _batch([_member(1, 'first')], next: 'next')
+            : next.future,
+      );
+      addTearDown(pager.dispose);
+      expect((await pager.fetch(1)).hasMore, isTrue);
+      final result = expectLater(
+        pager.fetch(2),
+        throwsA(isA<RequestCancelledError>()),
+      );
+      foreground = false;
+      next.complete(_batch([_member(2, 'second')]));
+      await result;
+    },
+  );
+
   test('Related pager publishes the source total, retains it after navigation and never counts the subset', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);

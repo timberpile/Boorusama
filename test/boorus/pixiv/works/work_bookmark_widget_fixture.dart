@@ -63,20 +63,23 @@ GroupBookmarkPresentationData bookmarkData(
 
 Future<void> saveBookmark(
   WidgetTester tester,
-  WorkBookmarkWidgetFixture fixture,
-) => commitBookmarkInteraction(
+  WorkBookmarkWidgetFixture fixture, {
+  bool keepUndo = false,
+}) => commitBookmarkInteraction(
   tester,
   fixture,
   () => tester.tap(
     find.byKey(ValueKey(('bookmark-picker-group', fixture.destinationId))),
   ),
+  keepUndo: keepUndo,
 );
 
 Future<void> commitBookmarkInteraction(
   WidgetTester tester,
   WorkBookmarkWidgetFixture fixture,
-  Future<void> Function() action,
-) async {
+  Future<void> Function() action, {
+  bool keepUndo = false,
+}) async {
   final revision = fixture.container
       .read(bookmarkProvider)
       .requireValue
@@ -109,9 +112,10 @@ Future<void> commitBookmarkInteraction(
     listener.close();
   }
   await tester.pumpAndSettle();
+  if (keepUndo) return;
   dismissAllToast();
   // Advance the controlled toast clock, including a toast mounted this frame.
-  await tester.pump(const Duration(seconds: 3));
+  await tester.pump(const Duration(seconds: 6));
   await tester.pumpAndSettle();
   expect(tester.takeException(), isNull);
 }
@@ -165,6 +169,7 @@ Future<T> workBookmarkIO<T>(
 Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
   WidgetTester tester, {
   bool narrow = false,
+  bool directTargets = false,
   List<Override> overrides = const [],
   Widget Function(WorkBookmarkWidgetFixture)? homeBuilder,
 }) async {
@@ -325,10 +330,24 @@ Future<WorkBookmarkWidgetFixture> mountWorkBookmarks(
                             entry: entry,
                             child: Center(
                               child: Builder(
-                                builder: (context) =>
-                                    PostActionToolbarScope.maybeOf(context)
-                                        ?.bookmarkButton ??
-                                    const Text('Page fallback'),
+                                builder: (context) {
+                                  if (!directTargets)
+                                    return const PixivWorkPresentation()
+                                        .buildBookmarkButton(context, value);
+                                  final actions =
+                                      PostActionToolbarScope.maybeOf(context);
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (actions?.bookmarkButton
+                                          case final page?)
+                                        page,
+                                      if (actions?.groupBookmarkButton
+                                          case final group?)
+                                        group,
+                                    ],
+                                  );
+                                },
                               ),
                             ),
                           ),

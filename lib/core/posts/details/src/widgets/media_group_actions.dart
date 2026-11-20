@@ -14,13 +14,13 @@ import '../../../../navigation/destination_activity.dart';
 import '../../../../widgets/adaptive_button_row.dart';
 import '../../../../widgets/booru_menu_button_row.dart';
 import '../../../details_parts/src/toolbars/simple_post_action_toolbar.dart';
-import '../../../links/link_file_labels.dart';
 import '../../../links/share_group_link_button.dart';
 import '../../../post/types.dart';
 import '../providers/media_group_provider.dart';
 import '../providers/viewer_source_access_provider.dart';
 import '../types/viewer_entry.dart';
 import '../types/inherited_post.dart';
+import 'group_bookmark_button.dart';
 
 /// Adds Work-only actions to the existing Post toolbar's overflow menu.
 /// Page download, sharing, favorites and image quality retain the normal UI.
@@ -221,32 +221,29 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
     final strings = context.t.content_viewer;
     final download = _downloading
         ? () => setState(() => _cancel = true)
-        : state.access == null
+        : state.access == null || state.members == null || state.failed
         ? null
         : () => _downloadAll(state);
-    return GroupLinkShareButton(
-      builder: (context, share) => PostActionToolbarScope(
-        bookmarkButton: bookmarks == null
-            ? null
-            : bookmarkData == null
-            // Lost source access must not expose an actionable Page fallback.
-            ? IconButton(
-                tooltip: context.t.post.action.bookmark,
-                onPressed: null,
-                icon: const Icon(Icons.bookmark_border),
-              )
-            : bookmarks.buildBookmarkButton(context, bookmarkData),
-        additionalButtons: [
-          if (bookmarks != null && bookmarkData != null)
-            ...bookmarks.buildBookmarkMenuButtons(context, bookmarkData),
-          ButtonData(
-            title: context.linkFileLabel,
-            icon: const Icon(Icons.share),
-            widget: const SizedBox.shrink(),
-            onTap: share,
-            enabled: share != null,
-            placement: ButtonPlacement.menuOnly,
-          ),
+    return PostActionToolbarScope(
+      bookmarkButton: GroupScopedBookmarkButton(
+        entry: widget.entry,
+        wholeGroup: false,
+        metadata: bookmarkData,
+        post: InheritedPost.maybeOf<Post>(context),
+      ),
+      groupBookmarkButton: GroupScopedBookmarkButton(
+        entry: widget.entry,
+        wholeGroup: true,
+        metadata: bookmarkData,
+        cachedMembers: [
+          for (var i = 0; i < (state.members?.members.length ?? 0); i++)
+            if (state.postAt(i) case final post?) post,
+        ],
+      ),
+      additionalButtons: [
+        if (bookmarks != null && bookmarkData != null)
+          ...bookmarks.buildBookmarkMenuButtons(context, bookmarkData),
+        if (widget.entry.contentReference.sourceKey.startsWith('work:'))
           ButtonData(
             title: _downloading
                 ? strings.download_progress(queued: _queued, total: _total)
@@ -263,9 +260,8 @@ class _MediaGroupActionsState extends ConsumerState<MediaGroupActions> {
             enabled: download != null,
             placement: ButtonPlacement.menuOnly,
           ),
-        ],
-        child: widget.child,
-      ),
+      ],
+      child: widget.child,
     );
   }
 }
@@ -282,12 +278,26 @@ class MediaGroupSummaryActions extends StatelessWidget {
       child: bookmark == null
           ? const SizedBox.shrink()
           : BooruMenuButtonRow(
+              buttonWidth: 48,
               buttons: [
                 ButtonData(
                   required: true,
                   widget: bookmark,
                   title: context.t.post.action.bookmark,
                   icon: const Icon(Icons.bookmark_border),
+                ),
+                if (actions?.groupBookmarkButton case final groupButton?)
+                  ButtonData(
+                    required: true,
+                    widget: groupButton,
+                    title: context.t.content_viewer.bookmark_group,
+                    icon: const Icon(Icons.bookmark_border),
+                  ),
+                ButtonData(
+                  required: true,
+                  widget: const GroupLinkShareButton(),
+                  title: context.t.post.action.share,
+                  icon: const Icon(Icons.share),
                 ),
                 ...actions!.additionalButtons,
               ],

@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../../core/bookmarks/providers.dart';
+import '../../../core/bookmarks/src/widgets/scoped_bookmark_button.dart';
 import '../../../core/bookmarks/src/data/bookmark_convert.dart';
 import '../../../core/bookmarks/src/types/bookmark_library_state.dart';
 import '../../../core/bookmarks/src/widgets/bookmark_group_picker.dart';
@@ -434,4 +435,51 @@ class PixivWorkBookmarkContextMenu extends ConsumerWidget {
     ],
     child: child,
   );
+}
+
+/// Direct viewer slots preserve the legacy split picker on unrelated cards.
+class PixivScopedBookmarkButton extends ConsumerStatefulWidget {
+  const PixivScopedBookmarkButton({
+    required this.data,
+    required this.wholeGroup,
+    super.key,
+  });
+  final GroupBookmarkPresentationData data;
+  final bool wholeGroup;
+  @override
+  ConsumerState<PixivScopedBookmarkButton> createState() =>
+      _PixivScopedBookmarkButtonState();
+}
+
+class _PixivScopedBookmarkButtonState
+    extends ConsumerState<PixivScopedBookmarkButton> {
+  BookmarkPickerRequest? _workOwner;
+  @override
+  void didUpdateWidget(PixivScopedBookmarkButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data.summary.reference != widget.data.summary.reference ||
+        !oldWidget.data.access.hasSameAuthorization(widget.data.access))
+      _workOwner = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
+    final container = ProviderScope.containerOf(context, listen: false);
+    ref.watch(contentAccessContextProvider(data.access.key));
+    _workOwner ??= _workRequest(container, data);
+    final page = _pageRequest(data);
+    return ScopedBookmarkButton(
+      request: widget.wholeGroup ? _workOwner : page,
+      requestBuilder: widget.wholeGroup
+          ? () => _workRequest(container, widget.data)
+          : null,
+      scope: widget.wholeGroup
+          ? BookmarkTargetScope.group
+          : BookmarkTargetScope.member,
+      label:
+          '${context.t.post.action.bookmark}: ${widget.wholeGroup ? context.t.content_viewer.bookmark_work : context.t.content_viewer.bookmark_page}',
+      authorized: _current(container, data),
+    );
+  }
 }

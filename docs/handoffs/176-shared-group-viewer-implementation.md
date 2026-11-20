@@ -1,0 +1,92 @@
+# #176 — Implement shared Single / Timeline group presentations
+
+This records an earlier #176 revision. See the
+[canvas and ordering follow-up](176-canvas-order-verification.md) for current sorting and viewer behavior.
+
+**Status:** Local-agent implementation handoff. No Flutter runtime work or native acceptance has been performed by the design agent.
+**Read first:** [issue #176](https://github.com/timberpile/Boorusama/issues/176), [latest agreed UI contract](../designs/176-group-viewer/screenshot-alignment.md), and [interactive offline HTML prototype](../designs/176-group-viewer/index.html).
+**Source inspected:** `develop@8155acbfa281a983029de53b659e5f760222e5ec` (2026-11-18). **Design branch inspected:** `feature/176-group-viewer-design@18a54b31457f10e74656c0a968e7eeae4df924ea`. Recheck `origin/develop` and this branch before editing; several bookmark/group sources changed on 2026-11-18.
+
+## Start here
+
+- Follow the current `AGENTS.md`, `docs/development_workflow.md` and `.agents/skills/implement-change/SKILL.md`. This is issue-linked work: use an isolated worktree. The **existing issue branch** `feature/176-group-viewer-design` already contains the design and handoff; inspect/reuse it and any corresponding worktree rather than silently creating competing implementations. Reconcile current `origin/develop` before implementation without dropping design files or unrelated edits.
+- Implement the agreed outcomes below, commit scoped changes as you go, and run directly relevant tests. Do **not** merge, open a PR, publish runtime changes, close #176, or modify unrelated branches without separate authorization. When implementation actually starts, use the issue workflow to claim/update its status.
+- The latest `screenshot-alignment.md` sections and `index.html` are the agreed **visual/interaction references**, not production implementation instructions. Older archived A/B/C studies, Custom Related reorder, split Bookmark chooser, extra group-info card and permanent outer navigation rail are **superseded**. The original user screenshots are not committed; use the SVG prototype and actual current UI.
+
+## Accepted product behavior
+
+| Group | Default | Member ordering | Detailed content |
+| --- | --- | --- | --- |
+| Pixiv multi-image Work | **Single** | Real author Page order only | Existing Work-level title/author/caption and genuine Page/file facts; no fake per-Page caption |
+| Danbooru Series | **Single** | Source `Ordered` | Current Post metadata; retain existing Pool/Series link, but no new expandable group card |
+| Danbooru Pool / Collection | **Timeline** | Existing `Ordered` / `Latest` / `Oldest` choices | Current Post metadata and existing Pool link; full Pool information stays in Timeline |
+| Danbooru Related Group | **Single** | Existing `Oldest` / `Newest` only | Current Post metadata; no invented group description |
+
+All four support **both** presentations using the **same shared Post viewer**: `Single` (existing Immersive and Detailed substates) and `Timeline` (member grid). Never build a Pixiv-only or second fullscreen viewer. Ordinary standalone Posts remain unchanged.
+
+### Presentation and navigation
+
+1. Add the approved compact **B+ one-tap destination toggle** within existing chrome: Grid icon in Single means “Switch to Timeline”; image icon in Timeline means “Switch to Single”. No new vertical toolbar/segment, permanent group header in Single or bottom outer-feed rail. Preserve the four screenshot-established visual structures, overlays, toolbar, safe areas and hide/reveal behavior.
+2. **Related Oldest/Newest selector belongs in the upper Single viewer header**, alongside B+ and Info where Info exists. It must **not** be placed next to the `N / total` counter. Support the same selector in Immersive (when chrome visible) and Detailed. Timeline retains the existing sort control. Use an existing Kurumi popup/selector and localized labels. Pool standard sorting should similarly be available in Single without creating a new sort system. Series and Pixiv have fixed ordering (no misleading mutable selector).
+3. The same effective Group order applies in both presentations. Switching view **must preserve the selected member occurrence key**, its position in the newly sorted sequence, source/profile context and the Timeline scroll checkpoint. Passive Timeline scrolling must not change the selected member; tapping a tile opens that member in Single **within the Group**, not a detached standalone Post. Sorting preserves identity, not array index; a missing/removed member is handled explicitly, never silently replaced.
+4. Preserve the existing inner-member vs outer-feed pager/gesture boundary, preload ownership, zoom transforms and Immersive ↔ Detailed motion. A mode toggle is **not** a new route/Back step. For a tile drill-in, the prototype returns Back to its originating Timeline and position; verify this against native Back/predictive Back and existing gallery routes before finalizing. Avoid a broad navigation regression or changed edge handoff merely for this feature.
+5. Timeline layouts: keep the existing Pool/Related group header, description where present, count/order row, native grid/quick actions and footer behavior. Pixiv gains a compact Work title, creator if available, page count and a grid in author order; do not invent unavailable metadata or add per-Page Favorite hearts.
+
+### Local Bookmarks, remote Favorites and Details
+
+6. In **Single Immersive and Detailed**, render **two separate, simultaneously visible local Bookmark buttons** in the existing **bottom action toolbar**, not a split button or target-selection dialog. Both use the established Bookmark icon plus a **small scope marker**:
+   - Image marker → bookmark **current Page/Post**.
+   - Stacked-layers marker → bookmark **entire Work/Pool/Series/Related Group** (the Group reference, *not* all member Posts).
+   Both open the existing folder/Bookmark Group picker directly with an independently captured target. Independent saved/folder counts, enabled states, Undo/remove behavior and localized accessibility labels are required. Keep both accessible at narrow widths by moving lower-priority actions into normal overflow. A standalone Post retains its normal one-target UI.
+7. **Timeline header** retains a visible **whole-Group Bookmark** (also with layers marker); Post grid quick actions remain engine-appropriate. Group saved state is shared with Single and never implies that every Page/Post is locally saved.
+8. **Website Favorites remain distinct** from local Bookmarks. Show a heart only if the captured engine/account can actually write a Favorite at that entity scope (Danbooru Post currently; Pixiv's read-only Favorites listing is **not** a writable Work Favorite API). Preserve votes/download/share/quality and all other supported Post actions. Never simulate a successful favorite or fall back to a neighboring Post on source loss.
+9. Do **not** add an `In Pool/Series` expandable information/action card or second Details tab. Danbooru already supplies `DanbooruPoolTiles` in Post Details; preserve it, with full Pool/Series descriptions in Timeline. Pixiv Work Details retain actual Work metadata. Related has no descriptive Group metadata, but still supports the whole-Group Bookmark.
+
+### Related Bookmark order: reuse existing persistence
+
+10. **No Custom Related order editor, arbitrary manual rearrangement or new persistence schema.** Existing `RelatedPostsOrder.oldest/newest` is enough. A saved Related Group must capture the current `visibleOrder`; changing sort for an already saved Related Group updates its `preferredOrder`, and reopening it restores that order. Extend this behavior to the new Single header and both-mode entry points, not a duplicated local order store. On initial load, respect the currently captured occurrence choice, existing saved preference and settings precedence without cross-profile substitution.
+11. Access/profile/source authorization and occurrence identity must survive asynchronous picker and sort updates. A member or Group request opened before an account/source switch must not save the wrong entity. Empty, loading, partially loaded, deleted, unavailable and restricted members must be represented safely; a missing Post may disable Post actions while the Group-level action remains available if authorized.
+
+## Existing implementation: extend it, do not replace it
+
+| Concern | Verified current location and caveat |
+| --- | --- |
+| Common viewer shell and Details | `lib/core/posts/details/src/widgets/post_details_page_scaffold.dart` uses `PostDetailsPageView`; `lib/core/posts/details/src/widgets/mixed_post_details_page.dart` dispatches outer occurrences, selected Post presentations, group pager and actions |
+| Fixed presentation selection | `lib/core/content/groups/group_capability.dart` has `GroupLayout.memberGrid/mediaPager`; `PixivWorkPresentation.layoutFor` selects mediaPager, `DanbooruGroupPresentation.layoutFor` selects memberGrid. Introduce occurrence/viewer-owned **selected mode above this source default**, not a mutable capability/engine-wide flag |
+| Single Group media | `lib/core/posts/details/src/widgets/media_group_page.dart`, `media_group_provider.dart`, `media_group_checkpoint.dart`. Existing checkpoint owns `memberKey` and bounded transforms per outer occurrence; current provider constructs a `GroupLoadKey` without order override, so support order-aware media reads when wiring Related/Pool Single |
+| Timeline grids | `lib/core/posts/details/src/widgets/content_group_page.dart` routes to `PoolDetailContent` (`lib/boorus/danbooru/pools/details/src/pool_detail_page.dart`) or `RelatedGallery` (`lib/boorus/danbooru/posts/related/related_gallery.dart`). Their `GroupPostScope`/`GroupPostPager` use order-specific source queries; avoid a competing second source/cache and preserve independent scroll checkpoints |
+| Group membership/query | `lib/core/content/content_access.dart`: `GroupLoadKey(reference, access, orderKey)` already keys member loads by order; metadata key deliberately excludes it. `lib/core/content/groups/group_members_provider.dart` and `group_member.dart` retain occurrence keys, source ordinals, restricted/missing positions and paging/cancellation. Danbooru `content_group_source.dart` validates Related `oldest/newest`; Pixiv `work_source.dart` validates author `order` |
+| Related sorting and saved preference | `RelatedGallery` already shows `TimelineOptionSelector<RelatedPostsOrder>`, reads native/legacy `preferredOrder`, calls `bookmarkProvider.notifier.setRelatedOrder(savedId, order, reader: ref.readConfig)` and passes `RelatedBookmarkPickerRequest(visibleOrder: order, cachedMembers: …)`. **Current develop includes `cachedMembers`/`relatedBookmarkCachedDraftProvider`**, absent from some early design notes; preserve that path and source-policy restrictions |
+| Group/Post Bookmark targets | `lib/core/bookmarks/src/types/bookmark_picker_request.dart` distinguishes `ContentGroupBookmarkPickerRequest`, `RemotePoolBookmarkPickerRequest`, `RelatedBookmarkPickerRequest` and `PostBookmarkPickerRequest`. Reuse `BookmarkGroupPickerAnchor` and `bookmark_picker_actions.dart` with frozen identity/access; do not create a new bookmark storage type |
+| Two Bookmark toolbar slots | `lib/core/posts/details/src/widgets/media_group_actions.dart` currently substitutes the Pixiv Work Bookmark through `PostActionToolbarScope.bookmarkButton`; `lib/core/posts/details_parts/src/toolbars/simple_post_action_toolbar.dart` and Danbooru's `danbooru_post_action_toolbar.dart` build ordinary Post actions. Pixiv `works/bookmark_actions.dart` already supports both targets via a split picker: **adapt** it to the agreed two visible buttons without losing its authorization/async protections. Danbooru Timeline Group buttons (`PoolBookmarkButton`, `RelatedGallery`) must become reachable in Single |
+| Details and metadata | `lib/boorus/pixiv/works/work_mapper.dart` supplies real Work title/count/creator/caption/tags; `PixivWorkInformation` reads Group Details; Danbooru `posts/details/src/details_ui_builder.dart` includes `DetailsPart.pool: DanbooruPoolTiles`; Danbooru Group source gives Pool title/description/dates but Related only identity/count |
+
+**Design constraint:** A user-selected `Single/Timeline` mode is local **reading/presentation state for the current outer Group occurrence**, not a property to serialize into immutable source metadata or the library's Group identity. Start with the approved per-kind defaults plus bounded occurrence restoration; do not add new durable global mode preferences until agreed. Track current member by `GroupMember.memberKey`, not raw index, Post ID alone or current global account. Avoid mounting both presentations such that both hydrate/preload every member. Preserve shared HTTP/cache reuse and cancellation.
+
+## Suggested implementation sequence
+
+1. Add one occurrence-scoped Group presentation/order controller and renderer switch in the existing mixed viewer. Keep the same access-scoped `GroupViewerEntry` and checkpoint; expose user-selected mode to both adapters. First make B+ switch and selection/scroll restoration work for Pixiv and a Danbooru Pool with no bookmarks.
+2. Reuse/bridge Timeline `ContentGroupPage`, `PoolDetailContent`, `RelatedGallery` and a new compact Pixiv member grid; connect tile selection back to Group Single without shedding occurrence identity. Retain Pool description and Related's summary-free grid.
+3. Wire Group-compatible Single media for Danbooru Pool/Series/Related, including order-aware `GroupLoadKey` and paging/error handling. Add Related Oldest/Newest in the **existing top header**; synchronize with the Timeline selector and saved bookmark preference.
+4. Compose two independent local Bookmark buttons using existing Kurumi toolbar/picker infrastructure. Keep Group actions source-scoped, retain engine-native Favorites, votes and other Post actions. Remove Pixiv's split-target interaction *only where replaced by the new two-button group viewer*; preserve unrelated entry points.
+5. Polish safe-area/header layout, long labels, overlay hidden/visible states, Details transitions, keyboard and Back, then run scoped and full integration verification.
+
+## Minimum acceptance / regression checks
+
+- Widget/UI cases for **all four Group kinds**, default modes, B+ in both directions, selected **member occurrence** restoration, repeated Post IDs, and Timeline scroll anchor after drill-in, sorting and back. Pixiv Page 3 stays Page 3; Related Oldest→Newest preserves the same Post even if its ordinal changes.
+- Related Oldest/Newest changes from **Single Immersive header**, **Single Detailed header** and **Timeline**, same order in both views, saved with a new Related Bookmark and updated on an existing native/legacy bookmark. No Custom editor. Series is ordered and opens Single; non-Series Pool opens Timeline.
+- Two distinct Bookmark targets, separate saved indicators and folder memberships, one-Page/one-Post Group, removal/Undo, group saved but Post unsaved and vice versa. Restriction/profile loss during an open picker must not write or reveal stale data. Verify Pixiv Page bookmark / Work bookmark and Danbooru Post / Pool / Series / Related.
+- Site Favorite capability: Danbooru Post remote heart remains independent from local Bookmarks; no invented Pixiv write. Retain post votes, download, original quality, sharing and Work Download all.
+- Empty/partial/failing membership loads, unavailable/restricted Posts, source filtering, outer feed boundary, inner pager first/last, fast repeated swipes, Details vertical gestures, zoom transform retention, progressive image loading and inactive-preload budgets. No source-context leakage between simultaneous profiles.
+- Narrow phone (e.g. **320dp**), enlarged text, landscape/video, opaque header/contrast and tap target checks: no overlap of header sort, B+, Info and the **separate page counter**; no overflow of both Bookmark buttons or obstruction of system UI.
+- Existing suites to inspect/run: `test/core/posts/details/mixed_post_details_page_test.dart`, `media_group_page_indicator_test.dart`, `test/core/posts/details_pageview/post_details_page_modes_test.dart`, `viewer_route_transition_test.dart`, `test/core/posts/pools/`, `test/core/content/group_members_provider_test.dart`, `group_access_isolation_test.dart`, `test/boorus/pixiv/works/work_bookmark_actions_test.dart`, `work_source_test.dart`, `work_timeline_selection_test.dart`, `test/core/bookmarks/related_bookmark_metadata_test.dart` and `test/boorus/danbooru_series_membership_test.dart`. Add focused regressions rather than relying on the HTML mockup as executable Flutter evidence.
+
+Use `fvm dart format` and affected `fvm flutter test`/analyzer checks throughout. Follow `docs/engineering_guidelines.md` for exact scope and **run the complete local suite on the final integration candidate before claiming it can merge into develop**. The emulator is for real UI/gesture acceptance; read `docs/android_emulator.md` and acquire its exclusive lease before any use. A independent UX review of the prior prototype was not performed; if a suitable reviewer is available, have them critique the implemented native controls with evidence, not a claimed prior signoff.
+
+## Report back / non-goals
+
+Commit scoped work and give the owner exact branch/commit, modified surfaces, checked source state, commands/results, screenshots if captured, and any remaining acceptance questions. Keep #176 **open** until an authorized integration actually lands in `origin/develop`.
+
+**Do not** implement a new standalone media viewer, new arbitrary Related manual-order editor, automatic favorites/bookmark fan-out to every member, duplicate Pool/Series Details sections, fake Pixiv Page captions, unrelated timeline grouping/badge changes (#68/#134), new per-Page remote Pixiv Favorite action, or unapproved persistence migration.
+
+**Open product nuance requiring native judgement:** tile-tap Back may return to the originating Timeline while explicit B+ swaps modes without stack entries; preserve predictable system/predictive Back and do not silently change existing outer-pager handoff. If behavior cannot be made consistent without a larger navigation change, surface that decision before broadening scope.

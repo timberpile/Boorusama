@@ -11,26 +11,35 @@ import 'boorusama_search_link.dart';
 final class BoorusamaLinkFile {
   const BoorusamaLinkFile._(this.uri, this.fileName);
 
-  factory BoorusamaLinkFile.fromUri(String value) {
+  factory BoorusamaLinkFile.fromUri(String value, {String? profileName}) {
     if (BoorusamaPostLink.tryParse(value) case final post?) {
-      final key = post.key.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-');
+      final key = post.key.replaceAll(':', '-');
       return BoorusamaLinkFile._(
         post.uri,
-        'boorusama-post-${key.replaceFirst('id-', '')}.bslink',
+        _profileFileName(
+          profileName,
+          post.booruType.yamlName,
+          post.key.startsWith('work-page:')
+              ? key
+              : 'post-${key.replaceFirst('id-', '')}',
+        ),
       );
     }
     if (BoorusamaGroupLink.tryParse(value) case final group?) {
-      final key = group.reference.sourceKey.replaceAll(
-        RegExp('[^a-zA-Z0-9_-]'),
-        '-',
-      );
       return BoorusamaLinkFile._(
         group.uri,
-        'boorusama-group-$key.bslink',
+        _profileFileName(
+          profileName,
+          group.reference.engine.yamlName,
+          group.reference.sourceKey.replaceAll(':', '-'),
+        ),
       );
     }
     if (BoorusamaSearchLink.tryParse(value) case final search?) {
-      return BoorusamaLinkFile._(search.uri, 'boorusama-search.bslink');
+      return BoorusamaLinkFile._(
+        search.uri,
+        _profileFileName(profileName, search.booruType.yamlName, 'search'),
+      );
     }
     if (BoorusamaArtistLink.tryParse(value) case final artist?) {
       return BoorusamaLinkFile.fromArtist(
@@ -58,18 +67,8 @@ final class BoorusamaLinkFile {
       return cleaned.isEmpty ? fallback : cleaned;
     }
 
-    String fit(String value, int bytes) {
-      final result = StringBuffer();
-      var used = 0;
-      for (final rune in value.runes) {
-        final character = String.fromCharCode(rune);
-        final size = utf8.encode(character).length;
-        if (used + size > bytes) break;
-        result.write(character);
-        used += size;
-      }
-      return result.toString().trimRight().replaceFirst(RegExp(r'[. ]+$'), '');
-    }
+    String fit(String value, int bytes) =>
+        _fitUtf8(value, bytes).trimRight().replaceFirst(RegExp(r'[. ]+$'), '');
 
     final profile = component(profileName, artist.site.host);
     final name = component(artist.artistName, 'artist');
@@ -87,6 +86,31 @@ final class BoorusamaLinkFile {
       stem = '_${fit(stem, 247)}';
     }
     return BoorusamaLinkFile._(artist.uri, '$stem.bslink');
+  }
+
+  static String _profileFileName(String? name, String engine, String target) {
+    final normalized = RegExp(r'[\p{L}\p{N}][\p{L}\p{M}\p{N}]*', unicode: true)
+        .allMatches((name ?? '').toLowerCase())
+        .map((match) => match[0]!)
+        .join('-');
+    final suffix = '-$target.bslink';
+    final prefix = _fitUtf8(
+      normalized.isEmpty ? engine : normalized,
+      255 - utf8.encode(suffix).length,
+    ).replaceFirst(RegExp(r'-$'), '');
+    return '$prefix$suffix';
+  }
+
+  static String _fitUtf8(String value, int bytes) {
+    final result = StringBuffer();
+    var used = 0;
+    for (final rune in value.runes) {
+      final character = String.fromCharCode(rune);
+      used += utf8.encode(character).length;
+      if (used > bytes) break;
+      result.write(character);
+    }
+    return result.toString();
   }
 
   static const mimeType = 'application/vnd.boorusama.link';

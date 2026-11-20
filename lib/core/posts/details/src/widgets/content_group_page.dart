@@ -25,6 +25,7 @@ class ContentGroupPage extends ConsumerWidget {
     this.embedded = true,
     this.prepared,
     this.suspendWhenInactive = false,
+    this.onOpenMember,
     this.prepareSource,
     this.onDisplayed,
     super.key,
@@ -34,6 +35,7 @@ class ContentGroupPage extends ConsumerWidget {
   final bool embedded;
   final PreparedViewerKey? prepared;
   final bool suspendWhenInactive;
+  final ValueChanged<String>? onOpenMember;
   final void Function(ContentGroupSource source)? prepareSource;
   final VoidCallback? onDisplayed;
 
@@ -87,6 +89,7 @@ class ContentGroupPage extends ConsumerWidget {
           entry: entry,
           embedded: embedded,
           passive: suspendWhenInactive && !active,
+          onOpenMember: onOpenMember,
           child: _RegisteredGroupContent(
             entry: entry,
             access: access.key,

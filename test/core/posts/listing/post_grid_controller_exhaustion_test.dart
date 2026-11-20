@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/listing/providers.dart';
 import 'package:boorusama/core/posts/listing/src/types/page_mode.dart';
@@ -9,6 +11,80 @@ import 'package:foundation/foundation.dart';
 import '../../../support/fakes/test_post.dart';
 
 void main() {
+  for (final mode in PageMode.values) {
+    test(
+      'prepared $mode grid waits for filters and retains continuation',
+      () async {
+        final requested = <int>[];
+        final filterStarted = Completer<void>();
+        final blacklist = Completer<Set<String>>();
+        var refreshed = false;
+        final controller = _controller(
+          (page) async {
+            requested.add(page);
+            return PostResult<Post>(
+              posts: [
+                TestPost(id: page, tags: {'blocked'}),
+              ],
+              total: 6,
+              maxPage: 6,
+              hasMore: page < 6,
+            );
+          },
+          pageMode: mode,
+          fetchBlacklist: () {
+            if (!filterStarted.isCompleted) filterStarted.complete();
+            return blacklist.future;
+          },
+          onRefresh: () => refreshed = true,
+        );
+        final prepare = controller.prepareInitialPage(
+          additionalEmptyPages: mode == PageMode.infinite ? 3 : 0,
+        );
+        await filterStarted.future;
+        expect(controller.hasLoadedPage, isFalse);
+        expect(requested, [1]);
+        blacklist.complete({'blocked'});
+        await prepare;
+
+        expect(controller.hasLoadedPage, isTrue);
+        expect(controller.items, isEmpty);
+        expect(controller.hasMore, isTrue);
+        expect(refreshed, isFalse);
+        if (mode == PageMode.infinite) {
+          expect(requested, [1, 2, 3, 4]);
+          await controller.fetchMore();
+          expect(requested, [1, 2, 3, 4, 5]);
+        } else {
+          expect(controller.page, 1);
+          expect(controller.hasNextPage(), isTrue);
+          await controller.goToNextPage();
+          expect(requested, [1, 2]);
+        }
+      },
+    );
+  }
+
+  test('prepared grid honors captured disabled filter rules', () async {
+    final controller = _controller(
+      (_) async => PostResult<Post>(
+        posts: [
+          TestPost(id: 1, tags: {'disabled'}),
+          TestPost(id: 2, tags: {'new-rule'}),
+        ],
+        total: 2,
+      ),
+      blacklist: {'disabled', 'new-rule'},
+      initialFilterSelection: {'disabled': false},
+    );
+    await controller.prepareInitialPage();
+    expect(controller.items.map((post) => post.id), [1]);
+    expect(controller.activeFilters.value, {
+      'disabled': false,
+      'new-rule': true,
+    });
+  });
+
   for (final reason in ['explicit end', 'last page', 'known total']) {
     test('$reason stops after the first complete nonempty response', () async {
       final pages = <int>[];
@@ -156,13 +232,18 @@ PostGridController<Post> _controller(
   Future<PostResult<Post>> Function(int) fetch, {
   Set<String> blacklist = const {},
   PageMode pageMode = PageMode.infinite,
+  Future<Set<String>> Function()? fetchBlacklist,
+  void Function()? onRefresh,
+  Map<String, bool> initialFilterSelection = const {},
 }) {
   final controller = PostGridController<Post>(
     fetcher: (page) => TaskEither.tryCatch(
       () => fetch(page),
       (error, _) => UnknownError(error: error, message: error.toString()),
     ),
-    blacklistedTagsFetcher: () async => blacklist,
+    blacklistedTagsFetcher: fetchBlacklist ?? () async => blacklist,
+    onRefresh: onRefresh,
+    initialFilterSelection: initialFilterSelection,
     mountedChecker: () => true,
     duplicateTracker: PostDuplicateTracker<Post>(),
     onError: (_) {},

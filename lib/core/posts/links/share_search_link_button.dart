@@ -87,7 +87,10 @@ Future<void> shareSearchLinkFile(
         : null;
     final outcome = await BoorusamaLinkFileShare(fs: fs, adapter: shareAdapter)
         .share(
-          BoorusamaLinkFile.fromUri(link.uri.toString()),
+          BoorusamaLinkFile.fromUri(
+            link.uri.toString(),
+            profileName: profileName,
+          ),
           text: context.searchLinkFileMessage(
             link,
             profileName: profileName ?? link.site.host,

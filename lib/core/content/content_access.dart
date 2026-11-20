@@ -138,11 +138,17 @@ final class ContentAccessContext {
 }
 
 final class GroupLoadKey extends Equatable {
-  GroupLoadKey({required this.reference, required this.access, this.orderKey}) {
+  GroupLoadKey({
+    required this.reference,
+    required this.access,
+    this.orderKey,
+    this.requestedLimit,
+  }) {
     if (reference.kind != ContentKind.group ||
         reference.engine != access.engine ||
         reference.siteNamespace != access.siteNamespace ||
         orderKey == '' ||
+        (requestedLimit != null && requestedLimit! <= 0) ||
         (orderKey != null && orderKey!.length > 256)) {
       throw const FormatException('Invalid access-scoped Group load key');
     }
@@ -150,10 +156,11 @@ final class GroupLoadKey extends Equatable {
   final ContentReference reference;
   final ContentAccessKey access;
   final String? orderKey;
+  final int? requestedLimit;
   GroupMetadataKey get metadata =>
       GroupMetadataKey(reference: reference, access: access);
   @override
-  List<Object?> get props => [reference, access, orderKey];
+  List<Object?> get props => [reference, access, orderKey, requestedLimit];
 }
 
 /// Metadata intentionally excludes member order; member cache keys include it.

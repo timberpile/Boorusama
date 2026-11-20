@@ -14,6 +14,7 @@ class SharePayloadTile extends StatelessWidget {
     this.deferred = false,
     this.showValue = true,
     this.reserveDescriptionSpace = false,
+    this.compact = false,
     this.onCopy,
     this.onShare,
     this.busy = false,
@@ -33,6 +34,7 @@ class SharePayloadTile extends StatelessWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onShare;
   final bool busy;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +57,10 @@ class SharePayloadTile extends StatelessWidget {
       color: theme.colorScheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: compact ? 0 : 8,
+        ),
         child: Row(
           children: [
             if (leading != null) ...[
@@ -74,7 +79,8 @@ class SharePayloadTile extends StatelessWidget {
                   Text(title, style: theme.textTheme.bodyLarge),
                   if (reserveEmptyDescription)
                     halfDescriptionLine
-                  else if (!available || showValue || description != null)
+                  else if (showValue ||
+                      (!compact && (!available || description != null)))
                     Text(
                       !available
                           ? unavailable
@@ -95,11 +101,17 @@ class SharePayloadTile extends StatelessWidget {
             else ...[
               IconButton(
                 tooltip: copyTooltip,
+                constraints: compact
+                    ? const BoxConstraints(minWidth: 48, minHeight: 48)
+                    : null,
                 icon: const Icon(Icons.content_copy),
                 onPressed: available && !busy ? onCopy : null,
               ),
               IconButton(
                 tooltip: shareTooltip,
+                constraints: compact
+                    ? const BoxConstraints(minWidth: 48, minHeight: 48)
+                    : null,
                 icon: const Icon(Icons.share),
                 onPressed: available && !busy ? onShare : null,
               ),

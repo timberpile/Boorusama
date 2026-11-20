@@ -1,6 +1,6 @@
+import '../../../../boorus/booru/types.dart';
 import '../../../../../boorus/pixiv/works/work_creator_avatar.dart';
 import '../../../../content/groups/group_metadata.dart';
-import 'adjacent_group_preparation.dart';
 
 import 'dart:async';
 
@@ -31,8 +31,6 @@ import '../../../media_preload/src/viewer_preload_metadata.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
 import '../providers/media_group_provider.dart';
-import '../../../../content/groups/group_capability.dart';
-import '../../../../content/groups/group_source_provider.dart';
 import '../types/viewer_entry.dart';
 import 'post_details_page_view_scope.dart';
 
@@ -404,7 +402,6 @@ class _MixedPostDetailsImagePreloaderState
 
   @override
   Widget build(BuildContext context) {
-    final groupSlots = <Object, PreparedViewerKey>{};
     final previousWorks = Map<int, MediaGroupState>.of(_workStates);
     _workStates.clear();
     if (_pageViewController != null &&
@@ -425,42 +422,7 @@ class _MixedPostDetailsImagePreloaderState
         if (entry is! GroupViewerEntry || entry.source == null) {
           continue;
         }
-        final access = ref.watch(viewerSourceAccessProvider(entry.source!));
-        if (access == null) continue;
-        final capability = ref.watch(
-          booruGroupCapabilityProvider(entry.contentReference.engine),
-        );
-        if (capability != null &&
-            capability.presentation.supports(entry.summary) &&
-            capability.presentation.layoutFor(entry.summary) ==
-                GroupLayout.memberGrid &&
-            access.accepts(entry.contentReference)) {
-          final order = preparedGroupOrder(context, ref, entry);
-          if (order != null) {
-            final metadata = GroupMetadataKey(
-              reference: entry.contentReference,
-              access: access.key,
-            );
-            final key = (
-              access: access.key,
-              page: (
-                reference: entry.contentReference,
-                order: order,
-                limit: ref.watch(imageListingSettingsProvider).postsPerPage,
-                revision: ref.watch(groupRefreshRevisionProvider(metadata)),
-              ),
-              foreground: index == _controller.page,
-            );
-            groupSlots[entry.occurrenceId] = key;
-            ref.watch(preparedViewerGroupProvider(key));
-          }
-        }
-        if (capability == null ||
-            !capability.presentation.supports(entry.summary) ||
-            capability.presentation.layoutFor(entry.summary) !=
-                GroupLayout.mediaPager) {
-          continue;
-        }
+        if (entry.contentReference.engine != BooruType.pixiv) continue;
         _workStates[index] = ref.watch(mediaGroupProvider(entry));
       }
       if (previousWorks.length != _workStates.length ||
@@ -504,18 +466,15 @@ class _MixedPostDetailsImagePreloaderState
         _scheduleRefresh();
       }
     });
-    return PreparedGroupWindow(
-      slots: groupSlots,
-      child: PixivWorkAvatarWindow(
-        creators: [
-          for (final state in _workStates.values)
-            if (state.access case final access?)
-              for (final creator
-                  in state.details?.creators ?? const <CreatorRef>[])
-                (creator: creator, access: access),
-        ],
-        child: widget.child,
-      ),
+    return PixivWorkAvatarWindow(
+      creators: [
+        for (final state in _workStates.values)
+          if (state.access case final access?)
+            for (final creator
+                in state.details?.creators ?? const <CreatorRef>[])
+              (creator: creator, access: access),
+      ],
+      child: widget.child,
     );
   }
 }

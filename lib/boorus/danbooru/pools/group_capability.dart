@@ -191,7 +191,11 @@ class DanbooruGroupPresentation
       (summary.reference.sourceKey.startsWith('pool:') ||
           summary.reference.sourceKey.startsWith('related:'));
   @override
-  GroupLayout layoutFor(ContentGroupSummary summary) => GroupLayout.memberGrid;
+  GroupLayout layoutFor(ContentGroupSummary summary) =>
+      summary.reference.sourceKey.startsWith('related:') ||
+          summary.displayCategory == 'series'
+      ? GroupLayout.mediaPager
+      : GroupLayout.memberGrid;
   @override
   String memberLabel(BuildContext context, ContentGroupSummary summary) =>
       context.t.artist_page.posts;

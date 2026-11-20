@@ -73,6 +73,7 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.showLoadMoreButton = true,
     this.cacheExtent,
     this.automaticContinuationEnabled = true,
+    this.refreshAtStart = true,
   });
 
   final List<Widget>? sliverHeaders;
@@ -100,6 +101,7 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
 
   /// Cached feeds do not opt into remote history until the user requests it.
   final bool automaticContinuationEnabled;
+  final bool refreshAtStart;
 
   @override
   ConsumerState<PostGrid<T>> createState() => _PostGridState();
@@ -142,6 +144,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
       child: _InheritedAutoScrollController(
         controller: _autoScrollController,
         child: RawPostGrid(
+          refreshAtStart: widget.refreshAtStart,
           options: PostGridOptions(
             cacheExtent: widget.cacheExtent,
             hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),

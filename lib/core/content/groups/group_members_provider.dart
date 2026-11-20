@@ -1,3 +1,4 @@
+import 'prepared_group_reads.dart';
 import 'related_group_counts.dart';
 
 import 'dart:async';
@@ -5,6 +6,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation/foundation.dart';
 
 import '../../errors/types.dart';
 import '../content_access.dart';
@@ -22,16 +24,22 @@ final class GroupMembersState extends Equatable {
     this.next,
     this.sourceTotal,
     this.firstPageLoaded = false,
+    Iterable<int> pageEnds = const [],
     this.loadingMore = false,
     this.nextPageError,
     required this.generation,
   }) : members = List.unmodifiable(members),
-       resolved = Map.unmodifiable(resolved);
+       resolved = Map.unmodifiable(resolved),
+       pageEnds = List.unmodifiable(pageEnds);
   final List<GroupMember> members;
   final Map<ContentIdentity, ContentEntry> resolved;
   final ContentCursor? next;
   final int? sourceTotal;
   final bool firstPageLoaded;
+
+  /// Source-page boundaries include empty/filtered pages; grids must not crawl
+  /// additional pages just to fill a visually filtered page.
+  final List<int> pageEnds;
   final bool loadingMore;
   final BooruError? nextPageError;
   final int generation;
@@ -44,6 +52,7 @@ final class GroupMembersState extends Equatable {
     next: next,
     sourceTotal: sourceTotal,
     firstPageLoaded: firstPageLoaded,
+    pageEnds: pageEnds,
     loadingMore: loadingMore ?? this.loadingMore,
     nextPageError: nextPageError == null ? this.nextPageError : nextPageError(),
     generation: generation,
@@ -55,6 +64,7 @@ final class GroupMembersState extends Equatable {
     next,
     sourceTotal,
     firstPageLoaded,
+    pageEnds,
     loadingMore,
     nextPageError,
     generation,
@@ -69,6 +79,8 @@ final groupMembersProvider = AsyncNotifierProvider.autoDispose
         groupSummaryProvider,
         groupDetailsProvider,
         relatedGroupCountsProvider,
+        groupRefreshRevisionProvider,
+        preparedGroupReadsProvider,
       ],
     );
 
@@ -88,6 +100,7 @@ class GroupMembersController
   @override
   Future<GroupMembersState> build(GroupLoadKey key) {
     _key = key;
+    final revision = ref.watch(groupRefreshRevisionProvider(key.metadata));
     _active = true;
     final generation = _reset();
     final cancel = _cancel!;
@@ -104,7 +117,14 @@ class GroupMembersController
       rethrow;
     }
     _source = source;
-    return _initial(source, generation);
+    return _initial(
+      source,
+      generation,
+      key.requestedLimit == null
+          ? null
+          : ref.watch(preparedGroupReadsProvider(key.access)),
+      revision,
+    );
   }
 
   GroupMembersState _empty(int generation) => GroupMembersState(
@@ -143,15 +163,20 @@ class GroupMembersController
   Future<GroupMembersState> _initial(
     ContentGroupSource source,
     int generation,
+    PreparedGroupReads? prepared,
+    int revision,
   ) async {
     final query = GroupMemberQuery(
       reference: _key.reference,
       orderKey: _key.orderKey,
+      requestedLimit: _key.requestedLimit,
     );
     final (batch: batch, countRead: countRead) = await _request(
       source,
       query,
       generation,
+      prepared: prepared,
+      revision: revision,
     );
     if (!_current(generation, source)) throw RequestCancelledError();
     final result = _append(_empty(generation), query, batch);
@@ -164,8 +189,10 @@ class GroupMembersController
   Future<({GroupMemberBatch batch, RelatedGroupCountRead? countRead})> _request(
     ContentGroupSource source,
     GroupMemberQuery query,
-    int generation,
-  ) async {
+    int generation, {
+    PreparedGroupReads? prepared,
+    int revision = 0,
+  }) async {
     if (!source.access.accepts(query.reference)) {
       throw const FormatException('Foreign Group request');
     }
@@ -174,7 +201,17 @@ class GroupMembersController
         .begin(_key.metadata);
     final batch = await runGroupRead(
       source,
-      () => source.loadMembers(query),
+      () => prepared == null || query.requestedLimit == null
+          ? source.loadMembers(query)
+          : TaskEither.tryCatch(
+              () => prepared.firstPage((
+                reference: _key.reference,
+                order: _key.orderKey,
+                limit: query.requestedLimit!,
+                revision: revision,
+              )),
+              (error, _) => _error(error),
+            ),
       token: _cancel!,
       current: () => _current(generation, source),
     );
@@ -217,6 +254,7 @@ class GroupMembersController
     final query = GroupMemberQuery(
       reference: _key.reference,
       orderKey: _key.orderKey,
+      requestedLimit: _key.requestedLimit,
       cursor: before.next,
     );
     try {
@@ -251,6 +289,12 @@ class GroupMembersController
     // an empty success while an initial-load future is still pending.
     if (state.hasValue) state = AsyncData(_empty(_generation + 1));
     ref.read(relatedGroupCountsProvider.notifier).invalidate(_key.metadata);
+    ref
+        .read(preparedGroupReadsProvider(_key.access))
+        ?.invalidate(
+          _key.reference,
+          ref.read(groupRefreshRevisionProvider(_key.metadata)),
+        );
     source.invalidate(_key.reference);
     ref.invalidate(groupSummaryProvider(_key.metadata));
     ref.invalidate(groupDetailsProvider(_key.metadata));
@@ -365,6 +409,7 @@ class GroupMembersController
       next: next,
       sourceTotal: batch.page.total ?? before.sourceTotal,
       firstPageLoaded: true,
+      pageEnds: List.unmodifiable([...before.pageEnds, members.length]),
       generation: _generation,
     );
   }

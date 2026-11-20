@@ -86,26 +86,23 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     if (page == currentSettledPage.value) return;
 
     final previous = postAtPage(currentSettledPage.value ?? -1);
-    if (postIndexForPage != null && previous != null) {
+    // A neighboring page can keep its player after it loses selection.
+    if (previous != null && previous.isVideo) {
       unawaited(_playback.pauseVideo(postViewerIdentity(previous)));
     }
     currentSettledPage.value = page;
-    _playback.setActive(postAtPage(page) != null && _navigationActive);
 
     final post = postAtPage(page);
+    _playback.setActive(post != null && _navigationActive);
+    if (post == null) return;
+    _playback.resetProgress();
+    if (!post.isVideo) return;
 
-    if (post != null) {
-      _playback.resetProgress();
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_disposed &&
-            _navigationActive &&
-            currentSettledPage.value == page &&
-            (postIndexForPage == null || post.isVideo)) {
-          unawaited(playVideo(post));
-        }
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && _navigationActive && currentSettledPage.value == page) {
+        unawaited(playVideo(post));
+      }
+    });
   }
 
   var _navigationActive = true;
@@ -167,8 +164,8 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     bool showAnimation = false,
   }) async {
     if (_disposed ||
-        (postIndexForPage != null &&
-            postAtPage(currentSettledPage.value ?? -1) != post)) {
+        !post.isVideo ||
+        postAtPage(currentSettledPage.value ?? -1) != post) {
       return;
     }
     if (postViewerIdentity(currentPost.value) == postViewerIdentity(post) &&

@@ -30,6 +30,7 @@ PixivIllustDto work({
   String? original,
   String? sample,
   String? avatar,
+  String? artist = 'Artist',
   bool omitTags = false,
   Object? tags = const [
     {'name': 'fixture', 'translated_name': 'Fixture'},
@@ -41,7 +42,7 @@ PixivIllustDto work({
   'caption': '<p>Work caption</p>',
   'user': {
     'id': 7,
-    'name': 'Artist',
+    if (artist != null) 'name': artist,
     'account': 'artist',
     if (avatar != null) 'profile_image_urls': {'medium': avatar},
   },

@@ -23,10 +23,56 @@ class DownloadPostButton extends ConsumerStatefulWidget {
     required this.post,
     super.key,
     this.small = false,
+    this.download,
   });
 
   final Post post;
   final bool small;
+  final void Function({DownloadSource? source})? download;
+
+  static void Function({DownloadSource? source})? action(
+    BuildContext context,
+    WidgetRef ref,
+    Post post,
+  ) {
+    final auth = ref.watchConfigAuth;
+    if (auth.anonymousReadScope != null) return null;
+    final access = watchContentMediaAccess(ref, auth, post: post);
+    if (!access.allowed) return null;
+    final key = access.key;
+    bool current() =>
+        context.mounted &&
+        (key == null ||
+            (ref.read(currentContentAccessKeyProvider) == key &&
+                ref.read(contentAccessContextProvider(key))?.config?.auth ==
+                    auth &&
+                ref
+                        .read(
+                          contentPostVisibilityProvider((
+                            access: key,
+                            post: post,
+                          )),
+                        )
+                        .asData
+                        ?.value ==
+                    true));
+    final config = ref.watchConfigDownload;
+    return ({source}) {
+      if (!current()) return;
+      ref
+          .read(
+            downloadNotifierProvider(
+              ref.read(downloadNotifierParamsProvider((auth, config))),
+            ).notifier,
+          )
+          .download(
+            post,
+            quality: source?.quality,
+            overrideUrl: source?.url,
+            isCurrent: current,
+          );
+    };
+  }
 
   @override
   ConsumerState<DownloadPostButton> createState() => _DownloadPostButtonState();
@@ -43,45 +89,16 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watchConfigAuth;
-    if (auth.anonymousReadScope != null) {
-      return const SizedBox.shrink();
-    }
-    final access = watchContentMediaAccess(ref, auth, post: widget.post);
-    if (!access.allowed) return const SizedBox.shrink();
-    final key = access.key;
-    bool current() =>
-        key == null ||
-        (mounted &&
-            ref.read(currentContentAccessKeyProvider) == key &&
-            ref.read(contentAccessContextProvider(key))?.config?.auth == auth &&
-            (ref
-                    .read(
-                      contentPostVisibilityProvider((
-                        access: key,
-                        post: widget.post,
-                      )),
-                    )
-                    .asData
-                    ?.value ==
-                true));
-    final guard = key == null ? null : current;
-
-    final notifier = ref.watch(
-      downloadNotifierProvider(
-        ref.watch(
-          downloadNotifierParamsProvider((
-            ref.watchConfigAuth,
-            ref.watchConfigDownload,
-          )),
-        ),
-      ).notifier,
-    );
+    final download =
+        widget.download ?? DownloadPostButton.action(context, ref, widget.post);
+    if (download == null) return const SizedBox.shrink();
     final downloadSources = ref.watch(
       downloadSourceProvider(ref.watchConfigAuth),
     );
-    final List<DownloadSource>? sources =
-        downloadSources?.getDownloadSources(context, widget.post);
+    final List<DownloadSource>? sources = downloadSources?.getDownloadSources(
+      context,
+      widget.post,
+    );
     final hasAlternatives = sources?.isNotEmpty ?? false;
 
     return _PopupMenuButton(
@@ -91,14 +108,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
         ...?sources?.map(
           (e) => KurumiPopupMenuItem(
             title: Text(e.name),
-            onTap: () {
-              notifier.download(
-                widget.post,
-                quality: e.quality,
-                overrideUrl: e.url,
-                isCurrent: guard,
-              );
-            },
+            onTap: () => download(source: e),
           ),
         ),
       ],
@@ -106,7 +116,7 @@ class _DownloadPostButtonState extends ConsumerState<DownloadPostButton> {
         tooltip: context.t.download.download,
         iconSize: widget.small ? 20 : 24,
         showDropdown: hasAlternatives,
-        onPressed: () => notifier.download(widget.post, isCurrent: guard),
+        onPressed: download,
         onLongPress: hasAlternatives ? _controller.show : null,
         icon: const Icon(Symbols.download),
       ),

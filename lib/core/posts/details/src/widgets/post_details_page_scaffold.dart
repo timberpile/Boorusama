@@ -59,7 +59,8 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.hasMediaPager,
     this.mediaNavigationBuilder,
     this.pagePostBuilder,
-    this.pageIndicatorBuilder,
+    this.groupHeaderActions = const [],
+    this.pageSummaryPreviewBuilder,
     this.pageWrapperBuilder,
     super.key,
     this.onExpanded,
@@ -84,7 +85,6 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
 
   /// The selected real Post in a media-pager entry; never a synthetic Group Post.
   final Post? Function(int)? pagePostBuilder;
-  final Widget? Function(int)? pageIndicatorBuilder;
   final Widget Function(BuildContext, int, Widget)? pageWrapperBuilder;
   final PostDetailsUIBuilder? uiBuilder;
   final Set<DetailsPart>? preferredParts;
@@ -95,6 +95,8 @@ class PostDetailsPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   final TransformationController transformController;
   final ValueNotifier<bool> isInitPage;
   final List<Widget> actions;
+  final List<Widget> groupHeaderActions;
+  final IndexedWidgetBuilder? pageSummaryPreviewBuilder;
   final PostGestureHandlerBuilder? postGestureHandlerBuilder;
   final bool enableViewerTransformations;
   final Widget? viewerWarning;
@@ -463,6 +465,7 @@ class _PostDetailPageScaffoldState<T extends Post>
         isPostPage: (index) =>
             _postAt(index) != null ||
             (widget.hasMediaPager?.call(index) ?? false),
+        headerActions: widget.groupHeaderActions,
         leftActions: [
           if (widget.controller?.dislclaimer != null)
             KurumiCircularIconButton(
@@ -533,8 +536,15 @@ class _PostDetailPageScaffoldState<T extends Post>
         detailsSliversBuilder: (context, index) {
           final page = PostDetailsPageConfiguration.maybeOf(context);
           final ui = page == null ? widget.uiBuilder : page.uiBuilder;
+          final post = page == null
+              ? _postAt(index)
+              : InheritedPost.maybeOf<Post>(context);
+          // The active Timeline's summary parts belong only to its own page.
+          final preferredParts = page == null
+              ? widget.preferredParts
+              : page.preferredParts;
           return [
-            if (_postAt(index)?.isVideo ?? false)
+            if (post?.isVideo ?? false)
               SliverToBoxAdapter(
                 child: PostDetailsVideoControlsMobile(
                   pageIndex: index,
@@ -545,8 +555,7 @@ class _PostDetailPageScaffoldState<T extends Post>
               context,
               uiBuilder: ui,
               preferredParts:
-                  page?.preferredParts ??
-                  widget.preferredParts ??
+                  preferredParts ??
                   getLayoutParsedParts(
                     details: (page == null ? widget.layoutConfig : page.layout)
                         ?.details,
@@ -554,8 +563,7 @@ class _PostDetailPageScaffoldState<T extends Post>
                   ) ??
                   ui?.buildableFullParts ??
                   <DetailsPart>{},
-              canCustomize:
-                  ui != null && canCustomize && _postAt(index) != null,
+              canCustomize: ui != null && canCustomize && post != null,
             ),
           ];
         },
@@ -571,9 +579,6 @@ class _PostDetailPageScaffoldState<T extends Post>
           child: Stack(
             children: [
               child,
-              if (widget.pageIndicatorBuilder?.call(_controller.page)
-                  case final indicator?)
-                Positioned.fill(child: indicator),
               if (widget.viewerWarning case final warning?)
                 Align(
                   alignment: Alignment.topCenter,
@@ -602,9 +607,13 @@ class _PostDetailPageScaffoldState<T extends Post>
           );
         },
         bottomPreviewBuilder: (context, index) {
-          final post = _postAt(index);
-          if (post == null) return const SizedBox.shrink();
           final page = PostDetailsPageConfiguration.maybeOf(context);
+          final post = page == null
+              ? _postAt(index)
+              : InheritedPost.maybeOf<Post>(context);
+          if (post == null)
+            return widget.pageSummaryPreviewBuilder?.call(context, index) ??
+                const SizedBox.shrink();
           final ui = page == null ? widget.uiBuilder : page.uiBuilder;
           return switch (ui) {
             null => _buildFallbackPreview(context, index, post),

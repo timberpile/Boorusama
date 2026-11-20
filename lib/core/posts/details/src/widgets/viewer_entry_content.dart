@@ -17,11 +17,13 @@ class ViewerEntryContent extends ConsumerStatefulWidget {
     required this.entry,
     required this.index,
     this.onDisplayed,
+    this.onOpenMember,
     super.key,
   });
   final ViewerEntry entry;
   final int index;
   final VoidCallback? onDisplayed;
+  final ValueChanged<String>? onOpenMember;
   @override
   ConsumerState<ViewerEntryContent> createState() => _ViewerEntryContentState();
 }
@@ -69,6 +71,7 @@ class _ViewerEntryContentState extends ConsumerState<ViewerEntryContent> {
                       prepared: prepared,
                       suspendWhenInactive: true,
                       onDisplayed: widget.onDisplayed,
+                      onOpenMember: widget.onOpenMember,
                     )
                   : ViewerEntryNavigationStatus(
                       child: Text(

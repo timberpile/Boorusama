@@ -148,6 +148,8 @@ final bookmarkUrlResolverProvider = Provider.autoDispose
           const DefaultImageUrlResolver();
     });
 
+enum RelatedOrderCommitResult { applied, alreadyApplied, stale }
+
 class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
   Future<void> _mutationTail = Future.value();
   var _requiresRefresh = false;
@@ -823,6 +825,21 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     RelatedPostsOrder order, {
     BooruConfig? reader,
   }) async {
+    await commitRelatedOrder(bookmarkId, order, reader: reader);
+  }
+
+  Future<RelatedOrderCommitResult> commitRelatedOrder(
+    int bookmarkId,
+    RelatedPostsOrder order, {
+    BooruConfig? reader,
+    Bookmark? expectedRecord,
+    bool Function()? callerCurrent,
+    CancelToken? callerCancellation,
+  }) async {
+    bool callerCanCommit() =>
+        (callerCurrent?.call() ?? true) &&
+        !(callerCancellation?.isCancelled ?? false);
+    if (!callerCanCommit()) return RelatedOrderCommitResult.stale;
     _relatedOrderCancellations
         .remove(bookmarkId)
         ?.cancel('Related order superseded');
@@ -830,17 +847,18 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     _relatedOrderRequests[bookmarkId] = request;
     final library = state.valueOrNull ?? await future;
     final record = library.byId[bookmarkId];
+    if (!callerCanCommit() ||
+        (expectedRecord != null && record != expectedRecord)) {
+      return RelatedOrderCommitResult.stale;
+    }
     final pool = library.pools
         .where((p) => p.bookmarkId == bookmarkId && p.isRelated)
         .firstOrNull;
     if (pool == null)
       throw StateError('The saved Related family no longer exists');
-    final previousOrder = switch (record) {
-      RelatedBookmark(:final preferredOrder) => preferredOrder,
-      LegacyRelatedGroupBookmark(:final preferredOrder) => preferredOrder,
-      _ => null,
-    };
-    if (previousOrder == order) return;
+    if (_savedRelatedOrder(record) == order) {
+      return RelatedOrderCommitResult.alreadyApplied;
+    }
     if (poolCoverHasReceivedMembership(library, pool))
       throw const BookmarkMirrorReadOnly();
     final target = BookmarkReaderRequest(
@@ -871,6 +889,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         selectBookmarkReadProfile(target, [config]) == null)
       throw StateError('Bookmark reader unavailable');
     bool current() =>
+        callerCanCommit() &&
         _relatedOrderRequests[bookmarkId] == request &&
         ref
                 .read(contentAccessContextProvider(access.key))
@@ -878,6 +897,14 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
             true;
     final cancellation = CancelToken();
     _relatedOrderCancellations[bookmarkId] = cancellation;
+    if (callerCancellation != null) {
+      unawaited(
+        callerCancellation.whenCancel.then((_) {
+          if (!cancellation.isCancelled)
+            cancellation.cancel('Related order cancelled');
+        }),
+      );
+    }
     final subscription = ref.listen(contentAccessContextProvider(access.key), (
       _,
       next,
@@ -907,28 +934,53 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       if (identical(_relatedOrderCancellations[bookmarkId], cancellation))
         _relatedOrderCancellations.remove(bookmarkId);
     }
-    if (!current()) return;
+    if (!current()) return RelatedOrderCommitResult.stale;
     final chosen = cover ?? pool.cover;
-    if (chosen == null) {
-      await runSerializedMutation(() async {
-        if (!current() || (await _librarySnapshot).byId[bookmarkId] != record)
-          return;
-        await withBookmarkCommitGuard(
-          () async => (await _service).setRelatedOrder(bookmarkId, order),
-          () {
-            if (!current()) throw StateError('Related order changed');
-          },
-        );
-      });
-      return;
+    try {
+      if (chosen == null) {
+        final wrote = await runSerializedMutation(() async {
+          final service = await _service;
+          final store =
+              service.unifiedStore ??
+              (throw StateError('Unified Bookmark storage unavailable'));
+          return store.runReadWriteScope(() async {
+            if (!current() || await store.read(bookmarkId) != record) {
+              return false;
+            }
+            await withBookmarkCommitGuard(
+              () => service.setRelatedOrder(bookmarkId, order),
+              () {
+                if (!current()) throw StateError('Related order changed');
+              },
+            );
+            return true;
+          });
+        });
+        return wrote
+            ? RelatedOrderCommitResult.applied
+            : RelatedOrderCommitResult.stale;
+      }
+      final wrote = await _patchCollectionCover(
+        pool.copyWith(cover: chosen, coverUrl: chosen.thumbnail),
+        canCommit: current,
+        replaceExisting: true,
+        relatedOrder: order,
+        expectedRecord: record,
+      );
+      return wrote
+          ? RelatedOrderCommitResult.applied
+          : RelatedOrderCommitResult.stale;
+    } catch (_) {
+      final saved = (await _librarySnapshot).byId[bookmarkId];
+      if (record != null &&
+          saved != null &&
+          bookmarkContentIdentity(saved) == bookmarkContentIdentity(record) &&
+          _savedRelatedOrder(saved) == order) {
+        return RelatedOrderCommitResult.applied;
+      }
+      if (!current()) return RelatedOrderCommitResult.stale;
+      rethrow;
     }
-    await _patchCollectionCover(
-      pool.copyWith(cover: chosen, coverUrl: chosen.thumbnail),
-      canCommit: current,
-      replaceExisting: true,
-      relatedOrder: order,
-      expectedRecord: record,
-    );
   }
 
   Future<void> fillMissingNativeWorkCover(
@@ -982,13 +1034,21 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       },
     );
   });
+  static RelatedPostsOrder? _savedRelatedOrder(Bookmark? record) =>
+      switch (record) {
+        RelatedBookmark(:final preferredOrder) => preferredOrder,
+        LegacyRelatedGroupBookmark(:final preferredOrder) => preferredOrder,
+        _ => null,
+      };
 
   Future<void> fillMissingPoolCover(
     CollectionBookmark summary, {
     required bool Function() canCommit,
-  }) => _patchCollectionCover(summary, canCommit: canCommit);
+  }) async {
+    await _patchCollectionCover(summary, canCommit: canCommit);
+  }
 
-  Future<void> _patchCollectionCover(
+  Future<bool> _patchCollectionCover(
     CollectionBookmark summary, {
     required bool Function() canCommit,
     bool replaceExisting = false,
@@ -1011,7 +1071,23 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
               ) ||
           bookmarkEngine(current) != summary.origin.booruType ||
           !canCommit())
-        return;
+        return false;
+      Future<bool> commitPatch(Bookmark patched) =>
+          unified.runReadWriteScope(() async {
+            if (!canCommit() || await unified.read(current.id) != current) {
+              return false;
+            }
+            await withBookmarkCommitGuard(
+              () => unified.commitOrganization(records: [patched]),
+              () {
+                if (!canCommit()) {
+                  throw StateError('Bookmark cover access changed');
+                }
+              },
+            );
+            return true;
+          });
+
       final memberships = (await (await bookmarkGroupRepository).getGroups())
           .where((group) => group.bookmarkIds.contains(current.id));
       final mirrors = storage is BookmarkMirrorReader
@@ -1019,7 +1095,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
           : const BookmarkMirrorState.empty();
       if (memberships.any((group) => mirrors.isReceived(group.id))) {
         if (replaceExisting) throw const BookmarkMirrorReadOnly();
-        return;
+        return false;
       }
       if (current is LegacyGroupBookmark) {
         final updated = replaceExisting
@@ -1032,23 +1108,17 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         Bookmark patched = current.copyWith(metadata: updated);
         if (patched is LegacyRelatedGroupBookmark && relatedOrder != null)
           patched = patched.copyWith(preferredOrder: () => relatedOrder);
-        if (patched == current || !canCommit()) return;
-        await withBookmarkCommitGuard(
-          () => unified.commitOrganization(records: [patched]),
-          () {
-            if (!canCommit()) throw StateError('Bookmark cover access changed');
-          },
-        );
-        return;
+        if (patched == current || !canCommit()) return false;
+        return commitPatch(patched);
       }
       if (current is! ContentGroupBookmark ||
           (!replaceExisting &&
               current.summary.cover?.visibility?.tagCoverage ==
                   MetadataCoverage.complete))
-        return;
+        return false;
       final media = summary.cover;
       final thumbnail = media?.thumbnail ?? summary.coverUrl;
-      if (thumbnail == null || !canCommit()) return;
+      if (thumbnail == null || !canCommit()) return false;
       final old = current.summary;
       final covered = ContentGroupSummary(
         reference: old.reference,
@@ -1098,17 +1168,12 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
       if (patched is RelatedBookmark && relatedOrder != null) {
         patched = patched.copyWith(preferredOrder: () => relatedOrder);
       }
-      await withBookmarkCommitGuard(
-        () => unified.commitOrganization(records: [patched]),
-        () {
-          if (!canCommit()) throw StateError('Pool cover access changed');
-        },
-      );
-      return;
+      return commitPatch(patched);
     }
+    if (relatedOrder != null) return false;
     final repository = await bookmarkGroupRepository;
     final pools = await repository.getPoolBookmarks();
-    if (!canCommit()) return;
+    if (!canCommit()) return false;
     await repository.replacePoolBookmarks([
       for (final pool in pools)
         if (pool.localId == summary.localId &&
@@ -1118,6 +1183,7 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
         else
           pool,
     ]);
+    return true;
   });
 
   Future<void> refreshPoolBookmark(
