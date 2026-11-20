@@ -125,3 +125,32 @@ Do not add a parallel issue queue, user-count guess, migration-result cache or
 new metadata platform. The initial audit is a dated source inventory, not a live
 tracker. Update the relevant policy/schema entry when a new format actually
 ships; old development handoffs are historical evidence, not current authority.
+
+## One final schema increment per public release
+
+Owner decision, 2026-11-20: for each existing persisted/file/protocol contract,
+all changes since the last public release share one final next version (or retain
+the old version if compatible). Do not increment again for each issue or branch.
+A new independent contract starts at 1. Keep the final shape, not a ladder of
+unreleased formats. Do not reset any published schema number, field ID, revision,
+sequence counter or build number to implement this rule.
+
+A reused source-payload version is an alias, not an independent protocol counter:
+MiteMite Following source schema 2 remains 2; its transport protocol is separately
+1. Operations should have operation discriminators, not separate journal versions.
+Preserve strict shape/authority checks when consolidating them.
+
+Run `python3 scripts/audit_schema_versions.py --baseline <published-tag> --candidate
+<committed-candidate> --inventory` before release qualification. The read-only
+checker derives limits from Git blobs using `scripts/schema_contracts.json`;
+its baseline is pinned to reviewed release evidence. A new public release requires
+reviewing the catalog's source locators and baseline, not raising ceilings to
+silence failures. Review changed unregistered markers reported by `--inventory`.
+The check is intentionally a source-level aid, not proof of semantic compatibility,
+complete persistence inventory, old-writer fixture provenance or successful migration.
+
+The [2026-11-20 audit](schema_version_audit_2026-11-20.md) and
+[local implementation handoff](handoffs/schema-version-consolidation.md) identify
+current violations and cleanup order. Until production upgrade/import/reopen
+and crash-recovery tests prove the direct path, prepare the cleanup but do not
+silently delete data or claim that numeric renumbering fixed the migration.
