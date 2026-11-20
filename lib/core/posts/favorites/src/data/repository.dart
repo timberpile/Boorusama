@@ -17,13 +17,13 @@ class EmptyFavoriteRepository extends FavoriteRepository<Post> {
   bool isPostFavorited(Post post) => false;
 }
 
-class FavoriteRepositoryBuilder<T extends Post>
-    implements FavoriteRepository<T> {
+class FavoriteRepositoryBuilder<T extends Post> extends FavoriteRepository<T> {
   FavoriteRepositoryBuilder({
     required this.add,
     required this.remove,
     required this.isFavorited,
     required bool Function() canFavorite,
+    this.needsWebsiteLogin = false,
     this.filter,
   }) : _canFavorite = canFavorite;
 
@@ -32,6 +32,9 @@ class FavoriteRepositoryBuilder<T extends Post>
   final bool Function(T post) isFavorited;
   final bool Function() _canFavorite;
   final Future<List<int>> Function(List<int> postIds)? filter;
+
+  @override
+  final bool needsWebsiteLogin;
 
   @override
   bool canFavorite() => _canFavorite();

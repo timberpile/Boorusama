@@ -54,6 +54,12 @@ final canFavoriteProvider = Provider.family<bool, BooruConfigAuth>((
   return ref.watch(favoriteRepoProvider(config)).canFavorite();
 });
 
+final favoriteNeedsWebsiteLoginProvider =
+    Provider.family<bool, BooruConfigAuth>(
+      (ref, config) =>
+          ref.watch(favoriteRepoProvider(config)).needsWebsiteLogin,
+    );
+
 class FavoritesNotifier
     extends FamilyNotifier<IMap<int, bool>, BooruConfigAuth> {
   @override
@@ -90,16 +96,30 @@ class FavoritesNotifier
     state = cache.lock;
   }
 
+  Future<bool> setFavorite(
+    int postId, {
+    required bool favorited,
+    String? profileId,
+  }) async => favorited
+      ? (await add(postId, profileId: profileId)).confirmed
+      : remove(postId, profileId: profileId);
+
   Future<AddFavoriteStatus> add(int postId, {String? profileId}) async {
-    if (state[postId] ?? false) return AddFavoriteStatus.alreadyExists;
+    final repository = _mutationRepo(profileId);
+    if (repository.needsWebsiteLogin) {
+      throw FavoriteActionFailure.websiteLoginRequired;
+    }
+    if (state[postId] ?? false) {
+      return _mutations.isPending(postId)
+          ? AddFavoriteStatus.failure
+          : AddFavoriteStatus.alreadyExists;
+    }
     final operation = _mutations.start(postId, state[postId], true);
     state = state.add(postId, true);
     var acknowledged = false;
     try {
-      final status = await _mutationRepo(profileId).addToFavorites(postId);
-      acknowledged =
-          status == AddFavoriteStatus.success ||
-          status == AddFavoriteStatus.alreadyExists;
+      final status = await repository.addToFavorites(postId);
+      acknowledged = status.confirmed;
       return status;
     } finally {
       _finish(postId, operation, acknowledged: acknowledged);
@@ -107,13 +127,16 @@ class FavoritesNotifier
   }
 
   Future<bool> remove(int postId, {String? profileId}) async {
-    if (state[postId] == false) return true;
+    final repository = _mutationRepo(profileId);
+    if (repository.needsWebsiteLogin) {
+      throw FavoriteActionFailure.websiteLoginRequired;
+    }
+    if (state[postId] == false) return !_mutations.isPending(postId);
     final operation = _mutations.start(postId, state[postId], false);
     state = state.add(postId, false);
     var acknowledged = false;
     try {
-      return acknowledged = await _mutationRepo(profileId)
-          .removeFromFavorites(postId);
+      return acknowledged = await repository.removeFromFavorites(postId);
     } on FavoriteCompletedWithInterruption catch (error) {
       acknowledged = true;
       if (reportCompletedFavoriteInterruption(error)) return true;

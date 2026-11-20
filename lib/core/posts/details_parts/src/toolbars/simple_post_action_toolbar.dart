@@ -11,6 +11,7 @@ import '../../../../widgets/adaptive_button_row.dart';
 import '../../../../widgets/booru_menu_button_row.dart';
 import '../../../details/types.dart';
 import '../../../favorites/providers.dart';
+import '../../../favorites/types.dart';
 import '../../../favorites/widgets.dart';
 import '../../../post/types.dart';
 import '../../../shares/widgets.dart';
@@ -139,13 +140,19 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
     final isFaved = ref.watch(favoriteProvider((config, post.id)));
     final notifier = ref.watch(favoritesProvider(config).notifier);
     final canFavorite = ref.watch(canFavoriteProvider(config));
+    final needsWebsiteLogin = ref.watch(
+      favoriteNeedsWebsiteLoginProvider(config),
+    );
     final isAuthorized = loginDetails.hasLogin();
-    final addFavorite = canFavorite
-        ? () => notifier.add(post.id, profileId: ref.readConfig.id)
-        : null;
-    final removeFavorite = canFavorite
-        ? () => notifier.remove(post.id, profileId: ref.readConfig.id)
-        : null;
+    final profileId = ref.watchConfig.id;
+    Future<void> setFavorite(bool favorited) async {
+      final confirmed = await notifier.setFavorite(
+        post.id,
+        favorited: favorited,
+        profileId: profileId,
+      );
+      if (!confirmed) throw FavoriteActionFailure.unconfirmed;
+    }
 
     return SimplePostActionToolbar<T>(
       post: post,
@@ -153,14 +160,17 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
       onStartSlideshow: PostDetailsPageViewScope.of(context).startSlideshow,
       favoriteButton:
           (!forceHideFav &&
-              isAuthorized &&
-              addFavorite != null &&
-              removeFavorite != null)
+              ((isAuthorized && canFavorite) || needsWebsiteLogin))
           ? FavoritePostButton(
+              key: ValueKey((config.computeHash(), profileId, post.id)),
               isFaved: isFaved,
-              isAuthorized: isAuthorized,
-              addFavorite: addFavorite,
-              removeFavorite: removeFavorite,
+              isAuthorized: true,
+              isCurrent: () =>
+                  context.mounted &&
+                  ref.readConfigAuth == config &&
+                  ref.readConfig.id == profileId,
+              addFavorite: () => setFavorite(true),
+              removeFavorite: () => setFavorite(false),
             )
           : null,
     );

@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:booru_clients/gelbooru.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -78,29 +79,54 @@ final gelbooruV2FavoriteRepoProvider =
     Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(gelbooruV2ClientProvider(config));
+        final isRule34 = GelbooruV2Client.isRule34Website(config.url);
 
         return FavoriteRepositoryBuilder(
-          add: (postId) => client
-              .addFavorite(postId: postId)
-              .then(
-                (value) => switch (value) {
-                  GelbooruFavoriteStatus.success => AddFavoriteStatus.success,
-                  GelbooruFavoriteStatus.alreadyFavorited =>
-                    AddFavoriteStatus.alreadyExists,
-                  _ => AddFavoriteStatus.failure,
-                },
-              ),
-          remove: (postId) => client
-              .removeFavorite(postId: postId)
-              .then((value) => true)
-              .catchError((Object e) {
-                if (isFavoriteRequestInterruption(e)) {
-                  Error.throwWithStackTrace(e, StackTrace.current);
-                }
-                return false;
-              }),
+          add: (postId) async {
+            try {
+              return switch (await client.addFavorite(postId: postId)) {
+                GelbooruFavoriteStatus.success => AddFavoriteStatus.success,
+                GelbooruFavoriteStatus.alreadyFavorited =>
+                  AddFavoriteStatus.alreadyExists,
+                GelbooruFavoriteStatus.userNotLoggedIn when isRule34 =>
+                  throw _websiteLoginFailure(client),
+                _ => AddFavoriteStatus.failure,
+              };
+            } on DioException catch (error) {
+              if (!isRule34 || isFavoriteRequestInterruption(error)) rethrow;
+              if (error.response?.statusCode == 401) {
+                throw _websiteLoginFailure(client);
+              }
+              return AddFavoriteStatus.failure;
+            }
+          },
+          remove: (postId) async {
+            try {
+              await client.removeFavorite(postId: postId);
+              return true;
+            } on GelbooruFavoriteException catch (error) {
+              if (error.status == GelbooruFavoriteStatus.userNotLoggedIn) {
+                throw _websiteLoginFailure(client);
+              }
+              return false;
+            } catch (error) {
+              if (isFavoriteRequestInterruption(error)) rethrow;
+              if (isRule34 &&
+                  error is DioException &&
+                  error.response?.statusCode == 401) {
+                throw _websiteLoginFailure(client);
+              }
+              return false;
+            }
+          },
           isFavorited: (post) => false,
           canFavorite: () => client.canFavorite,
+          needsWebsiteLogin: client.needsWebsiteLogin,
         );
       },
     );
+
+FavoriteActionFailure _websiteLoginFailure(GelbooruV2Client client) =>
+    client.needsWebsiteLogin
+    ? FavoriteActionFailure.websiteLoginRequired
+    : FavoriteActionFailure.websiteSessionRejected;

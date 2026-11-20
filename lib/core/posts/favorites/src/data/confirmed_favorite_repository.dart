@@ -21,6 +21,9 @@ class ConfirmedFavoriteRepository<T extends Post>
   final void Function(Object error) onProjectionError;
 
   @override
+  bool get needsWebsiteLogin => delegate.needsWebsiteLogin;
+
+  @override
   bool canFavorite() => delegate.canFavorite();
 
   @override
@@ -61,8 +64,7 @@ class ConfirmedFavoriteRepository<T extends Post>
       await _apply(prepared);
       rethrow;
     }
-    if (result == AddFavoriteStatus.success ||
-        result == AddFavoriteStatus.alreadyExists) {
+    if (result.confirmed) {
       await _apply(prepared);
     }
     return result;

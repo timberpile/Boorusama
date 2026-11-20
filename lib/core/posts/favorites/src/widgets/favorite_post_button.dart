@@ -17,6 +17,7 @@ class FavoritePostButton extends StatelessWidget {
     required this.isAuthorized,
     required this.addFavorite,
     required this.removeFavorite,
+    this.isCurrent,
     super.key,
   });
 
@@ -24,6 +25,7 @@ class FavoritePostButton extends StatelessWidget {
   final bool isAuthorized;
   final Future<void> Function() addFavorite;
   final Future<void> Function() removeFavorite;
+  final bool Function()? isCurrent;
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +46,13 @@ class FavoritePostButton extends StatelessWidget {
 
                   return;
                 }
-                if (isFaved!) {
-                  unawaited(runFavoriteAction(context, removeFavorite));
-                } else {
-                  unawaited(runFavoriteAction(context, addFavorite));
-                }
+                unawaited(
+                  runFavoriteAction(
+                    context,
+                    isFaved! ? removeFavorite : addFavorite,
+                    isCurrent: isCurrent,
+                  ),
+                );
               }
             : null,
         icon: (isFaved ?? false)

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 
 // Project imports:
@@ -47,7 +48,9 @@ class DioProtectionInterceptor extends Interceptor {
         retry: _isProtectionRetry(options),
         backend: _dio.httpClientAdapter.runtimeType.toString(),
       ),
-      sensitive: ProtectionRequestDetails(options.uri),
+      sensitive: options.extra[privateRequestDiagnosticsKey] == true
+          ? null
+          : ProtectionRequestDetails(options.uri),
     );
     try {
       final headers = await _protectionHandler.prepareRequestHeaders(

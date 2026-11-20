@@ -33,8 +33,10 @@ class LoggingInterceptor extends Interceptor {
 
     logger.info(
       'Network',
-      'Sending ${options.method} to ${redactLogUri(options.uri)}',
-      sensitiveMessage: 'Sending ${options.method} to ${options.uri}',
+      'Sending ${options.method} to ${_logUri(options)}',
+      sensitiveMessage: _privateDiagnostics(options)
+          ? null
+          : 'Sending ${options.method} to ${options.uri}',
     );
     requestTimeLogs[options.uri.toString()] = DateTime.now();
     super.onRequest(options, handler);
@@ -54,9 +56,10 @@ class LoggingInterceptor extends Interceptor {
 
     logger.info(
       'Network',
-      'Completed ${response.requestOptions.method} to ${redactLogUri(response.requestOptions.uri)} with status: ${response.statusCodeOrZero}$durationText$serverRuntimeText',
-      sensitiveMessage:
-          'Completed ${response.requestOptions.method} to ${response.requestOptions.uri} with status: ${response.statusCodeOrZero}$durationText$serverRuntimeText',
+      'Completed ${response.requestOptions.method} to ${_logUri(response.requestOptions)} with status: ${response.statusCodeOrZero}$durationText$serverRuntimeText',
+      sensitiveMessage: _privateDiagnostics(response.requestOptions)
+          ? null
+          : 'Completed ${response.requestOptions.method} to ${response.requestOptions.uri} with status: ${response.statusCodeOrZero}$durationText$serverRuntimeText',
     );
     super.onResponse(response, handler);
   }
@@ -76,15 +79,18 @@ class LoggingInterceptor extends Interceptor {
     if (response != null) {
       logger.info(
         'Network',
-        'Completed ${response.requestOptions.method} to ${redactLogUri(response.requestOptions.uri)} with status: ${response.statusCodeOrZero}, body [OMITTED]$durationText',
-        sensitiveMessage:
-            'Completed ${response.requestOptions.method} to ${response.requestOptions.uri} with status: ${response.statusCodeOrZero}, body ${response.data}$durationText',
+        'Completed ${response.requestOptions.method} to ${_logUri(response.requestOptions)} with status: ${response.statusCodeOrZero}, body [OMITTED]$durationText',
+        sensitiveMessage: _privateDiagnostics(response.requestOptions)
+            ? null
+            : 'Completed ${response.requestOptions.method} to ${response.requestOptions.uri} with status: ${response.statusCodeOrZero}, body ${response.data}$durationText',
       );
     } else {
       logger.error(
         'Network',
-        'Request to ${redactLogUri(err.requestOptions.uri)} failed: ${err.type.name}',
-        sensitiveMessage: 'Completed with error: ${err.message}',
+        'Request to ${_logUri(err.requestOptions)} failed: ${err.type.name}',
+        sensitiveMessage: _privateDiagnostics(err.requestOptions)
+            ? null
+            : 'Completed with error: ${err.message}',
       );
     }
     super.onError(err, handler);
@@ -99,6 +105,13 @@ class LoggingInterceptor extends Interceptor {
     return DateTime.now().difference(startTime);
   }
 }
+
+bool _privateDiagnostics(RequestOptions options) =>
+    options.extra[privateRequestDiagnosticsKey] == true;
+
+String _logUri(RequestOptions options) => _privateDiagnostics(options)
+    ? '${options.uri.origin}${options.uri.path}'
+    : redactLogUri(options.uri);
 
 String _parseServerRuntime(String? value) {
   if (value == null) return '';

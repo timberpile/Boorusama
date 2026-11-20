@@ -1579,7 +1579,12 @@
     },
     "update": {
       "success": "Favorites updated",
-      "failure": "Failed to update favorites"
+      "failure": "Failed to update favorites",
+      "added": "Added to favorites",
+      "removed": "Removed from favorites",
+      "website_login_required": "Website login required. Use Login with Browser in this profile’s authentication settings.",
+      "website_session_rejected": "Your website session was rejected or expired. Use Re-login in this profile’s authentication settings.",
+      "website_session_import_failed": "Sign in with the Rule34 website account that matches this profile’s user ID, then import the session again."
     }
   },
   "favorite_groups": {

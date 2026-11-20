@@ -1,7 +1,10 @@
 // Package imports:
 import 'package:booru_clients/core.dart' as c;
+import 'package:booru_clients/gelbooru.dart';
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
@@ -48,6 +51,7 @@ class CreateGelbooruV2ConfigPage extends StatelessWidget {
       backgroundColor: backgroundColor,
       authTab: GelbooruV2AuthView(
         authConfig: c.GelbooruV2Config.siteCapabilities(url).auth,
+        requireMatchingWebsiteSession: GelbooruV2Client.isRule34Website(url),
       ),
       gestureTab: BooruConfigGesturesView(
         previewGestureActions: _kGelbooruV2PreviewGestureActions,
@@ -70,10 +74,12 @@ class CreateGelbooruV2ConfigPage extends StatelessWidget {
 class GelbooruV2AuthView extends ConsumerStatefulWidget {
   const GelbooruV2AuthView({
     this.authConfig,
+    this.requireMatchingWebsiteSession = false,
     super.key,
   });
 
   final c.AuthConfig? authConfig;
+  final bool requireMatchingWebsiteSession;
 
   @override
   ConsumerState<GelbooruV2AuthView> createState() => _GelbooruV2AuthViewState();
@@ -100,6 +106,31 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
     super.dispose();
     loginController.dispose();
     apiKeyController.dispose();
+  }
+
+  void _importWebsiteSession(List<dynamic> cookies) {
+    final userId = cookies
+        .firstWhereOrNull((cookie) => cookie.name == 'user_id')
+        ?.value;
+    final passHash = cookies
+        .firstWhereOrNull((cookie) => cookie.name == 'pass_hash')
+        ?.value;
+    final apiUserId = loginController.text.trim();
+    if (userId is! String ||
+        userId.trim().isEmpty ||
+        passHash is! String ||
+        passHash.trim().isEmpty ||
+        (apiUserId.isNotEmpty && apiUserId != userId)) {
+      Kurumi.showErrorToast(
+        context,
+        context.t.favorites.update.website_session_import_failed,
+      );
+      return;
+    }
+
+    ref.editNotifier.updateLogin(userId);
+    ref.editNotifier.updatePassHash(passHash);
+    loginController.text = userId;
   }
 
   @override
@@ -151,6 +182,9 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
             AdvancedAuthSection(
               loginController: loginController,
               getLoginUrl: () => loginUrl,
+              onGetCookies: widget.requireMatchingWebsiteSession
+                  ? _importWebsiteSession
+                  : null,
               showWarningContainer: passHash != null,
               warningTitle: context
                   .t
