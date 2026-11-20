@@ -138,7 +138,11 @@ void main() {
         'id': '17',
         'cid': '23',
       });
-      expect(request.headers['Cookie'], contains('user_id=fixture-user'));
+      expect(
+        request.headers['Cookie'],
+        'r34_uid=42.fake-signature; __Host-session=fixture-session',
+      );
+      expect(request.followRedirects, false);
     });
   }
 
@@ -177,8 +181,11 @@ GelbooruCommentActionClient _rule34Client(Dio dio) =>
     GelbooruCommentActionClient(
       dio: dio,
       baseUrl: 'https://rule34.xxx',
-      userId: 'fixture-user',
-      passHash: 'fixture-session',
+      userId: '42',
+      passHash: Rule34WebsiteSession.fromCookies(
+        signedUserId: '42.fake-signature',
+        token: 'fixture-session',
+      )!.toStoredValue(),
       actions: {
         'upvote': FeatureActionEndpoint(
           name: 'upvote',

@@ -1,4 +1,5 @@
 import 'package:booru_clients/generated.dart';
+import 'package:booru_clients/gelbooru.dart';
 import 'package:boorusama/boorus/gelbooru_v2/client_provider.dart';
 import 'package:boorusama/boorus/gelbooru_v2/favorites/providers.dart';
 import 'package:boorusama/boorus/gelbooru_v2/gelbooru_v2.dart';
@@ -199,6 +200,14 @@ void main() {
     expect(requests.last.uri.queryParameters['s'], 'view');
   });
 
+  test('a legacy Rule34 pass hash requires a new browser sign-in', () {
+    final auth = _auth(passHash: 'fake-legacy-hash', legacy: true);
+    expect(ApiAndCookieBasedLoginDetails(config: auth).hasLogin(), true);
+    expect(container.read(canFavoriteProvider(auth)), false);
+    expect(container.read(favoriteNeedsWebsiteLoginProvider(auth)), true);
+    expect(requests, isEmpty);
+  });
+
   test('an interceptor-rejected 401 prompts relogin', () async {
     final auth = _auth(passHash: 'fake-session');
     final notifier = container.read(favoritesProvider(auth).notifier);
@@ -237,6 +246,7 @@ BooruConfigAuth _auth({
   String site = 'rule34.xxx',
   String? passHash,
   String? apiKey = 'fake-api-key',
+  bool legacy = false,
 }) => BooruConfig.fromJson({
   ...BooruConfig.defaultConfig(
     booruType: BooruType.gelbooruV2,
@@ -246,5 +256,10 @@ BooruConfigAuth _auth({
   'id': '00000000-0000-4000-8000-000000000042',
   'login': '42',
   'apiKey': apiKey,
-  'passHash': passHash,
+  'passHash': site == 'rule34.xxx' && passHash != null && !legacy
+      ? Rule34WebsiteSession.fromCookies(
+          signedUserId: '42.fake-signature',
+          token: passHash,
+        )!.toStoredValue()
+      : passHash,
 }).auth;

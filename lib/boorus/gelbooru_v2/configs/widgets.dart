@@ -1,10 +1,9 @@
 // Package imports:
 import 'package:booru_clients/core.dart' as c;
 import 'package:booru_clients/gelbooru.dart';
-import 'package:collection/collection.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
@@ -31,6 +30,11 @@ const _kGelbooruV2FullviewGestureActions = {
   ...kDefaultFullviewActions,
   ..._kGelbooruV2SpecificGestureActions,
 };
+
+final _rule34CookieRequestUris = [
+  Rule34WebsiteSession.addFavoriteUri,
+  Rule34WebsiteSession.indexUri,
+];
 
 class CreateGelbooruV2ConfigPage extends StatelessWidget {
   const CreateGelbooruV2ConfigPage({
@@ -108,30 +112,33 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
     apiKeyController.dispose();
   }
 
-  void _importWebsiteSession(List<dynamic> cookies) {
-    final userId = cookies
-        .firstWhereOrNull((cookie) => cookie.name == 'user_id')
-        ?.value;
-    final passHash = cookies
-        .firstWhereOrNull((cookie) => cookie.name == 'pass_hash')
-        ?.value;
+  String? _importWebsiteSession(List<Cookie> cookies) {
+    final userIds = _cookieValues(cookies, Rule34WebsiteSession.userIdCookie);
+    final tokens = _cookieValues(cookies, Rule34WebsiteSession.sessionCookie);
+    final messages = context.t.favorites.update;
+    if (userIds.length != 1 || tokens.length != 1) {
+      return messages.website_session_missing;
+    }
+    final session = Rule34WebsiteSession.fromCookies(
+      signedUserId: userIds.single,
+      token: tokens.single,
+    );
+    if (session == null) return messages.website_session_missing;
     final apiUserId = loginController.text.trim();
-    if (userId is! String ||
-        userId.trim().isEmpty ||
-        passHash is! String ||
-        passHash.trim().isEmpty ||
-        (apiUserId.isNotEmpty && apiUserId != userId)) {
-      Kurumi.showErrorToast(
-        context,
-        context.t.favorites.update.website_session_import_failed,
-      );
-      return;
+    if (apiUserId.isNotEmpty && apiUserId != session.userId) {
+      return messages.website_session_import_failed;
     }
 
-    ref.editNotifier.updateLogin(userId);
-    ref.editNotifier.updatePassHash(passHash);
-    loginController.text = userId;
+    ref.editNotifier.updateLogin(session.userId);
+    ref.editNotifier.updatePassHash(session.toStoredValue());
+    loginController.text = session.userId;
+    return null;
   }
+
+  Set<String> _cookieValues(List<Cookie> cookies, String name) => {
+    for (final cookie in cookies)
+      if (cookie.name == name && cookie.value.trim().isNotEmpty) cookie.value,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -140,11 +147,14 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
       final String key when key.isNotEmpty => context.t[key],
       _ => context.t.booru.api_key_instructions.variants_2,
     };
-    final passHash = ref.watch(
+    final (userId, passHash) = ref.watch(
       editBooruConfigProvider(
         ref.watch(editBooruConfigIdProvider),
-      ).select((value) => value.passHash),
+      ).select((value) => (value.login, value.passHash)),
     );
+    final websiteSessionPresent = widget.requireMatchingWebsiteSession
+        ? Rule34WebsiteSession.fromStoredValue(passHash, userId: userId) != null
+        : null;
     final authRequired = authConfig?.required ?? false;
 
     return SingleChildScrollView(
@@ -182,10 +192,14 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
             AdvancedAuthSection(
               loginController: loginController,
               getLoginUrl: () => loginUrl,
-              onGetCookies: widget.requireMatchingWebsiteSession
+              importCookies: widget.requireMatchingWebsiteSession
                   ? _importWebsiteSession
                   : null,
-              showWarningContainer: passHash != null,
+              cookieRequestUris: widget.requireMatchingWebsiteSession
+                  ? _rule34CookieRequestUris
+                  : null,
+              websiteSessionPresent: websiteSessionPresent,
+              showWarningContainer: websiteSessionPresent ?? passHash != null,
               warningTitle: context
                   .t
                   .booru

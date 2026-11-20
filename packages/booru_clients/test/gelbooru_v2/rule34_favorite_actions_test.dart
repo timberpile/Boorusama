@@ -8,6 +8,8 @@ import 'package:test/test.dart';
 const _login = '/index.php?page=account&s=login&code=00';
 const _loginPage = '<form action="$_login"><input type="password"></form>';
 
+const _storedSession = 'rule34-session-v1:42:42.fake-signature;fake-session';
+
 void main() {
   late _Adapter adapter;
   late Dio dio;
@@ -22,7 +24,7 @@ void main() {
   GelbooruV2Client client({
     String baseUrl = 'https://RULE34.XXX/',
     String? userId = '42',
-    String? passHash = 'fake-session',
+    String? passHash = _storedSession,
   }) => GelbooruV2Client(
     baseUrl: baseUrl,
     dio: dio,
@@ -48,12 +50,16 @@ void main() {
       expect(request.uri.origin, 'https://rule34.xxx');
       expect(request.uri.path, '/public/addfav.php');
       expect(request.uri.queryParameters, {'id': '7'});
-      expect(request.headers['Cookie'], 'user_id=42; pass_hash=fake-session');
+      expect(
+        request.headers['Cookie'],
+        'r34_uid=42.fake-signature; __Host-session=fake-session',
+      );
       expect(request.headers['Referer'], 'https://rule34.xxx');
       expect(request.followRedirects, false);
       expect(request.responseType, ResponseType.plain);
       expect(request.extra[stateChangingRequestKey], true);
       expect(request.extra[privateRequestDiagnosticsKey], true);
+      expect(request.extra[preferRequestCookiesKey], true);
     });
   }
 
@@ -80,7 +86,7 @@ void main() {
     (302, 'https://api.rule34.xxx$_login', GelbooruFavoriteStatus.failed),
     (302, 'https://other.invalid/', GelbooruFavoriteStatus.failed),
     (401, null, GelbooruFavoriteStatus.userNotLoggedIn),
-    (403, null, GelbooruFavoriteStatus.userNotLoggedIn),
+    (403, null, GelbooruFavoriteStatus.failed),
   ]) {
     test('add rejects $status to ${location ?? "no redirect"}', () async {
       adapter.responses.add(
@@ -152,8 +158,12 @@ void main() {
     ('42', ' '),
     (null, 'fake-session'),
     (' ', 'fake-session'),
+    ('42', 'fake-legacy-pass-hash'),
+    ('43', _storedSession),
+    ('42', 'rule34-session-v1:42:42.fake-signature;invalid;cookie'),
+    ('42', 'rule34-session-v1:42:43.fake-signature;fake-session'),
   ]) {
-    test('missing or blank website session prevents both mutations', () async {
+    test('invalid website session prevents both mutations', () async {
       final r34 = client(userId: userId, passHash: passHash);
       expect(r34.needsWebsiteLogin, true);
       expect(r34.canFavorite, false);
@@ -191,7 +201,10 @@ void main() {
       ]);
       for (final request in adapter.requests) {
         expect(request.uri.origin, 'https://rule34.xxx');
-        expect(request.headers['Cookie'], 'user_id=42; pass_hash=fake-session');
+        expect(
+          request.headers['Cookie'],
+          'r34_uid=42.fake-signature; __Host-session=fake-session',
+        );
         expect(request.followRedirects, false);
         expect(request.uri.queryParameters.containsKey('api_key'), false);
         expect(request.extra[privateRequestDiagnosticsKey], true);

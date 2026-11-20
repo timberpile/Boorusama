@@ -53,6 +53,9 @@ class DioProtectionInterceptor extends Interceptor {
           : ProtectionRequestDetails(options.uri),
     );
     try {
+      final requestCookie = options.extra[preferRequestCookiesKey] == true
+          ? options.headers['cookie']?.toString()
+          : null;
       final headers = await _protectionHandler.prepareRequestHeaders(
         options.uri,
         options.headers.map((k, v) => MapEntry(k, v.toString())),
@@ -60,6 +63,12 @@ class DioProtectionInterceptor extends Interceptor {
       );
 
       options.headers.addAll(headers);
+      if (requestCookie != null) {
+        options.headers['cookie'] = CookieUtils.mergeCookieHeaders(
+          options.headers['cookie']?.toString() ?? '',
+          requestCookie,
+        );
+      }
     } catch (e) {
       attempt.record(
         ProtectionOperationFailed(

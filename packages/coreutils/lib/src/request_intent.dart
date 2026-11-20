@@ -9,3 +9,6 @@ const stateChangingRequestExtra = <String, Object?>{
 
 /// Omits query parameters and server content from request diagnostics.
 const privateRequestDiagnosticsKey = 'coreutils.private_request_diagnostics';
+
+/// Preserves the request's profile cookies when protection cookies are added.
+const preferRequestCookiesKey = 'coreutils.prefer_request_cookies';

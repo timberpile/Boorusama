@@ -11,6 +11,7 @@ import '../gelbooru/gelbooru_client_favorites.dart';
 import '../gelbooru/types/types.dart';
 import 'parsers/parsers.dart';
 import 'rule34_favorite_actions.dart';
+import 'rule34_website_session.dart';
 import 'types.dart';
 
 class GelbooruV2Client with GelbooruClientFavorites {
@@ -72,7 +73,10 @@ class GelbooruV2Client with GelbooruClientFavorites {
        _baseUrl = baseUrl ?? '',
        _config = config ?? defaultEndpoints() {
     if (isRule34Website(_baseUrl)) {
-      _rule34Favorites = Rule34FavoriteActions(_dio, userId, passHash);
+      _rule34Favorites = Rule34FavoriteActions(
+        _dio,
+        Rule34WebsiteSession.fromStoredValue(passHash, userId: userId),
+      );
     }
     _requestHandler = RequestHandler(
       dio: _dio,
@@ -108,7 +112,7 @@ class GelbooruV2Client with GelbooruClientFavorites {
   Dio get dio => _dio;
 
   static bool isRule34Website(String url) =>
-      Uri.tryParse(url)?.host == 'rule34.xxx';
+      Rule34WebsiteSession.isWebsite(url);
 
   bool get needsWebsiteLogin => _rule34Favorites?.hasSession == false;
 
