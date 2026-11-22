@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
@@ -11,8 +12,6 @@ import '../../../../configs/providers.dart';
 import '../../../../users/user/providers.dart';
 import '../../../post/types.dart';
 import '../../../votes/providers.dart';
-import '../types/favorite.dart';
-import 'parser.dart';
 
 final danbooruFavoriteRepoProvider =
     Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
@@ -51,28 +50,35 @@ final danbooruFavoriteRepoProvider =
 
             return success;
           },
-          isFavorited: (post) => false,
           canFavorite: () => loginDetails.hasLogin(),
           filter: (postIds) async {
             final user = await ref.read(
               danbooruCurrentUserProvider(config).future,
             );
-            if (user == null) throw Exception('Current User not found');
+            if (user == null) return null;
 
-            final favorites = await client
-                .filterFavoritesFromUserId(
-                  postIds: postIds,
+            final result = <int>[];
+            try {
+              for (final batch in postIds.slices(100)) {
+                final favorites = await client.filterFavoritesFromUserId(
+                  postIds: batch,
                   userId: user.id,
-                )
-                .then((value) => value.map(favoriteDtoToFavorite).toList())
-                .catchError((Object obj) {
-                  if (isFavoriteRequestInterruption(obj)) {
-                    Error.throwWithStackTrace(obj, StackTrace.current);
+                );
+                final ids = <int>{};
+                for (final favorite in favorites) {
+                  if (favorite.userId != user.id ||
+                      !batch.contains(favorite.postId) ||
+                      !ids.add(favorite.postId)) {
+                    return null;
                   }
-                  return <Favorite>[];
-                });
-
-            return favorites.map((f) => f.postId).toList();
+                }
+                result.addAll(ids);
+              }
+              return result;
+            } catch (error) {
+              if (isFavoriteRequestInterruption(error)) rethrow;
+              return null;
+            }
           },
         );
       },

@@ -1,6 +1,5 @@
 import '../../../configs/providers.dart';
 import '../../../../../core/configs/config/types.dart';
-import '../../../../../core/configs/manage/providers.dart';
 import '../../../../../core/posts/listing/src/types/post_action_snapshot.dart';
 import '../../../../../core/posts/listing/src/widgets/post_actions.dart';
 import '../../../../../core/widgets/multi_select_button.dart';
@@ -75,8 +74,9 @@ List<Widget> buildDanbooruSinglePostActions(
   final profile = ref.watchConfig;
   final login = ref.watch(danbooruLoginDetailsProvider(profile.auth));
   final snapshot = PostActionSnapshot.watch(ref, [post]);
+  final container = ProviderScope.containerOf(context, listen: false);
   void execute(VoidCallback action) {
-    if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
+    if (!snapshot.isCurrent(container)) {
       Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
       return;
     }

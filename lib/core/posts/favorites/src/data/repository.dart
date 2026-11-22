@@ -12,26 +12,26 @@ class EmptyFavoriteRepository extends FavoriteRepository<Post> {
 
   @override
   Future<bool> removeFromFavorites(int postId) async => false;
-
-  @override
-  bool isPostFavorited(Post post) => false;
 }
 
-class FavoriteRepositoryBuilder<T extends Post>
-    implements FavoriteRepository<T> {
+class FavoriteRepositoryBuilder<T extends Post> extends FavoriteRepository<T> {
   FavoriteRepositoryBuilder({
     required this.add,
     required this.remove,
-    required this.isFavorited,
+    this.isFavorited,
     required bool Function() canFavorite,
+    this.needsWebsiteLogin = false,
     this.filter,
   }) : _canFavorite = canFavorite;
 
   final Future<AddFavoriteStatus> Function(int postId) add;
   final Future<bool> Function(int postId) remove;
-  final bool Function(T post) isFavorited;
+  final bool? Function(T post)? isFavorited;
   final bool Function() _canFavorite;
-  final Future<List<int>> Function(List<int> postIds)? filter;
+  final Future<List<int>?> Function(List<int> postIds)? filter;
+
+  @override
+  final bool needsWebsiteLogin;
 
   @override
   bool canFavorite() => _canFavorite();
@@ -47,15 +47,12 @@ class FavoriteRepositoryBuilder<T extends Post>
   }
 
   @override
-  bool isPostFavorited(T post) {
-    return isFavorited(post);
-  }
+  bool? isPostFavorited(T post) => isFavorited?.call(post);
 
   @override
-  Future<List<int>> filterFavoritedPosts(List<int> postIds) async {
-    if (filter != null) {
-      return filter!(postIds);
-    }
-    return [];
-  }
+  bool get supportsFavoriteLookup => filter != null;
+
+  @override
+  Future<List<int>?> filterFavoritedPosts(List<int> postIds) async =>
+      filter?.call(postIds);
 }

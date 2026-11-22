@@ -10,6 +10,8 @@ import '../common/request_handler.dart';
 import '../gelbooru/gelbooru_client_favorites.dart';
 import '../gelbooru/types/types.dart';
 import 'parsers/parsers.dart';
+import 'rule34_favorite_actions.dart';
+import 'rule34_website_session.dart';
 import 'types.dart';
 
 class GelbooruV2Client with GelbooruClientFavorites {
@@ -70,6 +72,12 @@ class GelbooruV2Client with GelbooruClientFavorites {
   }) : _dio = dio ?? Dio(BaseOptions(baseUrl: '', headers: headers ?? {})),
        _baseUrl = baseUrl ?? '',
        _config = config ?? defaultEndpoints() {
+    if (isRule34Website(_baseUrl)) {
+      _rule34Favorites = Rule34FavoriteActions(
+        _dio,
+        Rule34WebsiteSession.fromStoredValue(passHash, userId: userId),
+      );
+    }
     _requestHandler = RequestHandler(
       dio: _dio,
       baseUrl: _baseUrl,
@@ -93,6 +101,7 @@ class GelbooruV2Client with GelbooruClientFavorites {
   final String _baseUrl;
   final EndpointConfig _config;
   late final RequestHandler _requestHandler;
+  Rule34FavoriteActions? _rule34Favorites;
 
   @override
   final String? userId;
@@ -101,6 +110,22 @@ class GelbooruV2Client with GelbooruClientFavorites {
   final String? passHash;
   @override
   Dio get dio => _dio;
+
+  static bool isRule34Website(String url) =>
+      Rule34WebsiteSession.isWebsite(url);
+
+  bool get needsWebsiteLogin => _rule34Favorites?.hasSession == false;
+
+  @override
+  bool get canFavorite => _rule34Favorites?.hasSession ?? super.canFavorite;
+
+  @override
+  Future<GelbooruFavoriteStatus> addFavorite({required int postId}) =>
+      _rule34Favorites?.add(postId) ?? super.addFavorite(postId: postId);
+
+  @override
+  Future<void> removeFavorite({required int postId}) =>
+      _rule34Favorites?.remove(postId) ?? super.removeFavorite(postId: postId);
 
   final PaginationType paginationType;
   final int? fixedLimit;

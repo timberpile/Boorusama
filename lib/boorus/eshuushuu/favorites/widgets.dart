@@ -7,7 +7,6 @@ import 'package:kurumi/material.dart';
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
-import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
@@ -42,10 +41,12 @@ class _EshuushuuFavoritesPageInternal extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfig;
-    final notifier = ref.watch(favoritesProvider(config.auth).notifier);
     final client = ref.watch(eshuushuuClientProvider(config.auth));
 
     return FavoritesPageScaffold(
+      favoriteOwner: '$userId',
+      favoriteAccountFromAuth: (auth) =>
+          EshuushuuExtraData.fromPassHash(auth.passHash).userId?.toString(),
       favQueryBuilder: null,
       fetcher: (page) => TaskEither.Do(($) async {
         final dtos = await client.getPosts(
@@ -56,11 +57,6 @@ class _EshuushuuFavoritesPageInternal extends ConsumerWidget {
         final posts = bindPostsOrigin(
           dtos.map((dto) => parser.postDtoToPost(dto, null)),
           origin: postOriginFromConfig(config),
-        );
-
-        notifier.preloadInternal(
-          posts,
-          selfFavorited: (post) => true,
         );
 
         return posts.toResult();

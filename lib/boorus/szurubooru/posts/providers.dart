@@ -12,6 +12,7 @@ import '../../../core/posts/post/providers.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
+import '../configs/providers.dart';
 import '../post_votes/providers.dart';
 import '../tags/providers.dart';
 import 'parser.dart';
@@ -23,10 +24,29 @@ final szurubooruPostRepoProvider =
         final tagComposer = ref.watch(
           szurubooruTagQueryComposerProvider(config),
         );
+        final preparedFavorites = Expando<(FavoriteRead, bool)>();
+
+        FavoritesNotifier? favoriteObserver() =>
+            ref.read(szurubooruLoginDetailsProvider(config.auth)).hasLogin()
+            ? ref.read(favoritesProvider(config.auth).notifier)
+            : null;
 
         return PostRepositoryBuilder(
           onConsumePreparedPosts: (posts) async {
-            ref.read(favoritesProvider(config.auth).notifier).preload(posts);
+            final observations = <FavoriteRead, Map<int, bool>>{};
+            for (final post in posts) {
+              if (preparedFavorites[post] case (final read, final status)) {
+                observations.putIfAbsent(read, () => {})[post.id] = status;
+                preparedFavorites[post] = null;
+              }
+            }
+            if (observations.isNotEmpty) {
+              final observer = favoriteObserver();
+              for (final MapEntry(key: read, value: statuses)
+                  in observations.entries) {
+                observer?.observeFavorites(statuses, read);
+              }
+            }
             await ref
                 .read(szurubooruPostVotesProvider(config.auth).notifier)
                 .getVotes(posts);
@@ -48,6 +68,10 @@ final szurubooruPostRepoProvider =
             return postDtoToPost(post, null, categories);
           },
           fetch: (tags, page, {limit, options}) async {
+            final cascade = options?.cascadeRequest ?? true;
+            final prepare = options?.prepareGroupRows ?? false;
+            final favorites = cascade || prepare ? favoriteObserver() : null;
+            final read = favorites?.beginRead();
             // Match the client's offset stride explicitly, including its default.
             final pageLimit = limit ?? 100;
             final posts = await client.getPosts(
@@ -56,7 +80,7 @@ final szurubooruPostRepoProvider =
               limit: pageLimit,
             );
 
-            final categories = options?.prepareGroupRows == true
+            final categories = prepare
                 ? await readSzurubooruCategories(ref, config.auth)
                 : await ref.read(
                     szurubooruTagCategoriesProvider(config.auth).future,
@@ -76,8 +100,23 @@ final szurubooruPostRepoProvider =
                 )
                 .toList();
 
-            if (options?.cascadeRequest ?? true) {
-              ref.read(favoritesProvider(config.auth).notifier).preload(data);
+            if (read != null) {
+              final statuses = {
+                for (final post in posts.posts) ?post.id: ?post.ownFavorite,
+              };
+              if (prepare) {
+                // Keep the original read revision while these rows await
+                // foreground consumption. Stored snapshots have no entry here.
+                for (final post in data) {
+                  if (statuses[post.id] case final status?) {
+                    preparedFavorites[post] = (read, status);
+                  }
+                }
+              } else {
+                favorites!.observeFavorites(statuses, read);
+              }
+            }
+            if (cascade) {
               unawaited(
                 ref
                     .read(szurubooruPostVotesProvider(config.auth).notifier)

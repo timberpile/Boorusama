@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:collection/collection.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -17,6 +18,9 @@ class AdvancedAuthSection extends ConsumerWidget {
     required this.getLoginUrl,
     this.onCookiesReceived,
     this.onGetCookies,
+    this.importCookies,
+    this.cookieRequestUris,
+    this.websiteSessionPresent,
     super.key,
     this.showWarningContainer = false,
     this.warningTitle,
@@ -27,6 +31,9 @@ class AdvancedAuthSection extends ConsumerWidget {
   final String? Function() getLoginUrl;
   final void Function(List<dynamic> cookies)? onCookiesReceived;
   final void Function(List<dynamic> cookies)? onGetCookies;
+  final String? Function(List<Cookie> cookies)? importCookies;
+  final List<Uri>? cookieRequestUris;
+  final bool? websiteSessionPresent;
   final bool showWarningContainer;
   final String? warningTitle;
   final String? warningDescription;
@@ -63,7 +70,7 @@ class AdvancedAuthSection extends ConsumerWidget {
             fontWeight: FontWeight.w400,
           ),
         ),
-        if (passHash == null)
+        if (!(websiteSessionPresent ?? passHash != null))
           _buildLoginButton(context, ref, config: config)
         else
           Column(
@@ -165,7 +172,13 @@ class AdvancedAuthSection extends ConsumerWidget {
         settings: const RouteSettings(name: 'cookie_access_web_view'),
         builder: (context) => CookieAccessWebViewPage(
           url: loginUrl,
+          cookieRequestUris: cookieRequestUris,
           onGet: (cookies) {
+            if (importCookies case final import?) {
+              final error = import(cookies);
+              if (error == null) Navigator.of(context).pop();
+              return error;
+            }
             if (cookies.isNotEmpty) {
               if (onGetCookies != null) {
                 logger.info(
@@ -174,7 +187,7 @@ class AdvancedAuthSection extends ConsumerWidget {
                 );
                 onGetCookies!(cookies);
                 Navigator.of(context).pop();
-                return;
+                return null;
               }
 
               final passHash = cookies.firstWhereOrNull(
@@ -208,6 +221,7 @@ class AdvancedAuthSection extends ConsumerWidget {
             } else {
               logger.info('Login', 'cookie import skipped reason=no_cookies');
             }
+            return null;
           },
         ),
       ),

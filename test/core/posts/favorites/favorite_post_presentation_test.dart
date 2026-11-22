@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,10 @@ import 'package:kurumi/material.dart';
 import 'package:boorusama/boorus/gelbooru/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru/posts/types.dart';
 import 'package:boorusama/boorus/gelbooru/gelbooru.dart';
+import 'package:boorusama/boorus/gelbooru/favorites/widgets.dart';
+import 'package:boorusama/boorus/gelbooru_v2/favorites/providers.dart';
+import 'package:boorusama/boorus/gelbooru_v2/favorites/widgets.dart';
+import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/analytics/providers.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
@@ -44,8 +50,139 @@ import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/loggers.dart';
 
 import '../../../support/fakes/memory_app_file_system.dart';
+import '../../../support/fakes/test_post.dart';
 
 void main() {
+  for (final (name, openPage, profile, query) in [
+    (
+      'Gelbooru',
+      GelbooruFavoritesPageInternal.new,
+      _favoriteProfile(BooruType.gelbooru, 'https://gelbooru.example'),
+      'fav:42',
+    ),
+    (
+      'Gelbooru V2 API',
+      GelbooruV2FavoritesPageApi.new,
+      _favoriteProfile(BooruType.gelbooruV2, 'https://api-booru.example'),
+      'fav:42',
+    ),
+    (
+      'Gelbooru V2 HTML',
+      GelbooruV2FavoritesPageHtml.new,
+      _favoriteProfile(BooruType.gelbooruV2, 'https://rule34.xxx/'),
+      '',
+    ),
+  ]) {
+    testWidgets(
+      '$name observes actual own-page results and leaves other IDs unknown',
+      (
+        tester,
+      ) async {
+        var owner = '42';
+        final fetched = <(String, int)>[];
+        final post = gelbooruPostFromRecord(
+          GelbooruPostRecord.empty(),
+          _origin,
+        );
+        final deferred = Completer<PostResult<Post>>();
+        final obsolete = Completer<PostResult<Post>>();
+        final second = TestPost(
+          id: 17,
+          origin: _origin,
+          booruData: post.booruData,
+        );
+        final repo = _OriginAwareRepository(
+          post,
+          fetch: (tags, page) {
+            fetched.add((tags, page));
+            return switch (page) {
+              1 => TaskEither.right(PostResult(posts: [post], total: 1)),
+              2 => TaskEither.tryCatch(
+                () => deferred.future,
+                (error, _) => UnknownError(error: error, message: 'Fake error'),
+              ),
+              3 => TaskEither.right(PostResult<Post>.empty()),
+              5 => TaskEither.tryCatch(
+                () => obsolete.future,
+                (error, _) => UnknownError(error: error, message: 'Fake error'),
+              ),
+              _ => TaskEither.left(
+                UnknownError(
+                  error: StateError('fake failure'),
+                  message: 'Fake error',
+                ),
+              ),
+            };
+          },
+        );
+        final router = GoRouter(
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, _) => openPage(uid: owner),
+            ),
+            GoRoute(
+              path: '/foreign',
+              builder: (_, _) => openPage(uid: owner),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          _TestApp(
+            router: router,
+            globalConfig: profile,
+            originAwareRepository: repo,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final grid = tester.element(find.byType(PostScope<Post>));
+        final container = ProviderScope.containerOf(grid);
+        bool? status(int id) =>
+            container.read(favoriteStatusProvider((profile.auth, id)));
+        expect(fetched, [(query, 1)]);
+        expect(status(post.id), true);
+        expect(status(17), isNull);
+
+        final fetch = tester
+            .widget<PostScope<Post>>(find.byType(PostScope<Post>))
+            .fetcher;
+        final task = fetch(2);
+        expect(fetched, [(query, 1)]);
+        // Only a fence captured at run() sees this intervening local change.
+        final observer = container.read(
+          favoritesProvider(profile.auth).notifier,
+        );
+        observer.removeLocalFavorite(17);
+        final result = task.run();
+        expect(status(17), false);
+        deferred.complete(PostResult(posts: [second, post], total: 2));
+        expect((await result).isRight(), true);
+        expect(status(17), true);
+        expect((await fetch(3).run()).isRight(), true);
+        expect((await fetch(4).run()).isLeft(), true);
+        expect(status(17), true);
+        expect(status(18), isNull);
+
+        final stale = fetch(5).run();
+        owner = '43';
+        router.go('/foreign');
+        await tester.pumpAndSettle();
+        obsolete.complete(PostResult(posts: [TestPost(id: 18)], total: 1));
+        expect((await stale).isRight(), true);
+        expect(status(18), isNull);
+        expect(status(post.id), true);
+        container.invalidate(favoritesProvider(profile.auth));
+        await tester.pump();
+        final foreign = tester
+            .widget<PostScope<Post>>(find.byType(PostScope<Post>))
+            .fetcher;
+        expect((await foreign(1).run()).isRight(), true);
+        expect(status(post.id), isNull);
+      },
+    );
+  }
+
   testWidgets('server favorites use native cards and open the mixed viewer', (
     tester,
   ) async {
@@ -162,6 +299,18 @@ final _config = BooruConfig.fromJson({
   'id': '00000000-0000-4000-8000-00000000002a',
 });
 
+BooruConfig _favoriteProfile(BooruType type, String url) =>
+    BooruConfig.fromJson({
+      ...BooruConfig.defaultConfig(
+        booruType: type,
+        url: url,
+        customDownloadFileNameFormat: null,
+      ).toJson(),
+      'id': '00000000-0000-4000-8000-00000000002c',
+      'login': '42',
+      'apiKey': 'fake-api-key',
+    });
+
 final _globalConfig = BooruConfig.fromJson({
   ...BooruConfig.defaultConfig(
     booruType: BooruType.danbooru,
@@ -226,8 +375,12 @@ final class _TestApp extends StatelessWidget {
       booruPostPresentationProvider.overrideWith(
         (ref, request) => const _Presentation(),
       ),
-      if (originAwareRepository case final repository?)
+      if (originAwareRepository case final repository?) ...[
         originAwarePostRepoProvider.overrideWith((ref, config) => repository),
+        gelbooruV2FavoritesPostRepoProvider.overrideWith(
+          (ref, key) => repository,
+        ),
+      ],
       gridThumbnailUrlGeneratorProvider.overrideWith(
         (ref, config) => const _ThumbnailGenerator(),
       ),
@@ -273,9 +426,10 @@ final class _TestApp extends StatelessWidget {
 }
 
 final class _OriginAwareRepository implements PostRepository<Post> {
-  const _OriginAwareRepository(this.post);
+  const _OriginAwareRepository(this.post, {this.fetch});
 
   final Post post;
+  final PostsOrError<Post> Function(String, int)? fetch;
 
   @override
   TagQueryComposer get tagComposer => EmptyTagQueryComposer();
@@ -286,7 +440,9 @@ final class _OriginAwareRepository implements PostRepository<Post> {
     int page, {
     int? limit,
     PostFetchOptions? options,
-  }) => TaskEither.right(PostResult(posts: [post], total: 1));
+  }) =>
+      fetch?.call(tags, page) ??
+      TaskEither.right(PostResult(posts: [post], total: 1));
 
   @override
   PostsOrError<Post> getPostsFromController(

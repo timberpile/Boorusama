@@ -1,7 +1,6 @@
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import 'post_grid_item.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../bookmarks/src/data/bookmark_convert.dart';
 import '../../../../bookmarks/src/providers/bookmark_button_state_provider.dart';
@@ -99,6 +98,7 @@ class _PostActionsBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final container = ProviderScope.containerOf(context, listen: false);
     final actions = postActionDefinitions(
       context,
       ref,
@@ -170,12 +170,10 @@ class _PostActionsBar extends ConsumerWidget {
                   fill: (bookmarkPresentation?.isBookmarked ?? false) ? 1 : 0,
                 ),
               ),
-              onPressed: bookmarkState?.isLoading == true
+              onPressed: (bookmarkState?.isLoading ?? false)
                   ? null
                   : () {
-                      if (!snapshot.accountsMatch(
-                        ref.read(booruConfigProvider),
-                      )) {
+                      if (!snapshot.isCurrent(container)) {
                         Kurumi.showErrorToast(
                           context,
                           context.t.post.action.operation_failed,

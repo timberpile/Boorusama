@@ -4,6 +4,8 @@ final class FavoriteMutationTracker<Key> {
   final _pending = <Key, _Mutations>{};
   var _sequence = 0;
 
+  bool isPending(Key key) => _pending.containsKey(key);
+
   int start(Key key, bool? prior, bool target) {
     final mutations = _pending.putIfAbsent(key, () => _Mutations(prior));
     final sequence = ++_sequence;

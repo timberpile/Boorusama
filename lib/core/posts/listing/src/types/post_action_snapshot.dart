@@ -15,7 +15,6 @@ class PostActionSnapshot {
     Iterable<BooruConfig> profiles, {
     this.accessRequired = false,
     this.access,
-    this.isAccessCurrent,
   }) : posts = List.unmodifiable(uniquePosts(posts)) {
     targets = List.unmodifiable([
       for (final post in this.posts)
@@ -35,7 +34,7 @@ class PostActionSnapshot {
     ]);
   }
 
-  static PostActionSnapshot watch(WidgetRef ref, Iterable<Post> posts) {
+  factory PostActionSnapshot.watch(WidgetRef ref, Iterable<Post> posts) {
     final required = ref.watch(contentAccessRequiredProvider);
     final key = ref.watch(currentContentAccessKeyProvider);
     final access = key == null
@@ -46,10 +45,6 @@ class PostActionSnapshot {
       ref.watch(booruConfigProvider),
       accessRequired: required,
       access: access,
-      isAccessCurrent: () =>
-          key != null &&
-          access != null &&
-          identical(ref.read(contentAccessContextProvider(key)), access),
     );
   }
 
@@ -59,14 +54,14 @@ class PostActionSnapshot {
         post.origin.booruType != access.key.engine ||
         post.origin.sourceHost != access.key.siteNamespace ||
         (post.origin.profileIdHint != null &&
-            post.origin.profileIdHint != access.key.profileId))
+            post.origin.profileIdHint != access.key.profileId)) {
       return null;
+    }
     return access.config;
   }
 
   final bool accessRequired;
   final ContentAccessContext? access;
-  final bool Function()? isAccessCurrent;
 
   /// Bulk actions target content once even when several memberships are selected.
   static List<T> uniquePosts<T extends Post>(Iterable<T> posts) {
@@ -93,11 +88,26 @@ class PostActionSnapshot {
       ? targets.first.config
       : null;
 
+  /// Check the captured account and permission through the action owner's container.
+  bool isCurrent(ProviderContainer container) {
+    if (!accountsMatch(container.read(booruConfigProvider))) return false;
+    if (!accessRequired) return true;
+    final captured = access;
+    return captured != null &&
+        identical(
+          container.read(contentAccessContextProvider(captured.key)),
+          captured,
+        );
+  }
+
   /// A changed/deleted account must not silently redirect a queued action.
   bool accountsMatch(Iterable<BooruConfig> profiles) {
-    if (accessRequired)
-      return (isAccessCurrent?.call() ?? false) &&
-          (access?.key.profileId == null || access!.matchesProfiles(profiles));
+    if (accessRequired) {
+      final captured = access;
+      return captured != null &&
+          (captured.key.profileId == null ||
+              captured.matchesProfiles(profiles));
+    }
     return targets.every((target) {
       final resolved = const PostOriginResolver().resolve(
         target.post.origin,

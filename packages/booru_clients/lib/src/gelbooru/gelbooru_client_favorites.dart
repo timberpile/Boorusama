@@ -12,6 +12,15 @@ enum GelbooruFavoriteStatus {
   userNotLoggedIn,
 }
 
+final class GelbooruFavoriteException implements Exception {
+  const GelbooruFavoriteException(this.status);
+
+  final GelbooruFavoriteStatus status;
+
+  @override
+  String toString() => 'Website favorite action failed (${status.name})';
+}
+
 mixin GelbooruClientFavorites {
   Dio get dio;
 

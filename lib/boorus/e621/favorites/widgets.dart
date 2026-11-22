@@ -5,9 +5,9 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
-import '../../../core/configs/config/types.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/post/providers.dart';
+import '../../../core/posts/post/types.dart';
 
 class E621FavoritesPage extends ConsumerWidget {
   const E621FavoritesPage({super.key});
@@ -36,12 +36,14 @@ class E621FavoritesPageInternal extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfig;
-    final query = 'fav:${config.auth.login?.replaceAll(' ', '_')}';
+    final query = 'fav:${username.replaceAll(' ', '_')}';
 
     return FavoritesPageScaffold(
       favQueryBuilder: () => query,
-      fetcher: (page) =>
-          ref.read(originAwarePostRepoProvider(config)).getPosts(query, page),
+      favoriteOwner: username,
+      fetcher: (page) => ref
+          .read(originAwarePostRepoProvider(config))
+          .getPosts(query, page, options: PostFetchOptions.raw),
     );
   }
 }

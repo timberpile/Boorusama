@@ -87,24 +87,24 @@ class Shimmie2Client {
       );
     }
 
-    final isEmpty = tags?.join(' ').isEmpty ?? true;
-
-    final response = await _dio.get(
-      '/api/danbooru/find_posts',
-      options: Options(headers: _authHeaders),
-      queryParameters: {
-        if (!isEmpty) 'tags': tags?.join(' '),
-        'page': ?page,
-        'limit': ?limit,
-        ..._authParams,
-      },
-    );
-
-    return _parsePosts(
-      response,
-      baseUrl: _dio.options.baseUrl,
-    );
+    final response = await _getPostsXml(tags: tags, page: page, limit: limit);
+    return _parsePosts(response, baseUrl: _dio.options.baseUrl);
   }
+
+  Future<Response<dynamic>> _getPostsXml({
+    List<String>? tags,
+    int? page,
+    int? limit,
+  }) => _dio.get(
+    '/api/danbooru/find_posts',
+    options: Options(headers: _authHeaders),
+    queryParameters: {
+      if (tags != null && tags.join(' ').isNotEmpty) 'tags': tags.join(' '),
+      'page': ?page,
+      'limit': ?limit,
+      ..._authParams,
+    },
+  );
 
   Future<PostDto?> getPost(int id, {bool useGraphQL = false}) async {
     if (useGraphQL) {
@@ -132,11 +132,31 @@ class Shimmie2Client {
     const batchSize = 100;
     for (var offset = 0; offset < ids.length; offset += batchSize) {
       final batch = ids.skip(offset).take(batchSize).toList();
-      final posts = await getPosts(
+      final response = await _getPostsXml(
         tags: ['favorited_by=$username', 'id=${batch.join(',')}'],
         limit: batchSize,
       );
-      favorites.addAll(posts.map((post) => post.id).whereType<int>());
+      final data = response.data;
+      if (data is! String) throw const FormatException('Invalid Favorites XML');
+      final root = XmlDocument.parse(data).rootElement;
+      final rows = root.childElements.toList();
+      final count = root.getAttribute('count');
+      if (root.name.local != 'posts' ||
+          root.getAttribute('success') == 'false' ||
+          (count != null && int.tryParse(count) != rows.length)) {
+        throw const FormatException('Incomplete Favorites lookup');
+      }
+      final matched = <int>{};
+      for (final post in rows) {
+        final id = int.tryParse(post.getAttribute('id') ?? '');
+        if (post.name.local != 'post' ||
+            id == null ||
+            !batch.contains(id) ||
+            !matched.add(id)) {
+          throw const FormatException('Invalid Favorites lookup result');
+        }
+      }
+      favorites.addAll(matched);
     }
     return ids.where(favorites.contains).toList();
   }

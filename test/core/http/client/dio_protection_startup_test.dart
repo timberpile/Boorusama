@@ -6,15 +6,13 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 
 // Package imports:
+import 'package:booru_clients/gelbooru.dart';
 import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Project imports:
 import 'package:boorusama/core/ddos/handler/protection_handler.dart';
-import 'package:boorusama/core/ddos/solver/src/protection_detector.dart';
-import 'package:boorusama/core/ddos/solver/src/protection_orchestrator.dart';
-import 'package:boorusama/core/ddos/solver/src/protection_solver.dart';
 import 'package:boorusama/core/ddos/solver/src/user_agent_provider.dart';
 import 'package:boorusama/core/ddos/solver/types.dart';
 import 'package:boorusama/core/errors/types.dart';
@@ -145,6 +143,45 @@ void main() {
     expect(fixture.adapter.requestCount, 1);
   });
 
+  test(
+    'Rule34 Favorite keeps the profile session and adds clearance',
+    () async {
+      final fixture = _Fixture([const _Response(200, '3')]);
+      addTearDown(fixture.dio.close);
+      await fixture.cookieJar.saveFromResponse(
+        Uri.https('rule34.xxx', '/public/addfav.php', {'id': '7'}),
+        [
+          Cookie('r34_uid', '99.fake-stale-signature'),
+          Cookie('__Host-session', 'fake-stale-browser-session'),
+          Cookie('cf_clearance', 'fake-clearance'),
+        ],
+      );
+      final client = GelbooruV2Client(
+        baseUrl: 'https://rule34.xxx/',
+        dio: fixture.dio,
+        userId: '42',
+        passHash: Rule34WebsiteSession.fromCookies(
+          signedUserId: '42.fake-signature',
+          token: 'fake-profile-session',
+        )!.toStoredValue(),
+      );
+
+      expect(
+        await client.addFavorite(postId: 7),
+        GelbooruFavoriteStatus.success,
+      );
+      expect(
+        CookieUtils.parseCookieHeader(fixture.adapter.cookieHeaders.single),
+        {
+          'r34_uid': '42.fake-signature',
+          '__Host-session': 'fake-profile-session',
+          'cf_clearance': 'fake-clearance',
+        },
+      );
+      expect(fixture.solver.solveCount, 0);
+    },
+  );
+
   for (final mutation in <String, Map<String, dynamic>>{
     'package marker': {...stateChangingRequestExtra},
     'legacy marker': {apiMutationRequestKey: true},
@@ -248,6 +285,7 @@ class _SequenceAdapter implements HttpClientAdapter {
 
   final List<_Response> responses;
   final sawClearanceOnRequest = <bool>[];
+  final cookieHeaders = <String>[];
   final secondRequestDelivered = Completer<void>();
   var requestCount = 0;
 
@@ -257,6 +295,7 @@ class _SequenceAdapter implements HttpClientAdapter {
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    cookieHeaders.add(options.headers['cookie']?.toString() ?? '');
     sawClearanceOnRequest.add(
       options.headers.values.any(
         (value) => RegExp(

@@ -17,7 +17,6 @@ import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../../router.dart';
@@ -91,15 +90,17 @@ List<PostActionDefinition> postActionDefinitions(
   Future<void> Function()? downloadOverride,
 }) {
   final feedback = Navigator.of(context, rootNavigator: true).context;
-  bool current() => snapshot.accountsMatch(ref.read(booruConfigProvider));
+  // The menu's WidgetRef can be disposed while a bulk action is awaiting I/O.
+  final container = ProviderScope.containerOf(feedback, listen: false);
+  bool current() => feedback.mounted && snapshot.isCurrent(container);
   Future<void> run(Future<void> Function() action) async {
     try {
-      if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
+      if (!current()) {
         throw StateError('Post action account changed');
       }
       await action();
     } catch (_) {
-      if (feedback.mounted) {
+      if (feedback.mounted && current()) {
         Kurumi.showErrorToast(
           feedback,
           feedback.t.post.action.operation_failed,
@@ -143,24 +144,22 @@ List<PostActionDefinition> postActionDefinitions(
         return ref.watch(booruLoginDetailsProvider(auth)).hasLogin() &&
             ref.watch(canFavoriteProvider(auth));
       });
-  final favoriteStatuses = <bool?>[
+  final favoriteTargets = [
     if (canFavorite)
       for (final target in snapshot.targets)
-        ref.watch(
-          favoriteStatusProvider((target.config!.auth, target.post.id)),
-        ),
+        (target.config!.auth, target.post.id),
   ];
-  if (canFavorite) {
-    for (final target in snapshot.targets) {
-      ref.watch(
-        favoriteStatusLoaderProvider((target.config!.auth, target.post.id)),
-      );
-    }
-  }
-  final favoriteReady =
-      canFavorite && favoriteStatuses.every((value) => value != null);
+  final favoriteLookups = [
+    for (final target in favoriteTargets)
+      ref.watch(favoriteLookupPendingProvider(target)),
+  ];
+  final favoriteStatuses = [
+    for (final target in favoriteTargets)
+      ref.watch(favoriteStatusProvider(target)),
+  ];
+  final favoriteReady = canFavorite && !favoriteLookups.contains(true);
   final removeFavorites =
-      favoriteReady && favoriteStatuses.every((value) => value!);
+      favoriteReady && favoriteStatuses.every((value) => value ?? false);
   final single = snapshot.isSingle ? snapshot.targets.single : null;
   final config = single?.config;
   final post = single?.post;
@@ -242,7 +241,7 @@ List<PostActionDefinition> postActionDefinitions(
               (
                 postId: target.post.id,
                 profileId: target.config!.id,
-                notifier: ref.read(
+                notifier: container.read(
                   favoritesProvider(target.config!.auth).notifier,
                 ),
               ),
@@ -265,10 +264,11 @@ List<PostActionDefinition> postActionDefinitions(
                     };
               if (!success) throw StateError('Favorite action failed');
             }
-          });
+          }, isCurrent: current);
           if (result != null &&
               !result.cleanupInterrupted &&
-              feedback.mounted) {
+              feedback.mounted &&
+              current()) {
             Kurumi.showSuccessToast(
               feedback,
               feedback.t.favorites.update.success,

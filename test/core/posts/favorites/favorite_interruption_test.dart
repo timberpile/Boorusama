@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/http/client/coordination.dart';
@@ -15,10 +16,21 @@ void main() {
     url: 'https://site.test',
     customDownloadFileNameFormat: null,
   ).auth;
+
+  ProviderContainer create(FavoriteRepository repository) {
+    final container = ProviderContainer(
+      overrides: [
+        favoriteRepoProvider(config).overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
   for (final cancelled in [false, true]) {
     for (final prior in [null, false, true]) {
       test(
-        'interrupted ${cancelled ? 'cancel' : 'cooldown'} restores $prior exactly',
+        'interrupted action restores $prior (cancelled: $cancelled)',
         () async {
           var attempts = 0;
           final error = DioException(
@@ -30,34 +42,28 @@ void main() {
                 ? null
                 : ApiCooldownException(
                     ApiQuotaKey.fromUri(Uri.parse('https://site.test')),
-                    DateTime.now().toUtc().add(const Duration(seconds: 30)),
+                    DateTime.utc(2030),
                   ),
           );
-          final container = ProviderContainer(
-            overrides: [
-              favoriteRepoProvider(config).overrideWithValue(
-                FavoriteRepositoryBuilder(
-                  add: (_) {
-                    attempts++;
-                    return Future<AddFavoriteStatus>.error(error);
-                  },
-                  remove: (_) {
-                    attempts++;
-                    return Future<bool>.error(error);
-                  },
-                  filter: (_) async => prior ?? false ? [1] : [],
-                  isFavorited: (_) => false,
-                  canFavorite: () => true,
-                ),
-              ),
-            ],
+          final container = create(
+            FavoriteRepositoryBuilder(
+              add: (_) {
+                attempts++;
+                return Future<AddFavoriteStatus>.error(error);
+              },
+              remove: (_) {
+                attempts++;
+                return Future<bool>.error(error);
+              },
+              filter: (_) async => (prior ?? false) ? [1] : [],
+              canFavorite: () => true,
+            ),
           );
-          addTearDown(container.dispose);
           final notifier = container.read(favoritesProvider(config).notifier);
           if (prior != null) await notifier.checkFavorites([1]);
           final before = container.read(favoritesProvider(config));
           await expectLater(
-            prior ?? false ? notifier.remove(1) : notifier.add(1),
+            (prior ?? false) ? notifier.remove(1) : notifier.add(1),
             throwsA(same(error)),
           );
           expect(container.read(favoritesProvider(config)), before);
@@ -66,112 +72,68 @@ void main() {
       );
     }
   }
-  test(
-    'older interrupted add cannot erase a newer confirmed removal',
-    () async {
-      final addResult = Completer<AddFavoriteStatus>();
-      final error = DioException(
-        requestOptions: RequestOptions(path: '/favorite'),
-        type: DioExceptionType.cancel,
-      );
-      final container = ProviderContainer(
-        overrides: [
-          favoriteRepoProvider(config).overrideWithValue(
-            FavoriteRepositoryBuilder(
-              add: (_) => addResult.future,
-              remove: (_) async => true,
-              isFavorited: (_) => false,
-              canFavorite: () => true,
-            ),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      final notifier = container.read(favoritesProvider(config).notifier);
-      final oldAction = notifier.add(1);
-      final rejected = expectLater(oldAction, throwsA(same(error)));
-      expect(await notifier.remove(1), true);
-      addResult.completeError(error);
-      await rejected;
-      expect(container.read(favoritesProvider(config))[1], false);
-    },
-  );
-  for (final olderFirst in [false, true]) {
-    for (final olderSucceeds in [false, true]) {
-      test(
-        'overlapping intents olderFirst=$olderFirst olderSucceeds=$olderSucceeds use confirmed base',
-        () async {
-          final addResult = Completer<AddFavoriteStatus>();
-          final removeResult = Completer<bool>();
-          final error = DioException(
-            requestOptions: RequestOptions(path: '/favorite'),
-            type: DioExceptionType.cancel,
-          );
-          final container = ProviderContainer(
-            overrides: [
-              favoriteRepoProvider(config).overrideWithValue(
-                FavoriteRepositoryBuilder(
-                  add: (_) => addResult.future,
-                  remove: (_) => removeResult.future,
-                  isFavorited: (_) => false,
-                  canFavorite: () => true,
-                ),
-              ),
-            ],
-          );
-          addTearDown(container.dispose);
-          final notifier = container.read(favoritesProvider(config).notifier);
-          final older = notifier.add(1);
-          final newer = notifier.remove(1);
-          final olderCheck = olderSucceeds
-              ? older.then((value) => expect(value, AddFavoriteStatus.success))
-              : expectLater(older, throwsA(same(error)));
-          final newerCheck = expectLater(newer, throwsA(same(error)));
-          void finishOlder() {
-            if (olderSucceeds) {
-              addResult.complete(AddFavoriteStatus.success);
-            } else {
-              addResult.completeError(error);
-            }
-          }
 
-          if (olderFirst) {
-            finishOlder();
-            await olderCheck;
-            removeResult.completeError(error);
-            await newerCheck;
-          } else {
-            removeResult.completeError(error);
-            await newerCheck;
-            finishOlder();
-            await olderCheck;
-          }
-          final state = container.read(favoritesProvider(config));
-          expect(state.containsKey(1), olderSucceeds);
-          expect(state[1], olderSucceeds ? true : null);
-        },
-      );
-    }
-  }
-  test('interrupted status read does not cache false', () async {
-    final error = DioException(
-      requestOptions: RequestOptions(path: '/status'),
-      type: DioExceptionType.cancel,
-    );
-    final container = ProviderContainer(
-      overrides: [
-        favoriteRepoProvider(config).overrideWithValue(
+  for (final adding in [false, true]) {
+    for (final interrupted in [false, true]) {
+      test('same-post commands cannot overtake $adding/$interrupted', () async {
+        final response = Completer<void>();
+        var attempts = 0;
+        final error = DioException.requestCancelled(
+          requestOptions: RequestOptions(path: '/favorite'),
+          reason: 'synthetic cancellation',
+        );
+        final container = create(
           FavoriteRepositoryBuilder(
-            add: (_) async => AddFavoriteStatus.success,
-            remove: (_) async => true,
-            filter: (_) async => throw error,
-            isFavorited: (_) => false,
+            add: (_) async {
+              attempts++;
+              await response.future;
+              return AddFavoriteStatus.success;
+            },
+            remove: (_) async {
+              attempts++;
+              await response.future;
+              return true;
+            },
             canFavorite: () => true,
           ),
-        ),
-      ],
+        );
+        final notifier = container.read(favoritesProvider(config).notifier);
+        notifier.observeFavorites({1: !adding}, notifier.beginRead());
+        final pending = notifier.setFavorite(1, favorited: adding);
+        final completion = interrupted
+            ? expectLater(pending, throwsA(same(error)))
+            : pending.then((value) => expect(value, true));
+        expect(await notifier.add(1), AddFavoriteStatus.failure);
+        expect(await notifier.remove(1), false);
+        expect(attempts, 1);
+        if (interrupted) {
+          response.completeError(error);
+        } else {
+          response.complete();
+        }
+        await completion;
+        expect(
+          container.read(favoritesProvider(config))[1],
+          interrupted ? !adding : adding,
+        );
+        expect(attempts, 1);
+      });
+    }
+  }
+
+  test('an interrupted status read does not cache false', () async {
+    final error = DioException.requestCancelled(
+      requestOptions: RequestOptions(path: '/status'),
+      reason: 'synthetic cancellation',
     );
-    addTearDown(container.dispose);
+    final container = create(
+      FavoriteRepositoryBuilder(
+        add: (_) async => AddFavoriteStatus.success,
+        remove: (_) async => true,
+        filter: (_) async => throw error,
+        canFavorite: () => true,
+      ),
+    );
     await expectLater(
       container.read(favoritesProvider(config).notifier).checkFavorites([1]),
       throwsA(same(error)),

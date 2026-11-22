@@ -35,7 +35,6 @@ final gelbooruFavoriteRepoProvider =
                 }
                 return false;
               }),
-          isFavorited: (post) => false,
           canFavorite: () => client.canFavorite,
         );
       },

@@ -51,7 +51,7 @@ final hydrusFavoriteRepoProvider =
               ),
           remove: (postId) =>
               client.changeLikeStatus(fileId: postId, liked: null),
-          isFavorited: (post) => post.ownFavorite ?? false,
+          isFavorited: (post) => post.ownFavorite,
           canFavorite: () => true,
         );
       },

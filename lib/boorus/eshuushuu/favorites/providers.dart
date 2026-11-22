@@ -40,7 +40,7 @@ final eshuushuuFavoriteRepoProvider =
               return false;
             }
           },
-          isFavorited: (post) => post.isFavorited ?? false,
+          isFavorited: (post) => post.isFavorited,
           canFavorite: () => hasAuth,
         );
       },

@@ -27,11 +27,16 @@ import 'package:boorusama/core/themes/colors/src/colors.dart';
 import 'package:kurumi/material.dart';
 
 void main() {
-  final config = BooruConfig.defaultConfig(
-    booruType: BooruType.danbooru,
-    url: 'https://site.test',
-    customDownloadFileNameFormat: null,
-  ).auth;
+  final config = BooruConfig.fromJson({
+    ...BooruConfig.defaultConfig(
+      booruType: BooruType.danbooru,
+      url: 'https://site.test',
+      customDownloadFileNameFormat: null,
+    ).toJson(),
+    'id': '00000000-0000-4000-8000-000000000001',
+    'login': 'fixture-user',
+    'apiKey': 'fixture-api-key',
+  }).auth;
   for (final cancel in [false, true]) {
     for (final firstFails in [false, true]) {
       testWidgets(

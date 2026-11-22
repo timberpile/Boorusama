@@ -1,15 +1,13 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/config/providers.dart';
-import '../../../core/configs/config/types.dart';
-import '../../../core/posts/favorites/providers.dart';
 import '../../../core/posts/favorites/widgets.dart';
 import '../../../core/posts/post/providers.dart';
+import '../../../core/posts/post/types.dart';
 import '../configs/providers.dart';
 
 class Shimmie2FavoritesPage extends ConsumerWidget {
@@ -19,13 +17,13 @@ class Shimmie2FavoritesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfigAuth;
     final loginDetails = ref.watch(shimmie2LoginDetailsProvider(config));
-    final usename = loginDetails.username;
+    final username = loginDetails.username;
 
     return BooruConfigAuthFailsafe(
       unauthorizedBuilder: (_) => const FavoritesUnavailablePage(),
-      hasLogin: loginDetails.hasLogin() && usename != null,
+      hasLogin: loginDetails.hasLogin() && username != null,
       builder: (_) => Shimmie2FavoritesPageContent(
-        username: usename ?? '',
+        username: username ?? '',
       ),
     );
   }
@@ -43,22 +41,17 @@ class Shimmie2FavoritesPageContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfig;
     final query = username.isNotEmpty ? 'favorited_by=$username' : '';
-    final notifier = ref.watch(favoritesProvider(config.auth).notifier);
     final repo = ref.watch(originAwarePostRepoProvider(config));
 
     return FavoritesPageScaffold(
       favQueryBuilder: () => query,
-      fetcher: (page) => TaskEither.Do(($) async {
-        final r = await $(repo.getPosts(query, page));
-
-        // all posts from this page are already favorited by the user
-        notifier.preloadInternal(
-          r.posts,
-          selfFavorited: (post) => true,
-        );
-
-        return r;
-      }),
+      favoriteOwner: username,
+      favoriteAccountFromAuth: (auth) {
+        final login = ref.read(shimmie2LoginDetailsProvider(auth));
+        return login.hasLogin() ? login.username : null;
+      },
+      fetcher: (page) =>
+          repo.getPosts(query, page, options: PostFetchOptions.raw),
     );
   }
 }
