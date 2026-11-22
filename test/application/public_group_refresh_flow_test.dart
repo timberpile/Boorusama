@@ -219,8 +219,8 @@ class _Fixture {
       'metadata',
       bytes: Uint8List(0),
     );
-    const groupName = 'groups_unified_v2';
-    const organizationName = 'organization_unified_v2';
+    const groupName = 'groups_hierarchy_v2';
+    const organizationName = 'organization_hierarchy_v2';
     final groupRows = await Hive.openBox<BookmarkGroupHiveObject>(
       groupName,
       bytes: Uint8List(0),
@@ -238,8 +238,10 @@ class _Fixture {
       postDataCodec: (_) => const EmptyPostDataCodec('test'),
       syncBoxes: (_) async {},
     );
+    await posts.readAll();
     await metadata.put('activeOrganization', {
       'version': 2,
+      'hierarchyPlanHash': 'fixture',
       'generation': {'groups': groupName, 'organization': organizationName},
     });
     await IOOverrides.runZoned(

@@ -27,6 +27,8 @@ import '../../../posts/post/types.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../preparation/version_checking.dart';
 import '../../sources/bookmark_backup_data.dart';
+import '../../sources/bookmark_backup_schema.dart';
+import '../../utils/data_converter.dart';
 import '../../sources/bookmark_import_planner.dart';
 import '../../sources/bookmark_import_service.dart';
 import '../../sources/topic_feed_backup_data.dart';
@@ -316,7 +318,16 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         final integrityIssues = const ImportSourceIntegrityValidator().validate(
           sourceId: manifest.id,
           packageSchemaVersion: manifest.schemaVersion,
-          supportedSchemaVersion: sourcesById[manifest.id]!.schemaVersion,
+          // The export catalog omits legacy feeds when none exist locally.
+          // The registered import decoder still accepts those packages.
+          supportedSchemaVersion:
+              sourcesById[manifest.id]?.schemaVersion ??
+              switch (source) {
+                final JsonBackupSource json => json.version,
+                _ => throw StateError(
+                  'No schema version registered for ${source.id}',
+                ),
+              },
           selection: selection,
           itemRecommendations: manifest.itemRecommendedActions,
           data: wrapper.preparedData,
@@ -333,6 +344,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         final descriptor = descriptors[manifest.id];
         final isCollection = switch (wrapper.preparedData) {
           BookmarkBackupData() || FollowingTopicBackupData() => true,
+          TopicFeedBackupData() when descriptor == null => true,
           _ => descriptor?.isCollection ?? false,
         };
         final localIds = switch (wrapper._localSnapshot) {
@@ -640,7 +652,7 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       ? ref.read(bookmarkProvider.notifier).runWithLibrary(operation)
       : ref.read(dataMutationCoordinatorProvider).runExclusive(operation);
 
-  Future<void> apply(BuildContext context) async {
+  Future<void> apply(BuildContext? context) async {
     if (state.previewPending) return;
     final validated = state.preflight?.validatedPlan;
     if (validated == null) return;
@@ -991,12 +1003,15 @@ final class PackageTransactionSource implements ImportTransactionSource {
     required this.fs,
     required this.ref,
     required this.credentialsIncluded,
+    this.recoverReleasedBookmarks,
   });
 
   final BackupDataSource source;
   final String? incomingPath;
   final AppFileSystem fs;
   final Ref ref;
+  final Future<bool> Function(BookmarkBackupData)? recoverReleasedBookmarks;
+  var _restoredBeforeBookmarkActivation = false;
   bool credentialsIncluded;
   Map<ProfileReferenceKey, String> profileMappings = const {};
   Set<ProfileReferenceKey> explicitBookmarkProfileMappings = const {};
@@ -1211,7 +1226,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
 
   @override
   Future<void> durableSync() async {
-    if (id == 'bookmarks') {
+    if (id == 'bookmarks' && !_restoredBeforeBookmarkActivation) {
       await unifiedBookmarkStorage(
         await ref.read(bookmarkProvider.notifier).bookmarkRepository,
       )?.durableSync();
@@ -1403,7 +1418,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
   Future<void> _applyBookmarks(
     BookmarkBackupData incoming,
     ResolvedImportSource resolution, {
-    bool preserveOrigins = false,
+    int? rollbackBookmarkVersion,
   }) async {
     final library = ref.read(bookmarkProvider.notifier);
     final bookmarkRepository = await library.bookmarkRepository;
@@ -1417,7 +1432,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
                 ref.read(bookmarkUrlResolverProvider(booruId)),
           )
         : await localStore.readAll();
-    final mapped = preserveOrigins
+    final mapped = rollbackBookmarkVersion != null
         ? const <int, Bookmark>{}
         : mapBookmarkImportProfiles(
             incoming: selectedProfileRecords(incoming, resolution),
@@ -1445,7 +1460,7 @@ final class PackageTransactionSource implements ImportTransactionSource {
         groupRepository: groupRepository,
         imageUrlResolver: resolver,
       );
-      if (preserveOrigins) {
+      if (rollbackBookmarkVersion == kBookmarksBackupVersion) {
         await service.restoreLocalSnapshot(data);
       } else {
         await service.replace(data);
@@ -1586,9 +1601,8 @@ final class PackageTransactionSource implements ImportTransactionSource {
     }
     switch (source) {
       case final JsonBackupSource jsonSource:
-        final preparation = await jsonSource.prepareRollback(
-          await fs.readString(rollbackPath),
-        );
+        final encoded = await fs.readString(rollbackPath);
+        final preparation = await jsonSource.prepareRollback(encoded);
         final replace = ResolvedImportSource(
           id: id,
           action: ImportAction.replace,
@@ -1596,7 +1610,19 @@ final class PackageTransactionSource implements ImportTransactionSource {
         );
         switch (preparation.preparedData) {
           case final BookmarkBackupData data:
-            await _applyBookmarks(data, replace, preserveOrigins: true);
+            // Released rollback exports predate the local ID authority and
+            // can reference rows already deleted by a partially applied import.
+            final version = decodeData(data: encoded).version;
+            final recover = recoverReleasedBookmarks;
+            if ((version == 4 || version == 5) && recover != null) {
+              _restoredBeforeBookmarkActivation = await recover(data);
+              if (_restoredBeforeBookmarkActivation) return;
+            }
+            await _applyBookmarks(
+              data,
+              replace,
+              rollbackBookmarkVersion: version,
+            );
           case final FollowingTopicBackupData data:
             await _applyFollowingTopics(
               data,

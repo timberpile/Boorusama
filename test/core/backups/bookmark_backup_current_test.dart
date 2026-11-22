@@ -143,7 +143,7 @@ void main() {
     ),
   ];
 
-  Map<String, dynamic> payload(BookmarkBackupData data, {int version = 10}) => {
+  Map<String, dynamic> payload(BookmarkBackupData data, {int version = 6}) => {
     'version': version,
     'data': codec.encode(data),
     ...data.extraFields,
@@ -154,7 +154,7 @@ void main() {
   );
 
   test(
-    'v10 stores all Bookmark kinds in one tagged array and excludes secrets',
+    'v6 stores all Bookmark kinds in one tagged array and excludes secrets',
     () {
       final inputRecords = records();
       final input = BookmarkBackupData.unified(
@@ -361,7 +361,7 @@ void main() {
     },
   );
 
-  test('v10 rejects malformed kinds, unsupported versions and mismatched Related rows', () {
+  test('v6 rejects malformed kinds, unsupported versions and mismatched Related rows', () {
     final base = payload(
       BookmarkBackupData.unified(
         records: records(),
@@ -449,7 +449,7 @@ void main() {
     expect(legacy.sourceProfileHint, secret);
   });
 
-  test('explicit legacy v9 Post and collection fixture migrates dates and local IDs', () {
+  test('rejects development v9 Post and collection payloads', () {
     final legacyPost = testPoolPost(7);
     final postWire = <String, dynamic>{
       'localId': 7,
@@ -489,27 +489,6 @@ void main() {
       'collectionBookmarks': [oldPool],
     };
 
-    final migrated = read(v9);
-    expect(migrated.records.length, 2);
-    expect(migrated.records.map((record) => record.id).toSet().length, 2);
-    final post = migrated.records.whereType<PostBookmark>().single;
-    expect(post.createdAt, earlyA);
-    expect(migrated.groups[0].addedAt[7], earlyA);
-    expect(migrated.groups[1].addedAt[7], lateB);
-    final retained = migrated.records.whereType<LegacyGroupBookmark>().single;
-    expect(retained.metadata.sourceTypeId, 777);
-    expect(retained.metadata.origin.booruType, BooruType.unknown);
-    expect(retained.metadata.sourceSite, isNull);
-    expect(
-      retained.tryReferenceForProvenSite(Uri.parse('https://legacy.example')),
-      isNull,
-    );
-    expect(migrated.groups.map((group) => group.id), [groupA, groupB]);
-    final legacyId = retained.id;
-    expect(legacyId, isNot(7));
-    expect(migrated.groups[0].bookmarkIds, containsAll([7, legacyId]));
-    expect(migrated.groups[1].bookmarkIds, containsAll([7, legacyId]));
-    expect(migrated.groups[0].addedAt[legacyId], earlyA);
-    expect(migrated.groups[1].addedAt[legacyId], lateB);
+    expect(() => read(v9), throwsA(isA<InvalidBackupFormatException>()));
   });
 }

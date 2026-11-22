@@ -17,7 +17,7 @@ void main() {
   BookmarkBackupData parse(Map<String, dynamic> value) =>
       codec.parse(decodeData(data: jsonEncode(value)));
 
-  test('v10 writer converts empty legacy folders to nested groups without a folders authority', () {
+  test('v6 writer converts empty legacy folders to nested groups without a folders authority', () {
     final data = BookmarkBackupData.unified(
       records: const [],
       groups: const [
@@ -33,7 +33,7 @@ void main() {
       ],
     );
     final wire = {
-      'version': 10,
+      'version': 6,
       'data': codec.encode(data),
       ...data.extraFields,
     };
@@ -52,7 +52,7 @@ void main() {
     expect(restored.extraFields, data.extraFields);
   });
 
-  test('canonical v10 rejects duplicate direct membership references', () {
+  test('canonical v6 rejects duplicate direct membership references', () {
     final data = BookmarkBackupData.unified(
       records: [testPoolPost(1).copyWith(id: 0)],
       groups: [
@@ -67,14 +67,14 @@ void main() {
     final fields = data.extraFields;
     ((fields['groups'] as List).single as Map)['bookmarkIds'] = [0, 0];
     expect(
-      () => parse({'version': 10, 'data': codec.encode(data), ...fields}),
+      () => parse({'version': 6, 'data': codec.encode(data), ...fields}),
       throwsA(isA<InvalidBackupFormatException>()),
     );
   });
 
-  test('v10 rejects mixed and unmarked ambiguous organization shapes', () {
+  test('v6 rejects mixed and unmarked ambiguous organization shapes', () {
     final canonical = <String, dynamic>{
-      'version': 10,
+      'version': 6,
       'data': [],
       'organizationSchema': 'nestedGroups',
       'groups': [
@@ -103,7 +103,7 @@ void main() {
   });
 
   test(
-    'v10 validates missing parents, cycles and Default placement before import',
+    'v6 validates missing parents, cycles and Default placement before import',
     () {
       Map<String, dynamic> row(String id, String? parent) => {
         'id': id,
@@ -120,7 +120,7 @@ void main() {
       ]) {
         expect(
           () => parse({
-            'version': 10,
+            'version': 6,
             'data': [],
             'organizationSchema': 'nestedGroups',
             'groups': rows,
@@ -131,30 +131,34 @@ void main() {
     },
   );
 
-  test('explicit #155 transitional v10 folder shape remains readable and converts losslessly on export', () {
-    final restored = parse({
-      'version': 10,
+  test('rejects retired versions and the unmarked development v6 shape', () {
+    for (final version in [6, 7, 8, 9, 10]) {
+      expect(
+        () => parse({
+          'version': version,
+          'data': [],
+          'groups': [],
+          'folders': [],
+          'collectionBookmarks': [],
+        }),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    }
+  });
+
+  test('rejected final shapes cannot be treated as an empty collection', () {
+    final valid = {
+      'version': 6,
       'data': [],
-      'folders': [
-        {'id': root, 'name': 'Legacy root', 'parentId': null, 'position': 3},
-      ],
-      'groups': [
-        {
-          'id': leaf,
-          'name': 'Leaf',
-          'bookmarkIds': [],
-          'addedAt': {},
-          'folderId': root,
-          'position': 7,
-        },
-      ],
-    });
-    expect(restored.extraFields.containsKey('folders'), isFalse);
-    final roundtrip = parse({
-      'version': 10,
-      'data': codec.encode(restored),
-      ...restored.extraFields,
-    });
-    expect(roundtrip.groups.map((g) => g.id), containsAll([root, leaf]));
+      'groups': [],
+      'organizationSchema': 'nestedGroups',
+    };
+    expect(parse(valid).records, isEmpty);
+    for (final field in ['data', 'groups', 'organizationSchema']) {
+      expect(
+        () => parse({...valid}..remove(field)),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    }
   });
 }

@@ -111,8 +111,8 @@ void main() {
       expect(
         const ImportSourceIntegrityValidator().validate(
           sourceId: 'bookmarks',
-          packageSchemaVersion: 10,
-          supportedSchemaVersion: 10,
+          packageSchemaVersion: 6,
+          supportedSchemaVersion: 6,
           selection: partialSelection,
           itemRecommendations: const {},
           data: scoped,
@@ -180,7 +180,7 @@ class _BookmarkSource implements ExportImportSource {
   int get priority => 0;
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 6;
 
   @override
   Future<ExportSourceSnapshot> capture(ExportSourceRequest request) =>

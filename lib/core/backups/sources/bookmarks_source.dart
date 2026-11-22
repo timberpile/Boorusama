@@ -18,13 +18,14 @@ import '../widgets/backup_restore_tile.dart';
 import '../widgets/bookmark_group_conflict_dialog.dart';
 import '../widgets/bookmark_export_scope_dialog.dart';
 import 'bookmark_backup_codec.dart';
+import 'bookmark_backup_schema.dart';
 import 'bookmark_backup_worker.dart';
 import 'bookmark_backup_data.dart';
 import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
 
-const kBookmarksBackupVersion = 10;
+export 'bookmark_backup_schema.dart';
 
 class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)

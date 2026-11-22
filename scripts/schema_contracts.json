@@ -1,0 +1,163 @@
+{
+  "baseline_commit": "422aeae087c1108e655d85d1a3dac25120456cd6",
+  "baseline_release": "v4.6.1-timberpile.3",
+  "scope": "Reviewed app-owned source markers. Run --inventory and manually classify additional markers; equal numbers do not prove semantic compatibility. Refresh baseline-specific locators after an actual public release.",
+  "contracts": [
+    {
+      "id": "bookmark-export",
+      "path": "lib/core/backups/sources/bookmark_backup_schema.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kBookmarksBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "baseline_path": "lib/core/backups/sources/bookmarks_source.dart"
+    },
+    {
+      "id": "bookmark-import-readers",
+      "path": "lib/core/backups/sources/bookmark_backup_codec.dart",
+      "pattern": "metadata\\.version\\s*(?:!=\\s*(?=[0-9])|==\\s*(?=kBookmarksBackupVersion\\b))(?P<version>[0-9]+|kBookmarksBackupVersion)",
+      "reader_for": "bookmark-export",
+      "baseline_pattern": "metadata\\.version\\s*!=\\s*(?P<version>[0-9]+)",
+      "shared_symbol": "kBookmarksBackupVersion"
+    },
+    {
+      "id": "profiles-export",
+      "path": "lib/core/backups/sources/booru_configs_source.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kBooruConfigsExporterImporterVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "settings-export",
+      "path": "lib/core/backups/sources/settings_source.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kSettingsBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "favorite-tags-export",
+      "path": "lib/core/backups/sources/favorite_tags_source.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kFavoriteTagsBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "blacklist-export",
+      "path": "lib/core/backups/sources/blacklisted_tags_source.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kBlacklistedTagsBackupVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "following-export",
+      "path": "lib/core/backups/sources/following_topics_source.dart",
+      "pattern": "(?s)class\\s+FollowingTopicsBackupSource\\b.*?\\bversion:\\s*(?P<version>[0-9]+)\\s*,"
+    },
+    {
+      "id": "feeds-export",
+      "path": "lib/core/backups/sources/topic_feeds_source.dart",
+      "pattern": "(?s)class\\s+TopicFeedsBackupSource\\b.*?\\bversion:\\s*(?P<version>[0-9]+)\\s*,"
+    },
+    {
+      "id": "export-container",
+      "path": "lib/core/backups/export_import/models/package_manifest.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?kExportPackageFormatVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "downloads-sqlite",
+      "path": "lib/core/bulk_downloads/src/data/repo_sqlite.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?_kDownloadVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "history-sqlite",
+      "path": "lib/core/search/histories/src/data/repo_sqlite.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?_kSearchHistoryVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "post-common-snapshot",
+      "path": "lib/core/posts/post/src/data/stored_post_codec.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?commonSchemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "link-file",
+      "path": "lib/core/posts/links/boorusama_link_file.dart",
+      "pattern": "'format':\\s*'boorusama-link',\\s*'version':\\s*(?P<version>[0-9]+)"
+    },
+    {
+      "id": "group-snapshot",
+      "path": "lib/core/bookmarks/src/types/stored_group_snapshot.dart",
+      "pattern": "this\\.schemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*,"
+    },
+    {
+      "id": "mitemite-protocol",
+      "path": "lib/core/backups/mitemite/limits.dart",
+      "pattern": "\\bconst\\s+(?:int\\s+)?miteMiteProtocol\\s*=\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "mitemite-bookmark-payload",
+      "path": "lib/core/backups/mitemite/bookmark_package.dart",
+      "pattern": "\\bstatic const schema\\s*=\\s*(?P<version>kBookmarksBackupVersion)\\s*;",
+      "same_as": "bookmark-export",
+      "baseline_pattern": "\\bstatic const schema\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "shared_symbol": "kBookmarksBackupVersion"
+    },
+    {
+      "id": "mitemite-following-payload",
+      "path": "lib/core/backups/mitemite/following_package.dart",
+      "pattern": "\\bstatic const schema\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "same_as": "following-export"
+    },
+    {
+      "id": "bookmark-organization",
+      "path": "lib/core/bookmarks/src/services/bookmark_storage_migration.dart",
+      "pattern": "\\bstatic const schemaVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "baseline_path": "lib/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart",
+      "baseline_pattern": "storage\\.put\\('version',\\s*(?P<version>[0-9]+)\\)"
+    },
+    {
+      "id": "bookmark-repository-schema",
+      "path": "lib/core/bookmarks/src/data/hive/unified_bookmark_repository.dart",
+      "pattern": "(?:_metadata\\.put\\(_schema,\\s*|_schema:\\s*)(?P<version>[0-9]+)"
+    },
+    {
+      "id": "bookmark-mutation-journal",
+      "path": "lib/core/bookmarks/src/data/hive/unified_bookmark_repository.dart",
+      "pattern": "(?s)final journal\\s*=\\s*\\{\\s*'version':\\s*(?P<version>[0-9]+),"
+    },
+    {
+      "id": "bookmark-mirror-state",
+      "path": "lib/core/bookmarks/src/types/bookmark_mirror_state.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'epoch'"
+    },
+    {
+      "id": "post-listed-payload",
+      "path": "lib/core/posts/post/src/types/booru_post_data.dart",
+      "pattern": "\\bstatic const payloadVersion\\s*=\\s*(?P<version>[0-9]+)\\s*;",
+      "baseline_absent": true
+    },
+    {
+      "id": "post-gelbooru-v2-payload",
+      "path": "lib/boorus/gelbooru_v2/posts/post_codec.dart",
+      "pattern": "\\bint get currentVersion\\s*=>\\s*(?P<version>[0-9]+)\\s*;"
+    },
+    {
+      "id": "mitemite-activity",
+      "path": "lib/core/backups/mitemite/activity_log.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'sequence'"
+    },
+    {
+      "id": "mitemite-local-events",
+      "path": "lib/core/backups/mitemite/local_events.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'notificationOutbox'"
+    },
+    {
+      "id": "mitemite-notification-outbox",
+      "path": "lib/core/backups/mitemite/notification_outbox.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'unseenOffers'"
+    },
+    {
+      "id": "following-mirror-rollback",
+      "path": "lib/core/search/following_topics/src/data/hive/following_mirror_storage.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'metadataEncoding'"
+    },
+    {
+      "id": "mitemite-notification-intent",
+      "path": "lib/core/backups/mitemite/notification_intent.dart",
+      "pattern": "'mitemite:v(?P<version>[0-9]+):'"
+    },
+    {
+      "id": "following-mirror-state",
+      "path": "lib/core/search/following_topics/src/types/following_mirror_state.dart",
+      "pattern": "'version':\\s*(?P<version>[0-9]+),\\s*'epoch'"
+    }
+  ]
+}

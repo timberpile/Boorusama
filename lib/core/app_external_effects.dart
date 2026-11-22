@@ -24,17 +24,18 @@ class BoorusamaExternalEffects extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DynamicColorBridge(
-      child: AnalyticsScope(
-        child: AutoBackupAppLifecycle(
-          child: ReceivedExportListener(
-            child: NetworkListener(
-              child: SearchRefreshLifecycle(
-                child: DiagnosticContextScope(
-                  child: AppUpdateLifecycleListener(
-                    child: MiteMiteLifecycle(
-                      child: MiteMiteNotifications(
-                        child: ImportRecoveryGate(child: child),
+    // Backup and sync effects can open repositories during startup.
+    return ImportRecoveryGate(
+      child: DynamicColorBridge(
+        child: AnalyticsScope(
+          child: AutoBackupAppLifecycle(
+            child: ReceivedExportListener(
+              child: NetworkListener(
+                child: SearchRefreshLifecycle(
+                  child: DiagnosticContextScope(
+                    child: AppUpdateLifecycleListener(
+                      child: MiteMiteLifecycle(
+                        child: MiteMiteNotifications(child: child),
                       ),
                     ),
                   ),

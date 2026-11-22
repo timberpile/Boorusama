@@ -445,7 +445,7 @@ void main() {
   });
 
   test(
-    'version 10 export/restore remaps local IDs and preserves membership dates',
+    'version 6 export/restore remaps local IDs and preserves membership dates',
     () async {
       final post = await seed(1);
       await service.addBookmarkToGroup(
@@ -646,7 +646,8 @@ void main() {
         () => codec.parse(
           decodeData(
             data: jsonEncode({
-              'version': 9,
+              'version': 6,
+              'organizationSchema': 'nestedGroups',
               'data': codec.encode(data),
               'groups': [
                 {
@@ -654,6 +655,8 @@ void main() {
                   'name': 'A',
                   'bookmarkIds': [1],
                   'addedAt': raw,
+                  'parentGroupId': null,
+                  'position': 0,
                 },
               ],
             }),

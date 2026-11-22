@@ -9,13 +9,14 @@ import '../export_import/models/export_selection.dart';
 import '../export_import/package/export_package_reader.dart';
 import '../export_import/package/export_package_limits.dart';
 import '../sources/bookmark_backup_codec.dart';
+import '../sources/bookmark_backup_schema.dart';
 import '../sources/detached_bookmark_codec.dart';
 import '../sources/bookmark_backup_data.dart';
 import '../utils/data_converter.dart';
 import 'protocol.dart';
 import 'reading_state.dart';
 
-/// A bounded v10 package for exactly one source Group's direct membership.
+/// A bounded Bookmark package for exactly one source Group's direct membership.
 /// Hierarchy and current names come from its signed catalog, not an old archive.
 /// It grants no subscription, profile binding, mirror ownership or apply right.
 final class ValidatedSyncBookmarkPackage {
@@ -41,7 +42,7 @@ final class ValidatedSyncBookmarkPackage {
   );
   final String semanticHash;
   final Uint8List bytes;
-  static const schema = 10;
+  static const schema = kBookmarksBackupVersion;
 }
 
 final class SyncBookmarkPackageValidator {

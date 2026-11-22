@@ -15,12 +15,9 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     final generation = contentMap(active['generation']);
     final groupName = contentString(generation['groups']);
     final folderName = contentString(generation['organization']);
-    final suffix = switch (active['version']) {
-      2 => '_unified_v2',
-      3 => '_hierarchy_v3',
-      _ => null,
-    };
-    if (suffix == null ||
+    const suffix = BookmarkStorageMigration.generationSuffix;
+    if (active['version'] != BookmarkStorageMigration.schemaVersion ||
+        active['hierarchyPlanHash'] is! String ||
         groupName == folderName ||
         !groupName.endsWith(suffix) ||
         !folderName.endsWith(suffix)) {
@@ -251,37 +248,21 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
         if (!deletes.contains(row.id)) row.id: row,
       ...rows,
     };
-    if (contentMap(_metadata.get('activeOrganization'))['version'] == 3) {
-      if (folders.isNotEmpty ||
-          next.values.any((row) => row.folderId != null)) {
-        throw const FormatException(
-          'Legacy folders cannot mutate active hierarchy',
-        );
-      }
-      BookmarkGroupTree([
-        for (final row in next.values)
-          BookmarkGroup(
-            id: row.id,
-            name: row.name,
-            bookmarkIds: row.bookmarkIds.toSet(),
-            parentGroupId: row.parentGroupId,
-            position: row.position,
-          ),
-      ]);
-    } else {
-      if (next.values.any((row) => row.parentGroupId != null)) {
-        throw const FormatException('Hierarchy parents require v3 activation');
-      }
-      FolderTree(folders).validatePlacements(
-        next.values.map(
-          (row) => FolderPlacement(
-            itemId: row.id,
-            folderId: row.folderId,
-            position: row.position,
-          ),
-        ),
+    if (folders.isNotEmpty || next.values.any((row) => row.folderId != null)) {
+      throw const FormatException(
+        'Legacy folders cannot mutate active hierarchy',
       );
     }
+    BookmarkGroupTree([
+      for (final row in next.values)
+        BookmarkGroup(
+          id: row.id,
+          name: row.name,
+          bookmarkIds: row.bookmarkIds.toSet(),
+          parentGroupId: row.parentGroupId,
+          position: row.position,
+        ),
+    ]);
     for (final row in removedIds.isEmpty ? rows.values : next.values) {
       for (final id in row.bookmarkIds) {
         final header = _storedHeader(id);
@@ -497,10 +478,6 @@ extension BookmarkOrganizationWrites on BookmarkHiveRepository {
     await groups.putAll({
       for (final entry in writes.entries) entry.key: _groupRow(entry.value),
     });
-    if (plan.containsKey('folders') &&
-        contentMap(_metadata.get('activeOrganization'))['version'] == 2) {
-      await folders.put('folders', plan['folders']);
-    }
     return [groups, folders];
   }
 }

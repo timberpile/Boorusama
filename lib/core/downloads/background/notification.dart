@@ -120,7 +120,8 @@ class DownloadNotifications {
 
   static SyncNotificationIntent? _activeIntent(ActiveNotification notice) {
     if (!_isMiteMiteEvent(notice)) return null;
-    if (notice.payload?.startsWith('mitemite:v2:') ?? false) {
+    if (notice.payload?.startsWith(SyncNotificationIntent.payloadPrefix) ??
+        false) {
       return SyncNotificationIntent.tryParse(notice.payload);
     }
     final destination = notice.tag!.startsWith('mitemite.discovery.')

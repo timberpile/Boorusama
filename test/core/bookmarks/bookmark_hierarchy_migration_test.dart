@@ -49,13 +49,9 @@ void main() {
     await open();
   }
 
-  Future<void> seed({bool activeV2 = false, bool collide = false}) async {
-    final groupBox = activeV2
-        ? await Hive.openBox<BookmarkGroupHiveObject>('groups_unified_v2')
-        : groups;
-    final folderBox = activeV2
-        ? await Hive.openBox<dynamic>('organization_unified_v2')
-        : organization;
+  Future<void> seed({bool collide = false}) async {
+    final groupBox = groups;
+    final folderBox = organization;
     await groupBox.put(
       child,
       BookmarkGroupHiveObject(
@@ -85,16 +81,6 @@ void main() {
       ],
       'recentManualGroupIds': [child],
     });
-    if (activeV2) {
-      // Keep a real initialized payload authority, including a burned reservation.
-      await storage.repository(posts).reserveIds(50);
-      await storage.metadataBox.put('activeOrganization', {
-        'version': 2,
-        'generation': {'groups': groupBox.name, 'organization': folderBox.name},
-        'mapping': const {},
-        'sourceRevision': 'original-v2',
-      });
-    }
   }
 
   setUp(() async {
@@ -112,56 +98,53 @@ void main() {
     await directory.delete(recursive: true);
   });
 
-  for (final activeV2 in [false, true]) {
-    test(
-      '${activeV2 ? 'active v2' : 'legacy'} preserves empty nodes and parent IDs after cold reopen',
-      () async {
-        await seed(activeV2: activeV2);
-        final sourceGroups =
-            (activeV2
-                    ? Hive.box<BookmarkGroupHiveObject>('groups_unified_v2')
-                    : groups)
-                .length;
-        final migrated = await migration().open();
-        final result = await migrated.getGroups();
-        expect(result.singleWhere((g) => g.id == child).parentGroupId, parent);
-        expect(result.singleWhere((g) => g.id == empty).parentGroupId, parent);
-        expect(result.where((g) => g.id == parent), hasLength(1));
-        expect(result.every((g) => g.folderId == null), isTrue);
-        expect(
-          contentMap(storage.metadataBox.get('activeOrganization'))['version'],
-          3,
-        );
-        if (activeV2)
-          expect(
-            contentMap(storage.metadataBox.get('idReservation'))['nextId'],
-            50,
-          );
-        await restart();
-        expect(await (await migration().open()).getGroups(), result);
-        expect(
-          (activeV2
-                  ? await Hive.openBox<BookmarkGroupHiveObject>(
-                      'groups_unified_v2',
-                    )
-                  : groups)
-              .length,
-          sourceGroups,
-        );
-      },
-    );
+  for (final version in [2, 3]) {
+    test('preserves unsupported development organization v$version', () async {
+      await seed();
+      final suffix = version == 2 ? '_unified_v2' : '_hierarchy_v3';
+      final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
+        'groups$suffix',
+      );
+      final folderBox = await Hive.openBox<dynamic>('organization$suffix');
+      await groupBox.put(
+        child,
+        BookmarkGroupHiveObject(
+          id: child,
+          name: 'Development Group',
+          bookmarkIds: const [],
+        ),
+      );
+      await folderBox.put('version', version);
+      final marker = {
+        'version': version,
+        'generation': {'groups': groupBox.name, 'organization': folderBox.name},
+        'sourceRevision': 'development',
+      };
+      await storage.metadataBox.put('activeOrganization', marker);
+      await expectLater(migration().open(), throwsFormatException);
+      await restart();
+      await expectLater(migration().open(), throwsFormatException);
+      expect(storage.metadataBox.get('activeOrganization'), marker);
+      expect(
+        (await Hive.openBox<BookmarkGroupHiveObject>(groupBox.name))
+            .get(child)!
+            .name,
+        'Development Group',
+      );
+      expect(
+        (await Hive.openBox<dynamic>(folderBox.name)).get('version'),
+        version,
+      );
+      expect(await Hive.boxExists('groups_hierarchy_v2'), isFalse);
+    });
   }
 
-  for (final phase in [
-    'hierarchy-plan',
-    'hierarchy-organization',
-    'hierarchy-activation',
-    'hierarchy-cleanup',
-  ]) {
+  for (final phase in ['plan', 'organization', 'activation', 'cleanup']) {
     test(
-      'v2 collision mapping replays $phase without replacing group UUIDs or reserving Bookmark IDs',
+      'released layout collision mapping replays $phase without replacing group UUIDs or reserving Bookmark IDs',
       () async {
-        await seed(activeV2: true, collide: true);
+        await seed(collide: true);
+        await storage.repository(posts).reserveIds(50);
         interrupt = phase;
         await expectLater(migration().open(), throwsStateError);
         final pending = contentMap(
@@ -171,7 +154,7 @@ void main() {
           contentMap(pending['plan'] ?? const {})['folderIdMapping'] ??
               const {},
         );
-        if (phase == 'hierarchy-plan' || phase == 'hierarchy-organization') {
+        if (phase == 'plan' || phase == 'organization') {
           expect(mapping[parent], isNot(parent));
         }
         await restart();
@@ -196,6 +179,12 @@ void main() {
           storage.metadataBox.containsKey('organizationMigration'),
           isFalse,
         );
+        expect(
+          contentMap(storage.metadataBox.get('activeOrganization'))['version'],
+          2,
+        );
+        expect(await Hive.boxExists('groups_unified_v2'), isFalse);
+        expect(await Hive.boxExists('groups_hierarchy_v3'), isFalse);
         final finalRows = List<BookmarkGroup>.of(result);
         await restart();
         expect(await (await migration().open()).getGroups(), finalRows);

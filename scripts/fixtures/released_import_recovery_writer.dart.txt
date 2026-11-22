@@ -1,0 +1,238 @@
+// Copy into the v4.6.1-timberpile.3 checkout as test/released_import_recovery_writer_test.dart.
+import 'dart:async';
+import 'dart:io';
+
+import 'package:boorusama/core/backups/export_import/import/bookmark_profile_dependency.dart';
+import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
+import 'package:boorusama/core/backups/export_import/import/import_journal.dart';
+import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
+import 'package:boorusama/core/backups/export_import/import/import_preflight.dart';
+import 'package:boorusama/core/backups/export_import/import/import_transaction.dart';
+import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
+import 'package:boorusama/core/backups/export_import/models/import_action.dart';
+import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
+import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
+import 'package:boorusama/core/backups/sources/providers.dart';
+import 'package:boorusama/core/bookmarks/providers.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
+import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/boorus/engine/providers.dart';
+import 'package:boorusama/core/boorus/engine/types.dart';
+import 'package:boorusama/core/hive/hive_adapters.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/foundation/info/package_info.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
+
+const _groupId = '550e8400-e29b-41d4-a716-446655440030';
+const _profile = '550e8400-e29b-41d4-a716-446655440017';
+const _transactionId = 'released-rollback';
+const _resolver = DefaultImageUrlResolver();
+
+void main() {
+  test(
+    'capture the released transaction during its inner Bookmark rollback',
+    () async {
+      final output = Platform.environment['RELEASE_FIXTURE_OUTPUT']!;
+      final fs = _FileSystem(output);
+      Hive.init(output);
+      addTearDown(Hive.close);
+      Hive.registerAdapter(BookmarkHiveObjectAdapter());
+      Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+      final stopped = Completer<int>();
+      final posts = _InterruptiblePosts(
+        await Hive.openBox<BookmarkHiveObject>('favorites'),
+        stopped,
+      );
+      final folders = await Hive.openBox<dynamic>('bookmark_folders');
+      final groups = _FailingGroups(
+        await Hive.openBox<BookmarkGroupHiveObject>('bookmark_groups'),
+        folders,
+      );
+      final original = _post(12, 42);
+      final incoming = _post(100, 67);
+      await posts.updateBookmark(original);
+      await groups.createGroup('Archive', id: _groupId);
+      await groups.addBookmarks(_groupId, {original.id});
+      await groups.recordManualGroupInteraction(_groupId);
+
+      final sourceProvider = Provider<PackageTransactionSource>((ref) {
+        return PackageTransactionSource(
+            source: ref.read(bookmarksBackupSourceProvider),
+            incomingPath: '$output/incoming.json',
+            fs: fs,
+            ref: ref,
+            credentialsIncluded: false,
+          )
+          ..profileMappings = {
+            ProfileReferenceKey.fromReference(
+              bookmarkProfileReference(incoming),
+            ): _profile,
+          };
+      });
+      final container = ProviderContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(null),
+          booruEngineRegistryProvider.overrideWith(
+            (ref) => BooruEngineRegistry(),
+          ),
+          appFileSystemProvider.overrideWithValue(fs),
+          bookmarkRepoProvider.overrideWith((ref) async => posts),
+          bookmarkGroupRepoProvider.overrideWith((ref) async => groups),
+          bookmarkUrlResolverProvider.overrideWith((ref, id) => _resolver),
+          settingsProvider.overrideWithValue(Settings.defaultSettings),
+        ],
+      );
+      addTearDown(container.dispose);
+      final source = container.read(bookmarksBackupSourceProvider);
+      final data = BookmarkBackupData(
+        bookmarks: [incoming],
+        groups: const [
+          BookmarkGroupBackup(
+            id: _groupId,
+            name: 'Archive',
+            bookmarkIds: [100],
+          ),
+        ],
+      );
+      await fs.writeString(
+        '$output/incoming.json',
+        source.converter.encode(
+          payload: BookmarkBackupCodec().encode(data),
+          extraFields: data.extraFields,
+        ),
+      );
+      final wrapper = container.read(sourceProvider);
+      await wrapper.prepare(null);
+      final store = ImportJournalStore(
+        fs: fs,
+        rootPath: '$output/import_transactions',
+      );
+      final plan = ValidatedImportPlan(
+        plan: ResolvedImportPlan(
+          sources: [
+            ResolvedImportSource(
+              id: 'bookmarks',
+              action: ImportAction.configureItems,
+              items: const [
+                ResolvedImportItem(
+                  id: 'group:$_groupId',
+                  action: ImportAction.merge,
+                ),
+              ],
+            ),
+          ],
+        ),
+        revisionTokens: {'bookmarks': await wrapper.revisionToken()},
+        summary: const PlannedChangeSummary(),
+      );
+
+      groups.failAfterMembershipWrite = true;
+      unawaited(
+        ImportTransaction(store: store, fs: fs)
+            .execute(
+              transactionId: _transactionId,
+              plan: plan,
+              sources: {'bookmarks': wrapper},
+            )
+            .then(
+              (_) => stopped.completeError(
+                StateError('Transaction unexpectedly completed'),
+              ),
+              onError: (Object error, StackTrace stack) =>
+                  stopped.completeError(error, stack),
+            ),
+      );
+      final deleted = await stopped.future;
+      expect(deleted, isNot(original.id));
+      expect((await groups.getGroup(_groupId))!.bookmarkIds, {
+        original.id,
+        deleted,
+      });
+      expect(
+        (await posts.getAllBookmarksOrThrow(imageUrlResolver: (_) => _resolver))
+            .map((post) => post.id),
+        [original.id],
+      );
+      final journal = await store.read(_transactionId);
+      expect(journal.state, ImportJournalState.applying);
+      expect(journal.currentSourceId, 'bookmarks');
+      expect(journal.rollbackHashes['bookmarks'], hasLength(64));
+      await Hive.close();
+      // The pending future never releases the released rollback, even during close.
+      await fs.deleteFile('$output/incoming.json');
+    },
+  );
+}
+
+Bookmark _post(int id, int postId) => bookmarkWithProfileHint(
+  Bookmark(
+    id: id,
+    createdAt: DateTime.utc(2026, 1, 2),
+    updatedAt: DateTime.utc(2026, 2, 3),
+    thumbnailUrl: 'https://img.example/thumbnail.jpg',
+    sampleUrl: 'https://img.example/sample.jpg',
+    originalUrl: 'https://img.example/original.jpg',
+    sourceUrl:
+        'https://gelbooru.example/board/index.php?page=post&s=view&id=$postId',
+    booruId: BooruType.gelbooruV2.id,
+    width: 100,
+    height: 200,
+    md5: 'fixture-$postId',
+    tags: const {'cat_fixture'},
+    realSourceUrl: null,
+    format: 'jpg',
+    imageUrlResolver: _resolver,
+    postId: postId,
+    metadata: const {},
+  ),
+  _profile,
+);
+
+class _FileSystem extends IoFileSystem {
+  const _FileSystem(this.root);
+  final String root;
+  @override
+  Future<String> getAppStoragePath() async => root;
+}
+
+class _InterruptiblePosts extends BookmarkHiveRepository {
+  _InterruptiblePosts(this.box, this.stopped) : super(box);
+
+  final Box<BookmarkHiveObject> box;
+  final Completer<int> stopped;
+
+  @override
+  Future<void> removeBookmarks(Iterable<Bookmark> favorites) async {
+    final deleted = favorites.single.id;
+    await super.removeBookmarks(favorites);
+    await box.flush();
+    stopped.complete(deleted);
+    await Completer<void>().future;
+  }
+}
+
+class _FailingGroups extends BookmarkGroupRepositoryHive {
+  _FailingGroups(Box<BookmarkGroupHiveObject> box, Box<dynamic> organization)
+    : super(box, organizationBox: organization);
+
+  var failAfterMembershipWrite = false;
+
+  @override
+  Future<BookmarkGroup> replaceMemberships(String id, Set<int> ids) async {
+    final result = await super.replaceMemberships(id, ids);
+    if (failAfterMembershipWrite) {
+      failAfterMembershipWrite = false;
+      throw StateError('Injected failure after the released membership write');
+    }
+    return result;
+  }
+}

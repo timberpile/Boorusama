@@ -154,6 +154,13 @@ void main() {
           parentSource: null,
           position: 0,
           folder: folder,
+          children: [
+            FollowingDefinitionChild(
+              source: uid(401 + p * 10),
+              kind: FollowingMirrorKind.topic,
+              position: 1,
+            ),
+          ],
         ),
       );
       for (final i in [0, 1]) {

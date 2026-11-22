@@ -2973,8 +2973,8 @@ _mount(
   );
   final payloads = await Hive.openBox<dynamic>('payloads', bytes: Uint8List(0));
   final metadata = await Hive.openBox<dynamic>('metadata', bytes: Uint8List(0));
-  const groupName = 'groups_unified_v2';
-  const organizationName = 'organization_unified_v2';
+  const groupName = 'groups_hierarchy_v2';
+  const organizationName = 'organization_hierarchy_v2';
   final groupRows = await Hive.openBox<BookmarkGroupHiveObject>(
     groupName,
     bytes: Uint8List(0),
@@ -2992,8 +2992,10 @@ _mount(
     postDataCodec: (_) => const EmptyPostDataCodec('test'),
     syncBoxes: (_) async {},
   );
+  await posts.readAll();
   await metadata.put('activeOrganization', {
     'version': 2,
+    'hierarchyPlanHash': 'fixture',
     'generation': {'groups': groupName, 'organization': organizationName},
   });
   // Only the initial generation-file existence probe crosses the IO API.

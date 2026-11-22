@@ -208,7 +208,6 @@ final class SyncFollowingMirrorEngine {
             ? old.descriptorDigest
             : _descriptor(revision),
         definitionDigest: old.definitionDigest,
-        definitionVersion: old.definitionVersion,
         seenDefinitionDigest: old.seenDefinitionDigest,
         parentSource: old.parentSource,
         position: old.position,
@@ -280,7 +279,6 @@ final class SyncFollowingMirrorEngine {
       ..removeWhere((id, _) => remove.contains(id));
     final topics = <FollowingTopic>[];
     final compatibleProfiles = List<BackupProfileReference>.of(profiles());
-    final beforeChildren = followingFolderDefinitionChildren(before);
     final kinds = {
       for (final source in scope.covered)
         source: packages[source] == null
@@ -361,7 +359,6 @@ final class SyncFollowingMirrorEngine {
           throw const SyncConflict();
         folders[id] = folder;
       }
-      final definitionVersion = kind == FollowingMirrorKind.folder ? 3 : 2;
       final nextChildren = orderedFollowingDefinitionChildren(
         children[source] ?? const [],
       );
@@ -371,35 +368,9 @@ final class SyncFollowingMirrorEngine {
         position: entry.position,
         topic: topic,
         folder: folder,
-        version: definitionVersion,
         profile: reference?.toJson(),
         children: nextChildren,
       );
-      // Upgrade private digests without inventing a new definition notice.
-      // An actual child/order/profile change still invalidates an old receipt.
-      final upgradeSeen =
-          old != null &&
-          old.definitionVersion < definitionVersion &&
-          !old.hasDefinitionChange &&
-          followingDefinitionDigest(
-                kind: kind,
-                parentSource: entry.parent,
-                position: entry.position,
-                topic: topic,
-                folder: folder,
-                version: old.definitionVersion,
-                profile: reference?.toJson(),
-              ) ==
-              old.definitionDigest &&
-          canonicalSyncJson(followingDefinitionProfile(old.profile)) ==
-              canonicalSyncJson(
-                followingDefinitionProfile(reference?.toJson()),
-              ) &&
-          (kind != FollowingMirrorKind.folder ||
-              const ListEquality<FollowingDefinitionChild>().equals(
-                beforeChildren[id] ?? const [],
-                nextChildren,
-              ));
       owners[id] = FollowingMirrorOwner(
         publisher: ticket.publisher,
         source: source,
@@ -411,10 +382,7 @@ final class SyncFollowingMirrorEngine {
         position: entry.position,
         profile: reference?.toJson(),
         definitionDigest: definition,
-        definitionVersion: definitionVersion,
-        seenDefinitionDigest: upgradeSeen
-            ? definition
-            : old?.seenDefinitionDigest,
+        seenDefinitionDigest: old?.seenDefinitionDigest,
       );
     }
     final receivedIds = local.values.toSet();
@@ -428,10 +396,7 @@ final class SyncFollowingMirrorEngine {
       folders: folders.values,
       placements: placements.values,
     );
-    final previousDefinitions = followingSnapshotDefinitionDigests(
-      before,
-      useCurrentVersion: true,
-    );
+    final previousDefinitions = followingSnapshotDefinitionDigests(before);
     final establishedFolders = {
       for (final source
           in initial.subscriptions[ticket.publisher] ?? const <String>{})

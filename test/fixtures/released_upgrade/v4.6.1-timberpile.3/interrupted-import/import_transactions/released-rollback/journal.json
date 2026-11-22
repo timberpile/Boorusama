@@ -1,0 +1,1 @@
+{"transactionId":"released-rollback","planHash":"93bd01cb0cb73ed0e3f7514f8c4828aae19eaed4348be23a7e28d27d15c07d57","state":"applying","sourceIds":["bookmarks"],"completedSourceIds":[],"rollbackHashes":{"bookmarks":"4ce02271632c89540a65bcc07929f5823d0c51107f45e984f62c589e0dd2611f"},"currentSourceId":"bookmarks","error":null}

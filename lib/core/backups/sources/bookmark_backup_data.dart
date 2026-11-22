@@ -90,7 +90,7 @@ class BookmarkGroupBackup extends Equatable {
 }
 
 class BookmarkBackupData extends Equatable {
-  /// Compatibility input for v4-v9 readers and Post-only callers. Collection
+  /// Compatibility input for published v4/v5 readers and projected callers. Collection
   /// UUIDs are converted to collision-free file IDs immediately; only records
   /// and BookmarkGroup membership rows remain authoritative.
   factory BookmarkBackupData({

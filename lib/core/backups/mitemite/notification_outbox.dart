@@ -177,9 +177,10 @@ final class SyncNotificationOutbox {
   factory SyncNotificationOutbox.fromJson(Object? raw) {
     if (raw == null) return SyncNotificationOutbox.empty();
     if (raw is! Map ||
-        !const [1, 2].contains(raw['version']) ||
+        raw['version'] != 1 ||
         raw['pending'] is! List ||
         raw['offers'] is! Map ||
+        raw['unseenOffers'] is! List ||
         raw['permissionRequested'] is! bool) {
       throw const FormatException('Invalid notification outbox');
     }
@@ -194,46 +195,14 @@ final class SyncNotificationOutbox {
     result._sequence = sequence;
     result.permissionRequested = raw['permissionRequested'] as bool;
     for (final value in raw['pending'] as List) {
-      final json = Map<String, dynamic>.from(value as Map);
-      // v1 offers could mix both source kinds. Split pending intent without
-      // discarding its batch, generation, exact members or pinned identity.
-      final migrated = <Map<String, dynamic>>[];
-      if (raw['version'] == 1 && json['kind'] == 'offers') {
-        for (final kind in const ['bookmarks', 'following_topics']) {
-          final items = (json['items'] as List)
-              .where((item) => (item as Map)['kind'] == kind)
-              .toList();
-          if (items.isEmpty) continue;
-          if (json['bucket'] !=
-              'offers:${(items.first as Map)['publisher']}/${(items.first as Map)['fingerprint']}')
-            throw const FormatException('Invalid legacy offer bucket');
-          migrated.add({
-            ...json,
-            'kind': kind == 'bookmarks' ? 'offers' : 'followingOffers',
-            'bucket':
-                (kind == 'bookmarks' ? 'offers:' : 'followingOffers:') +
-                '${(items.first as Map)['publisher']}/${(items.first as Map)['fingerprint']}',
-            'items': items,
-          });
-        }
-        if (migrated.fold<int>(
-              0,
-              (n, item) => n + (item['items'] as List).length,
-            ) !=
-            (json['items'] as List).length) {
-          throw const FormatException('Invalid legacy offer kinds');
-        }
-      } else {
-        migrated.add(json);
+      final notice = SyncNotice.fromJson(
+        Map<String, dynamic>.from(value as Map),
+      );
+      if (notice.batch > sequence ||
+          result._pending.containsKey(notice.bucket)) {
+        throw const FormatException('Invalid pending notification sequence');
       }
-      for (final value in migrated) {
-        final notice = SyncNotice.fromJson(value);
-        if (notice.batch > sequence ||
-            result._pending.containsKey(notice.bucket)) {
-          throw const FormatException('Invalid pending notification sequence');
-        }
-        result._pending[notice.bucket] = notice;
-      }
+      result._pending[notice.bucket] = notice;
     }
     for (final entry in (raw['offers'] as Map).entries) {
       final parts = (entry.key as String).split('/');
@@ -259,25 +228,21 @@ final class SyncNotificationOutbox {
         known: known,
       );
     }
-    if (raw['version'] == 2) {
-      if (raw['unseenOffers'] is! List)
-        throw const FormatException('Missing offer receipts');
-      for (final rawItem in raw['unseenOffers'] as List) {
-        final item = SyncNoticeItem.fromJson(
-          Map<String, dynamic>.from(rawItem as Map),
-        );
-        if (item.source == null ||
-            item.sourceKind == null ||
-            item.member != null ||
-            !(result._offers[item.publisherKey]?.known.contains(
-                  canonicalSyncJson([item.sourceKind, item.source]),
-                ) ??
-                false) ||
-            result._unseenOffers.containsKey(item.key)) {
-          throw const FormatException('Invalid unseen offer receipt');
-        }
-        result._unseenOffers[item.key] = item;
+    for (final rawItem in raw['unseenOffers'] as List) {
+      final item = SyncNoticeItem.fromJson(
+        Map<String, dynamic>.from(rawItem as Map),
+      );
+      if (item.source == null ||
+          item.sourceKind == null ||
+          item.member != null ||
+          !(result._offers[item.publisherKey]?.known.contains(
+                canonicalSyncJson([item.sourceKind, item.source]),
+              ) ??
+              false) ||
+          result._unseenOffers.containsKey(item.key)) {
+        throw const FormatException('Invalid unseen offer receipt');
       }
+      result._unseenOffers[item.key] = item;
     }
     result._checkBounds();
     return result;
@@ -466,7 +431,7 @@ final class SyncNotificationOutbox {
   }
 
   Map<String, Object?> toJson() => {
-    'version': 2,
+    'version': 1,
     'unseenOffers': [for (final item in _unseenOffers.values) item.toJson()],
     'sequence': _sequence,
     'permissionRequested': permissionRequested,

@@ -2,8 +2,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
+import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../foundation/filesystem.dart';
+import '../../../bookmarks/providers.dart';
+import '../../../bookmarks/src/data/hive/factory.dart';
+import '../../../bookmarks/src/types/bookmark_repository_factory.dart';
+import '../../../boorus/engine/providers.dart';
+import '../../../content/providers.dart';
+import '../../sources/bookmark_backup_data.dart';
+import '../../sources/bookmark_import_planner.dart';
+import '../../sources/bookmark_unified_import.dart';
 import '../../sources/providers.dart';
+import '../models/import_action.dart';
 import 'import_flow_notifier.dart';
 import 'import_journal.dart';
 import 'import_recovery_service.dart';
@@ -38,6 +48,7 @@ class ImportRecoveryNotifier extends AsyncNotifier<ImportRecoveryResult> {
           fs: fs,
           ref: ref,
           credentialsIncluded: true,
+          recoverReleasedBookmarks: _restoreReleasedBookmarks,
         ),
     };
     return ImportRecoveryService(
@@ -45,6 +56,50 @@ class ImportRecoveryNotifier extends AsyncNotifier<ImportRecoveryResult> {
       transaction: ImportTransaction(store: store, fs: fs),
       sources: () => sources,
     ).recoverPending();
+  }
+
+  Future<bool> _restoreReleasedBookmarks(BookmarkBackupData data) async {
+    final factory = ref.read(bookmarkRepositoryFactoryProvider);
+    if (factory is! HiveBookmarkRepositoryFactory) return false;
+    final registry = ref.read(booruEngineRegistryProvider);
+    return factory.recoverReleasedOrganization(
+      postDataCodec: (type) => registry.getPostCapability(type)?.codec,
+      storage: BookmarkStorageContext(
+        coordinator: ref.read(dataMutationCoordinatorProvider),
+        groupMetadataCodec: ref.read(groupMetadataCodecProvider),
+      ),
+      snapshotIds: data.records.map((record) => record.id),
+      legacyFolderGroupIds: data.legacyFolderGroupIds,
+      prepare: (repository) async {
+        final records = await repository.readAll();
+        // Only the verified preimage describes the intended Group graph. Use
+        // the ordinary identity matcher and allocator for its file-local IDs.
+        final plan = const BookmarkImportPlanner().plan(
+          data: data,
+          currentBookmarks: records,
+          currentGroups: const [],
+        );
+        final prepared = BookmarkImportPreparation.prepare(
+          plan: plan.resolveActions({
+            for (final group in plan.groups)
+              group.id: group.resolveAction(ImportAction.replace),
+          }),
+          currentRecords: records,
+          currentGroups: const [],
+          currentFolders: const [],
+          normalize: repository.normalizeRecord,
+          replace: true,
+        );
+        final write = prepared.materialize(
+          await repository.reserveIds(prepared.newIds.length),
+        );
+        return (
+          records: write.records,
+          groups: write.groups,
+          removeIds: write.removeIds,
+        );
+      },
+    );
   }
 }
 

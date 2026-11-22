@@ -4,6 +4,7 @@ import 'package:hive_ce/hive.dart';
 // Project imports:
 import '../../../../../foundation/loggers/logger.dart';
 import '../../../../../foundation/filesystem.dart';
+import '../../services/bookmark_storage_migration.dart';
 import '../../types/bookmark_repository.dart';
 import '../../types/bookmark_repository_factory.dart';
 import '../../../../boorus/booru/types.dart';
@@ -30,10 +31,41 @@ final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
     if (storage == null) {
       throw StateError('The shared Bookmark storage context is required');
     }
+    final repository = await _open(
+      postDataCodec: postDataCodec,
+      storage: storage,
+    );
+    await repository.openOrganization();
+    return repository;
+  }
+
+  Future<bool> recoverReleasedOrganization({
+    required BooruPostDataCodec? Function(BooruType type) postDataCodec,
+    required BookmarkStorageContext storage,
+    required Iterable<int> snapshotIds,
+    required Map<String, String> legacyFolderGroupIds,
+    required Future<ReleasedBookmarkPreimage> Function(BookmarkHiveRepository)
+    prepare,
+  }) => storage.coordinator.runExclusive(() async {
+    final repository = await _open(
+      postDataCodec: postDataCodec,
+      storage: storage,
+    );
+    return repository.recoverReleasedOrganization(
+      snapshotIds: snapshotIds,
+      legacyFolderGroupIds: legacyFolderGroupIds,
+      prepare: () => prepare(repository),
+    );
+  });
+
+  Future<BookmarkHiveRepository> _open({
+    required BooruPostDataCodec? Function(BooruType type)? postDataCodec,
+    required BookmarkStorageContext storage,
+  }) async {
     final box = await Hive.openBox<BookmarkHiveObject>(boxName);
     final groups = await Hive.openBox<dynamic>('${boxName}_content_groups');
     final metadata = await Hive.openBox<dynamic>('${boxName}_content_metadata');
-    final repository = BookmarkHiveRepository(
+    return BookmarkHiveRepository(
       box,
       groupPayloadBox: groups,
       metadataBox: metadata,
@@ -49,8 +81,6 @@ final class HiveBookmarkRepositoryFactory implements BookmarkRepositoryFactory {
       logger: logger,
       fs: fs,
     );
-    await repository.openOrganization();
-    return repository;
   }
 
   @override

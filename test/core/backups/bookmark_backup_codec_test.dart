@@ -269,7 +269,7 @@ void main() {
   });
 }
 
-// Historical fixtures spell out the v4-v8 Post row rather than borrowing the
+// Historical fixtures spell out the v4/v5 Post row rather than borrowing the
 // current unified writer's wire representation.
 Map<String, dynamic> _row(PostBookmark bookmark) => {
   'localId': bookmark.id,

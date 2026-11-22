@@ -150,8 +150,7 @@ final class SyncActivityLog extends Equatable {
   factory SyncActivityLog.fromJson(Map<String, dynamic> json) {
     final sequence = json['sequence'];
     final entries = json['entries'];
-    final version = json['version'];
-    if (!const [1, 2].contains(version) ||
+    if (json['version'] != 1 ||
         sequence is! int ||
         sequence < 0 ||
         sequence > miteMiteMaxSequence ||
@@ -173,12 +172,7 @@ final class SyncActivityLog extends Equatable {
         ),
       );
     }
-    // Preserve old journal bytes/semantics until notification metadata is added.
-    if (version == 1) {
-      if (json.containsKey('notifications'))
-        throw const FormatException(
-          'Invalid legacy Activity notification state',
-        );
+    if (!json.containsKey('notifications')) {
       return SyncActivityLog._(sequence, records);
     }
     final notification = json['notifications'];
@@ -338,7 +332,7 @@ final class SyncActivityLog extends Equatable {
   }
 
   Map<String, Object?> toJson() => {
-    'version': _notificationState ? 2 : 1,
+    'version': 1,
     'sequence': sequence,
     'entries': [for (final entry in entries) entry.toJson()],
     if (_notificationState)

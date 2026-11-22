@@ -109,7 +109,7 @@ void main() {
               powerCut.sync,
             );
             hiveOpen = true;
-            expect(_activeOrganizationVersion(workspace), 3);
+            expect(_activeOrganizationVersion(workspace), 2);
 
             final parent = await workspace.service.createGroup('Parent');
             final child = await workspace.service.createGroup(

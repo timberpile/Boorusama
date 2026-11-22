@@ -54,7 +54,7 @@ void main() {
           await box.flush();
         }
         if (interruptOrganization &&
-            boxes.any((box) => box.name.endsWith('_hierarchy_v3'))) {
+            boxes.any((box) => box.name.endsWith('_hierarchy_v2'))) {
           interruptOrganization = false;
           throw StateError(
             'Interrupted after organization before ownership commit',
@@ -165,7 +165,7 @@ void main() {
     Hive.init(directory.path);
     await open();
     expect((await repository.readMirrorState()).owners[local]!.source, source);
-    expect(metadata.get('repositorySchema'), 2);
+    expect(metadata.get('repositorySchema'), 1);
     expect(
       (await service.load()).bookmarkIdsForView(const BookmarkView.all()),
       mirror.bookmarkIds,
@@ -356,7 +356,10 @@ void main() {
     interruptOrganization = true;
     await expectLater(install(), throwsStateError);
     expect(metadata.containsKey('pendingMutation'), isTrue);
-    expect(metadata.get('receivedBookmarkOwnership'), isNull);
+    expect(
+      metadata.get('receivedBookmarkOwnership'),
+      const BookmarkMirrorState.empty().toJson(),
+    );
     await Hive.close();
     Hive.init(directory.path);
     await open();

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
+import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';
 import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/bookmarks/src/providers/pool_bookmark_provider.dart';
@@ -126,7 +127,7 @@ void main() {
     );
   });
 
-  test('legacy v7-v9 preserves Related identity and rejects malformed, duplicate and older envelopes', () {
+  test('current backup keeps Related identity and rejects malformed or obsolete envelopes', () {
     final pool = testPool();
     final reference = RelatedCollectionBookmark(
       family: RelatedFamilyReference.fromPost(testRelatedPost(10)),
@@ -145,58 +146,66 @@ void main() {
     expect(reference.total, isNull);
     expect(reference.withGroups({poolGroupB}).family, reference.family);
     final codec = BookmarkBackupCodec();
-    ExportDataPayload payload(int version, {List<Object?>? rows}) {
-      final legacyRow = reference.toJson();
-      if (version < 9) legacyRow.remove('addedAt');
-      return ExportDataPayload(
-        version: version,
-        exportDate: null,
-        exportVersion: null,
-        data: [],
-        extraFields: {
-          'groups': [
-            const BookmarkGroupBackup(
-              id: poolGroupA,
-              name: 'A',
-              bookmarkIds: [],
-            ).toJson(),
-          ],
-          'folders': const [],
-          'collectionBookmarks': rows ?? [legacyRow],
-        },
-      );
-    }
+    final data = BookmarkBackupData(
+      bookmarks: const [],
+      pools: [reference],
+      groups: const [
+        BookmarkGroupBackup(id: poolGroupA, name: 'A', bookmarkIds: []),
+      ],
+    );
+    final rows = codec.encode(data);
+    ExportDataPayload payload(List<dynamic> records) => ExportDataPayload(
+      version: kBookmarksBackupVersion,
+      exportDate: null,
+      exportVersion: null,
+      data: records,
+      extraFields: data.extraFields,
+    );
+    final restored = codec.parse(payload(rows)).pools.single;
+    expect(restored.identity, reference.identity);
+    expect(int.tryParse(restored.localId), isNotNull);
+    expect(restored.groupIds, reference.groupIds);
+    expect(restored.addedAt, reference.addedAt);
+    expect(restored.createdAt, reference.createdAt);
+    expect(restored.observedAt, reference.observedAt);
+    expect((restored as RelatedCollectionBookmark).family, reference.family);
 
-    for (final version in [7, 8, 9]) {
-      final restored = codec.parse(payload(version)).pools.single;
-      expect(restored.identity, reference.identity);
-      expect(int.tryParse(restored.localId), isNotNull);
-      expect(restored.groupIds, reference.groupIds);
-      expect(restored.addedAt, reference.addedAt);
-      expect(restored.createdAt, reference.createdAt);
-      expect(restored.observedAt, reference.observedAt);
-      expect(
-        (restored as RelatedCollectionBookmark).family,
-        reference.family,
-      );
-    }
-    for (final version in [4, 5, 6, 10]) {
-      expect(
-        () => codec.parse(payload(version)),
-        throwsA(isA<InvalidBackupFormatException>()),
-      );
-    }
-    for (final rows in [
-      [encoded, encoded],
+    final row = Map<String, dynamic>.from(rows.single as Map);
+    final legacy = Map<String, dynamic>.from(row['legacy'] as Map);
+    final metadata = Map<String, dynamic>.from(legacy['metadata'] as Map);
+    for (final invalid in [
+      [row, row],
       [
-        {...encoded, 'anchorId': 0},
+        {
+          ...row,
+          'legacy': {
+            ...legacy,
+            'metadata': {...metadata, 'anchorId': 0},
+          },
+        },
       ],
       [
-        {...encoded, 'kind': 'future'},
+        {...row, 'kind': 'future'},
       ],
     ]) {
       expect(
-        () => codec.parse(payload(7, rows: rows)),
+        () => codec.parse(payload(invalid)),
+        throwsA(isA<InvalidBackupFormatException>()),
+      );
+    }
+    for (final version in [4, 5, 6, 7, 8, 9, 10]) {
+      expect(
+        () => codec.parse(
+          ExportDataPayload(
+            version: version,
+            exportDate: null,
+            exportVersion: null,
+            data: [],
+            extraFields: {
+              'collectionBookmarks': [encoded],
+            },
+          ),
+        ),
         throwsA(isA<InvalidBackupFormatException>()),
       );
     }

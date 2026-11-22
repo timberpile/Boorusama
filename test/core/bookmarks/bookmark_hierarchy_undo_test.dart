@@ -67,7 +67,7 @@ void main() {
     expect(
       (Hive.box<dynamic>('posts_unified_metadata').get('activeOrganization')
           as Map)['version'],
-      3,
+      2,
     );
     expect(
       Hive.box<dynamic>('organization').get('version'),

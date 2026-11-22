@@ -256,28 +256,23 @@ void main() {
             await directory.delete(recursive: true);
           });
           final source = container.read(bookmarksBackupSourceProvider);
-          final json = source.converter.encode(
-            payload: BookmarkBackupCodec().encode(
-              BookmarkBackupData(
-                bookmarks: [_bookmark(1, sourceUrl), _bookmark(2, sourceUrl)],
-                groups: const [],
-              ),
-            ),
-            extraFields: {
-              'organizationSchema': 'nestedGroups',
-              'groups': [
-                {
-                  'id': groupId,
-                  'name': 'Imported',
-                  'parentGroupId': null,
-                  'bookmarkIds': [1, 2],
-                  'addedAt': {
-                    '1': _bookmark(1, sourceUrl).createdAt.toIso8601String(),
-                    '2': _bookmark(2, sourceUrl).createdAt.toIso8601String(),
-                  },
+          final incoming = [_bookmark(1, sourceUrl), _bookmark(2, sourceUrl)];
+          final data = BookmarkBackupData.unified(
+            records: incoming,
+            groups: [
+              BookmarkGroupBackup(
+                id: groupId,
+                name: 'Imported',
+                bookmarkIds: incoming.map((record) => record.id).toList(),
+                addedAt: {
+                  for (final record in incoming) record.id: record.createdAt,
                 },
-              ],
-            },
+              ),
+            ],
+          );
+          final json = source.converter.encode(
+            payload: BookmarkBackupCodec().encode(data),
+            extraFields: data.extraFields,
           );
           final path = await const ExportPackageWriter(fs: IoFileSystem())
               .write(
@@ -287,7 +282,7 @@ void main() {
                   sources: [
                     ExportPackageSourceBuild(
                       id: 'bookmarks',
-                      schemaVersion: 4,
+                      schemaVersion: source.version,
                       selection: const ExportNodeSelection.explicit(
                         'bookmarks',
                         {

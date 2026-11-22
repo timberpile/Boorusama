@@ -101,18 +101,23 @@ does not mutate membership or Recent ordering.
 
 ## Storage upgrade and recovery
 
-`BookmarkStorageMigration` resolves pending unified journals before conversion.
-It supports legacy storage and an already active #155 unified-v2 generation,
-including subsequent writes and allocator reservations. The hierarchy is staged
-as an explicit organization-v3 generation and activated at one durable marker.
-A partially staged generation cannot become an ordinary writable facade.
+`BookmarkStorageMigration` stages the released organization directly as the
+final nested hierarchy, organization schema 2. The final generation uses
+`_hierarchy_v2` boxes and switches authority at one durable activation marker.
+Startup replays a pending record mutation before validating active memberships.
+A partially staged generation stays inaccessible to ordinary library callers.
 
-Former folders become ordinary initially empty groups. Existing group UUIDs,
-record IDs, memberships, dates, loaded details, Related ordering, tombstones and
-allocator continuity are preserved. Cross-namespace UUID collisions use a
-persisted deterministic folder-to-group map. Original legacy/v2 files remain
-available as recovery evidence. Compatibility aliases support old folder-based
-selection/template references without restoring a second canonical folder model.
+Former folders become ordinary initially empty Groups. The migration keeps
+existing Group and Post IDs, memberships, available dates and allocator
+reservations. It saves a deterministic folder-to-Group map for UUID collisions
+and older selection/template references. The released source files remain
+available for recovery. Earlier development activation markers fail startup
+validation and their source files remain available.
+
+Repository metadata starts at schema 1 with a required ownership document,
+including an explicit empty document on fresh initialization. The schema-1
+mutation journal identifies record, organization, restoration and mirror
+operations and binds the operation and plan to the journal digest.
 
 The Hive Post adapter preserves its type ID and existing field numbers. Optional
 fields 17/18 retain exact record timestamp microseconds; rows without those
@@ -121,13 +126,16 @@ storage uses its own added field rather than reusing a legacy folder field.
 
 ## Transfer compatibility
 
-The current `.bsexport` Bookmark source is version 10. Its single `data` array
+The current `.bsexport` Bookmark source is version 6. Its single `data` array
 contains typed saved records; groups contain direct file-local member IDs,
 `parentGroupId`, position and exact membership dates. The writer marks
 `organizationSchema: "nestedGroups"` and emits no canonical `folders` array.
-Readers retain versions 4 through 9 and explicitly recognize the transitional
-#155-only v10 folder shape. Ambiguous, mixed, unmarked new shapes and invalid
-parent graphs are rejected before mutation. Versions 1 through 3 are unsupported.
+Readers retain the published versions 4 and 5 and convert their folder
+structure into the final hierarchy. Version 6 requires an explicit
+`organizationSchema: "nestedGroups"` and a complete Group list. Development
+payloads with an older shape and invalid member, date or placement graphs fail
+validation before mutation. MiteMite uses the same Bookmark source version
+under protocol 1.
 
 Transfer integer IDs are file-local references. Applying an import remaps them
 through durable local reservations; no imported number selects an existing
@@ -185,11 +193,13 @@ import, provider reload completes before the UI reports completion.
 
 Private transaction rollback restores its original local IDs and membership
 dates through `restoreLocalSnapshot`, rather than applying file-ID remapping.
-Its version-3 mutation journal explicitly identifies restored tombstones and
+The schema-1 journal uses the explicit restoration operation and
 recovers across each durable boundary. It accepts only previously known local
 slots and never lowers the allocator. This restores the same logical pre-import
 records; ordinary imports and Undo still cannot recycle a deleted ID. The private
-recovery path is never used for external file, clipboard or nearby input.
+recovery path is restricted to private rollback. Published v4/v5 rollback
+exports use the released import semantics when source rows were already
+deleted. Their recovery preserves origin hints and uses the local allocator.
 
 Scoped subtree export retains separate group definitions and empty structural
 ancestors without including unselected ancestor contents. Partial tree selection
