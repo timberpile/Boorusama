@@ -70,3 +70,15 @@ class FutureMigrationVersionException implements Exception {
   String toString() =>
       "Database version $currentVersion exceeds the maximum defined migration version $maxDefinedVersion.";
 }
+
+/// Keeps both errors when the manager cannot confirm transaction rollback.
+class MigrationRollbackException implements Exception {
+  const MigrationRollbackException(this.operationError, this.rollbackError);
+
+  final Object operationError;
+  final Object rollbackError;
+
+  @override
+  String toString() =>
+      'Migration rollback failed: $rollbackError; operation: $operationError';
+}
