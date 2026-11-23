@@ -38,7 +38,8 @@ final miteMiteActivationProvider = StateProvider<bool>(
     final raw = ref.read(miscDataStoreProvider).get('mitemite.v1.settings');
     if (raw == null) return false;
     try {
-      return (jsonDecode(raw) as Map<String, dynamic>)['location'] is String;
+      final settings = jsonDecode(raw);
+      return settings is Map<String, dynamic> && settings['location'] is String;
     } on FormatException {
       return false;
     }
