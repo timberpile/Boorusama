@@ -403,16 +403,19 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
           'Auto backup completed successfully - updating last backup time',
         );
 
-        // Update settings after successful backup
-        await ref
-            .read(settingsNotifierProvider.notifier)
-            .updateWith(
-              (s) => s.copyWith(
-                autoBackup: settings.copyWith(
-                  lastBackupTime: () => DateTime.now(),
-                ),
-              ),
-            );
+        // Merge completion metadata into current settings, not the job snapshot.
+        await ref.read(settingsNotifierProvider.notifier).updateWith((s) {
+          final current = s.autoBackup;
+          if (current.userSelectedPath != settings.userSelectedPath) {
+            // A successful write to the old location does not back up the new one.
+            return s;
+          }
+          return s.copyWith(
+            autoBackup: current.copyWith(
+              lastBackupTime: () => DateTime.now(),
+            ),
+          );
+        });
       } else {
         logger.warn(
           'Backup.Auto',
