@@ -6,22 +6,23 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../foundation/filesystem.dart';
 import '../../search/histories/providers.dart';
-import '../../search/histories/src/data/repo_sqlite.dart';
 import '../widgets/backup_restore_tile.dart';
+import 'sqlite_import_contract.dart';
 import 'sqlite_source.dart';
 
 class SearchHistoryBackupSource extends SqliteBackupSource {
   SearchHistoryBackupSource(Ref ref)
     : super(
         id: 'search_histories',
+        importContract: SqliteImportContract.searchHistory,
         priority: 3,
         ref: ref,
         dbPathGetter: () =>
             getSearchHistoryDbPath(ref.read(appFileSystemProvider)),
         dbFileName: kSearchHistoryDbName,
         onImportComplete: () => ref.invalidate(searchHistoryRepoProvider),
-        initializeDatabase: (db) =>
-            SearchHistoryRepositorySqlite(db: db).initialize(),
+        initializeDatabase:
+            SqliteImportContract.searchHistory.initializeDatabase,
       );
 
   @override

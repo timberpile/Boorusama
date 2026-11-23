@@ -17,6 +17,7 @@ import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
 import '../utils/backup_utils.dart';
 import '../utils/db_transfer.dart';
+import 'sqlite_import_contract.dart';
 
 abstract class SqliteBackupSource implements BackupDataSource {
   SqliteBackupSource({
@@ -27,6 +28,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
     required this.dbFileName,
     required this.onImportComplete,
     required this.initializeDatabase,
+    this.importContract,
   });
 
   @override
@@ -40,6 +42,7 @@ abstract class SqliteBackupSource implements BackupDataSource {
   final String dbFileName;
   final void Function() onImportComplete;
   final void Function(Database db) initializeDatabase;
+  final SqliteImportContract? importContract;
 
   Future<String> ensureInitializedForExport() => ref
       .read(dataMutationCoordinatorProvider)
@@ -152,18 +155,23 @@ abstract class SqliteBackupSource implements BackupDataSource {
   }
 
   Future<void> _executeServerImport(String serverUrl) async {
-    final dio = Dio(BaseOptions(baseUrl: serverUrl));
-    final dbPath = await dbPathGetter();
     final fs = ref.read(appFileSystemProvider);
-
-    await downloadAndReplaceDb(
-      fs: fs,
-      dio: dio,
-      url: '/$id',
-      filePath: dbPath,
-    );
-
-    onImportComplete();
+    final directory = await fs.createTempDirectory('boorusama_sqlite_receive_');
+    final dio = Dio(BaseOptions(baseUrl: serverUrl));
+    try {
+      final incoming = p.join(directory, 'incoming.db');
+      await downloadDbToFile(
+        fs: fs,
+        dio: dio,
+        url: '/$id',
+        filePath: incoming,
+      );
+      // The server path has the same structural/migration gate as file import.
+      await _replaceWithValidatedImport(incoming);
+    } finally {
+      dio.close(force: true);
+      await _cleanupImportDirectory(fs, directory);
+    }
   }
 
   Future<void> _exportToFile(
@@ -190,16 +198,9 @@ abstract class SqliteBackupSource implements BackupDataSource {
     String filePath,
     BuildContext? uiContext,
   ) async {
-    // Validate SQLite header
-    final fs = ref.read(appFileSystemProvider);
-    final bytes = await fs.openRead(filePath, start: 0, end: 16).first;
-    final header = bytes.take(16).toList();
-
-    if (!_isSQLiteFile(header)) {
-      throw Exception(
-        'Invalid SQLite file: $filePath',
-      );
-    }
+    // Probe a private copy, including its production migration path. The
+    // verified package part is immutable and must not be migrated in place.
+    await _withValidatedImport<void>(filePath, (_) async {});
 
     return ImportPreparation(
       versionCheck: const VersionCheckInfo(
@@ -213,38 +214,53 @@ abstract class SqliteBackupSource implements BackupDataSource {
 
   Future<void> _executeFileImport(String sourcePath) async {
     await BackupUtils.ensureStoragePermissions(ref);
-
-    final dbPath = await dbPathGetter();
-
-    final fs = ref.read(appFileSystemProvider);
-    await BackupUtils.replaceFile(fs, sourcePath, dbPath);
-    onImportComplete();
+    await _replaceWithValidatedImport(sourcePath);
   }
 
-  // SQLite files start with "SQLite format 3\0"
-  bool _isSQLiteFile(List<int> header) {
-    const sqliteHeader = [
-      0x53,
-      0x51,
-      0x4C,
-      0x69,
-      0x74,
-      0x65,
-      0x20,
-      0x66,
-      0x6F,
-      0x72,
-      0x6D,
-      0x61,
-      0x74,
-      0x20,
-      0x33,
-      0x00,
-    ];
-    if (header.length < 16) return false;
-    for (var i = 0; i < 16; i++) {
-      if (header[i] != sqliteHeader[i]) return false;
+  Future<void> _replaceWithValidatedImport(String sourcePath) =>
+      _withValidatedImport<void>(sourcePath, (staged) async {
+        final dbPath = await dbPathGetter();
+        final fs = ref.read(appFileSystemProvider);
+        await BackupUtils.replaceFile(fs, staged, dbPath);
+        onImportComplete();
+      });
+
+  Future<T> _withValidatedImport<T>(
+    String sourcePath,
+    Future<T> Function(String stagedPath) consume,
+  ) async {
+    final contract = importContract;
+    if (contract == null) {
+      throw StateError('No SQLite import contract registered for $id');
     }
-    return true;
+    final fs = ref.read(appFileSystemProvider);
+    final directory = await fs.createTempDirectory(
+      'boorusama_sqlite_validate_',
+    );
+    try {
+      final staged = p.join(directory, 'validated.db');
+      await fs.copyFile(sourcePath, staged);
+      // Full integrity checks and schema migrations run away from the UI isolate.
+      // The closed result is a standalone database with no WAL dependency.
+      await contract.prepare(staged);
+      await fs.syncFile(staged);
+      // Repeated at execution, so a file changed since preview cannot bypass
+      // validation. Only these validated bytes can replace the live database.
+      return await consume(staged);
+    } finally {
+      await _cleanupImportDirectory(fs, directory);
+    }
+  }
+
+  Future<void> _cleanupImportDirectory(
+    AppFileSystem fs,
+    String directory,
+  ) async {
+    try {
+      await fs.deleteDirectory(directory, recursive: true);
+    } on FileSystemException {
+      // An owned scratch-copy cleanup failure neither approves invalid input
+      // nor changes the outcome of an already completed data operation.
+    }
   }
 }

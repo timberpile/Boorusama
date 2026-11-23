@@ -63,6 +63,26 @@ repository files, the separate orphan file, and the latest release's
 `.bsexport`. [SHA256SUMS](SHA256SUMS) pins the raw captures. SQLite timestamps,
 random IDs and archive metadata can differ when the published writers are rerun.
 
+## Version 1 Downloads database
+
+The closed Downloads database for `v4.5.0-timberpile.3` was created by
+the published repository's initializer and task writers. It contains a
+synthetic named saved task. The import test verifies its identity and settings
+after upgrading to version 2, then opens the restored database again.
+
+From the candidate checkout, prepare a detached worktree at
+`v4.5.0-timberpile.3` (`46a20296bdd74c5eaf99f8917d1a1d1f69c0d0cd`) and
+copy `scripts/fixtures/released_downloads_v1_writer.dart.txt` into it as
+`test/released_downloads_v1_writer_test.dart`. Install the worktree's pinned FVM
+SDK, resolve dependencies at the root and in `packages/boorusama_cli`, and run
+`./gen.sh`. Run the following with a fresh absolute output path.
+
+```bash
+RELEASE_FIXTURE_OUTPUT=/path/to/new/download.db \
+  fvm flutter test --no-pub --reporter expanded \
+    test/released_downloads_v1_writer_test.dart
+```
+
 ## Interrupted released import
 
 The files under `v4.6.1-timberpile.3/interrupted-import` come from the same
