@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:boorusama/core/analytics/providers.dart';
+import 'package:boorusama/core/backups/auto/repo_io.dart';
+import 'package:boorusama/core/backups/auto/types.dart';
+import 'package:boorusama/core/backups/zip/providers.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/import/import_journal.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
@@ -18,7 +22,7 @@ import 'package:boorusama/core/bulk_downloads/src/types/download_options.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/core/posts/post/types.dart';
-import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/search/following_topics/src/data/providers.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:boorusama/core/search/histories/src/data/repo_io.dart';
 import 'package:boorusama/core/settings/providers.dart';
@@ -28,6 +32,7 @@ import 'package:boorusama/core/tags/favorites/src/data/favorite_tag_repository_f
 import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/following_topic_import_service.dart';
@@ -155,15 +160,7 @@ void main() {
   });
 
   test('published profile, settings, tags, Following and SQLite state survive cold opens', () async {
-    final source = Directory('$_fixture/storage');
-    for (final file in source.listSync(recursive: true).whereType<File>()) {
-      final target = p.join(
-        work.path,
-        p.relative(file.path, from: source.path),
-      );
-      await Directory(p.dirname(target)).create(recursive: true);
-      await file.copy(target);
-    }
+    await _copyReleasedStorage(work.path);
     for (var i = 0; i < 3; i++) {
       Hive.init(work.path);
       final profiles = HiveBooruConfigRepository(
@@ -210,6 +207,83 @@ void main() {
       await Hive.close();
     }
   });
+
+  test(
+    'cold automatic backup preserves the released Hive feed and its members',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      await _copyReleasedStorage(work.path);
+
+      final delayed = _DelayedFollowingRepository();
+      final fs = _PackageFileSystem(work.path);
+      final app = await _openDestination(fs, followingRepository: delayed);
+      app.listen(backupProvider, (_, _) {});
+      final settings = AutoBackupSettings(
+        enabled: true,
+        userSelectedPath: work.path,
+      );
+      var finished = false;
+      var disposed = false;
+      final operation = app
+          .read(backupProvider.notifier)
+          .performAutoBackupIfNeeded(settings)
+          .whenComplete(() => finished = true);
+      try {
+        await delayed.started.future;
+        await app.pump();
+        expect(finished, isFalse);
+        delayed.ready.complete();
+        await operation;
+        final result = app.read(backupProvider);
+        expect(
+          result.status,
+          BackupStatus.completed,
+          reason: '${result.error}',
+        );
+        final staged = await const ExportPackageReader(fs: IoFileSystem())
+            .stage(result.exportResult!.filePath);
+        addTearDown(staged.dispose);
+        expect(
+          staged.manifest.sources.map((source) => source.id),
+          contains(topicFeedsBackupSourceId),
+        );
+
+        Future<String> json(String source) =>
+            File(staged.pathFor('sources/$source/data.json')).readAsString();
+        final profiles = [
+          for (final row in decodeData(data: await json('profiles')).data)
+            BooruConfig.fromJson(row as Map<String, dynamic>),
+        ];
+        final topics = FollowingTopicBackupCodec().parse(
+          decodeData(data: await json(followingTopicsBackupSourceId)),
+        );
+        final feeds = TopicFeedBackupCodec().parse(
+          decodeData(data: await json(topicFeedsBackupSourceId)),
+        );
+
+        app.dispose();
+        disposed = true;
+        await delayed.closeFuture;
+        await Hive.close();
+        final restoredPath = p.join(work.path, 'restore-test');
+        Hive.init(restoredPath);
+        final restored = await _following();
+        await FollowingTopicImportService(repository: restored)
+            .replace(topics, profiles: profiles);
+        await TopicFeedImportService(repository: restored)
+            .replace(feeds, profiles: profiles);
+        await Hive.close();
+        Hive.init(restoredPath);
+        await _expectFollowing(await _following());
+      } finally {
+        if (!delayed.ready.isCompleted) delayed.ready.complete();
+        await operation;
+        if (!disposed) app.dispose();
+        await delayed.closeFuture;
+      }
+    },
+  );
 
   test('released package stages all domains and restores Topics with or without profiles', () async {
     final staged = await const ExportPackageReader(fs: IoFileSystem())
@@ -437,7 +511,10 @@ const _localTopic = '550e8400-e29b-41d4-a716-446655440042';
 const _localFeed = '550e8400-e29b-41d4-a716-446655440043';
 const _localGroup = '550e8400-e29b-41d4-a716-446655440044';
 
-Future<ProviderContainer> _openDestination(_PackageFileSystem fs) async {
+Future<ProviderContainer> _openDestination(
+  _PackageFileSystem fs, {
+  _DelayedFollowingRepository? followingRepository,
+}) async {
   Hive.init(fs.root);
   final settings = SettingsRepositoryHive(Hive.openBox<dynamic>('settings'));
   final initial = (await settings.load().run()).fold(
@@ -452,6 +529,15 @@ Future<ProviderContainer> _openDestination(_PackageFileSystem fs) async {
     overrides: [
       loggerProvider.overrideWithValue(AppLogger()),
       appFileSystemProvider.overrideWithValue(fs),
+      if (followingRepository != null) ...[
+        appPlatformProvider.overrideWithValue(AppPlatform.linux),
+        followingTopicRepositoryProvider.overrideWith(
+          () => followingRepository,
+        ),
+        autoBackupRepositoryProvider.overrideWithValue(
+          AutoBackupRepositoryIo(fs),
+        ),
+      ],
       appVersionProvider.overrideWithValue(null),
       deviceInfoProvider.overrideWithValue(const DeviceInfo()),
       analyticsProvider.overrideWith((ref) => null),
@@ -750,6 +836,30 @@ Future<List<PostBookmark>> _bookmarks(ProviderContainer app) async =>
     )!.readAll()).cast<PostBookmark>();
 
 class _CommitInterrupted implements Exception {}
+
+Future<void> _copyReleasedStorage(String destination) async {
+  final source = Directory('$_fixture/storage');
+  for (final file in source.listSync(recursive: true).whereType<File>()) {
+    final target = p.join(
+      destination,
+      p.relative(file.path, from: source.path),
+    );
+    await Directory(p.dirname(target)).create(recursive: true);
+    await file.copy(target);
+  }
+}
+
+class _DelayedFollowingRepository extends FollowingTopicRepositoryNotifier {
+  final started = Completer<void>();
+  final ready = Completer<void>();
+
+  @override
+  Future<FollowingTopicRepository> build() async {
+    started.complete();
+    await ready.future;
+    return super.build();
+  }
+}
 
 class _PackageFileSystem extends IoFileSystem {
   _PackageFileSystem(this.root);

@@ -363,6 +363,9 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       clearResult: true,
     );
     try {
+      if (state.isFull) {
+        await ref.read(followingTopicsProvider.future);
+      }
       final fileName = resolveExportFileNamePattern(
         state.fileNamePattern,
         DateTime.now(),
@@ -371,6 +374,9 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
           .read(appFileSystemProvider)
           .createTempDirectory('boorusama_export_');
       final outputPath = p.join(directory, fileName);
+      // Following can reload or fail while the filesystem prepares the output.
+      // Resolve that generation immediately before selecting the full catalog.
+      if (state.isFull) await ref.read(followingTopicsProvider.future);
       final path = await ref
           .read(exportServiceProvider)
           .createPackage(

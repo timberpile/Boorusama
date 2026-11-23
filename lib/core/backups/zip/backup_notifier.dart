@@ -10,6 +10,7 @@ import '../../../foundation/info/device_info.dart';
 import '../../../foundation/loggers.dart';
 import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
+import '../../search/following_topics/providers.dart';
 import '../../settings/providers.dart';
 import '../auto/providers.dart';
 import '../auto/types.dart';
@@ -386,6 +387,8 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
         progress: 0,
       );
 
+      // Loading is not an empty catalog: wait before capturing the service.
+      await ref.read(followingTopicsProvider.future);
       final autoBackupService = ref.read(autoBackupServiceProvider);
       final result = await autoBackupService.performBackup(
         settings,
