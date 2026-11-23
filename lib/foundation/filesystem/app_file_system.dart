@@ -59,6 +59,9 @@ abstract interface class AppFileSystem {
 
   Future<void> createDirectory(String path, {bool recursive = false});
 
+  /// Renames a directory within the same filesystem.
+  Future<void> renameDirectory(String source, String destination);
+
   Future<void> syncDirectory(String path);
 
   Future<void> deleteDirectory(String path, {bool recursive = false});

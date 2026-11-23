@@ -184,6 +184,28 @@ final class MemoryAppFileSystem implements AppFileSystem {
   }
 
   @override
+  Future<void> renameDirectory(String source, String destination) async {
+    if (!directoryExistsSync(source) || directoryExistsSync(destination)) {
+      throw StateError('Cannot rename directory: $source');
+    }
+    final prefix = '$source/';
+    for (final path
+        in _directories
+            .where((path) => path == source || path.startsWith(prefix))
+            .toList()) {
+      _directories
+        ..remove(path)
+        ..add('$destination${path.substring(source.length)}');
+    }
+    for (final path
+        in _files.keys.where((path) => path.startsWith(prefix)).toList()) {
+      final renamed = '$destination${path.substring(source.length)}';
+      _files[renamed] = _files.remove(path)!;
+      if (_modified.remove(path) case final time?) _modified[renamed] = time;
+    }
+  }
+
+  @override
   Future<void> syncDirectory(String path) async {
     if (!directoryExistsSync(path)) {
       throw StateError('Directory does not exist: $path');

@@ -30,7 +30,7 @@ final class ImportRecoveryService {
       if (journal.state == ImportJournalState.preparing ||
           journal.state == ImportJournalState.committed ||
           journal.state == ImportJournalState.recovered) {
-        await store.delete(journal.transactionId);
+        await store.retire(journal);
         recovered.add(journal.transactionId);
         continue;
       }

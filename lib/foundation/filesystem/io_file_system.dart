@@ -223,6 +223,12 @@ class IoFileSystem implements AppFileSystem {
       Directory(path).create(recursive: recursive);
 
   @override
+  Future<void> renameDirectory(String source, String destination) =>
+      Platform.isWindows
+      ? renameWindowsDirectoryDurably(source, destination)
+      : Directory(source).rename(destination);
+
+  @override
   Future<void> syncDirectory(String path) async {
     if (Platform.isWindows) return;
     await syncPosixPathAsync(path);

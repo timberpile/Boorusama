@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:equatable/equatable.dart';
@@ -105,7 +107,17 @@ final class ImportJournalStore {
   final AppFileSystem fs;
   final String rootPath;
 
-  String transactionPath(String id) => '$rootPath/$id';
+  static const _retiredPrefix = '.retired-';
+  static final _validId = RegExp(r'^[A-Za-z0-9_-]+$');
+
+  String transactionPath(String id) {
+    if (!_validId.hasMatch(id)) {
+      throw const FormatException('Invalid import transaction ID');
+    }
+    return p.join(rootPath, id);
+  }
+
+  String _retiredPath(String id) => p.join(rootPath, '$_retiredPrefix$id');
   String rollbackPath(String id, String sourceId) =>
       '${transactionPath(id)}/rollback/$sourceId';
 
@@ -114,6 +126,10 @@ final class ImportJournalStore {
     ValidatedImportPlan plan,
   ) async {
     final path = transactionPath(transactionId);
+    final retired = _retiredPath(transactionId);
+    if (await fs.directoryExists(path) || await fs.directoryExists(retired)) {
+      throw StateError('Import transaction ID is already in use');
+    }
     await fs.createDirectory('$path/rollback', recursive: true);
     await fs.syncDirectory(p.dirname(rootPath));
     await fs.syncDirectory(rootPath);
@@ -146,8 +162,13 @@ final class ImportJournalStore {
     }
     await fs.renameFile(temporary, '$path/journal.json');
     await fs.syncDirectory(path);
-    if (await fs.fileExists(backup)) await fs.deleteFile(backup);
-    await fs.syncDirectory(path);
+    // The new journal is durable. Backups left by failed cleanup can be
+    // removed by the next write or by retirement.
+    try {
+      await fs.deleteFileIfExists(backup);
+    } on FileSystemException catch (error, stackTrace) {
+      _logCleanup(error, stackTrace);
+    }
   }
 
   Future<ImportJournal> read(String transactionId) async {
@@ -157,11 +178,21 @@ final class ImportJournalStore {
         : await fs.fileExists('$path/journal.json.tmp')
         ? '$path/journal.json.tmp'
         : '$path/journal.json.bak';
-    final decoded = jsonDecode(await fs.readString(journalPath));
+    return _decode(await fs.readString(journalPath), transactionId);
+  }
+
+  ImportJournal _decode(String bytes, String id) {
+    final decoded = jsonDecode(bytes);
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('Invalid import journal');
     }
-    return ImportJournal.fromJson(decoded);
+    final journal = ImportJournal.fromJson(decoded);
+    if (journal.transactionId != id) {
+      throw const FormatException(
+        'Import journal ID does not match its directory',
+      );
+    }
+    return journal;
   }
 
   Future<void> verifyPlan(ImportJournal journal) async {
@@ -178,18 +209,79 @@ final class ImportJournalStore {
   Future<List<ImportJournal>> pending() async {
     if (!await fs.directoryExists(rootPath)) return const [];
     final journals = <ImportJournal>[];
-    for (final entry in await fs.listDirectory(rootPath)) {
+    for (final entry in await fs.listDirectory(rootPath, followLinks: false)) {
       if (!entry.isDirectory) continue;
-      journals.add(await read(entry.path.split('/').last));
+      final name = p.basename(entry.path);
+      if (name.startsWith(_retiredPrefix)) {
+        final id = name.substring(_retiredPrefix.length);
+        if (await fs.directoryExists(transactionPath(id))) {
+          throw const FormatException(
+            'Active and retired import directories both exist',
+          );
+        }
+        await _retryCleanup(() => _deleteRetired(entry.path, id));
+      } else {
+        journals.add(await read(name));
+      }
     }
     return journals;
   }
 
-  Future<void> delete(String transactionId) async {
-    final path = transactionPath(transactionId);
-    if (await fs.directoryExists(path)) {
-      await fs.deleteDirectory(path, recursive: true);
-      await fs.syncDirectory(rootPath);
+  Future<void> retire(ImportJournal journal) async {
+    _requireTerminal(journal);
+    final path = transactionPath(journal.transactionId);
+    final retired = _retiredPath(journal.transactionId);
+    await _retryCleanup(() async {
+      if (await fs.directoryExists(path)) {
+        if (await fs.directoryExists(retired)) {
+          throw const FormatException(
+            'Import retirement destination already exists',
+          );
+        }
+        // The caller may hold an earlier snapshot of a still-active journal.
+        // Use the same on-disk journal selection as cold recovery.
+        _requireTerminal(await read(journal.transactionId));
+        await fs.renameDirectory(path, retired);
+      }
+      if (await fs.directoryExists(retired)) {
+        await _deleteRetired(retired, journal.transactionId);
+      }
+    });
+  }
+
+  Future<void> _deleteRetired(String path, String id) async {
+    final bytes = await fs.readStringIfExists(p.join(path, 'journal.json'));
+    if (bytes != null) _requireTerminal(_decode(bytes, id));
+    // Make the rename durable before recursively deleting any journal or rollback
+    // data. Startup can retry deletion even if the renamed directory is partial.
+    await fs.syncDirectory(rootPath);
+    await fs.deleteDirectory(path, recursive: true);
+    await fs.syncDirectory(rootPath);
+  }
+
+  static void _requireTerminal(ImportJournal journal) {
+    if (journal.currentSourceId != null ||
+        (journal.state != ImportJournalState.preparing &&
+            journal.state != ImportJournalState.committed &&
+            journal.state != ImportJournalState.recovered)) {
+      throw const FormatException('Cannot retire a nonterminal import journal');
     }
+  }
+
+  Future<void> _retryCleanup(Future<void> Function() cleanup) async {
+    try {
+      await cleanup();
+    } on FileSystemException catch (error, stackTrace) {
+      _logCleanup(error, stackTrace);
+    }
+  }
+
+  static void _logCleanup(FileSystemException error, StackTrace stackTrace) {
+    developer.log(
+      'Import journal cleanup deferred',
+      name: 'boorusama.import',
+      error: error.osError?.errorCode,
+      stackTrace: stackTrace,
+    );
   }
 }

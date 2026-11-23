@@ -182,7 +182,10 @@ void main() {
   test(
     'malformed released membership without a pending import remains rejected',
     () async {
-      await journal.delete(_transactionId);
+      await fs.deleteDirectory(
+        journal.transactionPath(_transactionId),
+        recursive: true,
+      );
       final raw = File(p.join(root.path, 'bookmark_groups.hive'));
       final before = await raw.readAsBytes();
       final app = boot();
