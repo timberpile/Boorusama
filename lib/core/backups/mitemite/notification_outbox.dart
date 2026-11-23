@@ -212,8 +212,10 @@ final class SyncNotificationOutbox {
       _fingerprint(parts.last);
       final value = entry.value as Map;
       final known = (value['known'] as List).map(syncString).toSet();
-      if (known.length != (value['known'] as List).length ||
-          known.length > miteMiteMaxEntries) {
+      // This is cumulative receipt history, not one catalog's active roots.
+      // Retain the same aggregate byte bounds used by the writer; otherwise
+      // accepted offer observations can produce a snapshot we cannot reopen.
+      if (known.length != (value['known'] as List).length) {
         throw const FormatException('Invalid offered collection history');
       }
       for (final key in known) {
