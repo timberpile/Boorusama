@@ -185,9 +185,14 @@ void main() {
         );
         notifier.replaceSource(pinSource);
         await notifier.previewComplete;
-        expect(dependencyProblem().profileDependency!.sourceIds, {
-          'pinned_searches',
-        });
+        expect(
+          container
+              .read(importFlowProvider)
+              .preflight!
+              .errors
+              .map((issue) => issue.code),
+          everyElement('warnings_not_acknowledged'),
+        );
         notifier.replaceSource(feeds);
         await notifier.previewComplete;
         notifier.chooseProfileMapping(key, firstId);

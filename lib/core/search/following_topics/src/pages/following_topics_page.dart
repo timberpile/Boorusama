@@ -19,6 +19,7 @@ import '../../../../selection/selection_input.dart';
 import '../../../../navigation/navigation_interaction_scopes.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../../../../router.dart';
+import '../../../../settings/routes.dart';
 import '../../../../errors/types.dart';
 
 import 'dart:async';
@@ -125,6 +126,7 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
   final _scroll = ScrollController();
   Object? _bodyInputs;
   Set<String> _bodyRefreshable = const {};
+  Map<String, String?> _bodyFilterReaders = const {};
   Widget? _cachedBody;
   Set<String> get _selectedFolders => {
     for (final (kind, id) in _selection.selectedKeys)
@@ -835,10 +837,11 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
         return;
       }
       if (DestinationScope.maybeOf(context) != null) {
+        // Folder feeds resolve readers per source. The cache owner may be
+        // a detached storage namespace.
         await ref.pushNamedRoute<void>(
           '/following-topics/feed',
           pathParameters: {'feedId': feed.id},
-          queryParameters: {'_profile': feed.profileId},
         );
       } else {
         await Navigator.of(context).push(
@@ -919,11 +922,19 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
           ? ref.watch(syncCollectionAliasesProvider)
           : const {},
     );
+    final filterReaders = {
+      if (_filterProfileId != null)
+        for (final topic in activity?.topics ?? const <FollowingTopic>[])
+          if (topic.localSource?.isImported ?? false)
+            topic.id: ref.watch(followingTopicConfigProvider(topic.id))?.id,
+    };
     if (_bodyInputs == inputs &&
+        mapEquals(_bodyFilterReaders, filterReaders) &&
         setEquals(_bodyRefreshable, refreshableProfileIds) &&
         _cachedBody != null)
       return _cachedBody!;
     _bodyInputs = inputs;
+    _bodyFilterReaders = filterReaders;
     _bodyRefreshable = {...refreshableProfileIds};
     final profilesById = {for (final profile in profiles) profile.id: profile};
     final topicsById = {
@@ -1095,7 +1106,10 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                       inScope &&
                       matchesText &&
                       (_filterProfileId == null ||
-                          topic.profileId == _filterProfileId);
+                          (filterReaders.containsKey(topic.id)
+                                  ? filterReaders[topic.id]
+                                  : topic.profileId) ==
+                              _filterProfileId);
                 }).toList()
               : List<FollowingTopic>.of(items);
           if (_folderId == null && !filtering && activity != null) {
@@ -1484,8 +1498,16 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                             final owner = ref.watch(
                               followingTopicConfigProvider(topic.id),
                             );
-                            final caption = owner == null
+                            final unavailableSource =
+                                owner == null &&
+                                    (topic.localSource?.isImported ?? false)
+                                ? topic.localSource
+                                : null;
+                            final caption =
+                                owner == null && unavailableSource == null
                                 ? context.t.mitemite.following_paused
+                                : owner == null
+                                ? null
                                 : followingTopicProfileCaption(
                                     owner,
                                     profiles,
@@ -1577,6 +1599,14 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
                                             )
                                           : null,
                                       ownerCaption: caption,
+                                      sourceNotice: unavailableSource == null
+                                          ? null
+                                          : strings.imported_source_unavailable(
+                                              site: unavailableSource.url,
+                                            ),
+                                      onManageSource: unavailableSource == null
+                                          ? null
+                                          : () => openProfilesSettingsPage(ref),
                                       refreshing:
                                           activity?.refreshingIds.contains(
                                             topic.id,
@@ -1892,21 +1922,25 @@ class _FollowingTopicsPageState extends ConsumerState<FollowingTopicsPage> {
           trackingSupported: (auth) =>
               ref.read(followingTopicTrackingSupportedProvider(auth)),
           onSave: (profile, query, name, autoUpdateEnabled, structure) async {
-            final anonymous = profile.anonymousReadScope;
-            final profileId = anonymous == null ? profile.id : topic.profileId;
-            final currentProfile = anonymous != null
-                ? ref.read(followingTopicConfigProvider(topic.id))
-                : ref
-                      .read(booruConfigProvider)
-                      .where((p) => p.id == profileId)
-                      .firstOrNull;
-            if (currentProfile == null ||
-                currentProfile.auth != profile.auth ||
-                (anonymous != null &&
-                    (!anonymous.isCurrent ||
-                        currentProfile.anonymousReadScope?.key !=
-                            anonymous.key))) {
-              throw MissingFollowingTopicProfileException();
+            final anonymous = profile?.anonymousReadScope;
+            final profileId = anonymous == null
+                ? profile?.id ?? topic.profileId
+                : topic.profileId;
+            if (profile != null) {
+              final currentProfile = anonymous != null
+                  ? ref.read(followingTopicConfigProvider(topic.id))
+                  : ref
+                        .read(booruConfigProvider)
+                        .where((p) => p.id == profileId)
+                        .firstOrNull;
+              if (currentProfile == null ||
+                  currentProfile.auth != profile.auth ||
+                  (anonymous != null &&
+                      (!anonymous.isCurrent ||
+                          currentProfile.anonymousReadScope?.key !=
+                              anonymous.key))) {
+                throw MissingFollowingTopicProfileException();
+              }
             }
             final notifier = ref.read(followingTopicsProvider.notifier);
             final saved = await notifier.editLocally(

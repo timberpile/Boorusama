@@ -9,6 +9,11 @@ import 'following_topics_notifier.dart';
 import '../types/following_mirror_state.dart';
 import '../types/following_topic_source.dart';
 
+bool sameFollowingReader(BooruConfig? current, BooruConfig expected) =>
+    current?.id == expected.id &&
+    current?.auth == expected.auth &&
+    (expected.anonymousReadScope?.isCurrent ?? true);
+
 final _enginesByName = {
   for (final config in BooruYamlConfigs.byId.values)
     config.type.name: config.type,
@@ -53,18 +58,23 @@ final followingSourceConfigProvider = Provider.autoDispose
       }
       final localSource = request.localSource;
       if (owner == null && localSource != null) {
-        // A copied Topic keeps its chosen account binding. A later account with
-        // the same host must not silently replace public or removed authority.
-        final bound = profiles
+        final compatible = profiles
             .where(
-              (profile) =>
-                  profile.id == request.profileId &&
-                  localSource.matches(
-                    profile.auth.booruType.name,
-                    normalizeBackupProfileUrl(profile.url),
-                  ),
+              (profile) => localSource.matches(
+                profile.auth.booruType.name,
+                normalizeBackupProfileUrl(profile.url),
+              ),
             )
-            .firstOrNull;
+            .toList();
+        // A portable import is not owned by its synthetic storage namespace or
+        // foreign profile UUID. Resolve only an unambiguous current actor.
+        // Existing local copies keep their chosen binding and must not silently
+        // switch to another account on the same site.
+        final bound = localSource.isImported
+            ? (compatible.length == 1 ? compatible.single : null)
+            : compatible
+                  .where((profile) => profile.id == request.profileId)
+                  .firstOrNull;
         if (bound != null) return bound;
         final public = localSource.anonymous(
           ref.watch(anonymousSourcePolicyProvider),

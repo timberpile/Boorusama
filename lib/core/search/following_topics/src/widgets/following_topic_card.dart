@@ -133,6 +133,8 @@ class FollowingTopicCard extends StatelessWidget {
     this.canMoveDown = false,
     required this.onAction,
     this.ownerCaption,
+    this.sourceNotice,
+    this.onManageSource,
     this.actionItemBuilder,
     this.metadata,
     this.preview,
@@ -145,6 +147,8 @@ class FollowingTopicCard extends StatelessWidget {
   });
 
   final String? ownerCaption;
+  final String? sourceNotice;
+  final VoidCallback? onManageSource;
   final FollowingTopic topic;
   final BooruConfigAuth? config;
   final List<PopupMenuEntry<FollowingTopicAction>> Function(BuildContext)?
@@ -321,6 +325,13 @@ class FollowingTopicCard extends StatelessWidget {
                       lastPostAt: topic.lastPostAt,
                       hasBaseline: topic.hasBaseline,
                     ),
+                if (sourceNotice case final notice?)
+                  Text(notice, style: Theme.of(context).textTheme.bodySmall),
+                if (!selecting && onManageSource != null)
+                  TextButton(
+                    onPressed: onManageSource,
+                    child: Text(context.t.navigation.profiles),
+                  ),
                 if (refreshing) Text(strings.refreshing),
                 if (topic.lastErrorKind case final kind?)
                   Text(

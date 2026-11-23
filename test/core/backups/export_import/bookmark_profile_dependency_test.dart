@@ -155,7 +155,7 @@ void main() {
       expect(result.mappings.single.isResolved, isFalse);
     },
   );
-  test('a Bookmark hint cannot select an account for a required Topic', () {
+  test('a Bookmark hint cannot select a reader for a portable Topic', () {
     final hinted = bookmarkProfileReference(
       bookmarkWithProfileHint(bookmark, second),
     );
@@ -172,11 +172,8 @@ void main() {
       ],
     );
     expect(result.profileIdFor(reference), isNull);
-    expect(result.mappings.single.isRequired, isTrue);
-    expect(result.errors.single.code, 'unresolved_profile_dependency');
-    expect(result.errors.single.profileDependency!.sourceIds, {
-      'pinned_searches',
-    });
+    expect(result.mappings.single.isRequired, isFalse);
+    expect(result.errors, isEmpty);
   });
   test(
     'a conflicting optional hint cannot invalidate a required Topic account',

@@ -30,6 +30,7 @@ Future<FollowTopicPickerResult?> showFollowTopicFolderPickerDialog(
   required Set<String?> selectedFolderIds,
   required Future<TopicFolder?> Function(String? parentId) onCreateFolder,
   Future<bool> Function()? onUpdateOriginal,
+  bool singleDestination = false,
 }) => showDialog<FollowTopicPickerResult>(
   context: context,
   builder: (_) => _FollowTopicFolderPickerDialog(
@@ -37,6 +38,7 @@ Future<FollowTopicPickerResult?> showFollowTopicFolderPickerDialog(
     selectedFolderIds: selectedFolderIds,
     onCreateFolder: onCreateFolder,
     onUpdateOriginal: onUpdateOriginal,
+    singleDestination: singleDestination,
   ),
 );
 
@@ -46,9 +48,11 @@ class _FollowTopicFolderPickerDialog extends ConsumerStatefulWidget {
     required this.selectedFolderIds,
     required this.onCreateFolder,
     this.onUpdateOriginal,
+    required this.singleDestination,
   });
 
   final Future<bool> Function()? onUpdateOriginal;
+  final bool singleDestination;
   final String query;
   final Set<String?> selectedFolderIds;
   final Future<TopicFolder?> Function(String? parentId) onCreateFolder;
@@ -81,6 +85,7 @@ class _FollowTopicFolderPickerDialogState
   void _toggle(String? folderId, bool selected) {
     setState(() {
       if (selected) {
+        if (widget.singleDestination) _selected.clear();
         _selected.add(folderId);
       } else {
         _selected.remove(folderId);
@@ -93,7 +98,7 @@ class _FollowTopicFolderPickerDialogState
     try {
       final folder = await widget.onCreateFolder(_currentFolderId);
       if (folder != null && mounted) {
-        setState(() => _selected.add(folder.id));
+        _toggle(folder.id, true);
       }
     } finally {
       if (mounted) setState(() => _creatingFolder = false);
@@ -166,6 +171,7 @@ class _FollowTopicFolderPickerDialogState
                 ],
                 selected: {for (final id in _selected) (id,)},
                 onChanged: (selected) => setState(() {
+                  if (widget.singleDestination && selected.length > 1) return;
                   _selected
                     ..clear()
                     ..addAll(selected.map((key) => key.$1));

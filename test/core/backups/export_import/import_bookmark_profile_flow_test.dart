@@ -92,9 +92,7 @@ void main() {
     final nondefaultPort = sourceUrl.contains(':443');
     final ipv6 = sourceUrl.contains('[::1]');
     final canonicalBoundary = nondefaultPort || ipv6;
-    final expectedSite = ipv6
-        ? (nondefaultPort ? '[::1]:443/install' : '[::1]/install')
-        : 'site.example:443/install';
+    final expectedSite = normalizePostSourceHost(sourceUrl);
     final crossCategories = accounts == 2 && !rollback;
     testWidgets(
       rollback
@@ -421,8 +419,8 @@ void main() {
               isTrue,
             );
           }
-          // Only the selected Topics remain blocking. Bookmark-only mappings
-          // are optional; previewing them must still leave storage untouched.
+          // The selected standalone feed still needs a mapping. Bookmark hints
+          // are optional, previewing them must still leave storage untouched.
           if (crossCategories) await notifier.apply(context);
           expect(bookmarkBox.length, 1);
           expect((await groups.getGroup(groupId))!.name, 'Original');
@@ -468,11 +466,18 @@ void main() {
               isFalse,
             );
           }
-          if (crossCategories) notifier.acknowledgeWarnings(true);
+          if (crossCategories) {
+            final searchKey = ProfileSiteKey.fromReference(
+              _reference(pinProfileId),
+            );
+            notifier.chooseProfileMapping(searchKey, secondId);
+            await notifier.previewComplete;
+            notifier.acknowledgeWarnings(true);
+          }
           final finalId = container
               .read(importFlowProvider)
               .profileMappings
-              .single
+              .singleWhere((mapping) => mapping.siteKey == key)
               .profileId!;
           expect(
             container.read(importFlowProvider).preflight!.isValid,
@@ -495,15 +500,22 @@ void main() {
           expect(await searchRepository.getAll(), beforeSearches);
           expect(await searchRepository.getFeeds(), isEmpty);
           if (crossCategories) {
-            final shared = container
-                .read(importFlowProvider)
-                .profileMappings
-                .single;
-            expect(shared.references.map((r) => r.id).toSet(), {
-              bookmarkKey.exportedId,
-              pinProfileId,
-              feedProfileId,
-            });
+            final shared = container.read(importFlowProvider).profileMappings;
+            expect(
+              shared
+                  .singleWhere((mapping) => mapping.siteKey == key)
+                  .references
+                  .map((r) => r.id),
+              [bookmarkKey.exportedId],
+            );
+            expect(
+              shared
+                  .singleWhere((mapping) => mapping.siteKey != key)
+                  .references
+                  .map((r) => r.id)
+                  .toSet(),
+              {pinProfileId, feedProfileId},
+            );
           }
           if (rollback) {
             final incomingPath = '${directory.path}/incoming-bookmarks.json';

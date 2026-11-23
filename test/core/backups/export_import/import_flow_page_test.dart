@@ -148,7 +148,7 @@ void main() {
         }
         if (count == 2) {
           expect(find.text('Select a matching profile'), findsOneWidget);
-          expect(find.text('site.example'), findsOneWidget);
+          expect(find.text('https://site.example'), findsOneWidget);
           expect(find.textContaining('profile management'), findsNothing);
           expect(
             tester
@@ -224,7 +224,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('same.example'), findsOneWidget);
+    expect(find.text('https://same.example'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
     expect(find.text('Create Profile'), findsNothing);
     await tester.tap(find.byType(DropdownButton<String>));

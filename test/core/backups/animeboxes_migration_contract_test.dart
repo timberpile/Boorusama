@@ -12,7 +12,6 @@ import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_source_integrity_validator.dart';
-import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
@@ -195,12 +194,9 @@ void main() {
           await notifier.load('${fixtures.path}/named/animeboxes.bsexport');
           var state = harness.container.read(importFlowProvider);
           expect(state.status, ImportFlowStatus.review);
-          notifier.chooseProfileMapping(
-            ProfileSiteKey.fromReference(
-              state.profileMappings.single.reference,
-            ),
-            _localProfileId,
-          );
+          for (final mapping in state.profileMappings) {
+            notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+          }
           await notifier.previewComplete;
           expect(
             harness.container.read(importFlowProvider).preflight!.isValid,
@@ -671,10 +667,22 @@ void main() {
                   .action,
               ImportAction.skip,
             );
-            expect(state.profileMappings.single.profileId, _localProfileId);
-            expect(state.profileMappings.single.candidateIds, {
-              _localProfileId,
-            });
+            expect(state.profileMappings, hasLength(2));
+            expect(
+              state.profileMappings.map((mapping) => mapping.profileId),
+              everyElement(_localProfileId),
+            );
+            expect(
+              state.profileMappings.map((mapping) => mapping.candidateIds),
+              everyElement({_localProfileId}),
+            );
+            expect(
+              state.profileMappings.map((mapping) => mapping.siteKey.site),
+              unorderedEquals([
+                'danbooru.donmai.us',
+                'https://danbooru.donmai.us',
+              ]),
+            );
             expect(state.preflight!.isValid, true);
             expect(state.preflight!.errors, isEmpty);
             expect(
@@ -682,12 +690,9 @@ void main() {
               hasLength(populated ? 1 : 0),
             );
             final profilesBefore = await harness.profiles.getAll();
-            notifier.chooseProfileMapping(
-              ProfileSiteKey.fromReference(
-                state.profileMappings.single.reference,
-              ),
-              _localProfileId,
-            );
+            for (final mapping in state.profileMappings) {
+              notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+            }
             await notifier.previewComplete;
             state = harness.container.read(importFlowProvider);
             expect(state.preflight!.errors, isEmpty);
@@ -765,12 +770,9 @@ void main() {
             // and create independent Topics under a fresh wrapper.
             await notifier.load(packagePaths['']!);
             state = harness.container.read(importFlowProvider);
-            notifier.chooseProfileMapping(
-              ProfileSiteKey.fromReference(
-                state.profileMappings.single.reference,
-              ),
-              _localProfileId,
-            );
+            for (final mapping in state.profileMappings) {
+              notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+            }
             await notifier.previewComplete;
             expect(
               harness.container
@@ -882,12 +884,9 @@ void main() {
               ),
             );
             await notifier.previewComplete;
-            notifier.chooseProfileMapping(
-              ProfileSiteKey.fromReference(
-                state.profileMappings.single.reference,
-              ),
-              _localProfileId,
-            );
+            for (final mapping in state.profileMappings) {
+              notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+            }
             await notifier.previewComplete;
             expect(
               harness.container.read(importFlowProvider).preflight!.isValid,

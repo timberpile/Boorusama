@@ -1,4 +1,5 @@
 import '../../profile_uuid_utils.dart';
+
 import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/following_topic_import_service.dart';
@@ -375,7 +376,23 @@ void main() {
   );
 
   test(
-    'previews unmatched topics and rejects before any writes',
+    'a reviewed unresolved mapping stays detached despite a matching UUID',
+    () async {
+      final repository = memorySubscriptionRepository();
+      final record = _record(0);
+      await FollowingTopicImportService(repository: repository).apply(
+        FollowingTopicBackupData(records: [record]),
+        profiles: [_profile(4)],
+        profileIdResolver: (_) => null,
+      );
+      final saved = (await repository.getAll()).single;
+      expect(saved.localSource?.importedProfileId, record.profile.id);
+      expect(saved.profileId, isNot(record.profile.id));
+    },
+  );
+
+  test(
+    'retains unresolved definitions and rejects invalid data before any writes',
     () async {
       final repository = memorySubscriptionRepository();
       final service = FollowingTopicImportService(repository: repository);
@@ -395,27 +412,29 @@ void main() {
         ],
       );
       final profiles = [_profile(4), _profile(5)];
-      expect(service.preview(data, profiles: profiles).unmatchedRecordIds, {
-        _id(1),
-      });
-      expect(await repository.getAll(), isEmpty);
+      expect(
+        service.preview(data, profiles: profiles).unmatchedRecordIds,
+        isEmpty,
+      );
+      final invalid = FollowingTopicBackupData(
+        records: data.records,
+        folders: [data.folders.single, data.folders.single],
+      );
       await expectLater(
-        service.apply(data, profiles: profiles),
-        throwsA(isA<UnmatchedFollowingTopicProfilesException>()),
+        service.apply(invalid, profiles: profiles),
+        throwsFormatException,
       );
       expect(await repository.getAll(), isEmpty);
       expect((await repository.getOrganization()).folders, isEmpty);
       expect(await repository.getFeeds(), isEmpty);
-      final result = await service.apply(
-        data,
-        profiles: profiles,
-        allowMissingProfiles: true,
+      final result = await service.apply(data, profiles: profiles);
+      expect(result.skippedProfileCount, 0);
+      expect(result.importedCount, 2);
+      final retained = (await repository.getAll()).singleWhere(
+        (t) => t.id == missing.id,
       );
-      expect(result.skippedProfileCount, 1);
-      expect(
-        (await repository.getOrganization()).folders.single.searchIds,
-        [_id(0)],
-      );
+      expect(retained.localSource?.importedProfileId, missing.profile.id);
+      expect(retained.query, missing.query);
     },
   );
 
@@ -693,20 +712,17 @@ void main() {
       expectedId: null,
     ),
     (
-      description:
-          'no automatic mapping to the only compatible profile for a missing URL',
+      description: 'no automatic mapping to the only compatible profile for a missing URL',
       profiles: [_profile(4, url: 'https://other.test')],
       expectedId: null,
     ),
     (
-      description:
-          'no automatic mapping to the only compatible profile for a different scheme',
+      description: 'no automatic mapping to the only compatible profile for a different scheme',
       profiles: [_profile(4, url: 'http://example.test/Posts')],
       expectedId: null,
     ),
     (
-      description:
-          'no automatic mapping to the only compatible profile for a different path',
+      description: 'no automatic mapping to the only compatible profile for a different path',
       profiles: [_profile(4, url: 'https://example.test/posts')],
       expectedId: null,
     ),
@@ -722,27 +738,35 @@ void main() {
     ),
   ];
   for (final c in mappingCases) {
-    test('resolves ${c.description}', () async {
+    test('handles ${c.description}', () async {
       final repository = memorySubscriptionRepository();
+      final record = _record(0);
       final result = await FollowingTopicImportService(repository: repository)
           .apply(
-            FollowingTopicBackupData(records: [_record(0)]),
+            FollowingTopicBackupData(records: [record]),
             profiles: c.profiles,
-            allowMissingProfiles: true,
           );
       expect(
         result,
         FollowingTopicImportResult(
-          resolvedIds: c.expectedId == null ? {} : {_id(0): _id(0)},
-          importedCount: c.expectedId == null ? 0 : 1,
+          resolvedIds: {record.id: record.id},
+          importedCount: 1,
           alreadyExistedCount: 0,
-          skippedProfileCount: c.expectedId == null ? 1 : 0,
+          skippedProfileCount: 0,
         ),
       );
-      expect(
-        (await repository.getAll()).map((topic) => topic.profileId),
-        c.expectedId == null ? isEmpty : [profileUuid(c.expectedId!)],
-      );
+      final saved = (await repository.getAll()).single;
+      if (c.expectedId case final id?) {
+        expect(saved.profileId, profileUuid(id));
+        expect(saved.localSource, isNull);
+      } else {
+        expect(saved.localSource?.importedProfileId, record.profile.id);
+        expect(
+          saved.localSource?.url,
+          normalizeBackupProfileUrl(record.profile.url),
+        );
+        expect(c.profiles.map((p) => p.id), isNot(contains(saved.profileId)));
+      }
     });
   }
 

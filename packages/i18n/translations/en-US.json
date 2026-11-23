@@ -152,6 +152,7 @@
     "edit_query": "Exact Query",
     "edit_profile": "Profile",
     "edit_duplicate": "Another topic in this folder already uses this query and profile.",
+    "imported_source_unavailable": "No reader for $site. Check Profiles for a compatible connection.",
     "edit_missing_profile": "Choose an available profile before saving.",
     "edit_unsupported": "New-post tracking is unavailable for this profile. The search can still open normally.",
     "edit_baseline_failed": "Topic updated, but its preview could not be loaded. Refresh it later.",

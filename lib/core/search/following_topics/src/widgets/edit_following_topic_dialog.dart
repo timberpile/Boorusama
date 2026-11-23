@@ -14,7 +14,7 @@ typedef FollowingTopicEditResult = ({
   SearchRefreshOutcome? refresh,
 });
 typedef SaveFollowingTopicEdit = Future<FollowingTopicEditResult> Function(
-  BooruConfig profile,
+  BooruConfig? profile,
   String query,
   String? name,
   bool autoUpdateEnabled,
@@ -63,6 +63,8 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
   late final _name = TextEditingController(
     text: widget.topic.name,
   );
+  late final _query = TextEditingController(text: widget.topic.query);
+  bool get _portable => widget.topic.localSource?.isImported ?? false;
   late bool _autoUpdateEnabled = widget.topic.autoUpdateEnabled;
   String? _error;
   var _saving = false;
@@ -78,6 +80,7 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
   @override
   void dispose() {
     _name.dispose();
+    _query.dispose();
     super.dispose();
   }
 
@@ -85,7 +88,7 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
     String query,
     SearchQueryStructure? structure,
   ) => widget.onSave(
-    _profile!,
+    _portable ? null : _profile,
     query,
     _name.text,
     _autoUpdateEnabled,
@@ -93,15 +96,20 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
   );
 
   Future<void> _save() async {
-    if (_saving || _profile == null) return;
+    if (_saving || (!_portable && _profile == null)) return;
+    final query = _portable ? _query.text.trim() : widget.topic.query;
+    if (normalizeSearchIdentity(query).isEmpty) {
+      setState(() => _error = context.t.following_topics.edit_invalid_query);
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
     });
     try {
       final result = await _persist(
-        widget.topic.query,
-        widget.topic.queryStructure,
+        query,
+        query == widget.topic.query ? widget.topic.queryStructure : null,
       );
       if (mounted) Navigator.pop(context, result);
     } on DuplicateFollowingTopicException {
@@ -132,7 +140,11 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
     final selected = _profile;
     final warning =
         _error ??
-        (selected == null
+        (selected == null && _portable
+            ? strings.imported_source_unavailable(
+                site: widget.topic.localSource!.url,
+              )
+            : selected == null
             ? strings.edit_missing_profile
             : !widget.trackingSupported(selected.auth)
             ? strings.edit_unsupported
@@ -173,7 +185,21 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
                         ),
                         onChanged: (_) => setState(() => _error = null),
                       ),
-                      if (_recoveringProfile && widget.profiles.isNotEmpty) ...[
+                      if (_portable) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _query,
+                          minLines: 1,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            labelText: strings.edit_query,
+                          ),
+                          onChanged: (_) => setState(() => _error = null),
+                        ),
+                      ],
+                      if (!_portable &&
+                          _recoveringProfile &&
+                          widget.profiles.isNotEmpty) ...[
                         const SizedBox(height: 12),
                         Text(strings.edit_profile),
                         const SizedBox(height: 4),
@@ -236,7 +262,9 @@ class _EditFollowingTopicDialogState extends State<EditFollowingTopicDialog> {
                       child: Text(context.t.generic.action.cancel),
                     ),
                     FilledButton(
-                      onPressed: _saving || selected == null ? null : _save,
+                      onPressed: _saving || (!_portable && selected == null)
+                          ? null
+                          : _save,
                       child: Text(strings.save),
                     ),
                   ],

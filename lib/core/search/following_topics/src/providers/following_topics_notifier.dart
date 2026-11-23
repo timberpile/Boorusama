@@ -706,6 +706,44 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   Future<void> moveTopicToSharedFolder(String searchId, String? folderId) =>
       moveFolderItems(searchIds: {searchId}, destination: folderId);
 
+  Future<void> setImportedTopicDestination({
+    required FollowingTopic topic,
+    required BooruConfig reader,
+    required String? previousFolderId,
+    required Set<String?> destinations,
+  }) => _mutate((repository) async {
+    await _requireIndependentTopic(repository, topic.id);
+    final current = await repository.getById(topic.id);
+    final organization = await repository.getOrganization();
+    final placement = organization.placements
+        .where((p) => p.itemId == topic.id)
+        .firstOrNull;
+    if (current == null ||
+        !(current.localSource?.isImported ?? false) ||
+        current.localSource != topic.localSource ||
+        current.query != topic.query ||
+        current.profileId != topic.profileId ||
+        placement == null ||
+        placement.folderId != previousFolderId ||
+        !sameFollowingReader(
+          _readTopicSource(current),
+          reader,
+        )) {
+      throw StaleFollowingTopicEditException();
+    }
+    if (destinations.isEmpty) {
+      await repository.delete(topic.id);
+      return;
+    }
+    await _replaceLocalOrganization(
+      repository,
+      organization.move(
+        searchIds: {topic.id},
+        destination: destinations.single,
+      ),
+    );
+  });
+
   Future<void> moveFolderItems({
     Set<String> folderIds = const {},
     Set<String> searchIds = const {},
@@ -1104,7 +1142,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       autoUpdateEnabled: autoUpdateEnabled,
       queryStructure: queryStructure,
     );
-    if (!result.material) {
+    if (!result.material || _readTopicSource(result.topic) == null) {
       return (topic: result.topic, refresh: null);
     }
     return (
@@ -1128,10 +1166,14 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       }
       await _requireIndependentTopic(repository, id);
       final previous = (await repository.getById(id))!;
+      final imported = previous.localSource?.isImported ?? false;
+      if (imported && previous.profileId != profileId) {
+        throw MissingFollowingTopicProfileException();
+      }
       final retainedSource =
           previous.localSource != null &&
           previous.profileId == profileId &&
-          ref.read(followingTopicConfigProvider(id)) != null;
+          (imported || _readTopicSource(previous) != null);
       if (!retainedSource &&
           !ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
         throw MissingFollowingTopicProfileException();
@@ -1669,6 +1711,14 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       progress.close();
     }
   }
+
+  BooruConfig? _readTopicSource(FollowingTopic topic) => ref.read(
+    followingSourceConfigProvider((
+      profileId: topic.profileId,
+      owner: _mirrors.owners[topic.id],
+      localSource: topic.localSource,
+    )),
+  );
 
   Future<T> _mutate<T>(
     Future<T> Function(FollowingTopicRepository repository) operation,

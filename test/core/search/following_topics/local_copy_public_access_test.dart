@@ -104,7 +104,9 @@ void main() {
 
       await tester.tap(find.text('Save'));
       await drain(tester);
+      await settle(tester);
 
+      expect(find.text('Edit Topic'), findsNothing);
       expect(find.text('Independent cats'), findsOneWidget);
       expect(harness.container.read(booruConfigProvider), isEmpty);
       final saved = (await tester.runAsync(() => harness.repository.getAll()))!

@@ -37,13 +37,29 @@ void main() {
     WidgetTester tester, {
     bool missingProfile = false,
     bool recoverProfile = false,
+    bool imported = false,
   }) async {
-    final topic = topicFixture(
+    final fixture = topicFixture(
       query: '( cat ~ dog ) source:"a b"',
       profileId: recoverProfile
           ? '00000000-0000-4000-8000-000000000004'
           : testProfile.id,
     );
+    final topic = imported
+        ? FollowingTopic.create(
+            id: fixture.id,
+            profileId: fixture.profileId,
+            query: fixture.query,
+            name: fixture.name,
+            position: fixture.position,
+            createdAt: fixture.createdAt,
+            localSource: FollowingTopicSource(
+              booruType: 'danbooru',
+              url: 'https://private.example/install',
+              importedProfileId: '00000000-0000-4000-8000-000000000009',
+            ),
+          )
+        : fixture;
     await harness.pump(
       tester,
       Scaffold(
@@ -61,7 +77,7 @@ void main() {
                 }
                 saves.add((
                   query: query,
-                  profileId: profile.id,
+                  profileId: profile?.id ?? topic.profileId,
                   name: name,
                   automatic: automatic,
                   structure: structure,
@@ -230,6 +246,38 @@ void main() {
       await drain(tester);
       await settle(tester);
       expect(saves, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'imported settings save an offline query at 320dp with the keyboard open',
+    (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await open(tester, missingProfile: true, imported: true);
+      expect(
+        find.textContaining('No reader for https://private.example/install'),
+        findsOneWidget,
+      );
+      await tester.enterText(find.byType(TextField).first, 'New name');
+      await tester.enterText(find.byType(TextField).last, 'bird rating:safe');
+      tester.view.viewInsets = const FakeViewPadding(bottom: 210);
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+      final save = find.widgetWithText(FilledButton, 'Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await drain(tester);
+      expect(saves.single.query, 'bird rating:safe');
+      expect(saves.single.name, 'New name');
+      expect(tester.takeException(), isNull);
     },
   );
 

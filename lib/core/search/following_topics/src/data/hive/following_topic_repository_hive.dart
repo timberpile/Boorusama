@@ -1223,6 +1223,7 @@ class HiveFollowingTopicRepository
     if (expectedTopic != null &&
         (current.createdAt != expectedTopic.createdAt ||
             current.profileId != expectedTopic.profileId ||
+            current.localSource != expectedTopic.localSource ||
             current.query != expectedTopic.query ||
             current.queryStructure != expectedTopic.queryStructure ||
             current.name != expectedTopic.name ||
@@ -2087,22 +2088,36 @@ class HiveFollowingTopicRepository
   TopicOrganization _removeOrganizationMemberships(
     TopicOrganization organization,
     Set<String> ids,
-  ) => TopicOrganization(
-    folders: [
-      for (final folder in organization.folders)
-        TopicFolder(
-          id: folder.id,
-          name: folder.name,
-          feedEnabled: folder.feedEnabled,
-          feedMaxPosts: folder.feedMaxPosts,
-          parentId: folder.parentId,
-          position: folder.position,
-          searchIds: folder.searchIds.where((id) => !ids.contains(id)),
-          nameScope: folder.nameScope,
+  ) {
+    if (_followingMirrors().owners.isNotEmpty) {
+      // Received definition digests include placement positions. Removing a
+      // local sibling must leave those stored positions intact.
+      return TopicOrganization(
+        folders: organization.folders,
+        placements: organization.placements.where(
+          (p) => !ids.contains(p.itemId),
         ),
-    ],
-    homeSearchIds: organization.homeSearchIds.where((id) => !ids.contains(id)),
-  );
+      );
+    }
+    return TopicOrganization(
+      folders: [
+        for (final folder in organization.folders)
+          TopicFolder(
+            id: folder.id,
+            name: folder.name,
+            feedEnabled: folder.feedEnabled,
+            feedMaxPosts: folder.feedMaxPosts,
+            parentId: folder.parentId,
+            position: folder.position,
+            searchIds: folder.searchIds.where((id) => !ids.contains(id)),
+            nameScope: folder.nameScope,
+          ),
+      ],
+      homeSearchIds: organization.homeSearchIds.where(
+        (id) => !ids.contains(id),
+      ),
+    );
+  }
 
   void _validateOrganizationMemberships(
     Iterable<String> ids,

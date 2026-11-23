@@ -522,16 +522,6 @@ final class ImportPlannedChangeProjector {
     }
 
     final items = {for (final item in resolution.items) item.id: item};
-    final requiresUnmappedProfile = incoming.records.any(
-      (record) =>
-          (resolution.action == ImportAction.replace ||
-              items['search:${record.id}']?.action != ImportAction.skip) &&
-          !profileMappings.containsKey(
-            ProfileReferenceKey.fromReference(record.profile),
-          ),
-    );
-    if (requiresUnmappedProfile) return null;
-
     final searches = <String, FollowingTopic>{
       for (final search in local.searches) search.id: search,
     };
@@ -562,7 +552,8 @@ final class ImportPlannedChangeProjector {
               }))) {
         continue;
       }
-      final profileId = _profileId(record.profile, profileMappings);
+      final profileId =
+          profileMappings[ProfileReferenceKey.fromReference(record.profile)];
       final saved = findMatchingTopicForImport(
         record: record,
         data: incoming,
@@ -592,20 +583,28 @@ final class ImportPlannedChangeProjector {
       final id = searches.containsKey(record.id)
           ? '__created__pinned-${record.id}'
           : record.id;
-      final created = FollowingTopic.create(
-        id: id,
-        profileId: profileId,
-        query: record.query,
-        name: record.name,
-        position: searches.values
-            .where(
-              (search) =>
-                  search.profileId == profileId &&
-                  !internalIds.contains(search.id),
+      final created = profileId == null
+          ? profilelessFollowingTopicForImport(
+              record: record,
+              id: id,
+              namespace: '__created__topic-source-$id',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
             )
-            .length,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      );
+          : FollowingTopic.create(
+              id: id,
+              profileId: profileId,
+              query: record.query,
+              queryStructure: record.queryStructure,
+              name: record.name,
+              position: searches.values
+                  .where(
+                    (search) =>
+                        search.profileId == profileId &&
+                        !internalIds.contains(search.id),
+                  )
+                  .length,
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+            );
       searches[id] = created;
       importedByBackupId[record.id] = id;
       createdIds.add(id);

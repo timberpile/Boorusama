@@ -11,6 +11,7 @@ import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../providers/following_topic_selectors.dart';
+import '../providers/following_topic_config_provider.dart';
 import '../providers/following_topics_notifier.dart';
 import '../types/following_topic.dart';
 import '../types/search_refresh.dart';
@@ -82,6 +83,7 @@ class _FollowTopicButtonState extends ConsumerState<FollowTopicButton> {
         query: query,
         queryStructure: widget.queryStructure,
         originatingTopicId: widget.originatingTopicId,
+        original: widget.original,
         onFeedback: (message) {
           if (mounted &&
               revision == _operationRevision &&
@@ -109,8 +111,25 @@ class _FollowTopicButtonState extends ConsumerState<FollowTopicButton> {
         query: widget.query,
       )),
     );
+    final originId = widget.originatingTopicId;
+    final importedOrigin = originId == null
+        ? null
+        : topics.valueOrNull?.topics
+              .where((topic) => topic.id == originId)
+              .firstOrNull;
+    final currentReader = ref.watchConfig;
+    final followsImportedOrigin =
+        importedOrigin != null &&
+        (importedOrigin.localSource?.isImported ?? false) &&
+        !(topics.valueOrNull?.mirrors.isReceived(originId!) ?? false) &&
+        normalizeSearchIdentity(importedOrigin.query) ==
+            normalizeSearchIdentity(widget.query) &&
+        sameFollowingReader(
+          ref.watch(followingTopicConfigProvider(importedOrigin.id)),
+          currentReader,
+        );
     return TopicFollowPill(
-      count: matches.valueOrNull?.length ?? 0,
+      count: followsImportedOrigin ? 1 : matches.valueOrNull?.length ?? 0,
       modified:
           widget.original?.isModified(
             profileId,
@@ -221,6 +240,32 @@ Future<void> showTopicFollowFlow(
 }) async {
   final state = ref.read(followingTopicsProvider).valueOrNull;
   if (state == null) return;
+  final updateProfile = ref.readConfig;
+  final importedOrigin = state.topics
+      .where(
+        (topic) =>
+            topic.id == originatingTopicId &&
+            (topic.localSource?.isImported ?? false) &&
+            !state.mirrors.isReceived(topic.id),
+      )
+      .firstOrNull;
+  final validImportedOrigin =
+      importedOrigin != null &&
+      sameFollowingReader(
+        ref.read(followingTopicConfigProvider(importedOrigin.id)),
+        updateProfile,
+      );
+  final originPlacement = validImportedOrigin
+      ? state.organization.placements
+            .where((p) => p.itemId == importedOrigin.id)
+            .firstOrNull
+      : null;
+  final manageImported =
+      originPlacement != null &&
+      (normalizeSearchIdentity(importedOrigin!.query) ==
+              normalizeSearchIdentity(query) ||
+          updateProfile.anonymousReadScope != null);
+  if (!manageImported && updateProfile.anonymousReadScope != null) return;
   final matches = selectMatchingFollowingTopics(
     state,
     profileId: profileId,
@@ -232,15 +277,19 @@ Future<void> showTopicFollowFlow(
             ? <String?>{}
             : <String?>{initialFolderId}
       : previousDestinations;
-  final updateProfile = ref.readConfig;
   TopicSearchOrigin? updatedOriginal;
   final selectedDestinations = await showFollowTopicFolderPickerDialog(
     context,
-    query: query,
-    selectedFolderIds: initialDestinations,
+    query: manageImported ? importedOrigin.query : query,
+    selectedFolderIds: manageImported
+        ? {originPlacement.folderId}
+        : initialDestinations,
+    singleDestination: manageImported,
     onUpdateOriginal:
         original != null &&
             !state.mirrors.isReceived(original.topic.id) &&
+            (!(original.topic.localSource?.isImported ?? false) ||
+                validImportedOrigin) &&
             original.isModified(profileId, query, queryStructure)
         ? () async {
             updatedOriginal = await showUpdateOriginalTopicDialog(
@@ -271,6 +320,49 @@ Future<void> showTopicFollowFlow(
   if (selectedDestinations is! FollowTopicDestinations) return;
   try {
     final notifier = ref.read(followingTopicsProvider.notifier);
+    if (manageImported) {
+      final topic = importedOrigin;
+      final folderId = originPlacement.folderId;
+      final folders = selectedDestinations.folders;
+      if (folders.length == 1 && folders.single == folderId) return;
+      await notifier.setImportedTopicDestination(
+        topic: topic,
+        reader: updateProfile,
+        previousFolderId: folderId,
+        destinations: folders,
+      );
+      if (folders.isEmpty) {
+        onOriginChanged?.call(null);
+        if (context.mounted) {
+          Kurumi.showSuccessToast(
+            context,
+            context.t.following_topics.unfollowed,
+            duration: const Duration(seconds: 5),
+            actionLabel: context.t.following_topics.undo,
+            onAction: () async {
+              try {
+                await notifier.restoreIndependentTopic(
+                  topic,
+                  folderId: folderId,
+                );
+                onOriginChanged?.call(
+                  TopicSearchOrigin(topic: topic, profile: updateProfile),
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  Kurumi.showErrorToast(
+                    context,
+                    context.t.following_topics.undo_failed,
+                  );
+                }
+              }
+            },
+          );
+        }
+      }
+      onFeedback?.call(null);
+      return;
+    }
     final result = await notifier.setFollowDestinations(
       profileId: profileId,
       query: query,

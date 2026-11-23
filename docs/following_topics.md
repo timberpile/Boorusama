@@ -668,35 +668,39 @@ the engine registry and i18n output.
 ## Shared-folder backup and restore
 
 Current export and import uses `.bsexport`. Folder and feed UUIDs provide
-Update, Merge, Merge into, Copy, and Skip choices. Identical pins are matched
-by resolved profile and normalized query and are reported as already present
-instead of producing a conflict. A sole compatible local profile is selected
-automatically; ambiguous or missing mappings block import before writes.
+Update, Merge, Merge into, Copy, and Skip choices. Topic matching considers
+the source, normalized query and destination. A compatible saved profile can
+own an ordinary imported Topic. If the import has no resolved profile, the
+Topic keeps its original source reference in independent local storage.
+
+An independently stored import opens with a unique compatible profile for the
+same engine and installation, or with the existing credential-free reader for
+supported public sites. Private or unsupported sources without a reader stay
+visible and can still be edited, organized, deleted and exported. The profile
+filter follows the current saved reader. A profile appearing or disappearing
+changes read access without moving or deleting the Topic. Portable exports keep
+the original reference and omit credentials. Received mirrors retain their
+own ownership and read-only controls.
 
 Backup version 4 stores shared folder definitions and order, folder member
 order, and Home order alongside portable profile references and independent
-pin definitions. Empty folders survive restore. Imported IDs resolve through
-the existing identity rules before memberships are rebuilt. Pin-only backups
-append newly created pins to Home and preserve reused pins' destinations.
-Old experimental profile-folder backups require no folder migration.
+pin definitions. Empty folders survive restore. Pin-only backups append newly
+created pins to Home and preserve reused pins' destinations. Old experimental
+profile-folder backups require no folder migration.
 
-Unmatched pin or feed profiles require confirmation before skipping records.
-Standalone restore obtains approval before writing pins, feeds, or folders.
-ZIP and server transfer prepare selected sources and run this preflight before
-any source imports, including profiles. Matching uses the selected backup's
-profiles when present, otherwise current profiles. Cancel or headless import
-with unmatched records aborts before writes. Approval is revalidated against
-the actual profiles before pin execution; changed unmatched records abort.
+Legacy standalone feeds still require a profile mapping. Raw and ZIP imports
+that include unmatched legacy feeds obtain confirmation before skipping them,
+and revalidate that approval before writing. Topic-only imports can proceed
+without a mapping.
 
 ## Migration package imports
 
 Current AnimeBoxes migration packages use explicit folder/search selection
-with ordered Home membership and require profile UUID mapping before writes. Collection actions remain
-available even when there are no local pins or folders. New-copy imports
+with ordered Home membership. Collection actions remain available on a fresh
+installation. New-copy imports
 allocate folder names using the repository's case-insensitive uniqueness rule
 with numeric suffixes, and use the same name allocation in change previews and
-application. If a source profile UUID already resolves locally, repeat review
-recognizes existing queries and skips those searches. When a fresh source UUID
+application. Repeat review recognizes matched Topic definitions, including independently stored imports. When a fresh source UUID
 is explicitly mapped to an existing profile, selected queries can reuse pins.
 A reused pin has one organization destination: copying an imported folder moves
 its selected pins into that copy while preserving local-only pins in the old

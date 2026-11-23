@@ -872,7 +872,7 @@ void main() {
     },
   );
 
-  test('followed topic projection waits for unresolved profile mapping', () {
+  test('followed topic projection counts creation with no profile mapping', () {
     final summary = projector.followingTopics(
       local: FollowingTopicImportLocalSnapshot(
         searches: const [],
@@ -906,7 +906,7 @@ void main() {
       ),
     );
 
-    expect(summary, isNull);
+    expect(summary?.entitySummaries['following-topic']?.created, 1);
   });
 
   test(

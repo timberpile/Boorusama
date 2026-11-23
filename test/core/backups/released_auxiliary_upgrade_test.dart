@@ -31,6 +31,7 @@ import 'package:boorusama/foundation/loggers.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
 import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/following_topic_import_service.dart';
+import 'package:boorusama/core/backups/sources/search_backup_profile.dart';
 import 'package:boorusama/core/backups/sources/topic_feed_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/topic_feed_import_service.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
@@ -210,7 +211,7 @@ void main() {
     }
   });
 
-  test('released package stages all domains and imports Following with profile bindings', () async {
+  test('released package stages all domains and restores Topics with or without profiles', () async {
     final staged = await const ExportPackageReader(fs: IoFileSystem())
         .stage('$_fixture/released.bsexport');
     addTearDown(staged.dispose);
@@ -243,15 +244,44 @@ void main() {
     final feeds = TopicFeedBackupCodec().parse(
       decodeData(data: await json(topicFeedsBackupSourceId)),
     );
+
+    final profilelessPath = p.join(work.path, 'profileless');
+    Hive.init(profilelessPath);
+    final profileless = await _following();
+    final detachedImporter = FollowingTopicImportService(
+      repository: profileless,
+    );
+    expect(
+      detachedImporter.preview(topics, profiles: []).unmatchedRecordIds,
+      isEmpty,
+    );
+    final result = await detachedImporter.replace(topics, profiles: []);
+    expect(result.importedCount, 1);
+    expect(result.skippedProfileCount, 0);
+    final namespace = (await profileless.getAll()).single.profileId;
+    expect(profiles.map((profile) => profile.id), isNot(contains(namespace)));
+
+    await Hive.close();
+    Hive.init(profilelessPath);
+    final reopened = await _following();
+    final topic = (await reopened.getById(_topic))!;
+    expect(topic.profileId, namespace);
+    expect(topic.name, 'Cats');
+    expect(topic.query, 'cat_fixture');
+    expect(topic.autoUpdateEnabled, isFalse);
+    expect(
+      followingTopicBackupProfile(topic, []),
+      topics.records.single.profile,
+    );
+    final folder = (await reopened.getOrganization()).folders.single;
+    expect(folder.id, _folder);
+    expect(folder.name, 'Fixture topics');
+    expect(folder.searchIds, [_topic]);
+
+    await Hive.close();
     Hive.init(work.path);
     final repository = await _following();
     final importer = FollowingTopicImportService(repository: repository);
-    expect(importer.preview(topics, profiles: []).unmatchedRecordIds, {_topic});
-    await expectLater(
-      importer.replace(topics, profiles: []),
-      throwsA(isA<UnmatchedFollowingTopicProfilesException>()),
-    );
-    expect(await repository.getAll(), isEmpty);
     await importer.replace(topics, profiles: profiles);
     await TopicFeedImportService(repository: repository)
         .replace(feeds, profiles: profiles);

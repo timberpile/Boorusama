@@ -99,6 +99,16 @@ BackupProfileReference? followingTopicBackupProfile(
   Iterable<BackupProfileReference> profiles,
 ) {
   final source = topic.localSource;
+  if (source?.importedProfileId case final id?) {
+    // Preserve the sender's reference across round trips, not the receiver's
+    // synthetic storage namespace or whichever account currently reads it.
+    return BackupProfileReference(
+      id: id,
+      booruType: source!.booruType,
+      url: source.url,
+      name: source.importedProfileName ?? source.url,
+    );
+  }
   final profile = profiles
       .where(
         (p) =>

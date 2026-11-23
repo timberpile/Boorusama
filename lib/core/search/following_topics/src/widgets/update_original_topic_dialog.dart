@@ -8,6 +8,7 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../search/src/types/topic_search_origin.dart';
 import '../providers/following_topics_notifier.dart';
+import '../providers/following_topic_config_provider.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_repository.dart';
 import '../types/search_refresh.dart';
@@ -63,19 +64,22 @@ class _UpdateOriginalTopicDialogState
     });
     final strings = context.t.following_topics;
     try {
-      final profile = ref
-          .read(booruConfigProvider)
-          .where((p) => p.id == widget.profile.id)
-          .firstOrNull;
-      if (profile == null || profile.auth != widget.profile.auth) {
+      final original = widget.original.topic;
+      final portable = original.localSource?.isImported ?? false;
+      final profile = portable
+          ? ref.read(followingTopicConfigProvider(original.id))
+          : ref
+                .read(booruConfigProvider)
+                .where((p) => p.id == widget.profile.id)
+                .firstOrNull;
+      if (!sameFollowingReader(profile, widget.profile)) {
         throw MissingFollowingTopicProfileException();
       }
       if (widget.query.trim().isEmpty) throw ArgumentError('Empty topic query');
       final notifier = ref.read(followingTopicsProvider.notifier);
-      final original = widget.original.topic;
       final saved = await notifier.editLocally(
         original.id,
-        profileId: profile.id,
+        profileId: portable ? original.profileId : profile!.id,
         query: widget.query,
         queryStructure: () => widget.structure,
         name: original.name,
@@ -103,7 +107,7 @@ class _UpdateOriginalTopicDialogState
       if (mounted) {
         Navigator.pop(
           context,
-          TopicSearchOrigin(topic: saved.topic, profile: profile),
+          TopicSearchOrigin(topic: saved.topic, profile: profile!),
         );
       }
     } on DuplicateFollowingTopicException {
@@ -168,7 +172,7 @@ class _UpdateOriginalTopicDialogState
               ),
               const SizedBox(height: 12),
               _query(context, strings.original_new_query, widget.query),
-              if (original.topic.profileId != widget.profile.id) ...[
+              if (original.profile.id != widget.profile.id) ...[
                 const SizedBox(height: 12),
                 Text(
                   strings.original_current_profile(

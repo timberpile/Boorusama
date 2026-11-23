@@ -363,22 +363,35 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
         };
         final incomingIds = _incomingItemIds(wrapper.preparedData, selection);
         final alreadyPresentSearchIds = <String>{};
-        if (wrapper.preparedData case final FollowingTopicBackupData data) {
-          final repository = await ref.read(
-            followingTopicRepositoryProvider.future,
-          );
-          if (_disposed || revision != _planningRevision) return;
+        if ((wrapper.preparedData, wrapper._localSnapshot) case (
+          final FollowingTopicBackupData data,
+          final FollowingTopicImportLocalSnapshot local,
+        )) {
           final profiles = ref.read(booruConfigProvider);
-          for (final record in data.records) {
-            final profile = resolveBackupProfile(record.profile, profiles);
-            if (profile != null &&
-                await repository.findByQuery(profile.id, record.query) !=
-                    null) {
+          final usedIds = <String>{};
+          final ordered = data.records.indexed.toList()
+            ..sort((a, b) {
+              final position = a.$2.position.compareTo(b.$2.position);
+              return position != 0 ? position : a.$1.compareTo(b.$1);
+            });
+          for (final (_, record) in ordered) {
+            final match = findMatchingTopicForImport(
+              record: record,
+              data: data,
+              profileId: resolveBackupProfile(record.profile, profiles)?.id,
+              searches: local.searches,
+              organization: local.organization,
+              usedIds: usedIds,
+              folderActions: const {},
+              restoreHierarchy: false,
+              importFolderName: Translations().folders.imported_searches,
+            );
+            if (match != null) {
+              usedIds.add(match.id);
               alreadyPresentSearchIds.add(record.id);
             }
           }
           alreadyPresentSearches += alreadyPresentSearchIds.length;
-          if (_disposed || revision != _planningRevision) return;
         }
         final items = switch (wrapper.preparedData) {
           final List<BooruConfig> profiles => _profilePlanningItems(
@@ -821,12 +834,23 @@ class ImportFlowNotifier extends AutoDisposeNotifier<ImportFlowState> {
       switch (_sources[followingTopicsBackupSourceId]?.preparedData) {
         case final FollowingTopicBackupData data:
           final resolution = resolvedById[followingTopicsBackupSourceId]!;
+          final actions = {
+            for (final item in resolution.items) item.id: item.action,
+          };
+          final folders = {
+            for (final item in resolution.items)
+              if (item.id.startsWith('folder:'))
+                item.id.substring(7): CollectionImportAction(
+                  itemId: item.id.substring(7),
+                  action: item.action,
+                ),
+          };
           final selected = data.records
               .where(
-                (record) => _includesDependencyItem(
-                  resolution,
-                  'search:${record.id}',
-                ),
+                (record) =>
+                    resolution.action == ImportAction.replace ||
+                    (actions['search:${record.id}'] != ImportAction.skip &&
+                        !followingTopicFolderSkipped(data, record.id, folders)),
               )
               .map((record) => record.profile);
           for (final reference in selected) {

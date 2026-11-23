@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:clock/clock.dart';
 import 'package:equatable/equatable.dart';
 
 // Project imports:
@@ -47,20 +48,16 @@ class FollowingTopicImportPreview extends Equatable {
   List<Object?> get props => [unmatchedRecordIds];
 }
 
-class UnmatchedFollowingTopicProfilesException implements Exception {
-  const UnmatchedFollowingTopicProfilesException(this.recordIds);
-
-  final Set<String> recordIds;
-}
-
 class FollowingTopicImportService {
   const FollowingTopicImportService({
     required this.repository,
     this.importFolderName = 'Imported Searches',
+    this.clock = const Clock(),
   });
 
   final FollowingTopicRepository repository;
   final String importFolderName;
+  final Clock clock;
 
   Future<FollowingMirrorState> _mirrors() async =>
       repository is FollowingMirrorStore
@@ -74,17 +71,9 @@ class FollowingTopicImportService {
     BackupProfileIdResolver? profileIdResolver,
     Map<String, ImportAction>? recordActions,
   }) => FollowingTopicImportPreview(
-    unmatchedRecordIds: {
-      for (final record in data.records)
-        if (recordActions?[record.id] != ImportAction.skip &&
-            resolveBackupProfileId(
-                  record.profile,
-                  profiles,
-                  resolver: profileIdResolver,
-                ) ==
-                null)
-          record.id,
-    },
+    // A valid portable source is sufficient for persistence. Availability is a
+    // separate, current read-policy decision, not permission to discard data.
+    unmatchedRecordIds: const {},
   );
 
   Future<FollowingTopicImportResult> replace(
@@ -182,9 +171,11 @@ class FollowingTopicImportService {
     return result;
   }
 
+  /// Call inside the existing serialized import mutation/transaction.
   Future<FollowingTopicImportResult> apply(
     FollowingTopicBackupData data, {
     required List<BooruConfig> profiles,
+    // Retained for source compatibility; missing profiles no longer drop Topics.
     bool allowMissingProfiles = false,
     Map<String, CollectionImportAction>? folderActions,
     Map<String, ImportAction>? recordActions,
@@ -199,15 +190,6 @@ class FollowingTopicImportService {
             ) ??
             false)) {
       throw const FollowingMirrorReadOnly();
-    }
-    final unmatched = preview(
-      data,
-      profiles: profiles,
-      profileIdResolver: profileIdResolver,
-      recordActions: recordActions,
-    ).unmatchedRecordIds;
-    if (unmatched.isNotEmpty && !allowMissingProfiles) {
-      throw UnmatchedFollowingTopicProfilesException(unmatched);
     }
     FolderTree([
       for (final f in data.folders)
@@ -231,32 +213,26 @@ class FollowingTopicImportService {
       for (final (_, record) in ordered)
         (
           record: record,
-          profileId: resolveBackupProfileId(
-            record.profile,
-            profiles,
-            resolver: profileIdResolver,
-          ),
+          profileId: profileIdResolver == null
+              ? resolveBackupProfile(record.profile, profiles)?.id
+              : profileIdResolver(record.profile),
         ),
     ];
     var imported = 0;
     var existing = 0;
-    var skipped = 0;
     try {
       for (final (:record, :profileId) in mapped) {
         if (recordActions?[record.id] == ImportAction.skip ||
             followingTopicFolderSkipped(data, record.id, folderActions ?? {})) {
           continue;
         }
-        if (profileId == null) {
-          skipped++;
-          continue;
-        }
         final byId = await repository.getById(record.id);
+        final current = await repository.getAll();
         final saved = findMatchingTopicForImport(
           record: record,
           data: data,
           profileId: profileId,
-          searches: (await repository.getAll()).where(
+          searches: current.where(
             (topic) => !mirrors.isReceived(topic.id),
           ),
           organization: await repository.getOrganization(),
@@ -277,16 +253,49 @@ class FollowingTopicImportService {
           existing++;
           continue;
         }
-        final created = await repository.create(
-          profileId: profileId,
-          query: record.query,
-          queryStructure: record.queryStructure,
-          name: record.name,
-          id: byId == null ? record.id : null,
-        );
+        final FollowingTopic created;
+        if (profileId == null) {
+          final occupiedIds = {for (final topic in current) topic.id};
+          String unusedUuid(Set<String> occupied) {
+            var id = const Uuid().v4();
+            while (occupied.contains(id)) {
+              id = const Uuid().v4();
+            }
+            return id;
+          }
+
+          final id = byId == null ? record.id : unusedUuid(occupiedIds);
+          final namespace = unusedUuid({
+            ...occupiedIds,
+            id,
+            for (final topic in current) topic.profileId,
+            for (final profile in profiles) profile.id,
+            for (final incoming in data.records) incoming.profile.id,
+          });
+          created = profilelessFollowingTopicForImport(
+            record: record,
+            id: id,
+            namespace: namespace,
+            createdAt: clock.now().toUtc(),
+          );
+          // This namespace is new and empty. Never use aggregate restoration to
+          // attach provenance to an existing profile bucket: that would reset
+          // unrelated runtime/history state. Register ownership before writing
+          // so outer import rollback also covers a partially failed restore.
+          createdIds.add(id);
+          await repository.restoreForProfile(namespace, [created]);
+        } else {
+          created = await repository.create(
+            profileId: profileId,
+            query: record.query,
+            queryStructure: record.queryStructure,
+            name: record.name,
+            id: byId == null ? record.id : null,
+          );
+          createdIds.add(created.id);
+        }
         importedByBackupId[record.id] = created.id;
         usedDestinationIds.add(created.id);
-        createdIds.add(created.id);
         if (!record.autoUpdateEnabled) {
           await repository.setAutoUpdate([created.id], false);
         }
@@ -315,10 +324,64 @@ class FollowingTopicImportService {
     return FollowingTopicImportResult(
       importedCount: imported,
       alreadyExistedCount: existing,
-      skippedProfileCount: skipped,
+      skippedProfileCount: 0,
       resolvedIds: Map.unmodifiable(importedByBackupId),
     );
   }
+}
+
+/// Pure construction shared with package change previews. The namespace is a
+/// receiver-local storage key, not a saved profile or imported access grant.
+FollowingTopic profilelessFollowingTopicForImport({
+  required FollowingTopicBackupRecord record,
+  required String id,
+  required String namespace,
+  required DateTime createdAt,
+}) {
+  if (normalizeSearchIdentity(record.query).isEmpty) {
+    throw const FormatException('Followed topic queries cannot be empty.');
+  }
+  return FollowingTopic(
+    id: id,
+    profileId: namespace,
+    localSource: FollowingTopicSource(
+      booruType: record.profile.booruType,
+      url: normalizeBackupProfileUrl(record.profile.url),
+      importedProfileId: record.profile.id,
+      importedProfileName: record.profile.name,
+    ),
+    query: record.query.trim(),
+    queryStructure: record.queryStructure,
+    name: record.name,
+    position: record.position,
+    createdAt: createdAt,
+    previews: const [],
+    recentPostIdentities: const [],
+    unreadCount: 0,
+    autoUpdateEnabled: record.autoUpdateEnabled,
+  );
+}
+
+bool followingTopicMatchesImportSource(
+  FollowingTopic topic,
+  BackupProfileReference reference,
+  String? profileId,
+) {
+  final source = topic.localSource;
+  if (source?.isImported ?? false) {
+    return source!.importedProfileId == reference.id &&
+        source.matches(
+          reference.booruType,
+          normalizeBackupProfileUrl(reference.url),
+        );
+  }
+  return profileId != null &&
+      topic.profileId == profileId &&
+      (source == null ||
+          source.matches(
+            reference.booruType,
+            normalizeBackupProfileUrl(reference.url),
+          ));
 }
 
 /// Shared by import execution and its review projection. Independent source
@@ -326,7 +389,7 @@ class FollowingTopicImportService {
 FollowingTopic? findMatchingTopicForImport({
   required FollowingTopicBackupRecord record,
   required FollowingTopicBackupData data,
-  required String profileId,
+  required String? profileId,
   required Iterable<FollowingTopic> searches,
   required TopicOrganization organization,
   required Set<String> usedIds,
@@ -376,7 +439,11 @@ FollowingTopic? findMatchingTopicForImport({
         (search) =>
             !usedIds.contains(search.id) &&
             placements.containsKey(search.id) &&
-            search.profileId == profileId &&
+            followingTopicMatchesImportSource(
+              search,
+              record.profile,
+              profileId,
+            ) &&
             normalizeSearchIdentity(search.query) ==
                 normalizeSearchIdentity(record.query) &&
             (restoreHierarchy ||

@@ -1,4 +1,5 @@
 import '../../../profile_uuid_utils.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
@@ -48,10 +49,18 @@ void main() {
         result.errors.map((e) => e.profileDependency!.label).toSet(),
         hasLength(2),
       );
-      expect(result.errors.first.profileDependency!.sourceIds, {
-        'pinned_searches',
-        'following_feeds',
-      });
+      expect(
+        result.errors
+            .singleWhere(
+              (issue) => issue.profileDependency!.reference.url == remote.url,
+            )
+            .profileDependency!
+            .sourceIds,
+        {
+          'pinned_searches',
+          'following_feeds',
+        },
+      );
       final resolved = const ProfileDependencyPlanner().plan(
         references: [remote, other, third],
         localProfiles: [

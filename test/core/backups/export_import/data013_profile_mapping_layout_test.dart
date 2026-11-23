@@ -94,7 +94,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         final information = tester.getRect(
-          find.text('danbooru.donmai.us/a/representative/long/path'),
+          find.text(website),
         );
         final selector = tester.getRect(find.byType(DropdownButton<String>));
         expect(information.width, greaterThan(scenario.width - 80));
@@ -105,7 +105,7 @@ void main() {
         await tester.pump();
         expect(
           find.bySemanticsLabel(
-            RegExp('Target: danbooru.donmai.us/a/representative/long/path'),
+            RegExp('Target: ${RegExp.escape(website)}'),
           ),
           findsOneWidget,
         );

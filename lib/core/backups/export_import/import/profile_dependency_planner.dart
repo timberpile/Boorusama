@@ -18,7 +18,7 @@ final class ProfileReferenceKey extends Equatable {
       ProfileReferenceKey(
         exportedId: reference.id,
         booruType: reference.booruType,
-        url: normalizePostSourceHost(reference.url),
+        url: _profileDependencySite(reference.url),
       );
 
   final String exportedId;
@@ -33,9 +33,11 @@ final class ProfileSiteKey extends Equatable {
   const ProfileSiteKey({required this.booruType, required this.site});
 
   factory ProfileSiteKey.fromReference(BackupProfileReference reference) {
-    final site = normalizePostSourceHost(reference.url);
+    final site = _profileDependencySite(reference.url);
     return ProfileSiteKey(
       booruType: reference.booruType,
+      // A host can contain multiple installations. These transient access keys
+      // must not collapse scheme, port or path into bookmark post identity.
       site: site.isEmpty ? 'invalid:${reference.id}:${reference.url}' : site,
     );
   }
@@ -46,6 +48,17 @@ final class ProfileSiteKey extends Equatable {
   @override
   List<Object> get props => [booruType, site];
 }
+
+bool _hasWebScheme(String url) {
+  final uri = Uri.tryParse(url);
+  return uri != null &&
+      {'http', 'https'}.contains(uri.scheme) &&
+      uri.host.isNotEmpty;
+}
+
+String _profileDependencySite(String url) => _hasWebScheme(url)
+    ? normalizeBackupProfileUrl(url)
+    : normalizePostSourceHost(url);
 
 final class ProfileDependencyMapping extends Equatable {
   ProfileDependencyMapping({
@@ -149,14 +162,25 @@ final class ProfileDependencyPlanner {
       }
     }
 
-    final requiredReferences = references.toList();
-    final requiredKeys = {
-      for (final reference in requiredReferences)
+    final sourceReferences = references.toList();
+    final sourceKeys = {
+      for (final reference in sourceReferences)
         ProfileReferenceKey.fromReference(reference),
+    };
+    final requiredKeys = {
+      for (final key in sourceKeys)
+        // Only known Topic-only consumers become optional. Unknown consumers
+        // and legacy standalone feeds retain their existing required contract.
+        if (dependentSources[key] == null ||
+            dependentSources[key]!.isEmpty ||
+            dependentSources[key]!.any(
+              (source) => source != followingTopicsBackupSourceId,
+            ))
+          key,
     };
     final grouped =
         <ProfileSiteKey, Map<ProfileReferenceKey, BackupProfileReference>>{};
-    for (final reference in [...requiredReferences, ...optionalReferences]) {
+    for (final reference in [...sourceReferences, ...optionalReferences]) {
       grouped.putIfAbsent(
         ProfileSiteKey.fromReference(reference),
         () => {},
@@ -172,15 +196,30 @@ final class ProfileDependencyPlanner {
             (r) => requiredKeys.contains(ProfileReferenceKey.fromReference(r)),
           )
           .toList();
+      final sourceGroup = group
+          .where(
+            (r) => sourceKeys.contains(ProfileReferenceKey.fromReference(r)),
+          )
+          .toList();
       final isRequired = requiredGroup.isNotEmpty;
-      // Portable Bookmark hints cannot select an account for a Topic or turn
-      // an otherwise valid Bookmark import into a profile dependency error.
-      final decisionGroup = isRequired ? requiredGroup : group;
-      final validSite = normalizePostSourceHost(reference.url).isNotEmpty;
+      // Optional Bookmark hints must not select account authority for Topics,
+      // even now that Topic persistence itself has no account dependency.
+      final decisionGroup = isRequired
+          ? requiredGroup
+          : sourceGroup.isNotEmpty
+          ? sourceGroup
+          : group;
+      final validSite = _profileDependencySite(reference.url).isNotEmpty;
+      // Bookmarks retain a scheme-less namespace in their released schema.
+      // Match it as stored, without sharing choices with full-URL references.
+      final exactInstallation = _hasWebScheme(reference.url);
       bool matches(BooruConfig profile) =>
           validSite &&
           profile.auth.booruType.name == siteKey.booruType &&
-          normalizePostSourceHost(profile.url) == siteKey.site;
+          (exactInstallation
+                  ? normalizeBackupProfileUrl(profile.url)
+                  : normalizePostSourceHost(profile.url)) ==
+              siteKey.site;
       final candidates = projected.where(matches).toList();
       final candidateIds = {for (final profile in candidates) profile.id};
       final conflicts = <String>{};
@@ -242,7 +281,9 @@ final class ProfileDependencyPlanner {
             itemId: '${siteKey.booruType}:${siteKey.site}',
             profileDependency: ProfileDependencyIssueContext(
               reference: reference,
-              label: validSite ? siteKey.site : reference.url,
+              label: validSite
+                  ? normalizePostSourceHost(reference.url)
+                  : reference.url,
               missingProfile: candidateIds.isEmpty,
               sourceIds: sourceIds.isEmpty
                   ? const {
