@@ -1,4 +1,5 @@
 import '../../../profile_uuid_utils.dart';
+
 import 'package:boorusama/core/backups/export_import/import/bookmark_profile_dependency.dart';
 import 'package:boorusama/core/backups/export_import/import/import_change_preview.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
@@ -19,6 +20,97 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const projector = ImportPlannedChangeProjector();
 
+  test('populated library projection compares complete group memberships', () {
+    final records = [
+      for (var id = 1; id <= 18000; id++) _bookmark(localId: id, postId: id),
+    ];
+    final date = DateTime.utc(2026);
+    final ids = records.map((record) => record.id).toList();
+    final local = BookmarkImportLocalSnapshot(
+      bookmarks: records,
+      groups: [
+        BookmarkGroup(
+          id: defaultBookmarkGroupId,
+          name: 'Default',
+          bookmarkIds: ids.toSet(),
+          addedAt: {for (final id in ids) id: date},
+        ),
+      ],
+    );
+    PlannedChangeSummary project({bool changeDate = false}) =>
+        projector.bookmarks(
+          local: local,
+          incoming: BookmarkBackupData(
+            bookmarks: records,
+            groups: [
+              BookmarkGroupBackup(
+                id: defaultBookmarkGroupId,
+                name: 'Default',
+                bookmarkIds: ids.reversed.toList(),
+                addedAt: {
+                  for (final id in ids.reversed)
+                    id: changeDate && id == ids.last
+                        ? date.add(const Duration(days: 1))
+                        : date,
+                },
+              ),
+            ],
+          ),
+          resolution: _source('bookmarks', ImportAction.replace),
+        )!;
+    final same = project();
+    expect(same.created + same.updated + same.deleted, 0);
+    expect(same.unchanged, records.length + 1);
+    final changed = project(changeDate: true);
+    expect(changed.updated, 1);
+    expect(changed.unchanged, records.length);
+  });
+
+  test('membership timestamp updates are visible while merges preserve local dates', () {
+    final bookmark = _bookmark(localId: 1, postId: 101);
+    final before = DateTime.utc(2020), incoming = DateTime.utc(2022);
+    for (final action in [ImportAction.update, ImportAction.merge]) {
+      final result = projector.bookmarks(
+        local: BookmarkImportLocalSnapshot(
+          bookmarks: [bookmark],
+          groups: [
+            BookmarkGroup(
+              id: '550e8400-e29b-41d4-a716-446655440001',
+              name: 'A',
+              bookmarkIds: {1},
+              addedAt: {1: before},
+            ),
+          ],
+        ),
+        incoming: BookmarkBackupData(
+          bookmarks: [bookmark],
+          groups: [
+            BookmarkGroupBackup(
+              id: '550e8400-e29b-41d4-a716-446655440001',
+              name: 'A',
+              bookmarkIds: [1],
+              addedAt: {1: incoming},
+            ),
+          ],
+        ),
+        resolution: ResolvedImportSource(
+          id: 'bookmarks',
+          action: ImportAction.configureItems,
+          items: [
+            ResolvedImportItem(
+              id: 'group:550e8400-e29b-41d4-a716-446655440001',
+              action: action,
+            ),
+          ],
+        ),
+      )!;
+      expect(
+        result.updated,
+        action == ImportAction.update ? greaterThan(0) : 0,
+      );
+    }
+  });
+
   test('preview counts memberships without an extra changed group', () {
     final a = _bookmark(localId: 1, postId: 101);
     final b = _bookmark(localId: 2, postId: 102);
@@ -27,20 +119,31 @@ void main() {
       local: BookmarkImportLocalSnapshot(
         bookmarks: [a, b],
         groups: [
-          BookmarkGroup(id: 'g', name: 'Local', bookmarkIds: const {1, 2}),
+          BookmarkGroup(
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            name: 'Local',
+            bookmarkIds: const {1, 2},
+          ),
         ],
       ),
       incoming: BookmarkBackupData(
         bookmarks: [a, c],
         groups: const [
-          BookmarkGroupBackup(id: 'g', name: 'Imported', bookmarkIds: [1, 3]),
+          BookmarkGroupBackup(
+            id: '550e8400-e29b-41d4-a716-446655440001',
+            name: 'Imported',
+            bookmarkIds: [1, 3],
+          ),
         ],
       ),
       resolution: ResolvedImportSource(
         id: 'bookmarks',
         action: ImportAction.configureItems,
         items: const [
-          ResolvedImportItem(id: 'group:g', action: ImportAction.update),
+          ResolvedImportItem(
+            id: 'group:550e8400-e29b-41d4-a716-446655440001',
+            action: ImportAction.update,
+          ),
         ],
       ),
     )!;
@@ -97,12 +200,12 @@ void main() {
               bookmarks: [a, b],
               groups: [
                 BookmarkGroup(
-                  id: 'rename',
+                  id: '550e8400-e29b-41d4-a716-446655440002',
                   name: 'Old',
                   bookmarkIds: const {1},
                 ),
                 BookmarkGroup(
-                  id: 'removed',
+                  id: '550e8400-e29b-41d4-a716-446655440009',
                   name: 'Removed',
                   bookmarkIds: const {2},
                 ),
@@ -112,12 +215,12 @@ void main() {
               bookmarks: [a, c],
               groups: const [
                 BookmarkGroupBackup(
-                  id: 'rename',
+                  id: '550e8400-e29b-41d4-a716-446655440002',
                   name: 'New',
                   bookmarkIds: [1, 3],
                 ),
                 BookmarkGroupBackup(
-                  id: 'added',
+                  id: '550e8400-e29b-41d4-a716-446655440008',
                   name: 'Added',
                   bookmarkIds: [],
                 ),
@@ -132,7 +235,11 @@ void main() {
       );
       expect(total, const ImportChangeCounts(added: 2, removed: 2, changed: 1));
       expect(
-        rows.singleWhere((row) => row.id == 'rename').previousLabel,
+        rows
+            .singleWhere(
+              (row) => row.id == '550e8400-e29b-41d4-a716-446655440002',
+            )
+            .previousLabel,
         'Old',
       );
     },
@@ -148,15 +255,31 @@ void main() {
             local: BookmarkImportLocalSnapshot(
               bookmarks: [a, b],
               groups: [
-                BookmarkGroup(id: 'one', name: 'One', bookmarkIds: const {1}),
-                BookmarkGroup(id: 'two', name: 'Two', bookmarkIds: const {1}),
+                BookmarkGroup(
+                  id: '550e8400-e29b-41d4-a716-446655440004',
+                  name: 'One',
+                  bookmarkIds: const {1},
+                ),
+                BookmarkGroup(
+                  id: '550e8400-e29b-41d4-a716-446655440005',
+                  name: 'Two',
+                  bookmarkIds: const {1},
+                ),
               ],
             ),
             incoming: BookmarkBackupData(
               bookmarks: [a, updated],
               groups: const [
-                BookmarkGroupBackup(id: 'one', name: 'One', bookmarkIds: []),
-                BookmarkGroupBackup(id: 'two', name: 'Two', bookmarkIds: [1]),
+                BookmarkGroupBackup(
+                  id: '550e8400-e29b-41d4-a716-446655440004',
+                  name: 'One',
+                  bookmarkIds: [],
+                ),
+                BookmarkGroupBackup(
+                  id: '550e8400-e29b-41d4-a716-446655440005',
+                  name: 'Two',
+                  bookmarkIds: [1],
+                ),
               ],
             ),
             resolution: _source('bookmarks', ImportAction.replace),
@@ -200,8 +323,7 @@ void main() {
           {'id': 2, 'name': 'rating:e -scenery'},
           {
             'id': 3,
-            'name':
-                'https://user:private@site.example/?auth=hidden&access_key=hidden&pwd=hidden&signature=hidden',
+            'name': 'https://user:private@site.example/?auth=hidden&access_key=hidden&pwd=hidden&signature=hidden',
           },
         ],
         resolution: _source('blacklisted_tags', ImportAction.replace),
@@ -316,20 +438,31 @@ void main() {
           local: BookmarkImportLocalSnapshot(
             bookmarks: [bookmark],
             groups: [
-              BookmarkGroup(id: 'g', name: 'Group', bookmarkIds: const {1}),
+              BookmarkGroup(
+                id: '550e8400-e29b-41d4-a716-446655440001',
+                name: 'Group',
+                bookmarkIds: const {1},
+              ),
             ],
           ),
           incoming: BookmarkBackupData(
             bookmarks: [bookmark],
             groups: const [
-              BookmarkGroupBackup(id: 'g', name: 'Group', bookmarkIds: [1]),
+              BookmarkGroupBackup(
+                id: '550e8400-e29b-41d4-a716-446655440001',
+                name: 'Group',
+                bookmarkIds: [1],
+              ),
             ],
           ),
           resolution: ResolvedImportSource(
             id: 'bookmarks',
             action: ImportAction.configureItems,
             items: const [
-              ResolvedImportItem(id: 'group:g', action: ImportAction.update),
+              ResolvedImportItem(
+                id: 'group:550e8400-e29b-41d4-a716-446655440001',
+                action: ImportAction.update,
+              ),
             ],
           ),
           profileMappings: {
@@ -491,7 +624,7 @@ void main() {
           bookmarks: [first, orphan],
           groups: [
             BookmarkGroup(
-              id: 'group',
+              id: '550e8400-e29b-41d4-a716-446655440003',
               name: 'Old',
               bookmarkIds: const {1, 2},
             ),
@@ -501,7 +634,7 @@ void main() {
           bookmarks: [incomingFirst, created],
           groups: const [
             BookmarkGroupBackup(
-              id: 'group',
+              id: '550e8400-e29b-41d4-a716-446655440003',
               name: 'Updated',
               bookmarkIds: [20, 30],
             ),
@@ -512,7 +645,7 @@ void main() {
           action: ImportAction.configureItems,
           items: const [
             ResolvedImportItem(
-              id: 'group:group',
+              id: 'group:550e8400-e29b-41d4-a716-446655440003',
               action: ImportAction.update,
             ),
           ],
@@ -542,7 +675,7 @@ void main() {
             bookmarks: [local],
             groups: [
               BookmarkGroup(
-                id: 'group',
+                id: '550e8400-e29b-41d4-a716-446655440003',
                 name: 'Cookie//Artists',
                 bookmarkIds: const {1},
               ),
@@ -552,7 +685,7 @@ void main() {
             bookmarks: [incoming],
             groups: const [
               BookmarkGroupBackup(
-                id: 'group',
+                id: '550e8400-e29b-41d4-a716-446655440003',
                 name: 'Artists',
                 bookmarkIds: [20],
               ),
@@ -565,7 +698,7 @@ void main() {
                   action: ImportAction.configureItems,
                   items: const [
                     ResolvedImportItem(
-                      id: 'group:group',
+                      id: 'group:550e8400-e29b-41d4-a716-446655440003',
                       action: ImportAction.update,
                     ),
                   ],
@@ -585,7 +718,7 @@ void main() {
     );
   }
 
-  for (final targetId in [null, 'group:missing']) {
+  for (final targetId in [null, 'group:550e8400-e29b-41d4-a716-446655440007']) {
     test('bookmark merge preview waits for a valid target: $targetId', () {
       expect(
         projector.bookmarks(
@@ -593,11 +726,11 @@ void main() {
             bookmarks: const [],
             groups: const [],
           ),
-          incoming: const BookmarkBackupData(
+          incoming: BookmarkBackupData(
             bookmarks: [],
             groups: [
               BookmarkGroupBackup(
-                id: 'incoming',
+                id: '550e8400-e29b-41d4-a716-446655440006',
                 name: 'AnimeBoxes',
                 bookmarkIds: [],
               ),
@@ -608,7 +741,7 @@ void main() {
             action: ImportAction.configureItems,
             items: [
               ResolvedImportItem(
-                id: 'group:incoming',
+                id: 'group:550e8400-e29b-41d4-a716-446655440006',
                 action: ImportAction.mergeIntoTarget,
                 targetId: targetId,
               ),
@@ -631,7 +764,7 @@ void main() {
         bookmarks: bookmarks,
         groups: [
           BookmarkGroupBackup(
-            id: 'group',
+            id: '550e8400-e29b-41d4-a716-446655440003',
             name: 'Ten posts',
             bookmarkIds: [for (var index = 0; index < 10; index++) index],
           ),
@@ -641,7 +774,10 @@ void main() {
         id: 'bookmarks',
         action: ImportAction.configureItems,
         items: const [
-          ResolvedImportItem(id: 'group:group', action: ImportAction.copy),
+          ResolvedImportItem(
+            id: 'group:550e8400-e29b-41d4-a716-446655440003',
+            action: ImportAction.copy,
+          ),
         ],
       ),
     );
@@ -651,7 +787,7 @@ void main() {
       const PlannedChangeSummary(created: 12, unchanged: 1),
     );
     expect(summary!.entitySummaries['bookmark']?.created, 10);
-    expect(summary.entitySummaries['bookmark-group']?.created, 1);
+    expect(summary.entitySummaries['bookmark-group']?.created, 2);
     expect(
       summary.previewRows
           .singleWhere((row) => row.label != 'Imported Groups')
@@ -736,7 +872,7 @@ void main() {
     },
   );
 
-  test('followed topic projection waits for unresolved profile mapping', () {
+  test('followed topic projection counts creation with no profile mapping', () {
     final summary = projector.followingTopics(
       local: FollowingTopicImportLocalSnapshot(
         searches: const [],
@@ -770,7 +906,7 @@ void main() {
       ),
     );
 
-    expect(summary, isNull);
+    expect(summary?.entitySummaries['following-topic']?.created, 1);
   });
 
   test(
@@ -1652,25 +1788,26 @@ BooruConfig _profile({
   'apiKey': apiKey,
 });
 
-Bookmark _bookmark({required int localId, required int postId}) => Bookmark(
-  id: localId,
-  booruId: 1,
-  createdAt: DateTime.utc(2026),
-  updatedAt: DateTime.utc(2026),
-  thumbnailUrl: 'https://example.com/$postId-thumb.jpg',
-  sampleUrl: 'https://example.com/$postId-sample.jpg',
-  originalUrl: 'https://example.com/$postId.jpg',
-  sourceUrl: 'https://example.com',
-  width: 100,
-  height: 100,
-  md5: 'md5-$postId',
-  tags: {'tag-$postId'},
-  realSourceUrl: null,
-  format: 'jpg',
-  imageUrlResolver: const DefaultImageUrlResolver(),
-  postId: postId,
-  metadata: const {},
-);
+PostBookmark _bookmark({required int localId, required int postId}) =>
+    PostBookmark(
+      id: localId,
+      booruId: 1,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      thumbnailUrl: 'https://example.com/$postId-thumb.jpg',
+      sampleUrl: 'https://example.com/$postId-sample.jpg',
+      originalUrl: 'https://example.com/$postId.jpg',
+      sourceUrl: 'https://example.com',
+      width: 100,
+      height: 100,
+      md5: 'md5-$postId',
+      tags: {'tag-$postId'},
+      realSourceUrl: null,
+      format: 'jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: postId,
+      metadata: const {},
+    );
 
 FollowingTopic _search({
   required String id,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cache_manager/cache_manager.dart';
+import 'package:collection/collection.dart';
 import 'package:dio/dio.dart';
 import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,9 @@ import 'package:kurumi/material.dart';
 import '../../../../../foundation/info/device_info.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/network/providers.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_media_dio.dart';
+import '../../../../content/content_media_failures.dart';
 import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
@@ -18,6 +22,8 @@ import '../../../../images/providers.dart';
 import '../../../../images/booru_image.dart'
     show ErrorPlaceholder, ImageRetryButton;
 import '../../../listing/types.dart';
+import '../../../post/types.dart';
+import '../types/post_presentation_fallback_reason.dart';
 
 /// A candidate never becomes the displayed source until its first frame decodes.
 class ProgressivePostImage extends ConsumerWidget {
@@ -30,12 +36,16 @@ class ProgressivePostImage extends ConsumerWidget {
     required this.geometryAspectRatio,
     super.key,
     this.fit,
+    this.post,
     this.imageCacheManager,
     this.controller,
     this.onRepresentationChanged,
+    this.onTerminalFailure,
+    this.onImageSize,
     this.intermediateImageUrls = const [],
   });
 
+  final Post? post;
   final Object mediaIdentity;
   final BooruConfigAuth config;
   final String imageUrl;
@@ -46,6 +56,8 @@ class ProgressivePostImage extends ConsumerWidget {
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? controller;
   final ValueChanged<bool>? onRepresentationChanged;
+  final VoidCallback? onTerminalFailure;
+  final ValueChanged<Size>? onImageSize;
   final List<String> intermediateImageUrls;
 
   @override
@@ -53,31 +65,126 @@ class ProgressivePostImage extends ConsumerWidget {
     if (!ref.watch(automaticMediaLoadingEnabledProvider)) {
       return const BlockedMediaPlaceholder(borderRadius: BorderRadius.zero);
     }
-    final dio = ref.watch(dioForWidgetProvider(config));
+    final access = watchContentMediaAccess(ref, config, post: post);
+    final publicSource = config.anonymousReadScope?.source;
+    bool permitted(String? value) {
+      if (value == null || value.isEmpty) return false;
+      if (publicSource == null) return true;
+      final uri = Uri.tryParse(value);
+      return uri != null && publicSource.allowsMedia(uri);
+    }
+
+    if (!access.allowed) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => onTerminalFailure?.call(),
+      );
+      return const KurumiImagePlaceholder(borderRadius: BorderRadius.zero);
+    }
+    final safeLower = publicSource == null
+        ? lowerMedia
+        : GridThumbnailMedia(
+            url: permitted(lowerMedia.url) ? lowerMedia.url : '',
+            aspectRatio: lowerMedia.aspectRatio,
+            placeholderUrl: permitted(lowerMedia.placeholderUrl)
+                ? lowerMedia.placeholderUrl
+                : null,
+            fallbackUrl: permitted(lowerMedia.fallbackUrl)
+                ? lowerMedia.fallbackUrl
+                : null,
+            fallbackUrls: lowerMedia.fallbackUrls.where(permitted).toList(),
+            probeImageFormats: lowerMedia.probeImageFormats,
+            placeholderAspectRatio: lowerMedia.placeholderAspectRatio,
+            placeholderFit: lowerMedia.placeholderFit,
+          );
+    final safeIntermediate = intermediateImageUrls.where(permitted).toList();
+    final safeCandidates = <String>{
+      safeLower.url,
+      ...safeLower.fallbackUrls,
+      if (safeLower.fallbackUrl case final value?) value,
+      if (safeLower.placeholderUrl case final value?) value,
+      ...safeIntermediate,
+    }.where((url) => url.isNotEmpty).toList();
+    final safeImageUrl = permitted(imageUrl)
+        ? imageUrl
+        : safeCandidates.firstOrNull;
+    if (safeImageUrl == null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => onTerminalFailure?.call(),
+      );
+      return const ErrorPlaceholder(
+        borderRadius: BorderRadius.zero,
+        reason: PostPresentationFallbackReason.unavailableEngine,
+      );
+    }
+    final effectiveLower = permitted(imageUrl)
+        ? safeLower
+        : GridThumbnailMedia(
+            url: safeCandidates.first,
+            aspectRatio: safeLower.aspectRatio,
+            fallbackUrls: safeCandidates.skip(1).toList(),
+            probeImageFormats: safeLower.probeImageFormats,
+            placeholderAspectRatio: safeLower.placeholderAspectRatio,
+            placeholderFit: safeLower.placeholderFit,
+          );
+    final effectiveIntermediate = safeIntermediate
+        .where((url) => url != safeImageUrl)
+        .toList();
+
+    final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
+    final delegate = imageCacheManager ?? fallbackManager;
+    final manager = access.key == null
+        ? delegate
+        : ref.watch(
+            contentMediaCacheManagerProvider((
+              manager: delegate,
+              access: access.key!,
+            )),
+          );
+    final dio = access.key == null
+        ? ref.watch(dioForWidgetProvider(config))
+        : ref.watch(contentMediaDioProvider(access.key!));
     final headers = ref.watch(httpHeadersProvider(config));
     final network = ref.watch(networkSettingsProvider(config));
-    final overrideDio = network.activeMediaHostOverrides.isEmpty
-        ? dio
-        : ref.watch(mediaOverrideDioProvider(config));
+    final requests = [
+      safeImageUrl,
+      effectiveLower.url,
+      ...effectiveLower.fallbackUrls,
+      ?effectiveLower.fallbackUrl,
+      ?effectiveLower.placeholderUrl,
+      ...effectiveIntermediate,
+    ];
+    final needsOverride = requests
+        .where((url) => url.isNotEmpty)
+        .any(
+          (url) => network
+              .resolveMedia(url, headers: headers, sourceUrl: config.url)
+              .overridden,
+        );
+    final overrideDio = needsOverride && access.key == null
+        ? ref.watch(mediaOverrideDioProvider(config))
+        : dio;
     return RawProgressivePostImage(
       resolveRequest: (url) {
-        final request = network.resolveMedia(url, headers: headers);
+        final request = network.resolveMedia(
+          url,
+          headers: headers,
+          sourceUrl: config.url,
+        );
         return (
           url: request.url,
           dio: request.overridden ? overrideDio : dio,
           headers: request.headers,
         );
       },
-      key: ValueKey((mediaIdentity, config)),
+      key: ValueKey((mediaIdentity, config, access.key)),
       dio: dio,
       headers: headers,
-      imageUrl: imageUrl,
-      lowerMedia: lowerMedia,
+      imageUrl: safeImageUrl,
+      lowerMedia: effectiveLower,
       aspectRatio: aspectRatio,
       geometryAspectRatio: geometryAspectRatio,
       fit: fit,
-      cacheManager:
-          imageCacheManager ?? ref.watch(defaultImageCacheManagerProvider),
+      cacheManager: manager,
       controller: controller,
       platform: Kurumi.themeOf(context).platform,
       androidVersion: ref
@@ -86,7 +193,9 @@ class ProgressivePostImage extends ConsumerWidget {
           ?.version
           .sdkInt,
       onRepresentationChanged: onRepresentationChanged,
-      intermediateImageUrls: intermediateImageUrls,
+      onTerminalFailure: onTerminalFailure,
+      onImageSize: onImageSize,
+      intermediateImageUrls: effectiveIntermediate,
     );
   }
 }
@@ -107,6 +216,8 @@ class RawProgressivePostImage extends StatefulWidget {
     this.platform,
     this.androidVersion,
     this.onRepresentationChanged,
+    this.onTerminalFailure,
+    this.onImageSize,
     this.intermediateImageUrls = const [],
   });
 
@@ -124,6 +235,8 @@ class RawProgressivePostImage extends StatefulWidget {
   final TargetPlatform? platform;
   final int? androidVersion;
   final ValueChanged<bool>? onRepresentationChanged;
+  final VoidCallback? onTerminalFailure;
+  final ValueChanged<Size>? onImageSize;
   final List<String> intermediateImageUrls;
 
   @override
@@ -143,6 +256,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   var _targetSucceeded = false;
   var _targetFailed = false;
   var _lowerFailed = false;
+  var _reportedTerminalFailure = false;
   var _initialized = false;
   var _retrying = false;
   final _failedUrls = <String>{};
@@ -225,6 +339,27 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     }
   }
 
+  void _reportTerminalFailure() {
+    if (_reportedTerminalFailure ||
+        _displayed != null ||
+        !_lowerFailed ||
+        !(_targetFailed || _targetIsFallback) ||
+        _intermediateRequests.any(
+          (request) => !request.decoded && !request.failed && !request.disposed,
+        )) {
+      return;
+    }
+    _reportedTerminalFailure = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          _displayed == null &&
+          _lowerFailed &&
+          (_targetFailed || _targetIsFallback)) {
+        widget.onTerminalFailure?.call();
+      }
+    });
+  }
+
   void _loadLower(List<String> candidates, [int start = 0]) {
     final index = candidates.indexWhere(
       (url) => url != widget.imageUrl || _targetIsFallback,
@@ -232,11 +367,13 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     );
     if (index < 0) {
       setState(() => _lowerFailed = true);
+      _reportTerminalFailure();
       return;
     }
     _stage(
       candidates[index],
-      onDecoded: (provider, decodedRatio) {
+      onDecoded: (provider, size) {
+        final decodedRatio = size.width / size.height;
         if (_targetSucceeded || _displayed != null) return false;
         _show(provider, decodedRatio, candidates[index], 0);
         return true;
@@ -247,6 +384,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
           _loadLower(candidates, index + 1);
         } else {
           setState(() => _lowerFailed = true);
+          _reportTerminalFailure();
         }
       },
     );
@@ -261,9 +399,14 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
     final generation = ++_targetGeneration;
     _targetSucceeded = false;
     _targetFailed = false;
-    if (_targetIsFallback) return;
+    _reportedTerminalFailure = false;
+    if (_targetIsFallback) {
+      _reportTerminalFailure();
+      return;
+    }
     if (widget.imageUrl.isEmpty) {
       _targetFailed = true;
+      _reportTerminalFailure();
       return;
     }
     final intermediates = _intermediateUrls;
@@ -281,36 +424,41 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
       _intermediateRequests.add(
         _stage(
           url,
-          onDecoded: (provider, ratio) {
+          onDecoded: (provider, size) {
+            final ratio = size.width / size.height;
             if (generation != _targetGeneration ||
                 _targetSucceeded ||
                 level <= _displayedLevel)
               return false;
+            widget.onImageSize?.call(size);
             _show(provider, ratio, url, level);
             return true;
           },
-          onError: () {},
+          onError: _reportTerminalFailure,
         ),
       );
     }
     _target = _stage(
       widget.imageUrl,
-      onDecoded: (provider, ratio) {
+      onDecoded: (provider, size) {
+        final ratio = size.width / size.height;
         if (generation != _targetGeneration) return false;
         _targetSucceeded = true;
+        widget.onImageSize?.call(size);
         _show(provider, ratio, widget.imageUrl, intermediates.length + 1);
         return true;
       },
       onError: () {
         if (generation != _targetGeneration) return;
         setState(() => _targetFailed = true);
+        _reportTerminalFailure();
       },
     );
   }
 
   _DecodedCandidate _stage(
     String url, {
-    required bool Function(ImageProvider provider, double ratio) onDecoded,
+    required bool Function(ImageProvider provider, Size size) onDecoded,
     required VoidCallback onError,
   }) {
     final token = CancelToken();
@@ -345,9 +493,12 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
           return;
         }
         candidate.decoded = true;
-        final ratio = info.image.width / info.image.height;
+        final size = Size(
+          info.image.width.toDouble(),
+          info.image.height.toDouble(),
+        );
         candidate.holdDecodedStream();
-        final displayed = onDecoded(provider, ratio);
+        final displayed = onDecoded(provider, size);
         info.dispose();
         if (!displayed) {
           candidate.removeListener();
@@ -363,6 +514,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
         });
       },
       onError: (error, stack) {
+        candidate.failed = true;
         candidate.removeListener();
         // Failed staged providers never attach to ExtendedImage's error
         // handler. Evict this terminal candidate's decoded-cache key so its
@@ -380,6 +532,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
   }
 
   void _show(ImageProvider provider, double ratio, String url, int level) {
+    _reportedTerminalFailure = false;
     setState(() {
       _displayed = provider;
       _displayedRatio = ratio;
@@ -404,54 +557,59 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
             )
           : const KurumiImagePlaceholder(borderRadius: BorderRadius.zero);
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) => ExtendedImage(
-            image: displayed,
-            controller: _controller,
-            width: constraints.maxWidth.isFinite ? constraints.maxWidth : null,
-            height: constraints.maxHeight.isFinite
-                ? constraints.maxHeight
-                : null,
-            borderRadius: BorderRadius.zero,
-            gaplessPlayback: true,
-            // Cropped previews belong at the top of tall content: AutoComic already
-            // positions that content at its top before a full representation decodes.
-            alignment:
-                _compatible(_displayedRatio, widget.aspectRatio) ||
-                    (widget.aspectRatio ?? 1) >= 1
-                ? Alignment.center
-                : Alignment.topCenter,
-            fit: _compatible(_displayedRatio, widget.aspectRatio)
-                ? widget.fit ?? BoxFit.contain
-                : BoxFit.contain,
-            placeholderWidget: const KurumiImagePlaceholder(
+    return ContentMediaOutcome(
+      failed: false,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) => ExtendedImage(
+              image: displayed,
+              controller: _controller,
+              width: constraints.maxWidth.isFinite
+                  ? constraints.maxWidth
+                  : null,
+              height: constraints.maxHeight.isFinite
+                  ? constraints.maxHeight
+                  : null,
               borderRadius: BorderRadius.zero,
-            ),
-            errorWidget: ErrorPlaceholder(
-              borderRadius: BorderRadius.zero,
-              onRetry: _retryFailed,
-            ),
-          ),
-        ),
-        if (_targetFailed)
-          Align(
-            alignment: Alignment.topCenter,
-            // Unknown geometry fills the viewer: its bottom edge lies behind
-            // the action footer. Keep retry below the standard top controls.
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(top: kToolbarHeight + 8),
-                child: ImageRetryButton(
-                  onRetry: _retrying ? null : _retryFailed,
-                ),
+              gaplessPlayback: true,
+              // Cropped previews belong at the top of tall content: AutoComic already
+              // positions that content at its top before a full representation decodes.
+              alignment:
+                  _compatible(_displayedRatio, widget.aspectRatio) ||
+                      (widget.aspectRatio ?? 1) >= 1
+                  ? Alignment.center
+                  : Alignment.topCenter,
+              fit: _compatible(_displayedRatio, widget.aspectRatio)
+                  ? widget.fit ?? BoxFit.contain
+                  : BoxFit.contain,
+              placeholderWidget: const KurumiImagePlaceholder(
+                borderRadius: BorderRadius.zero,
+              ),
+              errorWidget: ErrorPlaceholder(
+                borderRadius: BorderRadius.zero,
+                onRetry: _retryFailed,
               ),
             ),
           ),
-      ],
+          if (_targetFailed)
+            Align(
+              alignment: Alignment.topCenter,
+              // Unknown geometry fills the viewer: its bottom edge lies behind
+              // the action footer. Keep retry below the standard top controls.
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: kToolbarHeight + 8),
+                  child: ImageRetryButton(
+                    onRetry: _retrying ? null : _retryFailed,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -472,6 +630,7 @@ class _RawProgressivePostImageState extends State<RawProgressivePostImage> {
       }
       if (!mounted || generation != _targetGeneration) return;
       _failedUrls.clear();
+      _reportedTerminalFailure = false;
       setState(() {
         if (_targetFailed) _loadTarget();
         if (_lowerFailed && _displayed == null) {
@@ -509,6 +668,7 @@ class _DecodedCandidate {
   ImageStreamCompleterHandle? handle;
   var disposed = false;
   var decoded = false;
+  var failed = false;
   void holdDecodedStream() => handle ??= stream.completer?.keepAlive();
   void removeListener() {
     final current = listener;

@@ -5,7 +5,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 class PostViewerTransformationController {
-  PostViewerTransformationController(this.transformationController);
+  PostViewerTransformationController(
+    this.transformationController, {
+    this.restoredCheckpoint = false,
+  });
+  final bool restoredCheckpoint;
 
   final TransformationController transformationController;
   final _autoStartHandledPostIds = <int>{};
@@ -28,6 +32,7 @@ class PostViewerTransformationController {
     required Size contentSize,
     required bool enabled,
   }) {
+    if (restoredCheckpoint) return false;
     final geometry = _geometry(contentSize);
     if (geometry == null || !_autoStartHandledPostIds.add(postId)) return false;
 

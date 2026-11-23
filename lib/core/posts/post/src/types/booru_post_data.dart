@@ -61,6 +61,19 @@ class EmptyPostDataCodec implements BooruPostDataCodec<EmptyPostData> {
   }
 }
 
+/// Reserved shared snapshot variant, dispatched before any engine codec.
+/// The listed snapshot has its own payload version and shape discriminator.
+final class ListedPostData extends Equatable implements BooruPostData {
+  const ListedPostData();
+  static const payloadVersion = 1;
+  @override
+  String get typeKey => 'listed';
+  @override
+  int get schemaVersion => payloadVersion;
+  @override
+  List<Object?> get props => const [];
+}
+
 final class EmptyPostData extends Equatable implements BooruPostData {
   const EmptyPostData({required this.typeKey, this.schemaVersion = 1});
 

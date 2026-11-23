@@ -1,6 +1,5 @@
 import '../../../configs/providers.dart';
 import '../../../../../core/configs/config/types.dart';
-import '../../../../../core/configs/manage/providers.dart';
 import '../../../../../core/posts/listing/src/types/post_action_snapshot.dart';
 import '../../../../../core/posts/listing/src/widgets/post_actions.dart';
 import '../../../../../core/widgets/multi_select_button.dart';
@@ -35,7 +34,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final booruConfig = ref.watchConfigAuth;
-    final snapshot = PostActionSnapshot([post], ref.watch(booruConfigProvider));
+    final snapshot = PostActionSnapshot.watch(ref, [post]);
     final selectionModeController = SelectionMode.maybeOf(context);
 
     return KurumiContextMenu(
@@ -51,7 +50,7 @@ class DanbooruPostContextMenu extends ConsumerWidget {
         if (selectionModeController case final controller?)
           KurumiContextMenuTile(
             title: context.t.generic.action.select,
-            trailing: const Icon(Icons.checklist),
+            leading: const Icon(Icons.checklist),
             onTap: () {
               controller.enable(
                 initialSelected: [index],
@@ -74,9 +73,10 @@ List<Widget> buildDanbooruSinglePostActions(
 }) {
   final profile = ref.watchConfig;
   final login = ref.watch(danbooruLoginDetailsProvider(profile.auth));
-  final snapshot = PostActionSnapshot([post], ref.watch(booruConfigProvider));
+  final snapshot = PostActionSnapshot.watch(ref, [post]);
+  final container = ProviderScope.containerOf(context, listen: false);
   void execute(VoidCallback action) {
-    if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
+    if (!snapshot.isCurrent(container)) {
       Kurumi.showErrorToast(context, context.t.post.action.operation_failed);
       return;
     }
@@ -98,7 +98,7 @@ List<Widget> buildDanbooruSinglePostActions(
         )
       : KurumiContextMenuTile(
           title: title,
-          trailing: Icon(icon),
+          leading: Icon(icon),
           onTap: () => execute(onTap),
         );
   return [

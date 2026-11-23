@@ -88,6 +88,11 @@ void main() {
         expect(saved.auth.apiKey, profile.auth.apiKey);
         expect(saved.auth.login, profile.auth.login);
         expect(saved.auth.passHash, profile.auth.passHash);
+        await flow.harness.pumpUntil(
+          tester,
+          () => find.byType(PixivExperimentalNotice).evaluate().isEmpty,
+          description: 'saved Pixiv editor to close',
+        );
         await flow.openEditor(backend.config);
         expect(find.byType(PixivExperimentalNotice), findsNothing);
       },
@@ -379,7 +384,9 @@ void main() {
     );
     expect(store.configs, isEmpty);
     expect(find.byType(NavigationRecoveryPage), findsOneWidget);
-    expect(find.text(appStrings(tester).generic.action.add), findsOneWidget);
+    expect(find.byKey(const ValueKey('empty-profile-add')), findsOneWidget);
+    expect(find.text(appStrings(tester).booru.add_profile), findsOneWidget);
+    expect(find.byKey(const ValueKey('empty-profile-import')), findsOneWidget);
   });
 
   testWidgets(

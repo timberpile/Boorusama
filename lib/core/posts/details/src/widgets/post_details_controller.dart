@@ -28,14 +28,26 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     required this.reduceAnimations,
     required this.dislclaimer,
     required this.doubleTapSeekDuration,
+    this.postIndexForPage,
   }) : currentPage = ValueNotifier(initialPage),
        _initialPage = initialPage,
-       currentPost = ValueNotifier(posts[initialPage]),
+       currentPost = ValueNotifier(
+         posts[postIndexForPage?.call(initialPage) ??
+             (postIndexForPage == null ? initialPage : 0)],
+       ),
        _playback = VideoPlaybackManager(),
        currentSettledPage = ValueNotifier(null);
   final AutoScrollController? scrollController;
   final bool reduceAnimations;
   final List<T> posts;
+  final int? Function(int)? postIndexForPage;
+
+  int? _postIndex(int page) =>
+      postIndexForPage == null ? page : postIndexForPage!(page);
+  T? postAtPage(int page) => switch (_postIndex(page)) {
+    final index? => posts.getOrNull(index),
+    _ => null,
+  };
   final int _initialPage;
   final String? initialThumbnailUrl;
   final String? dislclaimer;
@@ -54,15 +66,17 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
   }
 
   void updateCurrentPost(int page) {
-    final post = posts.getOrNull(page);
+    final post = postAtPage(page);
     if (post != null && currentPost.value != post) {
       currentPost.value = post;
     }
   }
 
   void replacePost(int index, T post) {
-    RangeError.checkValidIndex(index, posts, 'index');
-    posts[index] = post;
+    final postIndex = _postIndex(index);
+    if (postIndex == null) return;
+    RangeError.checkValidIndex(postIndex, posts, 'index');
+    posts[postIndex] = post;
     if (currentPage.value == index) {
       currentPost.value = post;
     }
@@ -71,20 +85,31 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
   void onPageSettled(int page) {
     if (page == currentSettledPage.value) return;
 
+    final previous = postAtPage(currentSettledPage.value ?? -1);
+    // A neighboring page can keep its player after it loses selection.
+    if (previous != null && previous.isVideo) {
+      unawaited(_playback.pauseVideo(postViewerIdentity(previous)));
+    }
     currentSettledPage.value = page;
 
-    final post = posts.getOrNull(page);
+    final post = postAtPage(page);
+    _playback.setActive(post != null && _navigationActive);
+    if (post == null) return;
+    _playback.resetProgress();
+    if (!post.isVideo) return;
 
-    if (post != null) {
-      _playback.resetProgress();
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        playVideo(post);
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && _navigationActive && currentSettledPage.value == page) {
+        unawaited(playVideo(post));
+      }
+    });
   }
 
-  void setNavigationActive(bool active) => _playback.setActive(active);
+  var _navigationActive = true;
+  void setNavigationActive(bool active) {
+    _navigationActive = active;
+    _playback.setActive(active && postAtPage(currentPage.value) != null);
+  }
 
   void onExit() {
     // https://github.com/quire-io/scroll-to-index/issues/44
@@ -105,7 +130,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
       _originalImagePostKeys.value.contains(postViewerIdentity(post));
 
   void loadOriginalImage(Post post) {
-    if (usesOriginalImage(post)) return;
+    if (!post.hasOriginalMedia || usesOriginalImage(post)) return;
 
     _originalImagePostKeys.value = {
       ..._originalImagePostKeys.value,
@@ -123,7 +148,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
   Stream<VideoProgress> get seekStream => _playback.seekStream;
 
   void onCurrentPositionChanged(double current, double total, Post post) {
-    final currentPost = posts.getOrNull(currentSettledPage.value ?? -1);
+    final currentPost = postAtPage(currentSettledPage.value ?? -1);
     if (currentPost != null &&
         postViewerIdentity(currentPost) == postViewerIdentity(post)) {
       _playback.updateProgress(current, total, postViewerIdentity(post));
@@ -138,6 +163,11 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     Post post, {
     bool showAnimation = false,
   }) async {
+    if (_disposed ||
+        !post.isVideo ||
+        postAtPage(currentSettledPage.value ?? -1) != post) {
+      return;
+    }
     if (postViewerIdentity(currentPost.value) == postViewerIdentity(post) &&
         showAnimation) {
       _showPlayPauseAnimation(PlayPauseAction.play);
@@ -260,8 +290,10 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     return player.waitForCompletion();
   }
 
+  var _disposed = false;
   @override
   void dispose() {
+    _disposed = true;
     _playback.dispose();
     _seekDirection.dispose();
     _playPauseAction.dispose();

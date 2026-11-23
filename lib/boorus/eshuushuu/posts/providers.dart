@@ -21,6 +21,11 @@ final eshuushuuPostRepoProvider =
           eshuushuuPostSearchProvider(config.auth).notifier,
         );
 
+        FavoritesNotifier? favoriteObserver(PostFetchOptions? options) =>
+            (options?.cascadeRequest ?? true) && config.auth.apiKey != null
+            ? ref.read(favoritesProvider(config.auth).notifier)
+            : null;
+
         return PostRepositoryBuilder(
           tagComposer: tagComposer,
           getSettings: () async =>
@@ -36,29 +41,29 @@ final eshuushuuPostRepoProvider =
             return post != null ? postDtoToPost(post, null) : null;
           },
           fetch: (tags, page, {limit, options}) async {
+            final favorites = favoriteObserver(options);
+            final read = favorites?.beginRead();
             final posts = await searchNotifier.searchByTags(
               tags,
               page: page,
               limit: limit,
             );
 
-            if (options?.cascadeRequest ?? true) {
-              ref.read(favoritesProvider(config.auth).notifier).preload(posts);
-            }
+            if (read != null) favorites!.observePostFavorites(posts, read);
 
             return posts.toResult();
           },
           fetchFromController: (controller, page, {limit, options}) async {
             final tags = controller.tags.map((e) => e.originalTag).toList();
+            final favorites = favoriteObserver(options);
+            final read = favorites?.beginRead();
             final posts = await searchNotifier.searchByTags(
               tags,
               page: page,
               limit: limit,
             );
 
-            if (options?.cascadeRequest ?? true) {
-              ref.read(favoritesProvider(config.auth).notifier).preload(posts);
-            }
+            if (read != null) favorites!.observePostFavorites(posts, read);
 
             return posts.toResult();
           },

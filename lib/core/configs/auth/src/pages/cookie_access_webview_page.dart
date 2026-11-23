@@ -2,6 +2,7 @@
 import 'dart:async';
 
 // Package imports:
+import 'package:booru_clients/gelbooru.dart';
 import 'package:coreutils/coreutils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -18,11 +19,13 @@ class CookieAccessWebViewPage extends ConsumerStatefulWidget {
   const CookieAccessWebViewPage({
     required this.url,
     required this.onGet,
+    this.cookieRequestUris,
     super.key,
   });
 
   final String url;
-  final void Function(List<Cookie> cookies) onGet;
+  final List<Uri>? cookieRequestUris;
+  final String? Function(List<Cookie> cookies) onGet;
 
   @override
   ConsumerState<CookieAccessWebViewPage> createState() =>
@@ -59,21 +62,47 @@ class _CookieAccessWebViewPageState
     });
     _log('cookie access requested');
     try {
-      final uri = Uri.parse(widget.url);
-      final cookies = browserCookiesForRequest(
-        uri: uri,
-        cookies: await session.getCookies(uri),
-        now: DateTime.now(),
-      );
+      final uris = widget.cookieRequestUris ?? [Uri.parse(widget.url)];
+      final cookiesByUri = await Future.wait([
+        for (final uri in uris)
+          session
+              .getCookies(uri)
+              .then(
+                (cookies) => browserCookiesForRequest(
+                  uri: uri,
+                  cookies: cookies,
+                  now: DateTime.now(),
+                ),
+              ),
+      ]);
       if (!mounted ||
           generation != _generation ||
           !identical(_session, session)) {
         return;
       }
+      // A credential reused across endpoints must be eligible for all of them.
+      final cookies = cookiesByUri.first
+          .where(
+            (cookie) => cookiesByUri
+                .skip(1)
+                .every(
+                  (others) => others.any(
+                    (other) =>
+                        other.name == cookie.name &&
+                        other.value == cookie.value,
+                  ),
+                ),
+          )
+          .toList();
       _log(
-        'cookie access count=${cookies.length} passHashPresent=${cookies.any((c) => c.name == 'pass_hash')} userIdPresent=${cookies.any((c) => c.name == 'user_id')}',
+        'cookie access count=${cookies.length} '
+        'passHashPresent=${cookies.any((c) => c.name == 'pass_hash')} '
+        'userIdPresent=${cookies.any((c) => c.name == 'user_id')} '
+        'rule34SessionPresent=${cookies.any((c) => c.name == Rule34WebsiteSession.sessionCookie)} '
+        'rule34UserIdPresent=${cookies.any((c) => c.name == Rule34WebsiteSession.userIdCookie)}',
       );
-      widget.onGet(cookies);
+      final error = widget.onGet(cookies);
+      if (error != null && mounted) setState(() => _error = error);
     } catch (error) {
       if (mounted && generation == _generation) {
         setState(() => _error = 'Cookie access failed. Please retry.');

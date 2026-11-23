@@ -1,3 +1,7 @@
+import 'bookmark_read_access.dart';
+import '../types/bookmark_grid_entry.dart';
+import '../types/pool_bookmark.dart';
+
 // Dart imports:
 import 'dart:ui' show Brightness;
 
@@ -12,8 +16,6 @@ import 'package:foundation/performance.dart';
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
-import '../../../posts/post/types.dart';
 import '../../../tags/categories/providers.dart';
 import '../../../tags/tag/colors.dart';
 import '../../../themes/colors/providers.dart';
@@ -24,6 +26,7 @@ import '../types/bookmark_tag_index.dart';
 import '../types/bookmark_view.dart';
 import 'bookmark_details_mutation_notifier.dart';
 import 'bookmark_provider.dart';
+import 'bookmark_group_selectors.dart';
 import 'local_providers.dart';
 
 // One library-wide builder survives route disposal. Profile replacement destroys
@@ -31,7 +34,7 @@ import 'local_providers.dart';
 final _allBookmarkTagIndexBuilderProvider = Provider<BookmarkTagIndexBuilder>((
   ref,
 ) {
-  final configs = ref.watch(booruConfigProvider);
+  final configs = ref.watch(bookmarkReadProfilesProvider);
   ref.onDispose(
     () => performanceRecorder.count(PerfCounter.bookmarkTagBuilderDisposed, 1),
   );
@@ -42,11 +45,11 @@ final _allBookmarkTagIndexBuilderProvider = Provider<BookmarkTagIndexBuilder>((
 // every possible combination. They cannot overwrite the unfiltered All cache.
 final _bookmarkTagIndexBuilderProvider = Provider.autoDispose
     .family<BookmarkTagIndexBuilder, BookmarkView>((ref, view) {
-      final source = ref.watch(selectedBooruUrlProvider);
+      final source = ref.watch(effectiveBookmarkSourceProvider(view));
       if (view.kind == BookmarkViewKind.all && source == null) {
         return ref.watch(_allBookmarkTagIndexBuilderProvider);
       }
-      final configs = ref.watch(booruConfigProvider);
+      final configs = ref.watch(bookmarkReadProfilesProvider);
       ref.onDispose(
         () => performanceRecorder.count(
           PerfCounter.bookmarkTagBuilderDisposed,
@@ -58,18 +61,19 @@ final _bookmarkTagIndexBuilderProvider = Provider.autoDispose
 
 BookmarkTagIndexBuilder _tagBuilder(List<BooruConfig> configs) =>
     BookmarkTagIndexBuilder(
-      siteUrl: (bookmark) => switch (const PostOriginResolver().resolve(
-        bookmark.post.origin,
-        configs,
-      )) {
-        ResolvedPostOrigin(:final config) => config.auth.url,
-        _ => bookmark.sourceUrl,
-      },
+      siteUrl: (bookmark) =>
+          selectBookmarkReadProfile(
+            BookmarkReaderRequest(bookmark.post.origin),
+            configs,
+          )?.url ??
+          bookmarkSourceHost(bookmark) ??
+          '',
     );
 
 final bookmarkTagIndexProvider = FutureProvider.autoDispose
     .family<BookmarkTagIndex, BookmarkView>((ref, view) async {
       final builder = ref.watch(_bookmarkTagIndexBuilderProvider(view));
+      final overlay = ref.watch(_poolTagOverlayProvider(view));
       final viewerVisible = ref.watch(
         bookmarkDetailsMutationProvider.select((state) => state.isVisible),
       );
@@ -80,7 +84,7 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
         return ref.state.valueOrNull ?? BookmarkTagIndex(const []);
       }
       final libraryFuture = ref.watch(bookmarkProvider.future);
-      final source = ref.watch(selectedBooruUrlProvider);
+      final source = ref.watch(effectiveBookmarkSourceProvider(view));
       var obsolete = false;
       ref.onDispose(() => obsolete = true);
       final library = await libraryFuture;
@@ -88,26 +92,71 @@ final bookmarkTagIndexProvider = FutureProvider.autoDispose
       if (obsolete) return BookmarkTagIndex(const []);
       // Autocomplete counts do not depend on the grid's date/shuffle ordering.
       final bookmarks = switch (view.kind) {
-        BookmarkViewKind.all => library.items,
-        BookmarkViewKind.group => [
-          for (final id
-              in library.groupsById[view.groupId]?.bookmarkIds ?? const <int>{})
+        BookmarkViewKind.all => library.localItems,
+        BookmarkViewKind.group || BookmarkViewKind.subtree => [
+          for (final id in library.bookmarkIdsForView(view))
             ?library.bookmarksById[id],
         ],
       };
-      return await builder.updateAsync(
+      final index =
+          await builder.updateAsync(
             source == null
                 ? bookmarks
                 : bookmarks.where(
-                    (bookmark) => bookmark.sourceUrl.contains(source),
+                    (bookmark) => bookmarkSourceMatchesHost(
+                      bookmarkSourceHost(bookmark) ?? '',
+                      source,
+                    ),
                   ),
             isCurrent: () => !obsolete,
             revision: view.kind == BookmarkViewKind.all && source == null
-                ? library.items
+                ? library.localItems
                 : null,
           ) ??
           BookmarkTagIndex(const []);
+      return overlay
+          .build(
+            index,
+            selectPoolBookmarks(
+              state: library,
+              view: view,
+              selectedTags: const [],
+              selectedBooruUrl: source,
+            ),
+            (
+              library.pools,
+              source,
+              view.kind == BookmarkViewKind.subtree ? library.groupTree : null,
+            ),
+          )
+          .withNativeGroupBookmarks(
+            selectNativeGroupBookmarks(
+              state: library,
+              view: view,
+              selectedTags: const [],
+              selectedBooruUrl: source,
+            ),
+          );
     });
+
+final _poolTagOverlayProvider = Provider.autoDispose
+    .family<_PoolTagOverlay, BookmarkView>((ref, view) => _PoolTagOverlay());
+
+class _PoolTagOverlay {
+  BookmarkTagIndex? _base;
+  Object? _revision;
+  BookmarkTagIndex? _value;
+  BookmarkTagIndex build(
+    BookmarkTagIndex base,
+    List<CollectionBookmark> pools,
+    Object revision,
+  ) {
+    if (identical(base, _base) && revision == _revision) return _value!;
+    _base = base;
+    _revision = revision;
+    return _value = base.withPoolBookmarks(pools);
+  }
+}
 
 // The draft and selected query are part of the key. A previous asynchronous
 // index build cannot publish suggestions into a different search or page.

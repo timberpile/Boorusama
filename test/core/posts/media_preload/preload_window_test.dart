@@ -10,6 +10,46 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:boorusama/core/posts/media_preload/types.dart';
 
 void main() {
+  test('native media entry preloads two adjacent display renditions without growing with collection size', () {
+    final counts = <int>[];
+    for (final count in [100, 10000]) {
+      var calls = 0;
+      final strategy = DirectionBasedPreloadStrategy(
+        directionHistory: DirectionHistory(),
+        options: const PreloadStrategyOptions(
+          defaultPreloadDistance: 2,
+          preloadDisplayOnEntry: true,
+          mediumConfidenceBoost: 0,
+          highConfidenceBoost: 0,
+        ),
+      );
+      final result = strategy.calculatePreload(
+        PreloadContext(
+          currentPage: 50,
+          itemCount: count,
+          mediaBuilder: (index) {
+            calls++;
+            return _media(index);
+          },
+          activeDownloads: const {},
+          completedUrls: const {},
+        ),
+      );
+      counts.add(calls);
+      expect(
+        result.allUrls,
+        unorderedEquals([
+          for (final index in [48, 49, 51, 52]) ...[
+            'thumb-$index',
+            'image-$index',
+          ],
+        ]),
+      );
+      expect(result.allUrls, isNot(contains('image-50')));
+    }
+    expect(counts, [5, 5]);
+  });
+
   for (final active in [false, true]) {
     test('planning work stays bounded with active downloads: $active', () {
       final counts = <int>[];

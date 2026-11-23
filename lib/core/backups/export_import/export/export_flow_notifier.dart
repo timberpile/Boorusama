@@ -1,3 +1,5 @@
+import '../../../configs/config/providers.dart';
+
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,10 +14,10 @@ import '../../../bookmarks/types.dart';
 
 import 'package:i18n/i18n.dart';
 
-import '../../../configs/manage/providers.dart';
 import '../../../search/following_topics/providers.dart';
 import '../../sources/providers.dart';
 import '../models/export_selection.dart';
+import '../sources/export_selection_ids.dart';
 import '../models/export_item_presentation.dart';
 import '../models/export_template.dart';
 import '../models/import_action.dart';
@@ -34,10 +36,10 @@ final exportSelectionPresentationProvider =
     Provider<ExportSelectionPresentation>((ref) {
       final items = <String, ExportItemPresentation>{};
       final profileNames = {
-        for (final profile in ref.watch(booruConfigProvider))
+        for (final profile in ref.watch(orderedProfileConfigsProvider))
           profile.id: profile.name,
       };
-      for (final profile in ref.watch(booruConfigProvider)) {
+      for (final profile in ref.watch(orderedProfileConfigsProvider)) {
         items['profile:${profile.id}'] = ExportItemPresentation(
           label: profile.name,
         );
@@ -48,6 +50,12 @@ final exportSelectionPresentationProvider =
           label: group.isDefault
               ? Translations().bookmark.groups.default_group
               : group.name,
+        );
+      }
+      for (final folder
+          in ref.watch(bookmarkProvider).valueOrNull?.folders ?? const []) {
+        items['group-folder:${folder.id}'] = ExportItemPresentation(
+          label: folder.name,
         );
       }
       final searches = ref.watch(followingTopicsProvider).valueOrNull;
@@ -258,6 +266,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       yield node.id;
       return;
     }
+    if (node.directSelectionId case final direct?) yield direct;
     for (final child in node.children) {
       yield* _selectedRootsWithout(child, excludedId);
     }
@@ -295,6 +304,15 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
   }
 
   void applyTemplate(ExportTemplate template) {
+    final aliases =
+        ref.read(bookmarkProvider).valueOrNull?.legacyFolderGroupIds ??
+        const <String, String>{};
+    String bookmarkKey(String key) {
+      if (key == 'ungrouped') return 'group:$defaultBookmarkGroupId';
+      final folder = ExportSelectionIds.bookmarkFolderId(key);
+      return folder == null ? key : 'group:${aliases[folder] ?? folder}';
+    }
+
     state = state.copyWith(
       isFull: false,
       nodes: {
@@ -303,8 +321,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
               entry.key == 'bookmarks' &&
                   entry.value.kind == ExportNodeSelectionKind.explicit
               ? ExportNodeSelection.explicit('bookmarks', {
-                  for (final id in entry.value.childIds)
-                    id == 'ungrouped' ? 'group:$defaultBookmarkGroupId' : id,
+                  for (final id in entry.value.childIds) bookmarkKey(id),
                 })
               : entry.value,
       },
@@ -319,7 +336,7 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
                     if (action.key == 'ungrouped')
                       'group:$defaultBookmarkGroupId': ImportAction.merge
                     else
-                      action.key: action.value,
+                      bookmarkKey(action.key): action.value,
                 }
               : entry.value,
       },
@@ -346,6 +363,9 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
       clearResult: true,
     );
     try {
+      if (state.isFull) {
+        await ref.read(followingTopicsProvider.future);
+      }
       final fileName = resolveExportFileNamePattern(
         state.fileNamePattern,
         DateTime.now(),
@@ -354,6 +374,9 @@ class ExportFlowNotifier extends AutoDisposeNotifier<ExportFlowState> {
           .read(appFileSystemProvider)
           .createTempDirectory('boorusama_export_');
       final outputPath = p.join(directory, fileName);
+      // Following can reload or fail while the filesystem prepares the output.
+      // Resolve that generation immediately before selecting the full catalog.
+      if (state.isFull) await ref.read(followingTopicsProvider.future);
       final path = await ref
           .read(exportServiceProvider)
           .createPackage(

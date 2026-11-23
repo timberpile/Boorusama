@@ -55,16 +55,23 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
   }
 
   Future<void> _add(BooruConfig booruConfig) async {
-    final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-    final newOrders = [...orders, booruConfig.id];
+    // The profile is already persisted. A delayed or failed preference write
+    // must not leave the visible collection behind the repository.
+    state = [...state, booruConfig];
+    final newOrders = [
+      for (final config in orderProfileConfigs(
+        state,
+        ref.read(settingsProvider).booruConfigIdOrderList,
+      ))
+        config.id,
+    ];
 
     await updateOrder(newOrders);
-
-    state = [...state, booruConfig];
   }
 
   Future<void> duplicate({
     required BooruConfig config,
+    void Function(String message)? onFailure,
   }) {
     final copyData = config.copyWith(
       name: '${config.name} copy',
@@ -74,6 +81,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
       data: copyData.toBooruConfigData(),
       initialConfig: config,
       isCopy: true,
+      onFailure: onFailure,
     );
   }
 
@@ -238,6 +246,12 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
       final siteChanged = !_sameBooruSite(existingConfig, proposedConfig);
+      final actorChanged =
+          existingConfig.auth.login != proposedConfig.auth.login ||
+          existingConfig.auth.apiKey != proposedConfig.auth.apiKey ||
+          existingConfig.auth.passHash != proposedConfig.auth.passHash ||
+          existingConfig.proxySettings != proposedConfig.proxySettings ||
+          existingConfig.networkSettings != proposedConfig.networkSettings;
       final searches = ref.read(followingTopicsProvider.notifier);
       Future<BooruConfig?> save() => searches.runSerializedMutation((
         searchRepository,
@@ -254,6 +268,8 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
             : const <TopicFeed>[];
         if (siteChanged) {
           await searchRepository.invalidateRuntimeForProfile(oldConfigId);
+        } else if (actorChanged) {
+          await searchRepository.invalidateFeedSeriesForProfile(oldConfigId);
         }
         final configRepository = ref.read(booruConfigRepoProvider);
         BooruConfig? updated;
@@ -290,7 +306,7 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         }
         return updated;
       });
-      final updatedConfig = siteChanged
+      final updatedConfig = siteChanged || actorChanged
           ? await searches.runWithProfileRefreshPaused(oldConfigId, save)
           : await save();
 
@@ -405,9 +421,8 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
         return;
       }
 
-      onSuccess?.call(config);
-
       await _add(config);
+      onSuccess?.call(config);
 
       ref
           .read(analyticsProvider)
@@ -472,11 +487,8 @@ class BooruConfigNotifier extends Notifier<List<BooruConfig>> {
     int newIndex,
     Iterable<BooruConfig> orderedConfigs,
   ) {
-    final orders = ref.read(settingsProvider).booruConfigIdOrderList;
-    final newOrders = orders.isEmpty || orders.length != orderedConfigs.length
-        ? [for (final config in orderedConfigs) config.id]
-        : orders.toList();
-    newOrders.reorder(oldIndex, newIndex);
+    final newOrders = [for (final config in orderedConfigs) config.id];
+    if (!newOrders.reorder(oldIndex, newIndex)) return;
 
     updateOrder(newOrders);
   }

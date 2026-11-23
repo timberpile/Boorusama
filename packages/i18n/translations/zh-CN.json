@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "有更新的搜索优先",
-    "sort_last_post_oldest": "最早的帖子优先"
+    "sort_manual": "手动",
+    "sort_unread_first": "未读优先",
+    "sort_recently_added": "最近添加"
   },
   "generic": {
     "done": "完成",
@@ -402,14 +403,6 @@
         "wait_for_completion_description": "等待视频完成后再切换到下一张幻灯片",
         "fixed_interval": "固定间隔",
         "fixed_interval_description": "在固定间隔后切换，即使视频仍在播放"
-      },
-      "swipe_mode": "滑动模式",
-      "swipe_mode_disclaimer": "某些自定义手势可能无法在所有模式下工作",
-      "swipe_modes": {
-        "horizontal": "水平",
-        "horizontal_description": "画廊风格的左右滑动。类似于照片画廊和媒体应用。",
-        "vertical": "垂直",
-        "vertical_description": "TikTok风格的上下滑动。在短视频平台上流行。仅限纵向模式。"
       },
       "double_tap_seek": "双击跳转",
       "manage_cache": "管理缓存",
@@ -1195,7 +1188,8 @@
       "edit_global_blacklist": "编辑全局黑名单",
       "edit_booru_specific_blacklist": "编辑 Booru 特定黑名单",
       "edit_profile_blacklist": "编辑配置文件黑名单",
-      "stats": "统计"
+      "stats": "统计",
+      "group_posts": "分组帖子"
     },
     "hidden_count": "已隐藏 $hidden 张，共 $total 张",
     "counter": {

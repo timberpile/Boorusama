@@ -30,7 +30,11 @@ class _SinglePagePostListScaffoldState<T extends Post>
   Widget build(BuildContext context) {
     return PostScope(
       fetcher: (page) => TaskEither.Do(
-        ($) async => page == 1 ? widget.posts.toResult() : <T>[].toResult(),
+        ($) async => (page == 1 ? widget.posts : <T>[]).toResult(
+          total: widget.posts.length,
+          maxPage: 1,
+          hasMore: false,
+        ),
       ),
       builder: (context, controller) => PostGrid(
         controller: controller,

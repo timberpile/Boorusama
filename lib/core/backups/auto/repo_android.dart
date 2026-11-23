@@ -29,10 +29,20 @@ class AutoBackupRepositoryAndroid implements AutoBackupRepository {
   static Future<String?> pickDirectory() =>
       channel.invokeMethod<String>('pickDirectory');
 
-  static Future<String?> directoryDisplayPath(String location) async {
-    if (!isTree(location)) return location;
+  static Future<String?> directoryDisplayPath(
+    String location, {
+    bool verifyAccess = false,
+  }) async {
+    if (!isTree(location)) {
+      return Uri.tryParse(location)?.scheme == 'content' ? null : location;
+    }
 
     final uri = Uri.parse(location);
+    String? name;
+    if (verifyAccess) {
+      name = await _directoryDisplayName(location);
+      if (name == null) return null;
+    }
     // Only the external-storage provider defines IDs as volume:relative/path.
     // Other providers can use opaque IDs; ask them for the folder name instead.
     if (uri.host == 'com.android.externalstorage.documents') {
@@ -45,11 +55,19 @@ class AutoBackupRepositoryAndroid implements AutoBackupRepository {
       }
     }
 
+    return name ?? await _directoryDisplayName(location);
+  }
+
+  static Future<String?> _directoryDisplayName(String location) async {
     try {
       final name = await channel.invokeMethod<String>('directoryDisplayName', {
         'location': location,
       });
-      return name == null || name.trim().isEmpty ? null : name;
+      return name == null ||
+              name.trim().isEmpty ||
+              Uri.tryParse(name)?.scheme == 'content'
+          ? null
+          : name;
     } on PlatformException {
       return null;
     } on MissingPluginException {

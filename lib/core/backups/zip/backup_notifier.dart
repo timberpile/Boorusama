@@ -10,6 +10,7 @@ import '../../../foundation/info/device_info.dart';
 import '../../../foundation/loggers.dart';
 import '../../../foundation/picker.dart';
 import '../../../foundation/platform.dart';
+import '../../search/following_topics/providers.dart';
 import '../../settings/providers.dart';
 import '../auto/providers.dart';
 import '../auto/types.dart';
@@ -386,6 +387,8 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
         progress: 0,
       );
 
+      // Loading is not an empty catalog: wait before capturing the service.
+      await ref.read(followingTopicsProvider.future);
       final autoBackupService = ref.read(autoBackupServiceProvider);
       final result = await autoBackupService.performBackup(
         settings,
@@ -400,16 +403,19 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
           'Auto backup completed successfully - updating last backup time',
         );
 
-        // Update settings after successful backup
-        await ref
-            .read(settingsNotifierProvider.notifier)
-            .updateWith(
-              (s) => s.copyWith(
-                autoBackup: settings.copyWith(
-                  lastBackupTime: () => DateTime.now(),
-                ),
-              ),
-            );
+        // Merge completion metadata into current settings, not the job snapshot.
+        await ref.read(settingsNotifierProvider.notifier).updateWith((s) {
+          final current = s.autoBackup;
+          if (current.userSelectedPath != settings.userSelectedPath) {
+            // A successful write to the old location does not back up the new one.
+            return s;
+          }
+          return s.copyWith(
+            autoBackup: current.copyWith(
+              lastBackupTime: () => DateTime.now(),
+            ),
+          );
+        });
       } else {
         logger.warn(
           'Backup.Auto',
@@ -519,6 +525,7 @@ class BackupNotifier extends AutoDisposeNotifier<BackupState> {
           '{results}',
           parts.join(', '),
         ),
+        duration: KurumiDurations.longToast,
       );
     } else {
       Kurumi.showErrorToast(

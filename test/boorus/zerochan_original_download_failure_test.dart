@@ -7,7 +7,6 @@ import 'package:boorusama/boorus/zerochan/downloads/providers.dart';
 import 'package:boorusama/core/posts/details_parts/widgets.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:oktoast/oktoast.dart';
-import 'package:material_ui/material_ui.dart' as material_ui;
 import 'package:boorusama/core/app_scope.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/download_activity/activity.dart';
@@ -187,12 +186,12 @@ void main() {
               of: button,
               matching: find.byWidgetPredicate(
                 (widget) =>
-                    widget is material_ui.IconButton &&
+                    widget is KurumiActionIconButton &&
                     widget.onLongPress != null,
               ),
             )
             .first;
-        tester.widget<material_ui.IconButton>(control).onLongPress!.call();
+        await tester.longPress(control);
         await harness.pumpUntilFound(tester, find.byType(KurumiPopupMenuItem));
         await harness.settle(tester);
         await tester.tap(find.byType(KurumiPopupMenuItem).last);

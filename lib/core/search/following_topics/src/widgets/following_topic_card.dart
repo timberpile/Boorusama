@@ -1,6 +1,9 @@
+import '../../../../backups/mitemite/mitemite_icon.dart';
+
 // Package imports:
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:clock/clock.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -130,13 +133,22 @@ class FollowingTopicCard extends StatelessWidget {
     this.canMoveDown = false,
     required this.onAction,
     this.ownerCaption,
+    this.sourceNotice,
+    this.onManageSource,
     this.actionItemBuilder,
     this.metadata,
     this.preview,
+    this.syncActions,
+    this.readOnly = false,
+    this.definitionChanged = false,
+    this.published = false,
+    this.onToggleAutoUpdate,
     super.key,
   });
 
   final String? ownerCaption;
+  final String? sourceNotice;
+  final VoidCallback? onManageSource;
   final FollowingTopic topic;
   final BooruConfigAuth? config;
   final List<PopupMenuEntry<FollowingTopicAction>> Function(BuildContext)?
@@ -152,12 +164,18 @@ class FollowingTopicCard extends StatelessWidget {
   final VoidCallback? onSelect;
   final bool selected;
   final bool selecting;
+  final List<Widget>? syncActions;
+  final bool readOnly;
+  final bool definitionChanged;
+  final bool published;
+  final VoidCallback? onToggleAutoUpdate;
 
   @override
   Widget build(BuildContext context) {
     final strings = context.t.following_topics;
 
     return Semantics(
+      label: readOnly ? context.t.mitemite.received : null,
       selected: selecting ? selected : null,
       child: Card(
         color: selected
@@ -197,6 +215,11 @@ class FollowingTopicCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                     ),
+                    FollowingSyncStatus(
+                      readOnly: readOnly,
+                      published: published,
+                      changed: definitionChanged,
+                    ),
                     if (topic.hasNewPosts)
                       TopicNewPostsBadge(
                         count: topic.newPostCountEstimate,
@@ -207,7 +230,27 @@ class FollowingTopicCard extends StatelessWidget {
                         Icons.check_circle,
                         color: Theme.of(context).colorScheme.primary,
                       ),
-                    if (!selecting)
+                    if (!selecting && syncActions != null)
+                      FollowingDefinitionMenu(
+                        showMoveActions: showMoveActions,
+                        syncActions: syncActions!,
+                        readOnly: readOnly,
+                        onInfo: () => onAction(FollowingTopicAction.info),
+                        onRefresh: refreshing || config == null
+                            ? null
+                            : () => onAction(FollowingTopicAction.refresh),
+                        onEdit: () => onAction(FollowingTopicAction.edit),
+                        onDelete: () => onAction(FollowingTopicAction.delete),
+                        onUp: showMoveActions && canMoveUp
+                            ? () => onAction(FollowingTopicAction.moveUp)
+                            : null,
+                        onDown: showMoveActions && canMoveDown
+                            ? () => onAction(FollowingTopicAction.moveDown)
+                            : null,
+                        onToggleAutoUpdate: onToggleAutoUpdate,
+                        autoUpdate: topic.autoUpdateEnabled,
+                      ),
+                    if (!selecting && syncActions == null)
                       PopupMenuButton<FollowingTopicAction>(
                         icon: const Icon(Symbols.more_vert),
                         tooltip: context.t.generic.action.more,
@@ -282,6 +325,13 @@ class FollowingTopicCard extends StatelessWidget {
                       lastPostAt: topic.lastPostAt,
                       hasBaseline: topic.hasBaseline,
                     ),
+                if (sourceNotice case final notice?)
+                  Text(notice, style: Theme.of(context).textTheme.bodySmall),
+                if (!selecting && onManageSource != null)
+                  TextButton(
+                    onPressed: onManageSource,
+                    child: Text(context.t.navigation.profiles),
+                  ),
                 if (refreshing) Text(strings.refreshing),
                 if (topic.lastErrorKind case final kind?)
                   Text(
@@ -294,6 +344,169 @@ class FollowingTopicCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class FollowingSyncStatus extends StatelessWidget {
+  const FollowingSyncStatus({
+    required this.readOnly,
+    required this.published,
+    required this.changed,
+    super.key,
+  });
+  final bool readOnly;
+  final bool published;
+  final bool changed;
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (changed && readOnly)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Semantics(
+            label: context.t.mitemite.unseen,
+            child: Badge(
+              backgroundColor: Colors.blue.shade700,
+              textColor: Colors.white,
+              label: Text(context.t.mitemite.unseen.toUpperCase()),
+            ),
+          ),
+        ),
+      if (published && !readOnly)
+        Tooltip(
+          message: context.t.mitemite.published,
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: const MiteMiteIcon(size: 18),
+          ),
+        ),
+    ],
+  );
+}
+
+class FollowingDefinitionMenu extends StatelessWidget {
+  const FollowingDefinitionMenu({
+    required this.syncActions,
+    required this.readOnly,
+    this.onInfo,
+    this.onRefresh,
+    this.onEdit,
+    this.onDelete,
+    this.onUp,
+    this.onDown,
+    this.onToggleAutoUpdate,
+    this.autoUpdate = true,
+    this.folder = false,
+    this.showMoveActions = false,
+    super.key,
+  });
+  final List<Widget> syncActions;
+  final bool readOnly;
+  final VoidCallback? onInfo,
+      onRefresh,
+      onEdit,
+      onDelete,
+      onUp,
+      onDown,
+      onToggleAutoUpdate;
+  final bool autoUpdate;
+  final bool folder;
+  final bool showMoveActions;
+  @override
+  Widget build(BuildContext context) {
+    final t = context.t.following_topics;
+    return Semantics(
+      container: true,
+      child: KurumiPopupMenuButton(
+        tooltip: context.t.generic.action.more,
+        icon: const Icon(Icons.more_vert),
+        semanticLabel: context.t.generic.action.more,
+        iconPadding: const EdgeInsets.all(12),
+        items: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight:
+                  ((MediaQuery.sizeOf(context).height -
+                              MediaQuery.viewInsetsOf(context).vertical -
+                              MediaQuery.paddingOf(context).vertical -
+                              72) /
+                          2)
+                      .clamp(48, 480),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children:
+                    <Widget>[
+                          ...syncActions,
+                          if (onInfo != null)
+                            KurumiPopupMenuItem(
+                              title: Text(t.info),
+                              icon: const Icon(Icons.info_outline),
+                              onTap: onInfo,
+                            ),
+                          KurumiPopupMenuItem(
+                            title: Text(t.refresh),
+                            icon: const Icon(Icons.refresh),
+                            onTap: onRefresh,
+                          ),
+                          if (onToggleAutoUpdate != null)
+                            KurumiPopupMenuItem(
+                              title: Text(
+                                autoUpdate
+                                    ? t.auto_update_disable
+                                    : t.auto_update_enable,
+                              ),
+                              icon: const Icon(Icons.update),
+                              onTap: onToggleAutoUpdate,
+                            ),
+                          if (!readOnly) ...[
+                            KurumiPopupMenuItem(
+                              title: Text(
+                                folder
+                                    ? t.edit_folder
+                                    : context.t.generic.action.edit,
+                              ),
+                              icon: const Icon(Icons.edit_outlined),
+                              onTap: onEdit,
+                            ),
+                            if (showMoveActions)
+                              KurumiPopupMenuItem(
+                                title: Text(t.move_up),
+                                icon: const Icon(Icons.arrow_upward),
+                                onTap: onUp,
+                              ),
+                            if (showMoveActions)
+                              KurumiPopupMenuItem(
+                                title: Text(t.move_down),
+                                icon: const Icon(Icons.arrow_downward),
+                                onTap: onDown,
+                              ),
+                            KurumiPopupMenuItem(
+                              title: Text(
+                                folder
+                                    ? context.t.generic.action.delete
+                                    : t.remove,
+                              ),
+                              icon: const Icon(Icons.delete_outline),
+                              onTap: onDelete,
+                            ),
+                          ],
+                        ]
+                        .map(
+                          (item) => ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: item,
+                          ),
+                        )
+                        .toList(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

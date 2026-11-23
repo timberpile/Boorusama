@@ -126,25 +126,13 @@ class PixivExploreRepository {
   final PixivClient client;
   final PostOrigin origin;
 
-  /// The page beyond which a given feed is known to have run out, per the
-  /// API's own `next_url` signal (see `PixivIllustListResult.hasMore`) —
-  /// set once a page's response omits it, so later pages short-circuit
-  /// instead of firing a request past the end of the feed. Keyed per feed
-  /// (see [_cacheKeyFor]) so switching feeds — or the ranking mode/date
-  /// within one — doesn't inherit another feed's exhaustion point.
-  final Map<String, int> _exhaustedAfterPage = {};
-
+  /// Each grid controller owns its continuation state. Caching an end page here
+  /// would leak stale exhaustion across refreshes of the same feed.
   PostsOrError<Post> getPosts({
     required PixivExploreFeed feed,
     required int page,
     DateTime? now,
   }) {
-    final key = _cacheKeyFor(feed);
-    final exhaustedAfter = _exhaustedAfterPage[key];
-    if (exhaustedAfter != null && page > exhaustedAfter) {
-      return TaskEither.of(const <Post>[].toResult());
-    }
-
     return TaskEither.tryCatch(
       () async {
         final result = await switch (feed) {
@@ -165,25 +153,14 @@ class PixivExploreRepository {
         // drops them — so a 30-item API page routinely yields fewer than 30
         // posts. `hasMore` must come from `next_url` only (which
         // `PixivIllustListResult` already does), never from a short page.
-        if (!result.hasMore) {
-          _exhaustedAfterPage[key] = page;
-        }
-
         return bindPostResultOrigin(
-          illustDtosToPosts(result.illusts).toResult(),
+          pixivIllustListResultToPostResult(result),
           origin: origin,
         );
       },
       _mapError,
     );
   }
-
-  static String _cacheKeyFor(PixivExploreFeed feed) => switch (feed) {
-    PixivRankingFeed(:final mode, :final date) =>
-      'ranking:${mode.value}:${date.toIso8601String()}',
-    PixivFollowingFeed(:final restrict) => 'following:${restrict.value}',
-    PixivRecommendedFeed() => 'recommended',
-  };
 
   /// Preserves the shared coordinator's cooldown deadline so the view shows
   /// the remaining wait instead of treating a rate envelope as an empty page.

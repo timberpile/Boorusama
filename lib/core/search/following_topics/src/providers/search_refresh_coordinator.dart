@@ -1,3 +1,7 @@
+import '../types/topic_feed.dart';
+import '../../../../configs/manage/providers.dart';
+import 'following_topic_config_provider.dart';
+
 import 'dart:async';
 
 import 'package:collection/collection.dart';
@@ -11,7 +15,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../settings/providers.dart';
 import '../../../../boorus/engine/providers.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../../foundation/networking/network_provider.dart';
 import '../services/search_refresh_scheduler.dart';
@@ -73,7 +76,10 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   Future<void>? _initializationFuture;
   var _foreground = false;
   final Map<Object, String?> _feedInitializationOwners = {};
+  final _feedSettlements =
+      <Object, ({Set<String> pending, Completer<void> done})>{};
   var _disposed = false;
+  var _statusPublicationQueued = false;
   CancelToken? _runToken;
   CancelToken? _initializationToken;
   final _automaticOwners = <String, CancelToken>{};
@@ -85,6 +91,10 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     _disposed = false;
     ref.onDispose(() {
       _disposed = true;
+      for (final value in _feedSettlements.values) {
+        if (!value.done.isCompleted) value.done.complete();
+      }
+      _feedSettlements.clear();
       _runToken?.cancel();
       _initializationToken?.cancel();
       _timer?.cancel();
@@ -159,8 +169,31 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   }) {
     final owner = Object();
     _feedInitializationOwners[owner] = feedId;
-    unawaited(initializeFeeds());
-    return FeedInitializationInterest(() {
+    final pass = initializeFeeds();
+    final done = Completer<void>();
+    final current = ref.read(followingTopicsProvider).valueOrNull;
+    final pending = <String>{
+      for (final feed in current?.feeds ?? const <TopicFeed>[])
+        if (feedId == null || feed.id == feedId)
+          for (final id in feed.sourceIds)
+            if (!feed.initializedSourceIds.contains(id)) id,
+    };
+    _feedSettlements[owner] = (pending: pending, done: done);
+    if (current != null && pending.isEmpty) done.complete();
+    // A skipped/no-work/failed/cancelled pass is a terminal initial outcome.
+    unawaited(
+      pass.then(
+        (_) {
+          if (!done.isCompleted) done.complete();
+        },
+        onError: (Object _) {
+          if (!done.isCompleted) done.complete();
+        },
+      ),
+    );
+    return FeedInitializationInterest(done.future, () {
+      _feedSettlements.remove(owner);
+      if (!done.isCompleted) done.complete();
       if (_feedInitializationOwners.remove(owner) == null &&
           !_feedInitializationOwners.containsKey(owner)) {
         if (!_hasFeedInitializationInterest) {
@@ -273,11 +306,24 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     );
   }
 
+  BooruConfig? _configFor(FollowingTopic topic) {
+    final received =
+        ref
+            .read(followingTopicsProvider)
+            .valueOrNull
+            ?.mirrors
+            .isReceived(topic.id) ??
+        false;
+    return received || topic.localSource != null
+        ? ref.read(followingTopicConfigProvider(topic.id))
+        : ref
+              .read(booruConfigProvider)
+              .where((config) => config.id == topic.profileId)
+              .firstOrNull;
+  }
+
   bool _supported(FollowingTopic search) {
-    final config = ref
-        .read(booruConfigProvider)
-        .where((c) => c.id == search.profileId)
-        .firstOrNull;
+    final config = _configFor(search);
     if (config == null) return false;
     final adapter = ref
         .read(booruRepoProvider(config.auth))
@@ -286,7 +332,18 @@ class SearchRefreshCoordinator extends Notifier<bool> {
   }
 
   void _publishStatus() {
-    if (_disposed) return;
+    if (_disposed || _statusPublicationQueued) return;
+    // Provider listeners may fire synchronously while a new profile's widget
+    // tree is mounting. Publishing into another provider there is forbidden
+    // by Riverpod and can invalidate unrelated widgets during their build.
+    _statusPublicationQueued = true;
+    scheduleMicrotask(() {
+      _statusPublicationQueued = false;
+      if (!_disposed) _publishStatusNow();
+    });
+  }
+
+  void _publishStatusNow() {
     final settings = ref.read(settingsProvider).searchRefresh;
     final environment = ref.read(searchRefreshEnvironmentProvider);
     final sources = ref.read(followingTopicsProvider).valueOrNull;
@@ -403,9 +460,6 @@ class SearchRefreshCoordinator extends Notifier<bool> {
     try {
       final topics = await ref.read(followingTopicsProvider.future);
       if (!canContinue()) return 0;
-      final profiles = {
-        for (final config in ref.read(booruConfigProvider)) config.id: config,
-      };
       final interval = ref.read(settingsProvider).searchRefresh.interval;
       final folders = {
         for (final folder in topics.organization.folders) folder.id: folder,
@@ -481,7 +535,7 @@ class SearchRefreshCoordinator extends Notifier<bool> {
                             false))) {
             return false;
           }
-          final config = profiles[latest.profileId];
+          final config = _configFor(latest);
           if (config == null) return false;
           final adapter = ref
               .read(booruRepoProvider(config.auth))
@@ -552,6 +606,14 @@ class SearchRefreshCoordinator extends Notifier<bool> {
                 return outcome;
               })
               .whenComplete(() {
+                if (initializing) {
+                  for (final settlement in _feedSettlements.values) {
+                    settlement.pending.remove(id);
+                    if (settlement.pending.isEmpty &&
+                        !settlement.done.isCompleted)
+                      settlement.done.complete();
+                  }
+                }
                 if (identical(_automaticOwners[id], ownerToken)) {
                   _automaticOwners.remove(id);
                 }
@@ -576,7 +638,8 @@ class SearchRefreshCoordinator extends Notifier<bool> {
 }
 
 final class FeedInitializationInterest {
-  FeedInitializationInterest(this._onClose);
+  FeedInitializationInterest(this.initialSettlement, this._onClose);
+  final Future<void> initialSettlement;
 
   final void Function() _onClose;
   var _closed = false;

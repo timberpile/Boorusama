@@ -1,3 +1,5 @@
+import '../../boorus/booru/types.dart';
+import 'boorusama_group_link.dart';
 import 'boorusama_post_link.dart';
 import 'boorusama_search_link.dart';
 
@@ -8,6 +10,7 @@ String postLinkShareMessage(
   required String profileName,
   required String postTemplate,
   required String postByArtistTemplate,
+  String? author,
   Iterable<String> artists = const [],
 }) {
   final parts = link.key.split(':');
@@ -20,7 +23,7 @@ String postLinkShareMessage(
           .toList()
         ..sort();
   final profile = _singleLine(profileName, 100);
-  final artist = artistNames.firstOrNull;
+  final artist = linkShareAuthor(author) ?? artistNames.firstOrNull;
   return _interpolate(
     artist == null ? postTemplate : postByArtistTemplate,
     {
@@ -44,6 +47,46 @@ String searchLinkShareMessage(
   });
 }
 
+String groupLinkShareMessage(
+  BoorusamaGroupLink link, {
+  required String? profileName,
+  required String? groupName,
+  String? author,
+  required String groupTemplate,
+  required String pixivWorkByArtistTemplate,
+  required String unnamedGroupTemplate,
+}) {
+  final reference = link.reference;
+  final isPixiv = reference.engine == BooruType.pixiv;
+  final isDanbooruPool =
+      reference.engine == BooruType.danbooru &&
+      reference.sourceKey.startsWith('pool:');
+  final title = groupName ?? '';
+  final group = _singleLine(
+    isDanbooruPool ? title.replaceAll('_', ' ') : title,
+    120,
+  );
+  final profile = isPixiv ? 'Pixiv' : _singleLine(profileName ?? '', 100);
+  final artist = isPixiv ? linkShareAuthor(author) : null;
+  return _interpolate(
+    artist == null ? groupTemplate : pixivWorkByArtistTemplate,
+    {
+      'group': group.isNotEmpty
+          ? group
+          : _interpolate(unnamedGroupTemplate, {
+              'id': reference.sourceKey.split(':').last,
+            }),
+      'profile': profile.isEmpty ? reference.site.host : profile,
+      'artist': ?artist,
+    },
+  );
+}
+
+String? linkShareAuthor(String? value) {
+  final name = _singleLine(value ?? '', 60);
+  return name.isEmpty ? null : name;
+}
+
 bool _unknownArtist(String value) => {
   'unknown_artist',
   'artist_request',
@@ -53,7 +96,7 @@ bool _unknownArtist(String value) => {
 
 String _interpolate(String template, Map<String, String> values) =>
     template.replaceAllMapped(
-      RegExp(r'\{(id|artist|profile|query)\}'),
+      RegExp(r'\{(id|artist|profile|query|group)\}'),
       (match) => values[match.group(1)] ?? match.group(0)!,
     );
 

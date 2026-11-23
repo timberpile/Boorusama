@@ -16,11 +16,9 @@ void main() {
     await ensureI18nInitialized('en-US');
   });
 
-  testWidgets('offers both double-tap zoom behaviors and reports changes', (
+  testWidgets('retired zoom selector is absent from image viewer settings', (
     tester,
   ) async {
-    DoubleTapZoomMode? updatedMode;
-
     await tester.pumpWidget(
       BooruLocalization(
         child: ProviderScope(
@@ -30,30 +28,27 @@ void main() {
               child: child!,
             ),
             home: Scaffold(
-              body: DoubleTapZoomModeSetting(
-                value: Settings.defaultSettings.viewer.doubleTapZoomMode,
-                onChanged: (mode) => updatedMode = mode,
+              body: SingleChildScrollView(
+                child: ImageViewerSettingsSection(
+                  viewer: Settings.defaultSettings.viewer,
+                  onUpdate: (_) {},
+                ),
               ),
             ),
           ),
         ),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    final selector = tester
-        .widget<KurumiOptionDropDownButton<DoubleTapZoomMode>>(
-          find.byType(KurumiOptionDropDownButton<DoubleTapZoomMode>),
-        );
-
-    expect(selector.value, DoubleTapZoomMode.fitCycle);
+    final context = tester.element(find.byType(ImageViewerSettingsSection));
     expect(
-      selector.items.map((item) => item.value),
-      DoubleTapZoomMode.values,
+      find.text(context.t.settings.image_viewer.double_tap_zoom_behavior),
+      findsNothing,
     );
-
-    selector.onChanged(DoubleTapZoomMode.classic);
-
-    expect(updatedMode, DoubleTapZoomMode.classic);
+    expect(
+      find.text(context.t.settings.image_viewer.snap_zoom_to_fit),
+      findsOneWidget,
+    );
   });
 }

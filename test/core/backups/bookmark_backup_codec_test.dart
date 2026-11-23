@@ -14,7 +14,9 @@ import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+
 import '../../profile_uuid_utils.dart';
+
 import 'package:boorusama/core/posts/rating/types.dart';
 import 'package:boorusama/core/posts/sources/types.dart';
 
@@ -27,39 +29,42 @@ void main() {
     },
   );
 
-  test('version 4 round trips the complete snapshot, identity and group', () {
-    final bookmark = _nativeBookmark(localId: 12);
-    final data = BookmarkBackupData(
-      bookmarks: [bookmark],
-      groups: const [
-        BookmarkGroupBackup(id: groupId, name: 'Native', bookmarkIds: [12]),
-      ],
-    );
-    final encoded = codec.encode(data);
+  test(
+    'version 4 imports the complete legacy snapshot, identity and group',
+    () {
+      final bookmark = _nativeBookmark(localId: 12);
+      final data = BookmarkBackupData(
+        bookmarks: [bookmark],
+        groups: const [
+          BookmarkGroupBackup(id: groupId, name: 'Native', bookmarkIds: [12]),
+        ],
+      );
+      final encoded = data.bookmarks.map((b) => _row(b)).toList();
 
-    expect(encoded, [
-      {
-        'localId': 12,
-        'createdAt': '2026-01-02T00:00:00.000Z',
-        'updatedAt': '2026-02-03T00:00:00.000Z',
-        'snapshot': bookmark.snapshot.toJson(),
-        'postId': 42,
-        'identity': {'site': 'gelbooru.example/board', 'postKey': 'id:42'},
-      },
-    ]);
-    final restored = codec.parse(
-      decodeData(
-        data: jsonEncode({
-          'version': 4,
-          'data': encoded,
-          ...data.extraFields,
-        }),
-      ),
-    );
+      expect(encoded, [
+        {
+          'localId': 12,
+          'createdAt': '2026-01-02T00:00:00.000Z',
+          'updatedAt': '2026-02-03T00:00:00.000Z',
+          'snapshot': bookmark.snapshot.toJson(),
+          'postId': 42,
+          'identity': {'site': 'gelbooru.example/board', 'postKey': 'id:42'},
+        },
+      ]);
+      final restored = codec.parse(
+        decodeData(
+          data: jsonEncode({
+            'version': 4,
+            'data': encoded,
+            ..._legacyExtra(data),
+          }),
+        ),
+      );
 
-    expect(restored.bookmarks.single, bookmark);
-    expect(restored.groups, data.groups);
-  });
+      expect(restored.bookmarks.single, bookmark);
+      expect(restored.groups, data.groups);
+    },
+  );
 
   test(
     'version 5 preserves the system role alongside ordinary groups named Default',
@@ -81,8 +86,8 @@ void main() {
         decodeData(
           data: jsonEncode({
             'version': 5,
-            'data': codec.encode(data),
-            ...data.extraFields,
+            'data': data.bookmarks.map((b) => _row(b)).toList(),
+            ..._legacyExtra(data),
           }),
         ),
       );
@@ -91,7 +96,7 @@ void main() {
   );
 
   test('rejects a system role on an ordinary UUID before import', () {
-    final row = _row(codec, _nativeBookmark(localId: 12));
+    final row = _row(_nativeBookmark(localId: 12));
     expect(
       () => codec.parse(
         decodeData(
@@ -114,7 +119,7 @@ void main() {
   });
 
   test('rejects group references to bookmarks absent from the package', () {
-    final row = _row(codec, _nativeBookmark(localId: 12));
+    final row = _row(_nativeBookmark(localId: 12));
     final payload = decodeData(
       data: jsonEncode({
         'version': 4,
@@ -136,7 +141,7 @@ void main() {
   });
 
   test('rejects an identity that differs from the decoded snapshot', () {
-    final row = _row(codec, _nativeBookmark(localId: 12));
+    final row = _row(_nativeBookmark(localId: 12));
     row['identity'] = {'site': 'other.example', 'postKey': 'id:42'};
 
     expect(
@@ -146,7 +151,7 @@ void main() {
   });
 
   test('rejects an upstream key that differs from the decoded snapshot', () {
-    final row = _row(codec, _nativeBookmark(localId: 12));
+    final row = _row(_nativeBookmark(localId: 12));
     row['identity'] = {
       'site': 'gelbooru.example/board',
       'postKey': 'id:43',
@@ -168,7 +173,7 @@ void main() {
   });
 
   test('rejects an omitted portable identity', () {
-    final row = _row(codec, _nativeBookmark(localId: 12))..remove('identity');
+    final row = _row(_nativeBookmark(localId: 12))..remove('identity');
 
     expect(
       () => codec.parse(_payload([row])),
@@ -181,7 +186,7 @@ void main() {
     final second = first.copyWith(id: 13);
 
     expect(
-      () => codec.parse(_payload([_row(codec, first), _row(codec, second)])),
+      () => codec.parse(_payload([_row(first), _row(second)])),
       throwsA(isA<InvalidBackupFormatException>()),
     );
   });
@@ -191,13 +196,13 @@ void main() {
     final second = _nativeBookmark(localId: 12, postId: 43);
 
     expect(
-      () => codec.parse(_payload([_row(codec, first), _row(codec, second)])),
+      () => codec.parse(_payload([_row(first), _row(second)])),
       throwsA(isA<InvalidBackupFormatException>()),
     );
   });
 
-  test('rejects an export row without a trusted upstream post ID', () {
-    final legacy = Bookmark(
+  test('preserves an export row without a trusted upstream post ID', () {
+    final legacy = PostBookmark(
       id: 501,
       booruId: BooruType.gelbooruV2.id,
       createdAt: DateTime.utc(2025),
@@ -217,16 +222,18 @@ void main() {
       metadata: const {},
     );
 
-    expect(
-      () => codec.encode(
-        BookmarkBackupData(bookmarks: [legacy], groups: const []),
-      ),
-      throwsA(isA<InvalidBackupFormatException>()),
-    );
+    final row = codec
+        .encode(BookmarkBackupData(bookmarks: [legacy], groups: const []))
+        .single;
+    expect(row['kind'], 'post');
+    expect(row['id'], 501);
+    expect(row['postId'], isNull);
+    expect(row.containsKey('identity'), isFalse);
+    expect(row['snapshot'], legacy.snapshot.toJson());
   });
 
   test('preserves and validates a canonical group UUID', () {
-    final row = _row(codec, _nativeBookmark(localId: 12));
+    final row = _row(_nativeBookmark(localId: 12));
     final data = codec.parse(
       decodeData(
         data: jsonEncode({
@@ -262,18 +269,28 @@ void main() {
   });
 }
 
-Map<String, dynamic> _row(BookmarkBackupCodec codec, Bookmark bookmark) =>
-    codec
-            .encode(
-              BookmarkBackupData(bookmarks: [bookmark], groups: const []),
-            )
-            .single
-        as Map<String, dynamic>;
+// Historical fixtures spell out the v4/v5 Post row rather than borrowing the
+// current unified writer's wire representation.
+Map<String, dynamic> _row(PostBookmark bookmark) => {
+  'localId': bookmark.id,
+  'createdAt': bookmark.createdAt.toIso8601String(),
+  'updatedAt': bookmark.updatedAt.toIso8601String(),
+  'snapshot': bookmark.snapshot.toJson(),
+  'postId': bookmark.postId,
+  'identity': BookmarkIdentity.tryFromPost(bookmark.post)!.toJson(),
+};
+
+Map<String, dynamic> _legacyExtra(BookmarkBackupData data) => {
+  'groups': data.groups.map((group) => group.toJson()).toList(),
+  'folders': data.folders.map((folder) => folder.toJson()).toList(),
+  if (data.pools.isNotEmpty)
+    'collectionBookmarks': data.pools.map((pool) => pool.toJson()).toList(),
+};
 
 ExportDataPayload _payload(List<Map<String, dynamic>> rows) =>
     decodeData(data: jsonEncode({'version': 4, 'data': rows}));
 
-Bookmark _nativeBookmark({required int localId, int postId = 42}) {
+PostBookmark _nativeBookmark({required int localId, int postId = 42}) {
   final post = Post(
     origin: PostOrigin.fromSource(
       booruType: BooruType.gelbooruV2,
@@ -307,7 +324,7 @@ Bookmark _nativeBookmark({required int localId, int postId = 42}) {
     ),
     booruData: const GelbooruV2PostData(hasNotes: true),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: localId,
     createdAt: DateTime.utc(2026, 1, 2),
     updatedAt: DateTime.utc(2026, 2, 3),

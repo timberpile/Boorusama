@@ -26,12 +26,14 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
     required GelbooruV2PostFetcher fetcher,
     required GelbooruV2PostSingleFetcher fetchSingle,
     required GelbooruV2ImageUrlResolver imageUrlResolver,
+    bool listedFavorites = false,
   }) : super(
          fetch: (tags, page, {limit, options}) => _getPostResults(
            tags,
            page,
            getPosts: fetcher,
            imageUrlResolver: imageUrlResolver,
+           listedFavorites: listedFavorites,
            limit: limit,
            options: options,
          ),
@@ -57,6 +59,7 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
     int page, {
     required GelbooruV2ImageUrlResolver imageUrlResolver,
     required GelbooruV2PostFetcher getPosts,
+    bool listedFavorites = false,
     int? limit,
     PostFetchOptions? options,
   }) async {
@@ -64,15 +67,17 @@ class GelbooruV2PostRepository extends PostRepositoryBuilder<Post> {
 
     return posts.posts
         .map(
-          (e) => gelbooruV2PostDtoToGelbooruPost(
-            e,
-            PostMetadata(
-              page: page,
-              search: tags.join(' '),
-              limit: limit,
-            ),
-            imageUrlResolver,
-          ),
+          (e) => listedFavorites
+              ? realbooruFavoriteListedPost(e)
+              : gelbooruV2PostDtoToGelbooruPost(
+                  e,
+                  PostMetadata(
+                    page: page,
+                    search: tags.join(' '),
+                    limit: limit,
+                  ),
+                  imageUrlResolver,
+                ),
         )
         .toList()
         .toResult(total: posts.count);

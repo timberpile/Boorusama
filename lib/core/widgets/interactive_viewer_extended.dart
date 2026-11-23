@@ -21,7 +21,6 @@ class InteractiveViewerExtended extends ConsumerWidget {
     this.scaleEnabled = true,
     this.constrainPanToContent = false,
     this.snapZoomToFit = false,
-    this.doubleTapZoomMode = DoubleTapZoomMode.classic,
   });
 
   final Widget child;
@@ -37,7 +36,6 @@ class InteractiveViewerExtended extends ConsumerWidget {
   final bool scaleEnabled;
   final bool constrainPanToContent;
   final bool snapZoomToFit;
-  final DoubleTapZoomMode doubleTapZoomMode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,7 +56,6 @@ class InteractiveViewerExtended extends ConsumerWidget {
       scaleEnabled: scaleEnabled,
       constrainPanToContent: constrainPanToContent,
       snapZoomToFit: snapZoomToFit,
-      doubleTapZoomMode: doubleTapZoomMode,
       child: child,
     );
   }

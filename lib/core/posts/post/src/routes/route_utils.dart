@@ -11,6 +11,7 @@ import '../../../../router.dart';
 import '../types/post.dart';
 
 void goToOriginalImagePage(WidgetRef ref, Post post) {
+  if (!post.hasOriginalMedia) return;
   if (post.isMp4) {
     Kurumi.showSimpleSnackBar(
       context: ref.context,

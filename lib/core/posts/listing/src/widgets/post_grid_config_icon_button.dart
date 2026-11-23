@@ -20,21 +20,28 @@ import '../../../../images/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/routes.dart';
 import '../../../../settings/widgets.dart';
+import '../../../../settings/src/widgets/related_posts_grouping_setting.dart';
 import '../../../post/types.dart';
 import '../types/grid_size.dart';
 import '../types/image_list_type.dart';
 import '../types/page_mode.dart';
 import 'post_grid_controller.dart';
+import 'timeline_header_sliver.dart';
 
 class PostGridConfigIconButton<T> extends ConsumerWidget {
   const PostGridConfigIconButton({
     required this.postController,
     super.key,
     this.showBlacklist = true,
+    this.itemCount,
   });
 
   final PostGridController<Post> postController;
   final bool showBlacklist;
+
+  /// Mixed timelines can contain selectable native Groups without any Posts.
+  /// Post-only operations still use the Post controller's actual contents.
+  final int? itemCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -68,10 +75,16 @@ class PostGridConfigIconButton<T> extends ConsumerWidget {
         return ValueListenableBuilder(
           valueListenable: postController.itemsNotifier,
           builder: (_, posts, _) {
-            return posts.isNotEmpty
+            return (itemCount ?? posts.length) > 0
                 ? KurumiPopupMenuButton(
                     iconBackgroundColor:
-                        context.extendedColorScheme.surfaceContainerOverlay,
+                        context
+                                .findAncestorWidgetOfExactType<
+                                  TimelineHeaderSliver
+                                >() !=
+                            null
+                        ? Colors.transparent
+                        : context.extendedColorScheme.surfaceContainerOverlay,
                     iconColor:
                         context.extendedColorScheme.onSurfaceContainerOverlay,
                     items: [
@@ -83,7 +96,7 @@ class PostGridConfigIconButton<T> extends ConsumerWidget {
                         ),
                         onTap: () => selectionModeController.enable(),
                       ),
-                      if (postStatsPageBuilder != null)
+                      if (postStatsPageBuilder != null && posts.isNotEmpty)
                         KurumiPopupMenuItem(
                           onTap: () {
                             Navigator.of(context).push(
@@ -291,7 +304,8 @@ class PostGridActionSheet extends ConsumerWidget {
     required this.onGridChanged,
     required this.onImageListChanged,
     required this.onImageQualityChanged,
-    required this.postController,
+    this.postController,
+    this.showPageMode = true,
     super.key,
   });
 
@@ -300,7 +314,8 @@ class PostGridActionSheet extends ConsumerWidget {
   final void Function(ImageListType imageListType) onImageListChanged;
   final void Function(ImageQuality imageQuality) onImageQualityChanged;
 
-  final PostGridController<Post> postController;
+  final PostGridController<Post>? postController;
+  final bool showPageMode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -319,87 +334,125 @@ class PostGridActionSheet extends ConsumerWidget {
 
     final theme = Kurumi.themeOf(context);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 8,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListingSettingsInteractionBlocker(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 4,
-              vertical: 4,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Bound only the displayed value so the ordinary inline settings row
+        // leaves room for its label even with enlarged text.
+        Widget selectedOption(String label) => ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: ((constraints.maxWidth - 24) / 2 - 48).clamp(
+              0.0,
+              double.infinity,
             ),
-            child: Theme(
-              data: theme.copyWith(
-                listTileTheme: ListTileTheme.of(context).copyWith(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 4,
+          ),
+          child: Text(label),
+        );
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 8,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (postController case final controller?)
+                ListenableBuilder(
+                  listenable: controller.grouping,
+                  builder: (_, _) => controller.grouping.supported
+                      ? const RelatedPostsGroupingSetting(
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ListingSettingsInteractionBlocker(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 4,
+                ),
+                child: Theme(
+                  data: theme.copyWith(
+                    listTileTheme: ListTileTheme.of(context).copyWith(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                      ),
+                      visualDensity: VisualDensity.comfortable,
+                    ),
                   ),
-                  visualDensity: VisualDensity.comfortable,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (showPageMode)
+                        KurumiSettingsTile<PageMode>(
+                          title: Text(
+                            context.t.settings.result_layout.result_layout,
+                          ),
+                          selectedOption: pageMode,
+                          items: const [...PageMode.values],
+                          onChanged: (value) => onModeChanged(value),
+                          optionBuilder: (value) =>
+                              Text(value.localize(context)),
+                          selectedOptionBuilder: (value) =>
+                              selectedOption(value.localize(context)),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      KurumiSettingsTile(
+                        title: Text(
+                          context.t.settings.image_grid.grid_size.grid_size,
+                        ),
+                        selectedOption: gridSize,
+                        items: GridSize.sortedValues,
+                        onChanged: (value) => onGridChanged(value),
+                        optionBuilder: (value) => Text(value.localize(context)),
+                        selectedOptionBuilder: (value) =>
+                            selectedOption(value.localize(context)),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      KurumiSettingsTile<ImageListType>(
+                        title: Text(context.t.settings.image_list.image_list),
+                        selectedOption: imageListType,
+                        items: ImageListType.values,
+                        onChanged: (value) => onImageListChanged(value),
+                        optionBuilder: (value) => Text(value.localize(context)),
+                        selectedOptionBuilder: (value) =>
+                            selectedOption(value.localize(context)),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      KurumiSettingsTile<ImageQuality>(
+                        title: Text(
+                          context.t.settings.image_grid.thumbnail_quality,
+                        ),
+                        selectedOption: imageQuality,
+                        items: ImageQuality.nonOriginalValues,
+                        onChanged: (value) => onImageQualityChanged(value),
+                        optionBuilder: (value) =>
+                            Text(value.localizeThumbnail(context)),
+                        selectedOptionBuilder: (value) =>
+                            selectedOption(value.localizeThumbnail(context)),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  KurumiSettingsTile<PageMode>(
-                    title: Text(context.t.settings.result_layout.result_layout),
-                    selectedOption: pageMode,
-                    items: const [...PageMode.values],
-                    onChanged: (value) => onModeChanged(value),
-                    optionBuilder: (value) => Text(value.localize(context)),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  KurumiSettingsTile(
-                    title: Text(
-                      context.t.settings.image_grid.grid_size.grid_size,
-                    ),
-                    selectedOption: gridSize,
-                    items: GridSize.sortedValues,
-                    onChanged: (value) => onGridChanged(value),
-                    optionBuilder: (value) => Text(value.localize(context)),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  KurumiSettingsTile<ImageListType>(
-                    title: Text(context.t.settings.image_list.image_list),
-                    selectedOption: imageListType,
-                    items: ImageListType.values,
-                    onChanged: (value) => onImageListChanged(value),
-                    optionBuilder: (value) => Text(value.localize(context)),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  KurumiSettingsTile<ImageQuality>(
-                    title: Text(
-                      context.t.settings.image_grid.thumbnail_quality,
-                    ),
-                    selectedOption: imageQuality,
-                    items: ImageQuality.nonOriginalValues,
-                    onChanged: (value) => onImageQualityChanged(value),
-                    optionBuilder: (value) =>
-                        Text(value.localizeThumbnail(context)),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 4,
+                ),
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    openAppearancePage(ref);
+                  },
+                  child: Text(context.t.generic.action.more),
+                ),
               ),
-            ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 8,
-              horizontal: 4,
-            ),
-            child: FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                openAppearancePage(ref);
-              },
-              child: Text(context.t.generic.action.more),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

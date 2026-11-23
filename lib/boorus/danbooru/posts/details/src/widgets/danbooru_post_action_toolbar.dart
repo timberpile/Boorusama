@@ -62,7 +62,36 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
     final loginDetails = ref.watch(danbooruLoginDetailsProvider(config));
     final detailsController = PostDetails.of<Post>(context).controller;
     final hasLogin = loginDetails.hasLogin();
+    final scoped = PostActionToolbarScope.maybeOf(context);
     final voteId = postVote?.voteId;
+    final favorite = FavoritePostButton(
+      isFaved: isFaved,
+      isAuthorized: hasLogin,
+      addFavorite: () => notifier.add(post.id, profileId: profile.id),
+      removeFavorite: () => notifier.remove(post.id, profileId: profile.id),
+    );
+    final favoriteAction = favorite.action(context);
+    final upvote = UpvotePostButton(
+      voteState: voteState,
+      onUpvote: () => ref.danbooruUpvote(post.id),
+      onRemoveUpvote: voteId != null
+          ? () => ref.danbooruRemoveVote(post.id, voteId)
+          : null,
+    );
+    final downvote = DownvotePostButton(
+      voteState: voteState,
+      onDownvote: () => ref.danbooruDownvote(post.id),
+      onRemoveDownvote: voteId != null
+          ? () => ref.danbooruRemoveVote(post.id, voteId)
+          : null,
+    );
+    final share = SharePostButton(
+      post: post,
+      auth: config,
+      configViewer: configViewer,
+      download: download,
+    );
+    final downloadAction = DownloadPostButton.action(context, ref, post);
 
     return SliverToBoxAdapter(
       child: CommonPostButtonsBuilder(
@@ -74,69 +103,67 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
         builder: (context, buttons) {
           return BooruMenuButtonRow(
             crossAxisAlignment: CrossAxisAlignment.start,
+            invokeAfterClose: true,
             maxVisibleButtons: hasLogin ? 7 : 4,
             buttons: [
               if (hasLogin)
                 ButtonData(
-                  required: true,
-                  widget: FavoritePostButton(
-                    isFaved: isFaved,
-                    isAuthorized: loginDetails.hasLogin(),
-                    addFavorite: () =>
-                        notifier.add(post.id, profileId: ref.readConfig.id),
-                    removeFavorite: () =>
-                        notifier.remove(post.id, profileId: ref.readConfig.id),
-                  ),
+                  required: scoped?.groupBookmarkButton == null,
+                  widget: favorite,
+                  onTap: favoriteAction,
+                  enabled: favoriteAction != null,
                   title: context.t.post.action.favorite,
                   icon: const Icon(Icons.favorite_border),
                 ),
               if (hasLogin)
                 ButtonData(
-                  required: true,
-                  widget: UpvotePostButton(
-                    voteState: voteState,
-                    onUpvote: () => ref.danbooruUpvote(post.id),
-                    onRemoveUpvote: voteId != null
-                        ? () => ref.danbooruRemoveVote(post.id, voteId)
-                        : null,
-                  ),
+                  required: scoped?.groupBookmarkButton == null,
+                  widget: upvote,
+                  onTap: upvote.action,
+                  enabled: upvote.action != null,
                   title: context.t.post.action.upvote,
                   icon: const Icon(Icons.thumb_up_outlined),
                 ),
               if (hasLogin)
                 ButtonData(
-                  required: true,
-                  widget: DownvotePostButton(
-                    voteState: voteState,
-                    onDownvote: () => ref.danbooruDownvote(post.id),
-                    onRemoveDownvote: voteId != null
-                        ? () => ref.danbooruRemoveVote(post.id, voteId)
-                        : null,
-                  ),
+                  required: scoped?.groupBookmarkButton == null,
+                  widget: downvote,
+                  onTap: downvote.action,
+                  enabled: downvote.action != null,
                   title: context.t.post.action.downvote,
                   icon: const Icon(Icons.thumb_down_outlined),
                 ),
               ButtonData(
                 required: true,
-                widget: BookmarkPostButton(
-                  post: post,
-                  config: config,
-                ),
+                widget:
+                    scoped?.bookmarkButton ??
+                    BookmarkPostButton(
+                      post: post,
+                      config: config,
+                    ),
                 title: context.t.post.action.bookmark,
                 icon: const Icon(Icons.bookmark_border),
               ),
-              ButtonData(
-                widget: DownloadPostButton(post: post),
-                title: context.t.download.download,
-                icon: const Icon(Icons.download),
-              ),
-              ButtonData(
-                widget: SharePostButton(
-                  post: post,
-                  auth: config,
-                  configViewer: configViewer,
-                  download: download,
+              if (scoped?.groupBookmarkButton case final groupBookmark?)
+                ButtonData(
+                  required: true,
+                  widget: groupBookmark,
+                  title: context.t.content_viewer.bookmark_group,
+                  icon: const Icon(Icons.bookmark_border),
                 ),
+              if (downloadAction != null)
+                ButtonData(
+                  widget: DownloadPostButton(
+                    post: post,
+                    download: downloadAction,
+                  ),
+                  onTap: downloadAction,
+                  title: context.t.download.download,
+                  icon: const Icon(Icons.download),
+                ),
+              ButtonData(
+                widget: share,
+                onTap: share.action(context, ref),
                 title: context.t.post.action.share,
                 icon: const Icon(Icons.share),
               ),
@@ -163,6 +190,7 @@ class DanbooruPostActionToolbar extends ConsumerWidget {
                 title: context.t.post.action.view_tag_history,
                 onPressed: () => goToPostVersionPage(ref, post),
               ),
+              ...?scoped?.additionalButtons,
               ...buttons,
             ],
           );

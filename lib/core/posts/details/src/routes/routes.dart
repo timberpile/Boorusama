@@ -1,7 +1,6 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
-import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
@@ -11,6 +10,7 @@ import '../../../../router.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/types.dart';
 import '../../../post/types.dart';
+import '../../../details_pageview/widgets.dart';
 import '../providers/providers.dart';
 import '../widgets/post_details_page.dart';
 import 'details_route_context.dart';
@@ -18,7 +18,7 @@ import 'details_route_context.dart';
 GoRoute postDetailsRoutes(Ref ref) => GoRoute(
   path: 'details',
   name: '/details',
-  pageBuilder: (context, state) {
+  pageBuilder: (buildContext, state) {
     final context = castOrNull<DetailsRouteContext>(state.extra);
     final settings = ref.read(settingsProvider);
 
@@ -34,8 +34,8 @@ GoRoute postDetailsRoutes(Ref ref) => GoRoute(
     );
 
     return _detailsPageBuilder(
+      buildContext,
       context.isDesktop,
-      context.hero,
       settings,
       state,
       widget,
@@ -46,7 +46,7 @@ GoRoute postDetailsRoutes(Ref ref) => GoRoute(
 GoRoute singlePostDetailsRoutes(Ref ref) => GoRoute(
   path: 'posts/:id',
   name: '/posts',
-  pageBuilder: (_, state) {
+  pageBuilder: (buildContext, state) {
     final context = castOrNull<DetailsRouteContext>(state.extra);
     final segments = state.uri.pathSegments;
     final sourceId =
@@ -88,8 +88,8 @@ GoRoute singlePostDetailsRoutes(Ref ref) => GoRoute(
     );
 
     return _detailsPageBuilder(
+      buildContext,
       context?.isDesktop ?? false,
-      context?.hero ?? false,
       settings,
       state,
       widget,
@@ -98,39 +98,28 @@ GoRoute singlePostDetailsRoutes(Ref ref) => GoRoute(
 );
 
 Page<dynamic> _detailsPageBuilder(
+  BuildContext buildContext,
   bool isDesktop,
-  bool useHero,
   Settings settings,
   GoRouterState state,
   Widget widget,
 ) {
-  final hero = Kurumi.enableHeroTransition && useHero;
-
-  // must use the value from the payload for orientation
-  // Using MediaQuery.orientationOf(context) will cause the page to be rebuilt
-  return !isDesktop
-      ? hero && !settings.reduceAnimations
-            ? PostDetailsHeroPage(
-                key: state.pageKey,
-                name: state.name,
-                child: widget,
-              )
-            : MaterialPage(
-                key: state.pageKey,
-                name: state.name,
-                child: widget,
-              )
-      : hero && !settings.reduceAnimations
-      ? PostDetailsHeroPage(
-          key: state.pageKey,
-          name: state.name,
-          child: widget,
-        )
-      : FastFadePage(
-          key: state.pageKey,
-          name: state.name,
-          child: widget,
-        );
+  if (settings.reduceAnimations ||
+      MediaQuery.disableAnimationsOf(buildContext)) {
+    return NoTransitionPage(
+      key: state.pageKey,
+      name: state.name,
+      child: widget,
+    );
+  }
+  if (isDesktop) {
+    return FastFadePage(key: state.pageKey, name: state.name, child: widget);
+  }
+  return PostDetailsTransitionPage(
+    key: state.pageKey,
+    name: state.name,
+    child: widget,
+  );
 }
 
 class PostDetailsDataLoadingTransitionPage extends ConsumerWidget {
@@ -184,34 +173,13 @@ class PostDetailsDataLoadingTransitionPage extends ConsumerWidget {
   }
 }
 
-class PostDetailsHeroPage<T> extends CustomTransitionPage<T> {
-  PostDetailsHeroPage({
-    required super.child,
-    super.name,
-    super.key,
-  }) : super(
-         transitionDuration: const Duration(milliseconds: 200),
-         reverseTransitionDuration: const Duration(milliseconds: 200),
-         transitionsBuilder: postDetailsTransitionBuilder(),
-       );
+class PostDetailsTransitionPage<T> extends CustomTransitionPage<T> {
+  PostDetailsTransitionPage({required super.child, super.name, super.key})
+    : super(
+        opaque: false,
+        transitionDuration: const Duration(milliseconds: 260),
+        reverseTransitionDuration: const Duration(milliseconds: 210),
+        transitionsBuilder: (context, animation, secondary, child) =>
+            ViewerRouteTransition(animation: animation, child: child),
+      );
 }
-
-RouteTransitionsBuilder postDetailsTransitionBuilder() =>
-    (context, animation, secondaryAnimation, child) => FadeTransition(
-      opacity:
-          Tween<double>(
-            begin: 0,
-            end: 1,
-          ).animate(
-            animation.status == AnimationStatus.reverse
-                ? CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeInQuint,
-                  )
-                : CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutQuint,
-                  ),
-          ),
-      child: child,
-    );

@@ -1,3 +1,5 @@
+import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
+
 import '../../profile_uuid_utils.dart';
 
 import 'dart:async';
@@ -54,6 +56,45 @@ import '../search/following_topics/topic_test_utils.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('anonymous local copies export credential-free source references and reimport without a profile', () async {
+    final harness = _Harness();
+    addTearDown(harness.container.dispose);
+    final topic = FollowingTopic.create(
+      id: '11111111-1111-4111-8111-111111111111',
+      profileId: '22222222-2222-4222-8222-222222222222',
+      query: 'cat',
+      name: 'Copied',
+      position: 0,
+      createdAt: DateTime.utc(2026),
+      localSource: FollowingTopicSource(
+        booruType: 'gelbooruV2',
+        url: 'https://safebooru.org',
+      ),
+    );
+    await harness.repository.restoreForProfile(topic.profileId, [topic]);
+    final data = await harness.source.dataGetter();
+    expect(data.records.single.profile.toJson(), {
+      'id': topic.id,
+      'booruType': 'gelbooruV2',
+      'url': 'https://safebooru.org',
+      'name': 'https://safebooru.org',
+    });
+    expect(await harness.source.unmatchedRecordIds(data, []), isEmpty);
+    final codec = FollowingTopicBackupCodec();
+    expect(
+      codec.parse(
+        ExportDataPayload(
+          version: 2,
+          exportDate: null,
+          exportVersion: null,
+          extraFields: const {'source': 'pinned_searches'},
+          data: codec.encode(data),
+        ),
+      ),
+      data,
+    );
+  });
 
   test('export after an edit contains only the new topic definition', () async {
     final harness = _Harness();
@@ -114,102 +155,19 @@ void main() {
     },
   );
 
-  for (final action in ['cancel', 'dismiss', 'accept', 'change profiles']) {
-    testWidgets('standalone unmatched imports $action before writing', (
-      tester,
-    ) async {
-      final harness = _Harness();
-      addTearDown(harness.container.dispose);
-      await harness.profiles.addAll([_profile]);
-      final beforePins = await harness.repository.getAll();
-      final beforeFeeds = await harness.repository.getFeeds();
-      final beforeOrg = await harness.repository.getOrganization();
-      final context = await _pumpReboot(tester, harness);
-      Object? error;
-      final pending = harness
-          .source
-          .resultExecutor!(
-            _data(includeMissing: true),
-            context,
-          )
-          .then<void>(
-            (_) {},
-            onError: (Object e) {
-              error = e;
-            },
-          );
-      await tester.pumpAndSettle();
-      expect(find.text('Skip unmatched records?'), findsOneWidget);
-      expect(
-        find.text(
-          'No matching profile for 1 topic. Those records will be skipped. Continue importing?',
-        ),
-        findsOneWidget,
-      );
-      expect(await harness.repository.getAll(), beforePins);
-      if (action == 'change profiles') await harness.profiles.clear();
-      if (action == 'dismiss') {
-        Navigator.of(context).pop();
-      } else {
-        await tester.tap(
-          find.text(action == 'cancel' ? 'Cancel' : 'Skip and import'),
-        );
-      }
-      await tester.pumpAndSettle();
-      await pending;
-      if (action == 'accept') {
-        expect(error, isNull);
-        expect((await harness.repository.getAll()).map((p) => p.id), [_id]);
-      } else {
-        expect(error, isA<ImportCancelledException>());
-        expect(await harness.repository.getAll(), beforePins);
-        expect(await harness.repository.getFeeds(), beforeFeeds);
-        expect(await harness.repository.getOrganization(), beforeOrg);
-      }
-    });
-  }
-
-  test(
-    'headless unmatched imports cancel before changing organization',
-    () async {
-      final harness = _Harness();
-      addTearDown(harness.container.dispose);
-      await harness.profiles.addAll([_profile]);
-      final before = await harness.repository.getOrganization();
-      await expectLater(
-        harness.source.resultExecutor!(_data(includeMissing: true), null),
-        throwsA(isA<ImportCancelledException>()),
-      );
-      expect(await harness.repository.getAll(), isEmpty);
-      expect(await harness.repository.getFeeds(), isEmpty);
-      expect(await harness.repository.getOrganization(), before);
-    },
-  );
-
-  test('headless ZIP preflight cancels before replacing profiles', () async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+  test('headless Topic import retains both definitions and reexports source identity', () async {
     final harness = _Harness();
     addTearDown(harness.container.dispose);
-    harness.container.read(allBackupSourcesProvider);
-    await harness.profiles.addAll([_replacement(id: 8)]);
-    final profiles = await harness.profiles.getAll();
-    final directory = Directory.systemTemp.createTempSync('preflight-');
-    addTearDown(() => directory.deleteSync(recursive: true));
-    final file = _writeBackupZip(
-      directory,
-      harness,
-      includePins: true,
-      topicData: _data(includeMissing: true),
+    final data = _data(includeMissing: true);
+    final result = await harness.source.resultExecutor!(data, null);
+    expect(result?.followingTopicCount, 2);
+    expect(result?.skippedProfileCount, 0);
+    expect(await harness.profiles.getAll(), isEmpty);
+    final exported = await harness.source.dataGetter();
+    expect(
+      {for (final record in exported.records) record.id: record.profile},
+      {for (final record in data.records) record.id: record.profile},
     );
-    await expectLater(
-      harness.container
-          .read(bulkBackupServiceProvider)
-          .importFromZip(file.path, null),
-      throwsA(isA<ImportCancelledException>()),
-    );
-    expect(await harness.profiles.getAll(), profiles);
-    expect(await harness.repository.getAll(), isEmpty);
   });
 
   for (final selectedProfiles in [false, true]) {
@@ -253,101 +211,6 @@ void main() {
           );
         }
         expect(await harness.profiles.getAll(), before);
-      },
-    );
-  }
-
-  for (final action in ['cancel', 'accept']) {
-    testWidgets(
-      'ZIP $action checks projected profiles before any source writes',
-      (tester) async {
-        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-        addTearDown(() => debugDefaultTargetPlatformOverride = null);
-        final harness = (await tester.runAsync(() async {
-          final harness = _Harness();
-          await harness.profiles.addAll([
-            _replacement(id: 8, url: 'https://old.test'),
-          ]);
-          await harness.repository.restoreForProfile(
-            '00000000-0000-4000-8000-000000000008',
-            [_runtimePin('00000000-0000-4000-8000-000000000008')],
-          );
-          await harness.container.read(followingTopicsProvider.future);
-          return harness;
-        }))!;
-        addTearDown(harness.container.dispose);
-        var otherWrites = 0;
-        harness.container
-            .read(backupRegistryProvider)
-            .register(
-              _OtherBackupSource(() {
-                otherWrites++;
-              }),
-            );
-        final context = await _pumpReboot(tester, harness);
-        final directory = Directory.systemTemp.createTempSync('preflight-');
-        addTearDown(() => directory.deleteSync(recursive: true));
-        final file = _writeBackupZip(
-          directory,
-          harness,
-          includePins: true,
-          includeOther: true,
-          topicData: _data(includeMissing: true),
-        );
-        await tester.runAsync(() async {
-          final beforeProfiles = await harness.profiles.getAll();
-          final beforePins = await harness.repository.getAll();
-          final beforeOrg = await harness.repository.getOrganization();
-          Object? error;
-          final pending = harness.container
-              .read(bulkBackupServiceProvider)
-              .importFromZip(file.path, context)
-              .then<void>(
-                (_) {},
-                onError: (Object e) {
-                  error = e;
-                },
-              );
-          for (
-            var i = 0;
-            i < 100 && find.text('Skip unmatched records?').evaluate().isEmpty;
-            i++
-          ) {
-            await Future<void>.delayed(const Duration(milliseconds: 10));
-            _renderPendingFrame(tester);
-          }
-          expect(find.text('Skip unmatched records?'), findsOneWidget);
-          expect(
-            find.text(
-              'No matching profile for 1 topic. Those records will be skipped. Continue importing?',
-            ),
-            findsOneWidget,
-          );
-          expect(otherWrites, 0);
-          expect(await harness.profiles.getAll(), beforeProfiles);
-          expect(await harness.repository.getAll(), beforePins);
-          Navigator.of(context).pop(action == 'accept');
-          await pending;
-          if (action == 'cancel') {
-            expect(error, isA<ImportCancelledException>());
-            expect(otherWrites, 0);
-            expect(await harness.profiles.getAll(), beforeProfiles);
-            expect(await harness.repository.getAll(), beforePins);
-            expect(await harness.repository.getOrganization(), beforeOrg);
-          } else {
-            expect(error, isNull);
-            expect(otherWrites, 1);
-            expect((await harness.profiles.getAll()).map((p) => p.id), [
-              profileUuid(4),
-            ]);
-            expect(
-              (await harness.repository.getAll()).single.profileId,
-              profileUuid(4),
-            );
-          }
-        });
-        await tester.pump();
-        debugDefaultTargetPlatformOverride = null;
       },
     );
   }
@@ -1160,16 +1023,19 @@ void main() {
 
   final zipCases = [
     (
-      description: 'ZIP restore restarts only after profiles and topics finish',
+      description:
+          'ZIP restore restarts after mapped and profileless topics finish',
       includePins: true,
       sources: ['profiles', 'pinned_searches'],
-      pinIds: [_id],
+      preserveDetached: false,
+      pinIds: _data(includeMissing: true).records.map((r) => r.id).toList(),
     ),
     (
-      description: 'legacy profile-only ZIP restores without requiring topics',
+      description: 'profile-only ZIP preserves detached topics through restart',
       includePins: false,
       sources: ['profiles'],
-      pinIds: <String>[],
+      preserveDetached: true,
+      pinIds: _data(includeMissing: true).records.map((r) => r.id).toList(),
     ),
   ];
   for (final c in zipCases) {
@@ -1179,6 +1045,12 @@ void main() {
       final fs = _FrameBeforePinnedRead(tester);
       final harness = (await tester.runAsync(() async {
         final harness = _Harness(fs: fs);
+        if (c.preserveDetached) {
+          await harness.source.resultExecutor!(
+            _data(includeMissing: true),
+            null,
+          );
+        }
         await harness.container.read(followingTopicsProvider.future);
         return harness;
       }))!;
@@ -1199,6 +1071,7 @@ void main() {
         directory,
         harness,
         includePins: c.includePins,
+        topicData: _data(includeMissing: true),
       );
 
       await tester.runAsync(() async {
@@ -1212,13 +1085,19 @@ void main() {
       expect(snapshotsAtRestart, hasLength(1));
       expect(mountedDuringCleanup, [true]);
       final snapshot = await tester.runAsync(() => snapshotsAtRestart.single);
-      expect(snapshot!.map((topic) => topic.id), c.pinIds);
+      expect(snapshot!.map((topic) => topic.id), unorderedEquals(c.pinIds));
+      if (c.preserveDetached) {
+        expect(
+          snapshot.every((topic) => topic.localSource?.isImported ?? false),
+          isTrue,
+        );
+      }
       expect(context.mounted, isFalse);
       debugDefaultTargetPlatformOverride = null;
     });
   }
 
-  for (final action in ['matched', 'cancel', 'accept', 'late cancel']) {
+  for (final action in ['matched', 'profileless', 'late cancel']) {
     testWidgets(
       'server restore $action preflights before exposing the profile restart',
       (tester) async {
@@ -1282,23 +1161,10 @@ void main() {
             () => notifier.startImport(context),
             _LocalHttpOverrides(),
           );
-          if (action == 'cancel' || action == 'accept') {
-            await _waitForWarning(tester);
-            expect(await harness.profiles.getAll(), isEmpty);
-            expect(await harness.repository.getAll(), isEmpty);
-            Navigator.of(context).pop(action == 'accept');
-          }
           await pending;
         });
         await tester.pump();
         final state = harness.container.read(importDataProvider(url));
-        if (action == 'cancel') {
-          expect(state.step, ImportStep.selection);
-          expect(await harness.profiles.getAll(), isEmpty);
-          expect(await tester.runAsync(harness.repository.getAll), isEmpty);
-          expect(state.reloadPayload, isNull);
-          return;
-        }
         if (action == 'late cancel') {
           expect(state.step, ImportStep.done);
           expect(state.reloadPayload?.configs.map((profile) => profile.id), [
@@ -1341,7 +1207,13 @@ void main() {
           everyElement(isA<ImportDone>()),
         );
         final topics = await tester.runAsync(harness.repository.getAll);
-        expect(topics!.map((topic) => topic.id), [_id]);
+        expect(
+          topics!.map((topic) => topic.id),
+          unorderedEquals(
+            _data(includeMissing: action == 'profileless').records
+                .map((r) => r.id),
+          ),
+        );
         expect(state.reloadPayload?.configs.map((config) => config.id), [
           profileUuid(4),
         ]);
@@ -1381,15 +1253,6 @@ void main() {
     ]);
     expect(context.mounted, isFalse);
   });
-}
-
-Future<void> _waitForWarning(WidgetTester tester) async {
-  for (var i = 0; i < 100; i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-    _renderPendingFrame(tester);
-    if (find.text('Skip unmatched records?').evaluate().isNotEmpty) return;
-  }
-  fail('Missing profile warning did not appear');
 }
 
 Future<BuildContext> _pumpReboot(

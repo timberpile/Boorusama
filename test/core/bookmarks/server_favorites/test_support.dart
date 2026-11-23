@@ -5,6 +5,9 @@ import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_objec
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
+
+import '../../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/server_favorites.dart';
@@ -97,12 +100,15 @@ class FavoriteHarness {
   late final FavoriteTestProfiles profiles;
   late final FavoriteTestSource source;
   final sources = <String, FavoriteTestSource>{};
-  late final ProviderContainer container;
-  late final BookmarkHiveRepository bookmarks;
-  late final BookmarkGroupRepositoryHive groups;
+  late ProviderContainer container;
+  late BookmarkHiveRepository bookmarks;
+  late BookmarkGroupRepositoryHive groups;
   late final Directory directory;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<BookmarkGroupHiveObject> groupBox;
+  late Box<dynamic> organizationBox;
+  late BookmarkTestStorage bookmarkStorage;
+  List<Override> Function(BooruConfig)? _extraOverrides;
   late BooruConfig profile;
 
   Future<void> open({
@@ -135,16 +141,24 @@ class FavoriteHarness {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
+    _extraOverrides = extraOverrides;
+    await _openRepositories();
+  }
+
+  Future<void> _openRepositories({bool warmLibrary = true}) async {
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('favorites-posts');
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('favorites-groups');
-    bookmarks = BookmarkHiveRepository(bookmarkBox);
+    organizationBox = await Hive.openBox<dynamic>('favorites-organization');
+    bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
+    bookmarks = bookmarkStorage.repository(bookmarkBox);
     groups = BookmarkGroupRepositoryHive(
       groupBox,
-      organizationBox: MemoryBox<dynamic>(),
+      organizationBox: organizationBox,
     );
     container = ProviderContainer(
       overrides: [
-        ...?extraOverrides?.call(profile),
+        ...bookmarkStorage.overrides,
+        ...?_extraOverrides?.call(profile),
         miscDataStoreProvider.overrideWithValue(store),
         booruConfigRepoProvider.overrideWithValue(profiles),
         booruConfigProvider.overrideWith(
@@ -165,7 +179,7 @@ class FavoriteHarness {
         ),
       ],
     );
-    await container.read(bookmarkLibraryProvider.future);
+    if (warmLibrary) await container.read(bookmarkLibraryProvider.future);
     await container.read(serverFavoriteSettingsProvider.future);
   }
 
@@ -174,10 +188,23 @@ class FavoriteHarness {
     DateTime.utc(2026),
   ).copyWith(origin: postOriginFromConfig(profile));
 
-  Future<void> close() async {
+  /// Dispose providers and reopen every Hive file, including mixed membership
+  /// storage, so preservation checks cannot pass from retained memory state.
+  Future<void> restart({bool warmLibrary = true}) async {
     container.dispose();
+    await bookmarkStorage.close();
     await bookmarkBox.close();
     await groupBox.close();
+    await organizationBox.close();
+    await _openRepositories(warmLibrary: warmLibrary);
+  }
+
+  Future<void> close() async {
+    container.dispose();
+    await bookmarkStorage.close();
+    await bookmarkBox.close();
+    await groupBox.close();
+    await organizationBox.close();
     await directory.delete(recursive: true);
   }
 }

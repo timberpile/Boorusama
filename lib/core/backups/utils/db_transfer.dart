@@ -36,43 +36,35 @@ Future<shelf.Response> createDbStreamResponse({
   );
 }
 
-Future<void> downloadAndReplaceDb({
+/// Downloads and verifies a database at a caller-owned staging path.
+Future<void> downloadDbToFile({
   required AppFileSystem fs,
   required Dio dio,
   required String url,
   required String filePath,
   String checksumHeader = _kChecksumHeader,
 }) async {
-  final tempFilePath = '$filePath.tmp';
-  final sink = await fs.openWrite(tempFilePath);
-
-  final response = await dio.get(
+  final response = await dio.get<ResponseBody>(
     url,
     options: Options(responseType: ResponseType.stream),
   );
-
-  // Retrieve expected checksum from headers.
   final expectedChecksum = response.headers.value(checksumHeader);
   if (expectedChecksum == null) {
-    throw Exception('No checksum provided in header.');
+    await response.data?.stream.listen(null).cancel();
+    throw const FormatException('No checksum provided in header');
   }
 
-  await sink.addStream(response.data.stream.cast<List<int>>());
-  await sink.close();
+  final sink = await fs.openWrite(filePath);
+  try {
+    await sink.addStream(response.data!.stream);
+  } finally {
+    await sink.close();
+  }
 
-  final checksum = await computeFileChecksum(fs: fs, filePath: tempFilePath);
+  final checksum = await computeFileChecksum(fs: fs, filePath: filePath);
   if (checksum != expectedChecksum) {
-    if (fs.fileExistsSync(tempFilePath)) {
-      await fs.deleteFile(tempFilePath);
-    }
-    throw Exception('Database file is corrupted');
+    throw const FormatException('Database file is corrupted');
   }
-
-  if (fs.fileExistsSync(filePath)) {
-    await fs.deleteFile(filePath);
-  }
-
-  await fs.renameFile(tempFilePath, filePath);
 }
 
 Future<String> computeFileChecksum({

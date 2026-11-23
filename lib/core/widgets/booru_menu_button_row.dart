@@ -21,6 +21,7 @@ class BooruMenuButtonRow extends StatelessWidget {
     this.onOpened,
     this.onClosed,
     this.onMenuTap,
+    this.invokeAfterClose = false,
     super.key,
   });
 
@@ -37,6 +38,7 @@ class BooruMenuButtonRow extends StatelessWidget {
   final VoidCallback? onOpened;
   final VoidCallback? onClosed;
   final VoidCallback? onMenuTap;
+  final bool invokeAfterClose;
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +60,7 @@ class BooruMenuButtonRow extends StatelessWidget {
         onOpened?.call();
       },
       onClosed: onClosed,
+      invokeAfterClose: invokeAfterClose,
       onMenuTap: () {
         behavior.adaptiveMenuFeedback?.call();
         onMenuTap?.call();

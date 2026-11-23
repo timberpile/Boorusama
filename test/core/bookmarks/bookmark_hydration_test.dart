@@ -1,6 +1,10 @@
+import 'package:boorusama/core/blacklists/providers.dart';
+
 import 'dart:async';
 import 'dart:io';
 
+import 'package:booru_clients/src/gelbooru_v2/post_v2_dto.dart';
+import 'package:boorusama/boorus/gelbooru_v2/posts/parser.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_data.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
@@ -24,6 +28,9 @@ import 'package:boorusama/core/errors/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
@@ -37,7 +44,7 @@ final config = BooruConfig.fromJson({
   'id': '00000000-0000-4000-8000-000000000001',
 });
 
-Bookmark legacy(int id, {BooruConfig? profile}) => Bookmark(
+PostBookmark legacy(int id, {BooruConfig? profile}) => PostBookmark(
   id: id,
   booruId: (profile ?? config).booruId,
   createdAt: DateTime(2026),
@@ -64,6 +71,7 @@ void main() {
   late Directory directory;
   late Box<BookmarkHiveObject> bookmarkBox;
   late Box<BookmarkGroupHiveObject> groupBox;
+  late BookmarkTestStorage storage;
   late _CountingRepository repository;
   late BookmarkGroupRepositoryHive groups;
   late BookmarkLibraryService library;
@@ -78,8 +86,14 @@ void main() {
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    storage = await BookmarkTestStorage.open(bookmarkBox);
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('groups');
-    repository = _CountingRepository(bookmarkBox);
+    repository = _CountingRepository(
+      bookmarkBox,
+      groupPayloadBox: storage.groupPayloadBox,
+      metadataBox: storage.metadataBox,
+      coordinator: storage.coordinator,
+    );
     groups = BookmarkGroupRepositoryHive(groupBox);
     library = BookmarkLibraryService(
       bookmarkRepository: repository,
@@ -88,12 +102,13 @@ void main() {
     );
   });
   tearDown(() async {
+    await storage.close();
     await bookmarkBox.close();
     await groupBox.close();
     await directory.delete(recursive: true);
   });
 
-  Future<List<Bookmark>> load() async => (await library.load()).items;
+  Future<List<PostBookmark>> load() async => (await library.load()).items;
   BookmarkRecoveryService recovery({
     Future<Post?> Function(BooruConfig, int)? fetch,
     bool codecAvailable = true,
@@ -103,7 +118,7 @@ void main() {
   );
   Future<BookmarkHydrationProgress> run({
     List<BooruConfig>? profiles,
-    List<Bookmark>? bookmarks,
+    List<PostBookmark>? bookmarks,
     BookmarkRecoveryService? recover,
     BookmarkHydrationCancellation? cancellation,
     void Function(BookmarkHydrationProgress)? onProgress,
@@ -123,12 +138,83 @@ void main() {
       );
 
   test(
+    'listed detail lookup preserves the bookmark and rechecks access',
+    () async {
+      final reader = BooruConfig.fromJson({
+        ...config.toJson(),
+        'url': 'https://realbooru.com',
+      });
+      final original = legacy(42, profile: reader);
+      final exact = original.post.copyWith(
+        booruData: const GelbooruV2PostData(hasNotes: true),
+      );
+      final listed = realbooruFavoriteListedPost(
+        PostV2Dto(id: exact.id, previewUrl: exact.thumbnailImageUrl),
+      ).copyWith(origin: exact.origin);
+      final preview = original.copyWith(
+        post: listed,
+        snapshot: const StoredPostCodec().encode(listed),
+      );
+      var saved = preview;
+      var requests = 0;
+      var upgrades = 0;
+      var authorized = true;
+      var visible = false;
+      final service = BookmarkRecoveryService(
+        fetchPost: (_, _) async => throw StateError('Legacy recovery selected'),
+        fetchListedPost: (config, id) async {
+          expect(config, reader);
+          expect(id, exact.id);
+          requests++;
+          return exact;
+        },
+        latestBookmark: (_) async => saved,
+        codecFor: (_) => const GelbooruV2PostCodec(),
+        resolutionGuard: (_) =>
+            () => authorized,
+        canUseResolved: (_, _) async => visible,
+        commitResolved: (existing, resolved, current) async {
+          expect(existing, same(preview));
+          expect(current(), isTrue);
+          saved = existing.copyWith(
+            post: resolved,
+            snapshot: const StoredPostCodec().encode(
+              resolved,
+              dataCodec: const GelbooruV2PostCodec(),
+            ),
+          );
+          upgrades++;
+        },
+      );
+
+      expect(await service.resolveListedPost(preview.post, reader), isNull);
+      expect(saved, same(preview));
+      expect(upgrades, 0);
+
+      visible = true;
+      expect(await service.resolveListedPost(preview.post, reader), exact);
+      expect(saved.id, preview.id);
+      expect(saved.createdAt, preview.createdAt);
+      expect(saved.post.origin, preview.post.origin);
+      expect(upgrades, 1);
+      expect(await service.resolveListedPost(preview.post, reader), exact);
+
+      visible = false;
+      expect(await service.resolveListedPost(preview.post, reader), isNull);
+      authorized = false;
+      expect(await service.resolveListedPost(preview.post, reader), isNull);
+      expect(requests, 2);
+      expect(upgrades, 1);
+    },
+  );
+
+  test(
     'detects legacy and unknown snapshots while leaving native snapshots alone',
     () {
       final original = legacy(1);
       expect(needsBookmarkHydration(original), isTrue);
       final post = native(1);
-      final complete = Bookmark.fromSnapshot(
+      final complete = PostBookmark.fromSnapshot(
         id: 1,
         createdAt: original.createdAt,
         updatedAt: original.updatedAt,
@@ -150,7 +236,7 @@ void main() {
       );
       expect(
         needsBookmarkHydration(
-          Bookmark.fromSnapshot(
+          PostBookmark.fromSnapshot(
             id: 1,
             createdAt: original.createdAt,
             updatedAt: original.updatedAt,
@@ -189,7 +275,7 @@ void main() {
       expect((result.updated, result.skipped, result.failed), (2, 0, 1));
       final reloaded = await load();
       expect(reloaded.map((b) => b.id).toSet(), ids);
-      expect(reloaded.every((b) => b.createdAt == DateTime(2026)), isTrue);
+      expect(reloaded.map((b) => b.createdAt), everyElement(DateTime(2026)));
       expect(reloaded.where(needsBookmarkHydration).map((b) => b.postId), [2]);
       expect((await groups.getGroup(first.id))!.bookmarkIds, ids);
       expect((await groups.getGroup(second.id))!.bookmarkIds, ids);
@@ -235,7 +321,7 @@ void main() {
           }),
         ];
       }
-      List<Bookmark>? candidates;
+      List<PostBookmark>? candidates;
       if (scenario == 'missing ID') {
         final bookmarks = await load();
         candidates = [
@@ -266,7 +352,7 @@ void main() {
       expect(result.processed, 2);
       final expectedReason = switch (scenario) {
         'missing profile' => BookmarkHydrationLogReason.missingProfile,
-        'ambiguous profile' => BookmarkHydrationLogReason.ambiguousProfile,
+        'ambiguous profile' => BookmarkHydrationLogReason.updated,
         'missing ID' => BookmarkHydrationLogReason.missingPostId,
         'removed post' => BookmarkHydrationLogReason.removedPost,
         'unavailable codec' => BookmarkHydrationLogReason.unsupportedSnapshot,
@@ -282,10 +368,11 @@ void main() {
       expect(result.logEntries, hasLength(2));
       if ([
         'missing profile',
-        'ambiguous profile',
         'unavailable codec',
       ].contains(scenario)) {
         expect((result.updated, result.skipped, result.failed), (0, 2, 0));
+      } else if (scenario == 'ambiguous profile') {
+        expect((result.updated, result.skipped, result.failed), (2, 0, 0));
       } else if (scenario == 'request failure') {
         expect((result.updated, result.skipped, result.failed), (1, 0, 1));
       } else {
@@ -375,12 +462,16 @@ void main() {
           now = now.add(duration);
         },
         recover: recovery(
-          fetch: (_, id) async {
+          fetch: (profile, id) async {
             calls[id] = (calls[id] ?? 0) + 1;
             if ((id == 1 && calls[id] == 1) || (id == 4 && calls[id]! <= 2)) {
               throw ServerError(httpStatusCode: 503, message: 'Unavailable');
             }
-            return id == 3 ? null : native(id);
+            return id == 3
+                ? null
+                : native(
+                    id,
+                  ).copyWith(origin: legacy(id, profile: profile).post.origin);
           },
         ),
       );
@@ -641,7 +732,7 @@ void main() {
   );
 
   test(
-    'uses the origin profile hint instead of choosing an arbitrary matching profile',
+    'uses the first compatible reader even when the origin hints at another profile',
     () async {
       final original = legacy(1);
       final post = original.post.copyWith(
@@ -653,7 +744,7 @@ void main() {
         ),
       );
       await repository.addBookmarkWithBookmarks([
-        Bookmark.fromSnapshot(
+        PostBookmark.fromSnapshot(
           id: original.id,
           createdAt: original.createdAt,
           updatedAt: original.updatedAt,
@@ -678,7 +769,7 @@ void main() {
           },
         ),
       );
-      expect(used?.id, config.id);
+      expect(used?.id, '00000000-0000-4000-8000-000000000002');
     },
   );
 
@@ -936,6 +1027,8 @@ void main() {
       var cancelledOnce = false;
       container = ProviderContainer(
         overrides: [
+          ...storage.overrides,
+          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
@@ -1085,7 +1178,7 @@ void main() {
   );
 
   test(
-    'profiles on the same site share a sequential queue and keep their own credentials',
+    'profiles on the same site share a sequential queue and use the first reader',
     () async {
       final other = BooruConfig.fromJson({
         ...config.toJson(),
@@ -1133,7 +1226,7 @@ void main() {
         release.complete();
         expect((await future).updated, 2);
       }
-      expect(usedProfiles, [config.id, other.id]);
+      expect(usedProfiles, [config.id, config.id]);
     },
   );
 
@@ -1149,12 +1242,17 @@ void main() {
       await repository.addBookmarkWithBookmarks([legacy(1)]);
       final container = ProviderContainer(
         overrides: [
+          ...storage.overrides,
+          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
             (ref, _) => const DefaultImageUrlResolver(),
           ),
           settingsProvider.overrideWithValue(Settings.defaultSettings),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: [config]),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -1241,12 +1339,17 @@ void main() {
       ]);
       final container = ProviderContainer(
         overrides: [
+          ...storage.overrides,
+          blacklistTagsProvider.overrideWith((ref, filter) async => {}),
           bookmarkRepoProvider.overrideWith((ref) => repository),
           bookmarkGroupRepoProvider.overrideWith((ref) => groups),
           bookmarkUrlResolverProvider.overrideWith(
             (ref, _) => const DefaultImageUrlResolver(),
           ),
           settingsProvider.overrideWithValue(Settings.defaultSettings),
+          booruConfigProvider.overrideWith(
+            () => BooruConfigNotifier(initialConfigs: [config]),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -1279,12 +1382,16 @@ void main() {
 }
 
 class _CountingRepository extends BookmarkHiveRepository {
-  _CountingRepository(super._box)
-    : super(postDataCodec: (_) => const GelbooruV2PostCodec());
+  _CountingRepository(
+    super._posts, {
+    required super.groupPayloadBox,
+    required super.metadataBox,
+    required super.coordinator,
+  }) : super(postDataCodec: (_) => const GelbooruV2PostCodec());
   var reads = 0;
   int? failPostId;
   @override
-  Future<void> updateBookmark(Bookmark bookmark) {
+  Future<void> updateBookmark(PostBookmark bookmark) {
     if (bookmark.postId == failPostId) throw StateError('write failed');
     return super.updateBookmark(bookmark);
   }

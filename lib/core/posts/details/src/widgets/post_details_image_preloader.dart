@@ -1,3 +1,7 @@
+import '../../../../boorus/booru/types.dart';
+import '../../../../../boorus/pixiv/works/work_creator_avatar.dart';
+import '../../../../content/groups/group_metadata.dart';
+
 import 'dart:async';
 
 import '../../../../navigation/destination_activity.dart';
@@ -11,6 +15,9 @@ import 'package:kurumi/material.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../content/content_access.dart';
+import '../../../../content/content_access_provider.dart';
+import '../providers/viewer_source_access_provider.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
 import '../../../../settings/providers.dart';
@@ -23,16 +30,23 @@ import '../../../media_preload/src/preload_metadata_queue.dart';
 import '../../../media_preload/src/viewer_preload_metadata.dart';
 import '../../../post/types.dart';
 import '../providers/providers.dart';
+import '../providers/media_group_provider.dart';
+import '../types/viewer_entry.dart';
 import 'post_details_page_view_scope.dart';
 
 class MixedPostDetailsImagePreloader extends ConsumerStatefulWidget {
   const MixedPostDetailsImagePreloader({
     required this.child,
     required this.posts,
+    this.sequence,
     super.key,
   });
 
   final List<Post> posts;
+  final ViewerEntrySequence? sequence;
+  int get pageCount => sequence?.entries.length ?? posts.length;
+  Post? postAt(int page) =>
+      sequence == null ? posts.elementAtOrNull(page) : sequence!.postAt(page);
   final Widget child;
 
   @override
@@ -42,26 +56,47 @@ class MixedPostDetailsImagePreloader extends ConsumerStatefulWidget {
 
 class _MixedPostDetailsImagePreloaderState
     extends ConsumerState<MixedPostDetailsImagePreloader> {
-  late final _preloadManager = GroupedPreloadManager<BooruConfigAuth>(
-    managerBuilder: (auth) {
-      final dio = ref.read(dioForWidgetProvider(auth));
-      return ref.read(
-        preloadManagerProvider((dio: dio, authConfig: auth)),
+  final _subscriptions =
+      <ContentPreloadRequest, ProviderSubscription<PreloadManager>>{};
+  late final _preloadManager =
+      GroupedPreloadManager<({BooruConfigAuth auth, ContentAccessKey? access})>(
+        managerBuilder: (group) {
+          final auth = group.auth;
+          if (group.access case final key?) {
+            final request = (auth: auth, access: key);
+            final subscription = ref.listenManual(
+              contentPreloadManagerProvider(request),
+              (_, _) {},
+            );
+            _subscriptions[request] = subscription;
+            return subscription.read();
+          }
+          final dio = ref.read(dioForWidgetProvider(auth));
+          return ref.read(
+            preloadManagerProvider((dio: dio, authConfig: auth)),
+          );
+        },
+        onGroupRemoved: (group) {
+          if (group.access case final key?) {
+            _subscriptions.remove((auth: group.auth, access: key))?.close();
+          }
+        },
       );
-    },
-  );
-  late final _metadata = PreloadMetadataQueue<(Post, BooruConfig), Post>(
-    onResolved: () {
-      if (mounted && _pageViewController != null) {
-        _dispatchImages(_controller.page);
-      }
-    },
-  );
+  late final _metadata =
+      PreloadMetadataQueue<(Post, BooruConfig, ContentAccessKey?), Post>(
+        onResolved: () {
+          if (mounted && _pageViewController != null) {
+            _dispatchImages(_controller.page);
+          }
+        },
+      );
+  final _workStates = <int, MediaGroupState>{};
   final _directionHistory = DirectionHistory();
   PostDetailsPageViewController? _pageViewController;
   int? _lastPage;
   bool _wasActive = false;
   bool _refreshScheduled = false;
+  late int _lastItemCount = widget.pageCount;
 
   PostDetailsPageViewController get _controller => _pageViewController!;
 
@@ -79,7 +114,11 @@ class _MixedPostDetailsImagePreloaderState
   @override
   void didUpdateWidget(MixedPostDetailsImagePreloader oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.posts, widget.posts)) _scheduleRefresh();
+    if (!identical(oldWidget.posts, widget.posts) ||
+        _lastItemCount != widget.pageCount) {
+      _scheduleRefresh();
+    }
+    _lastItemCount = widget.pageCount;
   }
 
   @override
@@ -114,6 +153,17 @@ class _MixedPostDetailsImagePreloaderState
     _directionHistory.addDirection(currentPage, _lastPage);
     _lastPage = currentPage;
     _preloadAdjacentPages(currentPage);
+    setState(() {});
+  }
+
+  BooruConfig? _configAt(int index, Post post, List<BooruConfig> profiles) {
+    final binding = widget.sequence?.entries[index].source;
+    if (binding != null)
+      return ref.read(viewerSourceAccessProvider(binding))?.config;
+    return switch (const PostOriginResolver().resolve(post.origin, profiles)) {
+      ResolvedPostOrigin(:final config) => config,
+      _ => null,
+    };
   }
 
   void _preloadAdjacentPages(int currentPage) {
@@ -142,7 +192,7 @@ class _MixedPostDetailsImagePreloaderState
     final nearby = strategy
         .getResolutionIndices(
           currentPage: currentPage,
-          itemCount: widget.posts.length,
+          itemCount: widget.pageCount,
         )
         .where((index) => index != currentPage)
         .toList();
@@ -158,26 +208,48 @@ class _MixedPostDetailsImagePreloaderState
 
     nearby.sort((a, b) => priority(a).compareTo(priority(b)));
     final indices = [
-      if (currentPage >= 0 && currentPage < widget.posts.length) currentPage,
+      if (currentPage >= 0 && currentPage < widget.pageCount) currentPage,
       if (_directionHistory.entryPattern != EntryPattern.direct)
         ...nearby.take(4),
     ];
-    final requests = <PreloadMetadataRequest<(Post, BooruConfig), Post>>[];
+    final requests =
+        <
+          PreloadMetadataRequest<(Post, BooruConfig, ContentAccessKey?), Post>
+        >[];
     for (final index in indices) {
-      final post = widget.posts[index];
-      final resolution = const PostOriginResolver().resolve(
-        post.origin,
-        configs,
-      );
-      if (resolution case ResolvedPostOrigin(:final config)) {
+      final post = widget.postAt(index);
+      if (post == null || post.requiresDetailLookup) continue;
+      final config = _configAt(index, post, configs);
+      final binding = widget.sequence?.entries[index].source;
+      final accessKey = binding == null
+          ? null
+          : ref.read(viewerSourceAccessProvider(binding))?.key;
+      if (accessKey != null &&
+          ref
+                  .read(
+                    contentPostVisibilityProvider((
+                      access: accessKey,
+                      post: post,
+                    )),
+                  )
+                  .asData
+                  ?.value !=
+              true)
+        continue;
+      if (config != null) {
         final repository = ref.read(booruRepoProvider(config.auth));
         if (repository case final ViewerPreloadMetadataResolver resolver) {
           final load = resolver.viewerPreloadMetadataLoader(post, config);
           if (load != null) {
             requests.add((
-              key: (post, config),
+              key: (post, config, accessKey),
               load: () async {
                 final result = await load();
+                if (!mounted ||
+                    (binding != null &&
+                        ref.read(viewerSourceAccessProvider(binding))?.key !=
+                            accessKey))
+                  return null;
                 if (result == null ||
                     result.id != post.id ||
                     result.origin.booruType != post.origin.booruType ||
@@ -211,33 +283,65 @@ class _MixedPostDetailsImagePreloaderState
       _preloadManager.preloadWithStrategy(
         strategy: DirectionBasedPreloadStrategy(
           directionHistory: _directionHistory,
+          options: PreloadStrategyOptions(
+            preloadDisplayOnEntry: _workStates.isNotEmpty,
+          ),
         ),
         currentPage: currentPage,
-        itemCount: widget.posts.length,
+        itemCount: widget.pageCount,
         mediaBuilder: (index) {
           if (diagnosticRecording) diagnosticResolved++;
-          final input = widget.posts[index];
-          final resolution = const PostOriginResolver().resolve(
-            input.origin,
-            configs,
-          );
-          final config = switch (resolution) {
-            ResolvedPostOrigin(:final config) => config,
-            _ => null,
-          };
+          final work = _workStates[index];
+          final workPost = work?.postAt(0);
+          if (workPost != null && work?.access?.config != null) {
+            final access = work!.access!;
+            final config = access.config!;
+            final resolver = ref.read(mediaUrlResolverProvider(config.auth));
+            final media = thumbnailOnlyViewerPreloadMedia(
+              workPost,
+              thumbnailUrl: workPost.sampleImageUrl,
+              displayUrl: resolver.resolveMediaUrl(workPost, config.viewer),
+            );
+            return media == null
+                ? null
+                : (
+                    group: (auth: config.auth, access: access.key),
+                    media: media,
+                  );
+          }
+          final input = widget.postAt(index);
+          if (input == null) return null;
+          final config = _configAt(index, input, configs);
           if (config == null) return null;
+          final binding = widget.sequence?.entries[index].source;
+          final accessKey = binding == null
+              ? null
+              : ref.read(viewerSourceAccessProvider(binding))?.key;
+          if (binding != null && accessKey == null) return null;
           final repository = ref.read(booruRepoProvider(config.auth));
           final needsMetadata = switch (repository) {
             final ViewerPreloadMetadataResolver resolver =>
               resolver.viewerPreloadMetadataLoader(input, config) != null,
             _ => false,
           };
-          final resolved = _metadata.peek((input, config));
+          final resolved = _metadata.peek((input, config, accessKey));
           final post = resolved ?? input;
+          if (accessKey != null &&
+              ref
+                      .read(
+                        contentPostVisibilityProvider((
+                          access: accessKey,
+                          post: post,
+                        )),
+                      )
+                      .asData
+                      ?.value !=
+                  true)
+            return null;
           final auth = config.auth;
           if (post.isVideo) {
             return (
-              group: auth,
+              group: (auth: auth, access: accessKey),
               media: ImageMedia.fromUrl(
                 post.videoThumbnailUrl,
                 estimatedSizeBytes: post.fileSize,
@@ -252,7 +356,9 @@ class _MixedPostDetailsImagePreloaderState
               post,
               displayUrl: resolved == null ? null : imageUrl,
             );
-            return media == null ? null : (group: auth, media: media);
+            return media == null
+                ? null
+                : (group: (auth: auth, access: accessKey), media: media);
           }
           final thumbnail = ref
               .read(gridThumbnailUrlGeneratorProvider(auth))
@@ -270,13 +376,15 @@ class _MixedPostDetailsImagePreloaderState
                       : null
                 : imageUrl,
           );
-          return media == null ? null : (group: auth, media: media);
+          return media == null
+              ? null
+              : (group: (auth: auth, access: accessKey), media: media);
         },
       );
     });
     performanceRecorder.count(
       PerfCounter.mixedCollectionSize,
-      widget.posts.length,
+      widget.pageCount,
     );
     performanceRecorder.count(
       PerfCounter.mixedResolvedPosts,
@@ -294,6 +402,61 @@ class _MixedPostDetailsImagePreloaderState
 
   @override
   Widget build(BuildContext context) {
+    final previousWorks = Map<int, MediaGroupState>.of(_workStates);
+    _workStates.clear();
+    if (_pageViewController != null &&
+        NavigationActivity.of(context) &&
+        ref.watch(automaticMediaLoadingEnabledProvider)) {
+      // Keep only the current and immediately adjacent native Work manifests
+      // alive. They share the foreground's source/envelope and actor lifetime.
+      for (final index in [
+        _controller.page - 1,
+        _controller.page,
+        _controller.page + 1,
+      ]) {
+        final entries = widget.sequence?.entries;
+        if (entries == null || index < 0 || index >= entries.length) {
+          continue;
+        }
+        final entry = entries[index];
+        if (entry is! GroupViewerEntry || entry.source == null) {
+          continue;
+        }
+        if (entry.contentReference.engine != BooruType.pixiv) continue;
+        _workStates[index] = ref.watch(mediaGroupProvider(entry));
+      }
+      if (previousWorks.length != _workStates.length ||
+          _workStates.entries.any(
+            (entry) => !identical(previousWorks[entry.key], entry.value),
+          )) {
+        _scheduleRefresh();
+      }
+    }
+    if (_pageViewController != null) {
+      final indices =
+          DirectionBasedPreloadStrategy(directionHistory: _directionHistory)
+              .getResolutionIndices(
+                currentPage: _controller.page,
+                itemCount: widget.pageCount,
+              );
+      for (final index in indices) {
+        final binding = widget.sequence?.entries[index].source;
+        if (binding != null) {
+          final access = ref.watch(viewerSourceAccessProvider(binding));
+          final post = widget.postAt(index);
+          if (access != null && post != null) {
+            ref.listen(
+              contentPostVisibilityProvider((access: access.key, post: post)),
+              (_, _) => _scheduleRefresh(),
+            );
+          }
+          ref.listen(
+            viewerSourceAccessProvider(binding),
+            (_, _) => _scheduleRefresh(),
+          );
+        }
+      }
+    }
     ref.listen(booruConfigProvider, (_, _) => _scheduleRefresh());
     ref.listen(automaticMediaLoadingEnabledProvider, (_, enabled) {
       if (!enabled) {
@@ -303,7 +466,16 @@ class _MixedPostDetailsImagePreloaderState
         _scheduleRefresh();
       }
     });
-    return widget.child;
+    return PixivWorkAvatarWindow(
+      creators: [
+        for (final state in _workStates.values)
+          if (state.access case final access?)
+            for (final creator
+                in state.details?.creators ?? const <CreatorRef>[])
+              (creator: creator, access: access),
+      ],
+      child: widget.child,
+    );
   }
 }
 

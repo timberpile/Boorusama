@@ -72,6 +72,6 @@ Post currentDetailPost(WidgetTester tester) => tester
     .widget<PostDetailsPageScaffold>(
       postDetailsScaffold().first,
     )
-    .controller
+    .controller!
     .currentPost
     .value;

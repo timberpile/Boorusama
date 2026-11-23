@@ -90,7 +90,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: find.byType(AppBar),
-        matching: find.byTooltip('More'),
+        matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
       ),
     );
     await settle(tester);

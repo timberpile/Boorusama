@@ -2,6 +2,21 @@ import 'package:boorusama/core/posts/shares/src/share_payloads.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('post ID is absent when there is no site identifier', () {
+    final payloads = PostSharePayloads.build(
+      isVideo: false,
+      viewerImageUrl: '',
+      originalUrl: '',
+      booruLink: 'https://site.test/',
+      sourceLink: null,
+      postId: null,
+    );
+    expect(
+      payloads.links.map((payload) => payload.id),
+      isNot(contains(SharePayloadId.postId)),
+    );
+  });
+
   test('image and original stay distinct when their URLs coincide', () {
     final payloads = PostSharePayloads.build(
       isVideo: false,
@@ -9,7 +24,7 @@ void main() {
       originalUrl: 'https://site.test/full.jpg',
       booruLink: 'https://site.test/posts/42',
       sourceLink: null,
-      postId: 42,
+      postId: '42',
     );
 
     expect(payloads.media.map((p) => p.id), [
@@ -31,7 +46,7 @@ void main() {
       originalUrl: '',
       booruLink: '',
       sourceLink: null,
-      postId: 42,
+      postId: '42',
     );
 
     expect(payloads.links.map((p) => p.id), [
@@ -55,7 +70,7 @@ void main() {
         originalUrl: '',
         booruLink: 'https://site.test/posts/42',
         sourceLink: null,
-        postId: 42,
+        postId: '42',
         boorusamaLink: 'boorusama://post/open?v=1',
       );
       final link = payloads.links.first;
@@ -74,7 +89,7 @@ void main() {
       originalUrl: 'https://site.test/full.jpg',
       booruLink: '',
       sourceLink: null,
-      postId: 42,
+      postId: '42',
     );
 
     expect(payloads.media.first.value, 'https://site.test/sample.png');
@@ -92,7 +107,7 @@ void main() {
       originalUrl: '',
       booruLink: '',
       sourceLink: null,
-      postId: 42,
+      postId: '42',
     );
 
     expect(payloads.media[0].available, isTrue);
@@ -109,7 +124,7 @@ void main() {
         originalUrl: '',
         booruLink: '',
         sourceLink: null,
-        postId: 42,
+        postId: '42',
       );
 
       expect(payloads.media[0].available, isFalse);
@@ -126,7 +141,7 @@ void main() {
       originalUrl: '',
       booruLink: '',
       sourceLink: null,
-      postId: 42,
+      postId: '42',
     );
 
     expect(payloads.media[0].available, isTrue);
@@ -140,7 +155,7 @@ void main() {
       originalUrl: '',
       booruLink: '',
       sourceLink: null,
-      postId: 42,
+      postId: '42',
     );
 
     expect(payloads.media.first.available, isFalse);

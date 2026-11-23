@@ -49,6 +49,10 @@ void main() {
         tester.platformDispatcher.textScaleFactorTestValue = 2;
         addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
         final backend = FakeBooruBackend();
+        backend.posts.addAll([
+          for (var i = 0; i < 60; i++)
+            TestPost(id: 1000 + i, tags: const {'ordfav:tester', 'fav:tester'}),
+        ]);
         final unavailable = BooruConfig.fromJson({
           ...backend.config.toJson(),
           'id': '00000000-0000-4000-8000-000000000003',
@@ -112,6 +116,42 @@ void main() {
           tester.getCenter(find.byType(ProfileContextMenuButton)).dx,
           greaterThan(tester.getCenter(find.byIcon(Symbols.search)).dx),
         );
+        final page = find.byType(
+          danbooru
+              ? DanbooruFavoritesPageInternal
+              : GelbooruFavoritesPageInternal,
+        );
+        final scrollable = find
+            .descendant(
+              of: page,
+              matching: find.byWidgetPredicate(
+                (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+              ),
+            )
+            .first;
+        final position = tester.state<ScrollableState>(scrollable).position;
+        position.jumpTo(600);
+        await harness.settle(tester);
+        await tester.drag(scrollable, const Offset(0, 40));
+        await harness.settle(tester);
+        expect(position.pixels, greaterThan(0));
+        final title = find.descendant(
+          of: page,
+          matching: find.text('Favorites'),
+        );
+        expect(title.hitTestable(), findsNothing);
+        expect(
+          find
+              .descendant(
+                of: page,
+                matching: find.byType(PostListConfigurationHeader),
+              )
+              .hitTestable(),
+          findsOneWidget,
+        );
+        position.jumpTo(0);
+        await harness.settle(tester);
+        expect(title.hitTestable(), findsOneWidget);
         final firstGrid = tester.state(find.byType(PostGrid));
         await tester.tap(find.byType(ProfileContextMenuButton));
         await harness.settle(tester);
@@ -119,7 +159,12 @@ void main() {
         expect(find.text(backend.configB.name), findsOneWidget);
         expect(find.byIcon(Icons.check), findsOneWidget);
         expect(find.text(unavailable.name), findsNothing);
-        final menu = tester.getRect(find.byType(SingleChildScrollView));
+        final menu = tester.getRect(
+          find.ancestor(
+            of: find.text(backend.configB.name),
+            matching: find.byType(SingleChildScrollView),
+          ),
+        );
         expect(menu.left, greaterThanOrEqualTo(12));
         expect(menu.right, lessThanOrEqualTo(308));
         await tester.tap(find.text(backend.configB.name));

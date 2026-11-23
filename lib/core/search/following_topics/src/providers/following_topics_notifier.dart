@@ -1,8 +1,10 @@
+import 'following_topic_config_provider.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../../../settings/providers.dart';
 
 // Dart imports:
 import 'dart:async';
+import 'dart:developer' show Timeline;
 
 // Package imports:
 import 'package:collection/collection.dart';
@@ -17,6 +19,7 @@ import '../../../../http/client/providers.dart';
 // Project imports:
 import '../../../../../foundation/data_mutation_coordinator.dart';
 import '../../../../boorus/engine/providers.dart';
+import '../../../../bookmarks/src/providers/pool_bookmark_provider.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../posts/post/providers.dart';
@@ -31,11 +34,14 @@ import '../types/topic_organization.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_repository.dart';
 import '../types/feed_history_end.dart';
+import '../types/following_mirror_state.dart';
 
 final followingTopicsProvider =
     AsyncNotifierProvider<FollowingTopicsNotifier, FollowingTopicsState>(
       FollowingTopicsNotifier.new,
     );
+
+typedef SearchRefreshPass = ({Set<String> planned, Set<String> pending});
 
 class FollowingTopicsState extends Equatable {
   FollowingTopicsState({
@@ -48,8 +54,10 @@ class FollowingTopicsState extends Equatable {
     this.feedRefreshChecked = 0,
     this.feedRefreshTotal = 0,
     Set<String> pendingRefreshIds = const {},
+    this.refreshPasses = const [],
     this.feeds = const [],
     required this.organization,
+    this.mirrors = const FollowingMirrorState.empty(),
   }) : topics = List.unmodifiable(topics),
        refreshingIds = Set.unmodifiable(refreshingIds),
        pendingRefreshIds = Set.unmodifiable(pendingRefreshIds);
@@ -57,6 +65,7 @@ class FollowingTopicsState extends Equatable {
   final List<FollowingTopic> topics;
   final Set<String> refreshingIds;
   final Set<String> pendingRefreshIds;
+  final List<SearchRefreshPass> refreshPasses;
   final int batchCompleted;
   final int batchTotal;
   final String? batchProfileId;
@@ -65,12 +74,14 @@ class FollowingTopicsState extends Equatable {
   final int feedRefreshTotal;
   final List<TopicFeed> feeds;
   final TopicOrganization organization;
+  final FollowingMirrorState mirrors;
 
   @override
   List<Object?> get props => [
     topics,
     refreshingIds,
     pendingRefreshIds,
+    refreshPasses,
     batchCompleted,
     batchTotal,
     batchProfileId,
@@ -79,6 +90,7 @@ class FollowingTopicsState extends Equatable {
     feedRefreshTotal,
     feeds,
     organization,
+    mirrors,
   ];
 }
 
@@ -88,7 +100,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
 
   final SearchRefreshService? _refreshService;
   final Map<String, Future<SearchRefreshOutcome>> _inFlight = {};
-  final Map<Object, Set<String>> _refreshPlans = {};
+  final _refreshPlans = <Object, SearchRefreshPass>{};
   final Map<String, int> _pausedProfileRefreshes = {};
   final _refreshTokens = <String, CancelToken>{};
   final _refreshOperations = <String, _SourceRefreshOperation>{};
@@ -106,6 +118,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   var _disposed = false;
   List<TopicFeed> _feeds = const [];
   var _organization = TopicOrganization(folders: const []);
+  FollowingMirrorState _mirrors = const FollowingMirrorState.empty();
 
   @override
   Future<FollowingTopicsState> build() async {
@@ -119,8 +132,12 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     });
     final repository = await _repository;
     _feeds = await repository.getFeeds();
-    _organization = await repository.getOrganization();
-    return _snapshot(await repository.getAll());
+    final mirror = repository is FollowingMirrorStore
+        ? await (repository as FollowingMirrorStore).readMirrorSnapshot()
+        : null;
+    _mirrors = mirror?.mirrors ?? const FollowingMirrorState.empty();
+    _organization = mirror?.organization ?? await repository.getOrganization();
+    return _snapshot(mirror?.topics ?? await repository.getAll());
   }
 
   Future<FollowingTopicRepository> get _repository =>
@@ -132,6 +149,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         repository: repository,
         resolvePostRepository: (config) =>
             ref.read(originAwarePostRepoProvider(config)),
+        resolveSeriesCapability: (config) =>
+            ref.read(poolBookmarkCapabilityProvider(config)),
         resolvePostDataCodec: (config) => ref
             .read(booruEngineRegistryProvider)
             .getPostCapability(config.auth.booruType)
@@ -151,7 +170,12 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     final key = Object();
     void update(Iterable<String> ids) {
       if (_disposed) return;
-      _refreshPlans[key] = ids.toSet();
+      final pending = Set<String>.unmodifiable(ids);
+      final previous = _refreshPlans[key];
+      final planned = previous == null || previous.planned.isEmpty
+          ? pending
+          : previous.planned;
+      _refreshPlans[key] = (planned: planned, pending: pending);
       _publishActivity();
     }
 
@@ -273,7 +297,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
           )).id,
         );
       }
-      await repository.replaceOrganization(
+      await _replaceLocalOrganization(
+        repository,
         TopicOrganization(
           folders: [
             for (final folder in organization.folders)
@@ -605,7 +630,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     );
     final organization = await repository.getOrganization();
     FolderTree([...organization.folders, folder]);
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       TopicOrganization(
         folders: [...organization.folders, folder],
         homeSearchIds: organization.homeSearchIds,
@@ -626,7 +652,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     if (!organization.folders.any((folder) => folder.id == folderId)) {
       throw StateError('Folder not found');
     }
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       TopicOrganization(
         folders: [
           for (final folder in organization.folders)
@@ -666,7 +693,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       searchId,
     );
     FolderTree([...organization.folders, folder]);
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       TopicOrganization(
         folders: [...organization.folders, folder],
         homeSearchIds: organization.homeSearchIds,
@@ -678,6 +706,44 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   Future<void> moveTopicToSharedFolder(String searchId, String? folderId) =>
       moveFolderItems(searchIds: {searchId}, destination: folderId);
 
+  Future<void> setImportedTopicDestination({
+    required FollowingTopic topic,
+    required BooruConfig reader,
+    required String? previousFolderId,
+    required Set<String?> destinations,
+  }) => _mutate((repository) async {
+    await _requireIndependentTopic(repository, topic.id);
+    final current = await repository.getById(topic.id);
+    final organization = await repository.getOrganization();
+    final placement = organization.placements
+        .where((p) => p.itemId == topic.id)
+        .firstOrNull;
+    if (current == null ||
+        !(current.localSource?.isImported ?? false) ||
+        current.localSource != topic.localSource ||
+        current.query != topic.query ||
+        current.profileId != topic.profileId ||
+        placement == null ||
+        placement.folderId != previousFolderId ||
+        !sameFollowingReader(
+          _readTopicSource(current),
+          reader,
+        )) {
+      throw StaleFollowingTopicEditException();
+    }
+    if (destinations.isEmpty) {
+      await repository.delete(topic.id);
+      return;
+    }
+    await _replaceLocalOrganization(
+      repository,
+      organization.move(
+        searchIds: {topic.id},
+        destination: destinations.single,
+      ),
+    );
+  });
+
   Future<void> moveFolderItems({
     Set<String> folderIds = const {},
     Set<String> searchIds = const {},
@@ -687,7 +753,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       await _requireIndependentTopic(repository, id);
     }
     final current = await repository.getOrganization();
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       current.move(
         folderIds: folderIds,
         searchIds: searchIds,
@@ -702,12 +769,17 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     int newIndex,
   ) => _mutate((repository) async {
     final organization = await repository.getOrganization();
-    final ids = folderId == null
-        ? organization.homeSearchIds.toList()
-        : organization.folders
-              .singleWhere((folder) => folder.id == folderId)
-              .searchIds
-              .toList();
+    if (folderId != null && _mirrors.isReceived(folderId))
+      throw const FollowingMirrorReadOnly();
+    final ids =
+        (folderId == null
+                ? organization.homeSearchIds.toList()
+                : organization.folders
+                      .singleWhere((folder) => folder.id == folderId)
+                      .searchIds
+                      .toList())
+            .where((id) => !_mirrors.isReceived(id))
+            .toList();
     if (oldIndex < 0 ||
         oldIndex >= ids.length ||
         newIndex < 0 ||
@@ -716,7 +788,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     }
     final topic = ids.removeAt(oldIndex);
     ids.insert(newIndex, topic);
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       TopicOrganization(
         folders: [
           for (final folder in organization.folders)
@@ -733,7 +806,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
             else
               folder,
         ],
-        homeSearchIds: folderId == null ? ids : organization.homeSearchIds,
+        homeSearchIds: folderId == null
+            ? [...ids, ...organization.homeSearchIds.where(_mirrors.isReceived)]
+            : organization.homeSearchIds,
       ),
     );
   });
@@ -748,7 +823,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     final organization = await repository.getOrganization();
     organization.folders.singleWhere((folder) => folder.id == id);
     final moved = organization.move(folderIds: {id}, destination: parentId);
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       TopicOrganization(
         folders: [
           for (final folder in moved.folders)
@@ -776,7 +852,11 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     String? parentId,
   }) => _mutate((repository) async {
     final organization = await repository.getOrganization();
-    final siblings = organization.tree.children(parentId);
+    if (parentId != null && _mirrors.isReceived(parentId))
+      throw const FollowingMirrorReadOnly();
+    final siblings = organization.tree
+        .children(parentId)
+        .where((f) => !_mirrors.isReceived(f.id));
     final folders = [
       for (final f in siblings)
         organization.folders.singleWhere((item) => item.id == f.id),
@@ -789,11 +869,12 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     }
     final folder = folders.removeAt(oldIndex);
     folders.insert(newIndex, folder);
-    await repository.replaceOrganization(
+    await _replaceLocalOrganization(
+      repository,
       TopicOrganization(
         folders: [
           for (final f in organization.folders)
-            if (f.parentId != parentId) f,
+            if (f.parentId != parentId || _mirrors.isReceived(f.id)) f,
           for (final (position, f) in folders.indexed)
             TopicFolder(
               id: f.id,
@@ -923,7 +1004,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       if (!organization.folders.any((f) => f.id == folderId)) {
         throw StateError('Folder not found');
       }
-      await repository.replaceOrganization(
+      await _replaceLocalOrganization(
+        repository,
         TopicOrganization(
           folders: [
             for (final folder in organization.folders)
@@ -1017,7 +1099,8 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     if (addedByFolder.isNotEmpty) {
       organization = await repository.getOrganization();
       final filedIds = addedByFolder.values.expand((ids) => ids).toSet();
-      await repository.replaceOrganization(
+      await _replaceLocalOrganization(
+        repository,
         TopicOrganization(
           folders: [
             for (final folder in organization.folders)
@@ -1059,7 +1142,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       autoUpdateEnabled: autoUpdateEnabled,
       queryStructure: queryStructure,
     );
-    if (!result.material) {
+    if (!result.material || _readTopicSource(result.topic) == null) {
       return (topic: result.topic, refresh: null);
     }
     return (
@@ -1078,13 +1161,23 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     FollowingTopic? expectedTopic,
   }) async {
     final result = await _mutate((repository) async {
-      if (!ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
-        throw MissingFollowingTopicProfileException();
-      }
-      if (expectedTopic != null && await repository.getById(id) == null)
+      if (expectedTopic != null && await repository.getById(id) == null) {
         throw StaleFollowingTopicEditException();
+      }
       await _requireIndependentTopic(repository, id);
       final previous = (await repository.getById(id))!;
+      final imported = previous.localSource?.isImported ?? false;
+      if (imported && previous.profileId != profileId) {
+        throw MissingFollowingTopicProfileException();
+      }
+      final retainedSource =
+          previous.localSource != null &&
+          previous.profileId == profileId &&
+          (imported || _readTopicSource(previous) != null);
+      if (!retainedSource &&
+          !ref.read(booruConfigProvider).any((c) => c.id == profileId)) {
+        throw MissingFollowingTopicProfileException();
+      }
       final material =
           previous.profileId != profileId || previous.query != query.trim();
       final edited = await repository.edit(
@@ -1106,6 +1199,62 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     unawaited(_inFlight.remove(id));
     return result;
   }
+
+  /// Undo for independent source copies restores their local reference and
+  /// settings without creating an account or recreating received ownership.
+  Future<void> restoreIndependentTopic(
+    FollowingTopic topic, {
+    String? folderId,
+  }) => _mutate((repository) async {
+    if (topic.localSource == null ||
+        _mirrors.isReceived(topic.id) ||
+        await repository.getById(topic.id) != null) {
+      throw StaleFollowingTopicEditException();
+    }
+    if (repository is! FollowingMirrorStore) {
+      throw StateError('Durable Following storage is required for copy Undo');
+    }
+    final store = repository as FollowingMirrorStore;
+    final before = await store.readMirrorSnapshot();
+    if (before.topics.any((t) => t.id == topic.id) ||
+        before.organization.folders.any((f) => f.id == topic.id)) {
+      throw StaleFollowingTopicEditException();
+    }
+    final organization = before.organization;
+    final destination =
+        organization.folders.any(
+          (f) => f.id == folderId && !before.mirrors.isReceived(f.id),
+        )
+        ? folderId
+        : null;
+    final current = before.mirrors;
+    await store.commitMirrorDefinitions(
+      expected: current,
+      expectedStructureDigest: before.structureDigest,
+      next: FollowingMirrorState(
+        epoch: current.epoch + 1,
+        activity: current.activity,
+        owners: current.owners,
+        checkpoints: current.checkpoints,
+        subscriptions: current.subscriptions,
+        publisherNames: current.publisherNames,
+      ),
+      topics: [topic],
+      organization: TopicOrganization(
+        folders: organization.folders,
+        placements: [
+          ...organization.placements,
+          FolderPlacement(
+            itemId: topic.id,
+            folderId: destination,
+            position: organization.placements
+                .where((p) => p.folderId == destination)
+                .fold(0, (n, p) => p.position >= n ? p.position + 1 : n),
+          ),
+        ],
+      ),
+    );
+  });
 
   Future<void> rename(String id, String? name) async {
     await _mutate((repository) => repository.rename(id, name));
@@ -1290,6 +1439,9 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
     if (_disposed) return const SearchRefreshDiscarded();
     _publishActivity();
     final repository = await _repository;
+    ProviderSubscription<BooruConfig?>? accessLease;
+    SearchRefreshOutcome? completed;
+    var unexpectedFailure = false;
     try {
       final topic = await repository.getById(id);
       if (_disposed || topic == null) {
@@ -1301,9 +1453,25 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       if (_pausedProfileRefreshes.containsKey(topic.profileId)) {
         return const SearchRefreshDiscarded();
       }
-      final config = ref
-          .read(booruConfigProvider)
-          .firstWhereOrNull((config) => config.id == topic.profileId);
+      BooruConfig? resolvedConfig;
+      if (!_mirrors.isReceived(id) && topic.localSource == null) {
+        resolvedConfig = ref
+            .read(booruConfigProvider)
+            .where((profile) => profile.id == topic.profileId)
+            .firstOrNull;
+      } else {
+        final accessRequest = (
+          profileId: topic.profileId,
+          owner: _mirrors.owners[id],
+          localSource: topic.localSource,
+        );
+        accessLease = ref.listen(
+          followingSourceConfigProvider(accessRequest),
+          (_, _) {},
+        );
+        resolvedConfig = ref.read(followingSourceConfigProvider(accessRequest));
+      }
+      final config = resolvedConfig;
       if (config == null) return const SearchRefreshDiscarded();
       final folderStates = {
         for (final folder
@@ -1321,7 +1489,7 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
               .toList() ??
           <TopicFeed>[];
       final inherited = ApiRequestContext.current();
-      return await runWithApiRequestContext(
+      final outcome = await runWithApiRequestContext(
         ApiRequestContext(
           requestClass: inherited.requestClass,
           requestClassResolver: inherited.requestClassResolver,
@@ -1335,12 +1503,25 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
           canStart: () =>
               (inherited.canStart?.call() ?? true) &&
               !_pausedProfileRefreshes.containsKey(config.id) &&
-              ref
-                  .read(booruConfigProvider)
-                  .any(
-                    (latest) =>
-                        latest.id == config.id && latest.auth == config.auth,
-                  ) &&
+              (_mirrors.isReceived(id) || topic.localSource != null
+                  ? ref
+                            .read(
+                              followingSourceConfigProvider((
+                                profileId: topic.profileId,
+                                owner: _mirrors.owners[id],
+                                localSource: topic.localSource,
+                              )),
+                            )
+                            ?.auth ==
+                        config.auth
+                  : ref
+                        .read(booruConfigProvider)
+                        .any(
+                          (profile) =>
+                              profile.id == config.id &&
+                              profile.auth == config.auth,
+                        )) &&
+              (config.anonymousReadScope?.isCurrent ?? true) &&
               (state.valueOrNull?.topics.any(
                     (latest) =>
                         latest.id == id &&
@@ -1362,11 +1543,96 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
           requireFullSnapshot: initializingFeeds.isNotEmpty,
         ),
       );
+      completed = outcome;
+      return outcome;
     } catch (_) {
+      unexpectedFailure = true;
       return const SearchRefreshFailed(SearchRefreshErrorKind.other);
     } finally {
-      if (!_disposed) await _serialize(() => _reload(repository));
+      accessLease?.close();
+      if (!_disposed) {
+        if (unexpectedFailure ||
+            repository is! FollowingRefreshPublicationStore) {
+          await _serialize(() => _reload(repository));
+        } else if (completed is SearchRefreshSucceeded ||
+            completed is SearchRefreshFailed) {
+          await _serialize(
+            () => _publishRefresh(
+              repository,
+              id,
+              includeFeeds: completed is SearchRefreshSucceeded,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  Future<void> _publishRefresh(
+    FollowingTopicRepository repository,
+    String id, {
+    required bool includeFeeds,
+  }) async {
+    final result = await (repository as FollowingRefreshPublicationStore)
+        .readRefreshPublication(
+          id,
+          includeFeeds: includeFeeds,
+        );
+    final current = state.valueOrNull;
+    if (_disposed || current == null) return;
+
+    if (includeFeeds) {
+      final previous = {
+        for (final feed in _feeds)
+          if (feed.sourceIds.contains(id)) feed.id: feed,
+      };
+      // A concurrent structural mutation may invalidate the projection even
+      // when the source refresh itself committed successfully.
+      final definitionsMatch =
+          previous.length == result.feeds.length &&
+          result.feeds.every((feed) {
+            final prior = previous[feed.id];
+            return prior != null &&
+                prior.profileId == feed.profileId &&
+                prior.cacheGeneration == feed.cacheGeneration &&
+                const ListEquality<String>().equals(
+                  prior.sourceIds,
+                  feed.sourceIds,
+                );
+          });
+      if (!definitionsMatch) {
+        await _reload(repository);
+        return;
+      }
+    }
+    Timeline.timeSync('Following publish refreshed rows', () {
+      final stored = result.topic;
+      final previous = current.topics.firstWhereOrNull(
+        (topic) => topic.id == id,
+      );
+      final refreshedFeeds = {for (final feed in result.feeds) feed.id: feed};
+      var changed = previous != null && stored != previous;
+      if (includeFeeds) {
+        final next = <TopicFeed>[];
+        for (final feed in _feeds) {
+          final updated = refreshedFeeds[feed.id];
+          if (updated != null && updated != feed) {
+            next.add(updated);
+            changed = true;
+          } else {
+            next.add(feed);
+          }
+        }
+        if (changed) _feeds = next;
+      }
+      if (!changed) return;
+      state = AsyncData(
+        _snapshot([
+          for (final topic in current.topics)
+            if (topic.id != id) topic else if (stored != null) stored,
+        ]),
+      );
+    });
   }
 
   Future<List<SearchRefreshOutcome>> refreshAll(
@@ -1445,6 +1711,14 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
       progress.close();
     }
   }
+
+  BooruConfig? _readTopicSource(FollowingTopic topic) => ref.read(
+    followingSourceConfigProvider((
+      profileId: topic.profileId,
+      owner: _mirrors.owners[topic.id],
+      localSource: topic.localSource,
+    )),
+  );
 
   Future<T> _mutate<T>(
     Future<T> Function(FollowingTopicRepository repository) operation,
@@ -1544,10 +1818,68 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
   }
 
   Future<void> _reload(FollowingTopicRepository repository) async {
-    final topics = await repository.getAll();
+    final mirror = repository is FollowingMirrorStore
+        ? await (repository as FollowingMirrorStore).readMirrorSnapshot()
+        : null;
+    final topics = mirror?.topics ?? await repository.getAll();
     _feeds = await repository.getFeeds();
-    _organization = await repository.getOrganization();
+    _organization = mirror?.organization ?? await repository.getOrganization();
+    _mirrors = mirror?.mirrors ?? const FollowingMirrorState.empty();
     if (!_disposed) state = AsyncData(_snapshot(topics));
+  }
+
+  Future<void> reloadFromStorage() =>
+      _serialize(() async => _reload(await _repository));
+
+  Future<void> _replaceLocalOrganization(
+    FollowingTopicRepository repository,
+    TopicOrganization next,
+  ) async {
+    if (repository is! FollowingMirrorStore)
+      return repository.replaceOrganization(next);
+    final snapshot = await (repository as FollowingMirrorStore)
+        .readMirrorSnapshot();
+    if (snapshot.mirrors.owners.isEmpty)
+      return repository.replaceOrganization(next);
+    final folders = {for (final f in snapshot.organization.folders) f.id: f};
+    final placements = {
+      for (final p in snapshot.organization.placements) p.itemId: p,
+    };
+    for (final entry in snapshot.mirrors.owners.entries) {
+      if (entry.value.kind == FollowingMirrorKind.folder) {
+        final old = folders[entry.key]!;
+        final proposed = next.folders
+            .where((f) => f.id == entry.key)
+            .firstOrNull;
+        if (proposed == null ||
+            old.name != proposed.name ||
+            old.parentId != proposed.parentId ||
+            old.feedEnabled != proposed.feedEnabled ||
+            old.feedMaxPosts != proposed.feedMaxPosts)
+          throw const FollowingMirrorReadOnly();
+      } else {
+        final proposed = next.placements
+            .where((p) => p.itemId == entry.key)
+            .firstOrNull;
+        if (proposed == null ||
+            placements[entry.key]!.folderId != proposed.folderId)
+          throw const FollowingMirrorReadOnly();
+      }
+    }
+    // Local builders compact their own sibling lists. Received definitions keep
+    // exact source positions and repository-derived namespaces throughout them.
+    await repository.replaceOrganization(
+      TopicOrganization(
+        folders: [
+          for (final f in next.folders)
+            snapshot.mirrors.isReceived(f.id) ? folders[f.id]! : f,
+        ],
+        placements: [
+          for (final p in next.placements)
+            snapshot.mirrors.isReceived(p.itemId) ? placements[p.itemId]! : p,
+        ],
+      ),
+    );
   }
 
   void _publishActivity() {
@@ -1562,11 +1894,13 @@ class FollowingTopicsNotifier extends AsyncNotifier<FollowingTopicsState> {
         topics: topics,
         feeds: List.unmodifiable(_feeds),
         organization: _organization,
+        mirrors: _mirrors,
         refreshingIds: _inFlight.keys.toSet(),
         pendingRefreshIds: {
           ..._inFlight.keys,
-          for (final ids in _refreshPlans.values) ...ids,
+          for (final pass in _refreshPlans.values) ...pass.pending,
         }.intersection(topics.map((item) => item.id).toSet()),
+        refreshPasses: List.unmodifiable(_refreshPlans.values),
         batchCompleted: _batchCompleted,
         batchTotal: _batchTotal,
         batchProfileId: _batchProfileId,

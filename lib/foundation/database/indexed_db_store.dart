@@ -52,10 +52,10 @@ class IndexedDbStore {
     _db = await _promiseToFuture<web.IDBDatabase>(request);
   }
 
-  JSAny _toJsKey(Object key) => switch (key) {
-    final List list => list.map((e) => e.toString().toJS).toList().toJS,
-    _ => key.toString().toJS,
-  };
+  // IndexedDB distinguishes numeric keys from strings, including in arrays.
+  // Keep the type returned by the browser's auto-increment key generator.
+  JSAny _toJsKey(Object key) =>
+      key.jsify() ?? (throw ArgumentError('Unsupported IndexedDB key'));
 
   Future<Map<Object?, Object?>?> get(Object key) async {
     if (_db == null) return null;
@@ -166,7 +166,7 @@ class IndexedDbStore {
     final request = index.openCursor(_toJsKey(indexKey));
 
     final cursor = await _waitForCursor(request);
-    return cursor?.primaryKey;
+    return cursor?.primaryKey.dartify();
   }
 
   Future<T> _promiseToFuture<T extends JSAny?>(web.IDBRequest request) {

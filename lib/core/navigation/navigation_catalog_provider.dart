@@ -9,25 +9,15 @@ import '../../foundation/boot/providers.dart';
 import '../boorus/engine/providers.dart';
 import '../configs/config/providers.dart';
 import '../configs/config/types.dart';
-import '../configs/manage/providers.dart';
 import '../premiums/providers.dart';
 import '../premiums/types.dart';
-import '../settings/providers.dart';
 import 'destination_definition.dart';
 import 'destination_id.dart';
 import 'navigation_catalog.dart';
 
-final navigationProfilesProvider = Provider<List<BooruConfig>>((ref) {
-  final configs = ref.watch(booruConfigProvider);
-  final order = ref.watch(
-    settingsProvider.select((settings) => settings.booruConfigIdOrderList),
-  );
-  final byId = {for (final config in configs) config.id: config};
-  return [
-    for (final id in order) ?byId.remove(id),
-    ...byId.values,
-  ];
-});
+final navigationProfilesProvider = Provider<List<BooruConfig>>(
+  (ref) => ref.watch(orderedProfileConfigsProvider),
+);
 
 final navigationCapabilitiesProvider =
     Provider<List<ProfileNavigationCapabilities>>(

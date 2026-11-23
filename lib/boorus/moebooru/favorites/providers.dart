@@ -77,7 +77,6 @@ final moebooruConfirmedFavoriteRepoProvider =
             await client.unfavoritePost(postId: id);
             return true;
           },
-          isFavorited: (_) => false,
           canFavorite: () => true,
         ),
         profileId: profile.id,

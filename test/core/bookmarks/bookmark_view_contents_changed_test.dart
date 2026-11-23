@@ -7,17 +7,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   const otherId = '550e8400-e29b-41d4-a716-446655440000';
-  late Bookmark first;
-  late Bookmark second;
+  late PostBookmark first;
+  late PostBookmark second;
   late BookmarkLibraryState before;
 
   setUp(() {
-    first = Bookmark.empty.copyWith(
+    first = PostBookmark.empty.copyWith(
       id: 1,
       sourceUrl: 'https://example.com',
       postId: () => 101,
     );
-    second = Bookmark.empty.copyWith(
+    second = PostBookmark.empty.copyWith(
       id: 2,
       sourceUrl: 'https://example.com',
       postId: () => 102,
@@ -52,17 +52,20 @@ void main() {
     }
   });
 
-  test('an unrelated group membership does not refresh this group or All', () {
+  test('a new group membership refreshes All but not an unchanged group', () {
     final after = before.applyCommittedChanges(
       groups: [
         before.groups.first,
-        before.groups.last.copyWith(bookmarkIds: {1, 2}),
+        before.groups.last.copyWith(
+          bookmarkIds: {1, 2},
+          addedAt: {1: DateTime.utc(2026)},
+        ),
       ],
       folders: before.folders,
     );
     expect(
       bookmarkViewContentsChanged(before, after, const BookmarkView.all()),
-      isFalse,
+      isTrue,
     );
     expect(
       bookmarkViewContentsChanged(

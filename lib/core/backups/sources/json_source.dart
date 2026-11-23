@@ -123,6 +123,10 @@ abstract class JsonBackupSource<T>
     );
   }
 
+  /// Local transaction rollback may retain fields intentionally absent from a
+  /// portable export. Such snapshots never reach file/clipboard/nearby export.
+  Future<String> encodeRollbackSnapshot() => encodeForExport();
+
   Future<String> encodeRevisionSnapshot() async {
     final data = await dataGetter();
     return jsonEncode({
@@ -134,6 +138,14 @@ abstract class JsonBackupSource<T>
   Future<void> validateEncodedImport(String encoded) async {
     await _noContextPrepare(encoded);
   }
+
+  /// Prepares a snapshot written by the local import transaction for rollback.
+  ///
+  /// Sources may accept valid local states that are not useful incoming imports,
+  /// such as an empty profile collection. External imports use their normal
+  /// validation path and must never be routed through this method.
+  Future<ImportPreparation> prepareRollback(String encoded) =>
+      _noContextPrepare(encoded);
 
   Future<ImportPreparation> _prepareServerImport(
     String serverUrl,
@@ -153,6 +165,9 @@ abstract class JsonBackupSource<T>
     return _prepareImport(data, uiContext);
   }
 
+  /// Sources may offload pure decoding while preparation and execution stay here.
+  AsyncImportDecoder<T>? get asyncImportDecoder => null;
+
   Future<ImportPreparation> _prepareImport(
     String data,
     BuildContext? uiContext,
@@ -161,6 +176,7 @@ abstract class JsonBackupSource<T>
     handler.parse,
     _executeImport,
     uiContext,
+    decode: asyncImportDecoder,
     approvedExecutor: switch (approvedResultExecutor) {
       final execute? => (parsed, context, approval) async {
         lastImportResult = await execute(parsed, context, approval);

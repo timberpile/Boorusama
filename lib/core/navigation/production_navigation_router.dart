@@ -61,10 +61,15 @@ GoRouter createProductionNavigationRouter(Ref ref, AppNavigation navigation) {
     favoritesProfileId: ref
         .read(navigationControllerProvider)
         .lastFavoritesProfileId,
+    // A public read scope is a transient actor, never a saved profile UUID.
+    // Keep its typed payload intact when normalizing a root Group member route.
     explicitProfileId: switch (extra) {
-      SearchRouteContext(:final config) => config.id,
-      final BooruConfig config => config.id,
-      DetailsRouteContext(:final config) => config?.id,
+      SearchRouteContext(:final config) =>
+        config.anonymousReadScope == null ? config.id : null,
+      final BooruConfig config =>
+        config.anonymousReadScope == null ? config.id : null,
+      DetailsRouteContext(:final config) =>
+        config?.anonymousReadScope == null ? config?.id : null,
       _ => null,
     },
   );

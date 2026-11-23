@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/scheduler.dart';
 import 'package:selection_mode/selection_mode.dart';
 import 'package:kurumi/material.dart';
@@ -7,6 +8,7 @@ import '../settings/providers.dart';
 import 'destination_activity.dart';
 import 'destination_profile_scope.dart';
 import 'navigation_chrome_controller.dart';
+import 'navigation_panel_geometry.dart';
 
 /// Supplies the actual bar travel, including its system bottom inset.
 class NavigationBarScrollScope extends InheritedWidget {
@@ -47,6 +49,7 @@ class _NavigationScrollBoundaryState
     if (DestinationScope.maybeOf(context) == null) return widget.child;
     final active = NavigationActivity.of(context);
     final extent = NavigationBarScrollScope.of(context);
+    final motion = NavigationPanelScope.maybeOf(context)?.motion;
     final autoHide = ref.watch(
       settingsProvider.select((s) => s.autoHideMainNavigation),
     );
@@ -74,6 +77,7 @@ class _NavigationScrollBoundaryState
                 pixels: event.metrics.pixels,
                 outOfRange: event.metrics.outOfRange,
                 extent: extent,
+                renderedHiddenFraction: motion?.value.hiddenFraction,
               );
         }
         if (event is ScrollEndNotification && _userScroll) {
@@ -94,9 +98,11 @@ class NavigationSelectionBridge extends ConsumerStatefulWidget {
     required this.selected,
     required this.child,
     this.controller,
+    this.bottomObstruction,
     super.key,
   });
   final SelectionModeController? controller;
+  final ValueListenable<double>? bottomObstruction;
   final bool selected;
   final Widget child;
   @override
@@ -108,10 +114,12 @@ class _NavigationSelectionBridgeState
     extends ConsumerState<NavigationSelectionBridge> {
   NavigationChromeController? _chrome;
   var _last = false;
+  var _lastObstruction = 0.0;
   @override
   void initState() {
     super.initState();
     widget.controller?.addListener(_sync);
+    widget.bottomObstruction?.addListener(_sync);
   }
 
   @override
@@ -127,6 +135,10 @@ class _NavigationSelectionBridgeState
       oldWidget.controller?.removeListener(_sync);
       widget.controller?.addListener(_sync);
     }
+    if (widget.bottomObstruction != oldWidget.bottomObstruction) {
+      oldWidget.bottomObstruction?.removeListener(_sync);
+      widget.bottomObstruction?.addListener(_sync);
+    }
     _sync();
   }
 
@@ -136,10 +148,18 @@ class _NavigationSelectionBridgeState
     final selected =
         (widget.controller?.isActive ?? widget.selected) &&
         NavigationActivity.selectionChromeOf(context);
-    if (_last == selected) return;
+    final obstruction = selected ? widget.bottomObstruction?.value ?? 0 : 0.0;
+    if (_last == selected && _lastObstruction == obstruction) return;
     _last = selected;
+    _lastObstruction = obstruction;
     void apply() {
-      if (mounted) _chrome?.setSelectionFor(this, _last);
+      if (mounted) {
+        _chrome?.setSelectionFor(
+          this,
+          _last,
+          bottomObstruction: _lastObstruction,
+        );
+      }
     }
 
     if (SchedulerBinding.instance.schedulerPhase ==
@@ -153,6 +173,7 @@ class _NavigationSelectionBridgeState
   @override
   void dispose() {
     widget.controller?.removeListener(_sync);
+    widget.bottomObstruction?.removeListener(_sync);
     final chrome = _chrome;
     if (_last) {
       WidgetsBinding.instance.addPostFrameCallback(

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // Project imports:
 import '../../bookmarks/providers.dart';
-import '../../configs/manage/providers.dart';
+import '../../configs/config/providers.dart';
 import '../../search/following_topics/providers.dart';
 import '../export_import/models/export_selection.dart';
 import '../export_import/sources/export_selection_ids.dart';
@@ -88,7 +88,7 @@ class TopicFeedsBackupSourceNotifier extends Notifier<TopicFeedsBackupSource> {
 }
 
 final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
-  final profiles = ref.watch(booruConfigProvider);
+  final profiles = ref.watch(orderedProfileConfigsProvider);
   final bookmarks = ref.watch(bookmarkProvider).valueOrNull;
   final searches = ref.watch(followingTopicsProvider).valueOrNull;
   final folderIds =
@@ -165,7 +165,11 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
         id: 'bookmarks',
         children: bookmarkExportNodes(
           buildBookmarkBackupData(
+            records: bookmarks?.hasUnifiedRecords == true
+                ? bookmarks!.records
+                : null,
             bookmarks: bookmarks?.items ?? [],
+            pools: bookmarks?.pools ?? [],
             groups: bookmarks?.groups ?? [],
             folders: bookmarks?.folders ?? [],
             scope: const BookmarkExportScope.all(),
@@ -175,11 +179,18 @@ final exportImportSourcesProvider = Provider<List<ExportImportSource>>((ref) {
       scopeBuilder: (selection) => switch (selection.kind) {
         ExportNodeSelectionKind.all => const BookmarkExportScope.all(),
         ExportNodeSelectionKind.explicit => BookmarkExportScope.selected(
-          folderIds: selection.childIds
-              .where((id) => id.startsWith('group-folder:'))
-              .map((id) => id.substring(13)),
+          directGroupIds: selection.childIds
+              .map(ExportSelectionIds.bookmarkGroupDirectId)
+              .whereType<String>(),
           groupIds: selection.childIds
-              .map(ExportSelectionIds.bookmarkGroupId)
+              .map(
+                (id) =>
+                    ExportSelectionIds.bookmarkGroupId(id) ??
+                    bookmarks
+                        ?.legacyFolderGroupIds[ExportSelectionIds.bookmarkFolderId(
+                      id,
+                    )],
+              )
               .whereType<String>(),
           includeUngrouped: selection.childIds.contains(
             ExportSelectionIds.ungroupedBookmarks,

@@ -8,6 +8,7 @@ import 'package:oktoast/oktoast.dart';
 
 // Project imports:
 import 'post_viewer_transformation_scope.dart';
+import 'post_details_page_view_scope.dart';
 
 class PostViewerAutoComicStrip extends StatelessWidget {
   const PostViewerAutoComicStrip({
@@ -31,11 +32,16 @@ class PostViewerAutoComicStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: currentSettledPage,
+    final pager = PostDetailsPageViewScope.maybeOf(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        currentSettledPage,
+        if (pager != null) pager.sheetState,
+      ]),
       child: child,
-      builder: (context, settledPage, child) {
-        if (settledPage == index) {
+      builder: (context, child) {
+        if (currentSettledPage.value == index &&
+            !(pager?.isExpanded ?? false)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted || currentSettledPage.value != index) return;
 

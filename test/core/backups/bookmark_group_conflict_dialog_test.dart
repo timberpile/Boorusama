@@ -52,9 +52,9 @@ void main() {
     tester,
   ) async {
     BookmarkImportPlan? result;
-    const plan = BookmarkImportPlan(
-      bookmarks: [],
-      missingBookmarks: [],
+    final plan = BookmarkImportPlan(
+      records: [],
+      alreadyExistedCount: 0,
       groups: [conflict],
     );
     await tester.pumpWidget(
@@ -86,9 +86,9 @@ void main() {
     tester,
   ) async {
     BookmarkImportPlan? result;
-    const plan = BookmarkImportPlan(
-      bookmarks: [],
-      missingBookmarks: [],
+    final plan = BookmarkImportPlan(
+      records: [],
+      alreadyExistedCount: 0,
       groups: [
         conflict,
         BookmarkGroupImport(

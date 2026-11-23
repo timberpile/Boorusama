@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 
 // Project imports:
@@ -47,9 +48,14 @@ class DioProtectionInterceptor extends Interceptor {
         retry: _isProtectionRetry(options),
         backend: _dio.httpClientAdapter.runtimeType.toString(),
       ),
-      sensitive: ProtectionRequestDetails(options.uri),
+      sensitive: options.extra[privateRequestDiagnosticsKey] == true
+          ? null
+          : ProtectionRequestDetails(options.uri),
     );
     try {
+      final requestCookie = options.extra[preferRequestCookiesKey] == true
+          ? options.headers['cookie']?.toString()
+          : null;
       final headers = await _protectionHandler.prepareRequestHeaders(
         options.uri,
         options.headers.map((k, v) => MapEntry(k, v.toString())),
@@ -57,6 +63,12 @@ class DioProtectionInterceptor extends Interceptor {
       );
 
       options.headers.addAll(headers);
+      if (requestCookie != null) {
+        options.headers['cookie'] = CookieUtils.mergeCookieHeaders(
+          options.headers['cookie']?.toString() ?? '',
+          requestCookie,
+        );
+      }
     } catch (e) {
       attempt.record(
         ProtectionOperationFailed(

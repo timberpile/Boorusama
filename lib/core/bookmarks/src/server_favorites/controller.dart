@@ -2,12 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../foundation/data_mutation_coordinator.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
 import '../../../http/client/coordination.dart';
 import '../../../posts/post/types.dart';
-import '../data/providers.dart';
 import '../providers/bookmark_provider.dart';
 import '../types/bookmark_identity.dart';
 import 'fetch_runner.dart';
@@ -122,9 +120,7 @@ class ServerFavoriteFetchNotifier
         final session = job.session;
         if (session == null) continue;
         if (!configs.any(
-          (config) =>
-              config.id == session.config.id &&
-              config.auth == session.config.auth,
+          (config) => serverFavoriteActorMatches(session.config, config),
         )) {
           job.cancellation.cancel();
         }
@@ -147,7 +143,7 @@ class ServerFavoriteFetchNotifier
       for (final job in _jobs.values) {
         final session = job.session;
         if (session != null &&
-            !library.requireValue.groupsById.containsKey(session.groupId)) {
+            !library.requireValue.localGroupIds.contains(session.groupId)) {
           job.cancellation.cancel();
         }
       }
@@ -192,8 +188,10 @@ class ServerFavoriteFetchNotifier
       final session = await job.cancellation.wait(_capture(profileId));
       job.cancellation.throwIfCancelled();
       if (expectedSession != null) {
-        if (session.config.id != expectedSession.config.id ||
-            session.config.auth != expectedSession.config.auth) {
+        if (!serverFavoriteActorMatches(
+          expectedSession.config,
+          session.config,
+        )) {
           throw const ServerFavoriteException(
             ServerFavoriteProblem.accountChanged,
           );
@@ -221,8 +219,8 @@ class ServerFavoriteFetchNotifier
             identity: BookmarkIdentity.fromPost,
             validateSession: () => _validate(session),
             addPage: (posts, cancellation) => ref
-                .read(dataMutationCoordinatorProvider)
-                .runExclusive(() async {
+                .read(bookmarkLibraryProvider.notifier)
+                .runWithLibrary(() async {
                   cancellation.throwIfCancelled();
                   await _validate(session);
                   cancellation.throwIfCancelled();
@@ -305,8 +303,7 @@ class ServerFavoriteFetchNotifier
     final configs = await ref.read(booruConfigRepoProvider).getAll();
     if (_disposed) throw const ServerFavoriteCancelled();
     final exists = configs.any(
-      (config) =>
-          config.id == session.config.id && config.auth == session.config.auth,
+      (config) => serverFavoriteActorMatches(session.config, config),
     );
     if (!exists) {
       throw const ServerFavoriteException(ServerFavoriteProblem.accountChanged);
@@ -314,7 +311,9 @@ class ServerFavoriteFetchNotifier
     if (settings.resolve(session.config.id) != session.groupId) {
       throw const ServerFavoriteException(ServerFavoriteProblem.targetChanged);
     }
-    final groups = await ref.read(bookmarkGroupRepoProvider.future);
+    final groups = await ref
+        .read(bookmarkProvider.notifier)
+        .bookmarkGroupRepository;
     if (await groups.getGroup(session.groupId) == null) {
       throw const ServerFavoriteException(ServerFavoriteProblem.targetMissing);
     }
@@ -381,7 +380,6 @@ class ServerFavoriteFetchNotifier
     if (_disposed) return;
     await _validate(session);
     final host = normalizePostSourceHost(session.config.url);
-    final coordinator = ref.read(dataMutationCoordinatorProvider);
     final bookmarks = ref.read(bookmarkLibraryProvider.notifier);
     if (!favorited) {
       // Cancel older pages before joining the write queue. An accepted page
@@ -394,7 +392,7 @@ class ServerFavoriteFetchNotifier
           job.cancellation.cancel();
         }
       }
-      await coordinator.runExclusive(() async {
+      await bookmarks.runWithLibrary(() async {
         await _validate(session);
         // Look up the bookmark *after* any accepted page has committed. A
         // pre-queue snapshot could miss a newly imported bookmark entirely.
@@ -436,7 +434,7 @@ class ServerFavoriteFetchNotifier
     }
     final selected = post;
     _validatePost(session, selected);
-    await coordinator.runExclusive(() async {
+    await bookmarks.runWithLibrary(() async {
       await _validate(session);
       await bookmarks.addPostsToGroup(
         session.config.auth,

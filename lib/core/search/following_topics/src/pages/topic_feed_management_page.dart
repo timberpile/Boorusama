@@ -87,13 +87,13 @@ class TopicFeedManagementPage extends ConsumerWidget {
                 ),
               ],
             ),
-          if (feed != null)
+          if (feed != null && !(activity?.mirrors.isReceived(feed.id) ?? false))
             IconButton(
               tooltip: strings.bulk_add,
               icon: const Icon(Symbols.playlist_add),
               onPressed: () => _bulkAdd(context, ref, feed),
             ),
-          if (feed != null)
+          if (feed != null && !(activity?.mirrors.isReceived(feed.id) ?? false))
             IconButton(
               tooltip: strings.rename,
               icon: const Icon(Symbols.edit),

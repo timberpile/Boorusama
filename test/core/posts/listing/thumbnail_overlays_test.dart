@@ -193,7 +193,6 @@ void main() {
                 isGif: true,
                 hasComments: true,
                 isTranslated: true,
-                hasParentOrChildren: true,
                 isAI: true,
                 scoreWidget: const ImageScoreWidget(score: 123456),
                 quickActionButton: ThumbnailActionGroup(
@@ -609,7 +608,6 @@ Widget _tile({
     hasSound: sound,
     hasComments: true,
     isTranslated: true,
-    hasParentOrChildren: true,
     isAI: true,
     leadingIcons: [
       leading ??

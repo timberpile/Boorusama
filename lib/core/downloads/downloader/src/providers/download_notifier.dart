@@ -1,3 +1,8 @@
+import '../../../../bookmarks/src/providers/bookmark_hydration_provider.dart';
+import '../../../../configs/manage/providers.dart';
+import '../../../../content/content_access_provider.dart';
+import '../../../../http/client/coordination.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/foundation.dart';
@@ -67,8 +72,13 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? overrideUrl,
     String? quality,
     String? postUrl,
+    bool Function()? isCurrent,
   }) async {
+    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true))
+      return null;
+
     final perm = await _getPermissionStatus();
+    if (!(isCurrent?.call() ?? true)) return null;
     final observer = arg.observer;
 
     final info = await _download(
@@ -79,6 +89,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
       overrideUrl: overrideUrl,
       quality: quality,
       postUrl: postUrl,
+      isCurrent: isCurrent,
       onStarted: () {
         observer?.onSingleDownloadStart();
       },
@@ -94,7 +105,11 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     String? Function(Post)? postUrlBuilder,
     int? totalCount,
     int Function(Post)? indexOf,
+    bool Function()? isCurrent,
   }) async {
+    if (arg.auth.anonymousReadScope != null || !(isCurrent?.call() ?? true))
+      return;
+
     // ensure that the booru supports bulk download
     if (!arg.canDownloadMultipleFiles()) {
       final context = ref
@@ -108,17 +123,19 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
     }
 
     final perm = await _getPermissionStatus();
+    if (!(isCurrent?.call() ?? true)) return;
     final networkConstraint = await resolveDownloadNetworkConstraint(
       ref,
       arg.settings.downloadNetworkPolicy,
     );
-    if (networkConstraint == null) return;
+    if (networkConstraint == null || !(isCurrent?.call() ?? true)) return;
 
     arg.observer?.onBulkDownloadStart(
       total: posts.length,
     );
 
     for (var i = 0; i < posts.length; i++) {
+      if (!(isCurrent?.call() ?? true)) return;
       final post = posts[i];
       await _download(
         ref,
@@ -133,6 +150,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
           'index': (indexOf?.call(post) ?? i).toString(),
         },
         networkConstraint: networkConstraint,
+        isCurrent: isCurrent,
       );
     }
   }
@@ -140,7 +158,7 @@ class DownloadNotifier extends FamilyNotifier<void, DownloadNotifierParams> {
 
 Future<DownloadTaskInfo?> _download(
   Ref ref,
-  Post downloadable, {
+  Post requestedPost, {
   required DownloadNotifierParams params,
   PermissionStatus? permission,
   String? group,
@@ -152,7 +170,45 @@ Future<DownloadTaskInfo?> _download(
   String? quality,
   String? postUrl,
   DownloadNetworkConstraint? networkConstraint,
+  bool Function()? isCurrent,
 }) async {
+  if (!(isCurrent?.call() ?? true)) return null;
+  var downloadable = requestedPost;
+  final requestedQuality =
+      quality ??
+      (overrideUrl != null ? 'custom' : params.settings.downloadQuality.name);
+  if (downloadable.requiresDetailLookup && requestedQuality != 'preview') {
+    final profiles = ref.read(booruConfigProvider);
+    final reader = switch (const PostOriginResolver().resolve(
+      downloadable.origin,
+      profiles,
+      allowProfileHintFallback: false,
+    )) {
+      ResolvedPostOrigin(:final config) when config.auth == params.auth =>
+        config,
+      _ => null,
+    };
+    if (reader != null) {
+      final access = ref.read(contentProfileAccessProvider(reader.id));
+      bool current() =>
+          (isCurrent?.call() ?? true) &&
+          access != null &&
+          ref
+                  .read(contentAccessContextProvider(access.key))
+                  ?.hasSameAuthorization(access) ==
+              true;
+      if (current()) {
+        final resolved = await runWithApiRequestContext(
+          ApiRequestContext(canStart: current, canAdmit: current),
+          () => ref
+              .read(bookmarkRecoveryServiceProvider)
+              .resolveListedPost(downloadable, reader),
+        );
+        if (!current()) return null;
+        if (resolved != null) downloadable = resolved;
+      }
+    }
+  }
   final downloadConfig = params.download;
   final service = params.downloader;
   final fileNameBuilder = params.filenameBuilder;
@@ -167,13 +223,21 @@ Future<DownloadTaskInfo?> _download(
   final effectiveQuality =
       quality ??
       (overrideUrl != null ? 'custom' : params.settings.downloadQuality.name);
-  final urlData = overrideUrl != null
+  final unavailable =
+      (downloadable.requiresDetailLookup && effectiveQuality != 'preview') ||
+      (downloadable.isRealbooru &&
+          effectiveQuality == 'original' &&
+          !downloadable.hasOriginalMedia);
+  final urlData = unavailable
+      ? null
+      : overrideUrl != null
       ? DownloadUrlData.urlOnly(overrideUrl, resolvedQuality: effectiveQuality)
       : await params.downloadFileUrlExtractor.getDownloadFileUrl(
           post: downloadable,
           quality: effectiveQuality,
         );
 
+  if (!(isCurrent?.call() ?? true)) return null;
   if (fileNameBuilder == null) {
     logger.error('Single Download', 'No file name builder found, aborting...');
     // if (ref.context.mounted) {
@@ -212,9 +276,11 @@ Future<DownloadTaskInfo?> _download(
         ref,
         params.settings.downloadNetworkPolicy,
       );
-  if (resolvedNetworkConstraint == null) return null;
+  if (resolvedNetworkConstraint == null || !(isCurrent?.call() ?? true))
+    return null;
 
   Future<DownloadTaskInfo?> download() async {
+    if (!(isCurrent?.call() ?? true)) return null;
     final fileNameFuture = bulkMetadata != null
         ? fileNameBuilder.generateForBulkDownload(
             params.settings,
@@ -235,10 +301,14 @@ Future<DownloadTaskInfo?> _download(
       quality: urlData.resolvedQuality,
       downloadUrl: urlData.url,
     );
+    if (!(isCurrent?.call() ?? true)) return null;
 
     final network = ref.read(networkSettingsProvider(params.auth));
     final request = network.resolveMedia(
       urlData.url,
+      // Source-bound work carries an explicit actor guard. Ordinary extractor
+      // flows retain their existing destination-specific cookie contract.
+      sourceUrl: isCurrent == null ? null : params.auth.url,
       headers: {
         ...headers,
         if (urlData.cookie != null)
@@ -248,6 +318,7 @@ Future<DownloadTaskInfo?> _download(
     final bypassHeaders = await ref.read(
       bypassDdosHeadersProvider(request.url).future,
     );
+    if (!(isCurrent?.call() ?? true)) return null;
 
     final result = await service.download(
       DownloadOptions.fromSettings(

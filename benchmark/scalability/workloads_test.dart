@@ -91,12 +91,12 @@ void main() {
       final view = groupOnly
           ? BookmarkView.group(scalabilityGroupId)
           : const BookmarkView.all();
-      List<Bookmark> rows([BookmarkReadCounter? counter]) => [
+      List<PostBookmark> rows([BookmarkReadCounter? counter]) => [
         for (var id = 1; id <= size.bookmarks; id++)
           scalabilityBookmark(id, counter: counter),
       ];
       final state = scalabilityLibrary(rows(), members: members);
-      List<Bookmark> select(BookmarkLibraryState value) =>
+      List<PostBookmark> select(BookmarkLibraryState value) =>
           selectBookmarkPreviews(
             state: value,
             view: view,
@@ -108,7 +108,7 @@ void main() {
         selectedTags: const [],
         sortType: BookmarkSortType.newest,
       ).take(4).map((b) => b.id).toList();
-      List<Bookmark> result = [];
+      List<PostBookmark> result = [];
       final samples = measureSync(() => result = select(state));
       expect(result.map((b) => b.id), expected);
       final counter = BookmarkReadCounter();
@@ -134,12 +134,12 @@ void main() {
           : {1, size.bookmarks ~/ 2, size.bookmarks};
       final view = BookmarkView.group(scalabilityGroupId);
       const shuffle = BookmarkShuffleState(seed: 17);
-      List<Bookmark> rows([BookmarkReadCounter? counter]) => [
+      List<PostBookmark> rows([BookmarkReadCounter? counter]) => [
         for (var id = 1; id <= size.bookmarks; id++)
           scalabilityBookmark(id, counter: counter),
       ];
       final state = scalabilityLibrary(rows(), members: members);
-      List<Bookmark> select(BookmarkLibraryState value) =>
+      List<PostBookmark> select(BookmarkLibraryState value) =>
           selectBookmarkPreviews(
             state: value,
             view: view,
@@ -147,7 +147,7 @@ void main() {
             shuffleState: shuffle,
           );
       final expected = select(state).map((b) => b.id).toList();
-      List<Bookmark> result = [];
+      List<PostBookmark> result = [];
       final samples = measureSync(() => result = select(state));
       expect(result.map((b) => b.id), expected);
       expect(result.length, members.length < 4 ? members.length : 4);

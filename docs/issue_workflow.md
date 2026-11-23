@@ -175,6 +175,22 @@ Never use a closing keyword simply because an implementation branch is finished.
 
 ## Documentation and handoffs
 
+For a research-only bug/feature report, use the
+[research-ticket skill](../.agents/skills/research-ticket/SKILL.md).
+Keep concise issue drafts and any proposed implementation details in the
+conversation until the user approves their publication. An explicitly deferred
+report must not acquire an issue or parallel task entry.
+
+After an approved issue has a real GitHub number, and sharing its technical
+research is authorized, preserve nontrivial coding-agent guidance at
+`docs/handoffs/<issue-number>-<slug>.md` on an accessible branch and link that
+file from the issue. Include the source commit inspected, evidence and confidence,
+relevant code paths, suggested implementation/code sketches, test cases, and open
+questions. The issue defines the user-visible outcome; the handoff is an
+implementation aid, not a second task or progress tracker. The implementer must
+recheck code sketches against the current source before applying them. Use
+`docs/designs/` for decisions that need to remain authoritative beyond the task.
+
 Keep three responsibilities separate:
 
 | Content | Location and lifetime |

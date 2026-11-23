@@ -161,11 +161,6 @@ class AutoBackupSection extends ConsumerWidget {
               ),
             ),
             if (!hasValidPath) const _SelectLocationRequestBanner(),
-            if (isAndroid())
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(context.t.settings.auto_backup.folder_access_hint),
-              ),
             if (ref.watch(autoBackupFailureProvider) case final failure?)
               Padding(
                 padding: const EdgeInsets.all(12),

@@ -22,7 +22,6 @@ class LazyPostDetailsPager extends StatefulWidget {
     required this.source,
     required this.initialIndex,
     required this.itemBuilder,
-    this.axis = Axis.horizontal,
     this.onPageChanged,
     super.key,
   });
@@ -30,7 +29,6 @@ class LazyPostDetailsPager extends StatefulWidget {
   final LazyPostDetailsSource source;
   final int initialIndex;
   final Widget Function(BuildContext context, int postId) itemBuilder;
-  final Axis axis;
   final ValueChanged<int>? onPageChanged;
 
   @override
@@ -105,7 +103,6 @@ class _LazyPostDetailsPagerState extends State<LazyPostDetailsPager> {
     children: [
       PageView.builder(
         controller: _controller,
-        scrollDirection: widget.axis,
         itemCount: _ids.length,
         onPageChanged: (index) {
           widget.onPageChanged?.call(index);

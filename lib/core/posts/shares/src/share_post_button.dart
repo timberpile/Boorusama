@@ -31,32 +31,29 @@ class SharePostButton extends ConsumerWidget {
   final DownloadFilenameGenerator? filenameBuilder;
   final ImageCacheManager? imageCacheManager;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final defaultImageCacheManager = ref.watch(
-      defaultImageCacheManagerProvider,
-    );
-    final effectiveDownloadFilenameBuilder =
-        filenameBuilder ??
-        ref.watch(
-          downloadFilenameBuilderProvider(auth),
+  VoidCallback action(BuildContext context, WidgetRef ref) => () {
+    if (!context.mounted) return;
+    ref
+        .read(shareProvider)
+        .sharePost(
+          post,
+          auth,
+          context: context,
+          configViewer: configViewer,
+          download: download,
+          filenameBuilder:
+              filenameBuilder ??
+              ref.read(downloadFilenameBuilderProvider(auth)),
+          imageCacheManager:
+              imageCacheManager ?? ref.read(defaultImageCacheManagerProvider),
         );
+  };
 
-    return IconButton(
-      tooltip: context.t.post.action.share,
-      splashRadius: 16,
-      onPressed: () => ref
-          .read(shareProvider)
-          .sharePost(
-            post,
-            auth,
-            context: context,
-            configViewer: configViewer,
-            download: download,
-            filenameBuilder: effectiveDownloadFilenameBuilder,
-            imageCacheManager: imageCacheManager ?? defaultImageCacheManager,
-          ),
-      icon: const Icon(Symbols.share),
-    );
-  }
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => IconButton(
+    tooltip: context.t.post.action.share,
+    splashRadius: 16,
+    onPressed: action(context, ref),
+    icon: const Icon(Symbols.share),
+  );
 }

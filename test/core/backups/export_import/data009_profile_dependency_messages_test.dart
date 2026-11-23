@@ -11,7 +11,7 @@ import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
 
 void main() {
   testWidgets(
-    'review identifies each unresolved profile and its dependents while blocking Apply',
+    'review blocks Apply for legacy feeds and allows Topics with optional mappings',
     (tester) async {
       const references = [
         BackupProfileReference(
@@ -34,9 +34,8 @@ void main() {
         ),
       ];
       Future<void> review(
-        List<BackupProfileReference> selected, {
-        Set<ProfileSiteKey> resolved = const {},
-      }) async {
+        List<BackupProfileReference> selected,
+      ) async {
         final dependencies = const ProfileDependencyPlanner().plan(
           references: selected,
           localProfiles: [
@@ -52,10 +51,6 @@ void main() {
                 'url': references.first.url,
               }),
           ],
-          choices: {
-            for (final key in resolved)
-              key: '00000000-0000-4000-8000-000000000031',
-          },
           dependentSources: {
             ProfileReferenceKey.fromReference(references[0]): {
               'pinned_searches',
@@ -87,32 +82,27 @@ void main() {
       }
 
       await review([...references, references.first]);
-      const searches =
-          'first.example: Select a matching profile for the selected Topics, or skip those items.';
-      const feeds =
-          'second.example: Create a profile for this website in profile management, then import again, or skip the selected Topic feeds.';
+      const searches = 'first.example: Select a profile to import Topics.';
+      const feeds = 'second.example: Profile required to import Topic feeds.';
       const both =
-          'third.example: Create a profile for this website in profile management, then import again, or skip the selected Topics, Topic feeds.';
-      expect(find.text(searches), findsOneWidget);
+          'third.example: Profile required to import Topics, Topic feeds.';
+      expect(find.text(searches), findsNothing);
       expect(find.text(feeds), findsOneWidget);
       expect(find.text(both), findsOneWidget);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNull,
       );
-      await review(
-        references,
-        resolved: {ProfileSiteKey.fromReference(references.first)},
-      );
-      expect(find.text(searches), findsNothing);
-      expect(find.text(feeds), findsOneWidget);
-      expect(find.text(both), findsOneWidget);
-      await review(
-        [references.first, references.last],
-        resolved: {ProfileSiteKey.fromReference(references.first)},
-      );
+      await review([references.first, references.last]);
       expect(find.text(feeds), findsNothing);
       expect(find.text(both), findsOneWidget);
+      await review([references.first]);
+      expect(find.text(searches), findsNothing);
+      expect(find.text(both), findsNothing);
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNotNull,
+      );
     },
   );
 }
@@ -125,4 +115,11 @@ ImportPreflightResult _result({List<ImportPlanIssue> errors = const []}) =>
       warnings: const [],
       errors: errors,
       summary: const PlannedChangeSummary(unchanged: 1),
+      validatedPlan: errors.isNotEmpty
+          ? null
+          : ValidatedImportPlan(
+              plan: ResolvedImportPlan(sources: const []),
+              revisionTokens: const {},
+              summary: const PlannedChangeSummary(unchanged: 1),
+            ),
     );

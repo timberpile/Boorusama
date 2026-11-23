@@ -1,3 +1,5 @@
+import '../types/viewer_entry.dart';
+
 // Package imports:
 import 'package:equatable/equatable.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
@@ -19,6 +21,8 @@ class DetailsRouteContext<T extends Post> extends Equatable {
     this.dislclaimer,
     this.useMixedViewer = false,
     this.liveSource,
+    this.entries,
+    this.entrySource,
   });
 
   DetailsRouteContext<T> copyWith({
@@ -37,6 +41,8 @@ class DetailsRouteContext<T extends Post> extends Equatable {
       config: config,
       useMixedViewer: useMixedViewer,
       liveSource: liveSource,
+      entries: entries,
+      entrySource: entrySource,
     );
   }
 
@@ -51,6 +57,8 @@ class DetailsRouteContext<T extends Post> extends Equatable {
   BooruConfigSearch? get configSearch => config?.search;
   final bool useMixedViewer;
   final PostDetailsLiveSource? liveSource;
+  final List<ViewerEntry>? entries;
+  final ViewerEntryLiveSource? entrySource;
 
   @override
   List<Object?> get props => [
@@ -64,5 +72,7 @@ class DetailsRouteContext<T extends Post> extends Equatable {
     config,
     useMixedViewer,
     liveSource,
+    entries,
+    entrySource,
   ];
 }

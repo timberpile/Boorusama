@@ -2,11 +2,70 @@ import 'dart:io';
 
 import 'package:booru_clients/src/shimmie2/shimmie2_client.dart';
 import 'package:booru_clients/src/shimmie2/types/types.dart';
+import 'package:dio/dio.dart' as dio;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:test/test.dart';
 
 void main() {
+  group('Shimmie2 Favorite lookup', () {
+    late String body;
+    late Shimmie2Client client;
+
+    setUp(() {
+      final clientDio =
+          dio.Dio(dio.BaseOptions(baseUrl: 'https://shimmie.example'))
+            ..interceptors.add(
+              dio.InterceptorsWrapper(
+                onRequest: (request, handler) {
+                  expect(
+                    request.queryParameters['tags'],
+                    'favorited_by=demo id=7,8',
+                  );
+                  handler.resolve(
+                    dio.Response(
+                      requestOptions: request,
+                      data: body,
+                      statusCode: 200,
+                    ),
+                  );
+                },
+              ),
+            );
+      addTearDown(() => clientDio.close(force: true));
+      client = Shimmie2Client(
+        baseUrl: 'https://shimmie.example',
+        dio: clientDio,
+      );
+    });
+
+    Future<List<int>> lookup() =>
+        client.filterFavoritesFromUsername(username: 'demo', postIds: [7, 8]);
+
+    test(
+      'authored results can resolve both positive and negative IDs',
+      () async {
+        body = '<posts count="1"><post id="7"/></posts>';
+        expect(await lookup(), [7]);
+        body = '<posts count="0"/>';
+        expect(await lookup(), isEmpty);
+      },
+    );
+
+    for (final invalid in [
+      '<html>Sign in</html>',
+      '<posts success="false"/>',
+      '<posts count="2"><post id="7"/></posts>',
+      '<posts><post id="9"/></posts>',
+      '<posts><post id="7"/><post id="7"/></posts>',
+    ]) {
+      test('rejects an inconclusive response ($invalid)', () async {
+        body = invalid;
+        await expectLater(lookup(), throwsFormatException);
+      });
+    }
+  });
+
   group('Shimmie2Client extension discovery', () {
     late HttpServer server;
     late String baseUrl;

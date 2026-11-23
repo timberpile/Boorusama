@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "التحديثات أولًا",
-    "sort_last_post_oldest": "أقدم المنشورات أولًا"
+    "sort_manual": "يدوي",
+    "sort_unread_first": "غير المقروءة أولًا",
+    "sort_recently_added": "المضافة مؤخرًا"
   },
   "generic": {
     "done": "تم",
@@ -421,14 +422,6 @@
       },
       "slideshow_skip": "تخطي في عرض الشرائح",
       "slideshow_interval_explanation": "القيمة التي تقل عن ثانية واحدة ستتجاوز تلقائياً مرحلة الانتقال",
-      "swipe_mode": "وضع السحب (Swipe)",
-      "swipe_mode_disclaimer": "قد لا تعمل بعض الإيماءات في كل الحالات",
-      "swipe_modes": {
-        "horizontal": "أفقي",
-        "horizontal_description": "السحب يمينًا ويسارًا للتنقل بين الصور.",
-        "vertical": "عمودي",
-        "vertical_description": "السحب لأعلى وأسفل للتنقل بين الصور."
-      },
       "mute_video": "كتم صوت الفيديو تلقائيًا",
       "double_tap_seek": "النقر المزدوج لتقديم/ترجيع الفيديو",
       "video_section_title": "الفيديو",
@@ -1244,7 +1237,8 @@
       "edit_global_blacklist": "تعديل القائمة السوداء العامة",
       "edit_booru_specific_blacklist": "تعديل قائمة Booru السوداء",
       "edit_profile_blacklist": "تعديل قائمة الملف الشخصي السوداء",
-      "stats": "الإحصائيات"
+      "stats": "الإحصائيات",
+      "group_posts": "تجميع المنشورات"
     },
     "hidden_count": "$hidden من $total",
     "counter": {

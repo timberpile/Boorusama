@@ -31,11 +31,14 @@ void main() {
       final backend = FakeBooruBackend(
         additionalBoorus: {BooruType.gelbooru: createGelbooru().parser.parse()},
       )..registry.register(BooruType.gelbooru, createGelbooru());
-      final config = BooruConfig.defaultConfig(
-        booruType: BooruType.gelbooru,
-        url: 'https://gelbooru.com',
-        customDownloadFileNameFormat: null,
-      );
+      final config = BooruConfig.fromJson({
+        ...BooruConfig.defaultConfig(
+          booruType: BooruType.gelbooru,
+          url: 'https://gelbooru.com',
+          customDownloadFileNameFormat: null,
+        ).toJson(),
+        'id': '00000000-0000-4000-8000-000000000003',
+      });
       final downloads = MemoryDownloadService();
       Post post(String url) => TestPost(
         id: 500,
@@ -52,7 +55,7 @@ void main() {
       );
       final old = post('https://gelbooru.com/old.png');
       final current = post('https://gelbooru.com/current.png');
-      final stored = Bookmark.fromSnapshot(
+      final stored = PostBookmark.fromSnapshot(
         id: 1,
         createdAt: DateTime.utc(2026),
         updatedAt: DateTime.utc(2026),

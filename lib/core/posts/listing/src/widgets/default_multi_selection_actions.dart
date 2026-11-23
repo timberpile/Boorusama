@@ -1,7 +1,9 @@
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import 'post_grid_item.dart';
-import '../../../../configs/manage/providers.dart';
+import '../../../../configs/config/types.dart';
+import '../../../../bookmarks/src/data/bookmark_convert.dart';
+import '../../../../bookmarks/src/providers/bookmark_button_state_provider.dart';
 import '../types/post_action_snapshot.dart';
 import 'post_actions.dart';
 import '../types/post_search_actions.dart';
@@ -28,10 +30,12 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
     this.extraActions,
     this.onBulkDownload,
     this.bookmark = true,
+    this.selectedPostsBuilder,
   });
 
   final PostGridController<T> postController;
   final bool bookmark;
+  final List<T> Function(SelectionModeController)? selectedPostsBuilder;
   final Future<void> Function(List<T> selectedPosts)? onBulkDownload;
   final List<Widget> Function(List<T> selectedPosts)? extraActions;
 
@@ -42,15 +46,27 @@ class DefaultMultiSelectionActions<T extends Post> extends ConsumerWidget {
       listenable: Listenable.merge([controller, postController]),
       builder: (context, _) {
         final selectedPosts = List<T>.unmodifiable(
-          postController.refreshing
-              ? <T>[]
-              : controller.selectedFrom(postController.items.toList()).toList(),
+          PostActionSnapshot.uniquePosts(
+            postController.refreshing
+                ? <T>[]
+                : selectedPostsBuilder?.call(controller) ??
+                      controller
+                          .selectedFrom(postController.items.toList())
+                          .toList(),
+          ),
         );
-        if (selectedPosts.isEmpty) return const SizedBox.shrink();
-        final snapshot = PostActionSnapshot(
-          selectedPosts,
-          ref.watch(booruConfigProvider),
-        );
+        if (selectedPosts.isEmpty) {
+          if (selectedPostsBuilder == null ||
+              controller.selection.isEmpty ||
+              postController.refreshing) {
+            return const SizedBox.shrink();
+          }
+          final extras = extraActions?.call(selectedPosts) ?? const <Widget>[];
+          return extras.isEmpty
+              ? const SizedBox.shrink()
+              : MultiSelectionActionBar(children: extras);
+        }
+        final snapshot = PostActionSnapshot.watch(ref, selectedPosts);
         final actions = _PostActionsBar(
           snapshot: snapshot,
           bookmark: bookmark,
@@ -82,13 +98,28 @@ class _PostActionsBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final container = ProviderScope.containerOf(context, listen: false);
     final actions = postActionDefinitions(
       context,
       ref,
       snapshot,
-      downloadOverride: onBulkDownload,
+      downloadOverride: snapshot.isSingle ? null : onBulkDownload,
     );
     final singlePost = snapshot.isSingle ? snapshot.posts.single : null;
+    // An unresolved stored post may still be bookmarked locally, but must not
+    // inherit credentials from whichever unrelated Browse account is active.
+    final bookmarkAuth = snapshot.commonConfig?.auth ?? BooruConfig.empty.auth;
+    final bookmarkState =
+        singlePost == null || !bookmark || !snapshot.canBookmark
+        ? null
+        : ref.watch(
+            bookmarkButtonStateProvider(
+              bookmarkIdentityForPost(singlePost, bookmarkAuth.booruIdHint),
+            ),
+          );
+    final bookmarkPresentation = bookmarkState?.presentation;
+    final membershipCount = bookmarkPresentation?.namedGroupCount ?? 0;
+    VoidCallback? showBookmarkPicker;
     final searchActions = PostSearchActionsScope.maybeOf(context);
     final presentation = singlePost == null
         ? null
@@ -115,18 +146,57 @@ class _PostActionsBar extends ConsumerWidget {
             onPressed: action.enabled ? () => action.execute() : null,
           ),
         if (bookmark && snapshot.canBookmark)
-          MultiSelectPopupButton(
-            name: context.t.post.action.bookmark,
-            enabled: true,
-            icon: const Icon(Symbols.bookmark_add),
-            items: [
-              BookmarkMultiSelectionMenu(
-                posts: snapshot.posts,
-                config: ref.watchConfigAuth,
-                onCompleted: () async {},
+          if (singlePost != null)
+            MultiSelectButton(
+              key: const Key('selection-single-bookmark'),
+              decorate: (context, child) => BookmarkGroupPickerAnchor(
+                key: ValueKey((singlePost.origin, singlePost.id, bookmarkAuth)),
+                request: PostBookmarkPickerRequest(
+                  config: bookmarkAuth,
+                  post: singlePost,
+                ),
+                builder: (context, showPicker) {
+                  showBookmarkPicker = showPicker;
+                  return child;
+                },
               ),
-            ],
-          ),
+              primary: true,
+              name: context.t.post.action.bookmark,
+              icon: Badge(
+                isLabelVisible: membershipCount > 1,
+                label: Text('$membershipCount'),
+                child: Icon(
+                  Symbols.bookmark,
+                  fill: (bookmarkPresentation?.isBookmarked ?? false) ? 1 : 0,
+                ),
+              ),
+              onPressed: (bookmarkState?.isLoading ?? false)
+                  ? null
+                  : () {
+                      if (!snapshot.isCurrent(container)) {
+                        Kurumi.showErrorToast(
+                          context,
+                          context.t.post.action.operation_failed,
+                        );
+                        return;
+                      }
+                      showBookmarkPicker?.call();
+                    },
+            )
+          else
+            MultiSelectPopupButton(
+              key: const Key('selection-batch-bookmarks'),
+              name: context.t.post.action.bookmark,
+              enabled: true,
+              icon: const Icon(Symbols.bookmark_add),
+              items: [
+                BookmarkMultiSelectionMenu(
+                  posts: snapshot.posts,
+                  config: ref.watchConfigAuth,
+                  onCompleted: () async {},
+                ),
+              ],
+            ),
         for (final action in actions.where(
           (a) =>
               a.id != PostActionId.download &&
@@ -134,7 +204,7 @@ class _PostActionsBar extends ConsumerWidget {
               a.id != PostActionId.unfavorite,
         ))
           MultiSelectButton(
-            menuOnly: true,
+            menuOnly: !(snapshot.isSingle && action.id == PostActionId.share),
             name: action.label,
             icon: Icon(action.icon),
             onPressed: action.enabled ? () => action.execute() : null,

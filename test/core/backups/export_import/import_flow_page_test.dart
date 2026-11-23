@@ -1,3 +1,5 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +26,71 @@ import 'package:boorusama/core/backups/export_import/widgets/import_action_edito
 import 'package:boorusama/core/backups/export_import/widgets/import_recommendation_tree.dart';
 
 void main() {
+  testWidgets(
+    'pending preview disables acknowledgement and Apply for old valid plan',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetViewInsets();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      var applies = 0;
+      var acknowledgements = 0;
+      final preflight = _result(
+        validated: true,
+        summary: const PlannedChangeSummary(created: 1),
+        warnings: const [
+          ImportPlanIssue(code: 'private_data', sourceId: 'profiles'),
+        ],
+      );
+      Widget review(bool pending) => _app(
+        ListView(
+          children: [
+            ImportReviewValidation(
+              preflight: preflight,
+              previewPending: pending,
+              sourceNames: const {'profiles': 'Profiles'},
+              itemLabels: const {},
+              onWarningsAcknowledged: (_) => acknowledgements++,
+              onApply: () => applies++,
+              onDone: () {},
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(review(true));
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(
+        tester
+            .widget<CheckboxListTile>(find.byType(CheckboxListTile))
+            .onChanged,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('apply-import')))
+            .onPressed,
+        isNull,
+      );
+      await tester.pumpWidget(review(false));
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.ensureVisible(find.byType(CheckboxListTile));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.ensureVisible(find.byKey(const ValueKey('apply-import')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('apply-import')));
+      expect(acknowledgements, 1);
+      expect(applies, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   for (final count in [0, 1, 2]) {
     testWidgets(
       'shared review shows one site selector only for $count candidates',
@@ -74,11 +141,14 @@ void main() {
         );
         if (count == 0) {
           expect(find.textContaining('site.example'), findsOneWidget);
-          expect(find.textContaining('profile management'), findsOneWidget);
+          expect(
+            find.textContaining('Profile required to import'),
+            findsOneWidget,
+          );
         }
         if (count == 2) {
           expect(find.text('Select a matching profile'), findsOneWidget);
-          expect(find.text('site.example'), findsOneWidget);
+          expect(find.text('https://site.example'), findsOneWidget);
           expect(find.textContaining('profile management'), findsNothing);
           expect(
             tester
@@ -130,6 +200,9 @@ void main() {
           exportSelectionLabelsProvider.overrideWithValue(
             const ExportSelectionLabels(children: {}),
           ),
+          settingsNotifierProvider.overrideWith(
+            () => SettingsNotifier(Settings.defaultSettings),
+          ),
           booruConfigProvider.overrideWith(
             () => BooruConfigNotifier(
               initialConfigs: [
@@ -151,7 +224,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('same.example'), findsOneWidget);
+    expect(find.text('https://same.example'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
     expect(find.text('Create Profile'), findsNothing);
     await tester.tap(find.byType(DropdownButton<String>));
@@ -617,15 +690,16 @@ ImportPreflightResult _result({
   List<ImportPlanIssue> warnings = const [],
   List<ImportPlanIssue> errors = const [],
   bool validated = false,
+  PlannedChangeSummary summary = const PlannedChangeSummary(unchanged: 1),
 }) => ImportPreflightResult(
   warnings: warnings,
   errors: errors,
-  summary: const PlannedChangeSummary(unchanged: 1),
+  summary: summary,
   validatedPlan: validated
       ? ValidatedImportPlan(
           plan: ResolvedImportPlan(sources: const []),
           revisionTokens: const {},
-          summary: const PlannedChangeSummary(unchanged: 1),
+          summary: summary,
         )
       : null,
 );
@@ -672,6 +746,9 @@ Widget _mappingApp(_MappingReviewNotifier notifier) => ProviderScope(
     backupRegistryProvider.overrideWithValue(BackupRegistry()),
     exportSelectionLabelsProvider.overrideWithValue(
       const ExportSelectionLabels(children: {}),
+    ),
+    settingsNotifierProvider.overrideWith(
+      () => SettingsNotifier(Settings.defaultSettings),
     ),
     booruConfigProvider.overrideWith(
       () => BooruConfigNotifier(

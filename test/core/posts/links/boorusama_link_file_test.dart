@@ -26,6 +26,64 @@ void main() {
     }
   });
 
+  test('profile prefixes keep the stable target and portable length', () {
+    expect(
+      BoorusamaLinkFile.fromUri(postUri, profileName: '  My/Rule34! ').fileName,
+      'my-rule34-post-42.bslink',
+    );
+    expect(
+      BoorusamaLinkFile.fromUri(postUri, profileName: '?!').fileName,
+      'danbooru-post-42.bslink',
+    );
+    const work =
+        'boorusama://group/open?v=1&engine=pixiv&site=https%3A%2F%2Fwww.pixiv.net&key=work%3A42';
+    const related =
+        'boorusama://group/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&key=related%3A42';
+    expect(BoorusamaLinkFile.fromUri(work).fileName, 'pixiv-work-42.bslink');
+    expect(
+      BoorusamaLinkFile.fromUri(related).fileName,
+      'danbooru-related-42.bslink',
+    );
+    final long = BoorusamaLinkFile.fromUri(work, profileName: '絵' * 200);
+    expect(utf8.encode(long.fileName).length, lessThanOrEqualTo(255));
+    expect(long.fileName, endsWith('-work-42.bslink'));
+    expect(BoorusamaLinkFile.decode(long.encode()).uri, Uri.parse(work));
+  });
+
+  test(
+    'Pixiv pages use the shorter name and keep their exact target',
+    () async {
+      final root = await Directory.systemTemp.createTemp('bslink-read-');
+      addTearDown(() => root.delete(recursive: true));
+      for (final index in [0, 1]) {
+        final uri = Uri(
+          scheme: 'boorusama',
+          host: 'post',
+          path: '/open',
+          queryParameters: {
+            'v': '1',
+            'engine': 'pixiv',
+            'site': 'https://www.pixiv.net',
+            'key': 'work-page:42:$index',
+          },
+        );
+        final document = BoorusamaLinkFile.fromUri(
+          uri.toString(),
+          profileName: 'Pixiv Reading',
+        );
+        expect(document.fileName, 'pixiv-reading-work-page-42-$index.bslink');
+        final legacy = File(
+          '${root.path}/pixiv-post-work-page-42-$index.bslink',
+        );
+        await legacy.writeAsBytes(document.encode());
+        expect(
+          (await BoorusamaLinkFile.read(legacy.path, const IoFileSystem())).uri,
+          uri,
+        );
+      }
+    },
+  );
+
   test('untrusted documents cannot open other routes or carry credentials', () {
     final good = jsonDecode(
       utf8.decode(BoorusamaLinkFile.fromUri(postUri).encode()),
@@ -71,6 +129,19 @@ void main() {
     await expectLater(
       BoorusamaLinkFile.read(file.path, const IoFileSystem()),
       throwsFormatException,
+    );
+  });
+
+  test('legacy Group file names still open the same target', () async {
+    final root = await Directory.systemTemp.createTemp('bslink-read-');
+    addTearDown(() => root.delete(recursive: true));
+    const pool =
+        'boorusama://group/open?v=1&engine=danbooru&site=https%3A%2F%2Fsite.test&key=pool%3A42';
+    final file = File('${root.path}/boorusama-group-pool-42.bslink');
+    await file.writeAsBytes(BoorusamaLinkFile.fromUri(pool).encode());
+    expect(
+      (await BoorusamaLinkFile.read(file.path, const IoFileSystem())).uri,
+      Uri.parse(pool),
     );
   });
 }

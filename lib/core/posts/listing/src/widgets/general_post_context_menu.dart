@@ -1,4 +1,3 @@
-import '../../../../configs/manage/providers.dart';
 import '../types/post_action_snapshot.dart';
 import 'post_actions.dart';
 
@@ -20,6 +19,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
     super.key,
     required this.controller,
     required this.index,
+    this.selectionIndex,
     required this.child,
   });
 
@@ -27,6 +27,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
   final Widget child;
 
   final int index;
+  final int? selectionIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,9 +39,7 @@ class GeneralPostContextMenu extends ConsumerWidget {
       builder: (context, posts, _) {
         if (index >= posts.length) return child;
         final post = posts[index];
-        final snapshot = PostActionSnapshot([
-          post,
-        ], ref.watch(booruConfigProvider));
+        final snapshot = PostActionSnapshot.watch(ref, [post]);
         return KurumiContextMenu(
           menuItemsBuilder: (context) => [
             PostContextMenuActions(
@@ -54,10 +53,10 @@ class GeneralPostContextMenu extends ConsumerWidget {
             if (selectionModeController case final controller?)
               KurumiContextMenuTile(
                 title: context.t.generic.action.select,
-                trailing: const Icon(Icons.checklist),
+                leading: const Icon(Icons.checklist),
                 onTap: () {
                   controller.enable(
-                    initialSelected: [index],
+                    initialSelected: [selectionIndex ?? index],
                   );
                 },
               ),

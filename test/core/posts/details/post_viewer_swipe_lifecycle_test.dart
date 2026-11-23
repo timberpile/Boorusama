@@ -336,6 +336,8 @@ void main() {
     }
     details.currentPostUpdates = 0;
     oldPages.precisePage.value = 0.9;
+    expect(details.currentPostUpdates, 0);
+    oldPages.precisePage.value = 0.0;
     expect(details.currentPostUpdates, 1);
     await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
     expect(oldPages.nextCalls, 1);
@@ -353,6 +355,8 @@ void main() {
     oldPages.precisePage.value = 0.8;
     expect(details.currentPostUpdates, 0);
     newPages.precisePage.value = 0.9;
+    expect(details.currentPostUpdates, 0);
+    newPages.precisePage.value = 0.0;
     expect(details.currentPostUpdates, 1);
     await tester.sendKeyEvent(LogicalKeyboardKey.audioVolumeUp);
     expect(oldPages.nextCalls, 1);
@@ -409,6 +413,7 @@ Widget _app({
       () => BooruConfigNotifier(initialConfigs: [_config]),
     ),
     automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+    zoomStudyEnabledProvider.overrideWithValue(false),
     booruRepoProvider.overrideWith((ref, config) => null),
     hasPremiumLayoutProvider.overrideWithValue(false),
     showPremiumFeatsProvider.overrideWithValue(false),
@@ -555,6 +560,7 @@ Widget _preloadApp({
     settingsProvider.overrideWithValue(Settings.defaultSettings),
     initialSettingsBooruConfigProvider.overrideWithValue(_config),
     automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+    zoomStudyEnabledProvider.overrideWithValue(false),
     booruConfigProvider.overrideWith(
       () => BooruConfigNotifier(
         initialConfigs: configs ?? [_config, _otherConfig],

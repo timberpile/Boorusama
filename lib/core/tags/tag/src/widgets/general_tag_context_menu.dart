@@ -42,12 +42,8 @@ class GeneralTagContextMenu extends ConsumerWidget
           title: followCount > 0
               ? context.t.following_topics.following
               : context.t.following_topics.follow,
-          trailing: followCount > 0
-              ? Badge(
-                  label: Text('$followCount'),
-                  child: const Icon(Icons.rss_feed),
-                )
-              : const Icon(Icons.rss_feed),
+          leading: const Icon(Icons.rss_feed),
+          trailing: followCount > 0 ? Badge(label: Text('$followCount')) : null,
           onTap: () => showTopicFollowFlow(
             context,
             ref,
@@ -57,14 +53,14 @@ class GeneralTagContextMenu extends ConsumerWidget
         ),
         KurumiContextMenuTile(
           title: context.t.post.detail.add_to_favorites,
-          trailing: const Icon(Icons.favorite_border),
+          leading: const Icon(Icons.favorite_border),
           onTap: () {
             ref.read(favoriteTagsProvider.notifier).add(tag);
           },
         ),
         KurumiContextMenuTile(
           title: context.t.tags.actions.add_to_blacklist_global,
-          trailing: const Icon(Icons.block),
+          leading: const Icon(Icons.block),
           onTap: () {
             globalNotifier.addTagWithToast(context, tag);
           },
@@ -83,7 +79,7 @@ class GeneralTagContextMenu extends ConsumerWidget
 mixin TagContextMenuItemsMixin {
   Widget copyButton(BuildContext context, String tag) => KurumiContextMenuTile(
     title: context.t.tags.actions.copy_single,
-    trailing: const Icon(Icons.content_copy),
+    leading: const Icon(Icons.content_copy),
     onTap: () {
       AppClipboard.copyAndToast(
         context,
@@ -95,7 +91,7 @@ mixin TagContextMenuItemsMixin {
 
   Widget searchButton(WidgetRef ref, String tag) => KurumiContextMenuTile(
     title: ref.context.t.tags.actions.search_single,
-    trailing: const Icon(Icons.search),
+    leading: const Icon(Icons.search),
     onTap: () {
       goToSearchPage(ref, tag: tag);
     },

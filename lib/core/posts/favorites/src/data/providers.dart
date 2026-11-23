@@ -18,6 +18,7 @@ final favoriteRepoProvider =
 final profileFavoriteRepoProvider =
     Provider.family<FavoriteRepository, (BooruConfigAuth, String)>(
       (ref, key) {
+        if (key.$1.anonymousReadScope != null) return EmptyFavoriteRepository();
         final repository = ref.watch(favoriteRepoProvider(key.$1));
         // Reuse the engine's injected repository while capturing exactly one
         // profile projection. Never wrap the auth-only projection a second time.
@@ -38,6 +39,7 @@ FavoriteRepository _repository(
   BooruConfigAuth auth, {
   String? profileId,
 }) {
+  if (auth.anonymousReadScope != null) return EmptyFavoriteRepository();
   final delegate = ref
       .watch(booruEngineRegistryProvider)
       .getRepository(auth.booruType)

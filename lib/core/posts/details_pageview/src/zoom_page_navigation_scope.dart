@@ -43,3 +43,27 @@ class ZoomPageNavigationScope extends InheritedWidget {
       onEdgeNext != oldWidget.onEdgeNext ||
       nextEdgeAction != oldWidget.nextEdgeAction;
 }
+
+/// Overrides only media navigation; Details keeps the outer occurrence pager.
+class MediaPageNavigation {
+  const MediaPageNavigation({
+    this.onPrevious,
+    this.onNext,
+    this.previousId,
+    this.nextId,
+    this.memberKey,
+    this.pageController,
+    this.atStart = false,
+    this.atEnd = false,
+  });
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+  final Object? previousId;
+  final Object? nextId;
+  final String? memberKey;
+  // Resolve after the media region mounts, rather than capturing a null pager
+  // during the surrounding frame's first build.
+  final PageController? Function()? pageController;
+  final bool atStart;
+  final bool atEnd;
+}

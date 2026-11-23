@@ -19,7 +19,7 @@ class CurrentPostDetailsNotes extends ConsumerStatefulWidget {
     super.key,
   });
 
-  final Post post;
+  final Post? post;
   final BooruConfigViewer viewerConfig;
   final BooruConfigAuth authConfig;
   final bool enabled;
@@ -55,10 +55,13 @@ class _CurrentPostDetailsNotesState
   }
 
   void _scheduleLoad() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (!mounted || !widget.enabled || !widget.viewerConfig.autoFetchNotes) {
+    if (!mounted ||
+        !widget.enabled ||
+        widget.post == null ||
+        !widget.viewerConfig.autoFetchNotes) {
       return;
     }
-    ref.read(notesProvider(widget.authConfig).notifier).load(widget.post);
+    ref.read(notesProvider(widget.authConfig).notifier).load(widget.post!);
   });
 
   @override

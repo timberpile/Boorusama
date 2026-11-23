@@ -18,6 +18,7 @@ import '../../../../../core/posts/post/providers.dart';
 import '../../../../../core/posts/post/types.dart';
 import '../../../../../core/settings/providers.dart';
 import '../../../client_provider.dart';
+import '../../../constants.dart';
 import '../../../tags/_shared/tag_list_notifier.dart';
 import '../../../tags/tag/providers.dart';
 import '../../../users/user/providers.dart';
@@ -34,6 +35,13 @@ final danbooruPostRepoProvider =
       final tagComposer = ref.watch(danbooruTagQueryComposerProvider(config));
 
       return PostRepositoryBuilder(
+        onConsumePreparedPosts: (posts) async {
+          await transformPosts(
+            ref,
+            PostResult(posts: posts, total: null),
+            config,
+          );
+        },
         tagComposer: tagComposer,
         fetchSingle: (id, {options}) async {
           final numericId = id as NumericPostId?;
@@ -66,9 +74,39 @@ final danbooruPostRepoProvider =
                     .toList(),
               );
 
+          int? total;
+          bool? hasMore;
+          int? rawPostCount;
+          if (!(options?.prepareGroupRows ?? false) &&
+              tags.any(RegExp(r'^parent:[1-9][0-9]*$').hasMatch)) {
+            // Preserve the existing exact-completeness contract for ordinary
+            // Search. Groups additionally need raw progress before filtering.
+            rawPostCount = posts.length;
+            final count = await client.countPosts(
+              tags: [
+                ...tags,
+                if (Uri.tryParse(config.auth.url)?.host.toLowerCase() ==
+                    Uri.parse(kDanbooruSafeUrl).host)
+                  'rating:g',
+              ],
+              estimateCount: false,
+              skipCache: true,
+            );
+            final uniqueCount = posts.map((post) => post.id).toSet().length;
+            if (count != null && count >= uniqueCount && count >= 0) {
+              total = count;
+              if (page == 1 && uniqueCount == count) hasMore = false;
+            }
+          }
+          final result = posts.toResult(
+            total: total,
+            hasMore: hasMore,
+            rawPostCount: rawPostCount ?? posts.length,
+            rawUniquePostCount: posts.map((p) => p.id).toSet().length,
+          );
           return (options?.cascadeRequest ?? true)
-              ? transformPosts(ref, posts.toResult(), config)
-              : posts.toResult();
+              ? transformPosts(ref, result, config)
+              : result;
         },
         getSettings: () async =>
             ref.read(listingSettingsForAuthProvider(config.auth)),
@@ -84,7 +122,7 @@ Future<PostResult<Post>> transformPosts(
   PostResult<Post> r,
   BooruConfigSearch config,
 ) async {
-  final posts = _filter(
+  final posts = filterDanbooruPosts(
     r.posts,
     config.filter.bannedPostVisibility.isHidden,
   );
@@ -132,7 +170,8 @@ Future<PostResult<Post>> transformPosts(
   );
 }
 
-List<Post> _filter(List<Post> posts, bool hideBannedPosts) {
+List<Post> filterDanbooruPosts(List<Post> source, bool hideBannedPosts) {
+  final posts = List<Post>.of(source);
   posts.removeWhere(
     (e) =>
         (hideBannedPosts && e.isBanned) ||

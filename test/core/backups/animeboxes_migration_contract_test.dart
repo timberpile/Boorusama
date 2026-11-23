@@ -12,7 +12,6 @@ import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/backups/export_import/import/import_flow_notifier.dart';
 import 'package:boorusama/core/backups/export_import/import/import_plan.dart';
 import 'package:boorusama/core/backups/export_import/import/import_source_integrity_validator.dart';
-import 'package:boorusama/core/backups/export_import/import/profile_dependency_planner.dart';
 import 'package:boorusama/core/backups/export_import/models/export_selection.dart';
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/export_import/package/export_package_reader.dart';
@@ -24,6 +23,7 @@ import 'package:boorusama/core/backups/sources/providers.dart';
 import 'package:boorusama/core/backups/utils/data_converter.dart';
 import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/backups/utils/json_handler.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/blacklists/providers.dart';
 import 'package:boorusama/core/blacklists/src/data/hive/tag_repository.dart';
 import 'package:boorusama/core/blacklists/src/data/hive/tag_hive_object.dart';
@@ -40,6 +40,9 @@ import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
+
+import '../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/search/following_topics/providers.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_hive_object.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
@@ -191,12 +194,10 @@ void main() {
           await notifier.load('${fixtures.path}/named/animeboxes.bsexport');
           var state = harness.container.read(importFlowProvider);
           expect(state.status, ImportFlowStatus.review);
-          notifier.chooseProfileMapping(
-            ProfileSiteKey.fromReference(
-              state.profileMappings.single.reference,
-            ),
-            _localProfileId,
-          );
+          for (final mapping in state.profileMappings) {
+            notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+          }
+          await notifier.previewComplete;
           expect(
             harness.container.read(importFlowProvider).preflight!.isValid,
             true,
@@ -383,6 +384,7 @@ void main() {
     'Merge into retains unresolved selection and applies the chosen group',
     (tester) async {
       late _Harness harness;
+      Future<void>? pendingPreview;
       await tester.runAsync(() async {
         harness = await _Harness.create(populated: true);
         await harness.groups.createGroup(
@@ -390,11 +392,7 @@ void main() {
           id: 'a0000000-0000-4000-8000-000000000004',
         );
         await harness.bookmarks.addBookmarkWithBookmarks([
-          Bookmark.empty.copyWith(
-            originalUrl: 'https://local.example/duplicate.jpg',
-            sourceUrl: 'https://danbooru.donmai.us',
-            postId: () => 42,
-          ),
+          _danbooruDuplicateBookmark(),
         ]);
         await harness.container.read(bookmarkProvider.notifier).refresh();
         final notifier = harness.container.read(importFlowProvider.notifier);
@@ -405,6 +403,7 @@ void main() {
             .sources
             .singleWhere((s) => s.id == 'pinned_searches');
         notifier.replaceSource(topics.copyWith(action: ImportAction.skip));
+        await notifier.previewComplete;
       });
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox());
@@ -429,9 +428,15 @@ void main() {
                             (s) => s.id == 'bookmarks',
                           ),
                           resolved: source,
-                          onChanged: ref
-                              .read(importFlowProvider.notifier)
-                              .replaceSource,
+                          onChanged: (source) {
+                            pendingPreview = tester.runAsync(() async {
+                              final notifier = ref.read(
+                                importFlowProvider.notifier,
+                              );
+                              notifier.replaceSource(source);
+                              await notifier.previewComplete;
+                            });
+                          },
                           sourceLabel: (_) => 'Bookmark groups',
                           itemLabel: (_) => 'AnimeBoxes',
                           targetLabel: (id) => id == 'group:$_localGroupId'
@@ -440,6 +445,7 @@ void main() {
                         ),
                         ImportReviewValidation(
                           preflight: state.preflight!,
+                          previewPending: state.previewPending,
                           sourceNames: const {'bookmarks': 'Bookmark groups'},
                           itemLabels: state.itemLabels,
                           onWarningsAcknowledged: ref
@@ -460,6 +466,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      Future<void> finishPreview() async {
+        await tester.pump();
+        expect(pendingPreview, isNotNull);
+        await pendingPreview;
+        await tester.pumpAndSettle();
+      }
+
       Future<void> action(String label) async {
         final selected = harness.container
             .read(importFlowProvider)
@@ -477,7 +490,7 @@ void main() {
         await tester.tap(find.text(selectedLabel).first);
         await tester.pumpAndSettle();
         await tester.tap(find.text(label).last);
-        await tester.pumpAndSettle();
+        await finishPreview();
       }
 
       await action('Merge into...');
@@ -530,7 +543,7 @@ void main() {
         await tester.tap(find.byType(DropdownButtonFormField<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text(label).last);
-        await tester.pumpAndSettle();
+        await finishPreview();
       }
 
       await target('Other target');
@@ -654,10 +667,22 @@ void main() {
                   .action,
               ImportAction.skip,
             );
-            expect(state.profileMappings.single.profileId, _localProfileId);
-            expect(state.profileMappings.single.candidateIds, {
-              _localProfileId,
-            });
+            expect(state.profileMappings, hasLength(2));
+            expect(
+              state.profileMappings.map((mapping) => mapping.profileId),
+              everyElement(_localProfileId),
+            );
+            expect(
+              state.profileMappings.map((mapping) => mapping.candidateIds),
+              everyElement({_localProfileId}),
+            );
+            expect(
+              state.profileMappings.map((mapping) => mapping.siteKey.site),
+              unorderedEquals([
+                'danbooru.donmai.us',
+                'https://danbooru.donmai.us',
+              ]),
+            );
             expect(state.preflight!.isValid, true);
             expect(state.preflight!.errors, isEmpty);
             expect(
@@ -665,12 +690,10 @@ void main() {
               hasLength(populated ? 1 : 0),
             );
             final profilesBefore = await harness.profiles.getAll();
-            notifier.chooseProfileMapping(
-              ProfileSiteKey.fromReference(
-                state.profileMappings.single.reference,
-              ),
-              _localProfileId,
-            );
+            for (final mapping in state.profileMappings) {
+              notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+            }
+            await notifier.previewComplete;
             state = harness.container.read(importFlowProvider);
             expect(state.preflight!.errors, isEmpty);
             expect(state.preflight!.isValid, true);
@@ -747,12 +770,10 @@ void main() {
             // and create independent Topics under a fresh wrapper.
             await notifier.load(packagePaths['']!);
             state = harness.container.read(importFlowProvider);
-            notifier.chooseProfileMapping(
-              ProfileSiteKey.fromReference(
-                state.profileMappings.single.reference,
-              ),
-              _localProfileId,
-            );
+            for (final mapping in state.profileMappings) {
+              notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+            }
+            await notifier.previewComplete;
             expect(
               harness.container
                   .read(importFlowProvider)
@@ -862,12 +883,11 @@ void main() {
                 ],
               ),
             );
-            notifier.chooseProfileMapping(
-              ProfileSiteKey.fromReference(
-                state.profileMappings.single.reference,
-              ),
-              _localProfileId,
-            );
+            await notifier.previewComplete;
+            for (final mapping in state.profileMappings) {
+              notifier.chooseProfileMapping(mapping.siteKey, _localProfileId);
+            }
+            await notifier.previewComplete;
             expect(
               harness.container.read(importFlowProvider).preflight!.isValid,
               true,
@@ -976,6 +996,7 @@ class _Harness {
     this.blacklist,
     this.container,
     this.boxes,
+    this.bookmarkStorage,
   );
   final Directory directory;
   final BookmarkHiveRepository bookmarks;
@@ -985,6 +1006,7 @@ class _Harness {
   final HiveBlacklistedTagRepository blacklist;
   final ProviderContainer container;
   final List<Box> boxes;
+  final BookmarkTestStorage bookmarkStorage;
 
   static Future<_Harness> create({required bool populated}) async {
     final directory = await Directory.systemTemp.createTemp(
@@ -998,6 +1020,7 @@ class _Harness {
     _registerAdapter(SearchPostPreviewHiveObjectAdapter());
     _registerAdapter(RecentSearchPostHiveObjectAdapter());
     final bookmarkBox = await Hive.openBox<BookmarkHiveObject>('favorites');
+    final bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
     final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
       'bookmark_groups',
     );
@@ -1008,7 +1031,7 @@ class _Harness {
       'pinned_search_folders',
     );
     final profileBox = await Hive.openBox<String>('booru_configs');
-    final bookmarks = BookmarkHiveRepository(bookmarkBox);
+    final bookmarks = bookmarkStorage.repository(bookmarkBox);
     final groups = BookmarkGroupRepositoryHive(
       groupBox,
       organizationBox: MemoryBox<dynamic>(),
@@ -1032,7 +1055,7 @@ class _Harness {
     await blacklist.addTag('local_rule');
     if (populated) {
       final bookmark = (await bookmarks.addBookmarkWithBookmarks([
-        Bookmark.empty.copyWith(
+        PostBookmark.empty.copyWith(
           originalUrl: 'https://local.example/99.jpg',
           sourceUrl: 'https://local.example',
           postId: () => 99,
@@ -1060,6 +1083,7 @@ class _Harness {
     }
     final container = ProviderContainer(
       overrides: [
+        ...bookmarkStorage.overrides,
         loggerProvider.overrideWithValue(AppLogger()),
         booruEngineRegistryProvider.overrideWith(_engineRegistry),
         bookmarkRepoProvider.overrideWith((ref) => bookmarks),
@@ -1104,17 +1128,53 @@ class _Harness {
         profileBox,
         Hive.box<BlacklistedTagHiveObject>('blacklisted_tags'),
       ],
+      bookmarkStorage,
     );
   }
 
   Future<void> close() async {
     container.dispose();
     // Staged package disposal is asynchronous; Hive handles are owned here.
+    await bookmarkStorage.close();
     for (final box in boxes) {
       await box.close();
     }
     await directory.delete(recursive: true);
   }
+}
+
+PostBookmark _danbooruDuplicateBookmark() {
+  final legacy = PostBookmark.empty.copyWith(
+    originalUrl: 'https://local.example/duplicate.jpg',
+    sourceUrl: 'https://danbooru.donmai.us',
+    postId: () => 42,
+  );
+  final origin = PostOrigin.fromSource(
+    booruType: BooruType.danbooru,
+    booruId: BooruType.danbooru.id,
+    source: 'https://danbooru.donmai.us',
+  );
+  final snapshot = const StoredPostCodec().encode(
+    legacy.post.copyWith(origin: origin),
+  );
+  final decodedPost = switch (const StoredPostCodec().decode(snapshot)) {
+    StoredPostDecodeSuccess(:final post) => post,
+    StoredPostDecodeFailure() => throw StateError(
+      'Could not decode the Danbooru duplicate fixture',
+    ),
+  };
+  if (decodedPost.origin != origin || decodedPost.id != legacy.postId) {
+    throw StateError('Danbooru duplicate fixture did not round-trip');
+  }
+  return PostBookmark.fromSnapshot(
+    id: legacy.id,
+    createdAt: legacy.createdAt,
+    updatedAt: legacy.updatedAt,
+    snapshot: snapshot,
+    post: decodedPost,
+    postId: legacy.postId,
+    sourceUrl: legacy.sourceUrl,
+  );
 }
 
 class _FileSystem extends IoFileSystem {

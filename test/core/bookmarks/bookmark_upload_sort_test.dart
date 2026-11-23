@@ -173,14 +173,14 @@ void main() {
   });
 }
 
-List<int> _ids(List<Bookmark> bookmarks, BookmarkSortType sort) =>
+List<int> _ids(List<PostBookmark> bookmarks, BookmarkSortType sort) =>
     filterBookmarks(
       bookmarks: bookmarks,
       selectedTags: const [],
       sortType: sort,
     ).map((bookmark) => bookmark.id).toList();
 
-Bookmark _bookmark({
+PostBookmark _bookmark({
   required int localId,
   required int postId,
   required String site,
@@ -218,7 +218,7 @@ Bookmark _bookmark({
     booruData: const LegacyPostData(typeKey: 'test', custom: {}),
   );
   final markedAt = bookmarkedAt ?? DateTime.utc(2026, 1);
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: localId,
     createdAt: markedAt,
     updatedAt: markedAt,

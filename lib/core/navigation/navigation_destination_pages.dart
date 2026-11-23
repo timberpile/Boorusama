@@ -6,6 +6,7 @@ import 'package:kurumi/material.dart';
 
 import '../../boorus/navigation_pages.dart';
 import '../../foundation/boot/providers.dart';
+import '../backups/export_import/export_import_page.dart';
 import '../blacklists/widgets.dart';
 import '../bookmarks/widgets.dart';
 import '../boorus/engine/providers.dart';
@@ -62,8 +63,26 @@ class NavigationDestinationPage extends ConsumerWidget {
               ref.read(navigationControllerProvider.notifier).browseDestination,
             );
         return switch (id.appDestination!) {
-          AppDestination.following => const FollowingTopicsPage(),
-          AppDestination.bookmarks => const BookmarkGroupBrowserPage(),
+          AppDestination.following => FollowingTopicsPage(
+            key: ValueKey((
+              'following-home',
+              ref.watch(
+                destinationRootRequestsProvider.select(
+                  (requests) => requests[id] ?? 0,
+                ),
+              ),
+            )),
+          ),
+          AppDestination.bookmarks => BookmarkGroupBrowserPage(
+            key: ValueKey((
+              'bookmark-home',
+              ref.watch(
+                destinationRootRequestsProvider.select(
+                  (requests) => requests[id] ?? 0,
+                ),
+              ),
+            )),
+          ),
           AppDestination.blacklist => const BlacklistedTagPage(),
           AppDestination.favoriteTags => const FavoriteTagsPage(),
           AppDestination.bulkDownload => const BulkDownloadPage(),
@@ -120,36 +139,65 @@ class NavigationRecoveryPage extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          ListTile(title: Text(context.t.navigation.choose_profile)),
-          for (final profile in profiles)
-            if (!favorites || eligible.contains(profile.id))
-              ListTile(
-                title: Text(profile.name),
-                subtitle: Text(profile.url),
-                onTap: () {
-                  final controller = ref.read(
-                    navigationControllerProvider.notifier,
-                  );
-                  unawaited(
-                    favorites
-                        ? controller.selectFavoritesProfile(
-                            profile.id,
-                            eligible,
-                          )
-                        : controller.selectBrowseProfile(profile.id),
-                  );
-                },
+          if (profiles.isEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+              child: Text(
+                context.t.booru.no_profiles_available,
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-          if (favorites && profiles.isNotEmpty && eligible.isEmpty)
-            ListTile(
-              title: Text(context.t.navigation.profiles),
-              onTap: () => unawaited(openProfilesSettingsPage(ref)),
             ),
-          if (profiles.isEmpty)
             ListTile(
-              title: Text(context.t.generic.action.add),
+              key: const ValueKey('empty-profile-add'),
+              leading: const Icon(Icons.add),
+              title: Text(context.t.booru.add_profile),
               onTap: () => goToAddBooruConfigPage(ref),
             ),
+            ListTile(
+              key: const ValueKey('empty-profile-import'),
+              leading: const Icon(Icons.file_open_outlined),
+              title: Text(
+                context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .apply_import,
+              ),
+              onTap: () => Navigator.of(context, rootNavigator: true).push(
+                MaterialPageRoute<void>(
+                  settings: const RouteSettings(name: 'profile-setup-import'),
+                  builder: (_) => const ExportImportPage(),
+                ),
+              ),
+            ),
+          ] else ...[
+            ListTile(title: Text(context.t.navigation.choose_profile)),
+            for (final profile in profiles)
+              if (!favorites || eligible.contains(profile.id))
+                ListTile(
+                  title: Text(profile.name),
+                  subtitle: Text(profile.url),
+                  onTap: () {
+                    final controller = ref.read(
+                      navigationControllerProvider.notifier,
+                    );
+                    unawaited(
+                      favorites
+                          ? controller.selectFavoritesProfile(
+                              profile.id,
+                              eligible,
+                            )
+                          : controller.selectBrowseProfile(profile.id),
+                    );
+                  },
+                ),
+            if (favorites && eligible.isEmpty)
+              ListTile(
+                title: Text(context.t.navigation.profiles),
+                onTap: () => unawaited(openProfilesSettingsPage(ref)),
+              ),
+          ],
         ],
       ),
     );

@@ -1,3 +1,5 @@
+import '../support/navigation_panel_test_utils.dart';
+
 import 'package:boorusama/core/navigation/app_navigation_shell.dart';
 import 'package:boorusama/core/navigation/destination_id.dart';
 import 'package:boorusama/core/navigation/navigation_controller.dart';
@@ -25,7 +27,7 @@ import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
-  testWidgets('viewer Back reveals the original navigation bar immediately', (
+  testWidgets('viewer Back restores the original bar with route progress', (
     tester,
   ) async {
     final harness = await HeadlessAppHarness.mount(
@@ -36,10 +38,7 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(AppNavigationShell)),
     );
-    final bar = find.ancestor(
-      of: find.byKey(const Key('nav-shortcut-browse')),
-      matching: find.byType(AnimatedSlide),
-    );
+    final bar = navigationPanel();
     final originalBar = tester.state(bar);
     final originalPosition = tester.getRect(
       find.byKey(const Key('nav-shortcut-browse')),
@@ -47,7 +46,20 @@ void main() {
     await tester.tap(find.byType(SliverPostGridImageGridItem).first);
     await harness.pumpUntilFound(tester, find.byType(PostDetailsPageScaffold));
     await harness.settle(tester);
-    expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
+    final shortcut = find.byKey(const Key('nav-shortcut-browse'));
+    expect(shortcut, findsOneWidget);
+    expect(shortcut.hitTestable(), findsNothing);
+    expect(
+      tester
+          .widgetList<ExcludeFocus>(
+            find.ancestor(
+              of: shortcut,
+              matching: find.byType(ExcludeFocus),
+            ),
+          )
+          .any((scope) => scope.excluding),
+      isTrue,
+    );
 
     await tester.binding.handlePopRoute();
     await harness.pumpUntil(
@@ -58,25 +70,29 @@ void main() {
     expect(find.byType(PostDetailsPageScaffold), findsOneWidget);
     expect(container.read(navigationChromeProvider).viewerOpen, isTrue);
     expect(tester.state(bar), same(originalBar));
-    final translation = find.descendant(
-      of: bar,
-      matching: find.byType(FractionalTranslation),
+
+    final progress = container
+        .read(navigationChromeProvider.notifier)
+        .viewerRouteProgress
+        .value;
+    expect(
+      navigationPanelTranslation(tester).dy,
+      closeTo(Curves.easeOutCubic.transform(progress), 0.001),
     );
     expect(
-      tester.widget<FractionalTranslation>(translation).translation,
-      Offset.zero,
-    );
-    expect(
-      tester.getRect(find.byKey(const Key('nav-shortcut-browse'))),
-      originalPosition,
+      shortcut.hitTestable(),
+      findsNothing,
+      reason: 'the Viewer owns input until reverse navigation completes',
     );
     await harness.settle(tester);
     expect(find.byType(PostDetailsPageScaffold), findsNothing);
     expect(container.read(navigationChromeProvider).viewerClosing, isFalse);
     expect(
-      tester.widget<FractionalTranslation>(translation).translation,
+      navigationPanelTranslation(tester),
       Offset.zero,
     );
+    expect(shortcut.hitTestable(), findsOneWidget);
+    expect(tester.getRect(shortcut), originalPosition);
     expect(tester.takeException(), isNull);
   });
 
@@ -103,7 +119,10 @@ void main() {
         find.byType(PostDetailsPageScaffold),
       );
       await harness.settle(tester);
-      expect(find.byKey(const Key('nav-shortcut-browse')), findsNothing);
+      expect(
+        find.byKey(const Key('nav-shortcut-browse')).hitTestable(),
+        findsNothing,
+      );
       expect(container.read(navigationChromeProvider).viewerOpen, isTrue);
       var completed = false;
       final transition = controller
@@ -188,10 +207,13 @@ void main() {
         find.byType(PostDetailsPageScaffold),
       );
       await harness.settle(tester);
-      final bookmark = find.descendant(
-        of: find.byType(BookmarkPostButton),
-        matching: find.byType(IconButton),
-      );
+      await harness.showViewerControls(tester);
+      final bookmark = find
+          .descendant(
+            of: find.byType(BookmarkPostButton),
+            matching: find.byType(IconButton),
+          )
+          .hitTestable();
       await tester.tap(bookmark);
       await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
       expect(repository.bookmarks, isEmpty);

@@ -5,6 +5,7 @@ import 'package:kurumi/material.dart';
 
 import '../models/export_item_presentation.dart';
 import '../models/export_selection.dart';
+import '../sources/export_selection_ids.dart';
 
 class ExportSelectionTree extends StatelessWidget {
   const ExportSelectionTree({
@@ -177,7 +178,16 @@ class _SelectionNodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final item = presentation.items[node.id];
     final title = _ItemLabel(
-      label: item?.label ?? node.id,
+      label:
+          item?.label ??
+          (ExportSelectionIds.bookmarkFolderId(node.id) != null
+              ? context
+                    .t
+                    .settings
+                    .backup_and_restore
+                    .export_import
+                    .preview_folder
+              : node.id),
       trailingLabel: item?.trailingLabel,
     );
     if (!node.isCollection) {
@@ -345,9 +355,17 @@ class _ItemLabel extends StatelessWidget {
 EdgeInsetsDirectional _treeTilePadding(int depth) =>
     EdgeInsetsDirectional.only(start: 8.0 * (depth + 1), end: 8);
 
-Set<String> _leafIds(ExportSelectionNode node) => node.children.isEmpty
-    ? {node.id}
-    : {for (final child in node.children) ..._leafIds(child)};
+Set<String> _leafIds(ExportSelectionNode node) {
+  final ids = <String>{};
+  final pending = [node];
+  while (pending.isNotEmpty) {
+    final current = pending.removeLast();
+    if (current.children.isEmpty || current.directSelectionId != null)
+      ids.add(current.id);
+    pending.addAll(current.children);
+  }
+  return ids;
+}
 
 String _selectedCountLabel(BuildContext context, int selected, int total) =>
     context.t.settings.backup_and_restore.export_import.selected_count

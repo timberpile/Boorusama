@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:anchor_ui/anchor_ui.dart';
 import 'package:flutter/material.dart';
 
+import '../foundation/platform.dart';
 import '../theme/theme.dart';
 import 'anchor.dart';
 
@@ -14,10 +15,13 @@ class KurumiPopupMenuButton extends StatefulWidget {
     this.iconBackgroundColor,
     this.maxWidth,
     this.semanticLabel,
+    this.tooltip,
     this.icon,
     this.iconPadding = const EdgeInsets.all(6),
     this.child,
     this.enabled = true,
+    this.focusNode,
+    this.buttonBuilder,
   });
 
   final List<Widget> items;
@@ -25,10 +29,16 @@ class KurumiPopupMenuButton extends StatefulWidget {
   final double? maxWidth;
   final Color? iconBackgroundColor;
   final String? semanticLabel;
+  final String? tooltip;
   final Widget? icon;
   final EdgeInsetsGeometry iconPadding;
   final Widget? child;
   final bool enabled;
+  final FocusNode? focusNode;
+
+  /// Supplies a styled trigger while retaining the shared menu and semantics.
+  final Widget Function(BuildContext context, VoidCallback? onPressed)?
+  buttonBuilder;
 
   @override
   State<KurumiPopupMenuButton> createState() => _KurumiPopupMenuButtonState();
@@ -53,12 +63,18 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
       _controller.toggle();
     }
 
+    final customButton = widget.buttonBuilder?.call(
+      context,
+      widget.enabled ? toggleMenu : null,
+    );
     final button =
+        customButton ??
         widget.child ??
         Material(
           color: widget.iconBackgroundColor ?? Colors.transparent,
           shape: const CircleBorder(),
           child: InkWell(
+            focusNode: widget.focusNode,
             customBorder: const CircleBorder(),
             onTap: widget.enabled ? toggleMenu : null,
             child: Padding(
@@ -74,39 +90,71 @@ class _KurumiPopupMenuButtonState extends State<KurumiPopupMenuButton> {
           ),
         );
 
+    final trigger = Semantics(
+      button: true,
+      enabled: widget.enabled,
+      label: widget.semanticLabel,
+      onTap: widget.enabled ? toggleMenu : null,
+      excludeSemantics: widget.child != null || customButton != null,
+      child:
+          customButton ??
+          (widget.child != null
+              ? Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    focusNode: widget.focusNode,
+                    onTap: widget.enabled ? toggleMenu : null,
+                    child: IgnorePointer(child: button),
+                  ),
+                )
+              : button),
+    );
+
     return KurumiAnchor(
       controller: _controller,
+      constrainToViewport: true,
       overlayBuilder: (context) => Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 8,
-          vertical: 8,
+        padding: const EdgeInsets.all(8),
+        constraints: popupMenuViewportConstraints(
+          context,
+          maxWidth: widget.maxWidth,
         ),
-        constraints: BoxConstraints(
-          maxWidth: min(MediaQuery.widthOf(context), widget.maxWidth ?? 200),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: widget.items,
+        child: SingleChildScrollView(
+          primary: false,
+          child: Column(mainAxisSize: MainAxisSize.min, children: widget.items),
         ),
       ),
-      child: Semantics(
-        button: true,
-        enabled: widget.enabled,
-        label: widget.semanticLabel,
-        onTap: widget.enabled ? toggleMenu : null,
-        excludeSemantics: widget.child != null,
-        child: widget.child != null
-            ? Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: widget.enabled ? toggleMenu : null,
-                  child: IgnorePointer(child: button),
-                ),
-              )
-            : button,
-      ),
+      // Keep the tooltip below the anchor's OverlayPortal. An outer tooltip
+      // can detach the popup's semantics traversal subtree on mobile.
+      child: switch (widget.tooltip) {
+        final message? => Tooltip(
+          message: message,
+          excludeFromSemantics: true,
+          child: trigger,
+        ),
+        null => trigger,
+      },
     );
   }
+}
+
+BoxConstraints popupMenuViewportConstraints(
+  BuildContext context, {
+  double? maxWidth,
+}) {
+  final media = MediaQuery.of(context);
+  final margin = kurumiIsDesktopPlatform() ? 4.0 : 12.0;
+  final bottom = max(media.padding.bottom, media.viewInsets.bottom);
+  return BoxConstraints(
+    maxWidth: min(
+      max(0.0, media.size.width - media.padding.horizontal - margin * 2),
+      maxWidth ?? 200,
+    ),
+    maxHeight: max(
+      0.0,
+      media.size.height - media.padding.top - bottom - margin * 2,
+    ),
+  );
 }
 
 class KurumiPopupMenuItem extends StatelessWidget {

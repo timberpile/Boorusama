@@ -2,6 +2,43 @@ import 'package:booru_clients/pixiv.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('tag observation', () {
+    test('distinguishes omitted and invalid fields from explicit empty', () {
+      for (final json in [
+        <String, dynamic>{},
+        {'tags': null},
+        {'tags': 'invalid'},
+      ]) {
+        final dto = PixivIllustDto.fromJson(json);
+        expect(dto.tags, isEmpty);
+        expect(dto.tagCoverage, PixivTagCoverage.unknown);
+      }
+      final dto = PixivIllustDto.fromJson({'tags': []});
+      expect(dto.tags, isEmpty);
+      expect(dto.tagCoverage, PixivTagCoverage.complete);
+    });
+
+    test(
+      'malformed members retain valid native names as partial observations',
+      () {
+        final dto = PixivIllustDto.fromJson({
+          'tags': [
+            {'name': 'native', 'translated_name': 'Native'},
+            null,
+            3,
+            {'name': 4},
+            {'name': ''},
+            {'translated_name': 'missing name'},
+            {'name': 'valid', 'translated_name': 42},
+          ],
+        });
+        expect(dto.tagCoverage, PixivTagCoverage.partial);
+        expect(dto.tags.map((tag) => tag.name), ['native', 'valid']);
+        expect(dto.tags.map((tag) => tag.translatedName), ['Native', null]);
+      },
+    );
+  });
+
   group('PixivIllustDto original URL resolution', () {
     test('resolves a single-page illust from meta_single_page', () {
       final illust = PixivIllustDto.fromJson({
@@ -60,6 +97,31 @@ void main() {
         }),
         returnsNormally,
       );
+    });
+
+    test('keeps unavailable metadata slots in their original positions', () {
+      final illust = PixivIllustDto.fromJson({
+        'page_count': 5,
+        'meta_pages': [
+          {
+            'image_urls': {'original': 'https://i.pximg.net/p0.jpg'},
+          },
+          null,
+          'invalid page',
+          <String, dynamic>{},
+          {
+            'image_urls': {'original': 'https://i.pximg.net/p4.jpg'},
+          },
+        ],
+      });
+
+      expect(illust.metaPages.map((page) => page.imageUrls?.original), [
+        'https://i.pximg.net/p0.jpg',
+        null,
+        null,
+        null,
+        'https://i.pximg.net/p4.jpg',
+      ]);
     });
   });
 }

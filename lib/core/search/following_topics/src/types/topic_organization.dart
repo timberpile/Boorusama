@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+
 import '../../../../groups/folder_tree.dart';
 import 'topic_feed.dart';
 
@@ -12,6 +13,7 @@ final class TopicFolder extends CollectionFolder {
     int? position,
     this.feedEnabled = false,
     this.feedMaxPosts = topicFeedRetention,
+    this.nameScope,
   }) : assert(feedMaxPosts > 0),
        _explicitPosition = position != null,
        searchIds = List.unmodifiable(searchIds),
@@ -19,6 +21,8 @@ final class TopicFolder extends CollectionFolder {
   final List<String> searchIds;
   final bool feedEnabled;
   final int feedMaxPosts;
+  @override
+  final String? nameScope;
   final bool _explicitPosition;
 
   @override
@@ -37,6 +41,7 @@ final class TopicFolder extends CollectionFolder {
     searchIds: searchIds,
     feedEnabled: feedEnabled ?? this.feedEnabled,
     feedMaxPosts: feedMaxPosts ?? this.feedMaxPosts,
+    nameScope: nameScope,
   );
 
   @override
@@ -52,11 +57,15 @@ final class TopicFolder extends CollectionFolder {
     searchIds,
     feedEnabled,
     feedMaxPosts,
+    nameScope,
   ];
 }
 
 final class TopicOrganization extends Equatable {
-  factory TopicOrganization.fromJson(Map<dynamic, dynamic> json) {
+  factory TopicOrganization.fromJson(
+    Map<dynamic, dynamic> json, {
+    Map<String, String> folderScopes = const {},
+  }) {
     final rows = json['folders'];
     if (rows is! List) {
       throw const FormatException('Invalid search organization');
@@ -76,6 +85,7 @@ final class TopicOrganization extends Equatable {
                 name: f.name,
                 parentId: f.parentId,
                 position: f.position,
+                nameScope: folderScopes[f.id],
                 feedEnabled: row['feedEnabled'] == true,
                 feedMaxPosts: switch (row['feedMaxPosts']) {
                   final int limit when limit > 0 => limit,
@@ -100,6 +110,7 @@ final class TopicOrganization extends Equatable {
             id: (row as Map)['id'] as String,
             name: row['name'] as String,
             position: position,
+            nameScope: folderScopes[row['id']],
             searchIds: (row['searchIds'] as List).cast<String>(),
             feedEnabled: row['feedEnabled'] == true,
             feedMaxPosts: switch (row['feedMaxPosts']) {
@@ -151,6 +162,7 @@ final class TopicOrganization extends Equatable {
           searchIds: directIds(f.id),
           feedEnabled: f.feedEnabled,
           feedMaxPosts: f.feedMaxPosts,
+          nameScope: f.nameScope,
         ),
     ]);
   }
@@ -203,6 +215,7 @@ final class TopicOrganization extends Equatable {
             position: f.position,
             feedEnabled: originalById[f.id]!.feedEnabled,
             feedMaxPosts: originalById[f.id]!.feedMaxPosts,
+            nameScope: originalById[f.id]!.nameScope,
           ),
       ],
       placements: [

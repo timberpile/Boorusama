@@ -8,6 +8,7 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
+import 'following_topic_config_provider.dart';
 import 'following_topic_sort_provider.dart';
 import 'following_topics_notifier.dart';
 
@@ -78,6 +79,7 @@ List<FollowingTopicMatch> selectMatchingFollowingTopics(
   FollowingTopicsState state, {
   required String profileId,
   required String query,
+  bool includeReceived = false,
 }) {
   final identity = normalizeSearchIdentity(query);
   if (identity.isEmpty) return const [];
@@ -87,6 +89,7 @@ List<FollowingTopicMatch> selectMatchingFollowingTopics(
   for (final placement in state.organization.placements) {
     final topic = topics[placement.itemId];
     if (topic == null ||
+        (!includeReceived && state.mirrors.isReceived(topic.id)) ||
         topic.profileId != profileId ||
         normalizeSearchIdentity(topic.query) != identity) {
       continue;
@@ -137,10 +140,6 @@ final organizedFollowingTopicsProvider =
       (ref, folderId) => ref.watch(followingTopicsProvider).whenData((
         state,
       ) {
-        final profiles = ref
-            .watch(booruConfigProvider)
-            .map((config) => config.id)
-            .toSet();
         final folderIds = state.organization.folders
             .map((folder) => folder.id)
             .toSet();
@@ -150,15 +149,15 @@ final organizedFollowingTopicsProvider =
         };
         final byId = {
           for (final search in state.topics)
-            if (!internalIds.contains(search.id) &&
-                profiles.contains(search.profileId))
-              search.id: search,
+            if (!internalIds.contains(search.id)) search.id: search,
         };
         final ids = folderId == null
             ? state.organization.homeSearchIds
             : state.organization.folders
-                  .singleWhere((folder) => folder.id == folderId)
-                  .searchIds;
+                      .where((folder) => folder.id == folderId)
+                      .firstOrNull
+                      ?.searchIds ??
+                  const <String>[];
         return List.unmodifiable([
           for (final id in ids) ?byId[id],
         ]);
@@ -177,7 +176,7 @@ final visibleFollowingTopicsProvider =
           ),
     );
 
-final followingTopicHasNewPostsProvider = Provider<bool>((ref) {
+final followingTopicHasNewPostsProvider = Provider.autoDispose<bool>((ref) {
   final profiles = ref.watch(booruConfigProvider).map((c) => c.id).toSet();
   final state = ref.watch(followingTopicsProvider).valueOrNull;
   if (state == null) return false;
@@ -191,25 +190,31 @@ final followingTopicHasNewPostsProvider = Provider<bool>((ref) {
   return state.topics.any(
     (search) =>
         !internalIds.contains(search.id) &&
-        profiles.contains(search.profileId) &&
-        search.hasNewPosts,
+        search.hasNewPosts &&
+        ((search.localSource?.isImported ?? false)
+            ? ref.watch(followingTopicConfigProvider(search.id)) != null
+            : profiles.contains(search.profileId)),
   );
 });
 
-final topicFeedHasNewPostsProvider = Provider<bool>((ref) {
+final topicFeedHasNewPostsProvider = Provider.autoDispose<bool>((ref) {
   final profiles = ref
       .watch(booruConfigProvider)
       .map((config) => config.id)
       .toSet();
   final state = ref.watch(followingTopicsProvider).valueOrNull;
   if (state == null) return false;
-  final newSearchIds = {
-    for (final search in state.topics)
-      if (search.hasNewPosts) search.id,
-  };
-  return state.feeds.any(
-    (feed) =>
-        profiles.contains(feed.profileId) &&
-        feed.sourceIds.any(newSearchIds.contains),
-  );
+  final topics = {for (final topic in state.topics) topic.id: topic};
+  final folderIds = state.organization.folders
+      .map((folder) => folder.id)
+      .toSet();
+  return state.feeds.any((feed) {
+    final folderFeed = folderIds.contains(feed.id);
+    if (!folderFeed && !profiles.contains(feed.profileId)) return false;
+    return feed.sourceIds.any((id) {
+      final topic = topics[id];
+      if (topic == null || !topic.hasNewPosts) return false;
+      return !folderFeed || ref.watch(followingTopicConfigProvider(id)) != null;
+    });
+  });
 });

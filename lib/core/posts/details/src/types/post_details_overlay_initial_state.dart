@@ -15,7 +15,7 @@ enum PostDetailsOverlayInitialState {
         _ => defaultValue,
       };
 
-  static const PostDetailsOverlayInitialState defaultValue = show;
+  static const PostDetailsOverlayInitialState defaultValue = hide;
 
   bool get isHide => this == hide;
 

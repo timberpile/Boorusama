@@ -1,0 +1,15 @@
+part of 'released_bookmark_writer_test.dart';
+
+Future<BookmarkGroupRepositoryHive> _openGroups() async =>
+    BookmarkGroupRepositoryHive(
+      await Hive.openBox<BookmarkGroupHiveObject>('bookmark_groups'),
+    );
+
+Future<BookmarkBackupData> _buildBackup(
+  List<Bookmark> bookmarks,
+  BookmarkGroupRepositoryHive groups,
+) async => buildBookmarkBackupData(
+  bookmarks: bookmarks,
+  groups: await groups.getGroups(),
+  scope: const BookmarkExportScope.all(),
+);

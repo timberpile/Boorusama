@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 // Package imports:
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -173,6 +174,28 @@ void main() {
       expect(store.dump(), isNot(contains('RAW_SECRET')));
     },
   );
+
+  test('private Favorite requests omit query and body in all log modes', () async {
+    final store = AppLogger();
+    final dio = Dio()..httpClientAdapter = _RejectingAdapter();
+    addTearDown(dio.close);
+    dio.interceptors.add(LoggingInterceptor(logger: store));
+    await expectLater(
+      dio.get<Object>(
+        'https://rule34.xxx/index.php?page=favorites&s=view&id=ACCOUNT_SECRET',
+        options: Options(extra: {privateRequestDiagnosticsKey: true}),
+      ),
+      throwsA(isA<DioException>()),
+    );
+
+    for (final enabled in [false, true]) {
+      store.applyOptions(LogOptions(redactSensitiveDetails: enabled));
+      expect(store.dump(), contains('rule34.xxx/index.php'));
+      expect(store.dump(), contains('403'));
+      expect(store.dump(), isNot(contains('SECRET')));
+      expect(store.logs.every((log) => log.sensitiveMessage == null), true);
+    }
+  });
 }
 
 class _RecordingLogger implements Logger {

@@ -63,7 +63,19 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     super.key,
     this.extraHeaders,
     this.itemBuilder,
+    this.resultGridBuilder,
+    this.nativeResultBuilder,
   });
+
+  final Widget Function(
+    BuildContext context,
+    String query,
+    int initialPage,
+    int? initialScrollPosition,
+    PageMode? pageMode,
+    Widget header,
+  )?
+  nativeResultBuilder;
 
   final SearchParams params;
 
@@ -84,6 +96,12 @@ class RawSearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   fetcher;
 
   final IndexedSelectableSearchWidgetBuilder<T>? itemBuilder;
+  final Widget Function(
+    BuildContext,
+    PostGridController<T>,
+    IndexedWidgetBuilder,
+  )?
+  resultGridBuilder;
 
   final Widget landingView;
 
@@ -284,6 +302,19 @@ class _SearchPageScaffoldState<T extends Post>
                   },
                 ),
               ),
+              // Paint beneath the entire editor, including its reserved tag
+              // and safe-area displacement, rather than only its child panels.
+              ValueListenableBuilder(
+                valueListenable: _controller.state,
+                builder: (context, state, _) => state == SearchState.initial
+                    ? const SizedBox.shrink()
+                    : Positioned.fill(
+                        child: ColoredBox(
+                          key: const ValueKey('search-editor-background'),
+                          color: Kurumi.themeOf(context).colorScheme.surface,
+                        ),
+                      ),
+              ),
               _SearchOptionsView(
                 landingView: widget.landingView,
                 selectionModeController: _selectionModeController,
@@ -362,27 +393,58 @@ class _SearchPageScaffoldState<T extends Post>
       },
       child: ValueListenableBuilder(
         valueListenable: _controller.tagString,
-        builder: (context, query, _) => PostScope(
-          // Each applied query owns its requests and pagination. Replacing this
-          // scope logically cancels old work without waiting for the server.
-          key: ValueKey(query),
-          fetcher: (page) => widget.fetcher(
-            page,
-            _controller.tagsController,
-          ),
-          pageMode: _useRoutePosition && widget.initialPage != null
-              ? PageMode.paginated
-              : null,
-          initialPage: _useRoutePosition ? widget.initialPage : null,
-          builder: (context, controller) {
-            // Hacky way to get the controller
-            _setupPostControllerListener(controller);
-            return _buildDefaultSearchResults(
-              context,
-              controller,
-            );
-          },
-        ),
+        builder: (context, query, _) => widget.nativeResultBuilder != null
+            ? Padding(
+                padding: EdgeInsets.only(
+                  bottom:
+                      ref.watch(searchBarPositionProvider) ==
+                          SearchBarPosition.bottom
+                      ? _calcSearchRegionHeight(_tagsController.value) +
+                            MediaQuery.viewPaddingOf(context).bottom
+                      : 0,
+                ),
+                child: widget.nativeResultBuilder!(
+                  context,
+                  query,
+                  _useRoutePosition ? widget.initialPage ?? 1 : 1,
+                  _useRoutePosition ? widget.initialScrollPosition : null,
+                  _useRoutePosition && widget.initialPage != null
+                      ? PageMode.paginated
+                      : null,
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (ref.watch(searchBarPositionProvider) ==
+                          SearchBarPosition.top)
+                        _Displacement(
+                          selectionModeController: _selectionModeController,
+                        ),
+                      widget.resultHeader,
+                    ],
+                  ),
+                ),
+              )
+            : PostScope(
+                // Each applied query owns its requests and pagination. Replacing this
+                // scope logically cancels old work without waiting for the server.
+                key: ValueKey(query),
+                fetcher: (page) => widget.fetcher(
+                  page,
+                  _controller.tagsController,
+                ),
+                pageMode: _useRoutePosition && widget.initialPage != null
+                    ? PageMode.paginated
+                    : null,
+                initialPage: _useRoutePosition ? widget.initialPage : null,
+                builder: (context, controller) {
+                  // Hacky way to get the controller
+                  _setupPostControllerListener(controller);
+                  return _buildDefaultSearchResults(
+                    context,
+                    controller,
+                  );
+                },
+              ),
       ),
     );
   }
@@ -398,6 +460,10 @@ class _SearchPageScaffoldState<T extends Post>
       child: SafeArea(
         bottom: false,
         child: PostGrid<T>(
+          gridBuilder: widget.resultGridBuilder == null
+              ? null
+              : (context, itemBuilder) =>
+                    widget.resultGridBuilder!(context, controller, itemBuilder),
           selectionModeController: _selectionModeController,
           scrollController: _scrollController,
           controller: controller,
@@ -610,7 +676,7 @@ class __SearchBarPositionedState extends ConsumerState<_SearchBarPositioned> {
                   final padding = widget.selectionModeController.isActive
                       ? 0.0
                       : searchOnce
-                      ? state == SearchState.suggestions
+                      ? state != SearchState.initial
                             ? 0.0
                             : -(_searchBarCurve.value * searchRegionHeight)
                       : 0.0;

@@ -45,3 +45,46 @@ class PostViewerTransformationViewport extends StatelessWidget {
     );
   }
 }
+
+/// Retains a nearby occurrence's matrix after its media subtree detaches.
+class PostViewerOccurrence extends StatefulWidget {
+  const PostViewerOccurrence({
+    required this.checkpoints,
+    required this.occurrence,
+    required this.child,
+    this.retainCheckpoint,
+    super.key,
+  });
+  final Map<Object, Matrix4> checkpoints;
+  final Object occurrence;
+  final Widget child;
+  final bool Function()? retainCheckpoint;
+
+  @override
+  State<PostViewerOccurrence> createState() => _PostViewerOccurrenceState();
+}
+
+class _PostViewerOccurrenceState extends State<PostViewerOccurrence> {
+  late final _transform = TransformationController(
+    widget.checkpoints[widget.occurrence]?.clone() ?? Matrix4.identity(),
+  );
+  late final _controller = PostViewerTransformationController(
+    _transform,
+    restoredCheckpoint: widget.checkpoints.containsKey(widget.occurrence),
+  );
+
+  @override
+  void dispose() {
+    if (widget.retainCheckpoint?.call() ?? true) {
+      widget.checkpoints[widget.occurrence] = _transform.value.clone();
+    }
+    _transform.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PostViewerTransformationScope(
+    controller: _controller,
+    child: widget.child,
+  );
+}

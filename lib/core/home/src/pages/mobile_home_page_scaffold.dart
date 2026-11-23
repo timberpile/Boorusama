@@ -8,6 +8,7 @@ import '../../../announcements/widgets.dart';
 import '../../../configs/config/providers.dart';
 import '../../../posts/count/widgets.dart';
 import '../../../posts/listing/widgets.dart';
+import '../../../posts/listing/src/widgets/post_grid_controller.dart';
 import '../../../posts/post/providers.dart';
 import '../../../search/search/types.dart';
 import '../../../search/selected_tags/providers.dart';
@@ -18,7 +19,10 @@ import '../widgets/home_search_bar.dart';
 class MobileHomePageScaffold extends ConsumerStatefulWidget {
   const MobileHomePageScaffold({
     super.key,
+    this.nativeResultBuilder,
   });
+  final Widget Function(BuildContext, String, List<Widget>)?
+  nativeResultBuilder;
 
   @override
   ConsumerState<MobileHomePageScaffold> createState() =>
@@ -28,6 +32,7 @@ class MobileHomePageScaffold extends ConsumerStatefulWidget {
 class _MobileHomePageScaffoldState
     extends ConsumerState<MobileHomePageScaffold> {
   final selectedTagString = ValueNotifier('');
+  var _queryRevision = 0;
   late final SelectedTagController selectedTagController;
 
   @override
@@ -48,39 +53,44 @@ class _MobileHomePageScaffoldState
 
   @override
   Widget build(BuildContext context) {
-    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
     final searchBarPosition = ref.watch(searchBarPositionProvider);
 
-    return PostScope(
-      fetcher: (page) {
-        return postRepo.getPostsFromController(
-          selectedTagController.tagSet,
-          page,
-        );
-      },
-      builder: (context, postController) => Column(
+    Widget body({PostGridController? controller}) {
+      void refresh() {
+        if (controller != null) {
+          controller.refresh();
+        } else {
+          setState(() => _queryRevision++);
+        }
+      }
+
+      final headers = <Widget>[
+        if (context.isLargeScreen || searchBarPosition == SearchBarPosition.top)
+          SliverHomeSearchBar(
+            selectedTagController: selectedTagController,
+            selectedTagString: selectedTagString,
+            onSearch: refresh,
+          ),
+        const SliverAppAnnouncementBanner(),
+        if (context.isLargeScreen && controller != null)
+          SliverResultHeader(
+            selectedTagString: selectedTagString,
+            controller: controller,
+          ),
+      ];
+      return Column(
         children: [
           Expanded(
-            child: PostGrid(
-              controller: postController,
-              sliverHeaders: [
-                if (context.isLargeScreen ||
-                    searchBarPosition == SearchBarPosition.top)
-                  SliverHomeSearchBar(
-                    selectedTagController: selectedTagController,
-                    selectedTagString: selectedTagString,
-                    onSearch: () {
-                      postController.refresh();
-                    },
-                  ),
-                const SliverAppAnnouncementBanner(),
-                if (context.isLargeScreen)
-                  SliverResultHeader(
-                    selectedTagString: selectedTagString,
-                    controller: postController,
-                  ),
-              ],
-            ),
+            child: controller == null
+                ? KeyedSubtree(
+                    key: ValueKey(_queryRevision),
+                    child: widget.nativeResultBuilder!(
+                      context,
+                      selectedTagString.value,
+                      headers,
+                    ),
+                  )
+                : PostGrid(controller: controller, sliverHeaders: headers),
           ),
           if (searchBarPosition == SearchBarPosition.bottom &&
               !context.isLargeScreen)
@@ -103,9 +113,7 @@ class _MobileHomePageScaffoldState
                           primary: false,
                           selectedTagController: selectedTagController,
                           selectedTagString: selectedTagString,
-                          onSearch: () {
-                            postController.refresh();
-                          },
+                          onSearch: refresh,
                         ),
                       ],
                     ),
@@ -114,7 +122,15 @@ class _MobileHomePageScaffoldState
               },
             ),
         ],
-      ),
+      );
+    }
+
+    if (widget.nativeResultBuilder != null) return body();
+    final postRepo = ref.watch(originAwarePostRepoProvider(ref.watchConfig));
+    return PostScope(
+      fetcher: (page) =>
+          postRepo.getPostsFromController(selectedTagController.tagSet, page),
+      builder: (context, controller) => body(controller: controller),
     );
   }
 }

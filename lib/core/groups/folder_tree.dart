@@ -26,6 +26,10 @@ class CollectionFolder extends Equatable {
   final String name;
   final String? parentId;
   final int position;
+
+  /// Optional presentation namespace, supplied by an authoritative repository.
+  /// It is not serialized and never grants ownership or mutation permission.
+  String? get nameScope => null;
   CollectionFolder copyWith({
     String? name,
     String? parentId,
@@ -92,7 +96,7 @@ class FolderTree {
     if (byId.length != folders.length) {
       throw const FormatException('Duplicate folder ID');
     }
-    final names = <(String?, String)>{};
+    final names = <(String?, String?, String)>{};
     for (final f in folders) {
       if (f.id.trim().isEmpty ||
           f.name.trim().isEmpty ||
@@ -100,7 +104,7 @@ class FolderTree {
           f.position < 0) {
         throw const FormatException('Invalid folder');
       }
-      if (!names.add((f.parentId, f.name.toLowerCase()))) {
+      if (!names.add((f.parentId, f.nameScope, f.name.toLowerCase()))) {
         throw const FormatException('Duplicate sibling folder name');
       }
       if (f.parentId != null && !byId.containsKey(f.parentId)) {

@@ -1,3 +1,4 @@
+import '../types/timeline_post_grouping.dart';
 import '../../../../bookmarks/src/types/bookmark_identity.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
@@ -6,10 +7,12 @@ import 'package:foundation/performance.dart';
 import '../../../../../foundation/performance/performance_navigation.dart';
 
 // Dart imports:
+import 'dart:async';
 import 'dart:math';
 
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart';
 import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -25,6 +28,8 @@ import '../../../../configs/config/types.dart';
 import '../../../../configs/create/routes.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_access_provider.dart';
 import '../../../../configs/search/types.dart';
 import '../../../../errors/providers.dart';
 import '../../../../settings/providers.dart';
@@ -32,12 +37,11 @@ import '../../../post/types.dart';
 import '../../widgets.dart';
 import '../_internal/raw_post_grid.dart';
 import '../_internal/sliver_post_grid.dart';
-import '../providers/internal_providers.dart';
 import '../providers/providers.dart';
 import '../types/post_action_snapshot.dart';
 import '../types/grid_thumbnail_url_generator.dart';
-import '../types/page_mode.dart';
-import 'infinite_scroll_listener.dart';
+import '../types/active_blacklist_count.dart';
+import 'post_grid_prefetch.dart';
 import 'post_grid_controller.dart';
 
 typedef IndexedSelectableWidgetBuilder<T extends Post> = Widget Function(
@@ -58,12 +62,18 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
     this.safeArea = true,
     this.itemBuilder,
     this.body,
+    this.gridBuilder,
     this.header,
     this.bottomInset = 0,
     this.selectionScope,
+    this.selectionKeysBuilder,
     this.multiSelectActions,
     this.scrollToTopButton,
     this.enablePullToRefresh,
+    this.showLoadMoreButton = true,
+    this.cacheExtent,
+    this.automaticContinuationEnabled = true,
+    this.refreshAtStart = true,
   });
 
   final List<Widget>? sliverHeaders;
@@ -74,12 +84,24 @@ class PostGrid<T extends Post> extends ConsumerStatefulWidget {
   final PostGridController<T> controller;
   final IndexedSelectableWidgetBuilder<T>? itemBuilder;
   final Widget? body;
+
+  /// Presentation projection only; item indices still refer to raw posts.
+  final Widget Function(BuildContext, IndexedWidgetBuilder)? gridBuilder;
   final Widget? header;
   final double bottomInset;
   final Object? selectionScope;
+
+  /// Optional typed display entries, while the controller stays a Post list.
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final Widget? multiSelectActions;
   final Widget? scrollToTopButton;
   final bool? enablePullToRefresh;
+  final bool showLoadMoreButton;
+  final double? cacheExtent;
+
+  /// Cached feeds do not opt into remote history until the user requests it.
+  final bool automaticContinuationEnabled;
+  final bool refreshAtStart;
 
   @override
   ConsumerState<PostGrid<T>> createState() => _PostGridState();
@@ -116,14 +138,15 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
 
   @override
   Widget build(BuildContext context) {
-    return PerformanceScreenScope(
+    final grid = PerformanceScreenScope(
       screen: PerfScreen.searchGrid,
       priority: 0,
       child: _InheritedAutoScrollController(
         controller: _autoScrollController,
         child: RawPostGrid(
+          refreshAtStart: widget.refreshAtStart,
           options: PostGridOptions(
-            cacheExtent: ref.watch(gridCacheExtentProvider),
+            cacheExtent: widget.cacheExtent,
             hapticFeedbackLevel: ref.watch(hapticFeedbackLevelProvider),
             gridSize: ref.watch(
               imageListingSettingsProvider.select((v) => v.gridSize),
@@ -136,6 +159,9 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           scrollController: _autoScrollController,
           bottomInset: widget.bottomInset,
           selectionScope: (ref.watchConfigAuth, widget.selectionScope),
+          selectionKeysBuilder:
+              widget.selectionKeysBuilder ??
+              widget.controller.selectionKeysBuilder,
           footer: Consumer(
             builder: (_, ref, _) {
               return widget.multiSelectActions ??
@@ -151,6 +177,7 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           controller: widget.controller,
           safeArea: widget.safeArea,
           enablePullToRefresh: widget.enablePullToRefresh ?? true,
+          showLoadMoreButton: widget.showLoadMoreButton,
           gridHeader: ValueListenableBuilder(
             valueListenable: widget.controller.errors,
             builder: (_, errors, _) => errors == null
@@ -207,9 +234,13 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
           ),
           body:
               widget.body ??
-              _SliverGrid(
-                postController: widget.controller,
-                itemBuilder: (context, index) => ValueListenableBuilder(
+              (widget.gridBuilder ??
+                  (context, itemBuilder) => PostGridSliver<T>(
+                    postController: widget.controller,
+                    itemBuilder: itemBuilder,
+                  ))(
+                context,
+                (context, index) => ValueListenableBuilder(
                   valueListenable: _disableHero,
                   builder: (_, disableHero, _) {
                     final customItem = widget.itemBuilder?.call(
@@ -238,6 +269,12 @@ class _PostGridState<T extends Post> extends ConsumerState<PostGrid<T>> {
         ),
       ),
     );
+    return PostGridPrefetch(
+      enabled: widget.automaticContinuationEnabled,
+      controller: widget.controller,
+      scrollController: _autoScrollController,
+      child: grid,
+    );
   }
 }
 
@@ -253,7 +290,6 @@ class PostSelectionActions<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final configs = ref.watch(booruConfigProvider);
     return ListenableBuilder(
       listenable: Listenable.merge([selectionModeController, postController]),
       builder: (context, _) {
@@ -262,7 +298,7 @@ class PostSelectionActions<T extends Post> extends ConsumerWidget {
             : selectionModeController
                   .selectedFrom(postController.items.toList())
                   .toList();
-        final snapshot = PostActionSnapshot(selectedPosts, configs);
+        final snapshot = PostActionSnapshot.watch(ref, selectedPosts);
         final config = snapshot.commonConfig;
         final compatible =
             config != null &&
@@ -301,12 +337,14 @@ class PostGridContextMenu extends StatelessWidget {
   const PostGridContextMenu({
     required this.controller,
     required this.index,
+    this.selectionIndex,
     required this.child,
     super.key,
   });
 
   final PostGridController<Post> controller;
   final int index;
+  final int? selectionIndex;
   final Widget child;
 
   @override
@@ -315,17 +353,25 @@ class PostGridContextMenu extends StatelessWidget {
     builder: (context, posts, _) => Consumer(
       builder: (context, ref, _) {
         final post = index < posts.length ? posts[index] : null;
+        final required = ref.watch(contentAccessRequiredProvider);
+        final accessKey = ref.watch(currentContentAccessKeyProvider);
+        final access = accessKey == null
+            ? null
+            : ref.watch(contentAccessContextProvider(accessKey));
         final originResolution = switch (post) {
           final Post post => const PostOriginResolver().resolve(
             post.origin,
             ref.watch(booruConfigProvider),
+            allowProfileHintFallback: false,
           ),
           _ => null,
         };
-        final config = switch (originResolution) {
-          ResolvedPostOrigin(:final config) => config,
-          _ => null,
-        };
+        final config = required
+            ? access?.config
+            : switch (originResolution) {
+                ResolvedPostOrigin(:final config) => config,
+                _ => null,
+              };
         final presentation = switch ((post, config)) {
           (final Post post, final BooruConfig _) => ref.watch(
             booruPostPresentationProvider(
@@ -349,6 +395,7 @@ class PostGridContextMenu extends StatelessWidget {
             context,
             post: post,
             index: index,
+            selectionIndex: selectionIndex,
             child: child,
           );
         } else {
@@ -360,10 +407,11 @@ class PostGridContextMenu extends StatelessWidget {
         }
 
         final selection = SelectionMode.maybeOf(context);
+        final selectedIndex = selectionIndex ?? index;
         final targetKey =
             selection is OrderedSelectionController &&
-                index < selection.entries.length
-            ? selection.entries[index]
+                selectedIndex < selection.entries.length
+            ? selection.entries[selectedIndex]
             : post == null
             ? null
             : BookmarkIdentity.tryFromPost(post) ?? ObjectKey(post);
@@ -413,22 +461,13 @@ class PostGridScrollToTopButton extends StatelessWidget {
             padding: multiSelect
                 ? EdgeInsets.only(bottom: effectiveBottomPadding)
                 : EdgeInsets.only(bottom: effectiveBottomPadding),
-            child: InfiniteScrollListener(
+            child: KurumiScrollToTop(
               scrollController: autoScrollController,
-              onBottomReached: () {
-                if (controller.pageMode == PageMode.infinite &&
-                    controller.hasMore) {
-                  controller.fetchMore();
-                }
-              },
-              child: KurumiScrollToTop(
-                scrollController: autoScrollController,
-                layoutChanges: controller.itemsNotifier,
-                child: KurumiScrollToTopButton(
-                  onPressed: () {
-                    autoScrollController.jumpTo(0);
-                  },
-                ),
+              layoutChanges: controller.itemsNotifier,
+              child: KurumiScrollToTopButton(
+                onPressed: () {
+                  autoScrollController.jumpTo(0);
+                },
               ),
             ),
           );
@@ -529,80 +568,75 @@ class PostGridConfigurationHeader<T extends Post> extends ConsumerWidget {
   const PostGridConfigurationHeader({
     this.axis = Axis.horizontal,
     this.blacklistOnly = false,
+    this.additionalControls = const [],
     super.key,
   });
 
   final Axis axis;
   final bool blacklistOnly;
+  final List<Widget> additionalControls;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final showHeader = ref.watch(
-      imageListingSettingsProvider.select((v) => v.showPostListConfigHeader),
-    );
-
-    if (!showHeader) return const SizedBox.shrink();
-
     final imageGridPadding = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageGridPadding),
     );
 
     final controller = PostScope.of<T>(context);
 
-    return ValueListenableBuilder(
-      valueListenable: controller.hasBlacklist,
-      builder: (_, hasBlacklist, _) {
+    final expand = ref.watch(_expandedProvider);
+    final expandNotifier = ref.watch(_expandedProvider.notifier);
+    final auth = ref.watchConfigAuth;
+
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final hasBlacklist = controller.hasBlacklist.value;
         if (blacklistOnly && !hasBlacklist) return const SizedBox.shrink();
-        return ValueListenableBuilder(
-          valueListenable: controller.tagCounts,
-          builder: (_, tagCounts, _) {
-            final expand = ref.watch(_expandedProvider);
-            final expandNotifier = ref.watch(_expandedProvider.notifier);
-            return Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: imageGridPadding,
-              ),
-              child: PostListConfigurationHeader(
-                blacklistControls: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ValueListenableBuilder(
-                      valueListenable: controller.visibleHiddenTags,
-                      builder: (_, hiddenTags, _) => BlacklistControls(
-                        hiddenTags: hiddenTags,
-                        onDisableAll: () {
-                          controller.disableAllTags();
-                        },
-                        onEnableAll: () {
-                          controller.enableAllTags();
-                        },
-                        onChanged: (tag, hide) {
-                          if (hide) {
-                            controller.enableTag(tag);
-                          } else {
-                            controller.disableTag(tag);
-                          }
-                        },
-                        axis: axis,
-                      ),
-                    ),
-                    const _BlacklistedTagsInterceptedNotice(),
-                  ],
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: imageGridPadding),
+          child: PostListConfigurationHeader(
+            key: ValueKey((controller, auth)),
+            blacklistChanges: controller,
+            additionalControls: additionalControls,
+            blacklistControls: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ValueListenableBuilder(
+                  valueListenable: controller.visibleHiddenTags,
+                  builder: (_, hiddenTags, _) => BlacklistControls(
+                    hiddenTags: hiddenTags,
+                    onDisableAll: controller.disableAllTags,
+                    onEnableAll: controller.enableAllTags,
+                    onChanged: (tag, hide) {
+                      if (hide) {
+                        controller.enableTag(tag);
+                      } else {
+                        controller.disableTag(tag);
+                      }
+                    },
+                    axis: axis,
+                  ),
                 ),
-                axis: axis,
-                postCount: controller.total,
-                initiallyExpanded: axis == Axis.vertical || (expand ?? false),
-                onExpansionChanged: (value) => expandNotifier.state = value,
-                hasBlacklist: hasBlacklist,
-                trailing: !blacklistOnly && axis == Axis.horizontal
-                    ? PostGridConfigIconButton(
-                        postController: controller,
-                      )
-                    : null,
-                hiddenCount: tagCounts.totalNonDuplicatesPostCount,
-              ),
-            );
-          },
+                const _BlacklistedTagsInterceptedNotice(),
+              ],
+            ),
+            axis: axis,
+            postCount: controller.total,
+            initiallyExpanded: axis == Axis.vertical || (expand ?? false),
+            onExpansionChanged: axis == Axis.vertical
+                ? (value) => expandNotifier.state = value
+                : null,
+            hasBlacklist: hasBlacklist,
+            trailing: !blacklistOnly && axis == Axis.horizontal
+                ? PostGridConfigIconButton(postController: controller)
+                : null,
+            hiddenCount: countActiveBlacklistPosts(
+              controller.tagCounts.value,
+              controller.activeFilters.value,
+            ),
+          ),
         );
       },
     );
@@ -657,15 +691,187 @@ class _BlacklistedTagsInterceptedNotice extends ConsumerWidget {
   }
 }
 
-class _SliverGrid<T extends Post> extends ConsumerWidget {
-  const _SliverGrid({
+/// Registers every projected member at the collection tile's geometry, so
+/// returning from a viewer swipe to a hidden member finds the same anchor.
+class PostGridScrollAnchor extends StatelessWidget {
+  const PostGridScrollAnchor({
+    required this.indices,
+    required this.child,
+    super.key,
+  });
+  final List<int> indices;
+  final Widget child;
+
+  /// Reuses raw-index tags across a grouped/raw presentation change. Capture
+  /// before layout changes, then bring the same raw member back to its offset.
+  static void preservePosition(
+    BuildContext context,
+    VoidCallback change, {
+    bool Function()? isCurrent,
+    TimelinePostGrouping? grouping,
+  }) {
+    final controller = context
+        .getInheritedWidgetOfExactType<_InheritedAutoScrollController>()
+        ?.controller;
+    final viewport = Scrollable.maybeOf(context)?.context.findRenderObject();
+    ({int index, double top})? anchor;
+    if (controller != null &&
+        controller.hasClients &&
+        controller.offset > 0 &&
+        viewport is RenderBox &&
+        viewport.hasSize) {
+      final bounds = viewport.localToGlobal(Offset.zero) & viewport.size;
+      final header = context
+          .findAncestorRenderObjectOfType<RenderSliverPersistentHeader>()
+          ?.child;
+      // Global settings changes originate in the grid, outside its toolbar.
+      // Account for pinned headers even when the caller is not inside one.
+      final renderViewport = context
+          .findAncestorRenderObjectOfType<RenderViewport>();
+      var render = context.findRenderObject();
+      while (render != null && render.parent != renderViewport) {
+        render = render.parent;
+      }
+      final obstruction = renderViewport != null && render is RenderSliver
+          ? renderViewport.maxScrollObstructionExtentBefore(render)
+          : 0.0;
+      final visibleTop = header != null && header.hasSize
+          ? max(
+              bounds.top + obstruction,
+              header.localToGlobal(Offset.zero).dy + header.size.height,
+            )
+          : bounds.top + obstruction;
+      for (final entry in controller.tagMap.entries) {
+        final box = entry.value.context.findRenderObject();
+        if (box is! RenderBox || !box.attached || !box.hasSize) continue;
+        final rect = box.localToGlobal(Offset.zero) & box.size;
+        if (rect.bottom <= visibleTop || rect.top >= bounds.bottom) continue;
+        if (anchor == null ||
+            rect.top < anchor.top ||
+            (rect.top == anchor.top && entry.key < anchor.index)) {
+          anchor = (index: entry.key, top: rect.top);
+        }
+      }
+    }
+    if (anchor != null && controller != null && grouping != null) {
+      final remembered = grouping.rawScrollAnchor;
+      if (remembered != null &&
+          controller.tagMap[remembered] != null &&
+          identical(
+            controller.tagMap[remembered],
+            controller.tagMap[anchor.index],
+          )) {
+        anchor = (index: remembered, top: anchor.top);
+      }
+      grouping.rawScrollAnchor = anchor.index;
+    }
+    change();
+    final target = anchor;
+    if (controller == null || target == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      bool current() =>
+          context.mounted &&
+          controller.hasClients &&
+          (isCurrent?.call() ?? true);
+      if (!current()) return;
+      unawaited(() async {
+        final representative =
+            grouping?.representativeIndex?.call(target.index) ?? target.index;
+        await controller.scrollToIndex(
+          representative,
+          preferPosition: AutoScrollPosition.begin,
+          duration: const Duration(milliseconds: 1),
+        );
+        if (!current()) return;
+        final tag =
+            controller.tagMap[target.index] ??
+            controller.tagMap[representative];
+        if (tag == null || !tag.mounted) return;
+        final box = tag.context.findRenderObject();
+        if (box is! RenderBox || !box.attached || !box.hasSize) return;
+        final delta = box.localToGlobal(Offset.zero).dy - target.top;
+        final position = controller.position;
+        controller.jumpTo(
+          (controller.offset + delta).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          ),
+        );
+      }());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _ProjectedAutoScrollTag(
+    key: ValueKey(indices.first),
+    controller: _InheritedAutoScrollController.of(context),
+    indices: indices,
+    child: child,
+  );
+}
+
+class _ProjectedAutoScrollTag extends AutoScrollTag {
+  _ProjectedAutoScrollTag({
+    required this.indices,
+    required super.controller,
+    required super.child,
+    required super.key,
+  }) : super(index: indices.first);
+  final List<int> indices;
+
+  @override
+  AutoScrollTagState<_ProjectedAutoScrollTag> createState() =>
+      _ProjectedAutoScrollTagState();
+}
+
+class _ProjectedAutoScrollTagState
+    extends AutoScrollTagState<_ProjectedAutoScrollTag> {
+  void _register() {
+    for (final index in widget.indices) {
+      widget.controller.tagMap[index] = this;
+    }
+  }
+
+  void _remove(_ProjectedAutoScrollTag tag) {
+    for (final index in tag.indices) {
+      if (tag.controller.tagMap[index] == this)
+        tag.controller.tagMap.remove(index);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _register();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProjectedAutoScrollTag oldWidget) {
+    _remove(oldWidget);
+    super.didUpdateWidget(oldWidget);
+    _register();
+  }
+
+  @override
+  void dispose() {
+    _remove(widget);
+    super.dispose();
+  }
+}
+
+class PostGridSliver<T extends Post> extends ConsumerWidget {
+  const PostGridSliver({
     required this.itemBuilder,
     required this.postController,
+    this.displayItemCount,
+    this.emptyBuilder,
     super.key,
   });
 
   final IndexedWidgetBuilder itemBuilder;
   final PostGridController<T> postController;
+  final int? displayItemCount;
+  final WidgetBuilder? emptyBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -707,6 +913,8 @@ class _SliverGrid<T extends Post> extends ConsumerWidget {
     return SliverPostGrid(
       itemBuilder: itemBuilder,
       postController: postController,
+      displayItemCount: displayItemCount,
+      emptyBuilder: emptyBuilder,
       errorTranslator: appErrorTranslator,
       showRule34ChallengeRecovery: Uri.tryParse(auth.url)?.host == 'rule34.xxx',
       padding: EdgeInsets.symmetric(

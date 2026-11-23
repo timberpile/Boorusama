@@ -21,11 +21,16 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/fakes/test_post.dart';
 
 void main() {
-  final config = BooruConfig.defaultConfig(
-    booruType: BooruType.danbooru,
-    url: 'https://site.test',
-    customDownloadFileNameFormat: null,
-  ).auth;
+  final config = BooruConfig.fromJson({
+    ...BooruConfig.defaultConfig(
+      booruType: BooruType.danbooru,
+      url: 'https://site.test',
+      customDownloadFileNameFormat: null,
+    ).toJson(),
+    'id': '00000000-0000-4000-8000-000000000001',
+    'login': 'fixture-user',
+    'apiKey': 'fixture-api-key',
+  }).auth;
 
   ProviderContainer containerFor(_DanbooruServer server) {
     final dio = Dio(BaseOptions(baseUrl: config.url))

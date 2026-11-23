@@ -331,8 +331,9 @@ successful cached results remain visible.
 - [x] Route success, errors, undo where supported, and rate-limit messaging through
   the application's established feedback components. Do not mix unrelated
   SnackBar and toast conventions in otherwise identical operations.
-- [x] Preserve scroll while refreshing. For genuinely additive results use the
-  existing show-updates affordance rather than unrequested jumps to the top.
+- [x] Preserve scroll while refreshing. Background and manual refresh stage the
+  latest cached result for **Show Updates**. The action remains available when
+  filters or history are active and applies the snapshot without fetching.
 
 **Acceptance:** menu and gesture behave identically; repeated refresh does not
 multiply requests; successful cached content survives failed refreshes.
@@ -362,8 +363,9 @@ periodic Topic updates remain independent of route visibility.
 - [x] On query/profile/source removal or invalidated ownership, dispose/cancel
   stale work, rebuild history, and reject old responses. Never keep executing an
   immutable cursor's old source definition because its Topic ID was unchanged.
-- [x] Separate material changes from additive refreshes. Only additive updates
-  may wait behind Show updated posts. Keep unaffected valid cache/provenance.
+- [x] Apply material definition, access and cache-reset changes immediately.
+  Ordinary background publications wait behind **Show Updates**. A per-feed
+  reset generation fences writes started before a clear.
 - [x] Use existing request/session tokens and revisions where possible, not a
   generalized replacement state framework.
 

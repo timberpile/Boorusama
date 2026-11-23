@@ -17,7 +17,7 @@ void main() {
     final library = BookmarkLibraryState(
       bookmarks: [
         for (var id = 1; id <= 9000; id++)
-          Bookmark.empty.copyWith(
+          PostBookmark.empty.copyWith(
             id: id,
             sourceUrl: 'https://example.test',
             tags: {for (var tag = 0; tag < 60; tag++) 'tag_${id % 900}_$tag'},

@@ -1,0 +1,25 @@
+import 'dart:io';
+
+import 'package:boorusama/core/bulk_downloads/src/data/repo_sqlite.dart';
+import 'package:boorusama/core/bulk_downloads/src/types/download_options.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart';
+
+void main() {
+  test('capture downloads using the published version-1 repository', () async {
+    final path = Platform.environment['RELEASE_FIXTURE_OUTPUT']!;
+    expect(File(path).existsSync(), isFalse);
+    final db = sqlite3.open(path);
+    try {
+      final repository = DownloadRepositorySqlite(db)..initialize();
+      expect(db.userVersion, 1);
+      final task = await repository.createTask(
+        DownloadOptions.initial(quality: 'original', tags: ['fixture_v1'])
+            .copyWith(path: '/synthetic/downloads-v1', perPage: 16),
+      );
+      await repository.createSavedTask(task, 'Fixture v1 saved download');
+    } finally {
+      db.close();
+    }
+  });
+}

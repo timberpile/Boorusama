@@ -17,6 +17,7 @@ class FavoritePostButton extends StatelessWidget {
     required this.isAuthorized,
     required this.addFavorite,
     required this.removeFavorite,
+    this.isCurrent,
     super.key,
   });
 
@@ -24,34 +25,40 @@ class FavoritePostButton extends StatelessWidget {
   final bool isAuthorized;
   final Future<void> Function() addFavorite;
   final Future<void> Function() removeFavorite;
+  final bool Function()? isCurrent;
+
+  VoidCallback? action(BuildContext context) => isFaved == null
+      ? null
+      : () {
+          if (!context.mounted || isCurrent?.call() == false) return;
+          if (!isAuthorized) {
+            Kurumi.showSimpleSnackBar(
+              context: context,
+              content: Text(context.t.post.detail.login_required_notice),
+              duration: KurumiDurations.shortToast,
+            );
+            return;
+          }
+          unawaited(
+            runFavoriteAction(
+              context,
+              isFaved! ? removeFavorite : addFavorite,
+              isCurrent: isCurrent,
+            ),
+          );
+        };
 
   @override
   Widget build(BuildContext context) {
+    final isFavorited = isFaved ?? false;
     return KurumiTooltip(
-      message: context.t.post.action.favorite,
+      message: isFavorited
+          ? context.t.post.action.unfavorite
+          : context.t.post.action.favorite,
       child: IconButton(
         splashRadius: 16,
-        onPressed: isFaved != null
-            ? () {
-                if (!isAuthorized) {
-                  Kurumi.showSimpleSnackBar(
-                    context: context,
-                    content: Text(
-                      context.t.post.detail.login_required_notice,
-                    ),
-                    duration: KurumiDurations.shortToast,
-                  );
-
-                  return;
-                }
-                if (isFaved!) {
-                  unawaited(runFavoriteAction(context, removeFavorite));
-                } else {
-                  unawaited(runFavoriteAction(context, addFavorite));
-                }
-              }
-            : null,
-        icon: (isFaved ?? false)
+        onPressed: action(context),
+        icon: isFavorited
             ? Icon(
                 Symbols.favorite,
                 fill: 1,

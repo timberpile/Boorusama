@@ -319,10 +319,13 @@ Future<void> _tapBookmark(
   WidgetTester tester,
   HeadlessAppHarness harness,
 ) async {
-  final bookmarkButton = find.descendant(
-    of: find.byType(BookmarkPostButton),
-    matching: find.byType(IconButton),
-  );
+  await harness.showViewerControls(tester);
+  final bookmarkButton = find
+      .descendant(
+        of: find.byType(BookmarkPostButton),
+        matching: find.byType(IconButton),
+      )
+      .hitTestable();
   await tester.tap(bookmarkButton);
   await harness.pumpUntilFound(tester, find.byType(BookmarkGroupPicker));
   final defaultGroup = find.descendant(

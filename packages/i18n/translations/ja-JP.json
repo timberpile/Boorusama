@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "更新がある検索を優先",
-    "sort_last_post_oldest": "古い投稿を先に"
+    "sort_manual": "手動",
+    "sort_unread_first": "未読優先",
+    "sort_recently_added": "追加が新しい順"
   },
   "generic": {
     "done": "完了",
@@ -355,14 +356,6 @@
       },
       "slideshow_skip": "スライドショー遷移をスキップ",
       "slideshow_interval_explanation": "1秒未満では自動でスキップします",
-      "swipe_mode": "スワイプモード",
-      "swipe_mode_disclaimer": "一部のカスタムジェスチャーはすべてのモードで動作しない場合があります",
-      "swipe_modes": {
-        "horizontal": "水平",
-        "horizontal_description": "ギャラリー形式の左右スワイプ。写真ギャラリーやメディアアプリのような操作",
-        "vertical": "垂直",
-        "vertical_description": "TikTok形式の上下スワイプ。ショートビデオプラットフォームで人気。ポートレートモードのみ"
-      },
       "mute_video": "デフォルトで動画をミュート",
       "video_section_title": "動画設定"
     },
@@ -830,7 +823,10 @@
       "one": "$n件の投稿",
       "other": "$n件の投稿"
     },
-    "hidden_count": "$total中$hidden件"
+    "hidden_count": "$total中$hidden件",
+    "actions": {
+      "group_posts": "投稿をグループ化"
+    }
   },
   "artists": {
     "title": "アーティスト",

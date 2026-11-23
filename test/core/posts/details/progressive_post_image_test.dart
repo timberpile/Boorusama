@@ -19,12 +19,57 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'only accepted full renditions publish Page geometry, never cropped previews',
+    (tester) async {
+      final fixture = _Fixture();
+      final sizes = <Size>[];
+      await tester.pumpWidget(
+        fixture.build(intermediates: [_second], onImageSize: sizes.add),
+      );
+      await tester.runAsync(() async {
+        await waitForPixel(tester, [255, 0, 0, 255]);
+        expect(sizes, isEmpty);
+        await pumpUntil(
+          tester,
+          () =>
+              fixture.adapter.pending.containsKey(_target) &&
+              fixture.adapter.pending.containsKey(_second),
+          reason: 'sample and original admitted',
+        );
+        fixture.adapter.complete(_target, portraitPng);
+        await pumpUntil(
+          tester,
+          () => sizes.isNotEmpty,
+          reason: 'decoded original geometry',
+        );
+        expect(sizes, [const Size(2, 8)]);
+        fixture.adapter.complete(_second, targetPng);
+        await pumpUntil(
+          tester,
+          () => fixture.cache.bytes.containsKey(_second),
+          reason: 'late sample',
+        );
+        expect(sizes, [
+          const Size(2, 8),
+        ], reason: 'a superseded sample cannot change geometry');
+      });
+      await fixture.finish(tester);
+    },
+  );
+
   for (final failOriginal in [false, true]) {
     testWidgets(
       'Original upgrade retains a decoded High intermediate (failure=$failOriginal)',
       (tester) async {
         final fixture = _Fixture();
-        await tester.pumpWidget(fixture.build(intermediates: [_second]));
+        var terminalFailures = 0;
+        await tester.pumpWidget(
+          fixture.build(
+            intermediates: [_second],
+            onTerminalFailure: () => terminalFailures++,
+          ),
+        );
         await tester.runAsync(() => waitForPixel(tester, [255, 0, 0, 255]));
         final state = tester.state(find.byType(ExtendedImage));
         final bounds = tester.getSize(find.byType(ExtendedRawImage));
@@ -73,6 +118,11 @@ void main() {
           _second,
           _target,
         });
+        expect(
+          terminalFailures,
+          0,
+          reason: 'decoded samples survive Original errors',
+        );
         expect(fixture.adapter.requests, hasLength(failOriginal ? 3 : 2));
         expect(
           fixture.adapter.requests.where((r) => r.uri.toString() == _second),
@@ -378,12 +428,49 @@ void main() {
       await fixture.finish(tester);
     },
   );
+  testWidgets(
+    'pending High preview prevents premature terminal Original failure',
+    (tester) async {
+      final fixture = _Fixture(cached: false);
+      var terminalFailures = 0;
+      await tester.pumpWidget(
+        fixture.build(
+          lower: '',
+          intermediates: [_second],
+          onTerminalFailure: () => terminalFailures++,
+        ),
+      );
+      await tester.runAsync(
+        () => pumpUntil(
+          tester,
+          () =>
+              fixture.adapter.pending.containsKey(_target) &&
+              fixture.adapter.pending.containsKey(_second),
+          reason: 'both Original and preview requests started',
+        ),
+      );
+      fixture.adapter.complete(_target, Uint8List.fromList([1, 2, 3]));
+      await decodePump(tester);
+      expect(terminalFailures, 0);
+      fixture.adapter.complete(_second, targetPng);
+      await tester.runAsync(() => waitForPixel(tester, [0, 0, 255, 255]));
+      expect(terminalFailures, 0);
+      await fixture.finish(tester);
+    },
+  );
+
   for (final hasLower in [false, true]) {
     testWidgets(
       'failed target with ${hasLower ? 'failed' : 'no'} lower shows the normal error',
       (tester) async {
         final fixture = _Fixture(cached: false);
-        await tester.pumpWidget(fixture.build(lower: hasLower ? _lower : ''));
+        var terminalFailures = 0;
+        await tester.pumpWidget(
+          fixture.build(
+            lower: hasLower ? _lower : '',
+            onTerminalFailure: () => terminalFailures++,
+          ),
+        );
         await decodePump(tester);
         if (hasLower) {
           fixture.adapter.complete(_lower, Uint8List.fromList([1, 2, 3]));
@@ -391,6 +478,7 @@ void main() {
         fixture.adapter.complete(_target, Uint8List.fromList([1, 2, 3]));
         await decodePump(tester);
         expect(find.byType(ErrorPlaceholder), findsOneWidget);
+        expect(terminalFailures, 1);
         expect(fixture.controller.imageInfo.value, isNull);
         await fixture.finish(tester);
       },
@@ -724,6 +812,8 @@ class _Fixture {
     double? Function()? geometry,
     String key = 'same-post',
     double aspectRatio = 1,
+    ValueChanged<Size>? onImageSize,
+    VoidCallback? onTerminalFailure,
   }) => testApp(
     Center(
       child: AspectRatio(
@@ -745,6 +835,8 @@ class _Fixture {
           cacheManager: cache,
           controller: controller,
           onRepresentationChanged: ready.add,
+          onTerminalFailure: onTerminalFailure,
+          onImageSize: onImageSize,
         ),
       ),
     ),

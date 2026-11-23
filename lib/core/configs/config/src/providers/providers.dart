@@ -14,26 +14,27 @@ final hasBooruConfigsProvider = Provider<bool>((ref) {
   return configs.isNotEmpty;
 });
 
-final orderedConfigsProvider = FutureProvider.autoDispose<IList<BooruConfig>>((
-  ref,
-) {
-  final configs = ref.watch(booruConfigProvider);
-
-  final configMap = {for (final config in configs) config.id: config};
-  final orders = ref.watch(
-    settingsProvider.select((value) => value.booruConfigIdOrderList),
+/// Shared presentation order; unknown/stale IDs never hide existing profiles.
+final orderedProfileConfigsProvider = Provider<List<BooruConfig>>((ref) {
+  return orderProfileConfigs(
+    ref.watch(booruConfigProvider),
+    ref.watch(settingsProvider.select((value) => value.booruConfigIdOrderList)),
   );
-
-  if (configMap.length != orders.length) {
-    return configMap.values.toIList();
-  }
-
-  try {
-    return orders.map((e) => configMap[e]!).toIList();
-  } catch (e) {
-    return configMap.values.toIList();
-  }
 });
+
+/// Pure projection also usable by the profile notifier without reading a
+/// derived provider that depends on that same notifier.
+List<BooruConfig> orderProfileConfigs(
+  Iterable<BooruConfig> configs,
+  Iterable<String> orders,
+) {
+  final byId = {for (final config in configs) config.id: config};
+  return [for (final id in orders) ?byId.remove(id), ...byId.values];
+}
+
+final orderedConfigsProvider = FutureProvider.autoDispose<IList<BooruConfig>>(
+  (ref) => ref.watch(orderedProfileConfigsProvider).toIList(),
+);
 
 final firstMatchingConfigBySourceUrlProvider =
     Provider.family<BooruConfig?, (int, String)>(

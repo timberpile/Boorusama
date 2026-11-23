@@ -6,8 +6,9 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../videos/player/providers.dart';
+import '../../../../videos/player/types.dart';
+import '../types/inherited_post.dart';
 import '../../../../videos/player/widgets.dart';
-import '../../../../widgets/widgets.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import 'post_details_controller.dart';
@@ -15,10 +16,12 @@ import 'post_details_controller.dart';
 class PostDetailsVideoControlsMobile<T extends Post> extends ConsumerWidget {
   const PostDetailsVideoControlsMobile({
     required this.controller,
+    required this.pageIndex,
     super.key,
   });
 
   final PostDetailsController<T> controller;
+  final int pageIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,6 +29,7 @@ class PostDetailsVideoControlsMobile<T extends Post> extends ConsumerWidget {
       child: LayoutBuilder(
         builder: (context, constraints) => _VideoControlsContent(
           controller: controller,
+          pageIndex: pageIndex,
           constraints: constraints,
           playPausePadding: const EdgeInsets.all(8),
           popoverController: null,
@@ -38,11 +42,13 @@ class PostDetailsVideoControlsMobile<T extends Post> extends ConsumerWidget {
 class PostDetailsVideoControlsDesktop<T extends Post> extends StatefulWidget {
   const PostDetailsVideoControlsDesktop({
     required this.controller,
+    required this.pageIndex,
     required this.pageViewController,
     super.key,
   });
 
   final PostDetailsController<T> controller;
+  final int pageIndex;
   final PostDetailsPageViewController pageViewController;
 
   @override
@@ -75,11 +81,13 @@ class _PostDetailsVideoControlsDesktopState<T extends Post>
             child: LayoutBuilder(
               builder: (context, constraints) => SafeArea(
                 top: false,
+                bottom: false,
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   child: _VideoControlsContent(
                     popoverController: _popoverController,
                     controller: widget.controller,
+                    pageIndex: widget.pageIndex,
                     constraints: constraints,
                     playPausePadding: null,
                   ),
@@ -125,141 +133,133 @@ class _VideoControls extends StatelessWidget {
 class _VideoControlsContent<T extends Post> extends ConsumerWidget {
   const _VideoControlsContent({
     required this.controller,
+    required this.pageIndex,
     required this.constraints,
     required this.playPausePadding,
     required this.popoverController,
   });
 
   final PostDetailsController<T> controller;
+  final int pageIndex;
   final BoxConstraints constraints;
   final EdgeInsets? playPausePadding;
   final AnchorController? popoverController;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final rightControls = [
-      const SoundControlButton(),
-      const SizedBox(width: 8),
-      ValueListenableBuilder(
-        valueListenable: controller.currentPost,
-        builder: (context, post, child) => MoreOptionsControlButton(
+  Widget build(BuildContext context, WidgetRef ref) => ListenableBuilder(
+    listenable: Listenable.merge([
+      controller.currentPost,
+      controller.currentSettledPage,
+    ]),
+    builder: (context, _) {
+      final post =
+          InheritedPost.maybeOf<T>(context) ?? controller.currentPost.value;
+      final active = controller.currentSettledPage.value == pageIndex;
+      final duration = post.duration.isFinite && post.duration > 0
+          ? Duration(milliseconds: (post.duration * 1000).round())
+          : Duration.zero;
+      VideoProgress progressFor(VideoProgress progress) =>
+          active ? progress : VideoProgress(duration, Duration.zero);
+      final rightControls = [
+        const SoundControlButton(),
+        const SizedBox(width: 8),
+        MoreOptionsControlButton(
           post: post,
           popoverController: popoverController,
-          speed: ref.watch(
-            playbackSpeedProvider(
-              post.videoUrl,
-            ),
-          ),
+          speed: ref.watch(playbackSpeedProvider(post.videoUrl)),
           onSpeedChanged: (speed) => ref
-              .read(
-                playbackSpeedProvider(post.videoUrl).notifier,
-              )
+              .read(playbackSpeedProvider(post.videoUrl).notifier)
               .setSpeed(speed),
         ),
-      ),
-      const SizedBox(width: 8),
-    ];
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          children: [
-            const Spacer(),
-            if (constraints.maxWidth < _kMinWidth) ...rightControls,
-          ],
+        const SizedBox(width: 8),
+      ];
+      return ExcludeFocus(
+        excluding: !active,
+        child: IgnorePointer(
+          ignoring: !active,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Spacer(),
+                  if (constraints.maxWidth < _kMinWidth) ...rightControls,
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const SizedBox(width: 4),
+                  PlayPauseButton(
+                    padding: playPausePadding,
+                    isPlaying: active
+                        ? controller.isVideoPlaying
+                        : const AlwaysStoppedAnimation(false),
+                    onPlayingChanged: (playing) {
+                      if (playing) {
+                        controller.pauseVideo(post, showAnimation: true);
+                      } else {
+                        controller.playVideo(post, showAnimation: true);
+                      }
+                    },
+                  ),
+                  ValueListenableBuilder(
+                    valueListenable: controller.videoProgress,
+                    builder: (context, progress, _) => VideoTimeText(
+                      duration: progressFor(progress).position,
+                      forceHigherThanOneSecond: false,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Container(
+                      color: Colors.transparent,
+                      height: 28,
+                      child: ValueListenableBuilder(
+                        valueListenable: controller.videoProgress,
+                        builder: (context, progress, _) {
+                          final boundProgress = progressFor(progress);
+                          final colors = Kurumi.themeOf(context).colorScheme;
+                          return VideoProgressBar(
+                            duration: boundProgress.duration,
+                            position: boundProgress.position,
+                            buffered: const [],
+                            onDragStart: () => controller.pauseVideo(post),
+                            onDragEnd: () => controller.playVideo(post),
+                            seekTo: (position) =>
+                                controller.onVideoSeekTo(position, post),
+                            barHeight: 3,
+                            handleHeight: 6,
+                            drawShadow: true,
+                            backgroundColor: colors.hintColor.withValues(
+                              alpha: 0.2,
+                            ),
+                            playedColor: colors.primary,
+                            bufferedColor: colors.hintColor,
+                            handleColor: colors.primary,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  ValueListenableBuilder(
+                    valueListenable: controller.videoProgress,
+                    builder: (context, progress, _) => VideoTimeText(
+                      duration: progressFor(progress).duration,
+                      forceHigherThanOneSecond:
+                          progressFor(progress).duration.inSeconds != 0,
+                    ),
+                  ),
+                  if (constraints.maxWidth >= _kMinWidth) ...rightControls,
+                ],
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            const SizedBox(width: 4),
-            _buildPlayPauseButton(),
-            _buildLeftTime(),
-            const SizedBox(width: 4),
-            Expanded(
-              child: _buildBar(),
-            ),
-            const SizedBox(width: 4),
-            _buildRightTime(),
-            if (constraints.maxWidth >= _kMinWidth) ...rightControls,
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRightTime() {
-    return ValueListenableBuilder(
-      valueListenable: controller.videoProgress,
-      builder: (_, progress, _) => VideoTimeText(
-        duration: progress.duration,
-        forceHigherThanOneSecond: progress.duration.inSeconds != 0,
-      ),
-    );
-  }
-
-  Widget _buildLeftTime() {
-    return ValueListenableBuilder(
-      valueListenable: controller.videoProgress,
-      builder: (_, progress, _) => VideoTimeText(
-        duration: progress.position,
-        forceHigherThanOneSecond: false,
-      ),
-    );
-  }
-
-  Widget _buildPlayPauseButton() {
-    return ValueListenableBuilder(
-      valueListenable: controller.currentPost,
-      builder: (_, post, _) => PlayPauseButton(
-        padding: playPausePadding,
-        isPlaying: controller.isVideoPlaying,
-        onPlayingChanged: (value) {
-          if (value) {
-            controller.pauseVideo(post, showAnimation: true);
-          } else if (!value) {
-            controller.playVideo(post, showAnimation: true);
-          } else {
-            // do nothing
-          }
-        },
-      ),
-    );
-  }
-
-  Widget _buildBar() {
-    return Container(
-      color: Colors.transparent,
-      height: 28,
-      child: MultiValueListenableBuilder2(
-        first: controller.currentPost,
-        second: controller.videoProgress,
-        builder: (context, post, progress) {
-          final colorScheme = Kurumi.themeOf(context).colorScheme;
-
-          return VideoProgressBar(
-            duration: progress.duration,
-            position: progress.position,
-            buffered: const [],
-            onDragStart: () {
-              controller.pauseVideo(post);
-            },
-            onDragEnd: () {
-              controller.playVideo(post);
-            },
-            seekTo: (position) => controller.onVideoSeekTo(position, post),
-            barHeight: 3,
-            handleHeight: 6,
-            drawShadow: true,
-            backgroundColor: colorScheme.hintColor.withValues(alpha: 0.2),
-            playedColor: colorScheme.primary,
-            bufferedColor: colorScheme.hintColor,
-            handleColor: colorScheme.primary,
-          );
-        },
-      ),
-    );
-  }
+      );
+    },
+  );
 }
 
 const _kMinWidth = 320.0;

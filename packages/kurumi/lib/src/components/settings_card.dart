@@ -1,3 +1,5 @@
+import 'fitted_text.dart';
+
 import 'package:material_ui/material_ui.dart';
 
 enum KurumiSettingsCardSurface {
@@ -100,11 +102,15 @@ class KurumiSettingsCardTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Text(
-            title.toUpperCase(),
-            style: theme.textTheme.titleSmall?.copyWith(
-              color: theme.colorScheme.outline,
-              fontWeight: FontWeight.w800,
+          Expanded(
+            child: KurumiFittedText(
+              Text(
+                title.toUpperCase(),
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
           ?trailing,

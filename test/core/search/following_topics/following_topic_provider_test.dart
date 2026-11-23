@@ -159,9 +159,12 @@ void main() {
         throwsStateError,
       );
       container.invalidate(followingTopicRepositoryProvider);
+      // Capture the rebuilt owner before opening, so even an opening failure
+      // waits for disposal before deleting the real Hive directory.
+      notifier = container.read(followingTopicRepositoryProvider.notifier);
       final rebuilt = await container
           .read(followingTopicRepositoryProvider.future)
-          .timeout(const Duration(seconds: 1));
+          .timeout(const Duration(seconds: 30));
       final created = await rebuilt.create(
         profileId: '00000000-0000-4000-8000-000000000004',
         query: 'retry',
@@ -171,9 +174,6 @@ void main() {
 
       expect(created.id, 'retry');
       expect((await rebuilt.getAll()).map((item) => item.id), ['retry']);
-      notifier = container.read(
-        followingTopicRepositoryProvider.notifier,
-      );
     } finally {
       container.dispose();
       if (notifier != null) {

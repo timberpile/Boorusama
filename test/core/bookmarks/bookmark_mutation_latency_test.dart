@@ -1,3 +1,6 @@
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+
 import 'dart:async';
 
 import 'package:boorusama/boorus/gelbooru_v2/posts/post_codec.dart';
@@ -62,6 +65,7 @@ void main() {
 
   ProviderContainer createContainer() => ProviderContainer(
     overrides: [
+      blacklistTagsProvider.overrideWith((ref, filter) async => {}),
       booruConfigProvider.overrideWith(
         () => BooruConfigNotifier(initialConfigs: [profile]),
       ),
@@ -83,6 +87,8 @@ void main() {
       ...BooruConfig.empty.toJson(),
       'id': '00000000-0000-4000-8000-000000000001',
       'url': 'https://example.com',
+      'booruId': BooruType.gelbooruV2.id,
+      'booruIdHint': BooruType.gelbooruV2.id,
     });
     container = createContainer();
     notifier = container.read(bookmarkProvider.notifier);
@@ -549,7 +555,7 @@ class _CountingGroups extends BookmarkGroupRepositoryHive {
 }
 
 class _CountingBookmarks implements BookmarkRepository<Post> {
-  final rows = <int, Bookmark>{};
+  final rows = <int, PostBookmark>{};
   int reads = 0;
   int _nextId = 0;
   bool throwAfterNextAdd = false;
@@ -564,7 +570,7 @@ class _CountingBookmarks implements BookmarkRepository<Post> {
   }
 
   @override
-  Future<Bookmark> addBookmark(
+  Future<PostBookmark> addBookmark(
     int booruId,
     Post post, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -573,7 +579,7 @@ class _CountingBookmarks implements BookmarkRepository<Post> {
     final before = beforeNextAdd;
     beforeNextAdd = null;
     await before?.call();
-    final bookmark = Bookmark.fromSnapshot(
+    final bookmark = PostBookmark.fromSnapshot(
       id: _nextId++,
       createdAt: DateTime.utc(2026),
       updatedAt: DateTime.utc(2026),
@@ -591,7 +597,7 @@ class _CountingBookmarks implements BookmarkRepository<Post> {
   }
 
   @override
-  Future<List<Bookmark>> addBookmarks(
+  Future<List<PostBookmark>> addBookmarks(
     int booruId,
     Iterable<Post> posts, {
     required ImageUrlResolver Function(int? booruId) imageUrlResolver,
@@ -607,8 +613,8 @@ class _CountingBookmarks implements BookmarkRepository<Post> {
   ]);
 
   @override
-  Future<List<Bookmark>> addBookmarkWithBookmarks(
-    List<Bookmark> bookmarks,
+  Future<List<PostBookmark>> addBookmarkWithBookmarks(
+    List<PostBookmark> bookmarks,
   ) async {
     final added = [for (final b in bookmarks) b.copyWith(id: _nextId++)];
     for (final b in added) {
@@ -618,17 +624,17 @@ class _CountingBookmarks implements BookmarkRepository<Post> {
   }
 
   @override
-  Future<void> updateBookmark(Bookmark bookmark) async {
+  Future<void> updateBookmark(PostBookmark bookmark) async {
     rows[bookmark.id] = bookmark;
   }
 
   @override
-  Future<void> removeBookmark(Bookmark bookmark) async {
+  Future<void> removeBookmark(PostBookmark bookmark) async {
     rows.remove(bookmark.id);
   }
 
   @override
-  Future<void> removeBookmarks(Iterable<Bookmark> bookmarks) async {
+  Future<void> removeBookmarks(Iterable<PostBookmark> bookmarks) async {
     for (final b in bookmarks.toList()) {
       rows.remove(b.id);
     }

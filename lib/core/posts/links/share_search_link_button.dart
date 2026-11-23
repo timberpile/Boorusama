@@ -58,17 +58,18 @@ class _SearchLinkShareMenuState extends ConsumerState<SearchLinkShareMenu> {
   }
 
   @override
-  Widget build(BuildContext context) => IconButton(
-    tooltip: context.linkFileLabel,
-    icon: const Icon(Icons.share_outlined),
-    onPressed:
+  Widget build(BuildContext context) {
+    final enabled =
         widget.link != null &&
-            !_sharing &&
-            SharePlatformCapabilities.forPlatform(currentAppPlatform())
-                .canShareMedia
-        ? _share
-        : null,
-  );
+        !_sharing &&
+        SharePlatformCapabilities.forPlatform(currentAppPlatform())
+            .canShareMedia;
+    return IconButton(
+      tooltip: context.linkFileLabel,
+      icon: const Icon(Icons.share),
+      onPressed: enabled ? _share : null,
+    );
+  }
 }
 
 /// Send a standalone .bslink, not raw URI text or mixed image attachments.
@@ -86,7 +87,10 @@ Future<void> shareSearchLinkFile(
         : null;
     final outcome = await BoorusamaLinkFileShare(fs: fs, adapter: shareAdapter)
         .share(
-          BoorusamaLinkFile.fromUri(link.uri.toString()),
+          BoorusamaLinkFile.fromUri(
+            link.uri.toString(),
+            profileName: profileName,
+          ),
           text: context.searchLinkFileMessage(
             link,
             profileName: profileName ?? link.site.host,

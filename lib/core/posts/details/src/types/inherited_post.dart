@@ -12,9 +12,9 @@ class InheritedPost extends InheritedWidget {
     super.key,
   });
 
-  final PostPresentationContext presentationContext;
+  final PostPresentationContext? presentationContext;
 
-  Post get post => presentationContext.post;
+  Post? get post => presentationContext?.post;
 
   static T of<T extends Post>(BuildContext context) {
     final widget = context.dependOnInheritedWidgetOfExactType<InheritedPost>();

@@ -614,6 +614,7 @@ void main() {
   ) async {
     final keys = await _mountOnTv(tester, posts: [_videoPost]);
     await _openPostWithRemote(keys);
+    await keys.press(LogicalKeyboardKey.keyO);
     bool playing() => tester
         .widget<PlayPauseButton>(find.byType(PlayPauseButton))
         .isPlaying
@@ -1115,7 +1116,7 @@ Finder _iconButton(IconData icon) =>
     find.ancestor(of: find.byIcon(icon), matching: find.byType(km.IconButton));
 
 Finder _detailsBackButton() => find.ancestor(
-  of: find.byIcon(Symbols.arrow_back_ios),
+  of: find.byIcon(Symbols.arrow_back_ios_new),
   matching: find.byType(KurumiCircularIconButton),
 );
 

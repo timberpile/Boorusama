@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:boorusama/core/images/providers.dart';
@@ -35,6 +36,7 @@ import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/content/content_media_dio.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/favorites/providers.dart';
@@ -147,7 +149,9 @@ void main() {
             );
           }
         });
-        await tester.tap(find.byIcon(Icons.more_horiz).first);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyO);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_horiz).hitTestable().first);
         await tester.pumpAndSettle();
         await tester.tap(find.text('Load Original').hitTestable());
         await tester.runAsync(() async {
@@ -334,9 +338,18 @@ class _Harness extends StatelessWidget {
       automaticMediaLoadingEnabledProvider.overrideWithValue(
         imageAdapter != null,
       ),
+      zoomStudyEnabledProvider.overrideWithValue(false),
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
       if (imageAdapter case final adapter?)
         dioForWidgetProvider.overrideWith(
+          (_, _) => Dio()..httpClientAdapter = adapter,
+        ),
+      if (imageAdapter case final adapter?)
+        mediaOverrideDioProvider.overrideWith(
+          (_, _) => Dio()..httpClientAdapter = adapter,
+        ),
+      if (imageAdapter case final adapter?)
+        contentMediaDioProvider.overrideWith(
           (_, _) => Dio()..httpClientAdapter = adapter,
         ),
       if (imageCache case final cache?)

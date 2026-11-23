@@ -1,10 +1,12 @@
 import '../export_import/import/search_runtime_snapshot.dart';
+
 import 'package:equatable/equatable.dart';
 
 import '../export_import/import/collection_import_action.dart';
 import '../export_import/models/import_action.dart';
 import '../../configs/config/types.dart';
 import '../../search/following_topics/types.dart';
+import '../../search/following_topics/src/types/following_mirror_state.dart';
 import 'topic_feed_backup_data.dart';
 import 'search_backup_profile.dart';
 
@@ -54,6 +56,12 @@ class TopicFeedImportService {
 
   final FollowingTopicRepository repository;
 
+  Future<FollowingMirrorState> _mirrors() async =>
+      repository is FollowingMirrorStore
+      ? (await (repository as FollowingMirrorStore).readMirrorSnapshot())
+            .mirrors
+      : const FollowingMirrorState.empty();
+
   TopicFeedImportPreview preview(
     TopicFeedBackupData data, {
     required List<BooruConfig> profiles,
@@ -95,6 +103,7 @@ class TopicFeedImportService {
     required List<BooruConfig> profiles,
     BackupProfileIdResolver? profileIdResolver,
   }) async {
+    final mirrors = await _mirrors();
     final folderIds = (await repository.getOrganization()).folders
         .map((folder) => folder.id)
         .toSet();
@@ -120,7 +129,9 @@ class TopicFeedImportService {
     final desiredProfileById = {
       for (final item in mapped) item.record.id: item.profileId!,
     };
-    for (final feed in await repository.getFeeds()) {
+    for (final feed in (await repository.getFeeds()).where(
+      (feed) => !mirrors.isReceived(feed.id),
+    )) {
       if (folderIds.contains(feed.id)) continue;
       final desiredProfile = desiredProfileById[feed.id];
       if (desiredProfile != null && desiredProfile != feed.profileId) {
@@ -133,7 +144,9 @@ class TopicFeedImportService {
       profileIdResolver: profileIdResolver,
     );
     final desiredIds = desiredProfileById.keys.toSet();
-    for (final feed in await repository.getFeeds()) {
+    for (final feed in (await repository.getFeeds()).where(
+      (feed) => !mirrors.isReceived(feed.id),
+    )) {
       if (folderIds.contains(feed.id)) continue;
       if (!desiredIds.contains(feed.id)) await repository.deleteFeed(feed.id);
     }
@@ -157,7 +170,9 @@ class TopicFeedImportService {
         profileId,
         [
           for (final feed in await repository.getFeeds())
-            if (folderIds.contains(feed.id) && feed.profileId == profileId)
+            if (folderIds.contains(feed.id) &&
+                feed.profileId == profileId &&
+                !mirrors.isReceived(feed.id))
               feed.id,
           for (final item in records) item.record.id,
         ],
@@ -173,6 +188,15 @@ class TopicFeedImportService {
     Map<String, CollectionImportAction>? feedActions,
     BackupProfileIdResolver? profileIdResolver,
   }) async {
+    final mirrors = await _mirrors();
+    if (data.feeds.any((feed) => mirrors.isReceived(feed.id)) ||
+        (feedActions?.values.any(
+              (action) =>
+                  mirrors.isReceived(action.targetId ?? '') ||
+                  mirrors.isReceived(action.destinationId ?? ''),
+            ) ??
+            false))
+      throw const FollowingMirrorReadOnly();
     final unmatched = preview(
       data,
       profiles: profiles,
@@ -203,7 +227,9 @@ class TopicFeedImportService {
           ),
         ),
     ];
-    final localFeeds = await repository.getFeeds();
+    final localFeeds = (await repository.getFeeds())
+        .where((feed) => !mirrors.isReceived(feed.id))
+        .toList();
     final localById = {for (final feed in localFeeds) feed.id: feed};
     final conflicts = <String>{};
     for (final item in mapped) {
@@ -216,7 +242,8 @@ class TopicFeedImportService {
     if (conflicts.isNotEmpty) throw FeedBackupIdConflictException(conflicts);
 
     final sourcesById = {
-      for (final source in await repository.getAll()) source.id: source,
+      for (final source in await repository.getAll())
+        if (!mirrors.isReceived(source.id)) source.id: source,
     };
     final accepted = mapped.where((item) => item.profileId != null).toList();
     final profileIds = {for (final item in accepted) item.profileId!};
@@ -258,10 +285,16 @@ class TopicFeedImportService {
     var existing = 0;
     for (final profileId in profileIds) {
       final previousFeeds = (await repository.getFeeds())
-          .where((feed) => feed.profileId == profileId)
+          .where(
+            (feed) =>
+                feed.profileId == profileId && !mirrors.isReceived(feed.id),
+          )
           .toList();
       final previousSources = (await repository.getAll())
-          .where((source) => source.profileId == profileId)
+          .where(
+            (source) =>
+                source.profileId == profileId && !mirrors.isReceived(source.id),
+          )
           .toList();
       try {
         for (final item in accepted.where(
@@ -317,10 +350,14 @@ class TopicFeedImportService {
     required Map<String, CollectionImportAction> actions,
     required BackupProfileIdResolver? profileIdResolver,
   }) async {
-    final localFeeds = await repository.getFeeds();
+    final mirrors = await _mirrors();
+    final localFeeds = (await repository.getFeeds())
+        .where((feed) => !mirrors.isReceived(feed.id))
+        .toList();
     final localById = {for (final feed in localFeeds) feed.id: feed};
     final sourcesById = {
-      for (final source in await repository.getAll()) source.id: source,
+      for (final source in await repository.getAll())
+        if (!mirrors.isReceived(source.id)) source.id: source,
     };
     final resolved = <TopicFeedBackupRecord>[];
     var skippedProfiles = 0;

@@ -165,10 +165,24 @@ void main() {
           );
           final key = ProfileSiteKey.fromReference(reference);
           notifier.chooseProfileMapping(key, firstId);
+          await notifier.previewComplete;
           notifier.acknowledgeWarnings(true);
           final first = container.read(importFlowProvider).preflight!;
           expect(first.isValid, isTrue, reason: '${first.errors}');
+          final dependencyRuns = notifier.dependencyPlanningRuns;
+          final projectionRuns = notifier.sourceProjectionRuns;
+          for (final acknowledged in [false, true, false, true]) {
+            notifier.acknowledgeWarnings(acknowledged);
+            final gated = container.read(importFlowProvider).preflight!;
+            expect(notifier.dependencyPlanningRuns, dependencyRuns);
+            expect(notifier.sourceProjectionRuns, projectionRuns);
+            expect(gated.summary, same(first.summary));
+            for (final entry in first.sourceSummaries.entries) {
+              expect(gated.sourceSummaries[entry.key], same(entry.value));
+            }
+          }
           notifier.chooseProfileMapping(key, secondId);
+          await notifier.previewComplete;
           final changed = container.read(importFlowProvider);
           expect(changed.profileMappings.single.profileId, secondId);
           expect(identical(changed.preflight, first), isFalse);
@@ -182,6 +196,13 @@ void main() {
           );
           expect(await repository.getAll(), before);
           expect(await repository.getFeeds(), isEmpty);
+          expect(
+            changed.preflight!.errors.map((issue) => issue.code),
+            contains('warnings_not_acknowledged'),
+            reason: 'Consent to the first mapping cannot authorize the changed plan',
+          );
+          notifier.acknowledgeWarnings(true);
+          final acknowledged = container.read(importFlowProvider).preflight!;
           if (stale) {
             File(path).deleteSync();
             await repository.create(
@@ -223,7 +244,7 @@ void main() {
                   .preflight!
                   .validatedPlan!
                   .revisionTokens,
-              isNot(changed.preflight!.validatedPlan!.revisionTokens),
+              isNot(acknowledged.validatedPlan!.revisionTokens),
             );
           }
           await notifier.apply(context);

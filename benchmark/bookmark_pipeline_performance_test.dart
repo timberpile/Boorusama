@@ -15,7 +15,11 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/posts/rating/types.dart';
+
+import '../test/support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/core/posts/sources/types.dart';
+
 import '../test/profile_uuid_utils.dart';
 
 const _bookmarkCount = 1000;
@@ -25,6 +29,7 @@ const _hiveSizeLimit = 20 * 1024 * 1024;
 void main() {
   late Directory tempDirectory;
   late Box<BookmarkHiveObject> bookmarkBox;
+  late BookmarkTestStorage bookmarkStorage;
 
   setUp(() async {
     tempDirectory = await Directory.systemTemp.createTemp(
@@ -35,9 +40,11 @@ void main() {
       Hive.registerAdapter(BookmarkHiveObjectAdapter());
     }
     bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks');
+    bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
   });
 
   tearDown(() async {
+    await bookmarkStorage.close();
     if (bookmarkBox.isOpen) await bookmarkBox.close();
     await tempDirectory.delete(recursive: true);
   });
@@ -46,7 +53,7 @@ void main() {
     'a large snapshot library stays bounded and reports cold-load cost',
     () async {
       final posts = [for (var i = 0; i < _bookmarkCount; i++) _post(i + 1)];
-      final repository = _repository(bookmarkBox);
+      final repository = _repository(bookmarkBox, bookmarkStorage);
 
       final writeWatch = Stopwatch()..start();
       final stored = await repository.addBookmarks(
@@ -58,14 +65,17 @@ void main() {
       writeWatch.stop();
       expect(stored.length, _bookmarkCount);
 
+      await bookmarkStorage.close();
       await bookmarkBox.close();
       final hiveBytes = _directoryBytes(tempDirectory);
 
       final loadWatch = Stopwatch()..start();
       bookmarkBox = await Hive.openBox<BookmarkHiveObject>('bookmarks');
-      final loaded = await _repository(bookmarkBox).getAllBookmarksOrThrow(
-        imageUrlResolver: (_) => const DefaultImageUrlResolver(),
-      );
+      bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
+      final loaded = await _repository(bookmarkBox, bookmarkStorage)
+          .getAllBookmarksOrThrow(
+            imageUrlResolver: (_) => const DefaultImageUrlResolver(),
+          );
       loadWatch.stop();
 
       expect(loaded.length, _bookmarkCount);
@@ -95,14 +105,16 @@ void main() {
   );
 }
 
-BookmarkHiveRepository _repository(Box<BookmarkHiveObject> box) =>
-    BookmarkHiveRepository(
-      box,
-      postDataCodec: (type) => switch (type) {
-        BooruType.gelbooruV2 => const GelbooruV2PostCodec(),
-        _ => null,
-      },
-    );
+BookmarkHiveRepository _repository(
+  Box<BookmarkHiveObject> box,
+  BookmarkTestStorage storage,
+) => storage.repository(
+  box,
+  postDataCodec: (type) => switch (type) {
+    BooruType.gelbooruV2 => const GelbooruV2PostCodec(),
+    _ => null,
+  },
+);
 
 Post _post(int id) => Post(
   origin: PostOrigin.fromSource(

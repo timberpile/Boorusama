@@ -1,3 +1,5 @@
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/loggers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,6 +56,9 @@ void main() {
               exportSelectionLabelsProvider.overrideWithValue(
                 const ExportSelectionLabels(children: {}),
               ),
+              settingsNotifierProvider.overrideWith(
+                () => SettingsNotifier(Settings.defaultSettings),
+              ),
               booruConfigProvider.overrideWith(
                 () => BooruConfigNotifier(
                   initialConfigs: [
@@ -89,7 +94,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
         final information = tester.getRect(
-          find.text('danbooru.donmai.us/a/representative/long/path'),
+          find.text(website),
         );
         final selector = tester.getRect(find.byType(DropdownButton<String>));
         expect(information.width, greaterThan(scenario.width - 80));
@@ -100,7 +105,7 @@ void main() {
         await tester.pump();
         expect(
           find.bySemanticsLabel(
-            RegExp('Target: danbooru.donmai.us/a/representative/long/path'),
+            RegExp('Target: ${RegExp.escape(website)}'),
           ),
           findsOneWidget,
         );

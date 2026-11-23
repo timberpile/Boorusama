@@ -12,6 +12,7 @@ class MultiSelectButton extends StatelessWidget {
     this.menuOnly = false,
     this.primary = false,
     this.wrapLabel = false,
+    this.decorate,
     super.key,
   });
 
@@ -24,12 +25,15 @@ class MultiSelectButton extends StatelessWidget {
   final bool primary;
   final bool wrapLabel;
 
+  /// Keeps action metadata intact when adding an anchored interaction surface.
+  final Widget Function(BuildContext, Widget)? decorate;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Kurumi.themeOf(context).colorScheme;
     final iconTheme = IconTheme.of(context);
 
-    return Tooltip(
+    final button = Tooltip(
       message: name,
       excludeFromSemantics: true,
       child: Semantics(
@@ -88,6 +92,7 @@ class MultiSelectButton extends StatelessWidget {
         ),
       ),
     );
+    return decorate?.call(context, button) ?? button;
   }
 }
 

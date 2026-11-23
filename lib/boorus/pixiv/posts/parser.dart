@@ -38,10 +38,18 @@ List<Post> illustDtoToPosts(
   if (illustId == null || userId == null) return const [];
   if (!(dto.visible ?? true) || (dto.isMuted ?? false)) return const [];
 
-  final originals = dto.originalImageUrls;
-  if (originals.isEmpty) return const [];
-
-  final pageCount = originals.length;
+  // Index before filtering unavailable media: these positions also identify
+  // previews, persisted posts, and page-specific download filenames.
+  final isMultiPage =
+      (dto.pageCount ?? 0) > 1 ||
+      (dto.pageCount != 1 && dto.metaPages.isNotEmpty);
+  final originals = isMultiPage
+      ? [for (final page in dto.metaPages) page.imageUrls?.original]
+      : [dto.metaSinglePage?.originalImageUrl];
+  final pageCount = switch (dto.pageCount) {
+    final count? when count > 0 => count,
+    _ => originals.length,
+  };
   final createdAt = _parseDate(dto.createDate);
   final rating = pixivRatingFrom(
     xRestrict: dto.xRestrict,
@@ -54,22 +62,30 @@ List<Post> illustDtoToPosts(
 
   return [
     for (final (index, original) in originals.indexed)
-      _toPost(
-        dto: dto,
-        illustId: illustId,
-        userId: userId,
-        userName: userName,
-        userAccount: userAccount,
-        pageIndex: index,
-        pageCount: pageCount,
-        original: original,
-        createdAt: createdAt,
-        rating: rating,
-        tags: tags,
-        illustType: illustType,
-        metadata: metadata,
-      ),
+      if (original != null && _isUsableOriginal(original))
+        _toPost(
+          dto: dto,
+          illustId: illustId,
+          userId: userId,
+          userName: userName,
+          userAccount: userAccount,
+          pageIndex: index,
+          pageCount: pageCount,
+          original: original,
+          createdAt: createdAt,
+          rating: rating,
+          tags: tags,
+          illustType: illustType,
+          metadata: metadata,
+        ),
   ];
+}
+
+bool _isUsableOriginal(String value) {
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      (uri.scheme == 'https' || uri.scheme == 'http') &&
+      uri.host.isNotEmpty;
 }
 
 /// Flattens a page of illusts, preserving order.

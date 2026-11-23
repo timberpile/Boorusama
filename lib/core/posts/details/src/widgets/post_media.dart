@@ -8,19 +8,25 @@ import 'package:kurumi/material.dart';
 import '../../../../../foundation/loggers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/network/providers.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_media_dio.dart';
+import '../../../../content/content_access_provider.dart';
 import '../../../../ddos/handler/providers.dart';
 import '../../../../developer_options/blocked_media_placeholder.dart';
 import '../../../../developer_options/providers.dart';
 import '../../../../http/client/providers.dart';
+import '../../../../images/booru_image.dart' show ErrorPlaceholder;
 import '../../../../settings/providers.dart';
 import '../../../../settings/routes.dart';
 import '../../../../videos/cache/providers.dart';
+import '../../../../videos/cache/prepare_bound_video.dart';
 import '../../../../videos/player/providers.dart';
 import '../../../../videos/player/widgets.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../post/types.dart';
 import '../providers/video_url_provider.dart';
 import '../types/post_details.dart';
+import '../types/post_presentation_fallback_reason.dart';
 import '../types/utils.dart';
 import 'post_details_image.dart';
 
@@ -37,6 +43,10 @@ class PostMedia<T extends Post> extends ConsumerWidget {
     required this.imageCacheManager,
     this.imageController,
     this.onRepresentationChanged,
+    this.onTerminalFailure,
+    this.onVideoFrameChanged,
+    this.contentSize,
+    this.onImageSize,
     super.key,
     this.isPageSettled = false,
   });
@@ -52,6 +62,10 @@ class PostMedia<T extends Post> extends ConsumerWidget {
   final ImageCacheManager? imageCacheManager;
   final ExtendedImageController? imageController;
   final ValueChanged<bool>? onRepresentationChanged;
+  final VoidCallback? onTerminalFailure;
+  final ValueChanged<bool>? onVideoFrameChanged;
+  final Size? contentSize;
+  final ValueChanged<Size>? onImageSize;
   final bool isPageSettled;
 
   void _openSettings(WidgetRef ref) {
@@ -60,6 +74,9 @@ class PostMedia<T extends Post> extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = watchContentMediaAccess(ref, config, post: post);
+    if (!access.allowed)
+      return const BlockedMediaPlaceholder(borderRadius: BorderRadius.zero);
     final details = PostDetails.of(context);
     final heroTag = postHeroTag(post);
     final automaticMediaLoadingEnabled = ref.watch(
@@ -97,8 +114,61 @@ class PostMedia<T extends Post> extends ConsumerWidget {
 
                     final request = ref
                         .watch(networkSettingsProvider(config))
-                        .resolveMedia(videoUrl, headers: headers);
+                        .resolveMedia(
+                          videoUrl,
+                          headers: headers,
+                          sourceUrl: config.url,
+                        );
+                    final publicScope = config.anonymousReadScope;
+                    if (publicScope != null) {
+                      final uri = Uri.tryParse(request.url);
+                      if (uri == null || !publicScope.source.allowsMedia(uri))
+                        return const ErrorPlaceholder(
+                          borderRadius: BorderRadius.zero,
+                          video: true,
+                          reason:
+                              PostPresentationFallbackReason.unavailableEngine,
+                        );
+                    }
+                    final mediaDio = access.key == null
+                        ? null
+                        : ref.watch(contentMediaDioProvider(access.key!));
+                    final mediaHeaders = {
+                      ...request.headers,
+                      if (publicScope == null && request.overridden)
+                        ...ref.watch(
+                          cachedBypassDdosHeadersProvider(request.url),
+                        ),
+                    };
                     return BooruVideo(
+                      key: ValueKey((access.key, request.url)),
+                      sourceLoader: access.key == null
+                          ? null
+                          : (cancellation) async {
+                              bool current() =>
+                                  (publicScope?.isCurrent ?? true) &&
+                                  ref.context.mounted &&
+                                  ref
+                                          .read(
+                                            contentAccessContextProvider(
+                                              access.key!,
+                                            ),
+                                          )
+                                          ?.key ==
+                                      access.key;
+                              return prepareBoundVideo(
+                                url: request.url,
+                                namespace: 'content-media',
+                                transport: mediaDio!,
+                                headers: mediaHeaders,
+                                isCurrent: current,
+                                cancellation: cancellation,
+                                fileSize: post.fileSize > 0
+                                    ? post.fileSize
+                                    : null,
+                                cache: ref.read(videoCacheManagerProvider),
+                              );
+                            },
                       heroTag: heroTag,
                       url: request.url,
                       aspectRatio:
@@ -110,21 +180,23 @@ class PostMedia<T extends Post> extends ConsumerWidget {
                             total,
                             post,
                           ),
-                      onVideoPlayerCreated: (player) => details.controller
-                          .onBooruVideoPlayerCreated(player, post),
-                      onVideoPlayerDisposed: () =>
-                          details.controller.onBooruVideoPlayerDisposed(post),
+                      onVideoPlayerCreated: (player) {
+                        onVideoFrameChanged?.call(false);
+                        details.controller.onBooruVideoPlayerCreated(
+                          player,
+                          post,
+                        );
+                      },
+                      onVideoPlayerDisposed: () {
+                        onVideoFrameChanged?.call(false);
+                        details.controller.onBooruVideoPlayerDisposed(post);
+                      },
+                      onFrameRendered: () => onVideoFrameChanged?.call(true),
                       sound: ref.watch(globalSoundStateProvider),
                       speed: ref.watch(playbackSpeedProvider(videoUrl)),
                       thumbnailUrl: post.videoThumbnailUrl,
                       onOpenSettings: () => _openSettings(ref),
-                      headers: {
-                        ...request.headers,
-                        if (request.overridden)
-                          ...ref.watch(
-                            cachedBypassDdosHeadersProvider(request.url),
-                          ),
-                      },
+                      headers: mediaHeaders,
                       videoPlayerEngine: ref.watch(
                         imageViewerSettingsProvider.select(
                           (value) => value.videoPlayerEngine,
@@ -152,6 +224,9 @@ class PostMedia<T extends Post> extends ConsumerWidget {
             imageCacheManager: imageCacheManager,
             imageController: imageController,
             onRepresentationChanged: onRepresentationChanged,
+            onTerminalFailure: onTerminalFailure,
+            contentSize: contentSize,
+            onImageSize: onImageSize,
             post: post,
             config: config,
           );

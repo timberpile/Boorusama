@@ -296,7 +296,10 @@ void main() {
         find.byType(PostDetailsPageScaffold),
       );
       await harness.settle(tester);
-      expect(find.byKey(const Key('nav-menu-toggle')), findsNothing);
+      expect(
+        find.byKey(const Key('nav-menu-toggle')).hitTestable(),
+        findsNothing,
+      );
       final viewerContext = tester.element(
         find.byType(PostDetailsPageScaffold),
       );

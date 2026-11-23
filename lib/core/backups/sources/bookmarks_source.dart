@@ -9,19 +9,23 @@ import '../../../foundation/info/package_info.dart';
 import '../../boorus/engine/providers.dart';
 import '../../bookmarks/providers.dart';
 import '../../bookmarks/types.dart';
+import '../../content/providers.dart';
 import '../preparation/preparation_pipeline.dart';
+import '../preparation/version_checking.dart';
 import '../types/backup_data_source.dart';
 import '../types/types.dart';
 import '../widgets/backup_restore_tile.dart';
 import '../widgets/bookmark_group_conflict_dialog.dart';
 import '../widgets/bookmark_export_scope_dialog.dart';
 import 'bookmark_backup_codec.dart';
+import 'bookmark_backup_schema.dart';
+import 'bookmark_backup_worker.dart';
 import 'bookmark_backup_data.dart';
 import 'bookmark_import_planner.dart';
 import 'bookmark_import_service.dart';
 import 'json_source.dart';
 
-const kBookmarksBackupVersion = 5;
+export 'bookmark_backup_schema.dart';
 
 class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
   BookmarksBackupSource(Ref ref)
@@ -36,6 +40,8 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
               .snapshotForExport();
           return buildBookmarkBackupData(
             bookmarks: state.items,
+            pools: state.pools,
+            records: state.hasUnifiedRecords ? state.records : null,
             groups: state.groups,
             folders: state.folders,
             scope: const BookmarkExportScope.all(),
@@ -51,6 +57,8 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           };
           return buildBookmarkBackupData(
             bookmarks: state.items,
+            pools: state.pools,
+            records: state.hasUnifiedRecords ? state.records : null,
             groups: state.groups,
             folders: state.folders,
             scope: scope,
@@ -58,22 +66,21 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
         },
         executor: (_, _) async {},
         resultExecutor: (data, uiContext) async {
-          final bookmarkRepository = await ref.read(
-            bookmarkRepoProvider.future,
-          );
-          final groupRepository = await ref.read(
-            bookmarkGroupRepoProvider.future,
-          );
-          return ref.read(bookmarkProvider.notifier).runSerializedMutation(
+          final library = ref.read(bookmarkProvider.notifier);
+          return library.runSerializedMutation(
             () async {
-              final currentBookmarks = await bookmarkRepository
-                  .getAllBookmarksOrThrow(
-                    imageUrlResolver: (booruId) =>
-                        ref.read(bookmarkUrlResolverProvider(booruId)),
-                  );
+              final bookmarkRepository = await library.bookmarkRepository;
+              final groupRepository = await library.bookmarkGroupRepository;
+              final unifiedStore = unifiedBookmarkStorage(bookmarkRepository);
+              final currentRecords = unifiedStore != null
+                  ? await unifiedStore.readAll()
+                  : await bookmarkRepository.getAllBookmarksOrThrow(
+                      imageUrlResolver: (booruId) =>
+                          ref.read(bookmarkUrlResolverProvider(booruId)),
+                    );
               final plan = const BookmarkImportPlanner().plan(
                 data: data,
-                currentBookmarks: currentBookmarks,
+                currentBookmarks: currentRecords,
                 currentGroups: await groupRepository.getGroups(),
               );
               if (uiContext != null && !uiContext.mounted) {
@@ -104,16 +111,41 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           );
         },
         handler: BookmarkBackupCodec(
+          groupMetadataResolver: () => ref.read(groupMetadataCodecProvider),
           postDataCodec: (type) =>
               ref.read(booruPostCapabilityProvider(type))?.codec,
         ),
         extraPayloadEncoder: (data) => data.extraFields,
         exportResultBuilder: (data) => BackupOperationResult(
-          bookmarkCount: data.bookmarks.length,
+          bookmarkCount: data.records.length,
           groupCount: data.groups.length,
         ),
         ref: ref,
       );
+
+  BookmarkBackupWorker get _worker =>
+      BookmarkBackupWorker(handler as BookmarkBackupCodec);
+
+  @override
+  Future<String> encodeRollbackSnapshot() async {
+    final data = await dataGetter();
+    return _worker.encodeRollback(
+      data,
+      version: version,
+      exportVersion: appVersion,
+      exportDate: DateTime.now(),
+    );
+  }
+
+  @override
+  Future<String> encodeRevisionSnapshot() async {
+    final data = await dataGetter();
+    return _worker.encodeRevision(data);
+  }
+
+  @override
+  AsyncImportDecoder<BookmarkBackupData> get asyncImportDecoder =>
+      _worker.decode;
 
   @override
   String get displayName => 'Bookmarks';
@@ -129,9 +161,16 @@ class BookmarksBackupSource extends JsonBackupSource<BookmarkBackupData> {
           subtitle: ref
               .watch(bookmarkProvider)
               .when(
-                data: (bookmarkState) => bookmarkState.bookmarks.isNotEmpty
+                data: (bookmarkState) =>
+                    (bookmarkState.hasUnifiedRecords
+                        ? bookmarkState.records.isNotEmpty
+                        : bookmarkState.bookmarks.isNotEmpty ||
+                              bookmarkState.pools.isNotEmpty)
                     ? context.t.bookmark.counter(
-                        n: bookmarkState.bookmarks.length,
+                        n: bookmarkState.hasUnifiedRecords
+                            ? bookmarkState.records.length
+                            : bookmarkState.bookmarks.length +
+                                  bookmarkState.pools.length,
                       )
                     : context.t.bookmark.none,
                 loading: () => context.t.bookmark.loading,

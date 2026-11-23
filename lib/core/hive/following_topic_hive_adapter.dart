@@ -4,8 +4,8 @@ import '../search/following_topics/src/data/hive/recent_search_post_hive_object.
 import '../search/following_topics/src/data/hive/search_post_preview_hive_object.dart';
 import '../search/following_topics/src/data/hive/following_topic_hive_object.dart';
 
-// This adapter keeps the existing type ID and binary field layout. An old numeric
-// profile ID is decoded as invalid so the repository can ignore that row.
+// Existing type ID and field numbers stay stable; new optional fields are additive.
+// An old numeric profile ID is decoded as invalid so the repository ignores that row.
 class FollowingTopicHiveObjectAdapter
     extends TypeAdapter<FollowingTopicHiveObject> {
   @override
@@ -38,6 +38,7 @@ class FollowingTopicHiveObjectAdapter
       feedId: fields[12] as String?,
       runtimeRevision: fields[13] == null ? 0 : (fields[13] as num).toInt(),
       queryStructure: fields[15] as Object?,
+      localSource: fields[19],
       adaptiveIntervalMilliseconds: switch (fields[16]) {
         final int milliseconds
             when milliseconds >= 21600000 && milliseconds <= 604800000 =>
@@ -54,7 +55,7 @@ class FollowingTopicHiveObjectAdapter
   @override
   void write(BinaryWriter writer, FollowingTopicHiveObject obj) {
     writer
-      ..writeByte(19)
+      ..writeByte(20)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -92,7 +93,9 @@ class FollowingTopicHiveObjectAdapter
       ..writeByte(17)
       ..write(obj.emptyAutomaticStreak)
       ..writeByte(18)
-      ..write(obj.lastMaterialEditAt);
+      ..write(obj.lastMaterialEditAt)
+      ..writeByte(19)
+      ..write(obj.localSource);
   }
 
   @override

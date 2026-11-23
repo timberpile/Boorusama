@@ -69,8 +69,10 @@ class SelectionInput extends StatelessWidget {
         child: Focus(
           canRequestFocus: false,
           skipTraversal: true,
+          includeSemantics: false,
           onKeyEvent: (_, event) {
             if (!active ||
+                itemCount == 0 ||
                 !(ModalRoute.of(context)?.isCurrent ?? true) ||
                 event is! KeyDownEvent ||
                 event.logicalKey != LogicalKeyboardKey.keyA ||

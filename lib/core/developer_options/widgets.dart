@@ -46,6 +46,14 @@ class DeveloperOptionsPage extends ConsumerWidget {
         ),
         const OpenLinkFileTile(),
         KurumiSwitchListTile(
+          title: Text(l10n.zoomStudy),
+          subtitle: Text(l10n.zoomStudyDescription),
+          value: ref.watch(zoomStudyEnabledProvider),
+          onChanged: (enabled) => ref
+              .read(developerOptionsNotifierProvider.notifier)
+              .setZoomStudyEnabled(enabled),
+        ),
+        KurumiSwitchListTile(
           title: Text(l10n.blockAutomaticMedia),
           subtitle: Text(l10n.blockAutomaticMediaDescription),
           value: !automaticMediaLoadingEnabled,

@@ -1,5 +1,4 @@
 // Package imports:
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:foundation/widgets.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -11,7 +10,6 @@ import '../../../../../foundation/utils/flutter_utils.dart';
 import '../../../../../foundation/utils/int_utils.dart';
 import 'post_grid_controller.dart';
 
-final _currentPageProvider = StateProvider<int>((ref) => 1);
 const _tagThreshold = 30;
 
 class BlacklistControls extends StatelessWidget {
@@ -117,7 +115,7 @@ class BlacklistControls extends StatelessWidget {
   }
 }
 
-class _TagPages extends ConsumerWidget {
+class _TagPages extends StatefulWidget {
   const _TagPages({
     required this.allTags,
     required this.threshold,
@@ -133,11 +131,27 @@ class _TagPages extends ConsumerWidget {
   final void Function() onDisableAll;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentPage = ref.watch(_currentPageProvider);
-    final tags = allTags
-        .skip((currentPage - 1) * threshold)
-        .take(threshold)
+  State<_TagPages> createState() => _TagPagesState();
+}
+
+class _TagPagesState extends State<_TagPages> {
+  var _currentPage = 1;
+
+  @override
+  void didUpdateWidget(covariant _TagPages oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _currentPage = _currentPage.clamp(
+      1,
+      calculateTotalPage(widget.allTags.length, widget.threshold) ?? 1,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentPage = _currentPage;
+    final tags = widget.allTags
+        .skip((currentPage - 1) * widget.threshold)
+        .take(widget.threshold)
         .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,7 +166,9 @@ class _TagPages extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             FilledButton(
-              onPressed: allTagsHidden ? onEnableAll : onDisableAll,
+              onPressed: widget.allTagsHidden
+                  ? widget.onEnableAll
+                  : widget.onDisableAll,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(
                   vertical: 4,
@@ -160,7 +176,7 @@ class _TagPages extends ConsumerWidget {
                 ),
               ),
               child: Text(
-                allTagsHidden
+                widget.allTagsHidden
                     ? context.t.blacklisted_tags.reenable_all
                     : context.t.blacklisted_tags.disable_all,
               ),
@@ -170,32 +186,32 @@ class _TagPages extends ConsumerWidget {
         PageSelector(
           pageInput: false,
           currentPage: currentPage,
-          totalResults: allTags.length,
-          itemPerPage: threshold,
+          totalResults: widget.allTags.length,
+          itemPerPage: widget.threshold,
           onPrevious: () {
             final page = currentPage - 1;
-            _setPage(page, ref);
+            _setPage(page);
           },
           onNext: () {
             final page = currentPage + 1;
-            _setPage(page, ref);
+            _setPage(page);
           },
           onPageSelect: (page) {
-            _setPage(page, ref);
+            _setPage(page);
           },
         ),
       ],
     );
   }
 
-  void _setPage(int page, WidgetRef ref) {
+  void _setPage(int page) {
     // make sure page is within bounds
     final effectivePage = page.clamp(
       1,
-      calculateTotalPage(allTags.length, threshold) ?? 1,
+      calculateTotalPage(widget.allTags.length, widget.threshold) ?? 1,
     );
 
-    ref.read(_currentPageProvider.notifier).state = effectivePage;
+    setState(() => _currentPage = effectivePage);
   }
 }
 

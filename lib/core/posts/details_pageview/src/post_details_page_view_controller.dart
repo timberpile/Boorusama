@@ -9,7 +9,6 @@ import 'package:kurumi/material.dart';
 import '../../../../foundation/mobile.dart';
 import '../../slideshow/types.dart';
 import 'constants.dart';
-import 'post_details_page_view.dart';
 
 // Dart imports:
 // ignore_for_file: prefer_int_literals
@@ -25,7 +24,6 @@ class PostDetailsPageViewController extends ChangeNotifier {
     this.maxSize = 0.7,
     this.thresholdSizeToExpand = 0.02,
     SlideshowOptions slideshowOptions = const SlideshowOptions(),
-    this.viewMode = ViewMode.horizontal,
     this.onBeforeSlideshowAdvance,
   }) : currentPage = ValueNotifier(initialPage),
        overlay = ValueNotifier(!initialHideOverlay),
@@ -40,7 +38,6 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final double maxSize;
   final double thresholdSizeToExpand;
   final bool disableAnimation;
-  final ViewMode viewMode;
   final SlideshowOptions _initialSlideshowOptions;
   final SlideshowAdvanceCallback? onBeforeSlideshowAdvance;
 
@@ -60,9 +57,22 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final bool Function() checkIfLargeScreen;
 
   int get page => currentPage.value;
-  bool get isExpanded => sheetState.value.isExpanded;
-  bool get useVerticalLayout =>
-      viewMode == ViewMode.vertical && !checkIfLargeScreen();
+  // Interaction checkpoints are short-lived conveniences for nearby entries.
+  bool retainsStateFor(int index) => (index - page).abs() <= 2;
+
+  Iterable<int> get retainedStatePages sync* {
+    for (
+      var index = (page - 2).clamp(0, totalPage);
+      index < (page + 3).clamp(0, totalPage);
+      index++
+    ) {
+      yield index;
+    }
+  }
+
+  bool detailsAvailable = true;
+  bool get detailsPreferred => sheetState.value.isExpanded;
+  bool get isExpanded => detailsAvailable && detailsPreferred;
 
   PageController get pageController => _pageController;
   DraggableScrollableController get sheetController => _sheetController;
@@ -94,13 +104,72 @@ class PostDetailsPageViewController extends ChangeNotifier {
   final zoom = ValueNotifier(false);
   final freestyleMoveOffset = ValueNotifier(Offset.zero);
   final freestyleMoving = ValueNotifier(false);
+  Object? _dismissGestureOwner;
+  Object? _modeTransitionOwner;
+  var _disposed = false;
+
+  void beginDismissGesture(Object owner) {
+    _dismissGestureOwner = owner;
+    freestyleMoving.value = true;
+  }
+
+  void endDismissGesture(Object owner) {
+    if (!identical(_dismissGestureOwner, owner)) return;
+    _dismissGestureOwner = null;
+    _clearDismissGesture();
+  }
+
+  // A Page can unmount during a route transition while the widget tree is
+  // locked. Release ownership immediately, but notify surviving listeners
+  // only after the teardown frame has finished.
+  void abandonDismissGesture(Object owner, {VoidCallback? onReleased}) {
+    if (!identical(_dismissGestureOwner, owner)) return;
+    _dismissGestureOwner = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && _dismissGestureOwner == null) {
+        _clearDismissGesture();
+        onReleased?.call();
+      }
+    });
+  }
+
+  void beginModeTransition(Object owner) {
+    _modeTransitionOwner = owner;
+    animating.value = true;
+  }
+
+  void endModeTransition(Object owner) {
+    if (!identical(_modeTransitionOwner, owner)) return;
+    _modeTransitionOwner = null;
+    animating.value = false;
+  }
+
+  void abandonModeTransition(Object owner) {
+    if (!identical(_modeTransitionOwner, owner)) return;
+    _modeTransitionOwner = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_disposed && _modeTransitionOwner == null) animating.value = false;
+    });
+  }
+
+  void _clearDismissGesture() {
+    freestyleMoving.value = false;
+    freestyleMoveOffset.value = Offset.zero;
+  }
+
   final isItemPushed = ValueNotifier(false);
   final forceHideOverlay = ValueNotifier(false);
   final forceHideBottomSheet = ValueNotifier(false);
+  // Measured visible preview, including any system padding in its content.
+  final bottomObstruction = ValueNotifier(0.0);
   final cooldown = ValueNotifier(false);
   final keyboardShortcutsEnabled = ValueNotifier(true);
+  final presentationProgress = ValueNotifier(0.0);
 
   var previouslyForcedShowUIByDrag = false;
+
+  /// The mounted occurrence owns its Details scroll position.
+  VoidCallback? scrollDetailsToTop;
 
   void attachOverlayAnimController(AnimationController? controller) {
     _overlayAnimController = controller;
@@ -269,6 +338,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
   void toggleOverlay({
     bool includeSystemStatus = true,
   }) {
+    if (isExpanded) return;
     final oldValue = overlay.value;
 
     if (oldValue) {
@@ -284,18 +354,30 @@ class PostDetailsPageViewController extends ChangeNotifier {
     }
   }
 
-  void showAllUI() {
+  void showAllUI({bool immediately = false}) {
     showOverlay();
     showBottomSheet();
+    if (immediately) {
+      _overlayAnimController?.value = 1;
+      _bottomSheetAnimController?.value = 1;
+      forceHideOverlay.value = false;
+      forceHideBottomSheet.value = false;
+    }
   }
 
-  void hideAllUI() {
+  void hideAllUI({bool immediately = false}) {
     if (overlay.value) hideOverlay();
     if (bottomSheet.value) hideBottomSheet();
+    if (immediately) {
+      _overlayAnimController?.value = 0;
+      _bottomSheetAnimController?.value = 0;
+      forceHideOverlay.value = disableAnimation;
+      forceHideBottomSheet.value = disableAnimation;
+    }
   }
 
   void dragUpdate(DragUpdateDetails details) {
-    if (isExpanded || useVerticalLayout) return;
+    if (isExpanded) return;
 
     final dy = details.delta.dy;
     verticalPosition.value = verticalPosition.value + dy;
@@ -321,8 +403,6 @@ class PostDetailsPageViewController extends ChangeNotifier {
   }
 
   Future<void> dragEnd() async {
-    if (useVerticalLayout) return;
-
     final size = sheetController.size;
 
     if (size > thresholdSizeToExpand) {
@@ -404,57 +484,24 @@ class PostDetailsPageViewController extends ChangeNotifier {
     Duration? duration,
     Curve? curve,
   }) async {
-    animating.value = true;
-    swipe.value = true;
-    verticalPosition.value = 0.0;
-    showOverlay(
-      includeSystemStatus: false,
-    );
-
-    return WidgetsBinding.instance.addPostFrameCallback((_) async {
-      sheetMaxSize.value = maxSize;
-
-      await _sheetController.animateTo(
-        0,
-        duration: duration ?? const Duration(milliseconds: 250),
-        curve: curve ?? Curves.easeInOut,
-      );
-
-      sheetState.value = switch (sheetState.value) {
-        SheetState.expanded => SheetState.hidden,
-        SheetState.collapsed => SheetState.collapsed,
-        SheetState.hidden => SheetState.hidden,
-      };
-
-      animating.value = false;
-    });
+    verticalPosition.value = 0;
+    setDisplacement(0);
+    hideAllUI();
+    sheetState.value = SheetState.hidden;
   }
 
   Future<void> expandToFullSheetSize() async {
-    sheetState.value = SheetState.expanded;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _sheetController.animateTo(
-        kFullSheetSize,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-      );
-    });
+    await expandToSnapPoint();
   }
 
   Future<void> expandToSnapPoint() async {
-    animating.value = true;
-
-    return WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _sheetController.animateTo(
-        maxSize,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-      );
-      sheetState.value = SheetState.expanded;
-      animating.value = false;
-      verticalPosition.value = 0.0;
-    });
+    if (!detailsAvailable || detailsPreferred) return;
+    zoom.value = false;
+    enableAllSwiping();
+    verticalPosition.value = 0;
+    sheetState.value = SheetState.expanded;
+    showOverlay();
+    hideBottomSheet();
   }
 
   void disableAllSwiping() {
@@ -492,12 +539,6 @@ class PostDetailsPageViewController extends ChangeNotifier {
       };
     }
 
-    if (useVerticalLayout) {
-      await anim();
-      setSheetState();
-      return;
-    }
-
     if (sheetState.value.isExpanded) {
       sheetMaxSize.value = maxSize;
       setDisplacement(0.0);
@@ -511,20 +552,18 @@ class PostDetailsPageViewController extends ChangeNotifier {
   }
 
   void onTransformationChanged(KurumiTransformationDetails details) {
-    final isZoomed = details.isZoomed;
+    if (isExpanded) return;
+    synchronizeZoom(details.isZoomed);
+  }
+
+  void synchronizeZoom(bool isZoomed) {
     // ignore same value
     if (zoom.value == isZoomed) return;
 
     zoom.value = isZoomed;
     if (isZoomed) {
-      if (!initialHideOverlay && !useVerticalLayout) {
-        hideAllUI();
-      }
       disableAllSwiping();
     } else {
-      if (!initialHideOverlay && !useVerticalLayout) {
-        showAllUI();
-      }
       enableAllSwiping();
     }
   }
@@ -566,8 +605,8 @@ class PostDetailsPageViewController extends ChangeNotifier {
     );
   }
 
-  void stopSlideshow() {
-    if (!initialHideOverlay) {
+  void stopSlideshow({bool restoreUI = true}) {
+    if (restoreUI && !initialHideOverlay) {
       showAllUI();
     }
 
@@ -596,6 +635,7 @@ class PostDetailsPageViewController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _slideshowController.dispose();
     _cancelCooldown();
 
@@ -620,7 +660,9 @@ class PostDetailsPageViewController extends ChangeNotifier {
     isItemPushed.dispose();
     forceHideOverlay.dispose();
     forceHideBottomSheet.dispose();
+    bottomObstruction.dispose();
     keyboardShortcutsEnabled.dispose();
+    presentationProgress.dispose();
 
     super.dispose();
   }

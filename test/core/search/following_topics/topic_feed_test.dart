@@ -44,6 +44,134 @@ void main() {
   setUp(() => harness = FollowingTopicHarness());
   tearDown(() => harness.dispose());
 
+  for (final cachedCount in [1, 40]) {
+    testWidgets('$cachedCount cached posts require explicit history start', (
+      tester,
+    ) async {
+      var historyRequests = 0;
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(() {
+        tester.view.reset();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      harness.dispose();
+      harness = FollowingTopicHarness(
+        profiles: [testProfile, _feedConfig],
+        postCapability: _feedCapability,
+        overrides: [
+          deterministicFaviconDioOverride(),
+          originAwarePostRepoProvider.overrideWith(
+            (ref, config) =>
+                TestSearchPostRepository((query, page, limit) async {
+                  historyRequests++;
+                  return Either.of(
+                    const PostResult<Post>(
+                      posts: [],
+                      total: null,
+                      hasMore: false,
+                    ),
+                  );
+                }),
+          ),
+        ],
+      );
+      final feed = await harness.repository.saveFeed(
+        profileId: _feedConfig.id,
+        name: 'Cached',
+        queries: ['cat'],
+      );
+      final source = (await harness.repository.getById(feed.sourceIds.single))!;
+      await harness.repository.commitRefresh(
+        SearchRefreshCommit(
+          topicId: source.id,
+          expectedCreatedAt: source.createdAt,
+          expectedCheckpoint: null,
+          startedAt: checkedAt,
+          identityRetentionBoundary: checkedAt,
+          baseline: true,
+          discoveredPosts: const [],
+          feedPosts: [
+            for (var i = 0; i < cachedCount; i++)
+              feedPostSnapshotFromPost(
+                _feedPost(100 - i),
+                dataCodec: const GelbooruV2PostCodec(),
+              ),
+          ],
+        ),
+      );
+      await harness.container.read(followingTopicsProvider.future);
+      await harness.pump(
+        tester,
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              padding: const EdgeInsets.only(bottom: 88),
+              viewPadding: const EdgeInsets.only(bottom: 88),
+            ),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                TopicFeedPage(feedId: feed.id, profileId: _feedConfig.id),
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: 88,
+                  child: ColoredBox(color: Colors.black),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      final grid = tester.widget<PostGrid<Post>>(find.byType(PostGrid<Post>));
+      expect(grid.automaticContinuationEnabled, isFalse);
+      expect(grid.showLoadMoreButton, isFalse);
+      final scroll = tester
+          .widget<CustomScrollView>(
+            find.byType(CustomScrollView).last,
+          )
+          .controller!;
+      final loadOlder = find.byKey(const ValueKey('cached-feed-load-older'));
+      // A scrollable feed must not show its history action at the top.
+      if (scroll.position.extentAfter > 48) {
+        expect(loadOlder, findsNothing);
+        expect(find.text('Load More'), findsNothing);
+      }
+      scroll.jumpTo(scroll.position.maxScrollExtent);
+      await settle(tester);
+      expect(historyRequests, 0);
+      expect(loadOlder, findsOneWidget);
+      expect(find.text('Load More'), findsOneWidget);
+      if (scroll.position.maxScrollExtent > 48) {
+        scroll.jumpTo(0);
+        await settle(tester);
+        expect(loadOlder, findsNothing);
+        scroll.jumpTo(scroll.position.maxScrollExtent);
+        await settle(tester);
+        expect(loadOlder, findsOneWidget);
+      }
+      expect(
+        tester.getRect(loadOlder).bottom,
+        lessThanOrEqualTo(800 - 88),
+        reason: 'The history action must stay above the main navigation bar',
+      );
+      await tester.tap(loadOlder);
+      await tester.pump(grid.controller.debounceDuration);
+      await settle(tester);
+      expect(historyRequests, 1);
+      expect(grid.controller.hasMore, isFalse);
+      expect(
+        tester
+            .widget<PostGrid<Post>>(find.byType(PostGrid<Post>))
+            .showLoadMoreButton,
+        isTrue,
+      );
+    });
+  }
+
   testWidgets('cached filtering suppresses history and clearing restores it', (
     tester,
   ) async {
@@ -116,26 +244,13 @@ void main() {
     expect(controller().items.map((post) => post.id), [42, 41]);
     expect(
       find.byKey(const ValueKey('cached-feed-filter-input')),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(const ValueKey('toggle-cached-feed-search')),
       findsNothing,
     );
-    final toggle = find.byKey(const ValueKey('toggle-cached-feed-search'));
-    final toggleBounds = tester.getRect(toggle);
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
-      findsNothing,
-    );
-    await tester.tap(toggle);
-    await settle(tester);
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.search)),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
-      findsOneWidget,
-    );
-    expect(tester.widget<IconButton>(toggle).tooltip, 'Close Search');
-    expect(tester.getRect(toggle), toggleBounds);
+    expect(find.text('History'), findsNothing);
     final field = find.descendant(
       of: find.byKey(const ValueKey('cached-feed-filter-input')),
       matching: find.byType(TextField),
@@ -169,23 +284,25 @@ void main() {
     await settle(tester);
     expect(find.text('No cached posts match these filters.'), findsOneWidget);
     expect(historyRequests, 0);
-    await tester.tap(toggle);
+    await tester.tap(find.byTooltip('Remove All Selected Tags'));
     await settle(tester);
     expect(
       find.byKey(const ValueKey('cached-feed-filter-input')),
-      findsNothing,
+      findsWidgets,
     );
-    expect(
-      find.descendant(of: toggle, matching: find.byIcon(Icons.close)),
-      findsNothing,
-    );
-    expect(tester.getRect(toggle), toggleBounds);
+    expect(find.text('History'), findsNothing);
     expect(controller().items.map((post) => post.id), [42, 41]);
     expect(controller().hasMore, isTrue);
     await controller().fetcher(2).run();
-    expect(historyRequests, 1);
-    await tester.tap(toggle);
+    expect(
+      historyRequests,
+      0,
+      reason: 'Calling a fetcher cannot unlock history',
+    );
+    await tester.tap(find.byKey(const ValueKey('cached-feed-load-older')));
+    await tester.pump(controller().debounceDuration);
     await settle(tester);
+    expect(historyRequests, 1);
     expect(tester.widget<TextField>(field).controller!.text, isEmpty);
     expect(await harness.repository.getById(source.id), before);
   });
@@ -1251,6 +1368,9 @@ void main() {
       );
       expect(harness.requests, isEmpty);
 
+      final controller = tester
+          .widget<PostGrid<Post>>(find.byType(PostGrid<Post>))
+          .controller;
       await tester.tap(find.byType(ImageGridItem).first);
       await tester.pumpAndSettle();
 
@@ -1258,6 +1378,14 @@ void main() {
       expect(opened?.useMixedViewer, isTrue);
       expect(opened?.config, _feedConfig);
       expect(opened?.posts.length, 2);
+      expect(opened!.liveSource!.hasMore(), isFalse);
+      await opened!.liveSource!.fetchMore();
+      await tester.pump(controller.debounceDuration);
+      expect(
+        harness.requests,
+        isEmpty,
+        reason: 'Inspecting cached posts cannot start remote history.',
+      );
       expect(
         opened!.posts.last.booruData,
         isA<UnknownPostData>(),

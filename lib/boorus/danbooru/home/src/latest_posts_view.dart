@@ -1,16 +1,19 @@
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:foundation/foundation.dart';
 import 'package:kurumi/material.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 
 // Project imports:
 import '../../../../core/announcements/widgets.dart';
+import '../../../../core/bookmarks/src/providers/pool_bookmark_provider.dart';
 import '../../../../core/configs/config/providers.dart';
 import '../../../../core/configs/config/types.dart';
 import '../../../../core/home/widgets.dart';
 import '../../../../core/posts/count/widgets.dart';
 import '../../../../core/posts/listing/widgets.dart';
 import '../../../../core/posts/post/providers.dart';
+import '../../../../core/posts/post/types.dart';
 import '../../../../core/search/search/types.dart';
 import '../../../../core/search/selected_tags/providers.dart';
 import '../../../../core/search/selected_tags/types.dart';
@@ -20,6 +23,7 @@ import '../../../../core/tags/tag/types.dart';
 import '../../../../foundation/display.dart';
 import '../../dmails/widgets.dart';
 import '../../posts/listing/widgets.dart';
+import '../../posts/search/src/widgets/search_series_grid.dart';
 import '../../tags/user_metatags/providers.dart';
 import 'most_search_tag_list.dart';
 
@@ -35,6 +39,7 @@ class LatestView extends ConsumerStatefulWidget {
 class _LatestViewState extends ConsumerState<LatestView> {
   final _autoScrollController = AutoScrollController();
   final _selectedMostSearchedTag = ValueNotifier('');
+  final _series = SearchSeriesIndex();
   late final SelectedTagController selectedTagController;
 
   @override
@@ -51,6 +56,8 @@ class _LatestViewState extends ConsumerState<LatestView> {
   void dispose() {
     _autoScrollController.dispose();
     _selectedMostSearchedTag.dispose();
+    selectedTagString.dispose();
+    _series.dispose();
     selectedTagController.dispose();
     super.dispose();
   }
@@ -64,81 +71,108 @@ class _LatestViewState extends ConsumerState<LatestView> {
       danbooruMetatagExtractorProvider(config.auth),
     );
 
-    return PostScope(
-      fetcher: (page) {
-        return context.isLargeScreen
-            ? postRepo.getPostsFromController(
-                selectedTagController.tagSet,
-                page,
-              )
-            : postRepo.getPosts(
-                _selectedMostSearchedTag.value,
-                page,
-              );
-      },
+    return PostScope<Post>(
+      fetcher: (page) => TaskEither(() async {
+        final desktop = context.isLargeScreen;
+        final query = desktop
+            ? selectedTagController.rawTagsString
+            : _selectedMostSearchedTag.value;
+        final result =
+            await (desktop
+                    ? postRepo.getPostsFromController(
+                        selectedTagController.tagSet,
+                        page,
+                      )
+                    : postRepo.getPosts(
+                        _selectedMostSearchedTag.value,
+                        page,
+                      ))
+                .run();
+        if (!mounted || ref.readConfig != config) return result;
+        final capability = ref.read(poolBookmarkCapabilityProvider(config));
+        if (!isExplicitSeriesSearch(query) && capability != null) {
+          await result.fold(
+            (_) => Future<void>.value(),
+            (posts) => _series.loadPage(config, posts.posts, capability),
+          );
+        }
+        return result;
+      }),
       builder: (context, controller) => Column(
         children: [
           Expanded(
-            child: PostGrid(
-              controller: controller,
-              scrollController: _autoScrollController,
-              itemBuilder: (context, index, scrollController, hero) =>
-                  DanbooruPostListingContextMenu(
-                    index: index,
-                    controller: controller,
-                    child: DefaultDanbooruImageGridItem(
+            child: ValueListenableBuilder<String>(
+              valueListenable: context.isLargeScreen
+                  ? selectedTagString
+                  : _selectedMostSearchedTag,
+              builder: (context, query, _) => PostGrid<Post>(
+                controller: controller,
+                scrollController: _autoScrollController,
+                gridBuilder: (context, itemBuilder) => SearchSeriesGrid(
+                  controller: controller,
+                  config: config,
+                  query: query,
+                  itemBuilder: itemBuilder,
+                  index: _series,
+                ),
+                itemBuilder: (context, index, scrollController, hero) =>
+                    DanbooruPostListingContextMenu(
                       index: index,
-                      autoScrollController: scrollController,
                       controller: controller,
-                    ),
-                  ),
-              sliverHeaders: [
-                if (context.isLargeScreen ||
-                    searchBarPosition == SearchBarPosition.top)
-                  SliverHomeSearchBar(
-                    selectedTagController: selectedTagController,
-                    selectedTagString: selectedTagString,
-                    onSearch: () {
-                      controller.refresh();
-                    },
-                  ),
-                const SliverAppAnnouncementBanner(),
-                const SliverUnreadMailsBanner(),
-                if (context.isLargeScreen)
-                  SliverResultHeader(
-                    selectedTagString: selectedTagString,
-                    controller: controller,
-                  ),
-                if (!context.isLargeScreen)
-                  SliverToBoxAdapter(
-                    child: ValueListenableBuilder<String>(
-                      valueListenable: _selectedMostSearchedTag,
-                      builder: (context, value, child) => MostSearchTagList(
-                        selected: value,
-                        onSelected: (search, sel) {
-                          _selectedMostSearchedTag.value =
-                              search.rawName == value ? '' : search.rawName;
-
-                          selectedTagString.value = search.rawName;
-                          if (sel) {
-                            selectedTagController
-                              ..clear()
-                              ..addTag(
-                                TagSearchItem.fromString(
-                                  search.rawName,
-                                  extractor: metatagExtractor,
-                                ),
-                              );
-                          } else {
-                            selectedTagController.clear();
-                          }
-                          controller.refresh();
-                          _autoScrollController.jumpTo(0);
-                        },
+                      child: DefaultDanbooruImageGridItem(
+                        index: index,
+                        autoScrollController: scrollController,
+                        controller: controller,
                       ),
                     ),
-                  ),
-              ],
+                sliverHeaders: [
+                  if (context.isLargeScreen ||
+                      searchBarPosition == SearchBarPosition.top)
+                    SliverHomeSearchBar(
+                      selectedTagController: selectedTagController,
+                      selectedTagString: selectedTagString,
+                      onSearch: () {
+                        controller.refresh();
+                      },
+                    ),
+                  const SliverAppAnnouncementBanner(),
+                  const SliverUnreadMailsBanner(),
+                  if (context.isLargeScreen)
+                    SliverResultHeader(
+                      selectedTagString: selectedTagString,
+                      controller: controller,
+                    ),
+                  if (!context.isLargeScreen)
+                    SliverToBoxAdapter(
+                      child: ValueListenableBuilder<String>(
+                        valueListenable: _selectedMostSearchedTag,
+                        builder: (context, value, child) => MostSearchTagList(
+                          selected: value,
+                          onSelected: (search, sel) {
+                            _selectedMostSearchedTag.value =
+                                search.rawName == value ? '' : search.rawName;
+
+                            selectedTagString.value = search.rawName;
+                            if (sel) {
+                              selectedTagController
+                                ..clear()
+                                ..addTag(
+                                  TagSearchItem.fromString(
+                                    search.rawName,
+                                    extractor: metatagExtractor,
+                                  ),
+                                );
+                            } else {
+                              selectedTagController.clear();
+                            }
+                            controller.refresh();
+                            _autoScrollController.jumpTo(0);
+                          },
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
           if (searchBarPosition == SearchBarPosition.bottom &&

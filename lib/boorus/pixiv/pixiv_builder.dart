@@ -11,10 +11,22 @@ import '../../core/posts/details_parts/widgets.dart';
 import '../../core/posts/post/types.dart';
 import 'configs/widgets.dart';
 import 'home/custom_home.dart';
+import 'favorites/page.dart';
 import 'posts/types.dart';
+import 'works/search_page.dart';
+import 'works/work_information.dart';
+import 'works/page_parent_work_section.dart';
 
 class PixivBuilder extends BaseBooruBuilder {
   PixivBuilder();
+
+  @override
+  HomeViewBuilder get homeViewBuilder =>
+      (context) => const PixivWorkHomePage();
+
+  @override
+  SearchPageBuilder get searchPageBuilder =>
+      (context, params) => PixivWorkSearchPage(params: params);
 
   @override
   late final postPresentation = TypedBooruPostPresentation<PixivPostData>(
@@ -60,6 +72,10 @@ class PixivBuilder extends BaseBooruBuilder {
       );
 
   @override
+  FavoritesPageBuilder get favoritesPageBuilder =>
+      (context) => const PixivFavoritesPage();
+
+  @override
   PostDetailsPageBuilder get postDetailsPageBuilder =>
       (context, payload) => MixedPostDetailsPageAdapter(
         payload: payload,
@@ -76,9 +92,11 @@ class PixivBuilder extends BaseBooruBuilder {
     full: {
       DetailsPart.toolbar: (context) =>
           const DefaultInheritedPostActionToolbar<Post>(),
+      DetailsPart.artistInfo: (context) => const PixivWorkInformation(),
       DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
       DetailsPart.fileDetails: (context) =>
           const DefaultInheritedFileDetailsSection<Post>(),
+      DetailsPart.parentWork: (context) => const PixivParentWorkSection(),
     },
   );
 

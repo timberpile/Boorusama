@@ -7,6 +7,14 @@ import 'types/types.dart';
 mixin DanbooruClientPools {
   Dio get dio;
 
+  Future<PoolDto> getPool(int poolId, {CancelToken? cancelToken}) async {
+    final response = await dio.get(
+      '/pools/$poolId.json',
+      cancelToken: cancelToken,
+    );
+    return PoolDto.fromJson(response.data);
+  }
+
   Future<List<PoolDto>> getPools({
     int? page,
     int? limit,

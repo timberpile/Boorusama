@@ -15,6 +15,8 @@ final shimmie2FavoriteRepoProvider =
     Provider.family<FavoriteRepository<Post>, BooruConfigAuth>(
       (ref, config) {
         final client = ref.watch(shimmie2ClientProvider(config));
+        final canFavorite =
+            ref.watch(shimmie2CanFavoriteProvider(config)).valueOrNull ?? false;
 
         return FavoriteRepositoryBuilder(
           add: (postId) => client
@@ -25,19 +27,18 @@ final shimmie2FavoriteRepoProvider =
                     : AddFavoriteStatus.failure,
               ),
           remove: (postId) => client.removeFavorite(postId: postId),
-          isFavorited: (post) => false,
-          filter: (postIds) =>
-              switch (ref.read(shimmie2LoginDetailsProvider(config)).username) {
-                final username? when username.isNotEmpty =>
-                  client.filterFavoritesFromUsername(
-                    username: username,
-                    postIds: postIds,
-                  ),
-                _ => Future.value(const <int>[]),
-              },
-          canFavorite: () =>
-              ref.read(shimmie2CanFavoriteProvider(config)).valueOrNull ??
-              false,
+          filter: (postIds) async {
+            final login = ref.read(shimmie2LoginDetailsProvider(config));
+            final username = login.username;
+            if (!login.hasLogin() || username == null || username.isEmpty) {
+              return null;
+            }
+            return client.filterFavoritesFromUsername(
+              username: username,
+              postIds: postIds,
+            );
+          },
+          canFavorite: () => canFavorite,
         );
       },
     );

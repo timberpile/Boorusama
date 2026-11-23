@@ -9,6 +9,9 @@ import 'package:boorusama/core/bookmarks/src/server_favorites/dialog.dart';
 import 'package:boorusama/core/bookmarks/src/server_favorites/feedback_banner.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_tree.dart';
 import 'package:boorusama/core/bookmarks/src/widgets/bookmark_folder_picker_contents.dart';
 import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -21,13 +24,13 @@ import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
-import 'package:flutter/material.dart' as material;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/rendering.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 import 'package:oktoast/oktoast.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../support/fakes/memory_repositories.dart';
 import 'test_support.dart';
@@ -37,6 +40,7 @@ void main() {
   late ProviderContainer container;
   late BookmarkLibraryNotifier library;
   late FavoriteTestStore store;
+  late Map<String, String> folderGroupIds;
   setUp(() async {
     h = FavoriteHarness();
     await h.open();
@@ -47,11 +51,30 @@ void main() {
     List<String>? order,
   }) async {
     final groups = MemoryBookmarkGroupRepository();
-    await groups.writeOrganization(folders, []);
+    folderGroupIds = {
+      for (final folder in folders)
+        folder.id: const Uuid().v5(
+          Namespace.url.value,
+          'boorusama/server-favorites-dialog/${folder.id}',
+        ),
+    };
+    await groups.writeOrganization(const [], [
+      for (final folder in folders)
+        BookmarkGroup(
+          id: folderGroupIds[folder.id]!,
+          name: folder.name,
+          bookmarkIds: const {},
+          parentGroupId: folder.parentId == null
+              ? null
+              : folderGroupIds[folder.parentId],
+          position: folder.position,
+        ),
+    ]);
     store = FavoriteTestStore();
     h.profiles.profiles = profiles ?? h.profiles.profiles;
     container = ProviderContainer(
       overrides: [
+        bookmarkLibraryProvider.overrideWith(_FavoritesDialogLibrary.new),
         currentReadOnlyBooruConfigProvider.overrideWithValue(h.profile),
         booruEngineRegistryProvider.overrideWith(
           (ref) => BooruEngineRegistry(),
@@ -246,6 +269,43 @@ void main() {
     await tap(tester, row);
   }
 
+  Future<void> enterGroup(WidgetTester tester, String label) async {
+    final row = find
+        .ancestor(
+          of: find.descendant(
+            of: find.byType(BookmarkFolderPickerContents),
+            matching: find.text(label),
+          ),
+          matching: find.byType(BookmarkPickerSplitRow),
+        )
+        .first;
+    final scrollable = find.descendant(
+      of: find.byKey(const ValueKey('bookmark-picker-hierarchy')),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    await tester.scrollUntilVisible(
+      row,
+      tester.getSize(scrollable).height / 2,
+      scrollable: scrollable,
+    );
+    final rect = tester.getRect(row);
+    await tester.tapAt(Offset(rect.right - rect.width * .1, rect.center.dy));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> createGroupAtCurrent(WidgetTester tester, String name) async {
+    await tap(
+      tester,
+      find.byTooltip(_strings(tester).bookmark.groups.create_new),
+    );
+    await tester.enterText(find.byType(TextField), name);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+  }
+
   Future<ServerFavoriteSettings> saved() =>
       container.read(serverFavoriteSettingsProvider.future);
 
@@ -384,12 +444,15 @@ void main() {
         profiles: [h.profile, second],
         folders: [const CollectionFolder(id: 'folder', name: 'Collections')],
       );
-      final global = await library.createGroup('Favorites', folderId: 'folder');
+      final global = await library.createGroup(
+        'Favorites',
+        parentGroupId: folderGroupIds['folder'],
+      );
       final custom = await library.createGroup('Personal');
       await mount(tester);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Collections');
+      await enterGroup(tester, 'Collections');
       await pick(tester, 'Favorites');
       expect(
         find.text('Use default · Collections / Favorites'),
@@ -462,16 +525,17 @@ void main() {
           } else {
             await setMode(tester, 'group');
           }
-          final dialog = tester.renderObject<RenderBox>(
-            find.byType(AlertDialog).last,
+          final surface = tester.getRect(
+            find.byKey(const Key('bookmark-batch-surface')),
           );
+          expect(surface.width, lessThanOrEqualTo(size.width));
+          expect(surface.height, lessThanOrEqualTo(size.height));
           expect(
-            dialog.getMinIntrinsicHeight(dialog.size.width).isFinite,
-            isTrue,
-          );
-          expect(
-            dialog.getMaxIntrinsicHeight(dialog.size.width).isFinite,
-            isTrue,
+            find.descendant(
+              of: find.byKey(const Key('bookmark-batch-surface')),
+              matching: find.byType(AlertDialog),
+            ),
+            findsNothing,
           );
           await tap(tester, find.text('Cancel'));
           expect(tester.takeException(), isNull);
@@ -550,7 +614,10 @@ void main() {
       for (var i = 0; i < 32; i++) {
         await library.createGroup('Group ${i.toString().padLeft(2, '0')}');
       }
-      await library.createGroup('Nested target', folderId: 'nested');
+      await library.createGroup(
+        'Nested target',
+        parentGroupId: folderGroupIds['nested'],
+      );
       await mount(tester);
       await open(tester);
       for (final global in [true, false]) {
@@ -565,9 +632,9 @@ void main() {
         } else {
           await setMode(tester, 'group');
         }
-        for (final name in ['Folder 00', 'Nested', 'Nested target']) {
-          await pick(tester, name);
-        }
+        await enterGroup(tester, 'Folder 00');
+        await enterGroup(tester, 'Nested');
+        await pick(tester, 'Nested target');
         expect(find.byType(BookmarkFolderPickerContents), findsNothing);
       }
       expect(
@@ -586,16 +653,13 @@ void main() {
   );
 
   testWidgets(
-    'nested selection and creation provide their own legacy dependencies',
+    'nested selection and creation use Kurumi without a legacy bridge',
     (tester) async {
       await prepare();
       await mount(tester, legacyBridge: false);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Group');
-      await tester.enterText(find.byType(material.TextField), 'New target');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
+      await createGroupAtCurrent(tester, 'New target');
       expect(
         find.descendant(of: getGlobal(), matching: find.text('New target')),
         findsOneWidget,
@@ -658,17 +722,27 @@ void main() {
     'group creation fits narrow width enlarged text and the open keyboard',
     (tester) async {
       await prepare(
-        folders: [const CollectionFolder(id: 'folder', name: 'Saved')],
+        folders: [
+          const CollectionFolder(id: 'folder', name: 'Saved'),
+          const CollectionFolder(
+            id: 'child',
+            name: 'Existing child',
+            parentId: 'folder',
+          ),
+        ],
       );
       await mount(tester);
       await open(tester);
       await tap(tester, getGlobal());
-      await pick(tester, 'Saved');
-      await pick(tester, 'Group');
+      await enterGroup(tester, 'Saved');
+      await tap(
+        tester,
+        find.byTooltip(_strings(tester).bookmark.groups.create_new),
+      );
       tester.view.viewInsets = const FakeViewPadding(bottom: 280);
       addTearDown(tester.view.resetViewInsets);
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(material.TextField), 'New favorites');
+      await tester.enterText(find.byType(TextField), 'New favorites');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       tester.view.viewInsets = FakeViewPadding.zero;
@@ -678,7 +752,7 @@ void main() {
       final group = (await library.snapshotForExport()).groups.singleWhere(
         (g) => g.name == 'New favorites',
       );
-      expect(group.folderId, 'folder');
+      expect(group.parentGroupId, folderGroupIds['folder']);
       expect((await saved()).globalGroupId, group.id);
       expect(h.source.calls, 0);
       expect(tester.takeException(), isNull);
@@ -686,7 +760,7 @@ void main() {
   );
 
   testWidgets(
-    'the concise first-use warning can be cancelled without clearing or saving',
+    'closing an unsaved populated target choice preserves contents and settings',
     (tester) async {
       await prepare();
       final group = await library.createGroup('Existing favorites');
@@ -696,17 +770,9 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
-      await tap(tester, getSave());
-      expect(
-        find.text('First use will clear all bookmarks in Existing favorites.'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('Bookmarks in other groups will be kept.'),
-        findsNothing,
-      );
-      await tap(tester, find.text('Cancel'));
-      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+      expect(find.text('Clear existing bookmarks?'), findsNothing);
+      await tap(tester, find.byKey(const ValueKey('server-favorites-close')));
+      expect(find.byType(ServerFavoritesDialog), findsNothing);
       expect(await library.snapshotForExport(), before);
       expect((await saved()).globalGroupId, isNull);
       expect(h.source.calls, 0);
@@ -714,22 +780,22 @@ void main() {
   );
 
   testWidgets(
-    'confirmed clearing saves and closes while an already assigned group is never cleared',
+    'saving a populated first or shared target never prompts or clears',
     (tester) async {
       await prepare();
       final group = await library.createGroup('Existing favorites');
       await library.addPostsToGroup(h.profile.auth, [h.post(3)], group.id);
+      final initial = await library.snapshotForExport();
       await mount(tester);
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
       await tap(tester, getSave());
-      await tap(tester, find.text('Clear & Save'));
+      expect(find.text('Clear existing bookmarks?'), findsNothing);
+      expect(find.text('Clear & Save'), findsNothing);
       expect(find.byType(ServerFavoritesDialog), findsNothing);
-      expect(
-        (await library.snapshotForExport()).groupsById[group.id]!.bookmarkIds,
-        isEmpty,
-      );
+      expect(await library.snapshotForExport(), initial);
+      expect((await saved()).globalGroupId, group.id);
       await library.addPostsToGroup(h.profile.auth, [h.post(4)], group.id);
       final before = await library.snapshotForExport();
       await open(tester);
@@ -743,7 +809,7 @@ void main() {
   );
 
   testWidgets(
-    'an account change during confirmation prevents clearing any target',
+    'an account change before saving a populated target preserves all contents',
     (tester) async {
       await prepare();
       final group = await library.createGroup('Existing favorites');
@@ -753,16 +819,17 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
-      await tap(tester, getSave());
+      // The durable account changes before the UI provider has refreshed.
+      // saveAll must still reject the captured account rather than save it.
       h.profiles.profiles = [
         BooruConfig.fromJson({...h.profile.toJson(), 'login': 'changed'}),
       ];
-      await container.read(booruConfigProvider.notifier).fetch();
-      await tap(tester, find.text('Clear & Save'));
+      await tap(tester, getSave());
       expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       expect(find.textContaining('The account changed.'), findsWidgets);
       expect(await library.snapshotForExport(), before);
       expect((await saved()).globalGroupId, isNull);
+      expect(h.source.calls, 0);
     },
   );
 
@@ -1246,6 +1313,46 @@ void main() {
       expect(find.textContaining('The server action succeeded'), findsNothing);
     },
   );
+}
+
+Translations _strings(WidgetTester tester) =>
+    tester.element(find.byType(Navigator).first).t;
+
+/// The in-memory legacy service has no unified organization journal. Keep
+/// nested creation local to this UI test while exercising the real picker and
+/// refreshing the same provider snapshot that production observes.
+final class _FavoritesDialogLibrary extends BookmarkLibraryNotifier {
+  @override
+  Future<BookmarkGroup> createGroup(
+    String name, {
+    String? folderId,
+    String? parentGroupId,
+  }) async {
+    if (parentGroupId == null) {
+      return super.createGroup(name, folderId: folderId);
+    }
+
+    final repository = await ref.read(bookmarkGroupRepoProvider.future);
+    final groups = await repository.getGroups();
+    if (!groups.any((group) => group.id == parentGroupId)) {
+      throw StateError('Parent Bookmark Group no longer exists');
+    }
+    final created = await repository.createGroup(name);
+    final position = groups
+        .where((group) => group.parentGroupId == parentGroupId)
+        .fold(
+          0,
+          (next, group) => group.position >= next ? group.position + 1 : next,
+        );
+    final nested = created.copyWith(
+      parentGroupId: parentGroupId,
+      position: position,
+    );
+    BookmarkGroupTree([...groups, nested]);
+    await repository.replaceFolderOrganization(const [], [...groups, nested]);
+    await refresh();
+    return nested;
+  }
 }
 
 class _Links extends PostLinkGenerator<Post> {

@@ -17,6 +17,22 @@ final class BoorusamaPostLink extends Equatable {
   });
 
   factory BoorusamaPostLink.parse(String value) {
+    final data = parseResourceParameters(value, resource: 'post');
+    return BoorusamaPostLink._(
+      booruType: data.engine,
+      site: data.site,
+      key: data.key,
+      postId: parsePostId(data.engine, data.key),
+    );
+  }
+
+  /// Shared strict outer grammar for Post and Group portable resource URIs.
+  /// Resource-specific key interpretation remains with its existing codec.
+  static ({BooruType engine, Uri site, String rawSite, String key})
+  parseResourceParameters(String value, {required String resource}) {
+    if (!const {'post', 'group'}.contains(resource)) {
+      throw const FormatException('Unsupported portable resource');
+    }
     if (value.length > maxLength ||
         value.isEmpty ||
         value.trim() != value ||
@@ -26,7 +42,7 @@ final class BoorusamaPostLink extends Equatable {
     }
     final uri = Uri.parse(value);
     if (uri.scheme != 'boorusama' ||
-        uri.host != 'post' ||
+        uri.host != resource ||
         uri.userInfo.isNotEmpty ||
         uri.hasPort ||
         uri.path != routePath ||
@@ -46,17 +62,12 @@ final class BoorusamaPostLink extends Equatable {
         .map((config) => config.type)
         .firstOrNull;
     if (type == null || type == BooruType.unknown) {
-      throw const FormatException('Unsupported post engine');
+      throw FormatException('Unsupported $resource engine');
     }
-    final site = _parseSite(parameters['site']!.single);
+    final rawSite = parameters['site']!.single;
+    final site = parseSourceSite(rawSite);
     final key = parameters['key']!.single;
-    final postId = _parsePostId(type, key);
-    return BoorusamaPostLink._(
-      booruType: type,
-      site: site,
-      key: key,
-      postId: postId,
-    );
+    return (engine: type, site: site, rawSite: rawSite, key: key);
   }
 
   static const routePath = '/open';
@@ -92,7 +103,7 @@ final class BoorusamaPostLink extends Equatable {
 
   static BoorusamaPostLink? fromPost(Post post, {BooruConfigAuth? auth}) {
     final origin = post.origin;
-    final key = _stableKey(post);
+    final key = stableKeyForPost(post);
     if (key == null || origin.sourceHost.isEmpty) return null;
     // The active profile may only be a fallback in a mixed/cached viewer. It
     // must never change the source address of the post being shared.
@@ -129,9 +140,9 @@ final class BoorusamaPostLink extends Equatable {
   bool matches(Post post) =>
       post.origin.booruType == booruType &&
       post.origin.sourceHost == normalizePostSourceHost(site.toString()) &&
-      _stableKey(post) == key;
+      stableKeyForPost(post) == key;
 
-  static String? _stableKey(Post post) =>
+  static String? stableKeyForPost(Post post) =>
       switch ((post.origin.booruType, post.booruData)) {
         (_, final StableBookmarkPostKeyData data) => data.stableBookmarkPostKey,
         (BooruType.sankaku || BooruType.pixiv || BooruType.unknown, _) => null,
@@ -144,7 +155,7 @@ final class BoorusamaPostLink extends Equatable {
   static final _positiveInteger = RegExp(r'^[1-9][0-9]*$');
   static final _sankakuId = RegExp(r'^[a-zA-Z0-9_-]{1,128}$');
 
-  static Uri _parseSite(String value) {
+  static Uri parseSourceSite(String value) {
     if (value.length > 2048 ||
         _unsafeText.hasMatch(value) ||
         _invalidEscape.hasMatch(value)) {
@@ -173,7 +184,7 @@ final class BoorusamaPostLink extends Equatable {
     return id;
   }
 
-  static PostId _parsePostId(BooruType type, String key) {
+  static PostId parsePostId(BooruType type, String key) {
     if (key.length > 160 || _unsafeText.hasMatch(key)) {
       throw const FormatException('Invalid post reference');
     }

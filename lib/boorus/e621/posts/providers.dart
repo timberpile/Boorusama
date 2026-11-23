@@ -10,6 +10,7 @@ import '../../../core/posts/post/types.dart';
 import '../../../core/search/queries/providers.dart';
 import '../../../core/settings/providers.dart';
 import '../client_provider.dart';
+import '../configs/providers.dart';
 import 'parser.dart';
 import 'types.dart';
 
@@ -30,33 +31,36 @@ final e621PostRepoProvider =
           return post != null ? postDtoToPost(post, null) : null;
         },
         fetch: (tags, page, {limit, options}) async {
-          final data = await client
-              .getPosts(
-                page: page,
-                tags: tags,
-                limit: limit,
-              )
-              .then(
-                (value) => value
-                    .map(
-                      (e) => postDtoToPost(
-                        e,
-                        PostMetadata(
-                          page: page,
-                          search: tags.join(' '),
-                          limit: limit,
-                        ),
-                      ),
-                    )
-                    .nonNulls
-                    .toList(),
-              );
-
-          if (options?.cascadeRequest ?? true) {
-            ref.read(favoritesProvider(config.auth).notifier).preload(data);
+          final favorites =
+              (options?.cascadeRequest ?? true) &&
+                  ref.read(e621LoginDetailsProvider(config.auth)).hasLogin()
+              ? ref.read(favoritesProvider(config.auth).notifier)
+              : null;
+          final read = favorites?.beginRead();
+          final posts = await client.getPosts(
+            page: page,
+            tags: tags,
+            limit: limit,
+          );
+          if (read != null) {
+            favorites!.observeFavorites({
+              for (final post in posts) ?post.id: ?post.isFavorited,
+            }, read);
           }
-
-          return data.toResult();
+          return posts
+              .map(
+                (post) => postDtoToPost(
+                  post,
+                  PostMetadata(
+                    page: page,
+                    search: tags.join(' '),
+                    limit: limit,
+                  ),
+                ),
+              )
+              .nonNulls
+              .toList()
+              .toResult();
         },
         getSettings: () async =>
             ref.read(listingSettingsForAuthProvider(config.auth)),

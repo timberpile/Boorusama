@@ -46,48 +46,6 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           ),
           optionBuilder: (value) => Text(value.localize(context)),
         ),
-        KurumiSettingsRadioCard(
-          title: context.t.settings.image_viewer.swipe_mode,
-          subtitle: context.t.settings.image_viewer.swipe_mode_disclaimer,
-          entries: [
-            KurumiSettingsRadioCardEntry(
-              title: context.t.settings.image_viewer.swipe_modes.horizontal,
-              value: PostDetailsSwipeMode.horizontal.name,
-              groupValue: viewer.swipeMode.name,
-              subtitle: context
-                  .t
-                  .settings
-                  .image_viewer
-                  .swipe_modes
-                  .horizontal_description,
-              onSelected: (value) {
-                onUpdate(
-                  (current) => current.copyWith(
-                    swipeMode: PostDetailsSwipeMode.horizontal,
-                  ),
-                );
-              },
-            ),
-            KurumiSettingsRadioCardEntry(
-              title: context.t.settings.image_viewer.swipe_modes.vertical,
-              value: PostDetailsSwipeMode.vertical.name,
-              groupValue: viewer.swipeMode.name,
-              subtitle: context
-                  .t
-                  .settings
-                  .image_viewer
-                  .swipe_modes
-                  .vertical_description,
-              onSelected: (value) {
-                onUpdate(
-                  (current) => current.copyWith(
-                    swipeMode: PostDetailsSwipeMode.vertical,
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
         KurumiSwitchListTile(
           title: Text(context.t.settings.image_viewer.load_original_on_zoom),
           subtitle: Text(
@@ -108,12 +66,6 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           value: viewer.snapZoomToFit,
           onChanged: (value) => onUpdate(
             (current) => current.copyWith(snapZoomToFit: value),
-          ),
-        ),
-        DoubleTapZoomModeSetting(
-          value: viewer.doubleTapZoomMode,
-          onChanged: (value) => onUpdate(
-            (current) => current.copyWith(doubleTapZoomMode: value),
           ),
         ),
         KurumiSwitchListTile(
@@ -296,37 +248,6 @@ class ImageViewerSettingsSection extends ConsumerWidget {
           child: Text(context.t.settings.image_viewer.manage_cache),
         ),
       ],
-    );
-  }
-}
-
-class DoubleTapZoomModeSetting extends StatelessWidget {
-  const DoubleTapZoomModeSetting({
-    required this.value,
-    required this.onChanged,
-    super.key,
-  });
-
-  final DoubleTapZoomMode value;
-  final ValueChanged<DoubleTapZoomMode> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return KurumiSettingsTile(
-      title: Text(
-        context.t.settings.image_viewer.double_tap_zoom_behavior,
-      ),
-      selectedOption: value,
-      items: DoubleTapZoomMode.values,
-      onChanged: onChanged,
-      optionBuilder: (value) => Text(
-        switch (value) {
-          DoubleTapZoomMode.fitCycle =>
-            context.t.settings.image_viewer.double_tap_zoom_behaviors.fit_cycle,
-          DoubleTapZoomMode.classic =>
-            context.t.settings.image_viewer.double_tap_zoom_behaviors.classic,
-        },
-      ),
     );
   }
 }

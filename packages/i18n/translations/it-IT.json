@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Aggiornamenti prima",
-    "sort_last_post_oldest": "Post meno recenti prima"
+    "sort_manual": "Manuale",
+    "sort_unread_first": "Prima i non letti",
+    "sort_recently_added": "Aggiunti di recente"
   },
   "generic": {
     "done": "Finito",
@@ -481,5 +482,10 @@
     "recently_created": "Create recentemente",
     "last_updated": "Ultimo aggiornato",
     "count": "Quantità"
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Raggruppa post"
+    }
   }
 }

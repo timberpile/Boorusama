@@ -1,0 +1,374 @@
+import 'package:boorusama/core/search/following_topics/providers.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_toolbar.dart';
+import 'package:boorusama/core/posts/listing/providers.dart';
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_option_selector.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/core/posts/post/providers.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/posts/rating/types.dart';
+import 'package:boorusama/core/posts/sources/types.dart';
+import 'package:boorusama/core/search/following_topics/src/pages/topic_feeds_page.dart';
+import 'package:boorusama/core/search/following_topics/src/types/cached_topic_feed_filter.dart';
+import 'package:boorusama/core/search/following_topics/types.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:foundation/foundation.dart';
+import 'package:kurumi/material.dart';
+
+import 'following_topic_test_utils.dart';
+import 'topic_test_utils.dart';
+
+final _feedProfile = BooruConfig.fromJson({
+  ...testProfile.toJson(),
+  'booruId': BooruType.danbooru.id,
+  'booruIdHint': BooruType.danbooru.id,
+});
+
+void main() {
+  for (final empty in [false, true]) {
+    testWidgets(
+      'background results remain pending through filtered/empty feed=$empty',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final harness = FollowingTopicHarness(profiles: [_feedProfile]);
+        addTearDown(harness.dispose);
+        final source = topicFixture(query: 'cat');
+        await harness.seed([source]);
+        final feed = TopicFeed(
+          id: 'pending',
+          profileId: testProfile.id,
+          name: 'Pending',
+          sourceIds: [source.id],
+          initializedSourceIds: [source.id],
+          posts: empty ? [] : [_snapshot(1, 1)],
+        );
+        await harness.repository.restoreFeeds(testProfile.id, [feed]);
+        await harness.pump(
+          tester,
+          MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 640),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+          ),
+        );
+        await drain(tester);
+        if (!empty) {
+          final input = find.byType(TextField).first;
+          await tester.enterText(input, 'missing_tag');
+          await tester.testTextInput.receiveAction(TextInputAction.search);
+          await tester.pumpAndSettle();
+        }
+        final updates = find.byKey(const ValueKey('feed-show-updates'));
+        Future<void> publish(int id) async {
+          await harness.repository.restoreFeeds(testProfile.id, [
+            feed.copyWith(posts: [_snapshot(id, id), ...feed.posts]),
+          ]);
+          await harness.container
+              .read(followingTopicsProvider.notifier)
+              .reloadFromStorage();
+          await drain(tester);
+        }
+
+        for (final id in [2, 3]) {
+          await publish(id);
+          expect(updates, findsOneWidget);
+          final grid = find.byType(PostGrid<Post>);
+          if (!empty && grid.evaluate().isNotEmpty) {
+            expect(
+              tester.widget<PostGrid<Post>>(grid).controller.items,
+              isEmpty,
+            );
+          }
+          expect(harness.requests, isEmpty);
+          await tester.tap(updates);
+          await drain(tester);
+          expect(updates, findsNothing);
+        }
+        await publish(3);
+        expect(updates, findsNothing);
+        expect(harness.requests, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('the first feed row follows the filters at scale $scale', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final harness = FollowingTopicHarness(profiles: [_feedProfile]);
+      addTearDown(harness.dispose);
+      final source = topicFixture(query: 'cat');
+      await harness.seed([source]);
+      final feed = TopicFeed(
+        id: 'grid-top',
+        profileId: testProfile.id,
+        name: 'Grid',
+        sourceIds: [source.id],
+        initializedSourceIds: [source.id],
+        posts: [_snapshot(1, 1)],
+      );
+      await harness.repository.restoreFeeds(testProfile.id, [feed]);
+      await harness.pump(
+        tester,
+        MediaQuery(
+          data: MediaQueryData(
+            size: const Size(320, 640),
+            textScaler: TextScaler.linear(scale),
+          ),
+          child: TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+        ),
+      );
+      await drain(tester);
+      final filter = tester.getRect(find.byType(TextField).first);
+      final first = tester.getRect(find.byType(DefaultImageGridItem).first);
+      expect(first.top - filter.bottom, lessThan(80));
+    });
+  }
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'cached sort blocks history and Newest restores it at scale $scale',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final historyRequests = <int>[];
+        final harness = FollowingTopicHarness(
+          profiles: [_feedProfile],
+          overrides: [
+            originAwarePostRepoProvider.overrideWith(
+              (ref, config) => TestSearchPostRepository((
+                query,
+                page,
+                limit,
+              ) async {
+                historyRequests.add(page);
+                return Either.of(
+                  const PostResult<Post>(posts: [], total: 0, hasMore: false),
+                );
+              }),
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        final source = topicFixture(query: 'cat');
+        await harness.seed([source]);
+        final feed = TopicFeed(
+          id: 'sort-history',
+          profileId: testProfile.id,
+          name: 'Cached feed',
+          sourceIds: [source.id],
+          initializedSourceIds: [source.id],
+          posts: [_snapshot(1, 5), _snapshot(2, 20), _snapshot(3, -1)],
+        );
+        await harness.repository.restoreFeeds(testProfile.id, [feed]);
+        await harness.pump(
+          tester,
+          MediaQuery(
+            data: MediaQueryData(
+              size: const Size(320, 640),
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+          ),
+        );
+        await drain(tester);
+        final grid = find.byType(PostGrid<Post>);
+        expect(grid, findsOneWidget);
+        expect(historyRequests, isEmpty);
+        expect(find.text('History'), findsNothing);
+        final sort = find.byKey(const ValueKey('cached-feed-sort'));
+        final selector = tester
+            .widget<BookmarkOptionSelector<CachedTopicFeedSort>>(sort);
+        final descending = selector.optionLabel(
+          CachedTopicFeedSort.scoreDescending,
+        );
+        await _openSort(tester, sort);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(descending).last);
+        await tester.pumpAndSettle();
+        await drain(tester);
+
+        final sorted = tester.widget<PostGrid<Post>>(grid).controller;
+        expect(sorted.items.map((post) => post.id), [2, 1, 3]);
+        expect(
+          find.byKey(const ValueKey('cached-feed-load-older')),
+          findsNothing,
+        );
+        await _fetchMore(tester, sorted);
+        expect(historyRequests, isEmpty);
+        expect(sorted.items.map((post) => post.id), [2, 1, 3]);
+        expect(
+          (await harness.repository.getFeeds()).single.posts,
+          feed.posts,
+          reason: 'Local sorting must not rewrite the stored snapshot order.',
+        );
+
+        expect(find.text('Cached'), findsOneWidget);
+        await _openSort(tester, sort);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(selector.optionLabel(CachedTopicFeedSort.newest)).last,
+        );
+        await tester.pumpAndSettle();
+        await drain(tester);
+        expect(sort, findsOneWidget);
+        expect(find.text('History'), findsNothing);
+        final restored = tester.widget<PostGrid<Post>>(grid).controller;
+        expect(restored.items.map((post) => post.id), [1, 2, 3]);
+        expect(restored.hasMore, isTrue);
+        expect(historyRequests, isEmpty);
+        final scroll = tester.widget<PostGrid<Post>>(grid).scrollController!;
+        scroll.jumpTo(scroll.position.maxScrollExtent);
+        await drain(tester);
+        final loadOlder = find.byKey(const ValueKey('cached-feed-load-older'));
+        expect(loadOlder, findsOneWidget);
+        await tester.tap(loadOlder);
+        await tester.pump(restored.debounceDuration);
+        await drain(tester);
+        expect(historyRequests, [1]);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets(
+    'the actual Feed bar hides down and returns after a slight upward scroll',
+    (tester) async {
+      final harness = FollowingTopicHarness(profiles: [_feedProfile]);
+      addTearDown(harness.dispose);
+      final source = topicFixture(query: 'cat');
+      await harness.seed([source]);
+      final feed = TopicFeed(
+        id: 'scroll-toolbar',
+        profileId: testProfile.id,
+        name: 'Feed',
+        sourceIds: [source.id],
+        initializedSourceIds: [source.id],
+        posts: [for (var i = 1; i <= 100; i++) _snapshot(i, i)],
+      );
+      await harness.repository.restoreFeeds(testProfile.id, [feed]);
+      await harness.pump(
+        tester,
+        TopicFeedPage(feedId: feed.id, profileId: testProfile.id),
+      );
+      await drain(tester);
+      final sort = find.byKey(const ValueKey('cached-feed-sort'));
+      final grid = find.byType(PostGrid<Post>);
+      expect(
+        sort.hitTestable(),
+        findsOneWidget,
+        reason:
+            'Sort bounds: ${tester.getRect(sort)}; toolbar: ${tester.getRect(find.byType(TimelineToolbar))}',
+      );
+      expect(find.byType(TimelineToolbar), findsOneWidget);
+      final input = find
+          .byKey(const ValueKey('cached-feed-filter-input'))
+          .first;
+      expect(
+        tester.getRect(input).bottom,
+        lessThanOrEqualTo(tester.getRect(sort).top),
+      );
+      await tester.drag(grid, const Offset(0, -800));
+      await tester.pumpAndSettle();
+      expect(sort.hitTestable(), findsNothing);
+      await tester.drag(grid, const Offset(0, 32));
+      await tester.pumpAndSettle();
+      expect(
+        sort.hitTestable(),
+        findsOneWidget,
+        reason:
+            'Sort bounds: ${tester.getRect(sort)}; toolbar: ${tester.getRect(find.byType(TimelineToolbar))}',
+      );
+      final vertical = find.descendant(
+        of: grid,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Scrollable &&
+              widget.axisDirection == AxisDirection.down,
+        ),
+      );
+      expect(
+        tester.state<ScrollableState>(vertical.first).position.pixels,
+        greaterThan(200),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+}
+
+StoredPostSnapshot _snapshot(int id, int score) =>
+    const StoredPostCodec().encode(
+      Post(
+        origin: PostOrigin.fromSource(
+          booruType: BooruType.danbooru,
+          booruId: BooruType.danbooru.id,
+          source: testProfile.url,
+        ),
+        core: PostCoreData(
+          id: id,
+          createdAt: checkedAt.subtract(Duration(days: id)),
+          thumbnailImageUrl: '',
+          sampleImageUrl: '',
+          originalImageUrl: '',
+          tags: const {'cat'},
+          rating: Rating.general,
+          hasComment: false,
+          isTranslated: false,
+          hasParentOrChildren: false,
+          source: PostSource.none(),
+          score: score,
+          duration: 0,
+          fileSize: 0,
+          format: 'jpg',
+          height: 100,
+          md5: '',
+          videoThumbnailUrl: '',
+          videoUrl: '',
+          width: 100,
+        ),
+        booruData: const LegacyPostData(typeKey: 'test', custom: {}),
+      ),
+    );
+
+Future<void> _openSort(WidgetTester tester, Finder sort) async {
+  await tester.ensureVisible(sort);
+  await tester.pumpAndSettle();
+  // At enlarged text the label can exceed the viewport. Tap its visible part
+  // inside the scrolling controls, rather than its offscreen center.
+  final visible = tester
+      .getRect(sort)
+      .intersect(
+        tester.getRect(find.byKey(const ValueKey('timeline-toolbar-content'))),
+      );
+  expect(visible.isEmpty, isFalse);
+  await tester.tapAt(visible.center);
+}
+
+Future<void> _fetchMore(
+  WidgetTester tester,
+  PostGridController<Post> controller,
+) async {
+  var completed = false;
+  final pending = controller.fetchMore().then<void>((_) {
+    completed = true;
+  });
+  // fetchMore owns a debounce timer; advance its controlled clock before
+  // waiting for the completion signal rather than blocking the widget zone.
+  await tester.pump(controller.debounceDuration);
+  await drain(tester);
+  expect(
+    completed,
+    isTrue,
+    reason: 'The in-memory pagination request must complete.',
+  );
+  await pending;
+}

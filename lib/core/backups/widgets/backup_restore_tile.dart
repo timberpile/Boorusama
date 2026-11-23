@@ -203,6 +203,7 @@ class DefaultBackupTile extends ConsumerWidget {
                   result,
                   exportSuccessMessageBuilder,
                 ),
+                duration: KurumiDurations.longToast,
               );
             }
           } catch (error) {
@@ -250,6 +251,7 @@ class DefaultBackupTile extends ConsumerWidget {
                     : null,
                 importSuccessMessageBuilder,
               ),
+              duration: KurumiDurations.longToast,
             );
           }
         } on ImportCancelledException {
@@ -292,6 +294,7 @@ class DefaultBackupTile extends ConsumerWidget {
             result,
             exportSuccessMessageBuilder,
           ),
+          duration: KurumiDurations.longToast,
         );
       }
     } catch (error) {
@@ -326,6 +329,7 @@ class DefaultBackupTile extends ConsumerWidget {
                 : null,
             importSuccessMessageBuilder,
           ),
+          duration: KurumiDurations.longToast,
         );
       }
     } on ImportCancelledException {

@@ -16,6 +16,7 @@ import 'eshuushuu/configs/extra_data.dart';
 import 'eshuushuu/users/widgets.dart';
 import 'moebooru/popular/widgets.dart';
 import 'pixiv/explore/widgets.dart';
+import 'pixiv/following/page.dart';
 import 'shimmie2/extensions/page.dart';
 import 'szurubooru/pools/widgets.dart';
 
@@ -59,6 +60,7 @@ Widget buildEngineNavigationPage(
     ),
   },
   'pixiv.explore' => const PixivExplorePage(),
+  'pixiv.following-artists' => PixivFollowingArtistsPage(config: config),
   'shimmie2.extensions' => const Shimmie2ExtensionsPage(),
   'szurubooru.pools' => const SzurubooruPoolPage(),
   _ => _toolHost(

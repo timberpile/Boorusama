@@ -53,6 +53,26 @@ void main() {
     );
   });
 
+  for (final removed in ['lastPostOldest', 'addedOldest']) {
+    test('removed sort $removed falls back to manual after reload', () {
+      expect(FollowingTopicSort.parse(removed), FollowingTopicSort.manual);
+      final settings = Settings.fromJson({
+        ...Settings.defaultSettings.toJson(),
+        'followingTopicSort': removed,
+      });
+      expect(settings.followingTopicSort, 'manual');
+      final container = _createContainer(
+        SettingsRepositoryHive(Future.value(MemoryBox<dynamic>())),
+        initialSettings: settings,
+      );
+      addTearDown(container.dispose);
+      expect(
+        container.read(followingTopicSortProvider),
+        FollowingTopicSort.manual,
+      );
+    });
+  }
+
   for (final sort in FollowingTopicSort.values) {
     test(
       '${sort.name} is restored after the provider is recreated',
@@ -156,7 +176,7 @@ void main() {
     );
     final notifier = container.read(followingTopicSortProvider.notifier);
     final first = notifier.select(FollowingTopicSort.updatesFirst);
-    final second = notifier.select(FollowingTopicSort.lastPostOldest);
+    final second = notifier.select(FollowingTopicSort.addedNewest);
     await _waitForAttempt(repository, 1);
 
     expect(repository.attemptedSorts, ['updatesFirst']);
@@ -164,18 +184,18 @@ void main() {
     expect(await first, isTrue);
     await _waitForAttempt(repository, 2);
 
-    expect(repository.attemptedSorts, ['updatesFirst', 'lastPostOldest']);
+    expect(repository.attemptedSorts, ['updatesFirst', 'addedNewest']);
     repository.releases.last.complete(true);
     expect(await second, isTrue);
     expect(
       container.read(followingTopicSortProvider),
-      FollowingTopicSort.lastPostOldest,
+      FollowingTopicSort.addedNewest,
     );
     expect(
       Settings.fromJson(
         jsonDecode(settingsBox.get('settings') as String),
       ).followingTopicSort,
-      'lastPostOldest',
+      'addedNewest',
     );
   });
 
@@ -192,7 +212,7 @@ void main() {
     );
     final notifier = container.read(followingTopicSortProvider.notifier);
     final first = notifier.select(FollowingTopicSort.updatesFirst);
-    final second = notifier.select(FollowingTopicSort.lastPostOldest);
+    final second = notifier.select(FollowingTopicSort.addedNewest);
     await _waitForAttempt(repository, 1);
 
     repository.releases.first.completeError(StateError('save failed'));
@@ -203,7 +223,7 @@ void main() {
     expect(await second, isTrue);
     expect(
       container.read(followingTopicSortProvider),
-      FollowingTopicSort.lastPostOldest,
+      FollowingTopicSort.addedNewest,
     );
   });
 }

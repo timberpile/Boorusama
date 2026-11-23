@@ -7,7 +7,10 @@ import 'package:foundation/performance.dart';
 // Project imports:
 import '../../../boorus/booru/types.dart';
 import 'bookmark.dart';
+import 'pool_bookmark.dart';
 import 'bookmark_search_token.dart';
+import 'content_group_bookmark.dart';
+import 'bookmark_record_fields.dart' show nativeGroupBookmarkTags;
 
 class BookmarkTagSource extends Equatable {
   const BookmarkTagSource({required this.url, required this.booruType});
@@ -66,9 +69,102 @@ class BookmarkTagIndex {
   ) : entries = UnmodifiableListView(sorted),
       byName = UnmodifiableMapView(names);
 
+  BookmarkTagIndex withPoolBookmarks(Iterable<CollectionBookmark> pools) {
+    final counts = <String, int>{};
+    final poolSources = <String, Map<BookmarkTagSource, Set<String>>>{};
+    for (final pool in pools) {
+      final source = BookmarkTagSource(
+        url: 'https://${pool.origin.sourceHost}',
+        booruType: pool.origin.booruType,
+      );
+      for (final tag
+          in pool.tags
+              .map(canonicalBookmarkTag)
+              .where((t) => t.isNotEmpty)
+              .toSet()) {
+        counts.update(tag, (n) => n + 1, ifAbsent: () => 1);
+        poolSources.putIfAbsent(tag, () => {})[source] = const {};
+      }
+    }
+    return _withTagContributions(counts, poolSources);
+  }
+
+  BookmarkTagIndex withNativeGroupBookmarks(
+    Iterable<ContentGroupBookmark> groups,
+  ) {
+    final counts = <String, int>{};
+    final sources = <String, Map<BookmarkTagSource, Set<String>>>{};
+    for (final group in groups) {
+      final source = BookmarkTagSource(
+        url: group.reference.site.toString(),
+        booruType: group.reference.engine,
+      );
+      for (final tag in nativeGroupBookmarkTags(group)) {
+        if (tag.isEmpty) continue;
+        counts.update(tag, (count) => count + 1, ifAbsent: () => 1);
+        sources.putIfAbsent(tag, () => {})[source] = {
+          for (final value
+              in (group.snapshot.details?.tags ?? group.summary.previewTags)
+                      ?.values ??
+                  const [])
+            if (value.category != null &&
+                (canonicalBookmarkTag(value.name ?? '') == tag ||
+                    canonicalBookmarkTag(value.displayName ?? '') == tag))
+              value.category!,
+        };
+      }
+    }
+    return _withTagContributions(counts, sources);
+  }
+
+  BookmarkTagIndex _withTagContributions(
+    Map<String, int> counts,
+    Map<String, Map<BookmarkTagSource, Set<String>>> sources,
+  ) {
+    if (counts.isEmpty) return this;
+    final changed = <BookmarkTagEntry>[];
+    for (final tag in counts.keys) {
+      final previous = byName[tag];
+      changed.add(
+        BookmarkTagEntry(
+          tag: tag,
+          count: (previous?.count ?? 0) + counts[tag]!,
+          sources: {
+            ...?previous?.sources,
+            for (final contribution in sources[tag]!.entries)
+              contribution.key: {
+                ...?previous?.sources[contribution.key],
+                ...contribution.value,
+              },
+          },
+        ),
+      );
+    }
+    int compare(BookmarkTagEntry a, BookmarkTagEntry b) {
+      final count = b.count.compareTo(a.count);
+      return count != 0 ? count : a.tag.compareTo(b.tag);
+    }
+
+    changed.sort(compare);
+    final unchanged = entries.where((e) => !counts.containsKey(e.tag)).toList();
+    final merged = <BookmarkTagEntry>[];
+    var i = 0, j = 0;
+    while (i < unchanged.length && j < changed.length) {
+      if (compare(unchanged[i], changed[j]) <= 0)
+        merged.add(unchanged[i++]);
+      else
+        merged.add(changed[j++]);
+    }
+    merged.addAll(unchanged.skip(i));
+    merged.addAll(changed.skip(j));
+    return BookmarkTagIndex._owned(merged, {
+      for (final entry in merged) entry.tag: entry,
+    });
+  }
+
   factory BookmarkTagIndex.fromBookmarks(
-    Iterable<Bookmark> bookmarks, {
-    String Function(Bookmark bookmark)? siteUrl,
+    Iterable<PostBookmark> bookmarks, {
+    String Function(PostBookmark bookmark)? siteUrl,
   }) {
     final counts = <String, int>{};
     final sources = <String, Map<BookmarkTagSource, Set<String>>>{};
@@ -153,15 +249,15 @@ class BookmarkTagIndexBuilder {
     performanceRecorder.count(PerfCounter.bookmarkTagBuilderCreated, 1);
   }
 
-  final String Function(Bookmark bookmark)? siteUrl;
-  Map<int, Bookmark> _bookmarks = {};
+  final String Function(PostBookmark bookmark)? siteUrl;
+  Map<int, PostBookmark> _bookmarks = {};
   final _tags = <String, _TagReferences>{};
   var _index = BookmarkTagIndex(const []);
   var _built = false;
   Object? _lastRevision;
   Future<void> _pending = Future.value();
 
-  BookmarkTagIndex update(Iterable<Bookmark> bookmarks) =>
+  BookmarkTagIndex update(Iterable<PostBookmark> bookmarks) =>
       performanceRecorder.measureSync(PerfOperation.bookmarkTagUpdate, () {
         for (final _ in _steps(bookmarks)) {}
         return _index;
@@ -170,7 +266,7 @@ class BookmarkTagIndexBuilder {
   /// Serializes updates to this retained builder. Cancellation discards partial
   /// mutable work; a newer generation can never publish an older library.
   Future<BookmarkTagIndex?> updateAsync(
-    Iterable<Bookmark> bookmarks, {
+    Iterable<PostBookmark> bookmarks, {
     required bool Function() isCurrent,
     Future<void> Function()? yieldControl,
     Object? revision,
@@ -208,7 +304,7 @@ class BookmarkTagIndexBuilder {
   }
 
   Iterable<void> _steps(
-    Iterable<Bookmark> bookmarks, {
+    Iterable<PostBookmark> bookmarks, {
     Object? revision,
   }) sync* {
     // Only callers with an immutable revision may skip comparison. Generic
@@ -220,7 +316,7 @@ class BookmarkTagIndexBuilder {
           : PerfCounter.bookmarkTagFullBuild,
       1,
     );
-    final next = <int, Bookmark>{};
+    final next = <int, PostBookmark>{};
     for (final batch in _batches(bookmarks, 256)) {
       performanceRecorder.measureSync(PerfOperation.bookmarkTagCompare, () {
         for (final bookmark in batch) {
@@ -348,7 +444,7 @@ class BookmarkTagIndexBuilder {
     }
   }
 
-  int _adjust(Bookmark bookmark, int delta) {
+  int _adjust(PostBookmark bookmark, int delta) {
     final source = performanceRecorder.measureSync(
       PerfOperation.bookmarkTagResolveSource,
       () => BookmarkTagSource(

@@ -1,0 +1,291 @@
+import 'package:boorusama/core/posts/post/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+
+import 'dart:async';
+
+import 'package:boorusama/core/app_scope.dart';
+import 'package:boorusama/core/blacklists/providers.dart';
+import 'package:boorusama/core/bookmarks/providers.dart';
+import 'package:boorusama/core/bookmarks/types.dart';
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/ddos/handler/providers.dart';
+import 'package:boorusama/core/downloads/urls/providers.dart';
+import 'package:boorusama/core/downloads/urls/types.dart';
+import 'package:boorusama/core/posts/post/types.dart';
+import 'package:boorusama/core/widgets/reboot.dart';
+import 'package:boorusama/foundation/permissions.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../application/support/fake_booru_backend.dart';
+import '../support/boorusama_test_runtime.dart';
+
+class _Profiles extends BooruConfigNotifier {
+  _Profiles(List<BooruConfig> initial) : super(initialConfigs: initial);
+  void replace(List<BooruConfig> configs) => state = configs;
+}
+
+class _PendingPermission extends DeviceStoragePermissionNotifier {
+  _PendingPermission(this.entered, this.result);
+  final Completer<void> entered;
+  final Completer<DeviceStoragePermissionState> result;
+  @override
+  Future<DeviceStoragePermissionState> build() {
+    entered.complete();
+    return result.future;
+  }
+}
+
+class _PendingExtractor implements DownloadFileUrlExtractor {
+  final entered = Completer<void>();
+  final result = Completer<DownloadUrlData?>();
+  @override
+  Future<DownloadUrlData?> getDownloadFileUrl({
+    required Post post,
+    required String quality,
+  }) {
+    entered.complete();
+    return result.future;
+  }
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'native Bookmark downloads strip foreign and installation-external headers',
+    () async {
+      final backend = FakeBooruBackend();
+      final owner = BooruConfig.fromJson({
+        ...backend.config.toJson(),
+        'url': 'https://private.example/install/',
+      });
+      final downloads = MemoryDownloadService();
+      final runtime = backend.createRuntime(
+        configs: [owner],
+        downloadService: downloads,
+      );
+      final initial = runtime.initialState;
+      final container = ProviderContainer(
+        overrides: [
+          ...buildBoorusamaOverrides(
+            runtime,
+            RebootData(
+              config: initial.initialConfig,
+              configs: initial.configs,
+              settings: initial.settings,
+            ),
+          ),
+          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          httpHeadersProvider.overrideWith(
+            (_, _) => const {
+              'Authorization': 'source-secret',
+              'Cookie': 'source-cookie',
+              'X-Api-Key': 'source-key',
+              'Accept': 'image/*',
+            },
+          ),
+          downloadFileUrlExtractorProvider.overrideWith(
+            (_, _) => const UrlInsidePostExtractor(),
+          ),
+          bypassDdosHeadersProvider.overrideWith(
+            (_, _) => Future.value(<String, String>{}),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(bookmarkProvider.future);
+      for (final url in [
+        'https://cdn.example/file.jpg',
+        'https://private.example/other/file.jpg',
+        'https://private.example/install/file.jpg',
+      ]) {
+        final post = TestPost(
+          id: 42,
+          origin: postOriginFromConfig(owner),
+          originalImageUrl: url,
+        );
+        final saved = PostBookmark.fromSnapshot(
+          id: 1,
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+          postId: 42,
+          post: post,
+          snapshot: const StoredPostCodec().encode(
+            post,
+            dataCodec: const EmptyPostDataCodec('test'),
+          ),
+        );
+        await container.read(bookmarkProvider.notifier).downloadBookmarks(
+          owner.auth,
+          owner.download,
+          [saved],
+        );
+        final request = downloads.requests.last;
+        expect(request.url, url);
+        expect(request.headers?['Accept'], 'image/*');
+        final owned = url.contains('/install/');
+        expect(
+          request.headers?['Authorization'],
+          owned ? 'source-secret' : isNull,
+        );
+        expect(request.headers?['Cookie'], owned ? 'source-cookie' : isNull);
+        expect(request.headers?['X-Api-Key'], owned ? 'source-key' : isNull);
+      }
+    },
+  );
+  for (final change in [
+    'delete',
+    'credentials',
+    'policy',
+    'already-blacklisted',
+  ]) {
+    test('pending permission stops native scheduling after $change', () async {
+      final backend = FakeBooruBackend();
+      final downloads = MemoryDownloadService();
+      final runtime = backend.createRuntime(
+        configs: [backend.config],
+        downloadService: downloads,
+      );
+      final initial = runtime.initialState;
+      final profiles = _Profiles([backend.config]);
+      final entered = Completer<void>();
+      final permission = Completer<DeviceStoragePermissionState>();
+      var tags = change == 'already-blacklisted'
+          ? <String>{'blocked_tag'}
+          : <String>{};
+      final container = ProviderContainer(
+        overrides: [
+          ...buildBoorusamaOverrides(
+            runtime,
+            RebootData(
+              config: initial.initialConfig,
+              configs: initial.configs,
+              settings: initial.settings,
+            ),
+          ),
+          booruConfigProvider.overrideWith(() => profiles),
+          blacklistTagsProvider.overrideWith((_, _) async => tags),
+          deviceStoragePermissionProvider.overrideWith(
+            () => _PendingPermission(entered, permission),
+          ),
+          bypassDdosHeadersProvider.overrideWith(
+            (_, _) => Future.value(<String, String>{}),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(bookmarkProvider.future);
+      final post = TestPost(
+        id: 42,
+        tags: {'blocked_tag'},
+        origin: postOriginFromConfig(backend.config),
+        originalImageUrl: '${backend.config.url}/original.jpg',
+      );
+      final bookmark = PostBookmark.fromSnapshot(
+        id: 42,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        snapshot: const StoredPostCodec().encode(
+          post,
+          dataCodec: const EmptyPostDataCodec('test'),
+        ),
+        post: post,
+        postId: 42,
+      );
+      final operation = container
+          .read(bookmarkProvider.notifier)
+          .downloadBookmarks(backend.config.auth, backend.config.download, [
+            bookmark,
+          ]);
+      if (change == 'already-blacklisted') {
+        await operation;
+        expect(entered.isCompleted, isFalse);
+        expect(downloads.requests, isEmpty);
+        return;
+      }
+      await entered.future;
+      if (change == 'delete') {
+        profiles.replace([]);
+      } else if (change == 'credentials') {
+        profiles.replace([backend.config.copyWith(apiKey: 'changed')]);
+      } else {
+        tags = {'revoked'};
+        container.invalidate(blacklistTagsProvider(backend.config.filter));
+        await container.read(
+          blacklistTagsProvider(backend.config.filter).future,
+        );
+      }
+      permission.complete(
+        const DeviceStoragePermissionState(
+          storagePermission: PermissionStatus.granted,
+          isNotificationRead: true,
+        ),
+      );
+      await operation;
+      expect(downloads.requests, isEmpty);
+    });
+  }
+  test(
+    'pending extractor stops scheduling after credential revocation',
+    () async {
+      final backend = FakeBooruBackend();
+      final downloads = MemoryDownloadService();
+      final runtime = backend.createRuntime(
+        configs: [backend.config],
+        downloadService: downloads,
+      );
+      final initial = runtime.initialState;
+      final profiles = _Profiles([backend.config]);
+      final extractor = _PendingExtractor();
+      final container = ProviderContainer(
+        overrides: [
+          ...buildBoorusamaOverrides(
+            runtime,
+            RebootData(
+              config: initial.initialConfig,
+              configs: initial.configs,
+              settings: initial.settings,
+            ),
+          ),
+          booruConfigProvider.overrideWith(() => profiles),
+          blacklistTagsProvider.overrideWith((_, _) async => <String>{}),
+          downloadFileUrlExtractorProvider.overrideWith((_, _) => extractor),
+          bypassDdosHeadersProvider.overrideWith(
+            (_, _) => Future.value(<String, String>{}),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(bookmarkProvider.future);
+      final post = TestPost(
+        id: 42,
+        origin: postOriginFromConfig(backend.config),
+        originalImageUrl: '${backend.config.url}/original.jpg',
+      );
+      final bookmark = PostBookmark.fromSnapshot(
+        id: 42,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        snapshot: const StoredPostCodec().encode(
+          post,
+          dataCodec: const EmptyPostDataCodec('test'),
+        ),
+        post: post,
+        postId: 42,
+      );
+      final operation = container
+          .read(bookmarkProvider.notifier)
+          .downloadBookmarks(backend.config.auth, backend.config.download, [
+            bookmark,
+          ]);
+      await extractor.entered.future;
+      profiles.replace([backend.config.copyWith(apiKey: 'revoked')]);
+      extractor.result.complete(
+        const DownloadUrlData.urlOnly('https://headless.booru.test/file.jpg'),
+      );
+      await operation;
+      expect(downloads.requests, isEmpty);
+    },
+  );
+}

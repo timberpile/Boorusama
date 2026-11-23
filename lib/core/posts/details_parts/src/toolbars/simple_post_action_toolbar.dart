@@ -11,6 +11,7 @@ import '../../../../widgets/adaptive_button_row.dart';
 import '../../../../widgets/booru_menu_button_row.dart';
 import '../../../details/types.dart';
 import '../../../favorites/providers.dart';
+import '../../../favorites/types.dart';
 import '../../../favorites/widgets.dart';
 import '../../../post/types.dart';
 import '../../../shares/widgets.dart';
@@ -33,7 +34,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
   final int? maxVisibleButtons;
   final void Function(Post post)? onDownload;
   final void Function() onStartSlideshow;
-  final Widget? favoriteButton;
+  final FavoritePostButton? favoriteButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -44,6 +45,15 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
     final viewer = ref.watchConfigViewer;
     final download = ref.watchConfigDownload;
 
+    final share = SharePostButton(
+      post: post,
+      auth: auth,
+      configViewer: viewer,
+      download: download,
+    );
+    final downloadAction = DownloadPostButton.action(context, ref, post);
+    final favoriteAction = favoriteButton?.action(context);
+
     return CommonPostButtonsBuilder(
       post: post,
       onStartSlideshow: onStartSlideshow,
@@ -53,35 +63,64 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
       builder: (context, buttons) {
         return BooruMenuButtonRow(
           crossAxisAlignment: CrossAxisAlignment.start,
+          invokeAfterClose: true,
           maxVisibleButtons: maxVisibleButtons,
           buttons: [
             if (favoriteButton case final btn?)
               ButtonData(
-                required: true,
+                required:
+                    PostActionToolbarScope.maybeOf(context)
+                        ?.groupBookmarkButton ==
+                    null,
                 widget: btn,
-                title: context.t.post.action.favorite,
-                icon: const Icon(Icons.favorite_border),
+                onTap: favoriteAction,
+                enabled: favoriteAction != null,
+                title: (btn.isFaved ?? false)
+                    ? context.t.post.action.unfavorite
+                    : context.t.post.action.favorite,
+                icon: Icon(
+                  (btn.isFaved ?? false)
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                ),
               ),
             ButtonData(
               required: true,
-              widget: BookmarkPostButton(post: post, config: auth),
+              widget:
+                  PostActionToolbarScope.maybeOf(context)?.bookmarkButton ??
+                  BookmarkPostButton(post: post, config: auth),
               title: context.t.post.action.bookmark,
               icon: const Icon(Icons.bookmark_border),
             ),
-            ButtonData(
-              required: true,
-              widget: DownloadPostButton(post: post),
-              title: context.t.download.download,
-              icon: const Icon(Icons.download),
-            ),
-            ButtonData(
-              required: true,
-              widget: SharePostButton(
-                post: post,
-                auth: auth,
-                configViewer: viewer,
-                download: download,
+            if (PostActionToolbarScope.maybeOf(context)?.groupBookmarkButton
+                case final groupBookmark?)
+              ButtonData(
+                required: true,
+                widget: groupBookmark,
+                title: context.t.content_viewer.bookmark_group,
+                icon: const Icon(Icons.bookmark_border),
               ),
+            if (downloadAction != null)
+              ButtonData(
+                required:
+                    PostActionToolbarScope.maybeOf(context)
+                        ?.groupBookmarkButton ==
+                    null,
+                widget: DownloadPostButton(
+                  post: post,
+                  download: downloadAction,
+                ),
+                onTap: downloadAction,
+                title: context.t.download.download,
+                icon: const Icon(Icons.download),
+              ),
+            ButtonData(
+              required:
+                  PostActionToolbarScope.maybeOf(context)
+                      ?.groupBookmarkButton ==
+                  null,
+              widget: share,
+              onTap: share.action(context, ref),
               title: context.t.post.action.share,
               icon: const Icon(Icons.share),
             ),
@@ -94,6 +133,7 @@ class SimplePostActionToolbar<T extends Post> extends ConsumerWidget {
                 icon: const Icon(Icons.comment_outlined),
                 onTap: () => goToCommentPage(context, ref, post),
               ),
+            ...?PostActionToolbarScope.maybeOf(context)?.additionalButtons,
             ...buttons,
           ],
         );
@@ -135,13 +175,19 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
     final isFaved = ref.watch(favoriteProvider((config, post.id)));
     final notifier = ref.watch(favoritesProvider(config).notifier);
     final canFavorite = ref.watch(canFavoriteProvider(config));
+    final needsWebsiteLogin = ref.watch(
+      favoriteNeedsWebsiteLoginProvider(config),
+    );
     final isAuthorized = loginDetails.hasLogin();
-    final addFavorite = canFavorite
-        ? () => notifier.add(post.id, profileId: ref.readConfig.id)
-        : null;
-    final removeFavorite = canFavorite
-        ? () => notifier.remove(post.id, profileId: ref.readConfig.id)
-        : null;
+    final profileId = ref.watchConfig.id;
+    Future<void> setFavorite(bool favorited) async {
+      final confirmed = await notifier.setFavorite(
+        post.id,
+        favorited: favorited,
+        profileId: profileId,
+      );
+      if (!confirmed) throw FavoriteActionFailure.unconfirmed;
+    }
 
     return SimplePostActionToolbar<T>(
       post: post,
@@ -149,16 +195,40 @@ class DefaultPostActionToolbar<T extends Post> extends ConsumerWidget {
       onStartSlideshow: PostDetailsPageViewScope.of(context).startSlideshow,
       favoriteButton:
           (!forceHideFav &&
-              isAuthorized &&
-              addFavorite != null &&
-              removeFavorite != null)
+              ((isAuthorized && canFavorite) || needsWebsiteLogin))
           ? FavoritePostButton(
+              key: ValueKey((config.computeHash(), profileId, post.id)),
               isFaved: isFaved,
-              isAuthorized: isAuthorized,
-              addFavorite: addFavorite,
-              removeFavorite: removeFavorite,
+              isAuthorized: true,
+              isCurrent: () =>
+                  context.mounted &&
+                  ref.readConfigAuth == config &&
+                  ref.readConfig.id == profileId,
+              addFavorite: () => setFavorite(true),
+              removeFavorite: () => setFavorite(false),
             )
           : null,
     );
   }
+}
+
+/// Extends the standard action row without replacing its presentation or actions.
+class PostActionToolbarScope extends InheritedWidget {
+  const PostActionToolbarScope({
+    required this.additionalButtons,
+    required super.child,
+    this.bookmarkButton,
+    this.groupBookmarkButton,
+    super.key,
+  });
+  final List<ButtonData> additionalButtons;
+  final Widget? bookmarkButton;
+  final Widget? groupBookmarkButton;
+  static PostActionToolbarScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<PostActionToolbarScope>();
+  @override
+  bool updateShouldNotify(PostActionToolbarScope oldWidget) =>
+      additionalButtons != oldWidget.additionalButtons ||
+      bookmarkButton != oldWidget.bookmarkButton ||
+      groupBookmarkButton != oldWidget.groupBookmarkButton;
 }

@@ -1,0 +1,502 @@
+{
+  "capture_date": "2026-11-02",
+  "source_commit": "fc601be07b2859eceb8297d10348c68d9611860c",
+  "runtime_diff_from_source_commit": false,
+  "apk_sha256": "56e6955a78a75994b3aa184bd70fccdfcb6a04d2d6fe5d6ab168bbb877b0bf6e",
+  "installed_apk_sha256_matches_build": true,
+  "platform": "Android 17",
+  "engine": "Danbooru API / public Safebooru profile",
+  "appearance": "Existing black default; exact persisted global/profile palette unconfirmed. 12,24,25,26 are theme previews only.",
+  "captures": [
+    {
+      "file": "01-following.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "67adbc76d27541d7aea80ecfb30ea300cbca384280015ca88a368e0aba7165ec",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e28268229874",
+        "image_shape_id": "318339ab-5756-8061-8008-e2826830e5c1",
+        "media_id": "c6f51e89-5d00-81ce-8008-e28253e386bd"
+      }
+    },
+    {
+      "file": "02-following-sort.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "c9729228f46255127139fa91279bbc313bd47d87ff07a8f40d1430002a00a5e5",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282948937f8",
+        "image_shape_id": "318339ab-5756-8061-8008-e28294958a89",
+        "media_id": "c6f51e89-5d00-81ce-8008-e282944e9715"
+      }
+    },
+    {
+      "file": "03-following-editor-keyboard.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "0d1c850cc5406d95780a25dfd478872e2984072caec76ac4e8c23cc6a993ae19",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282db69e2da",
+        "image_shape_id": "318339ab-5756-8061-8008-e282db786361",
+        "media_id": "08b470c5-dda4-812a-8008-e282db2797e3"
+      }
+    },
+    {
+      "file": "04-navigation.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "7d29dbec39a0deee6bdf566cc899c2246299e1bd73033b2df8af0644bda614c5",
+      "source_path": "lib/core/navigation/app_navigation_shell.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282a286879f",
+        "image_shape_id": "318339ab-5756-8061-8008-e282a293642c",
+        "media_id": "08b470c5-dda4-812a-8008-e282a2421f62"
+      }
+    },
+    {
+      "file": "05-downloads.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "53235bf9f135db934488e231775e301fbbf0832abd2860ebae9de4a477b69048",
+      "source_path": "lib/core/download_manager/src/pages/download_manager_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282a65de15c",
+        "image_shape_id": "318339ab-5756-8061-8008-e282a66a613f",
+        "media_id": "08b470c5-dda4-812a-8008-e282a627a3a7"
+      }
+    },
+    {
+      "file": "06-downloads-menu.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "0e0bf33ca188f070a2823bcc65ece009bf1e009a1952f563914ebf61bd328c9b",
+      "source_path": "lib/core/download_manager/src/pages/download_manager_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282a90c5adf",
+        "image_shape_id": "318339ab-5756-8061-8008-e282a9176e04",
+        "media_id": "542abcb8-15f9-80f7-8008-e282a8bf97d0"
+      }
+    },
+    {
+      "file": "07-settings.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "054ab11e14196e641d8b90b56101676ccdaef17181c0002f5f54cc8ca32a21dd",
+      "source_path": "lib/core/settings/src/pages/settings_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282e93fb46c",
+        "image_shape_id": "318339ab-5756-8061-8008-e282e94b57f1",
+        "media_id": "542abcb8-15f9-80f7-8008-e282e8e93262"
+      }
+    },
+    {
+      "file": "08-appearance.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "cb5b97aff4ad2138b225ca813c5c9c83674bb0e821ef6bab6897882c4062fb0f",
+      "source_path": "lib/core/settings/src/pages/appearance/appearance_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e282f74c1732",
+        "image_shape_id": "318339ab-5756-8061-8008-e282f7599c41",
+        "media_id": "08b470c5-dda4-812a-8008-e282f702a17f"
+      }
+    },
+    {
+      "file": "09-storage.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "97be8523ab28463363e2ea8f3da59e09e7a19d81518b851bf8501a9df92ba7a4",
+      "source_path": "lib/core/settings/src/pages/data_and_storage_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e283056166bc",
+        "image_shape_id": "318339ab-5756-8061-8008-e283056d823c",
+        "media_id": "c6f51e89-5d00-81ce-8008-e283051fa3ab"
+      }
+    },
+    {
+      "file": "10-accessibility.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "348790f8dfe2872f01ef4020791c9b79685ab30948e03736f6fa7421763120b8",
+      "source_path": "lib/core/settings/src/pages/accessibility_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2830d1d2c8f",
+        "image_shape_id": "318339ab-5756-8061-8008-e2830d298374",
+        "media_id": "08b470c5-dda4-812a-8008-e2830cdf1e67"
+      }
+    },
+    {
+      "file": "11-profiles.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "d9a2aff1a3e3a955ea4702ecd59de8109a71a6473c0feaeafcd3b69e4c040c15",
+      "source_path": "lib/core/navigation/profile_management_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2831d047fa8",
+        "image_shape_id": "318339ab-5756-8061-8008-e2831d0fda3b",
+        "media_id": "c6f51e89-5d00-81ce-8008-e2831cc22a0e"
+      }
+    },
+    {
+      "file": "12-theme-preview.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "0b8312f5cf71e7055527df1f630aa24b85e9c44a5d1004491d2fc7a68d404861",
+      "source_path": "lib/core/themes/viewers/src/pages/theme_preview_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e283552f023b",
+        "image_shape_id": "318339ab-5756-8061-8008-e283553c437c",
+        "media_id": "c6f51e89-5d00-81ce-8008-e28354f285cd"
+      }
+    },
+    {
+      "file": "13-bookmarks.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "44ac1ed4a0164f53942115840e94046d120dab064563abf02890b87a32d69308",
+      "source_path": "lib/core/bookmarks/src/pages/bookmark_group_browser_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e283596c8246",
+        "image_shape_id": "318339ab-5756-8061-8008-e2835978a702",
+        "media_id": "08b470c5-dda4-812a-8008-e283592774fc"
+      }
+    },
+    {
+      "file": "14-search-keyboard.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "81650b6f38f33fb24b23f29597af8deccb900ee465db49ea8e88aa088a5c3c8b",
+      "source_path": "lib/core/search/search/src/pages/search_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2839789e96d",
+        "image_shape_id": "318339ab-5756-8061-8008-e283979ba14a",
+        "media_id": "542abcb8-15f9-80f7-8008-e28396f8a520"
+      }
+    },
+    {
+      "file": "15-search-query.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "d112ad6f5369513d760c9d637978d420405411ee329546dadb046c24aa18449f",
+      "source_path": "lib/core/search/search/src/pages/search_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e283abcd9f14",
+        "image_shape_id": "318339ab-5756-8061-8008-e283abd9f20f",
+        "media_id": "c6f51e89-5d00-81ce-8008-e283ab86ed91"
+      }
+    },
+    {
+      "file": "16-search-empty-result.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "47bf0a1bd06e675249e1dc01b6acd5c885b081d945df8f972fdef72bde94a381",
+      "source_path": "lib/core/search/search/src/pages/search_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e283debbaf25",
+        "image_shape_id": "318339ab-5756-8061-8008-e283decbf2da",
+        "media_id": "c6f51e89-5d00-81ce-8008-e283de7a36e3"
+      }
+    },
+    {
+      "file": "17-grid.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "7f6325b43dbc6d3d39078b7046b7cc8290e5eba8ce5e39f6dbb66216e18a0f8a",
+      "source_path": "lib/core/posts/listing/src/widgets/post_grid.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e284c50cb177",
+        "image_shape_id": "318339ab-5756-8061-8008-e284c51cfa85",
+        "media_id": "542abcb8-15f9-80f7-8008-e284c4c2f708"
+      }
+    },
+    {
+      "file": "18-viewer.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "2861ecd8ad6d943938357c07708ea4dc675e615a96ec7832281aec2705f2ccc1",
+      "source_path": "lib/core/posts/details/src/widgets/post_details_page_scaffold.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e284cab68c9a",
+        "image_shape_id": "318339ab-5756-8061-8008-e284cac44813",
+        "media_id": "08b470c5-dda4-812a-8008-e284ca6e3537"
+      }
+    },
+    {
+      "file": "19-viewer-details.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "06b502ee9bb9027401b2fa212bd3b2d28e29c0ad4755f0c59e1be68785019199",
+      "source_path": "lib/core/posts/details/src/widgets/post_details_page_scaffold.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e28503a9a964",
+        "image_shape_id": "318339ab-5756-8061-8008-e28503b7c9db",
+        "media_id": "c6f51e89-5d00-81ce-8008-e2850360bde4"
+      }
+    },
+    {
+      "file": "20-following-editor-enabled.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "1580d9d392c2b083befbe5aa01bd383893fc1546d3e6b39b8bb59c42f1d6ddfd",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e28510fe2bcc",
+        "image_shape_id": "318339ab-5756-8061-8008-e285110a457e",
+        "media_id": "08b470c5-dda4-812a-8008-e28510bde3cb"
+      }
+    },
+    {
+      "file": "21-following-editor-text2.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 2.0,
+      "sha256": "b973e52243e4decff1e815d34060e222b4c73688cb9cc5da64e3c1dfc233b9ec",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2851e3da594",
+        "image_shape_id": "318339ab-5756-8061-8008-e2851e4b662f",
+        "media_id": "542abcb8-15f9-80f7-8008-e2851df5e160"
+      }
+    },
+    {
+      "file": "22-following-wide.png",
+      "pixel_size": [
+        1600,
+        1000
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "7d1379595d288a4e0fca6b493c7d4e7bc350a0388f4357c185fae18ca30b2a6c",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e285225a37fd",
+        "image_shape_id": "318339ab-5756-8061-8008-e28522648c63",
+        "media_id": "c6f51e89-5d00-81ce-8008-e285221160a9"
+      }
+    },
+    {
+      "file": "23-following-editor-wide.png",
+      "pixel_size": [
+        1600,
+        1000
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "d376aafce7ae03f7eb03a530db930f3e47fbc6cbd3bf1359c6ede076d00823b5",
+      "source_path": "lib/core/search/following_topics/src/pages/following_topics_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2852e5ce3d9",
+        "image_shape_id": "318339ab-5756-8061-8008-e2852e695c9c",
+        "media_id": "542abcb8-15f9-80f7-8008-e2852e1074d6"
+      }
+    },
+    {
+      "file": "24-theme-preview-alternative.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "8a0dfb8e0e54a8506e6e7235e1c05d059ec409032236f64736b65348cf126429",
+      "source_path": "lib/core/themes/viewers/src/pages/theme_preview_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e285328aefd2",
+        "image_shape_id": "318339ab-5756-8061-8008-e285329666f6",
+        "media_id": "08b470c5-dda4-812a-8008-e285323dbe31"
+      }
+    },
+    {
+      "file": "25-theme-preview-light.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "a8c4334c86a33f23ef579eaf9a4232234362041c8cb7d4090faab4a1a6ebf354",
+      "source_path": "lib/core/themes/viewers/src/pages/theme_preview_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2853d046467",
+        "image_shape_id": "318339ab-5756-8061-8008-e2853d138615",
+        "media_id": "c6f51e89-5d00-81ce-8008-e2853cbac839"
+      }
+    },
+    {
+      "file": "26-theme-preview-dark.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "4500b9316f20595e6769c45d4a515e95211a27f1a83f08457e9e8c138249abcf",
+      "source_path": "lib/core/themes/viewers/src/pages/theme_preview_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e28540c6ad50",
+        "image_shape_id": "318339ab-5756-8061-8008-e28540d47e55",
+        "media_id": "542abcb8-15f9-80f7-8008-e28540844dd4"
+      }
+    },
+    {
+      "file": "27-bookmark-groups.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "228f7afbfac39fff4931f6e00d8103bc1a9f1d3409d05dac6800a16f1343f325",
+      "source_path": "lib/core/bookmarks/src/pages/bookmark_group_browser_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e28549da1bca",
+        "image_shape_id": "318339ab-5756-8061-8008-e28549e651b4",
+        "media_id": "542abcb8-15f9-80f7-8008-e2854992eb93"
+      }
+    },
+    {
+      "file": "28-bookmark-default.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "683df869b792b5b79f0bea9e8e59060d388a02e79c2517c166e9615c3d68e6e6",
+      "source_path": "lib/core/bookmarks/src/pages/bookmark_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2854da131ee",
+        "image_shape_id": "318339ab-5756-8061-8008-e2854dade64f",
+        "media_id": "c6f51e89-5d00-81ce-8008-e2854d5fa3a5"
+      }
+    },
+    {
+      "file": "29-artists.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "f3335b98ab6a235d94f9cd4fcfe33882ed72da611317b58ec595d1c644ec58f3",
+      "source_path": "lib/boorus/danbooru/artists/search/src/artist_search_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e28551556c51",
+        "image_shape_id": "318339ab-5756-8061-8008-e285515f4ca5",
+        "media_id": "542abcb8-15f9-80f7-8008-e2855107f513"
+      }
+    },
+    {
+      "file": "30-artist-details.png",
+      "pixel_size": [
+        720,
+        1600
+      ],
+      "density_dpi": 320,
+      "system_font_scale": 1.0,
+      "sha256": "a087689185e54bde82003b1e0c17e7c0dfa5eb7b85c969b9f40953050c744b61",
+      "source_path": "lib/boorus/danbooru/artists/search/src/artist_search_page.dart",
+      "penpot": {
+        "board_id": "318339ab-5756-8061-8008-e2856332e474",
+        "image_shape_id": "318339ab-5756-8061-8008-e285634263d2",
+        "media_id": "c6f51e89-5d00-81ce-8008-e28562eab945"
+      }
+    }
+  ],
+  "penpot_import": {
+    "date": "2026-11-02",
+    "file_name": "New File 2",
+    "file_id": "542abcb8-15f9-80f7-8008-e278280a2c47",
+    "page_name": "136 / Mobile evidence (draft)",
+    "page_id": "7944cd2d-8908-807f-8008-e278fe4dc28f",
+    "capture_count": 30,
+    "status": "current-code evidence; not approved target designs",
+    "saved_version_label": "Issue #136 / 30 current-fork screenshots"
+  }
+}

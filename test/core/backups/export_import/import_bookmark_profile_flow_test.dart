@@ -1,5 +1,7 @@
 import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/core/content/providers.dart';
+import 'package:boorusama/core/content/types.dart';
 
 import 'dart:io';
 import 'dart:convert';
@@ -18,7 +20,6 @@ import 'package:boorusama/core/backups/types/types.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
-import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
 import 'package:boorusama/core/bookmarks/src/data/providers.dart';
 import 'package:boorusama/core/bookmarks/src/providers/bookmark_provider.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
@@ -27,6 +28,9 @@ import 'package:boorusama/core/hive/hive_adapters.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
+
+import '../../../support/fakes/bookmark_test_storage.dart';
+
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/info/package_info.dart';
 
@@ -88,9 +92,7 @@ void main() {
     final nondefaultPort = sourceUrl.contains(':443');
     final ipv6 = sourceUrl.contains('[::1]');
     final canonicalBoundary = nondefaultPort || ipv6;
-    final expectedSite = ipv6
-        ? (nondefaultPort ? '[::1]:443/install' : '[::1]/install')
-        : 'site.example:443/install';
+    final expectedSite = normalizePostSourceHost(sourceUrl);
     final crossCategories = accounts == 2 && !rollback;
     testWidgets(
       rollback
@@ -124,11 +126,12 @@ void main() {
           final bookmarkBox = await Hive.openBox<BookmarkHiveObject>(
             'favorites',
           );
+          final bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
           final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
             'bookmark_groups',
           );
           final profileBox = await Hive.openBox<String>('booru_configs');
-          final bookmarks = BookmarkHiveRepository(bookmarkBox);
+          final bookmarks = bookmarkStorage.repository(bookmarkBox);
           final groups = BookmarkGroupRepositoryHive(
             groupBox,
             organizationBox: MemoryBox<dynamic>(),
@@ -171,12 +174,20 @@ void main() {
             );
           }
           final beforeSearches = (await searchRepository.getAll()).toList();
+          var failPreviewCodec = false;
           final container = ProviderContainer(
             overrides: [
+              ...bookmarkStorage.overrides,
               loggerProvider.overrideWithValue(AppLogger()),
               booruEngineRegistryProvider.overrideWith(
                 (ref) => BooruEngineRegistry(),
               ),
+              groupMetadataCodecProvider.overrideWith((ref) {
+                if (failPreviewCodec) {
+                  throw StateError('Controlled preview codec failure');
+                }
+                return const GroupMetadataCodec();
+              }),
               bookmarkRepoProvider.overrideWith((ref) => bookmarks),
               bookmarkGroupRepoProvider.overrideWith((ref) => groups),
               bookmarkUrlResolverProvider.overrideWith(
@@ -236,28 +247,30 @@ void main() {
           addTearDown(() async {
             listener.close();
             container.dispose();
+            await bookmarkStorage.close();
             await bookmarkBox.close();
             await groupBox.close();
             await profileBox.close();
             await directory.delete(recursive: true);
           });
           final source = container.read(bookmarksBackupSourceProvider);
-          final json = source.converter.encode(
-            payload: BookmarkBackupCodec().encode(
-              BookmarkBackupData(
-                bookmarks: [_bookmark(1, sourceUrl), _bookmark(2, sourceUrl)],
-                groups: const [],
-              ),
-            ),
-            extraFields: {
-              'groups': [
-                {
-                  'id': groupId,
-                  'name': 'Imported',
-                  'bookmarkIds': [1, 2],
+          final incoming = [_bookmark(1, sourceUrl), _bookmark(2, sourceUrl)];
+          final data = BookmarkBackupData.unified(
+            records: incoming,
+            groups: [
+              BookmarkGroupBackup(
+                id: groupId,
+                name: 'Imported',
+                bookmarkIds: incoming.map((record) => record.id).toList(),
+                addedAt: {
+                  for (final record in incoming) record.id: record.createdAt,
                 },
-              ],
-            },
+              ),
+            ],
+          );
+          final json = source.converter.encode(
+            payload: BookmarkBackupCodec().encode(data),
+            extraFields: data.extraFields,
           );
           final path = await const ExportPackageWriter(fs: IoFileSystem())
               .write(
@@ -267,7 +280,7 @@ void main() {
                   sources: [
                     ExportPackageSourceBuild(
                       id: 'bookmarks',
-                      schemaVersion: 4,
+                      schemaVersion: source.version,
                       selection: const ExportNodeSelection.explicit(
                         'bookmarks',
                         {
@@ -321,7 +334,9 @@ void main() {
           );
           expect(
             state.preflight!.errors.map((issue) => issue.code),
-            contains('unresolved_profile_dependency'),
+            crossCategories
+                ? contains('unresolved_profile_dependency')
+                : isEmpty,
           );
           if (canonicalBoundary) {
             expect(
@@ -335,6 +350,7 @@ void main() {
             (source) => source.id == 'bookmarks',
           );
           notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          await notifier.previewComplete;
           expect(
             container.read(importFlowProvider).profileMappings,
             crossCategories ? hasLength(1) : isEmpty,
@@ -350,7 +366,62 @@ void main() {
             );
           }
           notifier.replaceSource(original);
+          await notifier.previewComplete;
+          final planningRuns = notifier.dependencyPlanningRuns;
+          notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          expect(container.read(importFlowProvider).previewPending, isTrue);
+          notifier.replaceSource(original);
+          notifier.replaceSource(original.copyWith(action: ImportAction.skip));
+          notifier.replaceSource(original);
           await notifier.apply(context);
+          await notifier.previewComplete;
+          expect(container.read(importFlowProvider).previewPending, isFalse);
+          expect(
+            container
+                .read(importFlowProvider)
+                .resolved!
+                .sources
+                .singleWhere(
+                  (source) => source.id == 'bookmarks',
+                ),
+            original,
+          );
+          expect(notifier.dependencyPlanningRuns - planningRuns, lessThan(4));
+          if (accounts == 0 &&
+              !crossCategories &&
+              sourceUrl == 'https://site.example') {
+            expect(
+              container.read(importFlowProvider).preflight!.isValid,
+              isTrue,
+            );
+            failPreviewCodec = true;
+            container.invalidate(groupMetadataCodecProvider);
+            notifier.replaceSource(
+              original.copyWith(action: ImportAction.skip),
+            );
+            await notifier.previewComplete;
+            final failed = container.read(importFlowProvider).preflight!;
+            expect(failed.errors.map((issue) => issue.code), [
+              'preview_failed',
+            ]);
+            notifier.acknowledgeWarnings(true);
+            expect(container.read(importFlowProvider).preflight, same(failed));
+            expect(
+              container.read(importFlowProvider).preflight!.isValid,
+              isFalse,
+            );
+            failPreviewCodec = false;
+            container.invalidate(groupMetadataCodecProvider);
+            notifier.replaceSource(original);
+            await notifier.previewComplete;
+            expect(
+              container.read(importFlowProvider).preflight!.isValid,
+              isTrue,
+            );
+          }
+          // The selected standalone feed still needs a mapping. Bookmark hints
+          // are optional, previewing them must still leave storage untouched.
+          if (crossCategories) await notifier.apply(context);
           expect(bookmarkBox.length, 1);
           expect((await groups.getGroup(groupId))!.name, 'Original');
           final bookmarkKey = ProfileReferenceKey.fromReference(
@@ -386,18 +457,27 @@ void main() {
             );
           } else {
             notifier.chooseProfileMapping(key, firstId);
+            await notifier.previewComplete;
             final previous = container.read(importFlowProvider).preflight;
             notifier.chooseProfileMapping(key, secondId);
+            await notifier.previewComplete;
             expect(
               identical(previous, container.read(importFlowProvider).preflight),
               isFalse,
             );
           }
-          if (crossCategories) notifier.acknowledgeWarnings(true);
+          if (crossCategories) {
+            final searchKey = ProfileSiteKey.fromReference(
+              _reference(pinProfileId),
+            );
+            notifier.chooseProfileMapping(searchKey, secondId);
+            await notifier.previewComplete;
+            notifier.acknowledgeWarnings(true);
+          }
           final finalId = container
               .read(importFlowProvider)
               .profileMappings
-              .single
+              .singleWhere((mapping) => mapping.siteKey == key)
               .profileId!;
           expect(
             container.read(importFlowProvider).preflight!.isValid,
@@ -420,15 +500,22 @@ void main() {
           expect(await searchRepository.getAll(), beforeSearches);
           expect(await searchRepository.getFeeds(), isEmpty);
           if (crossCategories) {
-            final shared = container
-                .read(importFlowProvider)
-                .profileMappings
-                .single;
-            expect(shared.references.map((r) => r.id).toSet(), {
-              bookmarkKey.exportedId,
-              pinProfileId,
-              feedProfileId,
-            });
+            final shared = container.read(importFlowProvider).profileMappings;
+            expect(
+              shared
+                  .singleWhere((mapping) => mapping.siteKey == key)
+                  .references
+                  .map((r) => r.id),
+              [bookmarkKey.exportedId],
+            );
+            expect(
+              shared
+                  .singleWhere((mapping) => mapping.siteKey != key)
+                  .references
+                  .map((r) => r.id)
+                  .toSet(),
+              {pinProfileId, feedProfileId},
+            );
           }
           if (rollback) {
             final incomingPath = '${directory.path}/incoming-bookmarks.json';
@@ -544,23 +631,21 @@ void main() {
             imageUrlResolver: (_) => const DefaultImageUrlResolver(),
           );
           expect(saved, hasLength(2));
+          final savedExisting = saved.singleWhere((b) => b.postId == 1);
+          final savedNew = saved.singleWhere((b) => b.postId == 2);
           expect(
-            saved.every((b) => b.snapshot.origin.profileIdHint == finalId),
-            isTrue,
+            savedExisting.snapshot.origin.profileIdHint,
+            accounts == 0 ? existing.snapshot.origin.profileIdHint : finalId,
           );
+          expect(savedExisting.sourceUrl, existing.sourceUrl);
+          expect(savedNew.snapshot.origin.profileIdHint, finalId);
           if (canonicalBoundary) {
             expect(saved.map((b) => b.snapshot.origin.sourceHost).toSet(), {
               expectedSite,
             });
-            expect(saved.map((b) => b.snapshot.origin.profileIdHint).toSet(), {
-              secondId,
-            });
           }
-          expect(saved.singleWhere((b) => b.postId == 1).id, existing.id);
-          expect(
-            saved.singleWhere((b) => b.postId == 1).identity,
-            existing.identity,
-          );
+          expect(savedExisting.id, existing.id);
+          expect(savedExisting.identity, existing.identity);
           expect(
             (await groups.getGroup(groupId))!.bookmarkIds,
             saved.map((b) => b.id).toSet(),
@@ -606,25 +691,26 @@ void main() {
   }
 }
 
-Bookmark _bookmark(int id, [String url = 'https://site.example']) => Bookmark(
-  id: id,
-  createdAt: DateTime.utc(2026),
-  updatedAt: DateTime.utc(2026),
-  thumbnailUrl: 'https://media.example/$id.jpg',
-  sampleUrl: 'https://media.example/$id.jpg',
-  originalUrl: 'https://media.example/$id.jpg',
-  sourceUrl: url,
-  booruId: BooruType.gelbooruV2.id,
-  width: 100,
-  height: 100,
-  md5: '',
-  tags: const {},
-  realSourceUrl: null,
-  format: 'jpg',
-  imageUrlResolver: const DefaultImageUrlResolver(),
-  postId: id,
-  metadata: const {},
-);
+PostBookmark _bookmark(int id, [String url = 'https://site.example']) =>
+    PostBookmark(
+      id: id,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      thumbnailUrl: 'https://media.example/$id.jpg',
+      sampleUrl: 'https://media.example/$id.jpg',
+      originalUrl: 'https://media.example/$id.jpg',
+      sourceUrl: url,
+      booruId: BooruType.gelbooruV2.id,
+      width: 100,
+      height: 100,
+      md5: '',
+      tags: const {},
+      realSourceUrl: null,
+      format: 'jpg',
+      imageUrlResolver: const DefaultImageUrlResolver(),
+      postId: id,
+      metadata: const {},
+    );
 BooruConfig _profile(String id, [String url = 'https://site.example']) =>
     BooruConfig.fromJson({
       ...BooruConfig.empty.toJson(),

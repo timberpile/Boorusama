@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 // Package imports:
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
-import 'package:material_ui/material_ui.dart' as material_ui;
 
 // Project imports:
 import 'package:boorusama/core/downloads/urls/providers.dart';
@@ -38,7 +37,7 @@ void main() {
         await harness.settle(tester);
         await tester.pump(const Duration(milliseconds: 500));
         final downloadButtons = find.byType(DownloadPostButton);
-        final downloadButton = downloadButtons.last;
+        final downloadButton = downloadButtons.hitTestable().first;
         await tester.ensureVisible(downloadButton);
         await tester.tap(downloadButton);
         await harness.pumpUntil(
@@ -102,18 +101,17 @@ void main() {
         final downloadControl = find
             .byWidgetPredicate(
               (widget) =>
-                  widget is material_ui.IconButton &&
+                  widget is KurumiActionIconButton &&
                   widget.onLongPress != null,
             )
+            .hitTestable()
             .first;
 
         Future<void> selectSource(int index) async {
           final expectedRequestCount = service.requests.length + 1;
+          await harness.settle(tester);
           await tester.ensureVisible(downloadControl);
-          tester
-              .widget<material_ui.IconButton>(downloadControl)
-              .onLongPress!
-              .call();
+          await tester.longPress(downloadControl);
           await tester.pump();
           await harness.settle(tester);
           final items = find.byType(KurumiPopupMenuItem);

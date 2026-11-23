@@ -12,16 +12,23 @@ extension PoolPostIdsX<T extends Post> on PostRepository<T> {
     required int perPage,
     required PoolDetailsOrder order,
   }) async {
+    if (page < 1) throw ArgumentError.value(page, 'page');
+    if (perPage < 1) throw ArgumentError.value(perPage, 'perPage');
     final sortedIds = _sortPostIds(ids, order);
     final paginatedIds = _paginate(sortedIds, page, perPage);
+    final maxPage = (sortedIds.length + perPage - 1) ~/ perPage;
 
     if (paginatedIds.isEmpty) {
-      return <T>[].toResult(total: sortedIds.length);
+      return <T>[].toResult(
+        total: sortedIds.length,
+        maxPage: maxPage,
+        hasMore: false,
+      );
     }
 
     final result = await getPosts('id:${paginatedIds.join(',')}', 1).run().then(
       (value) => value.fold(
-        (l) => <T>[].toResult(),
+        (error) => throw error,
         (r) => r,
       ),
     );
@@ -34,7 +41,12 @@ extension PoolPostIdsX<T extends Post> on PostRepository<T> {
       }
     }
 
-    return ordered.toResult(total: sortedIds.length);
+    // Missing/deleted/restricted IDs do not change the remaining ID slices.
+    return ordered.toResult(
+      total: sortedIds.length,
+      maxPage: maxPage,
+      hasMore: page < maxPage,
+    );
   }
 
   List<int> _sortPostIds(List<int> ids, PoolDetailsOrder order) {

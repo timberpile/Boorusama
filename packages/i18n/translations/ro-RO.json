@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Actualizările primele",
-    "sort_last_post_oldest": "Cele mai vechi postări primele"
+    "sort_manual": "Manual",
+    "sort_unread_first": "Necitite mai întâi",
+    "sort_recently_added": "Adăugate recent"
   },
   "generic": {
     "done": "Terminat",
@@ -454,6 +455,11 @@
   "bulk_downloads": {
     "options": {
       "save_to_folder": "Salvați într-un dosar"
+    }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "Grupează postările"
     }
   }
 }

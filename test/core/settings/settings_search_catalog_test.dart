@@ -6,6 +6,59 @@ import 'package:boorusama/core/settings/src/search/settings_search.dart';
 import 'package:boorusama/core/settings/src/search/settings_search_catalog.dart';
 
 void main() {
+  for (final locale in ['en-US', 'de-DE']) {
+    testWidgets(
+      'timeline settings are discoverable by their visible $locale labels',
+      (tester) async {
+        await tester.runAsync(() => ensureI18nInitialized(locale));
+        addTearDown(
+          () => tester.runAsync(() => ensureI18nInitialized('en-US')),
+        );
+        late Translations t;
+        await tester.pumpWidget(
+          BooruLocalization(
+            child: Builder(
+              builder: (context) {
+                t = context.t;
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+        final label = locale == 'de-DE'
+            ? 'Timeline-Leiste sichtbar halten'
+            : 'Keep Timeline Toolbar Visible';
+        final catalog = buildSettingsSearchCatalog(
+          t,
+          sections: {'appearance': 'Appearance'},
+          isMobile: true,
+        );
+        final relatedLabel = locale == 'de-DE'
+            ? 'Verwandte Beiträge gruppieren'
+            : 'Group Related Posts';
+        expect(
+          searchSettings(catalog, relatedLabel).any(
+            (item) =>
+                item.id == 'appearance.group_related_posts' &&
+                item.title == relatedLabel,
+          ),
+          isTrue,
+        );
+        for (final query in [label, 'timeline', 'toolbar']) {
+          final found = searchSettings(catalog, query);
+          expect(
+            found.any(
+              (item) =>
+                  item.id == 'appearance.keep_timeline_toolbar_visible' &&
+                  item.title == label,
+            ),
+            isTrue,
+          );
+        }
+      },
+    );
+  }
+
   testWidgets(
     'indexes translated controls only in available categories',
     (tester) async {
@@ -60,6 +113,14 @@ void main() {
         isMobile: true,
       );
       expect(mobile.any((item) => item.id == 'download.network'), isTrue);
+      for (final catalog in [desktop, mobile]) {
+        expect(catalog.any((item) => item.id == 'viewer.swipe_mode'), isFalse);
+        expect(
+          catalog.any((item) => item.id == 'viewer.double_tap_zoom'),
+          isFalse,
+        );
+        expect(searchSettings(catalog, 'swipe mode'), isEmpty);
+      }
     },
   );
 }

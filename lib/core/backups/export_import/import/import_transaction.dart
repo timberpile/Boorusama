@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:crypto/crypto.dart';
 
 import '../../../../foundation/filesystem.dart';
@@ -80,7 +82,15 @@ final class ImportTransaction {
         }
       }
       if (stale.isNotEmpty) {
-        await store.delete(transactionId);
+        try {
+          final recovered = journal.copyWith(
+            state: ImportJournalState.recovered,
+          );
+          await store.write(recovered);
+          await store.retire(recovered);
+        } on FileSystemException {
+          // Startup can discard the still-prepared plan without restoring data.
+        }
         throw StaleImportPlanException(stale);
       }
 
@@ -101,11 +111,19 @@ final class ImportTransaction {
       }
       journal = journal.copyWith(state: ImportJournalState.committed);
       await store.write(journal);
-      await store.delete(transactionId);
     } on StaleImportPlanException {
       rethrow;
     } catch (error, stackTrace) {
-      final rollbackErrors = await rollback(journal, sources);
+      final List<Object> rollbackErrors;
+      try {
+        rollbackErrors = await rollback(journal, sources);
+      } catch (rollbackError) {
+        throw ImportRollbackException(
+          importError: error,
+          rollbackErrors: [rollbackError],
+          transactionId: transactionId,
+        );
+      }
       if (rollbackErrors.isNotEmpty) {
         throw ImportRollbackException(
           importError: error,
@@ -115,6 +133,7 @@ final class ImportTransaction {
       }
       Error.throwWithStackTrace(error, stackTrace);
     }
+    await store.retire(journal);
   }
 
   Future<List<Object>> rollback(
@@ -152,7 +171,7 @@ final class ImportTransaction {
         clearCurrentSource: true,
       );
       await store.write(current);
-      await store.delete(journal.transactionId);
+      await store.retire(current);
     } else {
       await store.write(
         current.copyWith(

@@ -13,6 +13,8 @@ import '../../../../../../core/bulk_downloads/routes.dart';
 import '../../../../../../core/configs/config/providers.dart';
 import '../../../../../../core/images/booru_image.dart';
 import '../../../../../../core/posts/filter/types.dart';
+import '../../../../../../core/posts/links/boorusama_artist_link.dart';
+import '../../../../../../core/posts/links/share_artist_link_button.dart';
 import '../../../../../../core/posts/listing/providers.dart';
 import '../../../../../../core/posts/post/types.dart';
 import '../../../../../../core/search/following_topics/src/widgets/topic_follow_control.dart';
@@ -243,6 +245,13 @@ class ArtistIdentity extends ConsumerWidget {
                           compact: true,
                           showCount: false,
                         ),
+                      ),
+                    ),
+                    ArtistLinkShareButton(
+                      profileName: ref.watchConfig.name,
+                      link: BoorusamaArtistLink.fromArtist(
+                        auth: ref.watchConfigAuth,
+                        artistName: artistName,
                       ),
                     ),
                     KurumiPopupMenuButton(

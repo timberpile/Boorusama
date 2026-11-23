@@ -130,7 +130,10 @@ class DefaultCookieAuthConfigSection extends ConsumerWidget {
       MaterialPageRoute(
         builder: (context) => CookieAccessWebViewPage(
           url: loginUrl!,
-          onGet: onGetCookies,
+          onGet: (cookies) {
+            onGetCookies(cookies);
+            return null;
+          },
         ),
       ),
     );

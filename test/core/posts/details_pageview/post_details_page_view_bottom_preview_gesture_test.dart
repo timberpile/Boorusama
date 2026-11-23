@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/src/gen/strings.g.dart' show TranslationProvider;
@@ -10,11 +11,50 @@ const _bottomPreviewKey = Key('bottom-preview');
 const _mediaControlKey = Key('media-control');
 
 void main() {
+  for (final animated in [false, true]) {
+    testWidgets(
+      'viewer reports measured visible preview obstruction, animated=$animated',
+      (tester) async {
+        final controller = _controller(disableAnimation: !animated);
+        _disposeAfterUnmount(tester, controller);
+        await tester.pumpWidget(
+          _TestApp(controller: controller, disableAnimation: !animated),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 96);
+        controller.hideBottomSheet();
+        await tester.pump();
+        if (animated) {
+          await tester.pump(const Duration(milliseconds: 75));
+          expect(controller.bottomObstruction.value, greaterThan(0));
+          expect(controller.bottomObstruction.value, lessThan(96));
+        }
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 0);
+        controller.showBottomSheet();
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 96);
+        await tester.pumpWidget(
+          _TestApp(
+            controller: controller,
+            disableAnimation: !animated,
+            previewHeight: 144,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.bottomObstruction.value, 144);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(controller.bottomObstruction.value, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('an upward swipe on the bottom preview opens post information', (
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
 
     await _dragBottomPreview(tester, const Offset(0, -80));
@@ -26,7 +66,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller(disableAnimation: false);
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(
       _TestApp(
         controller: controller,
@@ -39,11 +79,11 @@ void main() {
     expect(controller.sheetState.value, SheetState.expanded);
   });
 
-  testWidgets('a qualifying upward movement opens information before release', (
+  testWidgets('an upward movement waits until release to commit information', (
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     final center = tester.getCenter(find.byKey(_bottomPreviewKey));
     final gesture = await tester.startGesture(center);
@@ -51,8 +91,10 @@ void main() {
     await gesture.moveBy(const Offset(0, -80));
     await tester.pumpAndSettle();
 
-    expect(controller.sheetState.value, SheetState.expanded);
+    expect(controller.sheetState.value, SheetState.collapsed);
     await gesture.up();
+    await tester.pumpAndSettle();
+    expect(controller.sheetState.value, SheetState.expanded);
   });
 
   final rejectedDrags = [
@@ -66,7 +108,7 @@ void main() {
       tester,
     ) async {
       final controller = _controller();
-      addTearDown(controller.dispose);
+      _disposeAfterUnmount(tester, controller);
       await tester.pumpWidget(_TestApp(controller: controller));
 
       await _dragBottomPreview(tester, drag.offset);
@@ -79,7 +121,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     final center = tester.getCenter(find.byKey(_bottomPreviewKey));
     final first = await tester.startGesture(center, pointer: 1);
@@ -101,7 +143,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     final center = tester.getCenter(find.byKey(_bottomPreviewKey));
     final first = await tester.startGesture(center, pointer: 1);
@@ -127,7 +169,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     var taps = 0;
     await tester.pumpWidget(
       _TestApp(
@@ -147,7 +189,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
 
     await _dragBottomPreview(tester, const Offset(0, -80));
@@ -156,48 +198,33 @@ void main() {
     expect(find.byKey(_bottomPreviewKey), findsNothing);
   });
 
-  final navigationCases = [
-    (
-      name: 'horizontal',
-      viewMode: ViewMode.horizontal,
-      offset: const Offset(-700, 0),
-    ),
-    (
-      name: 'vertical',
-      viewMode: ViewMode.vertical,
-      offset: const Offset(0, -400),
-    ),
-  ];
-  for (final navigation in navigationCases) {
-    testWidgets(
-      '${navigation.name} page navigation remains available above the preview',
-      (tester) async {
-        final controller = _controller(viewMode: navigation.viewMode);
-        addTearDown(controller.dispose);
-        await tester.pumpWidget(
-          _TestApp(
-            controller: controller,
-            viewMode: navigation.viewMode,
-          ),
-        );
-
-        await tester.drag(
-          find.byKey(const Key('viewer-page-0')),
-          navigation.offset,
-        );
-        await tester.pumpAndSettle();
-
-        expect(controller.currentPage.value, 1);
-        expect(controller.sheetState.value, SheetState.collapsed);
-      },
-    );
-  }
-
   testWidgets(
-    'a downward swipe on expanded media minimizes before pointer release',
+    'horizontal page navigation remains available above the preview',
     (tester) async {
       final controller = _controller();
-      addTearDown(controller.dispose);
+      _disposeAfterUnmount(tester, controller);
+      await tester.pumpWidget(_TestApp(controller: controller));
+
+      expect(
+        tester.widget<PageView>(find.byType(PageView)).scrollDirection,
+        Axis.horizontal,
+      );
+      await tester.drag(
+        find.byKey(const Key('viewer-page-0')),
+        const Offset(-700, 0),
+      );
+      await tester.pumpAndSettle();
+
+      expect(controller.currentPage.value, 1);
+      expect(controller.sheetState.value, SheetState.collapsed);
+    },
+  );
+
+  testWidgets(
+    'a downward drag on Details media retains Details before pointer release',
+    (tester) async {
+      final controller = _controller();
+      _disposeAfterUnmount(tester, controller);
       await tester.pumpWidget(_TestApp(controller: controller));
       await _expandDetails(tester, controller);
       final gesture = await tester.startGesture(
@@ -207,23 +234,24 @@ void main() {
       await gesture.moveBy(const Offset(0, 80));
       await tester.pumpAndSettle();
 
-      expect(controller.sheetState.value, SheetState.hidden);
+      expect(controller.sheetState.value, SheetState.expanded);
       await gesture.up();
     },
   );
 
-  testWidgets('a downward swipe on the details sheet still minimizes', (
+  testWidgets('a downward drag at the top of Details returns to Immersive', (
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     await _expandDetails(tester, controller);
 
-    await tester.drag(find.byType(SheetDragline), const Offset(0, 500));
+    expect(find.byType(SheetDragline), findsNothing);
+    await tester.dragFrom(const Offset(200, 120), const Offset(0, 200));
     await tester.pumpAndSettle();
 
-    expect(controller.sheetState.value, isNot(SheetState.expanded));
+    expect(controller.sheetState.value, SheetState.hidden);
   });
 
   testWidgets(
@@ -232,7 +260,7 @@ void main() {
       tester,
     ) async {
       final controller = _controller();
-      addTearDown(controller.dispose);
+      _disposeAfterUnmount(tester, controller);
       await tester.pumpWidget(_TestApp(controller: controller));
 
       await _dragMedia(tester, const Offset(0, 80));
@@ -245,7 +273,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     await _expandDetails(tester, controller);
     controller.zoom.value = true;
@@ -256,11 +284,11 @@ void main() {
     expect(controller.sheetState.value, SheetState.expanded);
   });
 
-  testWidgets('a large-screen media swipe leaves the side panel expanded', (
+  testWidgets('a large-screen top-edge pull also returns to Immersive', (
     tester,
   ) async {
     final controller = _controller(isLargeScreen: true);
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(
       _TestApp(controller: controller, isLargeScreen: true),
     );
@@ -270,7 +298,7 @@ void main() {
     await tester.dragFrom(const Offset(200, 300), const Offset(0, 80));
     await tester.pumpAndSettle();
 
-    expect(controller.sheetState.value, SheetState.expanded);
+    expect(controller.sheetState.value, SheetState.hidden);
     expect(controller.animating.value, isFalse);
   });
 
@@ -285,7 +313,7 @@ void main() {
       tester,
     ) async {
       final controller = _controller();
-      addTearDown(controller.dispose);
+      _disposeAfterUnmount(tester, controller);
       await tester.pumpWidget(_TestApp(controller: controller));
       await _expandDetails(tester, controller);
 
@@ -299,7 +327,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     await _expandDetails(tester, controller);
     final center = tester.getCenter(find.byKey(const Key('viewer-page-0')));
@@ -318,34 +346,313 @@ void main() {
     expect(controller.sheetState.value, SheetState.expanded);
   });
 
-  testWidgets('horizontal paging resumes after expanded details minimize', (
+  for (final disabled in [true, false]) {
+    testWidgets(
+      'horizontal paging retains Details (animations disabled: $disabled)',
+      (
+        tester,
+      ) async {
+        final controller = _controller(disableAnimation: disabled);
+        _disposeAfterUnmount(tester, controller);
+        await tester.pumpWidget(
+          _TestApp(controller: controller, disableAnimation: disabled),
+        );
+        await _expandDetails(tester, controller);
+
+        await tester.dragFrom(const Offset(300, 120), const Offset(-250, 0));
+        await tester.pumpAndSettle();
+
+        expect(controller.currentPage.value, 1);
+        expect(controller.sheetState.value, SheetState.expanded);
+        expect(controller.sheetController.isAttached, isFalse);
+        expect(controller.displacement.value, 0);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final disabled in [true, false]) {
+    testWidgets(
+      'clear swipe over Details pages preserves its mode (animations disabled: $disabled)',
+      (tester) async {
+        final controller = _controller(disableAnimation: disabled);
+        _disposeAfterUnmount(tester, controller);
+        await tester.pumpWidget(
+          _TestApp(
+            controller: controller,
+            disableAnimation: disabled,
+            scrollableDetails: true,
+          ),
+        );
+        await _expandDetails(tester, controller);
+        await tester.dragFrom(const Offset(300, 600), const Offset(-260, 12));
+        await tester.pumpAndSettle();
+        expect(controller.page, 1);
+        expect(controller.sheetState.value, SheetState.expanded);
+        expect(controller.sheetController.isAttached, isFalse);
+        await _expandDetails(tester, controller);
+        await tester.dragFrom(const Offset(100, 600), const Offset(260, -12));
+        await tester.pumpAndSettle();
+        expect(controller.page, 0);
+        expect(controller.sheetState.value, SheetState.expanded);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final offset in [
+    const Offset(-30, 0),
+    const Offset(-90, -120),
+    const Offset(0, -180),
+  ]) {
+    testWidgets('details reject unclear sideways intent $offset', (
+      tester,
+    ) async {
+      final controller = _controller();
+      _disposeAfterUnmount(tester, controller);
+      await tester.pumpWidget(
+        _TestApp(controller: controller, scrollableDetails: true),
+      );
+      await _expandDetails(tester, controller);
+      await tester.dragFrom(const Offset(300, 600), offset);
+      await tester.pumpAndSettle();
+      expect(controller.page, 0);
+      expect(controller.sheetState.value, SheetState.expanded);
+      if (offset.dy < 0) {
+        expect(
+          tester
+              .widget<CustomScrollView>(
+                find.byKey(const ValueKey(('viewer-details-scroll', 0))),
+              )
+              .controller!
+              .offset,
+          greaterThan(0),
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final block in [
+    'zoom',
+    'swiping disabled',
+    'animation',
+  ]) {
+    testWidgets('details content preserves $block restriction', (tester) async {
+      final controller = _controller();
+      _disposeAfterUnmount(tester, controller);
+      await tester.pumpWidget(
+        _TestApp(
+          controller: controller,
+          scrollableDetails: true,
+        ),
+      );
+      await _expandDetails(tester, controller);
+      if (block == 'zoom') controller.zoom.value = true;
+      if (block == 'swiping disabled') controller.disableAllSwiping();
+      if (block == 'animation') controller.animating.value = true;
+      await tester.pump();
+      await tester.dragFrom(const Offset(300, 600), const Offset(-180, 0));
+      await tester.pumpAndSettle();
+      expect(controller.page, 0);
+      expect(controller.sheetState.value, SheetState.expanded);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('details swipe cancels on multi-touch and when zoom changes', (
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
-    await tester.pumpWidget(_TestApp(controller: controller));
-    await _expandDetails(tester, controller);
-
-    await tester.dragFrom(const Offset(300, 120), const Offset(-250, 0));
-    await tester.pumpAndSettle();
-    expect(controller.currentPage.value, 0);
-
-    await _dragMedia(tester, const Offset(0, 80));
-    expect(controller.sheetState.value, SheetState.hidden);
-
-    await tester.drag(
-      find.byKey(const Key('viewer-page-0')),
-      const Offset(-350, 0),
+    _disposeAfterUnmount(tester, controller);
+    await tester.pumpWidget(
+      _TestApp(controller: controller, scrollableDetails: true),
     );
+    await _expandDetails(tester, controller);
+    final first = await tester.startGesture(const Offset(300, 600), pointer: 1);
+    await first.moveBy(const Offset(-60, 0));
+    final second = await tester.startGesture(
+      const Offset(260, 650),
+      pointer: 2,
+    );
+    await first.moveBy(const Offset(-80, 0));
+    await second.up();
+    await first.up();
     await tester.pumpAndSettle();
-    expect(controller.currentPage.value, 1);
+    expect(controller.page, 0);
+    final interrupted = await tester.startGesture(const Offset(300, 600));
+    await interrupted.moveBy(const Offset(-25, 0));
+    controller.zoom.value = true;
+    await tester.pump();
+    controller.zoom.value = false;
+    await tester.pump();
+    await interrupted.moveBy(const Offset(-140, 0));
+    await interrupted.up();
+    await tester.pumpAndSettle();
+    expect(controller.page, 0);
+    expect(controller.sheetState.value, SheetState.expanded);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'details cancel vertical starts, reversed swipes, pointer cancellation and boundary swipes',
+    (tester) async {
+      final controller = _controller();
+      _disposeAfterUnmount(tester, controller);
+      await tester.pumpWidget(
+        _TestApp(controller: controller, scrollableDetails: true),
+      );
+      await _expandDetails(tester, controller);
+      // There is no previous page at the start.
+      await tester.dragFrom(const Offset(100, 600), const Offset(180, 0));
+      await tester.pumpAndSettle();
+      expect(controller.page, 0);
+      for (final cancellation in ['vertical start', 'reversal', 'cancel']) {
+        final gesture = await tester.startGesture(const Offset(300, 600));
+        if (cancellation == 'vertical start') {
+          await gesture.moveBy(const Offset(0, -40));
+          await gesture.moveBy(const Offset(-140, 0));
+          await gesture.up();
+        } else if (cancellation == 'reversal') {
+          await gesture.moveBy(const Offset(-80, 0));
+          await gesture.moveBy(const Offset(80, 0));
+          await gesture.up();
+        } else {
+          await gesture.moveBy(const Offset(-100, 0));
+          await gesture.cancel();
+        }
+        await tester.pumpAndSettle();
+        expect(controller.page, 0, reason: cancellation);
+        expect(controller.sheetState.value, SheetState.expanded);
+      }
+      controller.jumpToPage(1);
+      await tester.pumpAndSettle();
+      await _expandDetails(tester, controller);
+      // There is no next page at the end.
+      await tester.dragFrom(const Offset(300, 600), const Offset(-180, 0));
+      await tester.pumpAndSettle();
+      expect(controller.page, 1);
+      expect(controller.sheetState.value, SheetState.expanded);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'details retain nested horizontal scrolling, taps and text selection at narrow width with enlarged text',
+    (tester) async {
+      final controller = _controller();
+      _disposeAfterUnmount(tester, controller);
+      final horizontal = ScrollController();
+      addTearDown(horizontal.dispose);
+      var taps = 0;
+      await tester.pumpWidget(
+        _TestApp(
+          controller: controller,
+          textScale: 2,
+          detailsContent: Column(
+            children: [
+              TextButton(
+                onPressed: () => taps++,
+                child: const Text('Details action'),
+              ),
+              const SelectableText(
+                'Select this metadata text without changing the post',
+                key: Key('selectable-details'),
+              ),
+              SizedBox(
+                height: 100,
+                child: SingleChildScrollView(
+                  key: const Key('nested-horizontal'),
+                  controller: horizontal,
+                  scrollDirection: Axis.horizontal,
+                  child: const SizedBox(
+                    width: 1200,
+                    child: Text('Nested horizontal content'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await _expandDetails(tester, controller, size: const Size(320, 800));
+      await tester.tap(find.text('Details action'));
+      await tester.pumpAndSettle();
+      expect(taps, 1);
+      await tester.ensureVisible(find.byKey(const Key('nested-horizontal')));
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const Key('nested-horizontal')),
+        const Offset(-180, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(horizontal.offset, greaterThan(0));
+      expect(controller.page, 0);
+      await tester.ensureVisible(find.byKey(const Key('selectable-details')));
+      await tester.pumpAndSettle();
+      final selectionGesture = await tester.startGesture(
+        tester.getCenter(find.byKey(const Key('selectable-details'))),
+      );
+      await tester.pump(kLongPressTimeout);
+      await selectionGesture.moveBy(const Offset(80, 0));
+      await selectionGesture.up();
+      await tester.pumpAndSettle();
+      final editable = tester.widget<EditableText>(find.byType(EditableText));
+      expect(editable.controller.selection.isCollapsed, isFalse);
+      expect(controller.page, 0);
+      expect(controller.sheetState.value, SheetState.expanded);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final block in ['zoom', 'swiping disabled']) {
+    testWidgets('expanded details preserve the $block paging restriction', (
+      tester,
+    ) async {
+      final controller = _controller();
+      _disposeAfterUnmount(tester, controller);
+      await tester.pumpWidget(_TestApp(controller: controller));
+      await _expandDetails(tester, controller);
+      if (block == 'zoom') controller.zoom.value = true;
+      if (block == 'swiping disabled') controller.disableAllSwiping();
+      await tester.pump();
+      await tester.dragFrom(
+        const Offset(300, 120),
+        const Offset(-250, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(controller.page, 0);
+      expect(controller.sheetState.value, SheetState.expanded);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('details scrolling does not navigate to another post', (
+    tester,
+  ) async {
+    final controller = _controller();
+    _disposeAfterUnmount(tester, controller);
+    await tester.pumpWidget(
+      _TestApp(controller: controller, scrollableDetails: true),
+    );
+    await _expandDetails(tester, controller);
+    final list = find.byKey(const ValueKey(('viewer-details-scroll', 0)));
+    await tester.drag(list, const Offset(0, -250));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<CustomScrollView>(list).controller!.offset,
+      greaterThan(0),
+    );
+    expect(controller.page, 0);
+    expect(controller.sheetState.value, SheetState.expanded);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a sheet state change cancels an in-progress media swipe', (
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     await _expandDetails(tester, controller);
     final gesture = await tester.startGesture(
@@ -369,7 +676,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(_TestApp(controller: controller));
     await _expandDetails(tester, controller);
     final gesture = await tester.startGesture(
@@ -390,7 +697,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     var taps = 0;
     var doubleTaps = 0;
     await tester.pumpWidget(
@@ -402,9 +709,9 @@ void main() {
     );
     await _expandDetails(tester, controller);
 
-    final mediaTapPosition =
-        tester.getTopLeft(find.byKey(const Key('viewer-page-0'))) +
-        const Offset(300, 120);
+    final mediaTapPosition = tester.getCenter(
+      find.byKey(const Key('viewer-page-0')),
+    );
     await tester.tapAt(mediaTapPosition);
     await tester.pump(const Duration(milliseconds: 400));
     await tester.tapAt(mediaTapPosition);
@@ -421,7 +728,7 @@ void main() {
     tester,
   ) async {
     final controller = _controller();
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     var controlTaps = 0;
     await tester.pumpWidget(
       _TestApp(
@@ -444,17 +751,15 @@ void main() {
     final count = ValueNotifier(2);
     addTearDown(count.dispose);
     final controller = _controller(
-      viewMode: ViewMode.vertical,
       disableAnimation: false,
     );
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(
       ValueListenableBuilder(
         valueListenable: count,
         builder: (_, itemCount, _) => _TestApp(
           controller: controller,
           itemCount: itemCount,
-          viewMode: ViewMode.vertical,
           disableAnimation: false,
         ),
       ),
@@ -482,14 +787,12 @@ void main() {
     tester,
   ) async {
     final controller = _controller(
-      viewMode: ViewMode.vertical,
       disableAnimation: false,
     );
-    addTearDown(controller.dispose);
+    _disposeAfterUnmount(tester, controller);
     await tester.pumpWidget(
       _TestApp(
         controller: controller,
-        viewMode: ViewMode.vertical,
         disableAnimation: false,
       ),
     );
@@ -509,8 +812,17 @@ void main() {
   });
 }
 
+void _disposeAfterUnmount(
+  WidgetTester tester,
+  PostDetailsPageViewController controller,
+) {
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    controller.dispose();
+  });
+}
+
 PostDetailsPageViewController _controller({
-  ViewMode viewMode = ViewMode.horizontal,
   bool disableAnimation = true,
   bool isLargeScreen = false,
 }) => PostDetailsPageViewController(
@@ -518,7 +830,6 @@ PostDetailsPageViewController _controller({
   totalPage: 2,
   checkIfLargeScreen: () => isLargeScreen,
   disableAnimation: disableAnimation,
-  viewMode: viewMode,
 );
 
 bool _isPageFaded(
@@ -554,22 +865,27 @@ Future<void> _dragMedia(
 
 Future<void> _expandDetails(
   WidgetTester tester,
-  PostDetailsPageViewController controller,
-) async {
-  await tester.binding.setSurfaceSize(const Size(400, 800));
+  PostDetailsPageViewController controller, {
+  Size size = const Size(400, 800),
+}) async {
+  await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pump();
-  await controller.expandToSnapPoint();
+  final expansion = controller.expandToSnapPoint();
   await tester.pumpAndSettle();
+  await expansion;
 }
 
 class _TestApp extends StatelessWidget {
   const _TestApp({
     required this.controller,
     this.itemCount = 2,
-    this.viewMode = ViewMode.horizontal,
+    this.previewHeight = 96,
     this.disableAnimation = true,
     this.isLargeScreen = false,
+    this.scrollableDetails = false,
+    this.detailsContent,
+    this.textScale = 1,
     this.onPreviewTap,
     this.onMediaTap,
     this.onMediaDoubleTap,
@@ -578,9 +894,12 @@ class _TestApp extends StatelessWidget {
 
   final PostDetailsPageViewController controller;
   final int itemCount;
-  final ViewMode viewMode;
+  final double previewHeight;
   final bool disableAnimation;
   final bool isLargeScreen;
+  final bool scrollableDetails;
+  final Widget? detailsContent;
+  final double textScale;
   final VoidCallback? onPreviewTap;
   final VoidCallback? onMediaTap;
   final VoidCallback? onMediaDoubleTap;
@@ -592,14 +911,17 @@ class _TestApp extends StatelessWidget {
       theme: ThemeData(extensions: const [KurumiExtendedColorScheme()]),
       builder: (context, child) => KurumiTheme(
         data: KurumiThemeData.fromMaterial(Theme.of(context)),
-        child: TranslationProvider(child: child!),
+        child: MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(textScale)),
+          child: TranslationProvider(child: child!),
+        ),
       ),
       home: Scaffold(
         body: PostDetailsPageView(
           controller: controller,
           checkIfLargeScreen: () => isLargeScreen,
           disableAnimation: disableAnimation,
-          viewMode: viewMode,
           itemCount: itemCount,
           itemBuilder: (context, index) => GestureDetector(
             key: Key('viewer-page-$index'),
@@ -629,16 +951,29 @@ class _TestApp extends StatelessWidget {
               ],
             ),
           ),
-          sheetBuilder: (context, scrollController) => const ColoredBox(
-            color: Colors.white,
-            child: SizedBox.expand(),
-          ),
-          bottomSheet: SizedBox(
-            key: _bottomPreviewKey,
+          detailsSliversBuilder: (context, index) => [
+            if (detailsContent != null && index == 0)
+              SliverToBoxAdapter(child: detailsContent)
+            else if (scrollableDetails)
+              SliverList.builder(
+                itemCount: 40,
+                itemBuilder: (_, index) => SizedBox(
+                  height: 60,
+                  child: Text('Metadata $index'),
+                ),
+              )
+            else
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: ColoredBox(color: Colors.white),
+              ),
+          ],
+          bottomPreviewBuilder: (context, index) => SizedBox(
+            key: index == 0 ? _bottomPreviewKey : Key('bottom-preview-$index'),
             width: double.infinity,
-            height: 96,
+            height: previewHeight,
             child: TextButton(
-              key: const Key('preview-control'),
+              key: index == 0 ? const Key('preview-control') : null,
               onPressed: onPreviewTap,
               child: const Text('Preview control'),
             ),

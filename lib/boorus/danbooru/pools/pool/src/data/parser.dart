@@ -10,6 +10,10 @@ DanbooruPool? poolDtoToDanbooruPool(PoolDto dto) => switch (dto.id) {
   null => null,
   final id => DanbooruPool(
     id: id,
+    manifestComplete:
+        dto.postIds != null &&
+        dto.postCount == dto.postIds!.length &&
+        dto.postIds!.every((id) => id > 0),
     postIds: dto.postIds,
     category: DanbooruPoolCategory.parse(dto.category),
     description: dto.description,

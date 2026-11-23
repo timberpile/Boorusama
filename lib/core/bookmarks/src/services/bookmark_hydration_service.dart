@@ -1,15 +1,18 @@
+import '../providers/bookmark_read_access.dart';
+
 import 'dart:async';
 
 import '../../../configs/config/types.dart';
 import '../../../errors/types.dart';
+import '../../../http/client/coordination.dart';
 import '../../../posts/post/types.dart';
 import '../types/bookmark.dart';
 import '../types/bookmark_hydration_log.dart';
 import 'bookmark_library_service.dart';
 
-bool needsBookmarkHydration(Bookmark bookmark) =>
+bool needsBookmarkHydration(PostBookmark bookmark) =>
     switch (bookmark.post.booruData) {
-      LegacyPostData() || UnknownPostData() => true,
+      LegacyPostData() || UnknownPostData() || ListedPostData() => true,
       _ => false,
     };
 
@@ -69,13 +72,61 @@ class BookmarkRecoveryService {
   const BookmarkRecoveryService({
     required this.fetchPost,
     required this.codecFor,
+    this.fetchListedPost,
+    this.latestBookmark,
+    this.commitResolved,
+    this.canUseResolved,
+    this.resolutionGuard,
   });
 
   final Future<Post?> Function(BooruConfig config, int postId) fetchPost;
   final BooruPostDataCodec? Function(Post post) codecFor;
+  final Future<Post?> Function(BooruConfig config, int postId)? fetchListedPost;
+
+  final Future<PostBookmark?> Function(Post)? latestBookmark;
+  final Future<void> Function(PostBookmark, Post, bool Function())?
+  commitResolved;
+  final Future<bool> Function(Post, BooruConfig)? canUseResolved;
+  final bool Function() Function(BooruConfig)? resolutionGuard;
+
+  /// Listing evidence never grants permission to resolved exact media.
+  Future<Post?> resolveListedPost(Post post, BooruConfig config) async {
+    if (!post.requiresDetailLookup) return post;
+    final sourceCurrent = resolutionGuard?.call(config) ?? () => true;
+    final caller = ApiRequestContext.current();
+    bool current() =>
+        sourceCurrent() &&
+        !(caller.cancelToken?.isCancelled ?? false) &&
+        (caller.canStart?.call() ?? true);
+    if (!current()) return null;
+    final bookmark = await latestBookmark?.call(post);
+    if (bookmark == null || !current()) return null;
+    if (!bookmark.post.requiresDetailLookup) {
+      return await canUseResolved?.call(bookmark.post, config) != false &&
+              current()
+          ? bookmark.post
+          : null;
+    }
+    final result = await recover(bookmark, config);
+    if (result is! BookmarkRecoverySuccess || !current()) return null;
+    final resolved = result.post.copyWith(origin: bookmark.post.origin);
+    if (await canUseResolved?.call(resolved, config) == false || !current())
+      return null;
+    final latest = await latestBookmark?.call(post);
+    if (latest == null || !current()) return null;
+    if (!latest.post.requiresDetailLookup) {
+      return await canUseResolved?.call(latest.post, config) != false &&
+              current()
+          ? latest.post
+          : null;
+    }
+    if (latest != bookmark) return null;
+    await commitResolved?.call(bookmark, resolved, current);
+    return current() ? resolved : null;
+  }
 
   Future<BookmarkRecovery> recover(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     BooruConfig config,
   ) async {
     final id = bookmark.postId;
@@ -85,8 +136,21 @@ class BookmarkRecoveryService {
       );
     }
     try {
-      final post = await fetchPost(config, id);
+      final fetch = bookmark.post.requiresDetailLookup
+          ? fetchListedPost ?? fetchPost
+          : fetchPost;
+      final post = await fetch(config, id);
       if (post == null) return const BookmarkRecoveryRemoved();
+      if (post.id != id ||
+          post.origin.booruType != bookmark.post.origin.booruType ||
+          post.origin.sourceHost != bookmark.post.origin.sourceHost ||
+          post.requiresDetailLookup) {
+        return const BookmarkRecoverySkipped();
+      }
+      if (bookmark.post.requiresDetailLookup &&
+          await canUseResolved?.call(post, config) == false) {
+        return const BookmarkRecoverySkipped();
+      }
       final codec = codecFor(post);
       if (codec == null ||
           post.booruData is LegacyPostData ||
@@ -218,13 +282,13 @@ class BookmarkHydrationService {
   /// The application supplies a short serialized compare-and-commit. False
   /// means that cancellation or a newer library state superseded this request.
   /// Standalone callers keep the existing direct-persistence behavior.
-  final Future<bool> Function(Bookmark, Post, BooruPostDataCodec)?
+  final Future<bool> Function(PostBookmark, Post, BooruPostDataCodec)?
   commitRecovered;
   final DateTime Function() _now;
   final Future<void> Function(Duration, BookmarkHydrationCancellation) _wait;
 
   Future<bool> _commit(
-    Bookmark bookmark,
+    PostBookmark bookmark,
     Post post,
     BooruPostDataCodec codec,
   ) async {
@@ -239,10 +303,11 @@ class BookmarkHydrationService {
   }
 
   Future<BookmarkHydrationProgress> run({
-    required Iterable<Bookmark> bookmarks,
+    required Iterable<PostBookmark> bookmarks,
     required Iterable<BooruConfig> configs,
     required BookmarkHydrationCancellation cancellation,
     required void Function(BookmarkHydrationProgress) onProgress,
+    Future<BooruConfig?> Function(PostBookmark)? resolveReader,
   }) async {
     final candidates = bookmarks.where(needsBookmarkHydration).toList();
     final profiles = configs.toList();
@@ -254,7 +319,7 @@ class BookmarkHydrationService {
     final rateLimitedSites = <String>{};
     final logEntries = <BookmarkHydrationLogEntry>[];
     void log(
-      Bookmark bookmark,
+      PostBookmark bookmark,
       BookmarkHydrationLogReason reason, {
       int? httpStatusCode,
       DateTime? retryAt,
@@ -293,26 +358,25 @@ class BookmarkHydrationService {
           retryAt: retryAt,
         );
     onProgress(progress(true));
-    final sites = <String, List<({Bookmark bookmark, BooruConfig config})>>{};
+    final sites =
+        <String, List<({PostBookmark bookmark, BooruConfig config})>>{};
     for (final bookmark in candidates) {
       if (cancellation.cancelled) break;
-      switch (const PostOriginResolver().resolve(
-        bookmark.post.origin,
-        profiles,
-      )) {
-        case ResolvedPostOrigin(:final config):
-          sites.putIfAbsent(bookmark.post.origin.sourceHost, () => []).add((
-            bookmark: bookmark,
-            config: config,
-          ));
-        case MissingPostOrigin():
-          skipped++;
-          log(bookmark, BookmarkHydrationLogReason.missingProfile);
-          onProgress(progress(true));
-        case AmbiguousPostOrigin():
-          skipped++;
-          log(bookmark, BookmarkHydrationLogReason.ambiguousProfile);
-          onProgress(progress(true));
+      final config = resolveReader != null
+          ? await resolveReader(bookmark)
+          : selectBookmarkReadProfile(
+              BookmarkReaderRequest(bookmark.post.origin),
+              profiles,
+            );
+      if (config != null) {
+        sites.putIfAbsent(bookmark.post.origin.sourceHost, () => []).add((
+          bookmark: bookmark,
+          config: config,
+        ));
+      } else {
+        skipped++;
+        log(bookmark, BookmarkHydrationLogReason.missingProfile);
+        onProgress(progress(true));
       }
     }
 
@@ -321,7 +385,7 @@ class BookmarkHydrationService {
         _BookmarkHydrationQueue(entry.key, entry.value),
     ];
     final failures =
-        <String, List<({Bookmark bookmark, BooruConfig config})>>{};
+        <String, List<({PostBookmark bookmark, BooruConfig config})>>{};
     Future<void> processSites() async {
       while (!cancellation.cancelled && pending.isNotEmpty) {
         final now = _now();
@@ -462,7 +526,7 @@ class BookmarkHydrationService {
 class _BookmarkHydrationQueue {
   _BookmarkHydrationQueue(this.host, this.bookmarks);
   final String host;
-  final List<({Bookmark bookmark, BooruConfig config})> bookmarks;
+  final List<({PostBookmark bookmark, BooruConfig config})> bookmarks;
   var index = 0;
   var rateLimits = 0;
   DateTime? retryAt;

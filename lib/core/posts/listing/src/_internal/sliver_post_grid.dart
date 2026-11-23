@@ -31,9 +31,15 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
     this.httpErrorActionBuilder,
     this.httpHandshakeErrorActionBuilder,
     this.showRule34ChallengeRecovery = false,
+    this.displayItemCount,
+    this.emptyBuilder,
   });
 
   final PostGridController<T> postController;
+
+  /// Typed display projection; the controller retains only actual Posts.
+  final int? displayItemCount;
+  final WidgetBuilder? emptyBuilder;
   final EdgeInsetsGeometry? padding;
   final ImageListType? listType;
   final double? spacing;
@@ -189,13 +195,14 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
           final crossAxisCount = constraints?.crossAxisCount ?? 3;
           final imageListType = listType ?? ImageListType.standard;
 
-          return data.isNotEmpty
+          final itemCount = displayItemCount ?? data.length;
+          return itemCount > 0
               ? switch (imageListType) {
                   ImageListType.masonry => SliverMasonryGrid.count(
                     crossAxisCount: crossAxisCount,
                     mainAxisSpacing: spacing ?? 4,
                     crossAxisSpacing: spacing ?? 4,
-                    childCount: data.length,
+                    childCount: itemCount,
                     itemBuilder: itemBuilder,
                   ),
                   _ => SliverGrid(
@@ -207,14 +214,14 @@ class SliverPostGrid<T extends Post> extends StatelessWidget {
                     ),
                     delegate: SliverChildBuilderDelegate(
                       itemBuilder,
-                      childCount: data.length,
+                      childCount: itemCount,
                     ),
                   ),
                 }
-              : const SliverToBoxAdapter(
+              : SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.only(bottom: 48),
-                    child: NoDataBox(),
+                    padding: const EdgeInsets.only(bottom: 48),
+                    child: emptyBuilder?.call(context) ?? const NoDataBox(),
                   ),
                 );
         },

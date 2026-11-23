@@ -74,7 +74,7 @@ void main() {
     tester,
   ) async {
     final backend = FakeBooruBackend(strictPostScripts: true)
-      ..enqueuePosts(page: 1, posts: testPostRange(101, 124))
+      ..enqueuePosts(page: 1, posts: testPostRange(101, 124), hasMore: true)
       ..enqueuePostFailure(
         siteUrl: FakeBooruBackend.siteUrl,
         query: '',
@@ -84,9 +84,9 @@ void main() {
           message: 'page two unavailable',
         ),
       )
-      ..enqueuePosts(page: 1, posts: testPostRange(101, 124))
-      ..enqueuePosts(page: 2, posts: testPostRange(125, 148))
-      ..enqueuePosts(page: 3, posts: const []);
+      ..enqueuePosts(page: 1, posts: testPostRange(101, 124), hasMore: true)
+      ..enqueuePosts(page: 2, posts: testPostRange(125, 148), hasMore: true)
+      ..enqueuePosts(page: 3, posts: const [], hasMore: false);
     final harness = await _mount(tester, backend);
     final driver = AppFlowDriver(tester: tester, harness: harness);
 

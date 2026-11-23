@@ -18,7 +18,7 @@ void main() {
     List<Map<String, dynamic>> tags = const [],
     int? pageCount = 1,
     Map<String, dynamic>? metaSinglePage,
-    List<Map<String, dynamic>> metaPages = const [],
+    List<Object?> metaPages = const [],
     int? xRestrict = 0,
     int? sanityLevel = 2,
     bool? visible = true,
@@ -90,6 +90,123 @@ void main() {
       );
       expect(result.single.pageIndex, 0);
       expect(result.single.pageCount, 1);
+    });
+
+    for (final missingPage in <Object?>[
+      null,
+      'invalid page',
+      <String, dynamic>{},
+      {'image_urls': <String, dynamic>{}},
+      {
+        'image_urls': {'original': ''},
+      },
+      {
+        'image_urls': {'original': '   '},
+      },
+      {
+        'image_urls': {'original': 'not an image URL'},
+      },
+      {
+        'image_urls': {'original': 'https://'},
+      },
+    ]) {
+      test(
+        'preserves page identities around unavailable media: $missingPage',
+        () {
+          final result = illustDtoToPosts(
+            illust(
+              pageCount: 3,
+              metaSinglePage: {},
+              metaPages: [
+                {
+                  'image_urls': {
+                    'original': 'https://i.pximg.net/img/100_p0.jpg',
+                  },
+                },
+                missingPage,
+                {
+                  'image_urls': {
+                    'original': 'https://i.pximg.net/img/100_p2.jpg',
+                    'square_medium': 'sq2.jpg',
+                    'large': 'large2.jpg',
+                  },
+                },
+              ],
+            ),
+          );
+
+          expect(result.map((post) => post.pageIndex), [0, 2]);
+          expect(result.map((post) => post.id), [100000, 100002]);
+          expect(result.every((post) => post.pageCount == 3), isTrue);
+          expect(
+            result.last.originalImageUrl,
+            'https://i.pximg.net/img/100_p2.jpg',
+          );
+          expect(result.last.thumbnailImageUrl, 'sq2.jpg');
+          expect(result.last.sampleImageUrl, 'large2.jpg');
+        },
+      );
+    }
+
+    test('retains the declared count when only a later page is available', () {
+      final result = illustDtoToPosts(
+        illust(
+          pageCount: 4,
+          metaSinglePage: {},
+          metaPages: [
+            {},
+            {
+              'image_urls': {'original': 'https://i.pximg.net/img/100_p1.jpg'},
+            },
+          ],
+        ),
+      ).single;
+
+      expect(result.pageIndex, 1);
+      expect(result.pageCount, 4);
+      expect(result.hasMultiplePages, isTrue);
+      expect(result.hasParentOrChildren, isTrue);
+      expect(result.thumbnailImageUrl, result.originalImageUrl);
+      expect(result.sampleImageUrl, result.originalImageUrl);
+      expect(result.detailFacts.originalWidth, isNull);
+      expect(result.detailFacts.originalHeight, isNull);
+    });
+
+    for (final pageCount in [null, 0, -1]) {
+      test('infers page positions when the declared count is $pageCount', () {
+        final result = illustDtoToPosts(
+          illust(
+            pageCount: pageCount,
+            metaSinglePage: {},
+            metaPages: [
+              {},
+              {
+                'image_urls': {
+                  'original': 'https://i.pximg.net/img/100_p1.jpg',
+                },
+              },
+            ],
+          ),
+        ).single;
+
+        expect(result.pageIndex, 1);
+        expect(result.pageCount, 2);
+      });
+    }
+
+    test('omits works without usable originals', () {
+      expect(
+        illustDtoToPosts(
+          illust(pageCount: 3, metaSinglePage: {}, metaPages: [{}, null, {}]),
+        ),
+        isEmpty,
+      );
+      for (final url in ['', '  ', 'invalid', 'file:///image.jpg']) {
+        expect(
+          illustDtoToPosts(illust(metaSinglePage: {'original_image_url': url})),
+          isEmpty,
+        );
+      }
     });
   });
 

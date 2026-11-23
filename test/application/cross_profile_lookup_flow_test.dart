@@ -5,6 +5,7 @@ import 'package:boorusama/core/router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/material.dart';
+import 'package:kurumi/kurumi.dart';
 
 import '../support/boorusama_test_runtime.dart';
 import 'support/app_flow_driver.dart';
@@ -57,8 +58,9 @@ void main() {
             currentDetailPost(tester).id == 201,
       );
       await harness.settle(tester);
+      await harness.showViewerControls(tester);
       final viewerContext = tester.element(
-        find.byType(DownloadPostButton).last,
+        find.byType(DownloadPostButton).hitTestable().first,
       );
       final viewerScope = ProviderScope.containerOf(
         viewerContext,
@@ -83,8 +85,8 @@ void main() {
       await tester.tap(
         find
             .descendant(
-              of: find.byType(DownloadPostButton).last,
-              matching: find.byType(IconButton),
+              of: find.byType(DownloadPostButton).hitTestable().first,
+              matching: find.byType(KurumiActionIconButton),
             )
             .first,
       );

@@ -36,7 +36,7 @@ void main() {
           expect(params.uri, isNull);
           expect(params.text, 'Open in Boorusama');
           received = params.files!.single;
-          expect(received!.name, 'boorusama-post-42.bslink');
+          expect(received!.name, 'danbooru-post-42.bslink');
           expect(received!.mimeType, BoorusamaLinkFile.mimeType);
           expect(
             BoorusamaLinkFile.decode(await received!.readAsBytes()).uri,

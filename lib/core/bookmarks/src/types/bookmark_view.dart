@@ -5,7 +5,7 @@ import 'package:equatable/equatable.dart';
 import 'bookmark_target.dart';
 import 'bookmark_group.dart';
 
-enum BookmarkViewKind { all, group }
+enum BookmarkViewKind { all, group, subtree }
 
 class BookmarkView extends Equatable {
   const BookmarkView.all() : kind = BookmarkViewKind.all, groupId = null;
@@ -20,6 +20,11 @@ class BookmarkView extends Equatable {
       BookmarkTarget.group(groupId).groupId,
     );
   }
+
+  factory BookmarkView.subtree(String groupId) => BookmarkView._(
+    BookmarkViewKind.subtree,
+    BookmarkTarget.group(groupId).groupId,
+  );
 
   const BookmarkView._(this.kind, this.groupId);
 

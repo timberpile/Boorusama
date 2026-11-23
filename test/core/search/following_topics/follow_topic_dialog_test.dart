@@ -9,17 +9,24 @@ void main() {
     WidgetTester tester, {
     String? initialName,
     bool isFollowing = false,
+    double scale = 1,
+    Brightness brightness = Brightness.light,
     required void Function(String?) onResult,
   }) async {
     await tester.pumpWidget(
       BooruLocalization(
         child: MaterialApp(
+          theme: ThemeData(brightness: brightness),
           builder: (context, child) =>
               // ignore: deprecated_member_use
               MaterialUiCompatibilityBridge(
                 child: KurumiTheme(
                   data: KurumiThemeData.fromMaterial(Theme.of(context)),
-                  child: child!,
+                  child: MediaQuery(
+                    data: MediaQuery.of(context)
+                        .copyWith(textScaler: TextScaler.linear(scale)),
+                    child: child!,
+                  ),
                 ),
               ),
           home: Builder(
@@ -42,6 +49,37 @@ void main() {
     );
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
+  }
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'adaptive Follow title preserves editing and actions with keyboard in $brightness',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        tester.view.viewInsets = const FakeViewPadding(bottom: 240);
+        addTearDown(tester.view.reset);
+        String? result;
+        await open(
+          tester,
+          scale: 2,
+          brightness: brightness,
+          onResult: (value) => result = value,
+        );
+        expect(find.byType(KurumiFittedText), findsOneWidget);
+        await tester.ensureVisible(find.byType(TextField));
+        await tester.enterText(find.byType(TextField), 'A readable topic name');
+        await tester.ensureVisible(find.text('Follow'));
+        expect(
+          tester.getBottomRight(find.text('Follow')).dy,
+          lessThanOrEqualTo(400),
+        );
+        await tester.tap(find.text('Follow'));
+        await tester.pumpAndSettle();
+        expect(result, 'A readable topic name');
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 
   testWidgets('shows the query inline and offers it as the empty name hint', (

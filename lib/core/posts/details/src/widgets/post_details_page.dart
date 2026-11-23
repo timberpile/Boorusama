@@ -26,6 +26,8 @@ class CurrentPostDetailsPage<T extends Post> extends ConsumerWidget {
         scrollController: payload.scrollController,
         disclaimer: payload.dislclaimer,
         liveSource: payload.liveSource,
+        entries: payload.entries,
+        entrySource: payload.entrySource,
         fallbackConfig: payload.config,
         postRecoveryBuilder: _postRecoveryBuilder(ref),
       );
@@ -55,6 +57,8 @@ class PayloadPostDetailsPage<T extends Post> extends ConsumerWidget {
         scrollController: payload.scrollController,
         disclaimer: payload.dislclaimer,
         liveSource: payload.liveSource,
+        entries: payload.entries,
+        entrySource: payload.entrySource,
         fallbackConfig: payload.config,
         postRecoveryBuilder: _postRecoveryBuilder(ref),
       );

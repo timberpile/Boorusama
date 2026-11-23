@@ -2,6 +2,7 @@ import 'package:boorusama/core/backups/export_import/import/collection_import_ac
 import 'package:boorusama/core/backups/export_import/models/import_action.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/bookmark_backup_data.dart';
+import 'package:boorusama/core/backups/sources/bookmark_backup_schema.dart';
 import 'package:boorusama/core/backups/sources/following_topic_backup_codec.dart';
 import 'package:boorusama/core/backups/sources/following_topic_backup_data.dart';
 import 'package:boorusama/core/backups/sources/following_topic_import_service.dart';
@@ -13,6 +14,7 @@ import 'package:boorusama/core/groups/folder_tree.dart';
 import 'package:boorusama/core/search/following_topics/src/data/hive/following_topic_repository_hive.dart';
 import 'package:boorusama/core/search/following_topics/types.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../search/following_topics/topic_test_utils.dart';
 
 String _id(int n) => '00000000-0000-4000-8000-${n.toString().padLeft(12, '0')}';
@@ -282,7 +284,7 @@ void main() {
     },
   );
   test(
-    'bookmark version-5 round trip preserves empty nesting without a groups field',
+    'bookmark version-5 folders normalize into empty hierarchy groups',
     () {
       final folders = [
         CollectionFolder(id: _id(10), name: 'Root'),
@@ -296,8 +298,13 @@ void main() {
           extra: {'folders': folders.map((f) => f.toJson()).toList()},
         ),
       );
-      expect(parsed.folders, folders);
-      expect(parsed.groups, isEmpty);
+      expect(parsed.folders, isEmpty);
+      expect(
+        parsed.groups.map(
+          (group) => (group.id, group.name, group.parentGroupId),
+        ),
+        [(_id(10), 'Root', null), (_id(11), 'Empty', _id(10))],
+      );
       final group = BookmarkGroupBackup(
         id: _id(1),
         name: 'Literal // group',
@@ -310,12 +317,30 @@ void main() {
         groups: [group],
         folders: folders,
       );
-      expect(
-        BookmarkBackupCodec().parse(
-          _payload('bookmarks', 5, [], extra: data.extraFields),
+      final canonical = data.asHierarchy();
+      final parsedCanonical = BookmarkBackupCodec().parse(
+        _payload(
+          'bookmarks',
+          kBookmarksBackupVersion,
+          [],
+          extra: canonical.extraFields,
         ),
-        data,
       );
+      expect(parsedCanonical, canonical);
+      expect(parsedCanonical.folders, isEmpty);
+      final groupsById = {
+        for (final group in parsedCanonical.groups) group.id!: group,
+      };
+      expect(groupsById.keys, {_id(10), _id(11), _id(1)});
+      expect(groupsById[_id(10)]!.name, 'Root');
+      expect(groupsById[_id(10)]!.parentGroupId, isNull);
+      expect(groupsById[_id(10)]!.bookmarkIds, isEmpty);
+      expect(groupsById[_id(11)]!.name, 'Empty');
+      expect(groupsById[_id(11)]!.parentGroupId, _id(10));
+      expect(groupsById[_id(11)]!.bookmarkIds, isEmpty);
+      expect(groupsById[_id(1)]!.name, 'Literal // group');
+      expect(groupsById[_id(1)]!.parentGroupId, _id(11));
+      expect(groupsById[_id(1)]!.bookmarkIds, isEmpty);
     },
   );
   test(

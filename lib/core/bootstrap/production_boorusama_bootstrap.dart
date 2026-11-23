@@ -11,6 +11,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:i18n/i18n.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as p;
 import 'package:stack_trace/stack_trace.dart';
 
 // Project imports:
@@ -36,12 +37,15 @@ import '../../foundation/plugin_external_url_launcher.dart';
 import '../../foundation/plugin_webview_user_agent_service.dart';
 import '../../foundation/utils/file_utils.dart';
 import '../../foundation/window.dart';
+import '../backups/mitemite/android_storage.dart';
+import '../backups/mitemite/private_preferences.dart';
 import '../blacklists/src/data/hive/factory.dart';
 import '../bookmarks/src/data/hive/factory.dart';
 import '../bookmarks/src/data/hive/bookmark_group_repository_factory_hive.dart';
 import '../boorus/booru/providers.dart';
 import '../cache/hive_misc_data_store.dart';
 import '../cache/hive_persistent_cache_store.dart';
+import '../cache/misc_data_store.dart';
 import '../configs/config/data.dart';
 import '../configs/config/types.dart';
 import '../debug/data.dart';
@@ -103,6 +107,7 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
 
       logger.debugBoot("Load database's directory");
       final dbDirectoryPath = await fileSystem.getAppStoragePath();
+      final platform = currentAppPlatform();
 
       logger.debugBoot('Initialize Hive');
       Hive
@@ -174,6 +179,36 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
         'misc_data_v1',
         path: tempPath,
       );
+      final legacyMiscDataStore = HiveMiscDataStore(miscDataBox);
+      MiscDataStore miscDataStore = legacyMiscDataStore;
+      if (!kIsWeb) {
+        logger.debugBoot('Initialize private sync metadata');
+        final privateDirectory = platform == AppPlatform.android
+            ? await AndroidMiteMiteStorage.privateDataDirectory()
+            : p.join(dbDirectoryPath, PrivateSyncPreferences.directoryName);
+        await fileSystem.createDirectory(privateDirectory, recursive: true);
+        final boxWasPresent = fileSystem.fileExistsSync(
+          p.join(privateDirectory, '${PrivateSyncPreferences.boxName}.hive'),
+        );
+        final privateBox = await Hive.openBox<String>(
+          PrivateSyncPreferences.boxName,
+          path: privateDirectory,
+        );
+        final privatePreferences = PrivateSyncPreferences(
+          legacy: legacyMiscDataStore,
+          box: privateBox,
+          fs: fileSystem,
+          boxWasPresent: boxWasPresent,
+        );
+        miscDataStore = privatePreferences;
+        try {
+          await privatePreferences.synchronize();
+        } catch (_) {
+          // The opt-in service retries this barrier before loading any key or
+          // touching transport; ordinary application startup stays available.
+          logger.debugBoot('Private sync metadata requires recovery');
+        }
+      }
       // Kept out of the OS cache directory, which the system may clear, so
       // dismissals such as What's New survive.
       final persistentCacheBox = await Hive.openBox<String>('app_cache');
@@ -234,7 +269,6 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
         ..clearLogsAtOrBelow(LogLevel.verbose)
         ..updateLevel(LogLevel.info);
 
-      final platform = currentAppPlatform();
       final embeddedBrowserFactory = createEmbeddedBrowserFactory(
         platform: platform,
         fileSystem: fileSystem,
@@ -261,6 +295,7 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
           booruRegistry: booruRegistry,
           bookmarkRepositoryFactory: HiveBookmarkRepositoryFactory(
             logger: logger,
+            fs: fileSystem,
           ),
           bookmarkGroupRepositoryFactory:
               const HiveBookmarkGroupRepositoryFactory(),
@@ -286,7 +321,7 @@ final class ProductionBoorusamaBootstrap implements BoorusamaBootstrap {
           appLogger: appLogger,
           logger: logger,
           logOptionsRepository: logOptionsRepository,
-          miscDataStore: HiveMiscDataStore(miscDataBox),
+          miscDataStore: miscDataStore,
           persistentCacheStore: HivePersistentCacheStore(persistentCacheBox),
           appRatingService: appRatingService,
           iapFactory: iapFactory,

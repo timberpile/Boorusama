@@ -6,7 +6,7 @@ import 'package:kurumi/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../../boorus/engine/providers.dart';
-import '../../../../configs/manage/providers.dart';
+import '../providers/following_topic_config_provider.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../settings/providers.dart';
 import '../../../../settings/src/types/search_refresh_settings.dart';
@@ -44,9 +44,7 @@ class FollowingTopicInfoDialog extends ConsumerWidget {
         false;
     final settings = ref.watch(settingsProvider).searchRefresh;
     final status = ref.watch(searchRefreshStatusProvider);
-    final profile = ref
-        .watch(booruConfigProvider)
-        .firstWhereOrNull((profile) => profile.id == source?.profileId);
+    final profile = ref.watch(followingTopicConfigProvider(topicId));
     final adapter = profile == null
         ? null
         : ref

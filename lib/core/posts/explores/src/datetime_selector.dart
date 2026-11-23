@@ -106,34 +106,37 @@ class DateTimeSelector extends StatelessWidget {
                   : null,
             ),
           ),
-          TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Kurumi.themeOf(
-                context,
-              ).textTheme.titleLarge?.color,
-              backgroundColor:
-                  backgroundColor ??
-                  Kurumi.themeOf(context).colorScheme.surfaceContainerHighest,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(18)),
+          Flexible(
+            child: TextButton(
+              style: TextButton.styleFrom(
+                foregroundColor: Kurumi.themeOf(
+                  context,
+                ).textTheme.titleLarge?.color,
+                backgroundColor:
+                    backgroundColor ??
+                    Kurumi.themeOf(context).colorScheme.surfaceContainerHighest,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(18)),
+                ),
               ),
-            ),
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: date,
-                firstDate: effectiveFirstDate,
-                lastDate: effectiveLastDate,
-              );
-              if (picked != null) {
-                onDateChanged(picked);
-              }
-            },
-            child: Row(
-              children: [
-                Text(DateFormat('MMM d, yyyy').format(date)),
-                const Icon(Symbols.arrow_drop_down),
-              ],
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: date,
+                  firstDate: effectiveFirstDate,
+                  lastDate: effectiveLastDate,
+                );
+                if (picked != null) {
+                  onDateChanged(picked);
+                }
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(child: Text(DateFormat('MMM d, yyyy').format(date))),
+                  const Icon(Symbols.arrow_drop_down),
+                ],
+              ),
             ),
           ),
           Material(

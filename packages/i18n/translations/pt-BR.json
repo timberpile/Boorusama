@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Atualizações primeiro",
-    "sort_last_post_oldest": "Publicações mais antigas primeiro"
+    "sort_manual": "Manual",
+    "sort_unread_first": "Não lidos primeiro",
+    "sort_recently_added": "Adicionados recentemente"
   },
   "generic": {
     "done": "Pronto",
@@ -402,14 +403,6 @@
       },
       "slideshow_skip": "Pular transição de slides",
       "slideshow_interval_explanation": "Valores de menos de 1 segundo irão automaticamente pular a transição",
-      "swipe_mode": "Modo de deslizar",
-      "swipe_mode_disclaimer": "Alguns gestos customizados podem não funcionar em todos os modos",
-      "swipe_modes": {
-        "horizontal": "Horizontal",
-        "horizontal_description": "Deslizamento esquerda/direita no estilo galeria. Semelhante a galerias de fotos e aplicativos de mídia.",
-        "vertical": "Vertical",
-        "vertical_description": "Deslizamento cima/baixo estilo TikTok. Popular em plataformas de vídeos curtos. Apenas para modo retrato."
-      },
       "mute_video": "Silenciar vídeo por padrão",
       "double_tap_seek": "Toque duplo para buscar",
       "video_section_title": "Vídeo",
@@ -1398,7 +1391,8 @@
       "edit_global_blacklist": "Editar Lista negra Global",
       "edit_booru_specific_blacklist": "Editar Lista negra específica do Booru",
       "edit_profile_blacklist": "Editar Lista negra do Perfil",
-      "stats": "Métricas"
+      "stats": "Métricas",
+      "group_posts": "Agrupar publicações"
     },
     "hidden_count": "$hidden de $total",
     "counter": {

@@ -187,6 +187,11 @@ class DbMigrationManager {
       '''
       INSERT INTO $kMigrationHistoryTable (version, applied_at, success, error_message)
       VALUES (?, ?, ?, ?)
+      ON CONFLICT(version) DO UPDATE SET
+        applied_at = excluded.applied_at,
+        success = excluded.success,
+        error_message = excluded.error_message
+      WHERE excluded.success = 1 OR $kMigrationHistoryTable.success = 0
       ''',
       [version, now, if (errorMessage == null) 1 else 0, errorMessage],
     );
@@ -232,9 +237,32 @@ class DbMigrationManager {
     }
 
     final startTime = DateTime.now();
-    final result = db.select('PRAGMA user_version');
-    final currentVersion = result.first.columnAt(0) as int;
+    var currentVersion = db.userVersion;
+    _validateCurrentVersion(currentVersion);
+    if (currentVersion >= targetVersion) return;
 
+    _notifyListeners(
+      MigrationStartedEvent(
+        fromVersion: currentVersion,
+        targetVersion: targetVersion,
+        totalSteps: targetVersion - currentVersion,
+      ),
+    );
+    while (currentVersion < targetVersion && !_migrateFrom(currentVersion)) {
+      // Another writer advanced the database before we acquired the lock.
+      currentVersion = db.userVersion;
+      _validateCurrentVersion(currentVersion);
+    }
+    // A completion observer cannot undo either connection's committed migration.
+    _notifyListeners(
+      MigrationCompletedEvent(
+        finalVersion: db.userVersion,
+        duration: DateTime.now().difference(startTime),
+      ),
+    );
+  }
+
+  void _validateCurrentVersion(int currentVersion) {
     final state = validateMigrationState(currentVersion: currentVersion);
 
     switch (mode) {
@@ -256,67 +284,71 @@ class DbMigrationManager {
     if (currentVersion < 0) {
       throw InvalidCurrentVersionException(currentVersion);
     }
+  }
 
-    if (currentVersion < targetVersion) {
-      var failedVersion = currentVersion;
-      try {
+  bool _migrateFrom(int currentVersion) {
+    // A failed BEGIN must never roll back another owner's transaction.
+    db.execute('BEGIN IMMEDIATE');
+    int? failedVersion;
+    try {
+      if (db.userVersion != currentVersion) {
+        db.execute('ROLLBACK');
+        return false;
+      }
+      var step = 1;
+      for (var v = currentVersion + 1; v <= targetVersion; v++) {
+        failedVersion = v;
+        final migration = _migrations[v];
+        if (migration == null) {
+          throw MissingMigrationException(v);
+        }
         _notifyListeners(
-          MigrationStartedEvent(
-            fromVersion: currentVersion,
-            targetVersion: targetVersion,
+          MigrationStepEvent(
+            version: v,
+            currentStep: step,
             totalSteps: targetVersion - currentVersion,
           ),
         );
-
-        db.execute('BEGIN TRANSACTION');
-        var step = 1;
-
-        for (var v = currentVersion + 1; v <= targetVersion; v++) {
-          failedVersion = v;
-          final migration = _migrations[v];
-          if (migration == null) {
-            throw MissingMigrationException(v);
-          }
-
-          _notifyListeners(
-            MigrationStepEvent(
-              version: v,
-              currentStep: step,
-              totalSteps: targetVersion - currentVersion,
-            ),
-          );
-
-          migration(db);
-          step++;
-        }
-
-        db
-          ..execute('PRAGMA user_version = $targetVersion')
-          ..execute('COMMIT');
-
-        _notifyListeners(
-          MigrationCompletedEvent(
-            finalVersion: targetVersion,
-            duration: DateTime.now().difference(startTime),
-          ),
-        );
-
-        for (var v = currentVersion + 1; v <= targetVersion; v++) {
-          _logMigration(v);
-        }
-      } catch (error) {
+        migration(db);
+        // Schema, user_version and successful history have one commit point.
+        // A successful retry replaces its earlier failed-attempt record.
+        _logMigration(v);
+        step++;
+      }
+      db
+        ..execute('PRAGMA user_version = $targetVersion')
+        ..execute('COMMIT');
+    } catch (error, stackTrace) {
+      try {
         db.execute('ROLLBACK');
+      } catch (rollbackError) {
+        // Do not write diagnostic history into an uncertain transaction.
+        Error.throwWithStackTrace(
+          MigrationRollbackException(error, rollbackError),
+          stackTrace,
+        );
+      }
+      try {
+        if (failedVersion != null) {
+          _logMigration(failedVersion, errorMessage: error.toString());
+        }
+      } catch (_) {
+        // Failure history is diagnostic; schema/version already rolled back.
+        // Preserve the operation error even if diagnostic storage also fails.
+      }
+      try {
         _notifyListeners(
           MigrationFailedEvent(
             version: currentVersion,
             error: error.toString(),
           ),
         );
-
-        _logMigration(failedVersion, errorMessage: error.toString());
-        rethrow;
+      } catch (_) {
+        // A progress observer must not replace the migration's failure.
       }
+      Error.throwWithStackTrace(error, stackTrace);
     }
+    return true;
   }
 
   void _repairMigrationHistory(List<int> versions) {

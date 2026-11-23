@@ -38,6 +38,33 @@ class CollectionSelection extends ConsumerWidget {
   );
 }
 
+/// Restores a collection's inherited controller below another selection mode.
+/// The outer collection still owns its scroll manager and viewport canvas.
+class CollectionSelectionBinding extends ConsumerWidget {
+  const CollectionSelectionBinding({
+    required this.controller,
+    required this.child,
+    super.key,
+  });
+
+  final OrderedSelectionController<CollectionSelectionKey> controller;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => SelectionMode(
+    controller: controller,
+    options: ref.watch(selectionOptionsProvider),
+    child: SelectionInput(
+      controller: controller,
+      itemCount: controller.entries.length,
+      child: KurumiContextMenuPolicy(
+        touchLongPress: !controller.isActive,
+        child: child,
+      ),
+    ),
+  );
+}
+
 class CollectionSelectable extends StatelessWidget {
   const CollectionSelectable({
     required this.controller,

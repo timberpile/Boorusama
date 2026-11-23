@@ -1,3 +1,14 @@
+import '../providers/bookmark_read_access.dart';
+
+import 'dart:async';
+
+import '../../../posts/details/src/types/viewer_entry.dart';
+import '../../../backups/mitemite/providers.dart';
+import '../../../backups/mitemite/actions.dart';
+import '../../../backups/mitemite/reading_state.dart';
+import '../types/bookmark_view.dart';
+import '../services/bookmark_read_projection.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -7,7 +18,9 @@ import 'package:material_symbols_icons/symbols.dart';
 // Project imports:
 import '../../../boorus/engine/providers.dart';
 import '../../../configs/config/types.dart';
-import '../../../configs/manage/providers.dart';
+import '../../../content/content_access_provider.dart';
+import '../../../content/content_media_access.dart';
+import '../../../content/content_media_failures.dart';
 import '../../../downloads/filename/types.dart';
 import '../../../posts/details/types.dart';
 import '../../../posts/details_parts/types.dart';
@@ -23,26 +36,106 @@ import '../providers/bookmark_hydration_provider.dart';
 import '../services/bookmark_hydration_service.dart';
 import '../types/bookmark.dart';
 
-class BookmarkDetailsPage extends ConsumerWidget {
+class BookmarkDetailsPage extends ConsumerStatefulWidget {
   BookmarkDetailsPage({
     required this.initialIndex,
     required this.initialThumbnailUrl,
     required PostGridController<Post> controller,
+    this.entries,
+    this.readingTargets,
+    this.sourceView = const BookmarkView.all(),
     super.key,
   }) : posts = List.unmodifiable(controller.items);
 
   final int initialIndex;
   final String? initialThumbnailUrl;
   final List<Post> posts;
+  final List<ViewerEntry>? entries;
+  final Map<Object, BookmarkReadTarget>? readingTargets;
+  final BookmarkView sourceView;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BookmarkDetailsPage> createState() =>
+      _BookmarkDetailsPageState();
+}
+
+class _BookmarkDetailsPageState extends ConsumerState<BookmarkDetailsPage> {
+  late final List<ViewerEntry> _entries;
+  final _displayed = <Object>{};
+
+  void _onDisplayed(ViewerEntry entry) {
+    final library = ref.read(bookmarkProvider).valueOrNull;
+    if (library == null) return;
+    final captured = widget.readingTargets?[entry.occurrenceId];
+    if (widget.readingTargets != null &&
+        (captured == null || !captured.isCurrent(library)))
+      return;
+    if (captured == null && widget.sourceView.kind != BookmarkViewKind.group)
+      return;
+    final groupId = captured?.groupId ?? widget.sourceView.groupId!;
+    if (!library.mirrors.isReceived(groupId)) return;
+    final record = library.byId[entry.source?.bookmarkId];
+    if (record == null || !_displayed.add(entry.occurrenceId)) return;
+    if (captured != null && syncBookmarkMemberKey(record) != captured.member) {
+      _displayed.remove(entry.occurrenceId);
+      return;
+    }
+    final pendingService = ref.read(miteMiteServiceProvider.future);
+    unawaited(() async {
+      try {
+        final service = await pendingService;
+        if (!mounted || !isCurrentSyncService(context, service)) {
+          _displayed.remove(entry.occurrenceId);
+          return;
+        }
+        await service.markReadTargets([
+          captured ??
+              BookmarkReadTarget(
+                groupId: groupId,
+                publisher: library.mirrors.owners[groupId]!.publisher,
+                source: library.mirrors.owners[groupId]!.source,
+                member: syncBookmarkMemberKey(record),
+              ),
+        ]);
+      } catch (_) {
+        // Failed local acknowledgement leaves the entry unread for retry.
+        _displayed.remove(entry.occurrenceId);
+      }
+    }());
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Capture the actor once, including for legacy callers without entries.
+    // Later profile changes revoke this route instead of borrowing an account.
+    _entries =
+        widget.entries ??
+        List.unmodifiable([
+          for (final (index, post) in widget.posts.indexed)
+            PostViewerEntry(
+              post: post,
+              occurrenceId: ('bookmark-route', index),
+              source:
+                  bookmarkReadBinding(
+                    ref,
+                    BookmarkReaderRequest(post.origin),
+                  ) ??
+                  const ViewerSourceBinding(BooruConfig.empty),
+            ),
+        ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final library = ref.watch(bookmarkProvider).valueOrNull;
 
     return MixedPostDetailsPage(
-      posts: posts,
-      initialIndex: initialIndex,
-      initialThumbnailUrl: initialThumbnailUrl,
+      posts: widget.posts,
+      onEntryDisplayed: _onDisplayed,
+      entries: _entries,
+      initialIndex: widget.initialIndex,
+      initialThumbnailUrl: widget.initialThumbnailUrl,
       scrollController: null,
       disclaimer: null,
       fallbackUiBuilderDecorator: _withBookmarkToolbar,
@@ -90,18 +183,60 @@ class BookmarkDetailsPage extends ConsumerWidget {
 
 Future<PostRecoveryResult> _recoverBookmarkPost(
   WidgetRef ref, {
-  required Bookmark bookmark,
+  required PostBookmark bookmark,
   required BooruConfig config,
 }) async {
+  final started =
+      config.anonymousReadScope?.key ??
+      ref.read(contentProfileAccessProvider(config.id))?.key;
+  bool current() =>
+      ref.context.mounted &&
+      started != null &&
+      ref.read(contentAccessContextProvider(started))?.config?.auth ==
+          config.auth;
+  if (!current())
+    return const PostRecoveryFailure(
+      PostPresentationFallbackReason.refreshFailed,
+    );
   try {
+    if (bookmark.post.requiresDetailLookup) {
+      final post = await ref
+          .read(bookmarkRecoveryServiceProvider)
+          .resolveListedPost(bookmark.post, config);
+      return post != null && current()
+          ? PostRecoverySuccess(post)
+          : const PostRecoveryFailure(
+              PostPresentationFallbackReason.refreshFailed,
+            );
+    }
     final result = await ref
         .read(bookmarkRecoveryServiceProvider)
         .recover(bookmark, config);
     switch (result) {
       case BookmarkRecoverySuccess(:final post):
+        if (!current())
+          return const PostRecoveryFailure(
+            PostPresentationFallbackReason.refreshFailed,
+          );
+        // Received-only snapshots remain publisher-owned. Recovery may improve
+        // this Viewer occurrence without persisting an ordinary mirror edit.
+        if (ref
+                .read(bookmarkProvider)
+                .valueOrNull
+                ?.localBookmarkIds
+                .contains(
+                  bookmark.id,
+                ) !=
+            true) {
+          return PostRecoverySuccess(post);
+        }
         await ref
             .read(bookmarkProvider.notifier)
-            .upgradeBookmarkSnapshot(bookmark, post);
+            .upgradeBookmarkSnapshot(bookmark, post, canUpgrade: current);
+        if (!current())
+          return const PostRecoveryFailure(
+            PostPresentationFallbackReason.refreshFailed,
+          );
         return PostRecoverySuccess(post);
       case BookmarkRecoveryRemoved():
         return const PostRecoveryFailure(
@@ -152,13 +287,35 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
         .watch(bookmarkProvider)
         .valueOrNull
         ?.storedBookmarkForPost(post);
-    final config = switch (const PostOriginResolver().resolve(
-      post.origin,
-      ref.watch(booruConfigProvider),
-    )) {
-      ResolvedPostOrigin(:final config) => config,
-      _ => null,
-    };
+    final required = ref.watch(contentAccessRequiredProvider);
+    final access = ref.watch(currentContentAccessKeyProvider);
+    final resolvedConfig = required
+        ? access == null
+              ? null
+              : ref.watch(contentAccessContextProvider(access))?.config
+        : ref
+              .watch(
+                bookmarkReadAccessProvider(BookmarkReaderRequest(post.origin)),
+              )
+              ?.config;
+
+    final failed =
+        access != null &&
+        bookmark != null &&
+        ref.watch(contentMediaFailuresProvider).containsKey((
+          access: access,
+          bookmarkId: bookmark.id,
+        ));
+    final visible =
+        access == null ||
+        ref
+                .watch(
+                  contentPostVisibilityProvider((access: access, post: post)),
+                )
+                .asData
+                ?.value ==
+            true;
+    final config = failed || !visible ? null : resolvedConfig;
 
     return SliverToBoxAdapter(
       child: CommonPostButtonsBuilder(
@@ -181,7 +338,9 @@ class BookmarkPostActionToolbar extends ConsumerWidget {
                 ),
                 title: context.t.post.action.bookmark,
               ),
-            if (config != null && bookmark != null)
+            if (config != null &&
+                config.anonymousReadScope == null &&
+                bookmark != null)
               ButtonData(
                 required: true,
                 widget: IconButton(

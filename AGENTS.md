@@ -33,12 +33,25 @@ changes do not require an invented issue ID. Use `Refs #<issue-id>` while
 acceptance is pending and `Closes #<issue-id>` only when the issue workflow's
 completion criteria are met.
 
+## Durable working files
+
+Keep agent-managed files needed to continue or verify current development out of
+`/tmp` and other volatile OS temporary directories. WSL can crash and clear them
+mid-task. This includes build/test logs, review evidence, verification results,
+recovery scripts and state, and handoffs. Use durable workspace storage such as
+the ignored `.worktrees/_artifacts/<task>/` directory for local artifacts, and
+the appropriate tracked documentation for shared handoffs. Reserve `/tmp` for
+disposable scratch files whose loss cannot affect task recovery or completion
+claims. After a crash, treat running checks as interrupted unless durable
+completion evidence proves otherwise.
+
 ## Workflow selection
 
 Use the applicable `.agents/skills/<name>/SKILL.md`:
 
 | Skill | Use when |
 | --- | --- |
+| [research-ticket](.agents/skills/research-ticket/SKILL.md) | Research bug/feature reports, check existing issues, and prepare reviewable issue drafts and local-agent handoffs |
 | [implement-change](.agents/skills/implement-change/SKILL.md) | Clear, scoped implementation |
 | [debug-issue](.agents/skills/debug-issue/SKILL.md) | Known symptom, uncertain cause |
 | [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
@@ -46,7 +59,9 @@ Use the applicable `.agents/skills/<name>/SKILL.md`:
 | [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
 | [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
 
-Default: inspect → implement → scope-appropriate verification → review → report.
+Default for authorized implementation: inspect → implement → scope-appropriate verification → review → report.
+Research-only requests end with findings and drafts; publishing issues or changing code
+requires the user's authorization.
 Tickets, issues, design/plan documents, subagents, and reviewer pairs are optional, not routine
 prerequisites. Use PRs only when explicitly requested. Do not automatically chain
 skills; implementation includes verification. Use Superpowers only when explicitly
@@ -69,11 +84,47 @@ publication, releases, or upstream synchronization.
 - Follow nearby architecture/style; keep business logic out of widgets when practical.
 - Before UI changes, inspect comparable screens; reuse application components, spacing,
   typography, sizing, and interactions. Justify intentional deviations.
-- Prefer Kurumi components for popup, context, and anchored menus; do not mix
-  differently styled Material and Kurumi menu rows in one popup.
-- Localize user-facing strings and use `context.t`.
+- For shared UI consistency work, consult `docs/ui_style_guide.md` as a proposed
+  baseline until #136 is accepted; preserve approved feature behavior and inspect
+  the current Kurumi API before introducing new visual patterns.
+- Localize user-facing strings and use `context.t`. Author new or changed strings
+  in `packages/i18n/translations/en-US.json` only; do not author German or other
+  translations unless explicitly requested. Use the existing English fallback
+  for missing translations and preserve existing locales and translated prose.
+  Normal code generation for supported locales is still required when inputs
+  change; never manually edit generated Dart.
 - Treat external/site/API data as nullable; use `equatable` when useful.
 - Prefer readable pattern matching; comment non-obvious decisions.
+
+### Kurumi dialogs and popup surfaces
+
+Use existing Kurumi components for application dialogs, popup menus, anchored
+pickers, bottom sheets, and context menus. Do not introduce raw Material
+`AlertDialog`, `Dialog`, `SimpleDialog`, or `PopupMenuButton` when an appropriate
+Kurumi alternative exists.
+
+Prefer `KurumiAnchor`, `KurumiDialog`, `KurumiPopupMenuButton`,
+`KurumiContextMenu`, or existing Kurumi sheet components according to the
+interaction. Flutter's `showDialog` is allowed as a routing mechanism when
+presenting a Kurumi-styled dialog. Do not mix differently styled Material and
+Kurumi menu rows in one popup.
+
+Keep reusable picker content and state independent from presentation surfaces.
+The same workflow must use consistent presentation patterns across entry points.
+Exceptions require a documented technical justification and must preserve the
+application's established styling.
+
+## Released data and compatibility
+
+Before changing storage, import/export or sync formats, read
+[release compatibility](docs/release_compatibility.md). Establish the actual
+published writer/tag; a develop merge, closed issue or unchanged pubspec version
+does not mean a feature shipped. Preserve supported public data, but do not add
+production migrations solely for unreleased development intermediates. Do not
+remove an intermediate stage still needed by a released-to-current upgrade.
+Use [released-data verification](docs/testing/released_upgrade_verification.md);
+an APK installation/version check alone is not a data-migration test. No silent
+user-data reset or retirement of public support is authorized by this policy.
 
 ## Verification and devices
 

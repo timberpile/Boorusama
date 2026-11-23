@@ -2,6 +2,11 @@ import 'package:boorusama/core/debug/src/logging/app_logger.dart';
 import 'package:boorusama/foundation/loggers.dart';
 
 import 'dart:async';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:boorusama/core/ddos/handler/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
 
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/configs/config/types.dart';
@@ -29,6 +34,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:oktoast/oktoast.dart';
 
 import '../../../bulk_downloads/common.dart';
+import 'share_test_utils.dart';
 
 class _PendingExtractor
     implements DownloadFileUrlExtractor, ExactVideoUrlExtractor {
@@ -51,6 +57,18 @@ class _PendingExtractor
 class _FileSystem extends Mock implements AppFileSystem {}
 
 class _CacheManager extends Mock implements ImageCacheManager {}
+
+class _ManagedCache extends Mock implements ManagedImageCacheManager {}
+
+class _FileLease extends ImageCacheFileLease {
+  _FileLease(this.path);
+  @override
+  final String path;
+  @override
+  bool get isRetained => true;
+  @override
+  Future<void> release() async {}
+}
 
 const _auth = BooruConfigAuth(
   booruId: 1,
@@ -79,11 +97,18 @@ Future<void> _openSheet(
   double textScale = 1,
   ImageCacheManager? imageCacheManager,
   ValueNotifier<Post>? postNotifier,
+  Future<void> Function(String, String)? imageFileClipboardWriter,
+  Dio? dio,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         loggerProvider.overrideWithValue(AppLogger()),
+        if (dio != null) ...[
+          dioForWidgetProvider.overrideWith((ref, auth) => dio),
+          httpHeadersProvider.overrideWith((ref, auth) => const {}),
+          bypassDdosHeadersProvider.overrideWith((ref, url) => const {}),
+        ],
         automaticMediaLoadingEnabledProvider.overrideWithValue(false),
         downloadFileUrlExtractorProvider.overrideWith(
           (ref, config) => extractor,
@@ -121,6 +146,7 @@ Future<void> _openSheet(
                     post: currentPost,
                     auth: _auth,
                     viewer: _viewer,
+                    imageFileClipboardWriter: imageFileClipboardWriter,
                     imageCacheManager:
                         imageCacheManager ?? DefaultImageCacheManager(),
                   );
@@ -145,6 +171,85 @@ Future<void> _openSheet(
 }
 
 void main() {
+  for (final metadataFails in [false, true]) {
+    testWidgets(
+      'successful Image Copy refreshes this sheet (metadata failure: $metadataFails)',
+      (tester) async {
+        await tester.runAsync(() async {
+          final root = await Directory.systemTemp.createTemp(
+            'share-description-',
+          );
+          final png = Uint8List.fromList(
+            img.encodePng(img.Image(width: 3, height: 2)),
+          );
+          final file = await File('${root.path}/image.png').writeAsBytes(png);
+          final fs = _FileSystem();
+          when(fs.getTemporaryPath).thenAnswer((_) async => root.path);
+          final cache = _ManagedCache();
+          var prepared = false;
+          var copied = false;
+          when(() => cache.generateCacheKey(any())).thenReturn('sample');
+          when(() => cache.getCachedFileBytes('sample')).thenAnswer((_) async {
+            if (!prepared) return null;
+            if (metadataFails) throw StateError('metadata unavailable');
+            return png;
+          });
+          when(() => cache.acquireFile('sample')).thenAnswer((_) async {
+            prepared = true;
+            return _FileLease(file.path);
+          });
+          final dio = Dio()
+            ..interceptors.add(
+              InterceptorsWrapper(
+                onRequest: (_, handler) => fail(
+                  'Cache reuse and subtitle refresh must not request media',
+                ),
+              ),
+            );
+          await _openSheet(
+            tester,
+            post: dummyPost(
+              id: 42,
+              sampleImageUrl: 'https://site.test/sample.png',
+              originalImageUrl: 'https://site.test/original.png',
+              format: 'png',
+            ),
+            extractor: const UrlInsidePostExtractor(),
+            fileSystem: fs,
+            imageCacheManager: cache,
+            dio: dio,
+            imageFileClipboardWriter: (path, mime) async {
+              expect(mime, 'image/png');
+              expect(await File(path).readAsBytes(), png);
+              copied = true;
+            },
+          );
+          final image = find.byKey(const ValueKey(SharePayloadId.image));
+          expect(tester.widget<SharePayloadTile>(image).description, isNull);
+          final before = tester.getSize(image);
+          await tester.tap(find.byTooltip('Copy Image'));
+          await pumpUntilShareCondition(
+            tester,
+            () =>
+                copied &&
+                shareActionEnabled(tester, 'Copy Image') &&
+                (metadataFails ||
+                    tester.widget<SharePayloadTile>(image).description != null),
+            reason: 'The open sheet must settle after preparation and clipboard acknowledgement',
+          );
+          expect(
+            tester.widget<SharePayloadTile>(image).description,
+            metadataFails ? null : '3 × 2 · ${png.length} B · PNG',
+          );
+          expect(tester.getSize(image), before);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          await root.delete(recursive: true);
+        });
+      },
+    );
+  }
+
   testWidgets('Image describes encoded bytes already cached for its URL', (
     tester,
   ) async {
@@ -227,6 +332,15 @@ void main() {
         isNull,
       );
 
+      final title = find.descendant(
+        of: imageTile,
+        matching: find.text('Image'),
+      );
+      expect(
+        tester.getCenter(title).dy,
+        closeTo(tester.getCenter(imageTile).dy, 0.5),
+      );
+
       cachedBytes.complete(bytes);
       await tester.pump();
       await tester.pump();
@@ -286,6 +400,12 @@ void main() {
         find.byKey(const ValueKey(SharePayloadId.image)),
       );
       expect(image.description, isNull);
+      final tile = find.byKey(const ValueKey(SharePayloadId.image));
+      final title = find.descendant(of: tile, matching: find.text('Image'));
+      expect(
+        tester.getCenter(title).dy,
+        closeTo(tester.getCenter(tile).dy, 0.5),
+      );
       expect(find.text('Cancel'), findsNothing);
       expect(extractor.calls, 0);
     });

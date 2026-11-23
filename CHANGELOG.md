@@ -1,3 +1,32 @@
+# 4.6.1-timberpile.4
+
+## Breaking Changes
+
+- ↔️ Horizontal Post Swiping Replaces Vertical Post Swiping
+- ↕️ Saved Oldest Post First Selections in Following Topics Switch to Manual
+
+## Features
+
+- 🔄 MiteMite Sharing for Bookmark Groups and Following Collections
+- 🖼️ Redesigned Post Viewer with Immersive and Detailed Views
+- 🗂️ Single and Timeline Views for Pools, Series, Related Posts, and Pixiv Works
+- 🔖 Nested Bookmark Groups with Saved Posts, Pools, Series, and Related Posts
+- 🎨 Pixiv Work Galleries and Separate Work and Page Bookmarks
+- ⭐ Pixiv Favorites and Followed Artists
+- 📦 Import Bookmarks and Following Topics Without Matching Profiles
+- 🧩 Optional Related Post Grouping Across Timelines
+- 📅 Recently Added Sorting for Following Topics and More Bookmark and Feed Sort Options
+
+## Fixes and Improvements
+
+- 🔍 Better Double-Tap Zoom and Corner Focus
+- ⚡ Improved Timeline Preloading and Refresh Reliability
+- 🔖 More Reliable Favorites Sync, Bookmark Covers, and Group Counts
+- 📲 Smoother Android In-App Downloads and Updates
+- 🔗 Shareable Artist Links and Easier Image Sharing
+- 💾 More Reliable Backups and Import Recovery
+- 🌐 Fixed Rule34 Website Favorites and Realbooru Following Previews
+
 # 4.6.1-timberpile.3
 
 ## Features

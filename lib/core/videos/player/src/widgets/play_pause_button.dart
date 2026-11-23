@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -12,7 +13,7 @@ class PlayPauseButton extends StatelessWidget {
     this.semanticLabel,
   });
 
-  final ValueNotifier<bool> isPlaying;
+  final ValueListenable<bool> isPlaying;
   final void Function(bool value) onPlayingChanged;
   final EdgeInsetsGeometry? padding;
   final String? semanticLabel;

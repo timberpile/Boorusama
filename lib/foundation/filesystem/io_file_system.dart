@@ -166,7 +166,7 @@ class IoFileSystem implements AppFileSystem {
 
   @override
   Future<bool> publishFileIfAbsent(String source, String destination) async =>
-      atomic.publishFileIfAbsent(source, destination);
+      atomic.publishFileIfAbsentAsync(source, destination);
 
   @override
   Future<void> syncFile(String path) async {
@@ -179,7 +179,7 @@ class IoFileSystem implements AppFileSystem {
       }
       return;
     }
-    syncPosixPath(path, readWrite: true);
+    await syncPosixPathAsync(path, readWrite: true);
   }
 
   @override
@@ -223,9 +223,15 @@ class IoFileSystem implements AppFileSystem {
       Directory(path).create(recursive: recursive);
 
   @override
+  Future<void> renameDirectory(String source, String destination) =>
+      Platform.isWindows
+      ? renameWindowsDirectoryDurably(source, destination)
+      : Directory(source).rename(destination);
+
+  @override
   Future<void> syncDirectory(String path) async {
     if (Platform.isWindows) return;
-    syncPosixPath(path);
+    await syncPosixPathAsync(path);
   }
 
   @override

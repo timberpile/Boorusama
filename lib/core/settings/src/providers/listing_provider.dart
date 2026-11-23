@@ -6,6 +6,8 @@ import '../../../configs/manage/providers.dart';
 import '../../../configs/config/types.dart';
 import '../../../navigation/page_presentation_profile.dart';
 import '../../../images/types.dart';
+import '../../../content/content_access_provider.dart';
+import '../../../content/content_access.dart';
 import '../types/settings.dart';
 import 'settings_provider.dart';
 
@@ -17,13 +19,7 @@ final imageListingSettingsProvider = Provider<ImageListingSettings>((ref) {
     pagePresentationProfileProvider.select((value) => value?.listing),
   );
 
-  // if user has set it and it's enabled, return it
-  if (listingConfigs != null && listingConfigs.enable) {
-    return listingConfigs.settings;
-  }
-
-  // otherwise, return the global settings
-  return listing;
+  return _effectiveListing(listing, listingConfigs);
 }, dependencies: [pagePresentationProfileProvider, settingsProvider]);
 
 final hasCustomListingSettingsProvider = Provider<bool>((ref) {
@@ -51,3 +47,24 @@ final listingSettingsForAuthProvider =
       final custom = profiles.length == 1 ? profiles.single.listing : null;
       return custom != null && custom.enable ? custom.settings : global;
     });
+
+/// Group reads use the exact bound profile, including when accounts share auth.
+final listingSettingsForAccessProvider = Provider.autoDispose
+    .family<ImageListingSettings, ContentAccessKey>(
+      (ref, key) {
+        final global = ref.watch(
+          settingsProvider.select((value) => value.listing),
+        );
+        final profile = ref.watch(contentAccessContextProvider(key))?.config;
+        return _effectiveListing(
+          global,
+          profile?.anonymousReadScope == null ? profile?.listing : null,
+        );
+      },
+      dependencies: [settingsProvider, contentAccessContextProvider],
+    );
+
+ImageListingSettings _effectiveListing(
+  ImageListingSettings global,
+  ListingConfigs? custom,
+) => custom != null && custom.enable ? custom.settings : global;

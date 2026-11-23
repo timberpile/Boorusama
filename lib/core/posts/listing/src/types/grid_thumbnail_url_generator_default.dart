@@ -76,26 +76,13 @@ GridThumbnailMedia defaultGridThumbnailMedia(
         ImageQuality.highest => sampleUrl,
         ImageQuality.original => post.originalImageUrl,
       },
-      false => switch (settings.resolvedImageQuality) {
-        ImageQuality.automatic => post.thumbnailImageUrl,
-        ImageQuality.low => post.thumbnailImageUrl,
-        ImageQuality.high =>
-          post.isVideo
-              ? post.thumbnailImageUrl
-              : switch (settings.gridSize) {
-                  GridSize.micro || GridSize.tiny => post.thumbnailImageUrl,
-                  _ => post.sampleImageUrl,
-                },
-        ImageQuality.highest =>
-          post.isVideo
-              ? post.thumbnailImageUrl
-              : switch (settings.gridSize) {
-                  GridSize.micro || GridSize.tiny => post.thumbnailImageUrl,
-                  _ => post.sampleImageUrl,
-                },
-        ImageQuality.original =>
-          post.isVideo ? post.thumbnailImageUrl : post.originalImageUrl,
-      },
+      false => defaultStaticGridThumbnailUrl(
+        thumbnail: post.thumbnailImageUrl,
+        sample: post.sampleImageUrl,
+        original: post.originalImageUrl,
+        isVideo: post.isVideo,
+        settings: settings,
+      ),
     },
     aspectRatio: aspectRatio,
     placeholderUrl: post.thumbnailImageUrl,
@@ -104,6 +91,67 @@ GridThumbnailMedia defaultGridThumbnailMedia(
 }
 
 const maxAutoplayGridGifBytes = 5 * 1024 * 1024;
+
+String defaultStaticGridThumbnailUrl({
+  required String thumbnail,
+  required String sample,
+  required String original,
+  required bool isVideo,
+  required GridThumbnailSettings settings,
+}) => switch (settings.resolvedImageQuality) {
+  ImageQuality.automatic || ImageQuality.low => thumbnail,
+  ImageQuality.high || ImageQuality.highest =>
+    isVideo
+        ? thumbnail
+        : switch (settings.gridSize) {
+            GridSize.micro || GridSize.tiny => thumbnail,
+            _ => sample,
+          },
+  ImageQuality.original => isVideo ? thumbnail : original,
+};
+
+GridThumbnailMedia staticCoverGridThumbnailMedia(
+  GridThumbnailStaticMedia cover, {
+  required String url,
+  required double? Function(GridThumbnailStaticAspectRatios cover) ratio,
+}) {
+  final metadata = cover is GridThumbnailStaticAspectRatios
+      ? cover as GridThumbnailStaticAspectRatios
+      : null;
+  final ratios = metadata?.aspectRatios;
+  // Match the actual selected URL first: a missing source variant may have
+  // fallen back to the thumbnail despite a higher requested quality.
+  final matchesRetainedUrl =
+      url == cover.thumbnail || url == cover.sample || url == cover.original;
+  final aspectRatio = matchesRetainedUrl
+      ? (url == cover.thumbnail ? ratios?.thumbnail : null) ??
+            (url == cover.sample ? ratios?.sample : null) ??
+            (url == cover.original ? ratios?.original : null)
+      : metadata == null
+      ? null
+      : ratio(metadata);
+  return GridThumbnailMedia(
+    url: url,
+    aspectRatio: aspectRatio,
+    placeholderUrl: cover.thumbnail,
+    placeholderAspectRatio: ratios?.thumbnail,
+  );
+}
+
+GridThumbnailMedia defaultStaticCoverGridThumbnailMedia(
+  GridThumbnailStaticMedia cover,
+  GridThumbnailSettings settings,
+) => staticCoverGridThumbnailMedia(
+  cover,
+  url: defaultStaticGridThumbnailUrl(
+    thumbnail: cover.thumbnail,
+    sample: cover.sample,
+    original: cover.original,
+    isVideo: false,
+    settings: settings,
+  ),
+  ratio: (_) => null,
+);
 
 // The viewer's isGif also inspects videoUrl, which may be a transcoded sample.
 // Grid limits must instead follow the original file whose size the API reports.
@@ -147,19 +195,22 @@ GridThumbnailMedia _thumbnailOnlyGridThumbnailMedia(
 class DefaultGridThumbnailUrlGenerator
     implements
         GridThumbnailUrlGenerator,
+        GridThumbnailStaticCoverResolver,
         GridLoadingPlaceholderAspectRatioResolver {
   const DefaultGridThumbnailUrlGenerator({
     this.mediaMapper,
     this.loadingPlaceholderAspectRatioResolver,
-  });
+  }) : _thumbnailOnly = false;
 
   const DefaultGridThumbnailUrlGenerator.thumbnailOnly()
     : mediaMapper = _thumbnailOnlyGridThumbnailMedia,
-      loadingPlaceholderAspectRatioResolver = null;
+      loadingPlaceholderAspectRatioResolver = null,
+      _thumbnailOnly = true;
 
   final GridThumbnailMediaMapper? mediaMapper;
   final double? Function(GridThumbnailSettings settings)?
   loadingPlaceholderAspectRatioResolver;
+  final bool _thumbnailOnly;
 
   @override
   GridThumbnailMedia resolve(
@@ -168,7 +219,32 @@ class DefaultGridThumbnailUrlGenerator
   }) => (mediaMapper ?? defaultGridThumbnailMedia)(post, settings);
 
   @override
+  GridThumbnailMedia resolveStaticCover(
+    GridThumbnailStaticMedia cover, {
+    required GridThumbnailSettings settings,
+  }) => _thumbnailOnly
+      ? staticCoverGridThumbnailMedia(
+          cover,
+          url: cover.thumbnail,
+          ratio: (_) => null,
+        )
+      : defaultStaticCoverGridThumbnailMedia(cover, settings);
+
+  @override
   double? resolveLoadingPlaceholderAspectRatio({
     required GridThumbnailSettings settings,
   }) => loadingPlaceholderAspectRatioResolver?.call(settings);
+}
+
+extension GridThumbnailStaticCoverResolverX on GridThumbnailUrlGenerator {
+  GridThumbnailMedia resolveStaticCover(
+    GridThumbnailStaticMedia cover, {
+    required GridThumbnailSettings settings,
+  }) {
+    final generator = this;
+    if (generator is GridThumbnailStaticCoverResolver) {
+      return generator.resolveStaticCover(cover, settings: settings);
+    }
+    return defaultStaticCoverGridThumbnailMedia(cover, settings);
+  }
 }

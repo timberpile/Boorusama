@@ -97,7 +97,12 @@ class _DanbooruArtistSearchPageState
               ),
               const SliverSizedBox(height: 8),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.fromLTRB(
+                  4,
+                  0,
+                  4,
+                  MediaQuery.paddingOf(context).bottom,
+                ),
                 sliver: PagingListener(
                   controller: pagingController,
                   builder: (context, state, fetchNextPage) => PagedSliverList(

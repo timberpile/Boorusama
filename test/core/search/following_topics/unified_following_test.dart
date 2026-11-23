@@ -67,6 +67,46 @@ void main() {
     );
   }
 
+  test(
+    'refresh and targeted publication leave unrelated payloads undecoded',
+    () async {
+      final source = await repository.create(
+        profileId: firstProfile,
+        query: 'cat',
+        name: 'Cats',
+      );
+      await repository.restoreFeeds(firstProfile, [
+        TopicFeed(
+          id: 'changed',
+          profileId: firstProfile,
+          name: 'Changed',
+          sourceIds: [source.id],
+        ),
+      ]);
+      final unrelatedRow = {
+        ...TopicFeed(
+          id: 'unrelated',
+          profileId: secondProfile,
+          name: 'Unrelated',
+        ).toJson(),
+        'posts': [
+          {'schema': 'broken', 'origin': {}, 'common': {}, 'custom': {}},
+        ],
+      };
+      await storage.put('feed:unrelated', unrelatedRow);
+      await commit(source, [post('first.test', firstProfile, 42)]);
+
+      final current = await repository.readRefreshPublication(
+        source.id,
+        includeFeeds: true,
+      );
+      expect(current.topic?.lastSuccessfulCheckAt, now);
+      expect(current.feeds.map((feed) => feed.id), ['changed']);
+      expect(current.feeds.single.posts.map(feedPostId), [42]);
+      expect(storage.get('feed:unrelated'), unrelatedRow);
+    },
+  );
+
   Future<(FollowingTopic, FollowingTopic)> folderSources() async {
     final a = await repository.create(
       profileId: firstProfile,

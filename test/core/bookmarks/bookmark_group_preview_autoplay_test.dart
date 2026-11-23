@@ -3,7 +3,7 @@ import 'package:boorusama/core/bookmarks/src/types/bookmark.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final gif = Bookmark.empty.copyWith(
+  final gif = PostBookmark.empty.copyWith(
     format: () => 'gif',
     thumbnailUrl: 'https://example.test/thumb.JPG?version=1',
     sampleUrl: 'https://example.test/sample.gif',

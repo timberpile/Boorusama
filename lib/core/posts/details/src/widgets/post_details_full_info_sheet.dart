@@ -8,6 +8,20 @@ import '../../../details_manager/widgets.dart';
 import '../../../details_pageview/widgets.dart';
 import '../../../details_parts/types.dart';
 
+List<Widget> buildPostDetailsInfoSlivers(
+  BuildContext context, {
+  required PostDetailsUIBuilder? uiBuilder,
+  required Set<DetailsPart>? preferredParts,
+  required bool canCustomize,
+}) => [
+  if (uiBuilder != null && preferredParts != null)
+    ...preferredParts
+        .map((part) => uiBuilder.buildPart(context, part))
+        .nonNulls,
+  const SliverSizedBox(height: 12),
+  if (canCustomize) const SliverToBoxAdapter(child: AddCustomDetailsButton()),
+];
+
 class PostDetailsFullInfoSheet extends ConsumerWidget {
   const PostDetailsFullInfoSheet({
     required this.sheetState,

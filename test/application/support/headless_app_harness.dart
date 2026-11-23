@@ -1,3 +1,5 @@
+import 'package:boorusama/core/posts/details/src/widgets/post_details_page_view_scope.dart';
+
 // Dart imports:
 import 'dart:io';
 
@@ -43,6 +45,7 @@ final class HeadlessAppHarness {
     List<Override> additionalOverrides = const [],
     Size? viewportSize,
     TestPhone? phone,
+    Widget Function(Widget)? appWrapper,
   }) {
     final backend = booruBackend ?? FakeBooruBackend();
     return HeadlessAppHarness._(
@@ -51,6 +54,7 @@ final class HeadlessAppHarness {
       additionalOverrides,
       viewportSize,
       phone,
+      appWrapper,
     );
   }
 
@@ -60,6 +64,7 @@ final class HeadlessAppHarness {
     this.additionalOverrides,
     this.viewportSize,
     this.phone,
+    this.appWrapper,
   );
 
   /// Creates a harness, registers its teardown, and mounts the app.
@@ -70,6 +75,7 @@ final class HeadlessAppHarness {
     List<Override> additionalOverrides = const [],
     Size? viewportSize,
     TestPhone? phone,
+    Widget Function(Widget)? appWrapper,
   }) async {
     final harness = HeadlessAppHarness(
       runtime: runtime,
@@ -77,6 +83,7 @@ final class HeadlessAppHarness {
       additionalOverrides: additionalOverrides,
       viewportSize: viewportSize,
       phone: phone,
+      appWrapper: appWrapper,
     );
     addTearDown(() => harness.teardown(tester));
     _stubDownloaderChannel(tester);
@@ -100,6 +107,7 @@ final class HeadlessAppHarness {
 
   /// Phone whose on-screen keyboard follows the app's text input.
   final TestPhone? phone;
+  final Widget Function(Widget)? appWrapper;
   SoftKeyboard? _keyboard;
   var _didTearDown = false;
 
@@ -165,7 +173,9 @@ final class HeadlessAppHarness {
           ...additionalOverrides,
           toastDurationProvider.overrideWithValue(Duration.zero),
         ],
-        child: const BoorusamaCoreApp(),
+        child:
+            appWrapper?.call(const BoorusamaCoreApp()) ??
+            const BoorusamaCoreApp(),
       ),
     );
     await tester.pump();
@@ -308,7 +318,10 @@ final class HeadlessAppHarness {
         'tasks=$taskStatuses';
   }
 
-  Future<void> openFirstPost(WidgetTester tester) async {
+  Future<void> openFirstPost(
+    WidgetTester tester, {
+    bool showControls = true,
+  }) async {
     await pumpUntilFound(
       tester,
       find.byType(SliverPostGridImageGridItem),
@@ -316,6 +329,28 @@ final class HeadlessAppHarness {
     await tester.tap(find.byType(SliverPostGridImageGridItem).first);
     await tester.pump();
     await pumpUntilFound(tester, find.byType(PostDetailsPageScaffold));
+    if (showControls) await showViewerControls(tester);
+  }
+
+  /// Reveals actions with the same single tap used in the hidden Immersive UI.
+  Future<void> showViewerControls(WidgetTester tester) async {
+    await settle(tester);
+    // Transparent member routes retain the covered gallery's own scaffold.
+    final activeViewer = find.byType(PostDetailsPageScaffold).hitTestable();
+    if (activeViewer.evaluate().isEmpty) return;
+    final view = PostDetailsPageViewScope.of(
+      tester.element(activeViewer.first),
+    );
+    if (view.overlay.value) return;
+    await tester.tap(
+      find.byKey(ValueKey(('viewer-media', view.page))).hitTestable(),
+    );
+    await pumpUntil(
+      tester,
+      () => view.overlay.value,
+      description: 'viewer overlay to appear after a media tap',
+    );
+    await settle(tester);
   }
 
   void dispose() {

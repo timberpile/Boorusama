@@ -125,9 +125,18 @@ final serverFavoriteSourceProvider =
       // Never apply the profile's browsing filters, automatic tags, blacklist,
       // or rating filter to an account-favorites download.
       final search = _rawSearch(auth);
+      final realbooru =
+          auth.booruType == BooruType.gelbooruV2 &&
+          const {
+            'realbooru.com',
+            'www.realbooru.com',
+          }.contains(Uri.tryParse(auth.url)?.host);
       final gelbooruV2 = auth.booruType == BooruType.gelbooruV2;
       final repository = OriginAwarePostRepository(
         delegate: switch (auth.booruType) {
+          BooruType.gelbooruV2 when realbooru => ref.watch(
+            realbooruFavoritesListingRepoProvider((search, auth.login!.trim())),
+          ),
           BooruType.gelbooruV2 => ref.watch(
             gelbooruV2FavoritesPostRepoProvider((
               search,
@@ -144,6 +153,7 @@ final serverFavoriteSourceProvider =
         query,
         resolvePosts:
             gelbooruV2 &&
+            !realbooru &&
             (ref
                     .watch(gelbooruV2Provider)
                     .getCapabilitiesForSite(auth.url)

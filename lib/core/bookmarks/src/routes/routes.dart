@@ -1,3 +1,5 @@
+import '../../../posts/details/src/types/viewer_entry.dart';
+
 // Package imports:
 import 'package:foundation/foundation.dart';
 import 'package:i18n/i18n.dart';
@@ -12,6 +14,7 @@ import '../pages/bookmark_details_page.dart';
 import '../pages/bookmark_page.dart';
 import '../pages/bookmark_group_browser_page.dart';
 import '../types/bookmark_view.dart';
+import '../services/bookmark_read_projection.dart';
 
 final bookmarkRoutes = GoRoute(
   path: 'bookmarks',
@@ -30,6 +33,7 @@ final bookmarkRoutes = GoRoute(
           final view = switch ((kind, id)) {
             ('all', _) => const BookmarkView.all(),
             ('group', final String id) => BookmarkView.group(id),
+            ('subtree', final String id) => BookmarkView.subtree(id),
             _ => const BookmarkView.defaultGroup(),
           };
           return BookmarkPage(
@@ -63,6 +67,12 @@ final bookmarkRoutes = GoRoute(
             initialIndex: state.uri.queryParameters['index']?.toInt() ?? 0,
             initialThumbnailUrl: extra['initialThumbnailUrl'] as String,
             controller: extra['controller'] as PostGridController<Post>,
+            entries: extra['entries'] as List<ViewerEntry>?,
+            readingTargets:
+                extra['readingTargets'] as Map<Object, BookmarkReadTarget>?,
+            sourceView:
+                extra['sourceView'] as BookmarkView? ??
+                const BookmarkView.all(),
           ),
         );
       },

@@ -4,36 +4,106 @@ import '../../../../boorus/booru/types.dart';
 import '../../../../bookmarks/src/types/bookmark_search_token.dart';
 import '../../../../bookmarks/src/types/bookmark_tag_index.dart';
 import '../../../../posts/post/types.dart';
+import 'topic_feed.dart';
+
+enum CachedTopicFeedSort {
+  newest,
+  oldest,
+  scoreDescending,
+  scoreAscending,
+}
 
 /// A local projection only. It never changes a Topic query or fetches history.
 class CachedTopicFeedFilter extends Equatable {
-  const CachedTopicFeedFilter({this.query = '', this.sourceHost});
+  const CachedTopicFeedFilter({
+    this.query = '',
+    this.sourceHost,
+    this.sort = CachedTopicFeedSort.newest,
+  });
 
   final String query;
   final String? sourceHost;
+  final CachedTopicFeedSort sort;
 
-  bool get isActive => query.trim().isNotEmpty || sourceHost != null;
+  bool get isActive =>
+      query.trim().isNotEmpty ||
+      sourceHost != null ||
+      sort != CachedTopicFeedSort.newest;
 
-  List<StoredPostSnapshot> apply(Iterable<StoredPostSnapshot> snapshots) {
-    if (!isActive) return snapshots.toList(growable: false);
+  Iterable<StoredPostSnapshot> matchingSnapshots(
+    Iterable<StoredPostSnapshot> snapshots,
+  ) {
     final tokens = parseBookmarkSearchInput(query)
         .map(BookmarkSearchToken.parse)
         .toList();
     final host = sourceHost == null
         ? null
         : normalizePostSourceHost(sourceHost!);
-    return [
-      for (final snapshot in snapshots)
-        if ((host == null ||
-                normalizePostSourceHost(snapshot.origin.sourceHost) == host) &&
-            _matches(_tags(snapshot), tokens))
-          snapshot,
-    ];
+    return snapshots.where(
+      (snapshot) =>
+          (host == null ||
+              normalizePostSourceHost(snapshot.origin.sourceHost) == host) &&
+          (tokens.isEmpty || _matches(_tags(snapshot), tokens)),
+    );
+  }
+
+  List<StoredPostSnapshot> apply(Iterable<StoredPostSnapshot> snapshots) {
+    if (!isActive) return snapshots.toList(growable: false);
+    final filtered = matchingSnapshots(snapshots).toList();
+    // Parsing upload timestamps inside the comparator repeats the same work
+    // O(n log n) times on the UI isolate. Resolve each timestamp once.
+    final dates = Map<StoredPostSnapshot, DateTime?>.identity();
+    for (final snapshot in filtered) {
+      dates[snapshot] = _date(snapshot);
+    }
+    filtered.sort((a, b) => _compareSnapshots(a, b, sort, dates));
+    return filtered;
   }
 
   @override
-  List<Object?> get props => [query, sourceHost];
+  List<Object?> get props => [query, sourceHost, sort];
 }
+
+int _compareSnapshots(
+  StoredPostSnapshot a,
+  StoredPostSnapshot b,
+  CachedTopicFeedSort sort,
+  Map<StoredPostSnapshot, DateTime?> dates,
+) {
+  if (sort == CachedTopicFeedSort.scoreAscending ||
+      sort == CachedTopicFeedSort.scoreDescending) {
+    final score = _score(a).compareTo(_score(b));
+    if (score != 0) {
+      return sort == CachedTopicFeedSort.scoreDescending ? -score : score;
+    }
+  }
+  final aDate = dates[a];
+  final bDate = dates[b];
+  // Missing upload dates stay last in either direction, including score ties.
+  if (aDate == null && bDate != null) return 1;
+  if (aDate != null && bDate == null) return -1;
+  if (aDate != null && bDate != null) {
+    final date = aDate.compareTo(bDate);
+    if (date != 0) return sort == CachedTopicFeedSort.oldest ? date : -date;
+  }
+  final id = _id(b).compareTo(_id(a));
+  if (id != 0) return id;
+  return feedPostIdentity(b).compareTo(feedPostIdentity(a));
+}
+
+// Legacy snapshots already use zero when score metadata was never captured.
+num _score(StoredPostSnapshot post) => switch (post.common['score']) {
+  final num value when value.isFinite => value,
+  _ => 0,
+};
+int _id(StoredPostSnapshot post) => switch (post.common['id']) {
+  final int value => value,
+  _ => 0,
+};
+DateTime? _date(StoredPostSnapshot post) => switch (post.common['createdAt']) {
+  final String value => DateTime.tryParse(value),
+  _ => null,
+};
 
 bool _matches(Set<String> tags, List<BookmarkSearchToken> tokens) =>
     tokens.every(

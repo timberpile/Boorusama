@@ -240,6 +240,9 @@ GelbooruV2Posts parseFavoritePostsHtml(
   Map<String, dynamic> context, {
   required PostsDataExtractor dataExtractor,
 }) {
+  if (context['strictRealbooruFavorites'] == true) {
+    return _parseRealbooruFavoritesSync(response, context, dataExtractor);
+  }
   final htmlContent = response.data;
   final doc = parse(htmlContent);
 
@@ -603,4 +606,110 @@ bool requiresPostIdentityValidation(Response response) {
             tag.startsWith('source:') ||
             tag.startsWith('pixiv_id:'),
       );
+}
+
+// Recognized deployed Favorites structure, captured in the accompanying fixtures.
+// Empty content alone is never a terminal-page signal.
+GelbooruV2Posts _parseRealbooruFavoritesSync(
+  Response response,
+  Map<String, dynamic> context,
+  PostsDataExtractor extractor,
+) {
+  final html = response.data;
+  final uri = response.realUri;
+  final expected = context[P.userId]?.toString();
+  final query = uri.queryParameters;
+  if (html is! String ||
+      response.statusCode != 200 ||
+      !const {'realbooru.com', 'www.realbooru.com'}.contains(uri.host) ||
+      uri.scheme != 'https' ||
+      uri.port != 443 ||
+      uri.userInfo.isNotEmpty ||
+      uri.path != '/index.php' ||
+      query['page'] != 'favorites' ||
+      query['s'] != 'view' ||
+      expected == null ||
+      int.tryParse(expected) == null ||
+      query['id'] != expected) {
+    throw const FormatException('Unexpected Realbooru Favorites response');
+  }
+  final document = parse(html);
+  if (document.querySelector('body#body') == null ||
+      document.querySelector('#paginator') == null ||
+      document.querySelector('#pi[onclick*="showHideIgnored"]') == null ||
+      !RegExp(r'var\s+posts\s*=\s*\{\}').hasMatch(html) ||
+      document.querySelector('input[type="password"], #challenge-form') !=
+          null) {
+    throw const FormatException('Unrecognized Realbooru Favorites page');
+  }
+  final page = int.tryParse(query['pid'] ?? '0');
+  if (page == null || page < 0)
+    throw const FormatException('Invalid Favorites cursor');
+  var next = false;
+  for (final anchor in document.querySelectorAll('#paginator a')) {
+    final onclick = anchor.attributes['onclick'] ?? '';
+    final target =
+        RegExp(
+          r"document\.location='([^']+)'\s*;",
+        ).firstMatch(onclick)?.group(1) ??
+        anchor.attributes['href'];
+    if (target == null || target == '#') continue;
+    final destination = uri.resolve(target);
+    final params = destination.queryParameters;
+    if (destination.origin != uri.origin ||
+        destination.path != uri.path ||
+        params['page'] != 'favorites' ||
+        params['s'] != 'view' ||
+        params['id'] != expected) {
+      throw const FormatException('Foreign Favorites pagination');
+    }
+    final offset = int.tryParse(params['pid'] ?? '0');
+    if (offset == null || offset < 0)
+      throw const FormatException('Invalid Favorites pagination');
+    next |= offset > page;
+  }
+  final data = extractor.extractPostsData(html);
+  final rows = document.querySelectorAll('span.thumb');
+  final posts = <PostV2Dto>[];
+  for (final row in rows) {
+    final anchors = row.querySelectorAll('a');
+    if (anchors.length != 1)
+      throw const FormatException('Malformed Favorites row');
+    final target = uri.resolve(anchors.single.attributes['href'] ?? '');
+    final params = target.queryParameters;
+    final id = int.tryParse(params['id'] ?? '');
+    if (target.origin != uri.origin ||
+        target.path != '/index.php' ||
+        params['page'] != 'post' ||
+        params['s'] != 'view' ||
+        id == null ||
+        id <= 0) {
+      throw const FormatException('Invalid Favorites Post locator');
+    }
+    final raw = anchors.single.querySelector('img')?.attributes['src'];
+    final image = raw == null ? null : uri.resolve(raw);
+    final thumbnail =
+        image != null &&
+            image.scheme == 'https' &&
+            image.userInfo.isEmpty &&
+            image.port == 443 &&
+            const {'realbooru.com', 'www.realbooru.com'}.contains(image.host) &&
+            image.path.startsWith('/thumbnails/')
+        ? image.toString()
+        : '';
+    final facts = data[id];
+    posts.add(
+      PostV2Dto(
+        id: id,
+        previewUrl: thumbnail,
+        tags: facts?.tags.join(' '),
+        rating: facts?.rating,
+        score: facts?.score,
+        owner: facts?.user,
+      ),
+    );
+  }
+  if (posts.isEmpty && next)
+    throw const FormatException('Empty Favorites page has a next link');
+  return GelbooruV2Posts(posts: posts, count: null);
 }

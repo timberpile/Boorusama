@@ -45,10 +45,15 @@ class SearchProfileSession extends InheritedWidget {
     required this.onSwitch,
     required super.child,
     this.local = false,
+    this.postResultsOnly = false,
     super.key,
   });
 
+  /// Owns the selected profile locally; it does not change result capability.
   final bool local;
+
+  /// Explicit compatibility contract for callers supplying Post-only results.
+  final bool postResultsOnly;
   final SearchProfileSnapshot? snapshot;
   final void Function(BooruConfig, SearchPageController) onSwitch;
 
@@ -57,5 +62,7 @@ class SearchProfileSession extends InheritedWidget {
 
   @override
   bool updateShouldNotify(SearchProfileSession oldWidget) =>
-      snapshot != oldWidget.snapshot;
+      snapshot != oldWidget.snapshot ||
+      local != oldWidget.local ||
+      postResultsOnly != oldWidget.postResultsOnly;
 }

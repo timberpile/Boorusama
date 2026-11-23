@@ -56,13 +56,20 @@ SzurubooruPool? poolDtoToSzurubooruPool(PoolDto dto) => switch (dto.id) {
     category: dto.category,
     description: dto.description,
     postCount: dto.postCount,
-    postIds: dto.posts?.map((e) => e.id).nonNulls.toList() ?? const [],
+    postIds: _poolPostIds(dto),
     thumbnailUrls:
         dto.posts?.map((e) => e.thumbnailUrl).nonNulls.toList() ?? const [],
     createdAt: DateTime.tryParse(dto.creationTime ?? ''),
     updatedAt: DateTime.tryParse(dto.lastEditTime ?? ''),
   ),
 };
+
+List<int>? _poolPostIds(PoolDto dto) {
+  final posts = dto.posts;
+  if (posts == null || posts.any((post) => post.id == null)) return null;
+
+  return [for (final post in posts) post.id!];
+}
 
 String _poolQuery({
   required SzurubooruPoolOrder order,

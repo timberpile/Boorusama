@@ -51,7 +51,7 @@ class _OpenLinkFileTileState extends ConsumerState<OpenLinkFileTile> {
   );
 }
 
-/// Returns after validating and starting navigation, not after the post closes.
+/// Returns after validating and starting navigation, not after the route closes.
 /// This lets another incoming file be handled while the app is already open.
 Future<void> openBoorusamaLinkFile(
   WidgetRef ref,
@@ -65,7 +65,7 @@ Future<void> openBoorusamaLinkFile(
       ref.read(appFileSystemProvider),
     );
     if (!ref.context.mounted) return;
-    // The envelope only permits the existing, strict post/search parsers.
+    // The envelope only permits the registered strict resource-link parsers.
     final feedbackContext = ref
         .read(appNavigationProvider)
         .navigatorKey

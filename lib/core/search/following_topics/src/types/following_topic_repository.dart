@@ -11,6 +11,16 @@ final class MissingFollowingTopicProfileException implements Exception {}
 
 final class StaleFollowingTopicEditException implements Exception {}
 
+/// The ordinary refresh path can reread committed rows without rebuilding the
+/// whole library. Structural mutations still publish an authoritative reload.
+abstract interface class FollowingRefreshPublicationStore {
+  Future<({FollowingTopic? topic, List<TopicFeed> feeds})>
+  readRefreshPublication(
+    String topicId, {
+    required bool includeFeeds,
+  });
+}
+
 abstract interface class FollowingTopicRepository {
   Future<List<FollowingTopic>> getAll();
   Future<List<TopicFeed>> getFeeds();
@@ -106,6 +116,10 @@ abstract interface class FollowingTopicRepository {
   Future<void> delete(String id);
   Future<void> deleteForProfile(String profileId);
   Future<void> invalidateRuntimeForProfile(String profileId);
+  Future<void> invalidateFeedSeriesForProfile(String profileId);
+
+  /// Restore receiver-local definitions/runtime only; preserve source-owned mirrors.
+  /// Passing a received ID is rejected even when its profile matches.
   Future<void> restoreForProfile(
     String profileId,
     List<FollowingTopic> topics,

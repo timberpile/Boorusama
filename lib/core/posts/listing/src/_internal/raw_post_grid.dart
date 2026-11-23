@@ -1,3 +1,5 @@
+import '../../../../navigation/destination_activity.dart';
+
 import 'package:flutter/foundation.dart' show mapEquals;
 
 import 'dart:math' as math;
@@ -26,7 +28,6 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:oktoast/oktoast.dart';
 import 'package:scroll_to_index/scroll_to_index.dart';
 import 'package:selection_mode/selection_mode.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
 // Project imports:
 import '../../../../../foundation/display.dart';
@@ -41,6 +42,7 @@ import '../types/grid_utils.dart';
 import '../types/page_mode.dart';
 import '../widgets/conditional_value_listenable_builder.dart';
 import '../widgets/post_grid_controller.dart';
+import '../widgets/timeline_header_sliver.dart';
 import 'highres_preview_on_mobile_data_warning_banner.dart';
 import 'swipe_to.dart';
 import 'too_much_cached_images_warning_banner.dart';
@@ -63,9 +65,11 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
     this.footer,
     this.bottomInset = 0,
     this.selectionScope,
+    this.selectionKeysBuilder,
     this.blacklistedIdString,
     this.refreshAtStart = true,
     this.enablePullToRefresh = true,
+    this.showLoadMoreButton = true,
     this.safeArea = true,
     this.options = const PostGridOptions(),
   });
@@ -77,11 +81,13 @@ class RawPostGrid<T extends Post> extends StatefulWidget {
 
   final bool refreshAtStart;
   final bool enablePullToRefresh;
+  final bool showLoadMoreButton;
   final bool safeArea;
 
   final Widget? footer;
   final double bottomInset;
   final Object? selectionScope;
+  final List<Object> Function(List<T>)? selectionKeysBuilder;
   final Widget body;
   final Widget gridHeader;
   final Widget topPageIndicator;
@@ -112,6 +118,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   var hasMore = true;
   final loading = ValueNotifier(false);
   final refreshing = ValueNotifier(false);
+  final _selectionBottomObstruction = ValueNotifier(0.0);
   var items = <T>[];
   final _identities = PostSelectionIdentity();
   var _filterScope = <String, bool>{};
@@ -126,6 +133,10 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
     controller.addListener(_onControllerChange);
     controller.activeFilters.addListener(_onFilterChanged);
     items = controller.items.toList();
+    hasMore = controller.hasMore;
+    loading.value = controller.loading;
+    refreshing.value = controller.refreshing;
+    pageMode = controller.pageMode;
     _filterScope = Map.of(controller.activeFilters.value);
     _syncSelection(duringBuild: true);
     if (widget.refreshAtStart) {
@@ -142,11 +153,13 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   void didUpdateWidget(RawPostGrid<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (widget.selectionScope != oldWidget.selectionScope) {
+    if (widget.selectionScope != oldWidget.selectionScope ||
+        widget.selectionKeysBuilder != oldWidget.selectionKeysBuilder) {
       if (_selectionModeController
           case final OrderedSelectionController<Object> selection) {
         selection.reconcileDuringBuild(
-          _identities.resolve(controller.items.toList()),
+          widget.selectionKeysBuilder?.call(controller.items.toList()) ??
+              _identities.resolve(controller.items.toList()),
           scope: widget.selectionScope,
         );
       } else {
@@ -169,6 +182,10 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   }
 
   bool _handleKeyEvent(KeyEvent event) {
+    if (!NavigationActivity.of(context) ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return false;
+    }
     if (isKeyPressed(LogicalKeyboardKey.f5, event: event)) {
       controller.refresh();
     }
@@ -186,6 +203,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
 
     widget.controller.removeListener(_onControllerChange);
     controller.activeFilters.removeListener(_onFilterChanged);
+    _selectionBottomObstruction.dispose();
 
     super.dispose();
   }
@@ -243,7 +261,9 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
   void _synchronizeSelection({required bool duringBuild}) {
     if (_selectionModeController
         case final OrderedSelectionController<Object> selection) {
-      final keys = _identities.resolve(controller.items.toList());
+      final keys =
+          widget.selectionKeysBuilder?.call(controller.items.toList()) ??
+          _identities.resolve(controller.items.toList());
       if (duringBuild) {
         selection.reconcileDuringBuild(keys, scope: widget.selectionScope);
       } else {
@@ -261,6 +281,7 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
         listenable: _selectionModeController,
         builder: (_, child) => NavigationSelectionBridge(
           controller: _selectionModeController,
+          bottomObstruction: _selectionBottomObstruction,
           selected: _selectionModeController.isActive,
           child: child!,
         ),
@@ -275,10 +296,15 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
             ),
             child: _SelectionMode(
               footer: widget.footer,
+              onBottomObstructionChanged: (height) {
+                if (mounted) _selectionBottomObstruction.value = height;
+              },
               selectionModeController: _selectionModeController,
               selectionOptions: _selectionOptions,
               autoScrollController: _autoScrollController,
-              itemCount: items.length,
+              itemCount:
+                  widget.selectionKeysBuilder?.call(items).length ??
+                  items.length,
               bottomInset: widget.bottomInset,
               child: _Scaffold(
                 body: ConditionalParentWidget(
@@ -317,8 +343,20 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                             valueListenable: refreshing,
                             useFalseChildAsCache: true,
                             trueChild: const SliverSizedBox.shrink(),
-                            falseChild: SliverPinnedHeader(
-                              child: widget.gridHeader,
+                            falseChild: Consumer(
+                              builder: (_, ref, _) => TimelineHeaderSliver(
+                                keepVisible: ref.watch(
+                                  imageListingSettingsProvider.select(
+                                    (value) => value.keepTimelineToolbarVisible,
+                                  ),
+                                ),
+                                reduceMotion: ref.watch(
+                                  settingsProvider.select(
+                                    (value) => value.reduceAnimations,
+                                  ),
+                                ),
+                                child: widget.gridHeader,
+                              ),
                             ),
                           ),
                           ConditionalValueListenableBuilder(
@@ -349,7 +387,8 @@ class _RawPostGridState<T extends Post> extends State<RawPostGrid<T>>
                               trueChild: const SliverSizedBox.shrink(),
                             ),
                           widget.body,
-                          if (pageMode == PageMode.infinite)
+                          if (pageMode == PageMode.infinite &&
+                              widget.showLoadMoreButton)
                             _buildLoadMore(colorScheme),
                           if (pageMode == PageMode.paginated)
                             ConditionalValueListenableBuilder(
@@ -617,6 +656,7 @@ class _SelectionMode extends ConsumerWidget {
     required this.child,
     required this.itemCount,
     required this.bottomInset,
+    required this.onBottomObstructionChanged,
     this.footer,
     this.autoScrollController,
   });
@@ -624,6 +664,7 @@ class _SelectionMode extends ConsumerWidget {
   final Widget child;
   final int itemCount;
   final double bottomInset;
+  final ValueChanged<double> onBottomObstructionChanged;
   final SelectionModeController selectionModeController;
   final AutoScrollController? autoScrollController;
   final SelectionOptions? selectionOptions;
@@ -654,42 +695,54 @@ class _SelectionMode extends ConsumerWidget {
                         child: child,
                       ),
                     ),
-                    if (selectionModeController.isActive) ...[
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: math.max(
-                            0,
-                            math.min(
-                              available.maxHeight - bottomInset,
-                              MediaQuery.sizeOf(context).height * .45,
-                            ),
-                          ),
-                        ),
-                        child: SingleChildScrollView(
-                          child: Material(
-                            color: Kurumi.themeOf(context).colorScheme.surface,
-                            child: SafeArea(
-                              top: false,
-                              bottom: bottomInset == 0,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  PostSelectionControls(
-                                    controller: selectionModeController,
-                                    itemCount: itemCount,
+                    if (selectionModeController.isActive)
+                      _SelectionBottomObstruction(
+                        onChanged: onBottomObstructionChanged,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: math.max(
+                                  0,
+                                  math.min(
+                                    available.maxHeight - bottomInset,
+                                    MediaQuery.sizeOf(context).height * .45,
                                   ),
-                                  if (footer case final footer?) footer,
-                                ],
+                                ),
+                              ),
+                              child: SingleChildScrollView(
+                                child: Material(
+                                  color: Kurumi.themeOf(context)
+                                      .colorScheme
+                                      .surface,
+                                  child: SafeArea(
+                                    top: false,
+                                    bottom: bottomInset == 0,
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        PostSelectionControls(
+                                          controller: selectionModeController,
+                                          itemCount: itemCount,
+                                        ),
+                                        if (footer case final footer?) footer,
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            if (bottomInset > 0)
+                              SizedBox(
+                                height: math.min(
+                                  bottomInset,
+                                  available.maxHeight,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      if (bottomInset > 0)
-                        SizedBox(
-                          height: math.min(bottomInset, available.maxHeight),
-                        ),
-                    ],
                   ],
                 ),
               ),
@@ -697,6 +750,65 @@ class _SelectionMode extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Distance above the keyboard to the actual control surface, including any
+/// intervening footer or nested-host offset. Size alone misses those offsets.
+class _SelectionBottomObstruction extends StatefulWidget {
+  const _SelectionBottomObstruction({
+    required this.onChanged,
+    required this.child,
+  });
+  final ValueChanged<double> onChanged;
+  final Widget child;
+  @override
+  State<_SelectionBottomObstruction> createState() =>
+      _SelectionBottomObstructionState();
+}
+
+class _SelectionBottomObstructionState
+    extends State<_SelectionBottomObstruction> {
+  final _bounds = GlobalKey();
+  var _pending = false;
+  var _last = -1.0;
+  late MediaQueryData _media;
+
+  void _measure() {
+    if (!mounted) return;
+    final box = _bounds.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+    // A resizing Scaffold consumes its body's MediaQuery keyboard inset. The
+    // native view still reports it; exclude it from controls measured globally.
+    final view = View.of(context);
+    final keyboardInset = math.max(
+      _media.viewInsets.bottom,
+      view.viewInsets.bottom / view.devicePixelRatio,
+    );
+    final viewportBottom = _media.size.height - keyboardInset;
+    final top = box.localToGlobal(Offset.zero).dy;
+    final obstruction = (viewportBottom - top)
+        .clamp(0.0, math.max(0.0, viewportBottom))
+        .toDouble();
+    if ((obstruction - _last).abs() <= .1) return;
+    _last = obstruction;
+    widget.onChanged(obstruction);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _media = MediaQuery.of(context);
+    if (!_pending) {
+      _pending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pending = false;
+        _measure();
+      });
+    }
+    return KurumiMeasureSize(
+      onChange: (_) => _measure(),
+      child: SizedBox(key: _bounds, child: widget.child),
     );
   }
 }
@@ -787,7 +899,9 @@ class _CustomScrollViewState extends State<_CustomScrollView> {
                     final cacheExtent? => ScrollCacheExtent.pixels(
                       cacheExtent,
                     ),
-                    null => null,
+                    // Use the scroll viewport, not the whole screen, so the
+                    // preload range follows resizing and constrained panes.
+                    null => const ScrollCacheExtent.viewport(1),
                   },
                   slivers: widget.slivers,
                 ),
@@ -800,7 +914,7 @@ class _CustomScrollViewState extends State<_CustomScrollView> {
   }
 }
 
-class _SliverBottomGridPadding extends StatelessWidget {
+class _SliverBottomGridPadding extends ConsumerWidget {
   const _SliverBottomGridPadding({
     required this.selectionModeController,
     required this.pageMode,
@@ -810,11 +924,20 @@ class _SliverBottomGridPadding extends StatelessWidget {
   final PageMode pageMode;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final bottomPadding = MediaQuery.viewPaddingOf(context).bottom;
+    // A bottom page indicator already consumes the inset through SafeArea.
+    // Top-only pagination needs its own scrollable clearance beneath the grid.
+    final hasInsetFooter =
+        pageMode == PageMode.paginated &&
+        ref.watch(
+          imageListingSettingsProvider.select(
+            (settings) => settings.pageIndicatorPosition.isVisibleAtBottom,
+          ),
+        );
 
     return SliverSizedBox(
-      height: pageMode == PageMode.infinite ? bottomPadding : 0,
+      height: hasInsetFooter ? 0 : bottomPadding,
     );
   }
 }

@@ -1,3 +1,4 @@
+import '../../../../posts/listing/types.dart';
 import '../../../../selection/ordered_selection_controller.dart';
 
 // Package imports:
@@ -54,9 +55,21 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     this.textMatchers,
     this.extraHeaders,
     this.itemBuilder,
+    this.resultGridBuilder,
+    this.nativeResultBuilder,
     this.searchRegionBuilder,
     this.landingViewBuilder,
   });
+
+  final Widget Function(
+    BuildContext context,
+    String query,
+    int initialPage,
+    int? initialScrollPosition,
+    PageMode? pageMode,
+    Widget header,
+  )?
+  nativeResultBuilder;
 
   final SearchParams params;
   String? get initialQuery => params.query;
@@ -75,6 +88,12 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
   fetcher;
   final List<TextMatcher>? textMatchers;
   final IndexedSelectableSearchWidgetBuilder<T>? itemBuilder;
+  final Widget Function(
+    BuildContext,
+    PostGridController<T>,
+    IndexedWidgetBuilder,
+  )?
+  resultGridBuilder;
   final Widget Function(
     ValueNotifier<PostGridController<T>?> postController,
     SearchPageController controller,
@@ -282,6 +301,8 @@ class _SearchPageScaffoldState<T extends Post>
             widget.landingViewBuilder?.call(_controller) ??
             DefaultMobileSearchLandingView(controller: _controller),
         itemBuilder: widget.itemBuilder,
+        resultGridBuilder: widget.resultGridBuilder,
+        nativeResultBuilder: widget.nativeResultBuilder,
         searchSuggestions: DefaultSearchSuggestions(
           multiSelectController: _searchModeController,
           config: ref.watchConfigAuth,
@@ -396,6 +417,31 @@ class _SearchPageScaffoldState<T extends Post>
                       ],
                     ),
                   )
+                : widget.nativeResultBuilder != null
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      SearchLinkShareMenu(
+                        profileName: ref.watchConfig.name,
+                        link: BoorusamaSearchLink.fromRaw(
+                          auth: ref.watchConfigAuth,
+                          query: value,
+                        ),
+                      ),
+                      FollowTopicButton(
+                        query: value,
+                        queryStructure: _typedQueryStructure(
+                          _tagsController.tags,
+                        ),
+                        originatingTopicId: origin?.value?.topic.id,
+                        original: origin?.value,
+                        onOpen: () => _openFollow(origin),
+                        compact: true,
+                        showCount: false,
+                        onFeedback: (message) => _topicFeedback.value = message,
+                      ),
+                    ],
+                  )
                 : const SizedBox.shrink(),
           ),
         ),
@@ -418,7 +464,8 @@ class _SearchPageScaffoldState<T extends Post>
 }
 
 SearchQueryStructure? _typedQueryStructure(List<TagSearchItem> tags) =>
-    tags.isNotEmpty && tags.every((tag) => !tag.isRaw)
+    tags.isNotEmpty &&
+        tags.every((tag) => !tag.isRaw && tag.toString().trim().isNotEmpty)
     ? SearchQueryStructure.typedTags(tags.map((tag) => tag.toString()))
     : null;
 

@@ -7,20 +7,21 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import 'post_details_page_view_controller.dart';
+import 'zoom_page_navigation_scope.dart';
 
 class PostDetailsShortcuts extends StatefulWidget {
   const PostDetailsShortcuts({
     required this.controller,
-    required this.useVerticalLayout,
     required this.isLargeScreen,
     required this.child,
+    this.mediaNavigation,
     super.key,
   });
 
   final PostDetailsPageViewController controller;
-  final bool useVerticalLayout;
   final bool isLargeScreen;
   final Widget child;
+  final MediaPageNavigation? Function()? mediaNavigation;
 
   @override
   State<PostDetailsShortcuts> createState() => _PostDetailsShortcutsState();
@@ -48,27 +49,35 @@ class _PostDetailsShortcutsState extends State<PostDetailsShortcuts> {
     }
 
     final duration = widget.isLargeScreen ? Duration.zero : null;
-    final vertical = widget.useVerticalLayout;
 
+    final media = widget.controller.isExpanded
+        ? null
+        : widget.mediaNavigation?.call();
+    if (media != null) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        media.onNext?.call();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        media.onPrevious?.call();
+        return KeyEventResult.handled;
+      }
+    }
     return switch (event.logicalKey) {
-      LogicalKeyboardKey.arrowDown when vertical => _handled(
+      LogicalKeyboardKey.arrowRight => _handled(
         () => widget.controller.nextPage(duration: duration),
       ),
-      LogicalKeyboardKey.arrowRight when !vertical => _handled(
-        () => widget.controller.nextPage(duration: duration),
-      ),
-      LogicalKeyboardKey.arrowUp when vertical => _handled(
-        () => widget.controller.previousPage(duration: duration),
-      ),
-      LogicalKeyboardKey.arrowLeft when !vertical => _handled(
+      LogicalKeyboardKey.arrowLeft => _handled(
         () => widget.controller.previousPage(duration: duration),
       ),
       LogicalKeyboardKey.arrowUp => _enterControls(TraversalDirection.up),
       LogicalKeyboardKey.arrowDown => _enterControls(TraversalDirection.down),
-      LogicalKeyboardKey.arrowLeft => _enterControls(TraversalDirection.left),
-      LogicalKeyboardKey.arrowRight => _enterControls(
-        TraversalDirection.right,
-      ),
+      LogicalKeyboardKey.tab when !widget.controller.overlay.value =>
+        _enterControls(
+          HardwareKeyboard.instance.isShiftPressed
+              ? TraversalDirection.down
+              : TraversalDirection.up,
+        ),
       _ => KeyEventResult.ignored,
     };
   }
@@ -82,6 +91,19 @@ class _PostDetailsShortcutsState extends State<PostDetailsShortcuts> {
   // nothing beyond its edges. Jump to the outermost control in view instead,
   // rather than one scrolled far down a side panel.
   KeyEventResult _enterControls(TraversalDirection direction) {
+    if (!widget.controller.overlay.value) {
+      // Remote users must be able to reveal controls without a touch or O key.
+      widget.controller.showAllUI(immediately: true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _pageNode.hasPrimaryFocus &&
+            widget.controller.overlay.value &&
+            widget.controller.keyboardShortcutsEnabled.value) {
+          _enterControls(direction);
+        }
+      });
+      return KeyEventResult.handled;
+    }
     final target = outermostFocusTowards(
       _pageNode.traversalDescendants.where(
         (node) => node.canRequestFocus && !visibleFocusRect(node).isEmpty,

@@ -23,6 +23,10 @@ final hydrusPostRepoProvider =
           int? limit,
           PostFetchOptions? options,
         }) async {
+          final favorites = (options?.cascadeRequest ?? true)
+              ? ref.read(favoritesProvider(config.auth).notifier)
+              : null;
+          final read = favorites?.beginRead();
           final files = await client.getFiles(
             tags: tags,
             page: page,
@@ -45,11 +49,7 @@ final hydrusPostRepoProvider =
                 total: files.count,
               );
 
-          if (options?.cascadeRequest ?? true) {
-            ref
-                .read(favoritesProvider(config.auth).notifier)
-                .preload(data.posts);
-          }
+          if (read != null) favorites!.observePostFavorites(data.posts, read);
 
           return data;
         }

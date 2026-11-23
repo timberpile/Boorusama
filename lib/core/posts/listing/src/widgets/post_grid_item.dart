@@ -1,7 +1,10 @@
+import '../../../details/src/widgets/group_viewer_scope.dart';
+
 // Package imports:
 import 'dart:typed_data';
 
 import 'package:cache_manager/cache_manager.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
@@ -9,7 +12,10 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../content/content_media_access.dart';
+import '../../../../content/content_access.dart';
 import '../../../../images/booru_image.dart';
+import '../../../../images/booru_image_candidates.dart';
 import '../../../../images/providers.dart';
 import '../../../../configs/network/providers.dart';
 import '../../../../http/client/providers.dart';
@@ -23,6 +29,7 @@ import '../types/grid_thumbnail_url_generator_default.dart';
 import '../types/animated_posts_default_state.dart';
 import '../types/grid_thumbnail_url_generator.dart';
 import '../types/image_list_type.dart';
+import '../types/grid_utils.dart';
 import 'default_image_quick_actions.dart';
 import 'default_selectable_item.dart';
 import 'post_preview.dart';
@@ -53,6 +60,7 @@ abstract interface class BooruPostGridContextMenuPresentation {
     BuildContext context, {
     required Post post,
     required int index,
+    int? selectionIndex,
     required Widget child,
   });
 }
@@ -97,12 +105,14 @@ class PostGridItem extends ConsumerWidget {
     this.presentation,
     this.additions,
     this.disablePostInteraction,
+    this.selectionEnabled = true,
   });
 
   final Post post;
   final int index;
   final bool useHero;
   final bool multiSelectEnabled;
+  final bool selectionEnabled;
   final BooruConfigAuth config;
   final ValueChanged<GridThumbnailMedia>? onTap;
   final AutoScrollOptions? autoScrollOptions;
@@ -119,6 +129,19 @@ class PostGridItem extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = watchContentMediaAccess(
+      ref,
+      imageConfig ?? config,
+      post: post,
+    );
+    if (!access.allowed) return const KurumiImagePlaceholder();
+    final publicSource = (imageConfig ?? config).anonymousReadScope?.source;
+    bool safeMedia(String url) {
+      final uri = Uri.tryParse(url);
+      return publicSource == null ||
+          (uri != null && publicSource.allowsMedia(uri));
+    }
+
     final gridThumbnailUrlBuilder = ref.watch(
       gridThumbnailUrlGeneratorProvider(config),
     );
@@ -136,8 +159,35 @@ class PostGridItem extends ConsumerWidget {
             post,
             settings: thumbnailSettings,
           );
+    final passiveGallery = GroupViewerScope.maybeOf(context)?.passive ?? false;
+    if (passiveGallery) {
+      bool staticMedia(String url) =>
+          url != post.originalImageUrl &&
+          safeMedia(url) &&
+          RegExp(
+            r'\.(jpg|jpeg|png|bmp)$',
+            caseSensitive: false,
+          ).hasMatch(Uri.tryParse(url)?.path ?? '');
+      final columns = calculateGridCount(
+        MediaQuery.sizeOf(context).width,
+        thumbnailSettings.gridSize,
+      );
+      final url = index >= (columns * 2).clamp(0, 8)
+          ? ''
+          : staticMedia(resolvedMedia.url)
+          ? resolvedMedia.url
+          : staticMedia(post.thumbnailImageUrl)
+          ? post.thumbnailImageUrl
+          : '';
+      resolvedMedia = GridThumbnailMedia(
+        url: url,
+        aspectRatio: resolvedMedia.aspectRatio,
+      );
+    }
     Uint8List? cachedGif;
-    if (imageUrl == null &&
+    if (access.allowed &&
+        !passiveGallery &&
+        imageUrl == null &&
         imageBuilder == null &&
         isOriginalGridGif(post) &&
         post.fileSize > maxAutoplayGridGifBytes &&
@@ -157,6 +207,7 @@ class PostGridItem extends ConsumerWidget {
         ),
       );
       if (candidate.url.isNotEmpty &&
+          safeMedia(candidate.url) &&
           (candidate.url != resolvedMedia.url ||
               candidate.url == post.originalImageUrl)) {
         final sourceConfig = imageConfig ?? config;
@@ -165,13 +216,22 @@ class PostGridItem extends ConsumerWidget {
             .resolveMedia(
               candidate.url,
               headers: ref.watch(httpHeadersProvider(sourceConfig)),
+              sourceUrl: sourceConfig.url,
             );
+        final fallbackManager = ref.watch(defaultImageCacheManagerProvider);
+        final delegate = imageCacheManager ?? fallbackManager;
+        final manager = access.key == null
+            ? delegate
+            : ref.watch(
+                contentMediaCacheManagerProvider((
+                  manager: delegate,
+                  access: access.key!,
+                )),
+              );
         cachedGif = ref
             .watch(
               cachedGridGifProvider((
-                manager:
-                    imageCacheManager ??
-                    ref.watch(defaultImageCacheManagerProvider),
+                manager: manager,
                 url: request.url,
                 originalSize: candidate.url == post.originalImageUrl
                     ? post.fileSize
@@ -200,6 +260,7 @@ class PostGridItem extends ConsumerWidget {
         aspectRatio: aspectRatio,
         fallbackUrl: resolvedMedia.fallbackUrl,
         fallbackUrls: resolvedMedia.fallbackUrls,
+        probeImageFormats: resolvedMedia.probeImageFormats,
         placeholderUrl: resolvedMedia.placeholderUrl,
         placeholderAspectRatio: resolvedMedia.placeholderAspectRatio,
         placeholderFit: resolvedMedia.placeholderFit,
@@ -222,12 +283,19 @@ class PostGridItem extends ConsumerWidget {
     final effectiveBlockOverlay =
         blockOverlay ?? resolvedAdditions.blockOverlay;
     final image =
-        imageBuilder?.call(media) ??
-        _PostGridImage(
+        (passiveGallery && media.url.isEmpty
+            ? AspectRatio(
+                aspectRatio: media.aspectRatio ?? 1,
+                child: const KurumiImagePlaceholder(),
+              )
+            : imageBuilder?.call(media)) ??
+        PostGridImage(
+          post: post,
           media: media,
           imageCacheManager: imageCacheManager,
           config: imageConfig ?? config,
           cachedImageBytes: cachedGif,
+          cachedImageAccessKey: access.key,
         );
 
     final item = SliverPostGridImageGridItem(
@@ -246,13 +314,15 @@ class PostGridItem extends ConsumerWidget {
       leadingIcons: leadingIcons,
       blockOverlay: effectiveBlockOverlay,
     );
-    final selectableItem = DefaultSelectableItem(
-      index: index,
-      post: post,
-      item: item,
-      config: config,
-      indicatorSize: ref.watch(selectionIndicatorSizeProvider),
-    );
+    final selectableItem = !selectionEnabled
+        ? item
+        : DefaultSelectableItem(
+            index: index,
+            post: post,
+            item: item,
+            config: config,
+            indicatorSize: ref.watch(selectionIndicatorSizeProvider),
+          );
     final tooltip =
         resolvedAdditions.tooltipBuilder?.call(selectableItem) ??
         DefaultTagListPrevewTooltip(
@@ -265,10 +335,7 @@ class PostGridItem extends ConsumerWidget {
       enabled: useHero,
       child: KurumiHero(
         tag: postHeroTag(post),
-        child: ExplicitContentBlockOverlay(
-          rating: post.rating,
-          child: tooltip,
-        ),
+        child: ExplicitContentBlockOverlay(rating: post.rating, child: tooltip),
       ),
     );
   }
@@ -305,42 +372,99 @@ class PostGridItem extends ConsumerWidget {
   }
 }
 
-class _PostGridImage extends ConsumerWidget {
-  const _PostGridImage({
+/// Shared source-resolved image rendering for grid cells and saved group covers.
+class PostGridImage extends ConsumerWidget {
+  const PostGridImage({
     required this.media,
     required this.config,
+    super.key,
+    this.borderRadius,
+    this.forceCover,
+    this.fit,
     this.imageCacheManager,
     this.cachedImageBytes,
+    this.cachedImageAccessKey,
+    this.post,
   });
 
   final GridThumbnailMedia media;
+  final Post? post;
+  final BorderRadius? borderRadius;
+  final bool? forceCover;
+  final BoxFit? fit;
   final ImageCacheManager? imageCacheManager;
   final Uint8List? cachedImageBytes;
+  final ContentAccessKey? cachedImageAccessKey;
   final BooruConfigAuth config;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = watchContentMediaAccess(ref, config, post: post);
+    if (!access.allowed) return const KurumiImagePlaceholder();
     final imageBorderRadius = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageBorderRadius),
     );
     final imageListType = ref.watch(
       imageListingSettingsProvider.select((v) => v.imageListType),
     );
-
-    return BooruImage(
+    final borderRadius =
+        this.borderRadius ?? BorderRadius.circular(imageBorderRadius);
+    final cover = forceCover ?? imageListType == ImageListType.standard;
+    final fit =
+        this.fit ??
+        (imageListType == ImageListType.classic ? BoxFit.contain : null);
+    Widget normal(String url, {bool fallback = false}) => BooruImage(
       config: config,
       aspectRatio: media.aspectRatio,
-      imageUrl: media.url,
-      fallbackUrl: media.fallbackUrl,
-      fallbackUrls: media.fallbackUrls,
-      borderRadius: BorderRadius.circular(imageBorderRadius),
-      forceCover: imageListType == ImageListType.standard,
-      fit: imageListType == ImageListType.classic ? BoxFit.contain : null,
+      imageUrl: url,
+      fallbackUrl: fallback ? null : media.fallbackUrl,
+      fallbackUrls: fallback ? const [] : media.fallbackUrls,
+      borderRadius: borderRadius,
+      forceCover: cover,
+      fit: fit,
       placeholderUrl: media.placeholderUrl,
       placeholderAspectRatio: media.placeholderAspectRatio,
       placeholderFit: media.placeholderFit,
       imageCacheManager: imageCacheManager,
       cachedImageBytes: cachedImageBytes,
+      cachedImageAccessKey: cachedImageAccessKey,
+    );
+    if (!media.probeImageFormats || cachedImageBytes != null) {
+      return normal(media.url);
+    }
+
+    final placeholder = normal(
+      media.fallbackUrl ?? media.placeholderUrl ?? '',
+      fallback: true,
+    );
+    final ratio =
+        media.aspectRatio ??
+        ref.watch(
+          imageListingSettingsProvider.select((v) => v.imageGridAspectRatio),
+        );
+    return BooruImageCandidates(
+      config: config,
+      urls: [media.url, ...media.fallbackUrls],
+      imageCacheManager: imageCacheManager,
+      placeholder: placeholder,
+      builder: (provider) {
+        // Preserve grid sizing while reusing the already decoded provider.
+        // Going through a second network provider would repeat decoding.
+        final image = LayoutBuilder(
+          builder: (context, constraints) => ExtendedImage(
+            image: provider,
+            width: constraints.maxWidth.roundToDouble(),
+            height: constraints.maxHeight.roundToDouble(),
+            fit: fit ?? (cover ? BoxFit.cover : BoxFit.contain),
+            borderRadius: borderRadius,
+            placeholderWidget: placeholder,
+            errorWidget: placeholder,
+          ),
+        );
+        return cover || fit == BoxFit.contain || ratio == null
+            ? image
+            : AspectRatio(aspectRatio: ratio, child: image);
+      },
     );
   }
 }

@@ -8,11 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   final index = BookmarkTagIndex.fromBookmarks([
-    Bookmark.empty.copyWith(
+    PostBookmark.empty.copyWith(
       id: 1,
       tags: {'one_piece', 'blue_hair', 'smile'},
     ),
-    Bookmark.empty.copyWith(id: 2, tags: {'ONE_PIECE', 'glasses'}),
+    PostBookmark.empty.copyWith(id: 2, tags: {'ONE_PIECE', 'glasses'}),
   ]);
 
   test(

@@ -55,13 +55,16 @@ PostRepository<Post> _createNozomiPostRepository({
     },
     fetch: (tags, page, {limit, options}) async {
       final request = NozomiSearchRequest.fromTags(tags, fallbackOrder: order);
+      // Match NozomiClient's bounded ID-page stride before missing DTOs are removed.
+      final pageLimit = (limit ?? 64).clamp(1, 100);
       final result = await client.getPostsWithTotal(
         tags: request.tags,
         page: page,
-        limit: limit,
+        limit: pageLimit,
         order: request.order,
       );
       await _saveNozomiTagCategories(ref, config.auth.url, result.posts);
+      final total = result.total;
       return result.posts
           .map(
             (e) => postDtoToPost(
@@ -69,12 +72,17 @@ PostRepository<Post> _createNozomiPostRepository({
               PostMetadata(
                 page: page,
                 search: tags.join(' '),
-                limit: limit,
+                limit: pageLimit,
               ),
             ),
           )
           .toList()
-          .toResult(total: result.total);
+          .toResult(
+            total: total,
+            hasMore: total != null && total >= 0
+                ? page * pageLimit < total
+                : null,
+          );
     },
     getSettings: () async =>
         ref.read(listingSettingsForAuthProvider(config.auth)),

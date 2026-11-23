@@ -7,6 +7,35 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('concurrent partial removal preserves the cancellation error', () async {
+    final root = await Directory.systemTemp.createTemp('share-cleanup-race-');
+    addTearDown(() => root.delete(recursive: true));
+    final dio = Dio();
+    addTearDown(() => dio.close(force: true));
+    const cancellation = ShareMediaException(ShareMediaFailure.cancelled);
+    final service = ShareMediaPreparation(
+      rootPath: root.path,
+      dio: dio,
+      cachedBytes: (_) async => throw cancellation,
+    );
+
+    await IOOverrides.runZoned(
+      () => expectLater(
+        service.prepare(
+          url: 'https://site.test/partial.jpg',
+          kind: ShareMediaKind.image,
+          fallbackExtension: 'jpg',
+          headers: const {},
+        ),
+        throwsA(same(cancellation)),
+      ),
+      createFile: _RemovedPartialFile.new,
+    );
+    expect(
+      await Directory('${root.path}/boorusama-share').list().toList(),
+      isEmpty,
+    );
+  });
   test('cancelled download removes its partial temporary file', () async {
     final root = await Directory.systemTemp.createTemp('share-cancel-test-');
     addTearDown(() => root.delete(recursive: true));
@@ -91,4 +120,22 @@ void main() {
       pendingCache.complete(null);
     }
   });
+}
+
+/// Models Dio deleting its partial file after our existence check.
+class _RemovedPartialFile extends Fake implements File {
+  _RemovedPartialFile(this.path);
+
+  @override
+  final String path;
+
+  @override
+  Future<bool> exists() async => true;
+
+  @override
+  Future<File> delete({bool recursive = false}) async =>
+      throw PathNotFoundException(
+        path,
+        const OSError('Partial file was already removed', 2),
+      );
 }

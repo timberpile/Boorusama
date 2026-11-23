@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 
 import '../types/bookmark_library_state.dart';
 import '../types/bookmark_view.dart';
+import '../types/pool_bookmark.dart';
 
 /// Snapshot identity is preserved by normal mutations. Group-only metadata
 /// changes must not refilter/resort the entire post list. Membership badges
@@ -13,14 +14,69 @@ bool bookmarkViewContentsChanged(
 ) {
   if (before == null || after == null) return true;
   if (identical(before, after)) return false;
+  if (view.kind == BookmarkViewKind.subtree) {
+    final previous = before.subtreeProjection(view.groupId!);
+    final next = after.subtreeProjection(view.groupId!);
+    return !const SetEquality<String>().equals(
+          previous.includedGroupIds,
+          next.includedGroupIds,
+        ) ||
+        !const SetEquality<int>().equals(
+          previous.bookmarkIds,
+          next.bookmarkIds,
+        ) ||
+        !const MapEquality<int, DateTime>().equals(
+          previous.earliestAddedAt,
+          next.earliestAddedAt,
+        ) ||
+        !const MapEquality<int, DateTime>().equals(
+          previous.latestAddedAt,
+          next.latestAddedAt,
+        ) ||
+        next.bookmarkIds.any(
+          (id) => !identical(before.byId[id], after.byId[id]),
+        );
+  }
+  if (!identical(before.pools, after.pools)) {
+    Iterable<CollectionBookmark> visible(BookmarkLibraryState state) =>
+        view.kind == BookmarkViewKind.all
+        ? state.pools
+        : state.pools.where((p) => p.groupIds.contains(view.groupId));
+    if (!const IterableEquality<CollectionBookmark>().equals(
+      visible(before),
+      visible(after),
+    ))
+      return true;
+  }
   if (view.kind == BookmarkViewKind.all) {
-    return !identical(before.items, after.items);
+    if (!identical(before.items, after.items)) return true;
+    if (identical(before.groups, after.groups)) return false;
+    for (final id in {...before.groupsById.keys, ...after.groupsById.keys}) {
+      final previous = before.groupsById[id];
+      final next = after.groupsById[id];
+      if (!const SetEquality<int>().equals(
+            previous?.bookmarkIds ?? const {},
+            next?.bookmarkIds ?? const {},
+          ) ||
+          !const MapEquality<int, DateTime>().equals(
+            previous?.addedAt ?? const {},
+            next?.addedAt ?? const {},
+          )) {
+        return true;
+      }
+    }
+    return false;
   }
   final previousMembers =
       before.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
   final nextMembers =
       after.groupsById[view.groupId]?.bookmarkIds ?? const <int>{};
   if (!const SetEquality<int>().equals(previousMembers, nextMembers))
+    return true;
+  if (!const MapEquality<int, DateTime>().equals(
+    before.groupsById[view.groupId]?.addedAt,
+    after.groupsById[view.groupId]?.addedAt,
+  ))
     return true;
   if (identical(before.items, after.items)) return false;
   return nextMembers.any(

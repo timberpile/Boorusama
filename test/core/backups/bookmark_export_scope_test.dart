@@ -9,9 +9,18 @@ void main() {
   const firstId = '550e8400-e29b-41d4-a716-446655440000';
   const secondId = '5f1d7f5e-3114-4dc7-a347-18f95852fc31';
   final bookmarks = [
-    Bookmark.empty.copyWith(id: 1, originalUrl: 'https://example.com/1.jpg'),
-    Bookmark.empty.copyWith(id: 2, originalUrl: 'https://example.com/2.jpg'),
-    Bookmark.empty.copyWith(id: 3, originalUrl: 'https://example.com/3.jpg'),
+    PostBookmark.empty.copyWith(
+      id: 1,
+      originalUrl: 'https://example.com/1.jpg',
+    ),
+    PostBookmark.empty.copyWith(
+      id: 2,
+      originalUrl: 'https://example.com/2.jpg',
+    ),
+    PostBookmark.empty.copyWith(
+      id: 3,
+      originalUrl: 'https://example.com/3.jpg',
+    ),
   ];
   final groups = [
     BookmarkGroup(id: firstId, name: 'Same', bookmarkIds: const {1, 2}),

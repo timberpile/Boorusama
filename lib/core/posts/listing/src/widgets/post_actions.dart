@@ -17,7 +17,6 @@ import '../../../../../foundation/url_launcher.dart';
 import '../../../../bookmarks/src/providers/bookmark_provider.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../downloads/downloader/providers.dart';
 import '../../../../router.dart';
@@ -69,7 +68,7 @@ class PostContextMenuActions extends StatelessWidget {
           for (final action in postActionDefinitions(context, ref, snapshot))
             KurumiContextMenuTile(
               title: action.label,
-              trailing: Icon(action.icon),
+              leading: Icon(action.icon),
               enabled: action.enabled,
               onTap: () => action.execute(),
             ),
@@ -91,14 +90,17 @@ List<PostActionDefinition> postActionDefinitions(
   Future<void> Function()? downloadOverride,
 }) {
   final feedback = Navigator.of(context, rootNavigator: true).context;
+  // The menu's WidgetRef can be disposed while a bulk action is awaiting I/O.
+  final container = ProviderScope.containerOf(feedback, listen: false);
+  bool current() => feedback.mounted && snapshot.isCurrent(container);
   Future<void> run(Future<void> Function() action) async {
     try {
-      if (!snapshot.accountsMatch(ref.read(booruConfigProvider))) {
+      if (!current()) {
         throw StateError('Post action account changed');
       }
       await action();
     } catch (_) {
-      if (feedback.mounted) {
+      if (feedback.mounted && current()) {
         Kurumi.showErrorToast(
           feedback,
           feedback.t.post.action.operation_failed,
@@ -112,7 +114,9 @@ List<PostActionDefinition> postActionDefinitions(
     for (final post in snapshot.posts) library?.storedBookmarkForPost(post),
   ];
   final canUseStoredDownload =
-      snapshot.hasTargets && stored.every((p) => p != null);
+      !snapshot.accessRequired &&
+      snapshot.allResolved &&
+      stored.every((p) => p != null);
   final fallbackAuth = ref.watchConfigAuth;
   final fallbackDownload = ref.watchConfigDownload;
   final groups = <BooruConfig, List<Post>>{};
@@ -140,24 +144,22 @@ List<PostActionDefinition> postActionDefinitions(
         return ref.watch(booruLoginDetailsProvider(auth)).hasLogin() &&
             ref.watch(canFavoriteProvider(auth));
       });
-  final favoriteStatuses = <bool?>[
+  final favoriteTargets = [
     if (canFavorite)
       for (final target in snapshot.targets)
-        ref.watch(
-          favoriteStatusProvider((target.config!.auth, target.post.id)),
-        ),
+        (target.config!.auth, target.post.id),
   ];
-  if (canFavorite) {
-    for (final target in snapshot.targets) {
-      ref.watch(
-        favoriteStatusLoaderProvider((target.config!.auth, target.post.id)),
-      );
-    }
-  }
-  final favoriteReady =
-      canFavorite && favoriteStatuses.every((value) => value != null);
+  final favoriteLookups = [
+    for (final target in favoriteTargets)
+      ref.watch(favoriteLookupPendingProvider(target)),
+  ];
+  final favoriteStatuses = [
+    for (final target in favoriteTargets)
+      ref.watch(favoriteStatusProvider(target)),
+  ];
+  final favoriteReady = canFavorite && !favoriteLookups.contains(true);
   final removeFavorites =
-      favoriteReady && favoriteStatuses.every((value) => value!);
+      favoriteReady && favoriteStatuses.every((value) => value ?? false);
   final single = snapshot.isSingle ? snapshot.targets.single : null;
   final config = single?.config;
   final post = single?.post;
@@ -172,7 +174,7 @@ List<PostActionDefinition> postActionDefinitions(
         icon: Icons.travel_explore,
         execute: () => run(() async => findOnOtherProfiles(ref, post)),
       ),
-    if (snapshot.hasTargets &&
+    if (snapshot.allResolved &&
         (downloadOverride != null ||
             canDownloadResolved ||
             canUseStoredDownload))
@@ -208,9 +210,15 @@ List<PostActionDefinition> postActionDefinitions(
             ];
             for (final operation in operations) {
               if (operation.posts.length == 1) {
-                await operation.notifier.download(operation.posts.single);
+                await operation.notifier.download(
+                  operation.posts.single,
+                  isCurrent: current,
+                );
               } else {
-                await operation.notifier.bulkDownload(operation.posts);
+                await operation.notifier.bulkDownload(
+                  operation.posts,
+                  isCurrent: current,
+                );
               }
             }
           }
@@ -233,13 +241,14 @@ List<PostActionDefinition> postActionDefinitions(
               (
                 postId: target.post.id,
                 profileId: target.config!.id,
-                notifier: ref.read(
+                notifier: container.read(
                   favoritesProvider(target.config!.auth).notifier,
                 ),
               ),
           ];
           final result = await runFavoriteAction(feedback, () async {
             for (final operation in operations) {
+              if (!current()) throw StateError('Post action access changed');
               final success = removeFavorites
                   ? await operation.notifier.remove(
                       operation.postId,
@@ -255,10 +264,11 @@ List<PostActionDefinition> postActionDefinitions(
                     };
               if (!success) throw StateError('Favorite action failed');
             }
-          });
+          }, isCurrent: current);
           if (result != null &&
               !result.cleanupInterrupted &&
-              feedback.mounted) {
+              feedback.mounted &&
+              current()) {
             Kurumi.showSuccessToast(
               feedback,
               feedback.t.favorites.update.success,
@@ -311,9 +321,8 @@ List<PostActionDefinition> postActionDefinitions(
             await goToShowTaglistPage(ref, post, config: config);
           }),
         ),
-      if (post.hasComment &&
-          ref.watch(booruBuilderProvider(config.auth))?.commentPageBuilder !=
-              null)
+      if (ref.watch(booruBuilderProvider(config.auth))?.commentPageBuilder !=
+          null)
         PostActionDefinition(
           id: PostActionId.comments,
           label: context.t.post.action.view_comments,

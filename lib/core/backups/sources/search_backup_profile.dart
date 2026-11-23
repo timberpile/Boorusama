@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../configs/config/types.dart';
+import '../../search/following_topics/types.dart';
 import '../types/types.dart';
 
 class BackupProfileReference extends Equatable {
@@ -27,10 +28,9 @@ class BackupProfileReference extends Equatable {
   List<Object?> get props => [id, booruType, url, name];
 }
 
-typedef BackupProfileIdResolver =
-    String? Function(
-      BackupProfileReference reference,
-    );
+typedef BackupProfileIdResolver = String? Function(
+  BackupProfileReference reference,
+);
 
 String normalizeBackupProfileUrl(String url) => normalizeBooruSiteUrl(url);
 
@@ -91,3 +91,39 @@ String? resolveBackupProfileId(
   BackupProfileIdResolver? resolver,
 }) =>
     resolver?.call(reference) ?? resolveBackupProfile(reference, profiles)?.id;
+
+/// The portable schema already carries credential-free source references. Local
+/// anonymous copies export that identity, never their live access scope or owner.
+BackupProfileReference? followingTopicBackupProfile(
+  FollowingTopic topic,
+  Iterable<BackupProfileReference> profiles,
+) {
+  final source = topic.localSource;
+  if (source?.importedProfileId case final id?) {
+    // Preserve the sender's reference across round trips, not the receiver's
+    // synthetic storage namespace or whichever account currently reads it.
+    return BackupProfileReference(
+      id: id,
+      booruType: source!.booruType,
+      url: source.url,
+      name: source.importedProfileName ?? source.url,
+    );
+  }
+  final profile = profiles
+      .where(
+        (p) =>
+            p.id == topic.profileId &&
+            (source == null ||
+                source.matches(p.booruType, normalizeBackupProfileUrl(p.url))),
+      )
+      .firstOrNull;
+  if (profile != null) return profile;
+  return source == null
+      ? null
+      : BackupProfileReference(
+          id: topic.id,
+          booruType: source.booruType,
+          url: source.url,
+          name: source.url,
+        );
+}

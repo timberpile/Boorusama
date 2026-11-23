@@ -126,7 +126,11 @@ class SliverPostGridImageGridItem<T extends Post> extends ConsumerWidget {
             isAnimated: post.showsAnimatedBadge,
             isTranslated: post.isTranslated,
             hasComments: post.hasComment,
-            hasParentOrChildren: post.hasParentOrChildren,
+            hasParentOrChildren:
+                !ref.watch(
+                  settingsProvider.select((s) => s.groupRelatedPosts),
+                ) &&
+                (post.hasParent || post.hasParentOrChildren),
             hasSound: post.hasSound,
             duration: post.duration,
             scoreWidget: scoreWidget,

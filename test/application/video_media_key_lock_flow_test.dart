@@ -45,7 +45,7 @@ void main() {
       final scaffold = tester.widget<PostDetailsPageScaffold>(
         postDetailsScaffold().first,
       );
-      final details = scaffold.controller;
+      final details = scaffold.controller!;
       expect(details.currentPost.value.isVideo, isTrue);
 
       final locker = find.byType(VideoScreenLocker);

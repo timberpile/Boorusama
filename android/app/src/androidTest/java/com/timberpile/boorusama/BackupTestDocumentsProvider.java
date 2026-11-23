@@ -32,6 +32,9 @@ public class BackupTestDocumentsProvider extends DocumentsProvider {
     private final Map<String, String> types = new LinkedHashMap<>();
     private String behavior = "known";
     private int nextId;
+    private boolean syncMode;
+    private int faultFrom;
+    private final Map<String, String> parents = new LinkedHashMap<>();
     private File directory() { return new File(getContext().getCacheDir(), "backup-provider-fixture"); }
     @Override public boolean onCreate() { return true; }
 
@@ -39,19 +42,23 @@ public class BackupTestDocumentsProvider extends DocumentsProvider {
         if ("fixture".equals(method)) {
             for (File file : files.values()) file.delete();
             directory().mkdirs();
-            files.clear(); names.clear(); types.clear(); nextId = 0;
+            files.clear(); names.clear(); types.clear(); parents.clear(); nextId = 0;
+            syncMode = extras.getBoolean("sync", false);
+            faultFrom = 1;
             behavior = extras.getString("behavior");
             try {
                 add("root", "QA root", Document.MIME_TYPE_DIR);
-                add("folder", "boorusama_auto_backups", Document.MIME_TYPE_DIR);
-                Files.write(add("old", "older.bsexport", "application/octet-stream").toPath(), new byte[]{9, 8, 7});
-                Files.write(add("manifest", "auto_backup_manifest.json", "application/json").toPath(),
-                    "{\"backups\":[\"older.bsexport\"]}".getBytes(StandardCharsets.UTF_8));
+                if (!syncMode) {
+                    add("folder", "boorusama_auto_backups", Document.MIME_TYPE_DIR);
+                    Files.write(add("old", "older.bsexport", "application/octet-stream").toPath(), new byte[]{9, 8, 7});
+                    Files.write(add("manifest", "auto_backup_manifest.json", "application/json").toPath(),
+                        "{\"backups\":[\"older.bsexport\"]}".getBytes(StandardCharsets.UTF_8));
+                }
             } catch (IOException error) { throw new IllegalStateException(error); }
             return grant(extras);
         }
         if ("grant".equals(method)) return grant(extras);
-        if ("behavior".equals(method)) { behavior = arg; return Bundle.EMPTY; }
+        if ("behavior".equals(method)) { behavior = arg; faultFrom = nextId + 1; return Bundle.EMPTY; }
         return super.call(method, arg, extras);
     }
 
@@ -88,7 +95,7 @@ public class BackupTestDocumentsProvider extends DocumentsProvider {
     private void row(MatrixCursor cursor, String id) throws FileNotFoundException {
         File file = files.get(id);
         if (file == null) throw new FileNotFoundException();
-        boolean fresh = id.startsWith("new");
+        boolean fresh = id.startsWith("new") && (!syncMode || Integer.parseInt(id.substring(3)) >= faultFrom);
         if (fresh && "truncated".equals(behavior)) {
             try { Files.write(file.toPath(), new byte[]{1}); }
             catch (IOException error) { throw new IllegalStateException(error); }
@@ -117,24 +124,39 @@ public class BackupTestDocumentsProvider extends DocumentsProvider {
     }
     @Override public synchronized Cursor queryChildDocuments(String parent, String[] projection, String sortOrder) throws FileNotFoundException {
         MatrixCursor cursor = new MatrixCursor(projection == null ? COLUMNS : projection);
-        if ("root".equals(parent)) row(cursor, "folder");
+        if (syncMode) {
+            for (String id : names.keySet()) if (parent.equals(parents.get(id))) {
+                row(cursor, id);
+                if ("duplicate".equals(behavior)) row(cursor, id);
+            }
+        } else if ("root".equals(parent)) row(cursor, "folder");
         else for (String id : names.keySet()) if (!"root".equals(id) && !"folder".equals(id)) row(cursor, id);
         return cursor;
     }
     @Override public synchronized String createDocument(String parent, String mime, String name) throws FileNotFoundException {
+        if (syncMode && !Document.MIME_TYPE_DIR.equals(types.get(parent))) throw new FileNotFoundException("Missing directory");
         String id = "new" + ++nextId;
+        if (syncMode) parents.put(id, parent);
         try { add(id, "renamed".equals(behavior) ? "renamed-" + name : name, mime); }
         catch (IOException error) { throw new IllegalStateException(error); }
         return id;
     }
     @Override public synchronized void deleteDocument(String id) {
-        File file = files.remove(id); if (file != null) file.delete(); names.remove(id); types.remove(id);
+        File file = files.remove(id); if (file != null) file.delete(); names.remove(id); types.remove(id); parents.remove(id);
     }
     @Override public boolean isChildDocument(String parent, String id) {
+        if (syncMode) {
+            String current = id;
+            for (int depth = 0; current != null && depth <= parents.size(); depth++) {
+                if (parent.equals(current)) return true;
+                current = parents.get(current);
+            }
+            return false;
+        }
         return "root".equals(parent) || ("folder".equals(parent) && !"root".equals(id));
     }
     @Override public synchronized ParcelFileDescriptor openDocument(String id, String mode, CancellationSignal signal) throws FileNotFoundException {
-        if (id.startsWith("new") && "r".equals(mode) && "read-failure".equals(behavior)) throw new FileNotFoundException("Controlled read failure");
+        if (id.startsWith("new") && (!syncMode || Integer.parseInt(id.substring(3)) >= faultFrom) && "r".equals(mode) && "read-failure".equals(behavior)) throw new FileNotFoundException("Controlled read failure");
         File file = files.get(id); if (file == null) throw new FileNotFoundException();
         return ParcelFileDescriptor.open(file, ParcelFileDescriptor.parseMode(mode));
     }

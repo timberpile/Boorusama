@@ -1,8 +1,20 @@
+import '../../../../configs/config/providers.dart';
+import '../../../../content/content_access.dart';
+import '../../../../content/content_access_provider.dart';
+import '../widgets/following_definition_entry.dart';
+import '../types/following_mirror_state.dart';
+import '../providers/following_topic_config_provider.dart';
+import '../../../../backups/mitemite/protocol.dart' show SyncCollectionId;
+import '../../../../backups/mitemite/collection_alias_ui.dart';
+import '../../../../backups/mitemite/following_actions.dart';
+import '../../../../backups/mitemite/providers.dart';
+
 import 'package:foundation/performance.dart';
 
 import '../../../../../foundation/performance/performance_navigation.dart';
 
 import 'dart:async';
+import 'dart:developer' show Timeline;
 
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,13 +28,13 @@ import 'package:selection_mode/selection_mode.dart';
 
 import '../../../../configs/config/types.dart';
 import '../../../../widgets/popup_menu_action_label.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../boorus/engine/providers.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../errors/types.dart';
 import '../../../../posts/details/routes.dart';
 import '../../../../posts/listing/widgets.dart';
+import '../../../../posts/listing/src/widgets/timeline_header_sliver.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/src/types/page_mode.dart';
 import '../../../../posts/post/types.dart';
@@ -32,10 +44,17 @@ import '../../../../navigation/destination_activity.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../refresh/search_refresh_query_adapter.dart';
 import '../services/feed_history_session.dart';
+import '../services/feed_display_snapshot.dart';
 import '../services/feed_history_end_policy.dart';
 import '../providers/following_topics_notifier.dart';
 import '../providers/search_refresh_coordinator.dart';
 import '../types/topic_feed.dart';
+import '../types/feed_series_membership.dart';
+import '../services/feed_series_enrichment.dart';
+import '../../../../bookmarks/src/providers/pool_bookmark_provider.dart';
+import '../../../../bookmarks/src/types/pool_bookmark_capability.dart';
+import '../../../../posts/listing/src/widgets/grouped_post_grid.dart';
+import '../../../../posts/details/src/routes/viewer_navigation_scope.dart';
 import '../types/cached_topic_feed_filter.dart';
 import '../widgets/cached_feed_filter_bar.dart';
 import '../types/topic_organization.dart';
@@ -121,7 +140,7 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
 
   @override
   Widget build(BuildContext context) {
-    final profiles = ref.watch(booruConfigProvider);
+    final profiles = ref.watch(orderedProfileConfigsProvider);
     final byProfileId = {for (final profile in profiles) profile.id: profile};
     final strings = context.t.following_topics;
     return PerformanceScreenScope(
@@ -137,6 +156,9 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (_, _) => Center(child: Text(strings.load_failed)),
               data: (state) {
+                final aliases = state.mirrors.owners.isEmpty
+                    ? const <SyncCollectionId, String>{}
+                    : ref.watch(syncCollectionAliasesProvider);
                 final feeds = state.feeds
                     .where((feed) => byProfileId.containsKey(feed.profileId))
                     .toList();
@@ -289,36 +311,40 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                                   label: strings.feed_info,
                                 ),
                               ),
-                              PopupMenuItem(
-                                value: 'up',
-                                enabled: index > 0,
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.arrow_upward,
-                                  label: strings.move_up,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'up',
+                                  enabled: index > 0,
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.arrow_upward,
+                                    label: strings.move_up,
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'down',
-                                enabled: index < siblings.length - 1,
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.arrow_downward,
-                                  label: strings.move_down,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'down',
+                                  enabled: index < siblings.length - 1,
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.arrow_downward,
+                                    label: strings.move_down,
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.edit_outlined,
-                                  label: context.t.generic.action.edit,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.edit_outlined,
+                                    label: context.t.generic.action.edit,
+                                  ),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: PopupMenuActionLabel(
-                                  icon: Icons.delete_outline,
-                                  label: context.t.generic.action.delete,
+                              if (!state.mirrors.isReceived(feed.id))
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: PopupMenuActionLabel(
+                                    icon: Icons.delete_outline,
+                                    label: context.t.generic.action.delete,
+                                  ),
                                 ),
-                              ),
                             ],
                           );
                           return Card(
@@ -353,7 +379,12 @@ class _TopicFeedsPageState extends ConsumerState<TopicFeedsPage>
                                       children: [
                                         Expanded(
                                           child: Text(
-                                            feed.name,
+                                            followingAliasLabel(
+                                              feed.name,
+                                              feed.id,
+                                              state.mirrors,
+                                              aliases,
+                                            ),
                                             style: Theme.of(
                                               context,
                                             ).textTheme.titleMedium,
@@ -487,7 +518,11 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   FeedInitializationInterest? _feedInterest;
   final _gridKey = GlobalKey<_CachedFeedGridState>();
   var _filter = const CachedTopicFeedFilter();
-  var _showFilter = false;
+  final _filterBarKey = GlobalKey();
+  final _display = FeedDisplaySnapshot();
+  final _incompleteHistory = ValueNotifier(false);
+  Object? _initialSettlementOwner;
+  int? _interestGeneration;
 
   @override
   void initState() {
@@ -524,17 +559,33 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
         !NavigationActivity.of(context) ||
         !(ModalRoute.of(context)?.isCurrent ?? true))
       return;
-    _feedInterest ??= _coordinator.acquireFeedInitializationInterest(
-      feedId: widget.feedId,
-    );
-  }
-
-  void _toggleFilter() {
-    if (_showFilter) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      _filterChanged(const CachedTopicFeedFilter());
+    final generation = _display.generation;
+    if (generation == 0 ||
+        _interestGeneration == generation && _feedInterest != null) {
+      return;
     }
-    setState(() => _showFilter = !_showFilter);
+    _deactivate();
+    final interest = _feedInterest = _coordinator
+        .acquireFeedInitializationInterest(
+          feedId: widget.feedId,
+        );
+    _interestGeneration = generation;
+    final owner = _initialSettlementOwner = Object();
+    void settle() {
+      if (!mounted ||
+          !identical(owner, _initialSettlementOwner) ||
+          _display.generation != generation) {
+        return;
+      }
+      setState(() => _display.settleInitialization(generation));
+    }
+
+    unawaited(
+      interest.initialSettlement.then(
+        (_) => settle(),
+        onError: (Object _) => settle(),
+      ),
+    );
   }
 
   void _filterChanged(CachedTopicFeedFilter filter) {
@@ -567,18 +618,179 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
   void dispose() {
     _routeObserver.unsubscribe(this);
     _deactivate();
+    _incompleteHistory.dispose();
     super.dispose();
+  }
+
+  Object _definition(
+    TopicFeed? feed,
+    FollowingTopicsState state,
+  ) {
+    final folder = state.organization.folders
+        .where((f) => f.id == widget.feedId)
+        .firstOrNull;
+    final ids = feed?.sourceIds ?? const <String>[];
+    return [
+      widget.feedId,
+      feed?.profileId,
+      feed?.cacheGeneration,
+      folder?.feedEnabled,
+      ids,
+      for (final source in state.topics.where((s) => ids.contains(s.id))) ...[
+        source.id,
+        source.createdAt,
+        source.runtimeRevision,
+        source.query,
+        source.profileId,
+        source.localSource,
+        source.autoUpdateEnabled,
+      ],
+    ];
+  }
+
+  TopicFeed? _authorizedFeed(
+    TopicFeed? feed,
+    FollowingTopicsState state, {
+    bool watch = true,
+  }) {
+    if (feed == null) return null;
+    return Timeline.timeSync('Following authorize feed rows', () {
+      final enabled =
+          state.organization.folders
+              .where((f) => f.id == feed.id)
+              .firstOrNull
+              ?.feedEnabled ??
+          true;
+      final active = <String, BooruConfig>{};
+      for (final source in state.topics.where(
+        (s) => feed.sourceIds.contains(s.id),
+      )) {
+        final provider = followingTopicConfigProvider(source.id);
+        final config = watch ? ref.watch(provider) : ref.read(provider);
+        if (config != null) active[source.id] = config;
+      }
+      final rows = <StoredPostSnapshot>[];
+      for (final snapshot in feed.posts) {
+        final provenance = feed.postSources[feedPostIdentity(snapshot)];
+        final owners = provenance == null
+            ? active.values
+            : provenance.map((id) => active[id]).whereType<BooruConfig>();
+        if (!enabled || owners.isEmpty) continue;
+        final decode = _feedDecodedPostProvider((
+          snapshot: snapshot,
+          fallback: owners.first,
+        ));
+        final post = watch ? ref.watch(decode) : ref.read(decode);
+        final access = _feedAccessForPost(ref, post, owners, watch: watch);
+        if (access == null) continue;
+        final visibility = contentPostVisibilityProvider((
+          access: access.key,
+          post: post,
+        ));
+        if ((watch ? ref.watch(visibility) : ref.read(visibility))
+                .asData
+                ?.value ==
+            true)
+          rows.add(snapshot);
+      }
+      return feed.copyWith(posts: rows);
+    });
+  }
+
+  TopicFeed _withCurrentProvenance(TopicFeed accepted, TopicFeed? latest) {
+    if (latest == null || identical(accepted, latest)) return accepted;
+    final liveIds = latest.posts.map(feedPostIdentity).toSet();
+    // A live row whose retained Series facts have been revoked must drop
+    // those facts immediately. Rows aged out of the cache keep their snapshot.
+    final liveSeriesKeys =
+        accepted.seriesMemberships.keys.any(
+          (key) => !latest.seriesMemberships.containsKey(key),
+        )
+        ? {
+            for (final row in latest.posts)
+              feedSeriesPostKey(
+                PostOrigin.fromSnapshot(row.origin),
+                feedPostId(row),
+              ),
+          }
+        : const <String>{};
+    return accepted.copyWith(
+      seriesMemberships: {
+        for (final entry in accepted.seriesMemberships.entries)
+          if (!liveSeriesKeys.contains(entry.key) ||
+              latest.seriesMemberships.containsKey(entry.key))
+            entry.key: entry.value,
+      },
+      postSources: {
+        ...accepted.postSources,
+        for (final entry in latest.postSources.entries)
+          if (liveIds.contains(entry.key)) entry.key: entry.value,
+      },
+    );
+  }
+
+  void _showUpdates(Object definition, int generation) {
+    final current = ref.read(followingTopicsProvider).valueOrNull;
+    if (current == null) return;
+    final latest = current.feeds
+        .where((feed) => feed.id == widget.feedId)
+        .firstOrNull;
+    if (latest == null ||
+        !const DeepCollectionEquality().equals(
+          definition,
+          _definition(latest, current),
+        ))
+      return;
+    setState(() {
+      final authorized = _authorizedFeed(latest, current, watch: false)!;
+      _display.apply(
+        authorized,
+        expectedGeneration: generation,
+        stored: latest,
+      );
+      if (_filter.sourceHost case final source?
+          when !cachedTopicFeedSourceHosts(_display.accepted!.posts)
+              .contains(source)) {
+        _filter = CachedTopicFeedFilter(
+          query: _filter.query,
+          sort: _filter.sort,
+        );
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final asyncState = ref.watch(followingTopicsProvider);
+    final asyncState = ref.watch(
+      followingTopicsProvider.select(
+        (async) => async.whenData((state) {
+          final feed = state.feeds.firstWhereOrNull(
+            (feed) => feed.id == widget.feedId,
+          );
+          final ids = feed?.sourceIds.toSet() ?? const <String>{};
+          return FollowingTopicsState(
+            topics: state.topics
+                .where((topic) => ids.contains(topic.id))
+                .toList(),
+            feeds: [?feed],
+            organization: state.organization,
+            mirrors: state.mirrors,
+            refreshingIds: const {},
+            batchCompleted: 0,
+            batchTotal: 0,
+          );
+        }),
+      ),
+    );
     final state = asyncState.valueOrNull;
-    final feed = state?.feeds.where((f) => f.id == widget.feedId).firstOrNull;
-    final config = ref
-        .watch(booruConfigProvider)
-        .where((c) => c.id == (feed?.profileId ?? widget.profileId))
-        .firstOrNull;
+    final latest = state?.feeds.where((f) => f.id == widget.feedId).firstOrNull;
+    final config = [
+      for (final id in latest?.sourceIds ?? const <String>[])
+        ref.watch(followingTopicConfigProvider(id)),
+      ...ref
+          .watch(orderedProfileConfigsProvider)
+          .where((c) => c.id == (latest?.profileId ?? widget.profileId)),
+    ].whereType<BooruConfig>().firstOrNull;
     final feedEnabled =
         state?.organization.folders
             .where((folder) => folder.id == widget.feedId)
@@ -589,145 +801,225 @@ class _TopicFeedPageState extends ConsumerState<TopicFeedPage> with RouteAware {
         .where((folder) => folder.id == widget.feedId)
         .firstOrNull;
     final isFolderFeed = folder != null;
-    final sourceIds = feed?.sourceIds.toSet() ?? const <String>{};
+    final sourceIds = latest?.sourceIds.toSet() ?? const <String>{};
     final sources =
         state?.topics.where((s) => sourceIds.contains(s.id)).toList() ?? [];
+    final definition = state == null ? null : _definition(latest, state);
+    if (state != null) {
+      final previousGeneration = _display.generation;
+      final authorized = _authorizedFeed(latest, state);
+      _display.observe(authorized, definition: definition!, stored: latest);
+      _display.revalidateAccepted(
+        (stored) => _authorizedFeed(
+          _withCurrentProvenance(stored, latest),
+          state,
+        )!,
+      );
+      if (previousGeneration != _display.generation) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _activate();
+        });
+      }
+    }
+    final feed = _display.accepted;
     final strings = context.t.following_topics;
-    final refreshing = state?.refreshingFeedId == widget.feedId;
-    final refreshChecked = refreshing ? state?.feedRefreshChecked ?? 0 : 0;
-    final refreshTotal = refreshing ? state?.feedRefreshTotal ?? 0 : 0;
-    return PerformanceScreenScope(
-      screen: PerfScreen.topicFeed,
-      priority: 2,
-      child: Scaffold(
-        appBar: KurumiAppBar(
-          title: Text(feed?.name ?? strings.topic_feeds),
-          actions: [
-            if (feed != null && config != null)
-              IconButton(
-                key: const ValueKey('toggle-cached-feed-search'),
-                tooltip: _showFilter
-                    ? strings.feed_filter_close
-                    : strings.feed_filter_hint,
-                isSelected: _showFilter,
-                icon: const Icon(Icons.search),
-                selectedIcon: SizedBox.square(
-                  dimension: 24,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.search),
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Kurumi.themeOf(context).colorScheme.surface,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.close, size: 12),
-                        ),
-                      ),
-                    ],
+    final filterBar = feed != null && config != null
+        ? CachedFeedFilterBar(
+            key: _filterBarKey,
+            snapshots: feed.posts,
+            filter: _filter,
+            onChanged: _filterChanged,
+          )
+        : null;
+    return FollowingDefinitionEntry(
+      ready: feed != null && config != null,
+      receipts: {
+        for (final source in sources)
+          if (ref.watch(followingTopicConfigProvider(source.id)) != null)
+            if (state?.mirrors.owners[source.id] case final owner?)
+              if (owner.hasDefinitionChange) source.id: owner.definitionDigest,
+      },
+      child: PerformanceScreenScope(
+        screen: PerfScreen.topicFeed,
+        priority: 2,
+        child: Scaffold(
+          appBar: KurumiAppBar(
+            backgroundColor: TimelineHeaderSliver.backgroundColorOf(context),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    folder != null && state != null
+                        ? followingAliasLabel(
+                            folder.name,
+                            folder.id,
+                            state.mirrors,
+                            followingAliasSource(state.mirrors, folder.id) ==
+                                    null
+                                ? const {}
+                                : ref.watch(syncCollectionAliasesProvider),
+                          )
+                        : feed?.name ?? strings.topic_feeds,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                onPressed: _toggleFilter,
-              ),
-            PopupMenuButton<String>(
-              tooltip: context.t.generic.action.more,
-              onSelected: (action) async {
-                if (action == 'refresh' && !_filter.isActive) {
-                  await _refreshFeed(context, ref, widget.feedId);
-                } else if (action == 'settings' && folder != null) {
-                  await _editFolderSettings(folder);
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'refresh',
-                  enabled:
-                      !_filter.isActive &&
-                      feedEnabled &&
-                      feed != null &&
-                      state?.refreshingFeedId == null,
-                  child: PopupMenuActionLabel(
-                    icon: Icons.refresh,
-                    label: strings.refresh,
-                  ),
+                FollowingSyncStatus(
+                  readOnly: state?.mirrors.isReceived(widget.feedId) ?? false,
+                  published:
+                      isFolderFeed &&
+                      ref
+                          .watch(publishedFollowingRootsProvider)
+                          .contains(widget.feedId),
+                  changed:
+                      state != null &&
+                      unseenFollowingTopicDefinitions(
+                        state.mirrors,
+                        state.organization,
+                        widget.feedId,
+                      ).isNotEmpty,
                 ),
-                if (isFolderFeed)
-                  PopupMenuItem(
-                    value: 'settings',
-                    child: PopupMenuActionLabel(
-                      icon: Icons.tune,
-                      label: strings.feed_settings,
-                    ),
-                  ),
               ],
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            if (_showFilter && feed != null && config != null)
-              CachedFeedFilterBar(
-                key: ValueKey(feed.id),
-                snapshots: feed.posts,
-                onChanged: _filterChanged,
+            actions: [
+              ValueListenableBuilder(
+                valueListenable: _incompleteHistory,
+                builder: (context, incomplete, _) => FeedStatusAction(
+                  feedId: widget.feedId,
+                  allowRefresh: !_filter.isActive && feedEnabled,
+                  incompleteHistory: incomplete,
+                ),
               ),
-            Expanded(
-              child: asyncState.isLoading && feed == null
-                  ? const Center(child: CircularProgressIndicator())
-                  : asyncState.hasError && feed == null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(strings.load_failed),
-                          TextButton(
-                            onPressed: () =>
-                                ref.invalidate(followingTopicsProvider),
-                            child: Text(context.t.generic.action.retry),
-                          ),
-                        ],
+              if (_latestSuccessfulCheck(sources) case final checkedAt?)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 112),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      widthFactor: 1,
+                      child: FeedLastChecked(
+                        checkedAt: checkedAt,
+                        compact: true,
                       ),
-                    )
-                  : feed == null || config == null
-                  ? Center(child: Text(strings.feeds_empty))
-                  : feed.posts.isEmpty
-                  ? CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: _FeedStatusHeader(
-                            sources: sources,
-                            refreshChecked: refreshChecked,
-                            refreshTotal: refreshTotal,
-                            unavailable: false,
-                          ),
-                        ),
-                        SliverFillRemaining(
-                          hasScrollBody: false,
-                          child: Center(
-                            child: Text(
-                              _filter.isActive
-                                  ? strings.feed_filter_empty
-                                  : strings.feed_posts_empty,
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
-                  : _CachedFeedGrid(
-                      key: _gridKey,
-                      filter: _filter,
-                      feed: feed,
-                      config: config,
-                      sources: sources,
-                      refreshChecked: refreshChecked,
-                      refreshTotal: refreshTotal,
                     ),
-            ),
-          ],
+                  ),
+                ),
+              Consumer(
+                builder: (context, ref, _) {
+                  final refreshing = ref.watch(
+                    followingTopicsProvider.select(
+                      (state) => state.valueOrNull?.refreshingFeedId != null,
+                    ),
+                  );
+                  return KurumiPopupMenuButton(
+                    icon: const Icon(Icons.more_vert),
+                    semanticLabel: context.t.generic.action.more,
+                    iconPadding: const EdgeInsets.all(12),
+                    items: [
+                      if (folder != null && state != null)
+                        ...followingSyncMenu(context, ref, state, folder.id),
+                      KurumiPopupMenuItem(
+                        title: Text(strings.refresh),
+                        icon: const Icon(Icons.refresh),
+                        onTap:
+                            !_filter.isActive &&
+                                feedEnabled &&
+                                feed != null &&
+                                !refreshing
+                            ? () => _refreshFeed(context, ref, widget.feedId)
+                            : null,
+                      ),
+                      if (isFolderFeed &&
+                          !(state?.mirrors.isReceived(folder.id) ?? false))
+                        KurumiPopupMenuItem(
+                          title: Text(strings.feed_settings),
+                          icon: const Icon(Icons.tune),
+                          onTap: () => _editFolderSettings(folder),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          body: Stack(
+            children: [
+              Column(
+                children: [
+                  Expanded(
+                    child: asyncState.isLoading && feed == null
+                        ? const Center(child: CircularProgressIndicator())
+                        : asyncState.hasError && feed == null
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(strings.load_failed),
+                                TextButton(
+                                  onPressed: () =>
+                                      ref.invalidate(followingTopicsProvider),
+                                  child: Text(context.t.generic.action.retry),
+                                ),
+                              ],
+                            ),
+                          )
+                        : feed == null || config == null
+                        ? Center(
+                            child: Text(
+                              state?.mirrors.isReceived(widget.feedId) ?? false
+                                  ? context.t.mitemite.following_paused
+                                  : strings.feeds_empty,
+                            ),
+                          )
+                        : feed.posts.isEmpty
+                        ? CustomScrollView(
+                            slivers: [
+                              if (filterBar != null)
+                                TimelineHeaderSliver(child: filterBar),
+                              SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: Center(
+                                  child: Text(
+                                    _filter.isActive
+                                        ? strings.feed_filter_empty
+                                        : strings.feed_posts_empty,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : _CachedFeedGrid(
+                            key: _gridKey,
+                            filter: _filter,
+                            filterHeader: filterBar!,
+                            feed: feed,
+                            config: config,
+                            sources: sources,
+                            onHistoryIncomplete: (value) {
+                              if (mounted) _incompleteHistory.value = value;
+                            },
+                          ),
+                  ),
+                ],
+              ),
+              if (_display.pending != null && config != null && feedEnabled)
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  bottom: 72 + MediaQuery.paddingOf(context).bottom,
+                  child: Center(
+                    child: FilledButton.icon(
+                      key: const ValueKey('feed-show-updates'),
+                      onPressed: () =>
+                          _showUpdates(definition!, _display.generation),
+                      icon: const Icon(Icons.update),
+                      label: Text(strings.feed_updates_available),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -764,99 +1056,261 @@ class _CachedFeedGrid extends ConsumerStatefulWidget {
   const _CachedFeedGrid({
     required this.feed,
     required this.filter,
+    required this.filterHeader,
     required this.config,
     required this.sources,
-    required this.refreshChecked,
-    required this.refreshTotal,
+    required this.onHistoryIncomplete,
     super.key,
   });
   final TopicFeed feed;
   final CachedTopicFeedFilter filter;
+  final Widget filterHeader;
   final BooruConfig config;
   final List<FollowingTopic> sources;
-  final int refreshChecked;
-  final int refreshTotal;
+  final ValueChanged<bool> onHistoryIncomplete;
   @override
   ConsumerState<_CachedFeedGrid> createState() => _CachedFeedGridState();
 }
 
 class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
+  final _feedScrollController = AutoScrollController();
   PostGridController<Post>? _controller;
   late FeedHistorySession _history;
   late List<StoredPostSnapshot> _filteredSnapshots;
-  var _prefetchedAtLength = -1;
+  var _historyGeneration = 0;
+  var _groupingSession = Object();
+  List<BooruConfig?>? _actors;
+  Map<String, FeedSeriesMembership> _series = {};
   var _historyStarted = false;
-  var _hasUpdates = false;
   var _historyCoverageIncomplete = false;
+  var _feedAtEnd = false;
+  var _endCheckScheduled = false;
+  var _selectionActive = false;
+  var _historyReorderScheduled = false;
+  var _historyReorderPending = false;
+
+  void _scheduleHistoryReorder() {
+    if (_history.recoveryRevision == 0 || _historyReorderScheduled || !mounted)
+      return;
+    _historyReorderPending = true;
+    _historyReorderScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _historyReorderScheduled = false;
+      if (!mounted ||
+          !_historyReorderPending ||
+          _selectionActive ||
+          !NavigationActivity.of(context) ||
+          !(ModalRoute.of(context)?.isCurrent ?? true))
+        return;
+      final controller = _controller;
+      if (controller == null || controller.loadingMore || controller.refreshing)
+        return;
+      Post? anchor;
+      double? anchorTop;
+      final indices = _feedScrollController.tagMap.keys.toList()..sort();
+      final rows = controller.items.toList();
+      for (final index in indices) {
+        final box = _feedScrollController.tagMap[index]?.context
+            .findRenderObject();
+        if (index >= rows.length || box is! RenderBox || !box.hasSize) continue;
+        final top = box.localToGlobal(Offset.zero).dy;
+        if (top >= MediaQuery.paddingOf(context).top + kToolbarHeight &&
+            top < MediaQuery.sizeOf(context).height) {
+          anchor = rows[index];
+          anchorTop = top;
+          break;
+        }
+      }
+      _historyReorderPending = false;
+      final recent = {
+        for (final (index, snapshot) in widget.feed.posts.indexed)
+          (
+            snapshot.origin.booruTypeId,
+            snapshot.origin.sourceHost,
+            feedPostId(snapshot),
+          ): index,
+      };
+      int compare(Post left, Post right) {
+        final a =
+            recent[(left.origin.booruType.id, left.origin.sourceHost, left.id)];
+        final b =
+            recent[(
+              right.origin.booruType.id,
+              right.origin.sourceHost,
+              right.id,
+            )];
+        if (a != null || b != null)
+          return a == null
+              ? 1
+              : b == null
+              ? -1
+              : a.compareTo(b);
+        return compareFeedHistoryPosts(left, right);
+      }
+
+      if (!controller.reorderLoadedItems(compare) ||
+          anchor == null ||
+          anchorTop == null)
+        return;
+      final index = controller.items.toList().indexOf(anchor);
+      if (index < 0) return;
+      final expected = anchor;
+      unawaited(() async {
+        await _feedScrollController.scrollToIndex(
+          index,
+          preferPosition: AutoScrollPosition.begin,
+          duration: const Duration(milliseconds: 1),
+        );
+        if (!mounted ||
+            _selectionActive ||
+            !(ModalRoute.of(context)?.isCurrent ?? true) ||
+            !_feedScrollController.hasClients ||
+            controller.items.elementAtOrNull(index) != expected)
+          return;
+        final box = _feedScrollController.tagMap[index]?.context
+            .findRenderObject();
+        if (box is RenderBox && box.hasSize) {
+          final delta = box.localToGlobal(Offset.zero).dy - anchorTop!;
+          final position = _feedScrollController.position;
+          position.jumpTo(
+            (position.pixels + delta).clamp(
+              position.minScrollExtent,
+              position.maxScrollExtent,
+            ),
+          );
+        }
+      }());
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_historyReorderPending) _scheduleHistoryReorder();
+  }
+
+  void _scheduleFeedEndCheck() {
+    if (_endCheckScheduled) return;
+    _endCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _endCheckScheduled = false;
+      if (!mounted) return;
+      final atEnd =
+          _feedScrollController.positions.length == 1 &&
+          _feedScrollController.position.hasContentDimensions &&
+          _feedScrollController.position.extentAfter <= 48;
+      if (atEnd != _feedAtEnd) setState(() => _feedAtEnd = atEnd);
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _feedScrollController.addListener(_scheduleFeedEndCheck);
+    _scheduleFeedEndCheck();
     _history = _createHistory();
     _filteredSnapshots = widget.filter.apply(widget.feed.posts);
   }
 
   @override
   void dispose() {
+    _controller?.removeListener(_scheduleHistoryReorder);
+    _feedScrollController.dispose();
     _history.dispose();
     super.dispose();
   }
 
-  void stopHistory() => _history.dispose();
+  void stopHistory() {
+    _historyGeneration++;
+    _history.dispose();
+  }
 
-  FeedHistorySession _createHistory() => FeedHistorySession(
-    sources: widget.sources,
-    confirmExhaustion: (source, page, result) {
-      final owner = ref
-          .read(booruConfigProvider)
-          .where((config) => config.id == source.profileId)
-          .firstOrNull;
-      return owner != null &&
-          confirmsFeedHistoryEnd(
-            result,
-            booruType: owner.auth.booruType,
-            siteUrl: owner.url,
-            page: page,
-            limit: 20,
-          );
-    },
-    onExhausted: (source, end) async {
-      await ref
-          .read(followingTopicsProvider.notifier)
-          .recordHistoryEnd(source, end);
-    },
-    recent: [
-      for (final post in widget.feed.posts)
-        _decodeFeedPost(ref, post, widget.config),
-    ],
-    fetchPage: (source, page) async {
-      final owner = ref
-          .read(booruConfigProvider)
-          .where((config) => config.id == source.profileId)
-          .firstOrNull;
-      if (owner == null) throw StateError('Feed source profile unavailable');
-      final adapter = ref
-          .read(booruRepoProvider(owner.auth))
-          ?.searchRefreshQueryAdapter(owner.auth);
-      final plan = adapter?.plan(source.query, after: null);
-      if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
-        final result = await ref
-            .read(originAwarePostRepoProvider(owner))
-            .getPosts(
-              query,
-              page,
+  FeedHistorySession _createHistory() {
+    final generation = ++_historyGeneration;
+    _series = {...widget.feed.seriesMemberships};
+    return FeedHistorySession(
+      sources: widget.sources,
+      confirmExhaustion: (source, page, result) {
+        final owner = ref.read(followingTopicConfigProvider(source.id));
+        return owner != null &&
+            confirmsFeedHistoryEnd(
+              result,
+              booruType: owner.auth.booruType,
+              siteUrl: owner.url,
+              page: page,
               limit: 20,
-              options: PostFetchOptions.raw,
-            )
-            .run();
-        return result.fold(
-          (error) => throw StateError('$error'),
-          (posts) => posts,
-        );
-      }
-      throw StateError('Unsupported feed source');
-    },
-  );
+            );
+      },
+      onExhausted: (source, end) async {
+        await ref
+            .read(followingTopicsProvider.notifier)
+            .recordHistoryEnd(source, end);
+      },
+      recent: [
+        for (final post in widget.feed.posts)
+          _decodeFeedPost(ref, post, widget.config),
+      ],
+      fetchPage: (source, page) async {
+        final owner = ref.read(followingTopicConfigProvider(source.id));
+        if (owner == null) throw StateError('Feed source profile unavailable');
+        final adapter = ref
+            .read(booruRepoProvider(owner.auth))
+            ?.searchRefreshQueryAdapter(owner.auth);
+        final plan = adapter?.plan(source.query, after: null);
+        if (plan case SupportedSearchRefreshQueryPlan(:final query)) {
+          final result = await ref
+              .read(originAwarePostRepoProvider(owner))
+              .getPosts(
+                query,
+                page,
+                limit: 20,
+                options: PostFetchOptions.raw,
+              )
+              .run();
+          final posts = result.fold(
+            (error) => throw StateError('$error'),
+            (posts) => posts,
+          );
+          bool current() =>
+              mounted &&
+              generation == _historyGeneration &&
+              _historyStarted &&
+              !widget.filter.isActive &&
+              feedSeriesSameActor(
+                ref.read(followingTopicConfigProvider(source.id)),
+                owner,
+              ) &&
+              (ref
+                      .read(followingTopicsProvider)
+                      .valueOrNull
+                      ?.topics
+                      .any(
+                        (latest) =>
+                            latest.id == source.id &&
+                            latest.runtimeRevision == source.runtimeRevision,
+                      ) ??
+                  false);
+          var metadata = <String, FeedSeriesMembership>{};
+          try {
+            metadata = await enrichFeedSeries(
+              config: owner,
+              source: source,
+              posts: posts.posts,
+              capability: ref.read(poolBookmarkCapabilityProvider(owner)),
+              isCurrent: current,
+            );
+          } on Object {
+            // Metadata resolution is optional; the fetched Post page is valid.
+          }
+          if (!current()) throw StateError('Feed history source changed');
+          _series.addAll(metadata);
+          return posts;
+        }
+        throw StateError('Unsupported feed source');
+      },
+    );
+  }
+
   @override
   void didUpdateWidget(covariant _CachedFeedGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -907,39 +1361,81 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
       oldWidget.feed.posts,
       widget.feed.posts,
     );
+    final metadataChanged = !const MapEquality<String, FeedSeriesMembership>()
+        .equals(
+          oldWidget.feed.seriesMemberships,
+          widget.feed.seriesMemberships,
+        );
     if (filterChanged || postsChanged) {
       _filteredSnapshots = widget.filter.apply(widget.feed.posts);
     }
-    if (!filterChanged &&
-        !widget.filter.isActive &&
-        postsChanged &&
-        _historyStarted &&
+    if (sourceStatusChanged &&
+        _history.coverageIncomplete &&
+        !filterChanged &&
         !sourceDefinitionsChanged) {
-      _hasUpdates = true;
-      if (sourceStatusChanged && _history.coverageIncomplete) {
-        _history.allowRecovery();
+      _history.allowRecovery();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _controller?.resumeContinuation();
+      });
+    }
+    if (filterChanged || sourceDefinitionsChanged) _groupingSession = Object();
+    if (filterChanged ||
+        sourceDefinitionsChanged ||
+        postsChanged ||
+        metadataChanged) {
+      final anchor =
+          (postsChanged || metadataChanged) &&
+              !filterChanged &&
+              !sourceDefinitionsChanged
+          ? _feedAnchor()
+          : null;
+      if (_historyCoverageIncomplete) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            unawaited(
-              _controller?.refresh(maintainPage: true) ?? Future.value(),
-            );
-          }
+          if (mounted) widget.onHistoryIncomplete(false);
         });
       }
-      return;
-    }
-    if (filterChanged || sourceDefinitionsChanged || postsChanged) {
       _history.dispose();
       _history = _createHistory();
-      _prefetchedAtLength = -1;
       _historyStarted = false;
-      _hasUpdates = false;
       _historyCoverageIncomplete = false;
       if (!filterChanged) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            unawaited(
-              _controller?.refresh(maintainPage: true) ?? Future.value(),
+        final history = _history;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted || !identical(_history, history)) return;
+          final controller = _controller;
+          await controller?.refresh(
+            maintainPage: true,
+            preserveSelection: true,
+          );
+          if (!mounted ||
+              !identical(_history, history) ||
+              anchor == null ||
+              controller == null)
+            return;
+          final index = controller.items.toList().indexWhere(
+            (post) =>
+                post.id == anchor.$1.id && post.origin == anchor.$1.origin,
+          );
+          if (index < 0 || !_feedScrollController.hasClients) return;
+          await _feedScrollController.scrollToIndex(
+            index,
+            preferPosition: AutoScrollPosition.begin,
+            duration: const Duration(milliseconds: 1),
+          );
+          if (!mounted ||
+              !identical(_history, history) ||
+              !_feedScrollController.hasClients)
+            return;
+          final box = _feedScrollController.tagMap[index]?.context
+              .findRenderObject();
+          if (box is RenderBox && box.hasSize) {
+            final position = _feedScrollController.position;
+            final delta = box.localToGlobal(Offset.zero).dy - anchor.$2;
+            position.jumpTo(
+              (position.pixels + delta).clamp(
+                position.minScrollExtent,
+                position.maxScrollExtent,
+              ),
             );
           }
         });
@@ -947,33 +1443,50 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     }
   }
 
-  void _showLatestPosts() {
-    if (widget.filter.isActive) return;
-    _history.dispose();
-    _history = _createHistory();
-    _prefetchedAtLength = -1;
-    setState(() {
-      _historyStarted = false;
-      _hasUpdates = false;
-      _historyCoverageIncomplete = false;
-    });
-    unawaited(_controller?.refresh() ?? Future.value());
+  (Post, double)? _feedAnchor() {
+    final controller = _controller;
+    if (controller == null ||
+        !_feedScrollController.hasClients ||
+        _feedScrollController.offset <= 0)
+      return null;
+    final rows = controller.items.toList();
+    final indices = _feedScrollController.tagMap.keys.toList()..sort();
+    for (final index in indices) {
+      final box = _feedScrollController.tagMap[index]?.context
+          .findRenderObject();
+      if (index >= rows.length || box is! RenderBox || !box.hasSize) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      if (top >= MediaQuery.paddingOf(context).top + kToolbarHeight &&
+          top < MediaQuery.sizeOf(context).height)
+        return (rows[index], top);
+    }
+    return null;
   }
 
   Future<void> _openPost(
+    BuildContext tileContext,
     int index,
     AutoScrollController scrollController,
     Post post,
   ) => _feedAction(context, () async {
     final controller = _controller;
     if (controller == null) return;
+    final projected = ViewerNavigationScope.maybeOf(tileContext);
+    if (projected != null) {
+      projected.open(index, post.thumbnailImageUrl);
+      return;
+    }
+    final access = _feedPostAccess(ref, post, widget.sources);
+    final config = access?.config;
+    if (config == null) return;
     goToPostDetailsPageFromController(
       ref: ref,
       initialIndex: index,
       controller: controller,
       scrollController: scrollController,
       initialThumbnailUrl: post.thumbnailImageUrl,
-      config: widget.config,
+      config: config,
+      canContinue: () => mounted && _historyStarted && !widget.filter.isActive,
     );
   });
 
@@ -981,13 +1494,59 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
     if (widget.filter.isActive) return;
     final controller = _controller;
     if (controller == null || !controller.hasMore) return;
-    _prefetchedAtLength = controller.items.length;
     setState(() => _historyStarted = true);
     unawaited(controller.fetchMore());
   }
 
+  List<RemoteBookmarkPool> _seriesForPost(
+    Post post,
+    Map<String, int> revisions,
+  ) {
+    final config = _feedPostAccess(ref, post, widget.sources)?.config;
+    final cached = _series[feedSeriesPostKey(post.origin, post.id)];
+    if (config == null ||
+        cached == null ||
+        !feedSeriesMatchesConfig(post.origin, config) ||
+        revisions[cached.sourceId] != cached.sourceRevision) {
+      return const [];
+    }
+    return [for (final series in cached.series) series.toPool()];
+  }
+
   @override
-  Widget build(BuildContext context) => CurrentBooruConfigScope(
+  Widget build(BuildContext context) {
+    final actors = [
+      for (final source in widget.sources)
+        ref.watch(followingTopicConfigProvider(source.id)),
+    ];
+    if (_actors != null &&
+        !const ListEquality<BooruConfig?>().equals(_actors, actors)) {
+      _groupingSession = Object();
+      _history.dispose();
+      _history = _createHistory();
+      final changed = <String>{
+        for (var i = 0; i < actors.length; i++)
+          if (i >= _actors!.length ||
+              !feedSeriesSameActor(_actors![i], actors[i]))
+            widget.sources[i].id,
+      };
+      _series.removeWhere((_, value) => changed.contains(value.sourceId));
+      _historyStarted = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_controller?.refresh() ?? Future.value());
+      });
+    }
+    _actors = actors;
+    return _buildFeed(context, actors, {
+      for (final source in widget.sources) source.id: source.runtimeRevision,
+    });
+  }
+
+  Widget _buildFeed(
+    BuildContext context,
+    List<BooruConfig?> actors,
+    Map<String, int> sourceRevisions,
+  ) => CurrentBooruConfigScope(
     config: widget.config,
     child: PostScope<Post>(
       key: ValueKey(widget.filter),
@@ -1012,12 +1571,16 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
                 hasMore: false,
               );
             }
+            if (page > 1 && !_historyStarted) {
+              throw StateError('Feed history requires explicit continuation');
+            }
             final result = await history.load(page);
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted && identical(history, _history)) {
-                setState(
-                  () => _historyCoverageIncomplete = history.coverageIncomplete,
-                );
+                final incomplete = history.coverageIncomplete;
+                if (_historyCoverageIncomplete == incomplete) return;
+                setState(() => _historyCoverageIncomplete = incomplete);
+                widget.onHistoryIncomplete(incomplete);
               }
             });
             return result;
@@ -1031,106 +1594,135 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
         );
       },
       builder: (context, controller) {
-        _controller = controller;
+        if (!identical(_controller, controller)) {
+          _controller?.removeListener(_scheduleHistoryReorder);
+          _controller = controller;
+          controller.addListener(_scheduleHistoryReorder);
+        }
         return Stack(
           children: [
-            PostGrid<Post>(
-              controller: controller,
-              body: widget.filter.isActive && _filteredSnapshots.isEmpty
-                  ? SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Center(
-                        child: Text(
-                          context.t.following_topics.feed_filter_empty,
+            NotificationListener<ScrollMetricsNotification>(
+              onNotification: (notification) {
+                if (notification.depth == 0 &&
+                    notification.metrics.axis == Axis.vertical) {
+                  _scheduleFeedEndCheck();
+                }
+                return false;
+              },
+              child: PostGrid<Post>(
+                scrollController: _feedScrollController,
+                // The normal footer is available only after explicit history
+                // start, including when bounded auto-fill leaves a short feed.
+                showLoadMoreButton: _historyStarted,
+                automaticContinuationEnabled:
+                    _historyStarted && !widget.filter.isActive,
+                controller: controller,
+                body: widget.filter.isActive && _filteredSnapshots.isEmpty
+                    ? SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Text(
+                            context.t.following_topics.feed_filter_empty,
+                          ),
+                        ),
+                      )
+                    : null,
+                gridBuilder: (context, itemBuilder) => SliverMainAxisGroup(
+                  slivers: [
+                    GroupedPostGrid(
+                      controller: controller,
+                      sessionKey: _groupingSession,
+                      supported: actors.any(
+                        (config) =>
+                            config?.auth.booruType == BooruType.danbooru,
+                      ),
+                      configForPost: (post) =>
+                          _feedPostAccess(ref, post, widget.sources)?.config,
+                      seriesForPost: (post) =>
+                          _seriesForPost(post, sourceRevisions),
+                      canContinue: () =>
+                          mounted && _historyStarted && !widget.filter.isActive,
+                      itemBuilder: itemBuilder,
+                    ),
+                    if (_historyStarted && !widget.filter.isActive)
+                      SliverToBoxAdapter(
+                        child: _FeedHistoryStatus(
+                          sources: widget.sources,
+                          unavailable: _historyCoverageIncomplete,
+                          completedSourceIds: _history.exhaustedSourceIds,
+                          historyComplete: _history.exhausted,
                         ),
                       ),
-                    )
-                  : null,
-              sliverHeaders: [
-                SliverToBoxAdapter(
-                  child: _FeedStatusHeader(
-                    sources: widget.sources,
-                    refreshChecked: widget.refreshChecked,
-                    refreshTotal: widget.refreshTotal,
-                    unavailable: _historyCoverageIncomplete,
-                    completedSourceIds: _history.exhaustedSourceIds,
-                    historyComplete: _history.exhausted,
-                  ),
+                  ],
                 ),
-              ],
-              enablePullToRefresh: false,
-              multiSelectActions: _FeedSelectionActions(controller: controller),
-              itemBuilder: (context, index, scroll, useHero) {
-                if (!widget.filter.isActive &&
-                    scroll.hasClients &&
-                    scroll.offset > 0 &&
-                    controller.hasMore &&
-                    index >= controller.items.length - 100 &&
-                    _prefetchedAtLength != controller.items.length) {
-                  _prefetchedAtLength = controller.items.length;
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted &&
-                        !widget.filter.isActive &&
-                        identical(controller, _controller)) {
-                      setState(() => _historyStarted = true);
-                      unawaited(controller.fetchMore());
-                    }
-                  });
-                }
-                final post = controller.items.elementAt(index);
-                final config = switch (const PostOriginResolver().resolve(
-                  post.origin,
-                  ref.watch(booruConfigProvider),
-                )) {
-                  ResolvedPostOrigin(:final config) => config,
-                  _ => null,
-                };
-                return PostGridContextMenu(
-                  controller: controller,
-                  index: index,
-                  child: DefaultImageGridItem(
-                    index: index,
-                    autoScrollController: scroll,
-                    controller: controller,
-                    useHero: useHero,
-                    config: config?.auth ?? BooruConfig.empty.auth,
-                    imageConfig: config?.auth,
-                    presentation: config == null
-                        ? const GenericPostPresentation()
-                        : null,
-                    onTap: () => _openPost(index, scroll, post),
+                header: const SizedBox.shrink(),
+                sliverHeaders: [
+                  SliverToBoxAdapter(
+                    child: _FeedSelectionGuard(
+                      onChanged: (active) {
+                        _selectionActive = active;
+                        if (!active && _historyReorderPending)
+                          _scheduleHistoryReorder();
+                      },
+                    ),
                   ),
-                );
-              },
+                  TimelineHeaderSliver(child: widget.filterHeader),
+                ],
+                enablePullToRefresh: false,
+                multiSelectActions: _FeedSelectionActions(
+                  controller: controller,
+                ),
+                itemBuilder: (context, index, scroll, useHero) {
+                  final post = controller.items.elementAt(index);
+                  final access = _feedPostAccess(ref, post, widget.sources);
+                  final config = access?.config;
+                  if (config == null)
+                    return AspectRatio(
+                      aspectRatio: post.aspectRatio ?? 1,
+                      child: const KurumiImagePlaceholder(),
+                    );
+                  return CurrentBooruConfigScope(
+                    config: config,
+                    accessKey: access!.key,
+                    requireAccess: true,
+                    child: PostGridContextMenu(
+                      controller: controller,
+                      index: index,
+                      child: DefaultImageGridItem(
+                        index: index,
+                        autoScrollController: scroll,
+                        controller: controller,
+                        useHero: useHero,
+                        config: config.auth,
+                        imageConfig: config.auth,
+                        onTap: () => _openPost(context, index, scroll, post),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
             if (!widget.filter.isActive &&
-                (_hasUpdates ||
-                    _historyCoverageIncomplete ||
-                    (widget.feed.posts.length < 12 &&
-                        !_historyStarted &&
+                (_historyCoverageIncomplete ||
+                    (!_historyStarted &&
+                        _feedAtEnd &&
                         !controller.refreshing &&
                         controller.hasMore)))
               Positioned(
                 left: 0,
                 right: 0,
-                bottom: 16,
+                // The destination padding includes the main navigation bar.
+                bottom: 16 + MediaQuery.paddingOf(context).bottom,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_hasUpdates)
-                      FilledButton.icon(
-                        onPressed: _showLatestPosts,
-                        icon: const Icon(Icons.update),
-                        label: Text(
-                          context.t.following_topics.feed_updates_available,
-                        ),
-                      ),
-                    if (widget.feed.posts.length < 12 &&
-                        !_historyStarted &&
+                    if (!_historyStarted &&
+                        _feedAtEnd &&
                         !_historyCoverageIncomplete &&
                         !controller.refreshing &&
                         controller.hasMore)
                       FilledButton.icon(
+                        key: const ValueKey('cached-feed-load-older'),
                         onPressed: _loadOlderPosts,
                         icon: const Icon(Icons.expand_more),
                         label: Text(
@@ -1147,26 +1739,21 @@ class _CachedFeedGridState extends ConsumerState<_CachedFeedGrid> {
   );
 }
 
-class _FeedStatusHeader extends StatelessWidget {
-  const _FeedStatusHeader({
+class _FeedHistoryStatus extends StatelessWidget {
+  const _FeedHistoryStatus({
     required this.sources,
-    required this.refreshChecked,
-    required this.refreshTotal,
     required this.unavailable,
-    this.completedSourceIds = const {},
-    this.historyComplete = false,
+    required this.completedSourceIds,
+    required this.historyComplete,
   });
-
   final List<FollowingTopic> sources;
-  final int refreshChecked;
-  final int refreshTotal;
   final bool unavailable;
   final Set<String> completedSourceIds;
   final bool historyComplete;
 
   @override
   Widget build(BuildContext context) {
-    final refreshing = refreshTotal > 0;
+    final strings = context.t.following_topics;
     final completed = sources
         .where(
           (source) =>
@@ -1174,52 +1761,19 @@ class _FeedStatusHeader extends StatelessWidget {
               completedSourceIds.contains(source.id),
         )
         .length;
-    final remaining = (refreshTotal - refreshChecked).clamp(0, refreshTotal);
-    final checkedAt = sources
-        .map((source) => source.lastSuccessfulCheckAt)
-        .whereType<DateTime>()
-        .fold<DateTime?>(
-          null,
-          (latest, value) =>
-              latest == null || value.isAfter(latest) ? value : latest,
-        );
-    return Semantics(
-      liveRegion: refreshing,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            FeedLastChecked(checkedAt: checkedAt),
-            if (historyComplete)
-              Text(context.t.following_topics.history_complete)
-            else if (completed > 0)
-              Text(
-                context.t.following_topics.history_sources_complete
-                    .replaceAll('{complete}', '$completed')
-                    .replaceAll('{total}', '${sources.length}'),
-              ),
-            if (refreshing) ...[
-              const SizedBox(height: 8),
-              Text(
-                context.t.following_topics.feed_refresh_progress
-                    .replaceAll('{checked}', '$refreshChecked')
-                    .replaceAll('{total}', '$refreshTotal')
-                    .replaceAll('{remaining}', '$remaining'),
-              ),
-              const SizedBox(height: 4),
-              LinearProgressIndicator(value: refreshChecked / refreshTotal),
-            ],
-            if (unavailable) ...[
-              const SizedBox(height: 8),
-              Text(
-                context.t.following_topics.some_topics_unavailable,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (historyComplete)
+          Text(strings.history_complete)
+        else if (completed > 0)
+          Text(
+            strings.history_sources_complete
+                .replaceAll('{complete}', '$completed')
+                .replaceAll('{total}', '${sources.length}'),
+          ),
+        if (unavailable) Text(strings.some_topics_unavailable),
+      ],
     );
   }
 }
@@ -1239,6 +1793,61 @@ class _FeedSelectionActions extends ConsumerWidget {
   }
 }
 
+// An explicitly public received Feed keeps its public grant when duplicate
+// saved accounts make the general origin resolver ambiguous. Never choose one
+// of those accounts or grant access to a source absent from this Feed.
+ContentAccessContext? _feedPostAccess(
+  WidgetRef ref,
+  Post post,
+  List<FollowingTopic> sources,
+) => _feedAccessForPost(
+  ref,
+  post,
+  sources
+      .map((source) => ref.watch(followingTopicConfigProvider(source.id)))
+      .whereType<BooruConfig>(),
+);
+
+ContentAccessContext? _feedAccessForPost(
+  WidgetRef ref,
+  Post post,
+  Iterable<BooruConfig> owners, {
+  bool watch = true,
+}) {
+  if (post.origin.profileIdHint == null) {
+    for (final config in owners) {
+      final scope = config.anonymousReadScope;
+      if (scope != null &&
+          scope.isCurrent &&
+          scope.source.engine == post.origin.booruType &&
+          scope.source.site.host == post.origin.sourceHost) {
+        final provider = contentAccessContextProvider(scope.key);
+        return watch ? ref.watch(provider) : ref.read(provider);
+      }
+    }
+  }
+  final provider = contentAccessForOriginProvider(post.origin);
+  final ordinary = watch ? ref.watch(provider) : ref.read(provider);
+  final hint = post.origin.profileIdHint;
+  if (hint != null && ordinary?.key.profileId != hint) return null;
+  return ordinary;
+}
+
+final _feedDecodedPostProvider = Provider.autoDispose
+    .family<Post, ({StoredPostSnapshot snapshot, BooruConfig fallback})>((
+      ref,
+      request,
+    ) {
+      final codec = ref
+          .watch(
+            booruPostCapabilityProvider(
+              PostOrigin.fromSnapshot(request.snapshot.origin).booruType,
+            ),
+          )
+          ?.codec;
+      return _decodeFeedRow(request.snapshot, request.fallback, codec);
+    });
+
 Post _decodeFeedPost(
   WidgetRef ref,
   StoredPostSnapshot snapshot,
@@ -1251,6 +1860,14 @@ Post _decodeFeedPost(
         ),
       )
       ?.codec;
+  return _decodeFeedRow(snapshot, fallbackConfig, codec);
+}
+
+Post _decodeFeedRow(
+  StoredPostSnapshot snapshot,
+  BooruConfig fallbackConfig,
+  BooruPostDataCodec? codec,
+) {
   final post = decodeFeedPost(snapshot, dataCodec: codec);
   final origin = post.origin;
   final needsFallbackOrigin =
@@ -1261,4 +1878,42 @@ Post _decodeFeedPost(
   return needsFallbackOrigin
       ? post.copyWith(origin: postOriginFromConfig(fallbackConfig))
       : post;
+}
+
+DateTime? _latestSuccessfulCheck(Iterable<FollowingTopic> sources) => sources
+    .map((source) => source.lastSuccessfulCheckAt)
+    .whereType<DateTime>()
+    .fold<DateTime?>(
+      null,
+      (latest, value) =>
+          latest == null || value.isAfter(latest) ? value : latest,
+    );
+
+class _FeedSelectionGuard extends StatefulWidget {
+  const _FeedSelectionGuard({required this.onChanged});
+  final ValueChanged<bool> onChanged;
+  @override
+  State<_FeedSelectionGuard> createState() => _FeedSelectionGuardState();
+}
+
+class _FeedSelectionGuardState extends State<_FeedSelectionGuard> {
+  SelectionModeController? _selection;
+  void _changed() => widget.onChanged(_selection!.isActive);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = SelectionMode.of(context);
+    if (_selection == next) return;
+    _selection?.removeListener(_changed);
+    _selection = next..addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    _selection?.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

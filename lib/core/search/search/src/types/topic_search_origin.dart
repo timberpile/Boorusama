@@ -15,7 +15,7 @@ class TopicSearchOrigin {
     String query,
     SearchQueryStructure? structure,
   ) =>
-      topic.profileId != profileId ||
+      profile.id != profileId ||
       normalizeSearchIdentity(topic.query) != normalizeSearchIdentity(query) ||
       topic.queryStructure != structure;
 }

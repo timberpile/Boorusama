@@ -18,5 +18,5 @@ final recentBookmarkGroupsProvider =
             if (groups[id] case final group?) group,
         ];
       },
-      dependencies: [bookmarkProvider],
+      dependencies: [bookmarkProvider, bookmarkGroupRepoProvider],
     );

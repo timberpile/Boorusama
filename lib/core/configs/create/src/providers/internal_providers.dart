@@ -1,4 +1,5 @@
 // Package imports:
+import 'package:booru_clients/gelbooru.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -92,7 +93,10 @@ class EditBooruConfigNotifier
 
   void updateLogin(
     String login,
-  ) => state = state.copyWith(login: login);
+  ) => state = state.copyWith(
+    login: login,
+    passHash: _sessionAfterUserIdEdit(login),
+  );
 
   void updateApiKey(
     String apiKey,
@@ -109,8 +113,16 @@ class EditBooruConfigNotifier
     state = state.copyWith(
       login: login,
       apiKey: apiKey,
+      passHash: _sessionAfterUserIdEdit(login),
     );
   }
+
+  String? Function()? _sessionAfterUserIdEdit(String login) =>
+      login != state.login &&
+          arg.booruType == BooruType.gelbooruV2 &&
+          GelbooruV2Client.isRule34Website(arg.url)
+      ? () => null
+      : null;
 
   void updateName(
     String name,

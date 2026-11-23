@@ -1,3 +1,5 @@
+import '../providers/following_topic_config_provider.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -6,6 +8,8 @@ import '../../../../configs/manage/providers.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../widgets/popup_menu_action_label.dart';
 import '../providers/feed_member_preview_provider.dart';
+import '../providers/following_topics_notifier.dart';
+import '../../../../backups/mitemite/following_actions.dart';
 import '../types/topic_feed.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_sort.dart';
@@ -32,9 +36,7 @@ class TopicFeedMemberCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profiles = ref.watch(booruConfigProvider);
-    final owner = profiles
-        .where((p) => p.id == source.profileId && p.id == feed.profileId)
-        .firstOrNull;
+    final owner = ref.watch(followingTopicConfigProvider(source.id));
     final previews =
         ref
             .watch(
@@ -43,12 +45,25 @@ class TopicFeedMemberCard extends ConsumerWidget {
             .valueOrNull ??
         const [];
     final strings = context.t.following_topics;
+    final state = ref.watch(followingTopicsProvider).valueOrNull;
+    final readOnly = state?.mirrors.isReceived(source.id) ?? false;
     return FollowingTopicCard(
       topic: source,
       config: owner?.auth,
       refreshing: refreshing,
       onOpen: owner == null ? null : onOpen,
       onAction: onAction,
+      readOnly: readOnly,
+      definitionChanged:
+          state?.mirrors.owners[source.id]?.hasDefinitionChange ?? false,
+      syncActions: readOnly && state != null
+          ? followingSyncMenu(context, ref, state, source.id)
+          : null,
+      onToggleAutoUpdate: readOnly
+          ? () => ref.read(followingTopicsProvider.notifier).setAutoUpdate([
+              source.id,
+            ], !source.autoUpdateEnabled)
+          : null,
       actionItemBuilder: (context) => [
         PopupMenuItem(
           value: FollowingTopicAction.info,

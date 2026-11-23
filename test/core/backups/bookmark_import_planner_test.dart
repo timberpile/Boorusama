@@ -14,38 +14,30 @@ import 'package:boorusama/core/posts/sources/types.dart';
 
 void main() {
   const groupId = '550e8400-e29b-41d4-a716-446655440000';
-  final first = Bookmark.empty.copyWith(
-    id: 10,
-    sourceUrl: 'https://example.com',
-    postId: () => 10,
-    originalUrl: 'https://example.com/first.jpg',
-  );
-  final second = Bookmark.empty.copyWith(
-    id: 20,
-    sourceUrl: 'https://example.com',
-    postId: () => 20,
-    originalUrl: 'https://example.com/second.jpg',
-  );
+  final first = _nativeBookmark(id: 10, postId: 10, originalUrl: 'first.jpg');
+  final second = _nativeBookmark(id: 20, postId: 20, originalUrl: 'second.jpg');
 
-  test('rejects an unkeyable incoming bookmark before group planning', () {
-    final invalid = Bookmark.empty.copyWith(
+  test('retains an unkeyable incoming bookmark as an opaque record', () {
+    final invalid = PostBookmark.empty.copyWith(
       id: 0,
       sourceUrl: 'https://example.com',
     );
 
-    expect(
-      () => const BookmarkImportPlanner().plan(
-        data: BookmarkBackupData(
-          bookmarks: [invalid],
-          groups: const [
-            BookmarkGroupBackup(id: groupId, name: 'Invalid', bookmarkIds: [0]),
-          ],
-        ),
-        currentBookmarks: const [],
-        currentGroups: const [],
+    final plan = const BookmarkImportPlanner().plan(
+      data: BookmarkBackupData(
+        bookmarks: [invalid],
+        groups: const [
+          BookmarkGroupBackup(id: groupId, name: 'Invalid', bookmarkIds: [0]),
+        ],
       ),
-      throwsFormatException,
+      currentBookmarks: const [],
+      currentGroups: const [],
     );
+
+    expect(plan.records, [invalid]);
+    expect(plan.alreadyExistedCount, 0);
+    expect(plan.groups.single.bookmarkIds, {0});
+    expect(invalid.postId, isNull);
   });
 
   test('legacy groups with matching names always receive new IDs', () {
@@ -89,9 +81,10 @@ void main() {
       ],
     );
 
-    expect(plan.missingBookmarks, [second]);
+    expect(plan.records, [first, second]);
+    expect(plan.alreadyExistedCount, 1);
     expect(plan.conflicts.single.name, 'Imported name');
-    expect(plan.conflicts.single.bookmarkIds, {first.uniqueId});
+    expect(plan.conflicts.single.bookmarkIds, {10});
     expect(
       plan.resolve({groupId: BookmarkGroupConflictChoice.replace}).isResolved,
       isTrue,
@@ -116,7 +109,8 @@ void main() {
       currentGroups: const [],
     );
 
-    expect(plan.missingBookmarks, [incoming]);
+    expect(plan.records, [incoming]);
+    expect(plan.alreadyExistedCount, 0);
   });
 
   test('reuses a site post after its media URL changes', () {
@@ -135,14 +129,16 @@ void main() {
       currentGroups: const [],
     );
 
-    expect(plan.missingBookmarks, isEmpty);
+    expect(plan.records, [imported]);
+    expect(plan.alreadyExistedCount, 1);
   });
 }
 
-Bookmark _nativeBookmark({
+PostBookmark _nativeBookmark({
   required int id,
   required String originalUrl,
   String site = 'https://gelbooru.example',
+  int postId = 42,
 }) {
   final post = Post(
     origin: PostOrigin.fromSource(
@@ -151,7 +147,7 @@ Bookmark _nativeBookmark({
       source: site,
     ),
     core: PostCoreData(
-      id: 42,
+      id: postId,
       thumbnailImageUrl: 'thumb',
       sampleImageUrl: 'sample',
       originalImageUrl: originalUrl,
@@ -173,7 +169,7 @@ Bookmark _nativeBookmark({
     ),
     booruData: const LegacyPostData(typeKey: 'test', custom: {}),
   );
-  return Bookmark.fromSnapshot(
+  return PostBookmark.fromSnapshot(
     id: id,
     createdAt: DateTime.utc(2026),
     updatedAt: DateTime.utc(2026),

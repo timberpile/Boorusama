@@ -1,4 +1,9 @@
 {
+  "following_topics": {
+    "sort_manual": "Elle",
+    "sort_unread_first": "Önce okunmamışlar",
+    "sort_recently_added": "Son eklenenler"
+  },
   "generic": {
     "done": "Tamam",
     "errors": {
@@ -400,14 +405,6 @@
       },
       "slideshow_skip": "Slayt gösterisi geçişini atla",
       "slideshow_interval_explanation": "1 saniyeden küçük bir değer, geçişi otomatik olarak atlar",
-      "swipe_mode": "Kaydırma modu",
-      "swipe_mode_disclaimer": "Bazı özel hareketler tüm modlarda çalışmayabilir",
-      "swipe_modes": {
-        "horizontal": "Yatay",
-        "horizontal_description": "Galeri tarzında sola/sağa kaydırma. Fotoğraf galerileri ve medya uygulamalarındaki gibi.",
-        "vertical": "Dikey",
-        "vertical_description": "TikTok tarzı yukarı/aşağı kaydırma. Kısa video platformlarında popülerdir. Yalnızca dikey modda çalışır."
-      },
       "mute_video": "Videoları varsayılan olarak sessize al",
       "double_tap_seek": "İleri/geri sarmak için çift dokun",
       "video_section_title": "Video",
@@ -1240,7 +1237,8 @@
       "edit_global_blacklist": "Genel engel listesini düzenle",
       "edit_booru_specific_blacklist": "Booru'nun özel engelini düzenle",
       "edit_profile_blacklist": "Profil engel listesini düzenle",
-      "stats": "İstatistikler"
+      "stats": "İstatistikler",
+      "group_posts": "Gönderileri grupla"
     },
     "hidden_count": "$total öğeden $hidden tanesi gizli",
     "counter": {

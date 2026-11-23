@@ -4,6 +4,8 @@ import 'package:uuid/uuid.dart';
 
 // Project imports:
 import '../../types/bookmark_group.dart';
+import '../../types/pool_bookmark.dart';
+import '../../types/pool_bookmark_repository.dart';
 import '../../../../groups/folder_tree.dart';
 import '../../types/bookmark_group_repository.dart';
 import 'bookmark_group_hive_object.dart';
@@ -12,17 +14,80 @@ class BookmarkGroupRepositoryHive
     implements
         BookmarkGroupRepository,
         BookmarkFolderRepository,
-        BookmarkRecentGroupRepository {
+        BookmarkRecentGroupRepository,
+        BookmarkHierarchyAliasRepository,
+        PoolBookmarkRepository {
   BookmarkGroupRepositoryHive(
     this._box, {
     Uuid uuid = const Uuid(),
     Box<dynamic>? organizationBox,
-  }) : _uuid = uuid,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now,
+       _uuid = uuid,
        _organizationBox = organizationBox;
 
   final Box<BookmarkGroupHiveObject> _box;
   final Uuid _uuid;
+  final DateTime Function() _now;
   final Box<dynamic>? _organizationBox;
+  // Immutable Hive rows are replaced on writes. Weak keys release snapshots when
+  // a row is replaced/deleted; unchanged reads do not reparse every member date.
+  final _groupSnapshots = Expando<BookmarkGroup>();
+  Object? _cachedPoolRows;
+  List<CollectionBookmark> _cachedPools = const [];
+
+  @override
+  Future<List<CollectionBookmark>> readPoolBookmarks() async {
+    final raw = _organizationBox?.get('poolBookmarks') ?? const [];
+    if (identical(raw, _cachedPoolRows)) return _cachedPools;
+    final parsed = List<CollectionBookmark>.unmodifiable([
+      for (final row in raw as List)
+        CollectionBookmark.fromJson(Map<String, dynamic>.from(row as Map)),
+    ]);
+    _cachedPoolRows = raw;
+    return _cachedPools = parsed;
+  }
+
+  @override
+  Future<void> writePoolBookmarks(List<CollectionBookmark> bookmarks) async {
+    final storage = _organizationBox;
+    if (storage == null) {
+      if (bookmarks.isEmpty) return;
+      throw StateError('Pool bookmark storage unavailable');
+    }
+    final identities = <Object>{};
+    final localIds = <String>{};
+    final groups = (await getGroups()).map((g) => g.id).toSet();
+    for (final bookmark in bookmarks) {
+      if (bookmark.loadedDetails != null) {
+        throw const FormatException(
+          'Loaded Details require unified Group storage',
+        );
+      }
+      if (!Uuid.isValidUUID(fromString: bookmark.localId) ||
+          !identities.add(bookmark.identity) ||
+          !localIds.add(bookmark.localId) ||
+          bookmark.groupIds.isEmpty ||
+          !groups.containsAll(bookmark.groupIds)) {
+        throw const FormatException('Invalid Pool bookmark memberships');
+      }
+    }
+    await storage.put(
+      'poolBookmarks',
+      bookmarks.map((b) => b.toJson()).toList(),
+    );
+  }
+
+  @override
+  Future<Map<String, String>> readLegacyFolderGroupIds() async =>
+      Map.unmodifiable({
+        for (final entry
+            in (_organizationBox?.get('legacyFolderGroupIds') as Map? ??
+                    const {})
+                .entries)
+          if (entry.key is String && entry.value is String)
+            entry.key as String: entry.value as String,
+      });
 
   @override
   Future<List<String>> readRecentGroupIds() async {
@@ -100,12 +165,33 @@ class BookmarkGroupRepositoryHive
   Future<BookmarkGroup> duplicateGroup(String id, {String? name}) async {
     final source = _requireGroup(id);
     final duplicate = await createGroup(name ?? source.name);
-    return _write(
-      duplicate.copyWith(
-        bookmarkIds: source.bookmarkIds,
-        folderId: source.folderId,
-      ),
-    );
+    final pools = await readPoolBookmarks();
+    try {
+      final result = await _write(
+        duplicate.copyWith(
+          bookmarkIds: source.bookmarkIds,
+          addedAt: source.addedAt,
+          folderId: source.folderId,
+        ),
+      );
+      await writePoolBookmarks([
+        for (final pool in pools)
+          if (pool.groupIds.contains(source.id))
+            pool.withGroups(
+              {...pool.groupIds, duplicate.id},
+              addedAt: {
+                ...pool.addedAt,
+                duplicate.id: pool.addedAt[source.id] ?? pool.createdAt,
+              },
+            )
+          else
+            pool,
+      ]);
+      return result;
+    } catch (_) {
+      await _box.delete(duplicate.id);
+      rethrow;
+    }
   }
 
   @override
@@ -118,16 +204,36 @@ class BookmarkGroupRepositoryHive
   @override
   Future<BookmarkGroup> replaceMemberships(
     String id,
-    Set<int> bookmarkIds,
-  ) {
-    return _write(_requireGroup(id).copyWith(bookmarkIds: bookmarkIds));
+    Set<int> bookmarkIds, {
+    Map<int, DateTime>? addedAt,
+  }) {
+    final group = _requireGroup(id);
+    return _write(
+      group.copyWith(
+        bookmarkIds: bookmarkIds,
+        addedAt:
+            addedAt ??
+            {
+              ...group.addedAt,
+              for (final id in bookmarkIds.difference(group.bookmarkIds))
+                id: _now(),
+            },
+      ),
+    );
   }
 
   @override
   Future<BookmarkGroup> addBookmarks(String id, Set<int> bookmarkIds) {
     final group = _requireGroup(id);
     return _write(
-      group.copyWith(bookmarkIds: {...group.bookmarkIds, ...bookmarkIds}),
+      group.copyWith(
+        bookmarkIds: {...group.bookmarkIds, ...bookmarkIds},
+        addedAt: {
+          ...group.addedAt,
+          for (final id in bookmarkIds.difference(group.bookmarkIds))
+            id: _now(),
+        },
+      ),
     );
   }
 
@@ -156,8 +262,18 @@ class BookmarkGroupRepositoryHive
         .where((other) => other.id != group.id)
         .expand((other) => other.bookmarkIds)
         .toSet();
+    final pools = await readPoolBookmarks();
     return BookmarkGroupDeletionPreview(
       group: group,
+      poolIds: {
+        for (final pool in pools)
+          if (pool.groupIds.contains(group.id)) pool.localId,
+      },
+      orphanPoolIds: {
+        for (final pool in pools)
+          if (pool.groupIds.length == 1 && pool.groupIds.contains(group.id))
+            pool.localId,
+      },
       orphanBookmarkIds: group.bookmarkIds.difference(otherBookmarkIds),
     );
   }
@@ -166,7 +282,20 @@ class BookmarkGroupRepositoryHive
   Future<BookmarkGroupDeletionPreview> deleteGroup(String id) async {
     final preview = await previewDeleteGroup(id);
     if (preview.group.isDefault) throw StateError('Default cannot be deleted.');
-    await _box.delete(preview.group.id);
+    final pools = await readPoolBookmarks();
+    final nextPools = [
+      for (final pool in pools)
+        if (pool.groupIds.difference({preview.group.id}) case final groups
+            when groups.isNotEmpty)
+          pool.withGroups(groups),
+    ];
+    await writePoolBookmarks(nextPools);
+    try {
+      await _box.delete(preview.group.id);
+    } catch (_) {
+      await writePoolBookmarks(pools);
+      rethrow;
+    }
     return preview;
   }
 
@@ -195,7 +324,11 @@ class BookmarkGroupRepositoryHive
       name: group.name,
       bookmarkIds: group.bookmarkIds.toList()..sort(),
       folderId: group.folderId,
+      parentGroupId: group.parentGroupId,
       position: group.position,
+      addedAt: group.addedAt.map(
+        (id, date) => MapEntry(id, date.toUtc().toIso8601String()),
+      ),
     );
     await _box.put(group.id, object);
     return _toGroup(object);
@@ -211,12 +344,19 @@ class BookmarkGroupRepositoryHive
   }
 
   BookmarkGroup _toGroup(BookmarkGroupHiveObject object) {
-    return BookmarkGroup(
+    return _groupSnapshots[object] ??= BookmarkGroup(
       id: _normalizeId(object.id),
       name: _normalizeName(object.name),
       bookmarkIds: object.bookmarkIds.toSet(),
       folderId: object.folderId,
+      parentGroupId: object.parentGroupId,
       position: object.position,
+      addedAt: {
+        for (final entry in (object.addedAt ?? const {}).entries)
+          if (entry.key is int)
+            if (_readMembershipDate(entry.value) case final date?)
+              entry.key as int: date,
+      },
     );
   }
 
@@ -297,3 +437,9 @@ class BookmarkGroupRepositoryHive
     return normalized;
   }
 }
+
+DateTime? _readMembershipDate(Object? raw) => switch (raw) {
+  final DateTime value => value.toUtc(),
+  final String value => DateTime.tryParse(value)?.toUtc(),
+  _ => null,
+};

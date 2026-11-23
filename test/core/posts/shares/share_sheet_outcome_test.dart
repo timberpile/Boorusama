@@ -139,7 +139,8 @@ void main() {
     expect(find.byTooltip('Share Post ID'), findsOneWidget);
     expect(find.byTooltip('Copy Source Link'), findsOneWidget);
     expect(find.byTooltip('Share Source Link'), findsOneWidget);
-    expect(find.text('https://site.test/posts/42'), findsOneWidget);
+    expect(find.text('https://site.test/posts/42'), findsNothing);
+    expect(find.text('42'), findsOneWidget);
     expect(
       tester
           .widgetList<SharePayloadTile>(find.byType(SharePayloadTile))

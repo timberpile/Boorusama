@@ -67,7 +67,7 @@ void main() {
         await entered.future;
         current = false;
         final replacement = cancelAt == 5
-            ? <Bookmark>[]
+            ? <PostBookmark>[]
             : [
                 _row(900, 'https://b.test', {'replacement'}),
               ];
@@ -132,7 +132,10 @@ void main() {
       );
       final rows = [
         for (var id = 1; id <= 20000; id++)
-          Bookmark.empty.copyWith(id: id, tags: {'shared', 'tag_${id % 11}'}),
+          PostBookmark.empty.copyWith(
+            id: id,
+            tags: {'shared', 'tag_${id % 11}'},
+          ),
       ];
       final original = builder.update(rows);
       expect(processed, 20000);
@@ -193,7 +196,7 @@ void main() {
         [c, unknown],
         [c, unknown, a.copyWith(id: 15)],
         [c, unknown, replacement],
-        <Bookmark>[],
+        <PostBookmark>[],
         [a.copyWith(), b.copyWith(), c.copyWith(), unknown.copyWith()],
       ]) {
         final next = builder.update(rows);
@@ -214,7 +217,7 @@ void main() {
   );
 }
 
-Bookmark _row(
+PostBookmark _row(
   int id,
   String source,
   Set<String> tags, {
@@ -222,7 +225,7 @@ Bookmark _row(
   Set<String>? character,
   Set<String>? copyright,
 }) {
-  final base = Bookmark.empty;
+  final base = PostBookmark.empty;
   return base.copyWith(
     id: id,
     sourceUrl: source,

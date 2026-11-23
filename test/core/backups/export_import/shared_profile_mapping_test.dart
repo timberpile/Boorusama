@@ -10,7 +10,7 @@ const remoteId = '00000000-0000-4000-8000-000000000003';
 
 void main() {
   test(
-    'one canonical site mapping resolves references across all categories',
+    'only references for the same scheme and installation share a mapping',
     () {
       final references = [
         _reference(firstId, 'https://SITE.example:443/path/'),
@@ -27,11 +27,11 @@ void main() {
             },
         },
       );
-      expect(plan.mappings, hasLength(1));
+      expect(plan.mappings, hasLength(2));
       expect(plan.errors, isEmpty);
-      for (final reference in references) {
-        expect(plan.profileIdFor(reference), remoteId);
-      }
+      expect(plan.profileIdFor(references[0]), remoteId);
+      expect(plan.profileIdFor(references[1]), isNull);
+      expect(plan.profileIdFor(references[2]), remoteId);
     },
   );
 

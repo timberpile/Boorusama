@@ -1,3 +1,5 @@
+import 'fitted_text.dart';
+
 import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -47,54 +49,63 @@ class _KurumiOptionSearchableSheetState<T extends Object>
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (widget.title != null) ...[
-              const SizedBox(height: 24),
-              Semantics(
-                header: true,
-                child: Text(
-                  widget.title!,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.title != null) ...[
+                const SizedBox(height: 24),
+                Semantics(
+                  header: true,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: constraints.maxHeight / 4,
+                    ),
+                    child: KurumiFittedText(
+                      Text(
+                        widget.title!,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
                   ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                onChanged: (value) => setState(() {
+                  items = widget.onFilter(value);
+                }),
+                decoration: InputDecoration(
+                  hintText: widget.searchHint,
+                  suffixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: ImplicitlyAnimatedList<T>(
+                        items: items,
+                        itemBuilder: (context, animation, item, i) =>
+                            widget.itemBuilder(context, item),
+                        areItemsTheSame:
+                            widget.areItemsTheSame ??
+                            (oldItem, newItem) => oldItem == newItem,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            TextField(
-              onChanged: (value) => setState(() {
-                items = widget.onFilter(value);
-              }),
-              decoration: InputDecoration(
-                hintText: widget.searchHint,
-                suffixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: ImplicitlyAnimatedList<T>(
-                      items: items,
-                      itemBuilder: (context, animation, item, i) =>
-                          widget.itemBuilder(context, item),
-                      areItemsTheSame:
-                          widget.areItemsTheSame ??
-                          (oldItem, newItem) => oldItem == newItem,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

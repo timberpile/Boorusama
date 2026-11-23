@@ -30,6 +30,7 @@ Future<FollowTopicPickerResult?> showFollowTopicFolderPickerDialog(
   required Set<String?> selectedFolderIds,
   required Future<TopicFolder?> Function(String? parentId) onCreateFolder,
   Future<bool> Function()? onUpdateOriginal,
+  bool singleDestination = false,
 }) => showDialog<FollowTopicPickerResult>(
   context: context,
   builder: (_) => _FollowTopicFolderPickerDialog(
@@ -37,6 +38,7 @@ Future<FollowTopicPickerResult?> showFollowTopicFolderPickerDialog(
     selectedFolderIds: selectedFolderIds,
     onCreateFolder: onCreateFolder,
     onUpdateOriginal: onUpdateOriginal,
+    singleDestination: singleDestination,
   ),
 );
 
@@ -46,9 +48,11 @@ class _FollowTopicFolderPickerDialog extends ConsumerStatefulWidget {
     required this.selectedFolderIds,
     required this.onCreateFolder,
     this.onUpdateOriginal,
+    required this.singleDestination,
   });
 
   final Future<bool> Function()? onUpdateOriginal;
+  final bool singleDestination;
   final String query;
   final Set<String?> selectedFolderIds;
   final Future<TopicFolder?> Function(String? parentId) onCreateFolder;
@@ -81,6 +85,7 @@ class _FollowTopicFolderPickerDialogState
   void _toggle(String? folderId, bool selected) {
     setState(() {
       if (selected) {
+        if (widget.singleDestination) _selected.clear();
         _selected.add(folderId);
       } else {
         _selected.remove(folderId);
@@ -93,7 +98,7 @@ class _FollowTopicFolderPickerDialogState
     try {
       final folder = await widget.onCreateFolder(_currentFolderId);
       if (folder != null && mounted) {
-        setState(() => _selected.add(folder.id));
+        _toggle(folder.id, true);
       }
     } finally {
       if (mounted) setState(() => _creatingFolder = false);
@@ -102,10 +107,17 @@ class _FollowTopicFolderPickerDialogState
 
   @override
   Widget build(BuildContext context) {
-    final organization = ref
-        .watch(followingTopicsProvider)
-        .valueOrNull
-        ?.organization;
+    final state = ref.watch(followingTopicsProvider).valueOrNull;
+    final organization = state == null
+        ? null
+        : TopicOrganization(
+            folders: state.organization.folders.where(
+              (f) => !state.mirrors.isReceived(f.id),
+            ),
+            placements: state.organization.placements.where(
+              (p) => !state.mirrors.isReceived(p.itemId),
+            ),
+          );
     final tree = organization?.tree;
     final children = tree?.children(_currentFolderId) ?? <TopicFolder>[];
     final strings = context.t.following_topics;
@@ -159,6 +171,7 @@ class _FollowTopicFolderPickerDialogState
                 ],
                 selected: {for (final id in _selected) (id,)},
                 onChanged: (selected) => setState(() {
+                  if (widget.singleDestination && selected.length > 1) return;
                   _selected
                     ..clear()
                     ..addAll(selected.map((key) => key.$1));
@@ -167,6 +180,7 @@ class _FollowTopicFolderPickerDialogState
                   children: [
                     if (_currentFolderId == null)
                       CheckboxRangeItem(
+                        key: const ValueKey<(String?,)>((null,)),
                         value: (null,),
                         child: _FollowDestinationRow(
                           name: context.t.folders.home,
@@ -176,6 +190,7 @@ class _FollowTopicFolderPickerDialogState
                       ),
                     for (final folder in children)
                       CheckboxRangeItem(
+                        key: ValueKey<(String?,)>((folder.id,)),
                         value: (folder.id,),
                         child: _FollowDestinationRow(
                           name: folder.name,

@@ -1,3 +1,6 @@
+import '../../core/bookmarks/src/types/pool_bookmark_capability.dart';
+import 'pools/bookmarks.dart';
+
 // Package imports:
 import 'package:booru_clients/szurubooru.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,8 +29,23 @@ import 'posts/post_data.dart';
 import 'posts/providers.dart';
 import 'tags/providers.dart';
 
-class SzurubooruRepository extends BooruRepositoryDefault {
+class SzurubooruRepository extends BooruRepositoryDefault
+    implements PoolBookmarkCapability {
   const SzurubooruRepository({required this.ref});
+
+  @override
+  Future<RemoteBookmarkPool?> getBookmarkPool(BooruConfig config, int id) =>
+      SzurubooruPoolBookmarks(ref).getBookmarkPool(config, id);
+
+  @override
+  Future<Map<int, List<RemoteBookmarkPool>>> getBookmarkSeries(
+    BooruConfig config,
+    List<Post> posts,
+  ) => SzurubooruPoolBookmarks(ref).getBookmarkSeries(config, posts);
+
+  @override
+  Future<void> openBookmarkPool(WidgetRef target, BooruConfig config, int id) =>
+      SzurubooruPoolBookmarks(ref).openBookmarkPool(target, config, id);
 
   @override
   BooruPostDataCodec<SzurubooruPostData> get postDataCodec =>

@@ -1,6 +1,7 @@
 import 'package:i18n/i18n.dart';
 
 import '../../../developer_options/l10n.dart';
+import '../../../posts/listing/src/timeline_toolbar_l10n.dart';
 import 'settings_search.dart';
 
 /// Uses the same translations as the controls, without building settings pages
@@ -84,8 +85,20 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   add('appearance', 'show_bookmark_count', appearance.show_bookmark_count);
   add(
     'appearance',
-    'show_post_list_config_header',
-    appearance.show_post_list_config_header,
+    'group_related_posts',
+    t.posts.actions.group_related_posts,
+    keywords: ['related parent child family grouping timeline'],
+  );
+  add(
+    'appearance',
+    'keep_timeline_toolbar_visible',
+    t.timelineToolbar.keepVisible,
+    description: t.timelineToolbar.scrollDescription,
+    keywords: [
+      'timeline toolbar header scroll pin keep visible',
+      'Timeline Leiste sichtbar halten',
+      appearance.show_post_list_config_header,
+    ],
   );
   add(
     'appearance',
@@ -283,13 +296,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   );
   add(
     'viewer',
-    'swipe_mode',
-    viewer.swipe_mode,
-    description: viewer.swipe_mode_disclaimer,
-    keywords: [viewer.swipe_modes.horizontal, viewer.swipe_modes.vertical],
-  );
-  add(
-    'viewer',
     'load_original_on_zoom',
     viewer.load_original_on_zoom,
     description: viewer.load_original_on_zoom_description,
@@ -300,7 +306,6 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
     viewer.snap_zoom_to_fit,
     description: viewer.snap_zoom_to_fit_description,
   );
-  add('viewer', 'double_tap_zoom', viewer.double_tap_zoom_behavior);
   add(
     'viewer',
     'auto_adjust_comic_strips',

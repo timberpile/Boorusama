@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 // Project imports:
 import '../../../../images/types.dart';
 import '../../../../posts/listing/types.dart';
+import '../../../../posts/listing/src/timeline_toolbar_l10n.dart';
 import '../../../../posts/post/types.dart';
 import '../../types/settings.dart';
 import '../../types/utils.dart';
@@ -137,16 +138,29 @@ class _ImageListingSettingsSectionState
               _onUpdate((current) => current.copyWith(imageQuality: value)),
           optionBuilder: (value) => Text(value.localizeThumbnail(context)),
         ),
-        KurumiSettingsTile(
-          title: Text(context.t.settings.result_layout.result_layout),
-          selectedOption: settings.pageMode,
-          subtitle: settings.pageMode == PageMode.infinite
-              ? Text(context.t.settings.infinite_scroll_warning)
-              : null,
-          items: const [...PageMode.values],
-          onChanged: (value) =>
-              _onUpdate((current) => current.copyWith(pageMode: value)),
-          optionBuilder: (value) => Text(value.localize(context)),
+        LayoutBuilder(
+          builder: (context, constraints) => KurumiSettingsTile(
+            title: Text(context.t.settings.result_layout.result_layout),
+            selectedOption: settings.pageMode,
+            subtitle: settings.pageMode == PageMode.infinite
+                ? Text(context.t.settings.infinite_scroll_warning)
+                : null,
+            items: const [...PageMode.values],
+            onChanged: (value) =>
+                _onUpdate((current) => current.copyWith(pageMode: value)),
+            optionBuilder: (value) => Text(value.localize(context)),
+            // Keep the inline value within the row at narrow widths and large
+            // text scales, using the same bound as Timeline View Options.
+            selectedOptionBuilder: (value) => ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: (constraints.maxWidth / 2 - 48).clamp(
+                  0.0,
+                  double.infinity,
+                ),
+              ),
+              child: Text(value.localize(context)),
+            ),
+          ),
         ),
         if (settings.pageMode == PageMode.paginated)
           KurumiSettingsTile(
@@ -207,12 +221,13 @@ class _ImageListingSettingsSectionState
         ),
         KurumiSwitchListTile(
           title: Text(
-            context.t.settings.appearance.show_post_list_config_header,
+            context.t.timelineToolbar.keepVisible,
           ),
-          value: settings.showPostListConfigHeader,
+          subtitle: Text(context.t.timelineToolbar.scrollDescription),
+          value: settings.keepTimelineToolbarVisible,
           onChanged: (value) => _onUpdate(
             (current) => current.copyWith(
-              showPostListConfigHeader: value,
+              keepTimelineToolbarVisible: value,
             ),
           ),
         ),

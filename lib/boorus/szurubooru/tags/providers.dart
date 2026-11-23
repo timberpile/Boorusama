@@ -1,3 +1,5 @@
+import '../../../core/content/groups/owned_read_cache.dart';
+
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,25 +53,42 @@ final szurubooruAutocompleteRepoProvider =
       },
     );
 
+final szurubooruCategoryReadsProvider =
+    Provider.family<OwnedReadCache<String, List<TagCategory>>, BooruConfigAuth>(
+      (ref, config) {
+        final reads = OwnedReadCache<String, List<TagCategory>>(maxEntries: 1);
+        ref.onDispose(reads.dispose);
+        return reads;
+      },
+    );
+
+Future<List<TagCategory>> readSzurubooruCategories(
+  Ref ref,
+  BooruConfigAuth config,
+) => ref.read(szurubooruCategoryReadsProvider(config)).load(
+  'categories',
+  () async {
+    final client = ref.read(szurubooruClientProvider(config));
+
+    final categories = await client.getTagCategories();
+
+    return categories
+        .mapIndexed(
+          (index, e) => TagCategory(
+            id: index,
+            name: e.name ?? '???',
+            order: e.order,
+            darkColor: ColorUtils.hexToColor(e.color),
+            lightColor: ColorUtils.hexToColor(e.color),
+          ),
+        )
+        .toList();
+  },
+);
+
 final szurubooruTagCategoriesProvider =
     FutureProvider.family<List<TagCategory>, BooruConfigAuth>(
-      (ref, config) async {
-        final client = ref.read(szurubooruClientProvider(config));
-
-        final categories = await client.getTagCategories();
-
-        return categories
-            .mapIndexed(
-              (index, e) => TagCategory(
-                id: index,
-                name: e.name ?? '???',
-                order: e.order,
-                darkColor: ColorUtils.hexToColor(e.color),
-                lightColor: ColorUtils.hexToColor(e.color),
-              ),
-            )
-            .toList();
-      },
+      (ref, config) => readSzurubooruCategories(ref, config),
     );
 
 final szurubooruTagQueryComposerProvider =

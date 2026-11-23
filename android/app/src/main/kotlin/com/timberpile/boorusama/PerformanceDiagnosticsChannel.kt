@@ -21,13 +21,18 @@ class PerformanceDiagnosticsChannel(context: Context, messenger: BinaryMessenger
 
     init {
         channel.setMethodCallHandler { call, result ->
-            if (call.method != "save") {
+            if (call.method != "save" && call.method != "saveZoomStudy") {
                 result.notImplemented()
             } else {
                 val contents = call.argument<String>("contents")
                 val fileName = call.argument<String>("fileName")
-                if (Build.VERSION.SDK_INT < 29 || contents == null ||
-                    fileName == null || !SAFE_FILE_NAME.matches(fileName)) {
+                val zoomStudy = call.method == "saveZoomStudy"
+                val nameIsSafe = fileName != null && if (zoomStudy) {
+                    SAFE_ZOOM_STUDY_NAME.matches(fileName)
+                } else {
+                    SAFE_FILE_NAME.matches(fileName)
+                }
+                if (Build.VERSION.SDK_INT < 29 || contents == null || !nameIsSafe) {
                     result.error(
                         "diagnostic_export_failed",
                         "Performance report destination is unavailable",
@@ -36,7 +41,7 @@ class PerformanceDiagnosticsChannel(context: Context, messenger: BinaryMessenger
                 } else {
                     worker.execute {
                         try {
-                            val path = save(contents, fileName)
+                            val path = save(contents, fileName!!, if (zoomStudy) ZOOM_RELATIVE_PATH else RELATIVE_PATH)
                             main.post { result.success(path) }
                         } catch (error: Exception) {
                             Log.e(TAG, "Could not save performance report", error)
@@ -55,11 +60,11 @@ class PerformanceDiagnosticsChannel(context: Context, messenger: BinaryMessenger
     }
 
     @androidx.annotation.RequiresApi(29)
-    private fun save(contents: String, fileName: String): String {
+    private fun save(contents: String, fileName: String, relativePath: String): String {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "application/json")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, RELATIVE_PATH)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -80,7 +85,7 @@ class PerformanceDiagnosticsChannel(context: Context, messenger: BinaryMessenger
             resolver.delete(document, null, null)
             throw error
         }
-        return "/storage/emulated/0/$RELATIVE_PATH$fileName"
+        return "/storage/emulated/0/$relativePath$fileName"
     }
 
     fun close() {
@@ -90,6 +95,10 @@ class PerformanceDiagnosticsChannel(context: Context, messenger: BinaryMessenger
 
     companion object {
         internal val RELATIVE_PATH = "${Environment.DIRECTORY_DOWNLOADS}/Dev/diagnostics/"
+        internal val ZOOM_RELATIVE_PATH = "${Environment.DIRECTORY_DOWNLOADS}/"
+        internal val SAFE_ZOOM_STUDY_NAME = Regex(
+            "boorusama-zoom-study-[0-9]{8}T[0-9]{9}Z\\.json",
+        )
         private const val TAG = "PerformanceDiagnostics"
         internal val SAFE_FILE_NAME = Regex(
             "boorusama-performance-(debug|profile|release)-" +

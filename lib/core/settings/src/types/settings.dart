@@ -1,3 +1,5 @@
+import '../../../posts/related/related_posts_order.dart';
+
 // Dart imports:
 import 'dart:convert';
 
@@ -78,11 +80,15 @@ class Settings extends Equatable {
     this.searchRefresh = const SearchRefreshSettings(),
     this.followingTopicSort = 'manual',
     this.topicFeedMemberSort = 'addedDate',
+    this.relatedPostsOrder = RelatedPostsOrder.oldest,
+    this.groupRelatedPosts = false,
     this.automaticUpdateChecks = true,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
-    : safeMode = json['safeMode'] ?? true,
+    : relatedPostsOrder = RelatedPostsOrder.parse(json['relatedPostsOrder']),
+      groupRelatedPosts = json['groupRelatedPosts'] == true,
+      safeMode = json['safeMode'] ?? true,
       listing = ImageListingSettings.fromJson(json),
       viewer = ImageViewerSettings.fromJson(json),
       blacklistedTags = json['hideBlacklist'] ?? '',
@@ -168,7 +174,7 @@ class Settings extends Equatable {
           json[legacyFollowingTopicSortKey]) {
         'nameAsc' => 'nameAsc',
         'updatesFirst' => 'updatesFirst',
-        'lastPostOldest' => 'lastPostOldest',
+        'addedNewest' => 'addedNewest',
         _ => 'manual',
       },
       imageCacheMaxSize = switch (json['imageCacheMaxSize']) {
@@ -196,16 +202,14 @@ class Settings extends Equatable {
       mediaBlurCondition: MediaBlurCondition.defaultValue,
       imageGridSpacing: 4,
       imageBorderRadius: 4,
-      imageGridPadding: 16,
+      imageGridPadding: 4,
       imageGridAspectRatio: 0.7,
       postsPerPage: 60,
       animatedPostsDefaultState: AnimatedPostsDefaultState.defaultValue,
     ),
     viewer: ImageViewerSettings(
-      swipeMode: PostDetailsSwipeMode.defaultValue,
       loadOriginalOnZoom: true,
       snapZoomToFit: true,
-      doubleTapZoomMode: DoubleTapZoomMode.defaultValue,
       autoAdjustComicStrips: true,
       postDetailsOverlayInitialState:
           PostDetailsOverlayInitialState.defaultValue,
@@ -324,6 +328,8 @@ class Settings extends Equatable {
   final SearchRefreshSettings searchRefresh;
   final String followingTopicSort;
   final String topicFeedMemberSort;
+  final RelatedPostsOrder relatedPostsOrder;
+  final bool groupRelatedPosts;
 
   final CacheSize videoCacheMaxSize;
   final CacheSize imageCacheMaxSize;
@@ -372,6 +378,8 @@ class Settings extends Equatable {
     SearchRefreshSettings? searchRefresh,
     String? followingTopicSort,
     String? topicFeedMemberSort,
+    RelatedPostsOrder? relatedPostsOrder,
+    bool? groupRelatedPosts,
     CacheSize? videoCacheMaxSize,
     CacheSize? imageCacheMaxSize,
   }) => Settings(
@@ -433,6 +441,8 @@ class Settings extends Equatable {
     searchRefresh: searchRefresh ?? this.searchRefresh,
     followingTopicSort: followingTopicSort ?? this.followingTopicSort,
     topicFeedMemberSort: topicFeedMemberSort ?? this.topicFeedMemberSort,
+    relatedPostsOrder: relatedPostsOrder ?? this.relatedPostsOrder,
+    groupRelatedPosts: groupRelatedPosts ?? this.groupRelatedPosts,
     videoCacheMaxSize: videoCacheMaxSize ?? this.videoCacheMaxSize,
     imageCacheMaxSize: imageCacheMaxSize ?? this.imageCacheMaxSize,
   );
@@ -485,6 +495,8 @@ class Settings extends Equatable {
       'searchRefresh': searchRefresh.toJson(),
       'followingTopicSort': followingTopicSort,
       'topicFeedMemberSort': topicFeedMemberSort,
+      'relatedPostsOrder': relatedPostsOrder.name,
+      'groupRelatedPosts': groupRelatedPosts,
       'videoCacheMaxSize': videoCacheMaxSize.displayString(),
       'imageCacheMaxSize': imageCacheMaxSize.displayString(),
     };
@@ -534,6 +546,8 @@ class Settings extends Equatable {
     searchRefresh,
     followingTopicSort,
     topicFeedMemberSort,
+    relatedPostsOrder,
+    groupRelatedPosts,
     videoCacheMaxSize,
     imageCacheMaxSize,
   ];
@@ -652,11 +666,9 @@ class ViewerConfigs extends Equatable {
 
 class ImageViewerSettings extends Equatable {
   const ImageViewerSettings({
-    required this.swipeMode,
     this.postQuality = PostQuality.high,
     required this.loadOriginalOnZoom,
     required this.snapZoomToFit,
-    required this.doubleTapZoomMode,
     required this.autoAdjustComicStrips,
     required this.postDetailsOverlayInitialState,
     required this.slideshowDirection,
@@ -669,12 +681,13 @@ class ImageViewerSettings extends Equatable {
     required this.doubleTapSeekDuration,
   });
 
+  // Legacy swipeMode and doubleTapZoomMode values are intentionally ignored,
+  // including restored global and per-profile settings. Post navigation is
+  // always horizontal and image double-tap always uses aspect-aware Classic.
   ImageViewerSettings.fromJson(Map<String, dynamic> json)
     : postQuality = PostQuality.parse(json['postQuality']),
-      swipeMode = PostDetailsSwipeMode.parse(json['swipeMode']),
       loadOriginalOnZoom = json['loadOriginalOnZoom'] ?? true,
       snapZoomToFit = json['snapZoomToFit'] ?? true,
-      doubleTapZoomMode = DoubleTapZoomMode.parse(json['doubleTapZoomMode']),
       autoAdjustComicStrips = json['autoAdjustComicStrips'] ?? true,
       postDetailsOverlayInitialState = PostDetailsOverlayInitialState.parse(
         json['postDetailsOverlayInitialState'],
@@ -697,10 +710,8 @@ class ImageViewerSettings extends Equatable {
       doubleTapSeekDuration = json['doubleTapSeekDuration'] ?? 10;
 
   final PostQuality postQuality;
-  final PostDetailsSwipeMode swipeMode;
   final bool loadOriginalOnZoom;
   final bool snapZoomToFit;
-  final DoubleTapZoomMode doubleTapZoomMode;
   final bool autoAdjustComicStrips;
   final PostDetailsOverlayInitialState postDetailsOverlayInitialState;
   final SlideshowDirection slideshowDirection;
@@ -714,10 +725,8 @@ class ImageViewerSettings extends Equatable {
 
   ImageViewerSettings copyWith({
     PostQuality? postQuality,
-    PostDetailsSwipeMode? swipeMode,
     bool? loadOriginalOnZoom,
     bool? snapZoomToFit,
-    DoubleTapZoomMode? doubleTapZoomMode,
     bool? autoAdjustComicStrips,
     PostDetailsOverlayInitialState? postDetailsOverlayInitialState,
     SlideshowDirection? slideshowDirection,
@@ -731,10 +740,8 @@ class ImageViewerSettings extends Equatable {
   }) {
     return ImageViewerSettings(
       postQuality: postQuality ?? this.postQuality,
-      swipeMode: swipeMode ?? this.swipeMode,
       loadOriginalOnZoom: loadOriginalOnZoom ?? this.loadOriginalOnZoom,
       snapZoomToFit: snapZoomToFit ?? this.snapZoomToFit,
-      doubleTapZoomMode: doubleTapZoomMode ?? this.doubleTapZoomMode,
       autoAdjustComicStrips:
           autoAdjustComicStrips ?? this.autoAdjustComicStrips,
       postDetailsOverlayInitialState:
@@ -756,10 +763,8 @@ class ImageViewerSettings extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'postQuality': postQuality.toData(),
-    'swipeMode': swipeMode.toData(),
     'loadOriginalOnZoom': loadOriginalOnZoom,
     'snapZoomToFit': snapZoomToFit,
-    'doubleTapZoomMode': doubleTapZoomMode.toData(),
     'autoAdjustComicStrips': autoAdjustComicStrips,
     'postDetailsOverlayInitialState': postDetailsOverlayInitialState.toData(),
     'slideshowDirection': slideshowDirection.toData(),
@@ -775,10 +780,8 @@ class ImageViewerSettings extends Equatable {
   @override
   List<Object> get props => [
     postQuality,
-    swipeMode,
     loadOriginalOnZoom,
     snapZoomToFit,
-    doubleTapZoomMode,
     autoAdjustComicStrips,
     postDetailsOverlayInitialState,
     slideshowDirection,
@@ -801,6 +804,7 @@ class ImageListingSettings extends Equatable {
     required this.pageIndicatorPosition,
     required this.showScoresInGrid,
     required this.showPostListConfigHeader,
+    this.keepTimelineToolbarVisible = false,
     required this.mediaBlurCondition,
     required this.imageGridSpacing,
     required this.imageBorderRadius,
@@ -819,6 +823,7 @@ class ImageListingSettings extends Equatable {
       ),
       showScoresInGrid = json['showScoresInGrid'] ?? false,
       showPostListConfigHeader = json['showPostListConfigHeader'] ?? true,
+      keepTimelineToolbarVisible = json['keepTimelineToolbarVisible'] == true,
       imageBorderRadius = json['imageBorderRadius'],
       pageIndicatorPosition = PageIndicatorPosition.parse(
         json['pageIndicatorPosition'],
@@ -828,7 +833,7 @@ class ImageListingSettings extends Equatable {
       ),
       postsPerPage = json['postsPerPage'] ?? 60,
       imageGridAspectRatio = json['imageGridAspectRatio'] ?? 0.7,
-      imageGridPadding = json['imageGridPadding'] ?? 16,
+      imageGridPadding = json['imageGridPadding'] ?? 4,
       imageGridSpacing = json['imageGridSpacing'] ?? 4,
       animatedPostsDefaultState = AnimatedPostsDefaultState.parse(
         json['animatedPostsDefaultState'],
@@ -840,7 +845,9 @@ class ImageListingSettings extends Equatable {
   final PageMode pageMode;
   final PageIndicatorPosition pageIndicatorPosition;
   final bool showScoresInGrid;
+  // Retained only for older callers/backups; never interpreted as pinning.
   final bool showPostListConfigHeader;
+  final bool keepTimelineToolbarVisible;
   final MediaBlurCondition mediaBlurCondition;
   final double imageGridSpacing;
   final double imageBorderRadius;
@@ -857,6 +864,7 @@ class ImageListingSettings extends Equatable {
     PageIndicatorPosition? pageIndicatorPosition,
     bool? showScoresInGrid,
     bool? showPostListConfigHeader,
+    bool? keepTimelineToolbarVisible,
     MediaBlurCondition? mediaBlurCondition,
     bool? enableDynamicColoring,
     KurumiThemeMode? themeMode,
@@ -877,6 +885,8 @@ class ImageListingSettings extends Equatable {
       showScoresInGrid: showScoresInGrid ?? this.showScoresInGrid,
       showPostListConfigHeader:
           showPostListConfigHeader ?? this.showPostListConfigHeader,
+      keepTimelineToolbarVisible:
+          keepTimelineToolbarVisible ?? this.keepTimelineToolbarVisible,
       mediaBlurCondition: mediaBlurCondition ?? this.mediaBlurCondition,
       imageGridSpacing: imageGridSpacing ?? this.imageGridSpacing,
       imageBorderRadius: imageBorderRadius ?? this.imageBorderRadius,
@@ -896,6 +906,7 @@ class ImageListingSettings extends Equatable {
     'pageIndicatorPosition': pageIndicatorPosition.toData(),
     'showScoresInGrid': showScoresInGrid,
     'showPostListConfigHeader': showPostListConfigHeader,
+    'keepTimelineToolbarVisible': keepTimelineToolbarVisible,
     'mediaBlurCondition': mediaBlurCondition.toData(),
     'imageGridSpacing': imageGridSpacing,
     'imageBorderRadius': imageBorderRadius,
@@ -914,6 +925,7 @@ class ImageListingSettings extends Equatable {
     pageIndicatorPosition,
     showScoresInGrid,
     showPostListConfigHeader,
+    keepTimelineToolbarVisible,
     mediaBlurCondition,
     imageGridSpacing,
     imageBorderRadius,

@@ -2,13 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
-import '../../../../boorus/engine/providers.dart';
 import '../../../../configs/config/types.dart';
-import '../../../../configs/manage/providers.dart';
 import '../../../../images/booru_image.dart';
+import '../providers/following_topic_config_provider.dart';
 import '../providers/untracked_topic_preview_provider.dart';
-import '../providers/following_topic_selectors.dart';
-import '../refresh/search_refresh_query_adapter.dart';
 import '../types/following_topic.dart';
 import '../types/search_refresh.dart';
 
@@ -31,46 +28,28 @@ class FollowingTopicPreview extends ConsumerWidget {
     // Feed members supply their own snapshot-backed, cache-only preview.
     // Preserve that surface without starting a separate search or image load.
     if (fallback case final preview?) return preview;
-    final owner = ref
-        .watch(booruConfigProvider)
-        .where(
-          (profile) => profile.id == topic.profileId && profile.auth == auth,
-        )
-        .firstOrNull;
-    final adapter = owner == null
+    final resolved = ref.watch(followingTopicConfigProvider(topic.id));
+    final owner = resolved?.auth == auth ? resolved : null;
+    final key = owner == null
         ? null
-        : ref
-              .watch(booruRepoProvider(owner.auth))
-              ?.searchRefreshQueryAdapter(owner.auth);
-    final untracked =
-        owner != null &&
-        (topic.lastErrorKind == SearchRefreshErrorKind.unsupported ||
-            !ref.watch(followingTopicTrackingSupportedProvider(owner.auth)) ||
-            !supportsSearchRefreshQuery(adapter, topic.query));
+        : ref.watch(untrackedTopicPreviewKeyProvider((topic, owner)));
     final stored = topic.previews
         .map((preview) => preview.thumbnailUrl)
         .toList();
-    if (!untracked) return fallback ?? _images(stored);
+    if (key == null) return _images(stored);
 
-    final previews = ref.watch(
-      untrackedTopicPreviewProvider((
-        config: owner,
-        query: topic.query,
-        structure: topic.queryStructure,
-        revision: topic.runtimeRevision,
-        attemptedAt: topic.lastAttemptAt,
-      )),
-    );
+    final public = key.config.anonymousReadScope != null;
+    final previews = ref.watch(untrackedTopicPreviewProvider(key));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         previews.when(
           data: _images,
-          loading: () => _images(stored),
+          loading: () => _images(public ? const [] : stored),
           error: (_, _) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _images(stored),
+              _images(public ? const [] : stored),
               // Separate from the existing unsupported-tracking notice.
               Row(
                 children: [
@@ -89,7 +68,8 @@ class FollowingTopicPreview extends ConsumerWidget {
         ),
         // A locally followed Topic need not have attempted tracking yet.
         // Do not duplicate the card's persisted unsupported notice.
-        if (topic.lastErrorKind != SearchRefreshErrorKind.unsupported)
+        if (!public &&
+            topic.lastErrorKind != SearchRefreshErrorKind.unsupported)
           Text(
             context.t.following_topics.error_unsupported,
             style: Theme.of(context).textTheme.bodySmall,

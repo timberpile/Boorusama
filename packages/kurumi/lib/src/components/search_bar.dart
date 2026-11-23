@@ -28,6 +28,7 @@ class KurumiSearchBar extends StatefulWidget {
     this.cursorHeight,
     this.suggestionsFocus,
     this.listbox,
+    this.backgroundColor,
   });
 
   final VoidCallback? onTap;
@@ -58,6 +59,9 @@ class KurumiSearchBar extends StatefulWidget {
   /// Rows suggested for what is typed, highlighted by arrows while typing
   /// goes on in the field. Takes the arrows before [suggestionsFocus] does.
   final KurumiListboxController? listbox;
+
+  /// Override for controls hosted on an already-painted shared surface.
+  final Color? backgroundColor;
 
   @override
   State<KurumiSearchBar> createState() => _KurumiSearchBarState();
@@ -223,9 +227,11 @@ class _KurumiSearchBarState extends State<KurumiSearchBar> {
         onKeyEvent: _handleKey,
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: colorScheme.brightness == Brightness.dark
-                ? colorScheme.surfaceContainerHigh
-                : colorScheme.surfaceContainerHighest,
+            color:
+                widget.backgroundColor ??
+                (colorScheme.brightness == Brightness.dark
+                    ? colorScheme.surfaceContainerHigh
+                    : colorScheme.surfaceContainerHighest),
             borderRadius: BorderRadius.circular(8),
           ),
           child: GestureDetector(

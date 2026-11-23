@@ -38,7 +38,7 @@ class SzurubooruPool extends Equatable {
   final String? category;
   final String? description;
   final int? postCount;
-  final List<int> postIds;
+  final List<int>? postIds;
   final List<String> thumbnailUrls;
   final DateTime? createdAt;
   final DateTime? updatedAt;

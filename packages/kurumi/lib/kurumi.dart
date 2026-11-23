@@ -11,6 +11,7 @@ export 'package:anchor_ui/anchor_ui.dart' show AnchorController, Placement;
 
 export 'src/accessibility/behavior.dart';
 export 'src/accessibility/scrolling.dart';
+export 'src/components/action_icon_button.dart';
 export 'src/components/adaptive_button_row.dart';
 export 'src/components/adaptive_sheet.dart'
     hide

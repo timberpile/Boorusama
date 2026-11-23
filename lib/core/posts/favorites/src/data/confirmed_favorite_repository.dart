@@ -21,13 +21,19 @@ class ConfirmedFavoriteRepository<T extends Post>
   final void Function(Object error) onProjectionError;
 
   @override
+  bool get needsWebsiteLogin => delegate.needsWebsiteLogin;
+
+  @override
   bool canFavorite() => delegate.canFavorite();
 
   @override
-  bool isPostFavorited(T post) => delegate.isPostFavorited(post);
+  bool? isPostFavorited(T post) => delegate.isPostFavorited(post);
 
   @override
-  Future<List<int>> filterFavoritedPosts(List<int> postIds) =>
+  bool get supportsFavoriteLookup => delegate.supportsFavoriteLookup;
+
+  @override
+  Future<List<int>?> filterFavoritedPosts(List<int> postIds) =>
       delegate.filterFavoritedPosts(postIds);
 
   Future<_PreparedProjection> _prepare(int postId, bool favorited) async {
@@ -61,8 +67,7 @@ class ConfirmedFavoriteRepository<T extends Post>
       await _apply(prepared);
       rethrow;
     }
-    if (result == AddFavoriteStatus.success ||
-        result == AddFavoriteStatus.alreadyExists) {
+    if (result.confirmed) {
       await _apply(prepared);
     }
     return result;

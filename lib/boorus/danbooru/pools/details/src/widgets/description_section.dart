@@ -8,6 +8,7 @@ import '../../../../../../foundation/html.dart';
 import '../../../../../../foundation/url_launcher.dart';
 import '../../../../../../foundation/utils/html_utils.dart';
 import '../../../pool/types.dart';
+import '../../../../text_markup/src/widgets/danbooru_dtext_body.dart';
 import '../providers/description_provider.dart';
 
 class PoolDescriptionSection extends ConsumerWidget {
@@ -21,6 +22,17 @@ class PoolDescriptionSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfigAuth;
+    // Use the shared envelope's current DText for both actors. A separate cached
+    // HTML read could retain the previous description after a Group refresh.
+    if (pool.description != null || config.anonymousReadScope != null) {
+      final description = pool.description;
+      return description == null || description.isEmpty
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: DanbooruDTextBody(data: description, config: config),
+            );
+    }
     final params = (config, pool.id);
     final loginDetails = ref.watch(
       booruLoginDetailsProvider(config),

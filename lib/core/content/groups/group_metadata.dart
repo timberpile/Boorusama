@@ -1,0 +1,226 @@
+import 'package:equatable/equatable.dart';
+
+import '../../boorus/booru/types.dart';
+import '../content_reference.dart';
+import 'group_cover_aspect_ratios.dart';
+
+export 'group_cover_aspect_ratios.dart';
+
+enum MetadataCoverage { unknown, partial, complete }
+
+enum GroupTextFormat { plainText, dtext, html }
+
+abstract interface class BooruGroupSummaryData {
+  String get typeKey;
+  int get schemaVersion;
+}
+
+abstract interface class BooruGroupDetailsData {
+  String get typeKey;
+  int get schemaVersion;
+}
+
+/// An engine owns both payload families, including their version validation.
+abstract interface class BooruGroupDataCodec {
+  BooruType get engine;
+  Map<String, Object?> encodeSummary(BooruGroupSummaryData data);
+  BooruGroupSummaryData decodeSummary(Map<String, Object?> value);
+  Map<String, Object?> encodeDetails(BooruGroupDetailsData data);
+  BooruGroupDetailsData decodeDetails(Map<String, Object?> value);
+}
+
+final class GroupCover extends Equatable {
+  GroupCover({
+    required this.thumbnail,
+    this.sample,
+    this.original,
+    this.width,
+    this.height,
+    this.representedPost,
+    this.visibility,
+    this.memberOrderDigest,
+    this.aspectRatios,
+    Map<String, String> variants = const {},
+  }) : variants = Map.unmodifiable(variants) {
+    [thumbnail, ?sample, ?original].forEach(validateGroupMetadataUri);
+    if ((width != null && width! <= 0) ||
+        (height != null && height! <= 0) ||
+        (memberOrderDigest != null &&
+            !RegExp(r'^[0-9a-f]{64}$').hasMatch(memberOrderDigest!)) ||
+        (representedPost != null &&
+            representedPost!.kind != ContentKind.post)) {
+      throw const FormatException('Invalid Group cover');
+    }
+  }
+  final Uri thumbnail;
+  final Uri? sample;
+  final Uri? original;
+  final int? width;
+  final int? height;
+  final ContentReference? representedPost;
+  final GroupCoverVisibility? visibility;
+  final String? memberOrderDigest;
+  final GroupCoverAspectRatios? aspectRatios;
+  final Map<String, String> variants;
+  @override
+  List<Object?> get props => [
+    thumbnail,
+    sample,
+    original,
+    width,
+    height,
+    representedPost,
+    visibility,
+    memberOrderDigest,
+    variants,
+    aspectRatios,
+  ];
+}
+
+/// Only the selected cover's filtering facts; no member manifest or media bytes.
+final class GroupCoverVisibility extends Equatable {
+  GroupCoverVisibility({
+    required Iterable<String> tags,
+    required this.rating,
+    required this.deleted,
+    required this.banned,
+    this.tagCoverage = MetadataCoverage.complete,
+    Map<String, Object?>? postFacts,
+  }) : tags = Set.unmodifiable(tags),
+       postFacts = postFacts == null ? null : Map.unmodifiable(postFacts) {
+    if (postFacts != null &&
+        (postFacts['score'] is! int ||
+            [
+              'downvotes',
+              'uploaderId',
+            ].any((key) => postFacts[key] != null && postFacts[key] is! int) ||
+            ['source', 'uploaderName'].any(
+              (key) => postFacts[key] != null && postFacts[key] is! String,
+            ))) {
+      throw const FormatException('Invalid selected-cover Post facts');
+    }
+  }
+  final Set<String> tags;
+  final Map<String, Object?>? postFacts;
+  final MetadataCoverage tagCoverage;
+  final String rating;
+  final bool deleted;
+  final bool banned;
+  Map<String, Object?> toJson() => {
+    'tags': tags.toList()..sort(),
+    'rating': rating,
+    'deleted': deleted,
+    'banned': banned,
+    'tagCoverage': tagCoverage.name,
+    'postFacts': ?postFacts,
+  };
+  factory GroupCoverVisibility.fromJson(Map<String, dynamic> json) =>
+      GroupCoverVisibility(
+        tags: (json['tags'] as List).cast<String>(),
+        postFacts: json['postFacts'] == null
+            ? null
+            : Map<String, Object?>.from(json['postFacts'] as Map),
+        rating: json['rating'] as String,
+        deleted: json['deleted'] as bool,
+        banned: json['banned'] as bool,
+        tagCoverage: json['tagCoverage'] == null
+            ? MetadataCoverage.complete
+            : MetadataCoverage.values
+                      .where((value) => value.name == json['tagCoverage'])
+                      .firstOrNull ??
+                  MetadataCoverage.unknown,
+      );
+  @override
+  List<Object?> get props => [
+    tags,
+    rating,
+    deleted,
+    banned,
+    tagCoverage,
+    postFacts,
+  ];
+}
+
+final class GroupDescription extends Equatable {
+  const GroupDescription({required this.text, required this.format});
+  final String text;
+  final GroupTextFormat format;
+  @override
+  List<Object?> get props => [text, format];
+}
+
+final class GroupTags extends Equatable {
+  GroupTags({required Iterable<GroupTag> values, required this.coverage})
+    : values = List.unmodifiable(values);
+  final List<GroupTag> values;
+  final MetadataCoverage coverage;
+  @override
+  List<Object?> get props => [values, coverage];
+}
+
+final class GroupTag extends Equatable {
+  GroupTag({this.sourceId, this.name, this.category, this.displayName}) {
+    if ((sourceId == null && name == null) || sourceId == '' || name == '') {
+      throw const FormatException('Invalid Group tag');
+    }
+  }
+  final String? sourceId;
+  final String? name;
+  final String? category;
+  final String? displayName;
+  @override
+  List<Object?> get props => [sourceId, name, category, displayName];
+}
+
+final class CreatorRef extends Equatable {
+  CreatorRef({
+    required this.displayName,
+    this.sourceKey,
+    this.account,
+    this.avatar,
+    this.sourceUrl,
+  }) {
+    if (displayName.trim().isEmpty) {
+      throw const FormatException('Invalid creator name');
+    }
+    if (avatar != null) validateGroupMetadataUri(avatar!);
+    if (sourceUrl != null) validateGroupMetadataUri(sourceUrl!);
+  }
+  final String displayName;
+  final String? sourceKey;
+  final String? account;
+  final Uri? avatar;
+  final Uri? sourceUrl;
+  @override
+  List<Object?> get props => [
+    displayName,
+    sourceKey,
+    account,
+    avatar,
+    sourceUrl,
+  ];
+}
+
+final class GroupSourceDates extends Equatable {
+  const GroupSourceDates({this.createdAt, this.publishedAt, this.updatedAt});
+  final DateTime? createdAt;
+  final DateTime? publishedAt;
+  final DateTime? updatedAt;
+  @override
+  List<Object?> get props => [createdAt, publishedAt, updatedAt];
+}
+
+/// Metadata URLs are retained facts, never authorization for a request. Unlike
+/// installation locators, media URLs may carry a source-owned query string.
+void validateGroupMetadataUri(Uri uri) {
+  if ((uri.scheme != 'http' && uri.scheme != 'https') ||
+      !uri.hasAuthority ||
+      uri.host.isEmpty ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasFragment ||
+      uri.port <= 0 ||
+      uri.port > 65535 ||
+      RegExp(r'[\x00-\x20\x7f\\]').hasMatch(Uri.decodeFull(uri.toString()))) {
+    throw const FormatException('Invalid Group metadata URL');
+  }
+}

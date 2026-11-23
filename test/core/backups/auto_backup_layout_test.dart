@@ -105,10 +105,15 @@ void main() {
           if (location?.startsWith('content:') ?? false) {
             expect(find.text(location!), findsNothing);
           }
-          expect(
-            find.textContaining('allow access in the Android system picker'),
-            findsOneWidget,
+          final folderControl = find.widgetWithText(
+            TextButton,
+            location == null ? 'Select' : 'Change',
           );
+          expect(folderControl.hitTestable(), findsOneWidget);
+          expect(tester.widget<TextButton>(folderControl).onPressed, isNotNull);
+          final folderControlBounds = tester.getRect(folderControl);
+          expect(folderControlBounds.left, greaterThanOrEqualTo(0));
+          expect(folderControlBounds.right, lessThanOrEqualTo(320));
           expect(
             find.text('Backup Now'),
             location?.startsWith('content:') ?? false

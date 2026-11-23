@@ -7,6 +7,68 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kurumi/kurumi.dart';
 
 void main() {
+  for (final enlarged in [false, true]) {
+    testWidgets(
+      'long context menus keep their final action reachable ($enlarged)',
+      (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(320, 568);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final keyboard = enlarged ? 180.0 : 0.0;
+        var calls = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(enlarged ? 2 : 1),
+                viewInsets: EdgeInsets.only(bottom: keyboard),
+              ),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Align(
+                  alignment: enlarged
+                      ? Alignment.bottomRight
+                      : Alignment.topLeft,
+                  child: KurumiContextMenu(
+                    menuItemsBuilder: (_) => [
+                      for (var index = 0; index < 20; index++)
+                        KurumiContextMenuTile(
+                          title: 'Action $index',
+                          onTap: () => calls++,
+                        ),
+                    ],
+                    child: const Text('Open menu'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(
+          MediaQuery.sizeOf(tester.element(find.text('Open menu'))),
+          const Size(320, 568),
+        );
+        await tester.longPress(find.text('Open menu'));
+        await tester.pumpAndSettle();
+        final last = find.text('Action 19');
+        await tester.ensureVisible(last);
+        await tester.pumpAndSettle();
+        expect(last.hitTestable(), findsOneWidget);
+        expect(tester.getRect(last).bottom, lessThanOrEqualTo(568 - keyboard));
+        await tester.tap(last);
+        await tester.pumpAndSettle();
+        expect(calls, 1);
+        expect(last, findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('an open context menu owns local Back history until dismissed', (
     tester,
   ) async {

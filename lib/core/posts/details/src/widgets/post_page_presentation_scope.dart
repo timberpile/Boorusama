@@ -1,3 +1,5 @@
+import '../types/viewer_entry.dart';
+
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:kurumi/material.dart';
@@ -8,21 +10,15 @@ import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/providers.dart';
 import '../../../../configs/manage/widgets.dart';
+import '../../../../content/content_access.dart';
+import '../providers/viewer_source_access_provider.dart';
 import '../../../post/providers.dart';
 import '../../../post/types.dart';
 import '../types/inherited_post.dart';
 import '../types/post_presentation_context.dart';
+import '../types/post_presentation_fallback_reason.dart';
 
-enum PostPresentationFallbackReason {
-  missingProfile,
-  ambiguousProfile,
-  unavailableEngine,
-  malformedData,
-  unsupportedVersion,
-  removedUpstreamPost,
-  refreshFailed,
-  incompatiblePresentation,
-}
+export '../types/post_presentation_fallback_reason.dart';
 
 final class PostPagePresentation {
   const PostPagePresentation({
@@ -50,41 +46,74 @@ class PostPagePresentationScope extends ConsumerWidget {
     required this.post,
     required this.builder,
     this.fallbackConfig,
+    this.groupBuilder,
+    this.sourceBinding,
     super.key,
   });
 
-  final Post post;
+  final Post? post;
+  final ViewerSourceBinding? sourceBinding;
+  final WidgetBuilder? groupBuilder;
   final BooruConfig? fallbackConfig;
   final PostPagePresentationBuilder builder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final presentation = _resolve(ref);
-    final config = presentation.effectiveConfig;
+    final binding = sourceBinding;
+    final access = binding == null
+        ? null
+        : ref.watch(viewerSourceAccessProvider(binding));
+    final presentation = post == null ? null : _resolve(ref, access);
+    // A Group already has a captured source before its first Post resolves.
+    // Preserve that profile's ProviderScope while metadata is loading: moving
+    // from an empty scope to the real profile can momentarily revoke a
+    // previously decoded neighbor image during outer page settlement.
+    final config =
+        presentation?.effectiveConfig ??
+        (groupBuilder == null ? null : access?.config) ??
+        BooruConfig.empty;
 
     return CurrentBooruConfigScope(
       config: config,
+      accessKey: access?.key,
+      requireAccess: binding != null,
+      bookmarkId: binding?.bookmarkId,
       child: InheritedPost(
-        presentationContext: presentation.context,
+        presentationContext: presentation?.context,
         child: _PostPagePresentationBuilder(
           presentation: presentation,
           builder: builder,
+          groupBuilder: groupBuilder,
         ),
       ),
     );
   }
 
-  PostPagePresentation _resolve(WidgetRef ref) {
+  PostPagePresentation _resolve(WidgetRef ref, ContentAccessContext? access) {
+    final post = this.post!;
     const resolver = PostOriginResolver();
-    final originResolution = resolver.resolve(
-      post.origin,
-      ref.watch(booruConfigProvider),
-    );
+    final profiles = ref.watch(booruConfigProvider);
+    final bound = access?.config;
+    if (sourceBinding != null && bound == null) {
+      return PostPagePresentation(
+        context: PostPresentationContext.generic(post),
+        config: null,
+        fallbackReason: PostPresentationFallbackReason.missingProfile,
+      );
+    }
+    final originResolution = bound?.anonymousReadScope != null
+        ? ResolvedPostOrigin(bound!)
+        : resolver.resolve(
+            post.origin,
+            bound == null ? profiles : [bound],
+          );
     final resolvedConfig = switch (originResolution) {
       ResolvedPostOrigin(:final config) => config,
       _ => null,
     };
-    final config = resolvedConfig ?? _resolveFallbackConfig(resolver);
+    final config =
+        resolvedConfig ??
+        (sourceBinding == null ? _resolveFallbackConfig(resolver) : null);
     final originFailure = switch (originResolution) {
       MissingPostOrigin() when config == null =>
         PostPresentationFallbackReason.missingProfile,
@@ -136,11 +165,11 @@ class PostPagePresentationScope extends ConsumerWidget {
     final fallback = fallbackConfig;
     if (fallback == null) return null;
 
-    if (resolver.resolve(post.origin, [fallback]) is ResolvedPostOrigin) {
+    if (resolver.resolve(post!.origin, [fallback]) is ResolvedPostOrigin) {
       return fallback;
     }
 
-    final origin = post.origin;
+    final origin = post!.origin;
     final isUnspecified =
         origin.booruType == BooruType.unknown &&
         origin.sourceHost.isEmpty &&
@@ -164,12 +193,15 @@ class _PostPagePresentationBuilder extends ConsumerWidget {
   const _PostPagePresentationBuilder({
     required this.presentation,
     required this.builder,
+    this.groupBuilder,
   });
 
-  final PostPagePresentation presentation;
+  final WidgetBuilder? groupBuilder;
+  final PostPagePresentation? presentation;
   final PostPagePresentationBuilder builder;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) =>
-      builder(context, ref, presentation);
+  Widget build(BuildContext context, WidgetRef ref) => presentation == null
+      ? groupBuilder!(context)
+      : builder(context, ref, presentation!);
 }

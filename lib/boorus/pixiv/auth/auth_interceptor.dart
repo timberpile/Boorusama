@@ -4,6 +4,7 @@ import 'dart:async';
 // Package imports:
 import 'package:booru_clients/pixiv.dart';
 import 'package:dio/dio.dart';
+
 import '../../../core/http/client/coordination.dart';
 
 /// Marker written into `RequestOptions.extra` before a 401 is retried, so a
@@ -102,11 +103,29 @@ class PixivAuthInterceptor extends Interceptor {
     return DateTime.now().difference(failedAt) < failureCooldown;
   }
 
+  // This Dio is also used by media consumers. Only the exact HTTPS API
+  // origin may receive account credentials or trigger token refreshes.
+  bool _isApiRequest(RequestOptions options) {
+    final uri = options.uri;
+    return uri.scheme == 'https' &&
+        uri.host == 'app-api.pixiv.net' &&
+        uri.port == 443 &&
+        uri.userInfo.isEmpty;
+  }
+
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    if (!_isApiRequest(options)) {
+      options.headers.remove('Authorization');
+      handler.next(options);
+      return;
+    }
+    // A per-request override must not forward a bearer through redirects.
+    options.followRedirects = false;
+
     final refreshError = _lastRefreshError;
     final retryAt = switch (refreshError?.error) {
       ApiCooldownException(:final retryAt) => retryAt,
@@ -143,7 +162,8 @@ class PixivAuthInterceptor extends Interceptor {
     final isUnauthorized = err.response?.statusCode == 401;
     final alreadyRetried = err.requestOptions.extra[kPixivAuthRetryKey] == true;
 
-    if (!isUnauthorized ||
+    if (!_isApiRequest(err.requestOptions) ||
+        !isUnauthorized ||
         alreadyRetried ||
         _isCoolingDown ||
         !isApiSafeRead(err.requestOptions) ||

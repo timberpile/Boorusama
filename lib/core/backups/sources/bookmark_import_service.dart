@@ -5,10 +5,16 @@ import 'package:equatable/equatable.dart';
 import '../export_import/models/import_action.dart';
 import '../../bookmarks/types.dart';
 import '../../groups/folder_tree.dart';
+
 import 'package:uuid/uuid.dart';
+
 import '../../posts/post/types.dart';
 import 'bookmark_import_plan.dart';
 import 'bookmark_backup_data.dart';
+import 'bookmark_import_planner.dart';
+import 'bookmark_unified_import.dart';
+import '../../bookmarks/src/types/bookmark_record_fields.dart';
+import '../../bookmarks/src/types/legacy_group_bookmark.dart';
 import '../../bookmarks/src/services/bookmark_library_service.dart';
 
 class BookmarkImportResult extends Equatable {
@@ -49,7 +55,98 @@ class BookmarkImportService {
   final String importFolderName;
   final ImageUrlResolver Function(int? booruId) imageUrlResolver;
 
+  UnifiedBookmarkStore? get _unified =>
+      groupRepository is UnifiedBookmarkOrganization
+      ? unifiedBookmarkStorage(bookmarkRepository)
+      : null;
+
+  Future<BookmarkImportResult> _commitUnified(
+    BookmarkImportPlan plan, {
+    bool replace = false,
+    Set<int> removeIds = const {},
+  }) async {
+    final store = _unified!;
+    return store.runReadWriteScope(() async {
+      final prepared = BookmarkImportPreparation.prepare(
+        plan: plan,
+        currentRecords: await store.readAll(),
+        currentGroups: await groupRepository.getGroups(),
+        currentFolders: await groupRepository.getFolders(),
+        normalize: store.normalizeRecord,
+        replace: replace,
+        removeIds: removeIds,
+        importFolderName: importFolderName,
+      );
+      final write = prepared.materialize(
+        await store.reserveIds(prepared.newIds.length),
+      );
+      await store.commitOrganization(
+        records: write.records,
+        removeIds: write.removeIds,
+        groups: write.groups,
+        removeGroupIds: write.removeGroupIds,
+        folders: write.folders,
+      );
+      return BookmarkImportResult(
+        totalCount: prepared.newIds.length + prepared.alreadyExistedCount,
+        alreadyExistedCount: prepared.alreadyExistedCount,
+        groupCount: plan.groups.length,
+      );
+    });
+  }
+
+  void _requireLegacyFixtureRecords(Iterable<Bookmark> records) {
+    if (records.any(
+      (record) => switch (record) {
+        ContentGroupBookmark() => true,
+        LegacyRelatedGroupBookmark(:final preferredOrder) =>
+          preferredOrder != null,
+        PostBookmark(:final postId) => postId == null,
+        _ => false,
+      },
+    )) {
+      throw StateError('Unified Bookmark storage is required for this import');
+    }
+  }
+
+  // Standalone legacy repositories are retained for pre-cutover fixtures only.
+  // Their UUID-shaped Pool views are derived; production uses the common commit.
+  List<CollectionBookmark> _legacyPools(List<CollectionBookmark> pools) => [
+    for (final p in pools)
+      p.copyWith(
+        localId: Uuid.isValidUUID(fromString: p.localId)
+            ? p.localId
+            : const Uuid().v5(
+                Namespace.url.value,
+                'bookmark-file:${p.localId}',
+              ),
+      ),
+  ];
+
   Future<void> replace(BookmarkBackupData data) async {
+    if (_unified != null) {
+      final plan = const BookmarkImportPlanner().plan(
+        data: data,
+        currentBookmarks: await _unified!.readAll(),
+        currentGroups: await groupRepository.getGroups(),
+      );
+      await _commitUnified(
+        plan.resolveActions({
+          for (final g in plan.groups)
+            g.id: g.resolveAction(ImportAction.replace),
+        }),
+        replace: true,
+      );
+      return;
+    }
+    _requireLegacyFixtureRecords(data.records);
+    if (data.groups.any((group) => group.parentGroupId != null)) {
+      throw StateError('Nested Bookmark imports require unified storage');
+    }
+    _validateReferences(
+      _legacyPools(data.pools),
+      data.groups.map((g) => g.id).nonNulls.toSet(),
+    );
     FolderTree(data.folders).validatePlacements([
       for (final (i, g) in data.groups.indexed)
         FolderPlacement(
@@ -60,6 +157,7 @@ class BookmarkImportService {
     ]);
     final oldGroups = await groupRepository.getGroups();
     final oldFolders = await groupRepository.getFolders();
+    final oldPools = await groupRepository.getPoolBookmarks();
     final oldBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: imageUrlResolver,
     );
@@ -81,6 +179,7 @@ class BookmarkImportService {
         for (final b in data.bookmarks)
           b.id: savedByIdentity[b.transferIdentity],
       };
+      final sourceById = {for (final b in data.bookmarks) b.id: b};
       final restored = <BookmarkGroup>[];
       for (final g in data.groups) {
         final group =
@@ -88,18 +187,33 @@ class BookmarkImportService {
                 ? await groupRepository.getGroup(defaultBookmarkGroupId)
                 : null) ??
             await groupRepository.createGroup(g.name, id: g.id);
-        final members = await groupRepository.replaceMemberships(group.id, {
-          for (final id in g.bookmarkIds) importedIds[id]!,
-        });
+        final members = await groupRepository.replaceMemberships(
+          group.id,
+          {
+            for (final id in g.bookmarkIds)
+              if (importedIds[id] != null) importedIds[id]!,
+          },
+          addedAt: {
+            for (final id in g.bookmarkIds)
+              if (importedIds[id] != null)
+                importedIds[id]!: g.addedAt[id] ?? sourceById[id]!.createdAt,
+          },
+        );
         restored.add(
-          members.copyWith(folderId: g.folderId, position: g.position),
+          members.copyWith(
+            folderId: g.folderId,
+            parentGroupId: g.parentGroupId,
+            position: g.position,
+          ),
         );
       }
       await groupRepository.replaceFolderOrganization(data.folders, restored);
       await _ensureDefault();
+      await groupRepository.replacePoolBookmarks(_legacyPools(data.pools));
     } catch (error, stack) {
       final errors = await _rollback(
         oldGroups: oldGroups,
+        oldPools: oldPools,
         oldFolders: oldFolders,
         oldGroupIds: oldGroups.map((g) => g.id).toSet(),
         oldBookmarks: oldBookmarks,
@@ -113,10 +227,56 @@ class BookmarkImportService {
     }
   }
 
-  Future<BookmarkImportResult> apply(BookmarkImportPlan plan) async {
+  /// Only local journal rollback uses exact local slots. Portable imports keep
+  /// their ordinary compatible-identity mapping and monotonic reservation path.
+  Future<void> restoreLocalSnapshot(BookmarkBackupData data) async {
+    final store = _unified;
+    if (store == null) return replace(data);
+    await store.runReadWriteScope(() async {
+      final records = data.records.map(store.normalizeRecord).toList();
+      final groups = <BookmarkGroup>[];
+      for (final group in data.groups) {
+        final id = group.id;
+        if (id == null) {
+          throw const FormatException('Local recovery Group is missing its ID');
+        }
+        groups.add(
+          BookmarkGroup(
+            id: id,
+            name: group.name,
+            bookmarkIds: group.bookmarkIds.toSet(),
+            addedAt: group.addedAt,
+            parentGroupId: group.parentGroupId,
+            folderId: group.folderId,
+            position: group.position,
+          ),
+        );
+      }
+      await store.restoreLocalOrganization(
+        records: records,
+        groups: groups,
+        folders: data.folders,
+      );
+    });
+  }
+
+  Future<BookmarkImportResult> apply(
+    BookmarkImportPlan plan, {
+    Set<int> removeIds = const {},
+  }) async {
+    if (_unified != null) return _commitUnified(plan, removeIds: removeIds);
+    _requireLegacyFixtureRecords(plan.records);
+    if (plan.groups.any((group) => group.parentGroupId != null)) {
+      throw StateError('Nested Bookmark imports require unified storage');
+    }
     if (!plan.isResolved) throw StateError('Import conflicts are unresolved.');
+    _validateReferences(
+      _legacyPools(plan.pools),
+      plan.groups.map((g) => g.id).toSet(),
+    );
     final oldGroups = await groupRepository.getGroups();
     final oldFolders = await groupRepository.getFolders();
+    final oldPools = await groupRepository.getPoolBookmarks();
     final sourceTree = FolderTree(plan.folders);
     sourceTree.validatePlacements([
       for (final g in plan.groups)
@@ -131,9 +291,28 @@ class BookmarkImportService {
     final oldBookmarks = await bookmarkRepository.getAllBookmarksOrThrow(
       imageUrlResolver: imageUrlResolver,
     );
-    var addedBookmarks = const <Bookmark>[];
+    final missingBookmarks = plan.bookmarks
+        .where(
+          (b) => !oldBookmarks.any(
+            (old) =>
+                bookmarkContentIdentity(old) != null &&
+                bookmarkContentIdentity(old) == bookmarkContentIdentity(b) &&
+                bookmarkEngine(old) == bookmarkEngine(b),
+          ),
+        )
+        .toList();
+    var addedBookmarks = const <PostBookmark>[];
     final orphanCandidates = <int>{};
+    final oldDates = {for (final b in oldBookmarks) b.id: b.createdAt.toUtc()};
+    Map<int, DateTime> preservedDates(BookmarkGroup group) => {
+      for (final id in group.bookmarkIds)
+        if ((group.addedAt[id] ?? oldDates[id]) case final date?) id: date,
+    };
     try {
+      for (final b in oldBookmarks) {
+        if (removeIds.contains(b.id))
+          await bookmarkRepository.removeBookmark(b);
+      }
       final copies = plan.groups
           .where((g) => !g.isDefault && g.resolvedAction == ImportAction.copy)
           .toList();
@@ -162,16 +341,22 @@ class BookmarkImportService {
           );
         }
       }
-      if (plan.missingBookmarks.isNotEmpty) {
+      if (missingBookmarks.isNotEmpty) {
         addedBookmarks = await bookmarkRepository.addBookmarkWithBookmarks(
-          plan.missingBookmarks,
+          missingBookmarks,
         );
       }
+      final savedByIdentity = {
+        for (final b in [...oldBookmarks, ...addedBookmarks])
+          b.transferIdentity: b.id,
+      };
       final localIds = {
-        for (final bookmark in [...oldBookmarks, ...addedBookmarks])
-          bookmark.transferIdentity: bookmark.id,
+        for (final b in plan.bookmarks)
+          b.id: savedByIdentity[b.transferIdentity],
       };
 
+      final poolGroupTargets = <String, String>{};
+      final replacedPoolGroups = <String>{};
       for (final imported in plan.groups) {
         final action = imported.resolvedAction!;
         if (action == ImportAction.skip) continue;
@@ -179,6 +364,10 @@ class BookmarkImportService {
             .map((id) => localIds[id])
             .nonNulls
             .toSet();
+        final incomingDates = {
+          for (final entry in imported.addedAt.entries)
+            if (localIds[entry.key] case final id?) id: entry.value,
+        };
         if (imported.isDefault) {
           if (await groupRepository.getGroup(defaultBookmarkGroupId) == null) {
             await groupRepository.createGroup(
@@ -186,10 +375,18 @@ class BookmarkImportService {
               id: defaultBookmarkGroupId,
             );
           }
-          await groupRepository.addBookmarks(
+          final current = (await groupRepository.getGroup(
             defaultBookmarkGroupId,
-            membershipIds,
+          ))!;
+          await groupRepository.replaceMemberships(
+            defaultBookmarkGroupId,
+            {
+              ...current.bookmarkIds,
+              ...membershipIds,
+            },
+            addedAt: {...incomingDates, ...preservedDates(current)},
           );
+          poolGroupTargets[imported.id] = defaultBookmarkGroupId;
           continue;
         }
         final existingId = action == ImportAction.mergeIntoTarget
@@ -211,8 +408,18 @@ class BookmarkImportService {
           await groupRepository.replaceMemberships(
             destinationId,
             membershipIds,
+            addedAt: incomingDates,
           );
+          poolGroupTargets[imported.id] = destinationId;
           continue;
+        }
+        poolGroupTargets[imported.id] = action == ImportAction.copy
+            ? createdPlacements[imported.id]?.itemId ??
+                  imported.destinationId ??
+                  imported.id
+            : existingId;
+        if (action == ImportAction.update || action == ImportAction.replace) {
+          replacedPoolGroups.add(existingId);
         }
         switch (action) {
           case ImportAction.update:
@@ -226,17 +433,26 @@ class BookmarkImportService {
             await groupRepository.replaceMemberships(
               imported.id,
               membershipIds,
+              addedAt: incomingDates,
             );
           case ImportAction.merge:
-            await groupRepository.replaceMemberships(imported.id, {
-              ...existing.bookmarkIds,
-              ...membershipIds,
-            });
+            await groupRepository.replaceMemberships(
+              imported.id,
+              {
+                ...existing.bookmarkIds,
+                ...membershipIds,
+              },
+              addedAt: {...incomingDates, ...preservedDates(existing)},
+            );
           case ImportAction.mergeIntoTarget:
-            await groupRepository.replaceMemberships(existingId, {
-              ...existing.bookmarkIds,
-              ...membershipIds,
-            });
+            await groupRepository.replaceMemberships(
+              existingId,
+              {
+                ...existing.bookmarkIds,
+                ...membershipIds,
+              },
+              addedAt: {...incomingDates, ...preservedDates(existing)},
+            );
           case ImportAction.copy:
             final destinationId =
                 createdPlacements[imported.id]?.itemId ??
@@ -251,6 +467,7 @@ class BookmarkImportService {
             await groupRepository.replaceMemberships(
               destinationId,
               membershipIds,
+              addedAt: incomingDates,
             );
           case ImportAction.skip:
           case ImportAction.configureItems:
@@ -293,9 +510,42 @@ class BookmarkImportService {
         }
       }
       await _ensureDefault();
+      final nextPools = <Object, CollectionBookmark>{
+        for (final pool in oldPools)
+          if (pool.groupIds.difference(replacedPoolGroups)
+              case final memberships when memberships.isNotEmpty)
+            pool.identity: pool.withGroups(memberships),
+      };
+      final occupiedPoolIds = nextPools.values.map((p) => p.localId).toSet();
+      for (final pool in _legacyPools(plan.pools)) {
+        final incomingDates = {
+          for (final group in pool.groupIds)
+            if (poolGroupTargets[group] case final target?)
+              target: pool.addedAt[group] ?? pool.createdAt,
+        };
+        final memberships = incomingDates.keys.toSet();
+        if (memberships.isEmpty) continue;
+        final current = nextPools[pool.identity];
+        final localId =
+            current?.localId ??
+            (occupiedPoolIds.contains(pool.localId)
+                ? const Uuid().v4()
+                : pool.localId);
+        final saved = (current ?? pool.copyWith(localId: localId)).withGroups(
+          {
+            ...?current?.groupIds,
+            ...memberships,
+          },
+          addedAt: {...incomingDates, ...?current?.addedAt},
+        );
+        nextPools[pool.identity] = saved;
+        occupiedPoolIds.add(localId);
+      }
+      await groupRepository.replacePoolBookmarks(nextPools.values.toList());
     } catch (error, stackTrace) {
       final rollbackErrors = await _rollback(
         oldGroups: oldGroups,
+        oldPools: oldPools,
         oldFolders: oldFolders,
         oldGroupIds: oldGroupIds,
         oldBookmarks: oldBookmarks,
@@ -310,8 +560,13 @@ class BookmarkImportService {
     }
 
     return BookmarkImportResult(
-      totalCount: plan.bookmarks.length,
-      alreadyExistedCount: plan.bookmarks.length - plan.missingBookmarks.length,
+      totalCount: plan.bookmarks.length + plan.pools.length,
+      alreadyExistedCount:
+          plan.bookmarks.length -
+          missingBookmarks.length +
+          plan.pools
+              .where((p) => oldPools.any((old) => old.identity == p.identity))
+              .length,
       groupCount: plan.groups.length,
     );
   }
@@ -330,9 +585,10 @@ class BookmarkImportService {
 
   Future<List<Object>> _rollback({
     required List<BookmarkGroup> oldGroups,
+    required List<CollectionBookmark> oldPools,
     required List<CollectionFolder> oldFolders,
     required Set<String> oldGroupIds,
-    required List<Bookmark> oldBookmarks,
+    required List<PostBookmark> oldBookmarks,
   }) async {
     final errors = <Object>[];
     try {
@@ -350,7 +606,7 @@ class BookmarkImportService {
       errors.add(error);
     }
 
-    final currentByIdentity = <BookmarkUniqueId, Bookmark>{};
+    final currentByIdentity = <BookmarkUniqueId, PostBookmark>{};
     try {
       final oldIdentities = oldBookmarks
           .map((bookmark) => bookmark.uniqueId)
@@ -394,9 +650,16 @@ class BookmarkImportService {
         } else if (!group.isDefault) {
           await groupRepository.renameGroup(group.id, group.name);
         }
-        await groupRepository.replaceMemberships(group.id, {
-          for (final id in group.bookmarkIds) restoredIds[id] ?? id,
-        });
+        await groupRepository.replaceMemberships(
+          group.id,
+          {
+            for (final id in group.bookmarkIds) restoredIds[id] ?? id,
+          },
+          addedAt: {
+            for (final entry in group.addedAt.entries)
+              restoredIds[entry.key] ?? entry.key: entry.value,
+          },
+        );
       } catch (error) {
         errors.add(error);
       }
@@ -408,11 +671,39 @@ class BookmarkImportService {
             bookmarkIds: {
               for (final id in g.bookmarkIds) restoredIds[id] ?? id,
             },
+            addedAt: {
+              for (final entry in g.addedAt.entries)
+                restoredIds[entry.key] ?? entry.key: entry.value,
+            },
           ),
       ]);
     } catch (e) {
       errors.add(e);
     }
+    try {
+      await groupRepository.replacePoolBookmarks(oldPools);
+    } catch (error) {
+      errors.add(error);
+    }
     return errors;
+  }
+}
+
+// Validate every typed reference before any Post, group or folder write. The
+// decoder also enforces this at the untrusted backup boundary.
+void _validateReferences(
+  List<CollectionBookmark> references,
+  Set<String> groups,
+) {
+  final identities = <Object>{};
+  final localIds = <String>{};
+  for (final reference in references) {
+    if (!Uuid.isValidUUID(fromString: reference.localId) ||
+        !identities.add(reference.identity) ||
+        !localIds.add(reference.localId) ||
+        reference.groupIds.isEmpty ||
+        !groups.containsAll(reference.groupIds)) {
+      throw const FormatException('Invalid collection bookmark references');
+    }
   }
 }

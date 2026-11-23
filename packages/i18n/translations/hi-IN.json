@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "अपडेट पहले",
-    "sort_last_post_oldest": "सबसे पुरानी पोस्ट पहले"
+    "sort_manual": "मैन्युअल",
+    "sort_unread_first": "अपठित पहले",
+    "sort_recently_added": "हाल में जोड़े गए"
   },
   "generic": {
     "done": "पूर्ण",
@@ -18,6 +19,11 @@
   "post": {
     "action": {
       "edit_rating": "रेटिंग संपादित करें"
+    }
+  },
+  "posts": {
+    "actions": {
+      "group_posts": "पोस्ट समूहित करें"
     }
   }
 }

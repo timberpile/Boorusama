@@ -53,6 +53,13 @@ base class Post extends Equatable
 
   PostDetailFacts get detailFacts => core.detailFacts;
 
+  bool get requiresDetailLookup => booruData is ListedPostData;
+  bool get hasOriginalMedia =>
+      !requiresDetailLookup && originalImageUrl.isNotEmpty;
+  bool get isRealbooru =>
+      origin.booruType == BooruType.gelbooruV2 &&
+      const {'realbooru.com', 'www.realbooru.com'}.contains(origin.sourceHost);
+
   Post withDetailFacts(PostDetailFacts facts) => copyWith(
     core: PostCoreData.fromPost(this, detailFacts: facts),
   );

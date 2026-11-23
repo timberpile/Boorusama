@@ -67,6 +67,7 @@ void main() {
         expect(params.text, "Search 'one_piece -rating:safe' on My Booru");
         expect(params.sharePositionOrigin!.width, greaterThan(0));
         final file = params.files!.single;
+        expect(file.name, 'my-booru-search.bslink');
         expect(file.mimeType, BoorusamaLinkFile.mimeType);
         expect(
           BoorusamaLinkFile.decode(await fs.readBytes(file.path)).uri,
@@ -75,8 +76,9 @@ void main() {
         return const ShareResult('', ShareResultStatus.success);
       }),
     );
-    expect(find.byIcon(Icons.share_outlined), findsOneWidget);
-    await tester.tap(find.byTooltip('Boorusama Link File'));
+    expect(find.byIcon(Icons.share), findsOneWidget);
+    expect(find.byType(Image), findsNothing);
+    await tester.tap(find.byTooltip('Link File'));
     await tester.pumpAndSettle();
     expect(calls, 1);
     expect(find.text('Copy Boorusama Search Link'), findsNothing);
@@ -100,7 +102,7 @@ void main() {
         isNull,
       );
       await _pump(tester, link: search, fs: fs, adapter: adapter);
-      await tester.tap(find.byTooltip('Boorusama Link File'));
+      await tester.tap(find.byTooltip('Link File'));
       await tester.pumpAndSettle();
       expect(calls, 1);
       expect(

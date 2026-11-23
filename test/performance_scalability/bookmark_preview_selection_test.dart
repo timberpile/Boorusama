@@ -25,7 +25,7 @@ void main() {
           'covers match full selection for $sort, size $size, seed $seed',
           () {
             final random = Random(seed);
-            final rows = List<Bookmark>.generate(size, (index) {
+            final rows = List<PostBookmark>.generate(size, (index) {
               final id = index + 1;
               return scalabilityBookmark(
                 id,
@@ -41,7 +41,7 @@ void main() {
                       ),
               );
             })..shuffle(random);
-            final before = List<Bookmark>.of(rows);
+            final before = List<PostBookmark>.of(rows);
             final state = scalabilityLibrary(
               rows,
               members: rows.where((b) => b.id.isOdd).map((b) => b.id).toSet(),

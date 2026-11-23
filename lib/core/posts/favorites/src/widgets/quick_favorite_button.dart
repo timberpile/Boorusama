@@ -1,4 +1,5 @@
 // Dart imports:
+import 'dart:async';
 import 'dart:math' as math;
 
 // Flutter imports:
@@ -17,20 +18,31 @@ import '../../../../themes/theme/types.dart';
 import '../../../post/types.dart';
 import '../../../post/src/widgets/thumbnail_overlay.dart';
 import '../providers/favorites_notifier.dart';
+import '../types/types.dart';
 import 'favorite_action.dart';
 
-class QuickFavoriteButton extends ConsumerWidget {
+class QuickFavoriteButton extends ConsumerStatefulWidget {
   const QuickFavoriteButton({
     required this.isFaved,
     super.key,
     this.onFavToggle,
+    this.controlled = false,
   });
 
   final Future<void> Function(bool value)? onFavToggle;
   final bool isFaved;
+  final bool controlled;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QuickFavoriteButton> createState() =>
+      _QuickFavoriteButtonState();
+}
+
+class _QuickFavoriteButtonState extends ConsumerState<QuickFavoriteButton> {
+  bool? _likedOnTap;
+
+  @override
+  Widget build(BuildContext context) {
     final hapticsLevel = ref.watch(hapticFeedbackLevelProvider);
 
     return SizedBox.square(
@@ -72,19 +84,28 @@ class QuickFavoriteButton extends ConsumerWidget {
                 bottom: ThumbnailOverlayDimensions.favoritePadding,
                 right: ThumbnailOverlayDimensions.favoritePadding,
               ),
-              isLiked: isFaved,
+              isLiked: _likedOnTap ?? widget.isFaved,
+              controlled: widget.controlled,
               onTap: (isLiked) async {
+                if (_likedOnTap != null) return null;
                 final liked = !isLiked;
-                final result = await runFavoriteAction(context, () async {
-                  await onFavToggle?.call(liked);
-                });
-                if (result == null) return isLiked;
+                // Keep the shared notifier's optimistic state from animating
+                // this button before the callback acknowledges the mutation.
+                setState(() => _likedOnTap = isLiked);
+                try {
+                  final result = await runFavoriteAction(context, () async {
+                    await widget.onFavToggle?.call(liked);
+                  }, isCurrent: () => mounted);
+                  if (result == null || !mounted) return null;
 
-                if (liked && hapticsLevel.isBalanceAndAbove) {
-                  await HapticFeedback.mediumImpact();
+                  if (liked && hapticsLevel.isBalanceAndAbove) {
+                    unawaited(HapticFeedback.mediumImpact());
+                  }
+
+                  return liked;
+                } finally {
+                  if (mounted) setState(() => _likedOnTap = null);
                 }
-
-                return liked;
               },
               builder: (isLiked) {
                 return Icon(
@@ -117,15 +138,21 @@ class DefaultQuickFavoriteButton extends ConsumerWidget {
     final config = ref.watchConfigAuth;
     final notifier = ref.watch(favoritesProvider(config).notifier);
     final canFavorite = ref.watch(canFavoriteProvider(config));
+    final profileId = ref.watchConfig.id;
 
     return canFavorite
         ? QuickFavoriteButton(
+            key: ValueKey((config.computeHash(), profileId, post.id)),
             isFaved: ref.watch(favoriteProvider((config, post.id))),
+            controlled: true,
             onFavToggle: (isFaved) async {
-              if (isFaved) {
-                await notifier.add(post.id, profileId: ref.readConfig.id);
-              } else {
-                await notifier.remove(post.id, profileId: ref.readConfig.id);
+              final confirmed = await notifier.setFavorite(
+                post.id,
+                favorited: isFaved,
+                profileId: profileId,
+              );
+              if (!confirmed) {
+                throw FavoriteActionFailure.unconfirmed;
               }
             },
           )

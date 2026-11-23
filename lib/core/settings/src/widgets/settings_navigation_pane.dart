@@ -202,6 +202,10 @@ class _SettingsSearchPaneState extends State<SettingsSearchPane> {
           child: SingleChildScrollView(
             key: widget.storageKey,
             controller: _scrollController,
+            // Unlike ListView, this scroll view does not consume media padding.
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom,
+            ),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

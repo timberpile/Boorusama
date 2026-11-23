@@ -1,7 +1,8 @@
 {
   "following_topics": {
-    "sort_updates_first": "Оновлення спочатку",
-    "sort_last_post_oldest": "Найстаріші дописи спочатку"
+    "sort_manual": "Вручну",
+    "sort_unread_first": "Непрочитані спочатку",
+    "sort_recently_added": "Нещодавно додані"
   },
   "generic": {
     "done": "Готово",
@@ -396,14 +397,6 @@
       "slideshow_interval_explanation": "Якщо значення менше 1 секунди, перехід буде автоматично пропущено",
       "mute_video": "Вимкнути відео за замовчуванням",
       "video_section_title": "Відео",
-      "swipe_mode": "Режим пальцем",
-      "swipe_mode_disclaimer": "Деякі користувацькі жести можуть працювати не в усіх режимах",
-      "swipe_modes": {
-        "horizontal": "Горизонтальний",
-        "horizontal_description": "Проведення пальцем вліво/вправо в стилі галереї. Як у фотогалереях та медіадодатках.",
-        "vertical": "Вертикальний",
-        "vertical_description": "Свайп вгору/вниз у стилі TikTok. Популярний на платформах коротких відео. Тільки портретний режим."
-      },
       "video": {
         "video_player_engine": "Двигун відеоплеєра",
         "engine": {
@@ -1176,7 +1169,8 @@
       "edit_profile_blacklist": "Редагувати чорний список профілю",
       "stats": "Статистика",
       "view_options": "Параметри перегляду",
-      "edit_blacklist": "Редагувати чорний список"
+      "edit_blacklist": "Редагувати чорний список",
+      "group_posts": "Групувати дописи"
     },
     "hidden_count": "$hidden з $total",
     "counter": {

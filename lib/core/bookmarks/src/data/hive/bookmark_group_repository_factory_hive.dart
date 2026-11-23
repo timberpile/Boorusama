@@ -1,31 +1,30 @@
-import 'package:hive_ce/hive.dart';
-
 import '../../types/bookmark_group_repository.dart';
 import '../../types/bookmark_group_repository_factory.dart';
-import 'bookmark_group_hive_object.dart';
-import 'bookmark_group_repository_hive.dart';
+import '../../types/bookmark_repository.dart';
+import 'unified_bookmark_repository.dart';
 
 final class HiveBookmarkGroupRepositoryFactory
-    implements BookmarkGroupRepositoryFactory {
+    implements
+        BookmarkGroupRepositoryFactory,
+        SharedBookmarkRepositoryGroupFactory {
   const HiveBookmarkGroupRepositoryFactory();
 
   @override
-  Future<BookmarkGroupRepository> create() async {
-    final groupBox = await Hive.openBox<BookmarkGroupHiveObject>(
-      'bookmark_groups',
-    );
-    final folderBox = await Hive.openBox<dynamic>('bookmark_folders');
-    final repository = BookmarkGroupRepositoryHive(
-      groupBox,
-      organizationBox: folderBox,
-    );
-    await repository.initializeFolders();
-    return repository;
+  Future<BookmarkGroupRepository> create() =>
+      Future.error(StateError('The shared Bookmark repository is required'));
+
+  @override
+  Future<BookmarkGroupRepository> createWithBookmarkRepository(
+    BookmarkRepository repository,
+  ) {
+    return switch (repository) {
+      final BookmarkHiveRepository hive => hive.openOrganization(),
+      _ => throw StateError('Unified Hive Bookmark storage is required'),
+    };
   }
 
   @override
   Future<void> dispose(BookmarkGroupRepository repository) async {
-    // Hive shares boxes across overlapping runtime scopes. The application owns
-    // their lifetime; disposing one repository must not close another's box.
+    // The application owns shared Hive boxes and the injected payload authority.
   }
 }

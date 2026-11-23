@@ -16,6 +16,7 @@ import 'navigation_catalog.dart';
 import 'navigation_chrome_controller.dart';
 import 'navigation_interaction_scopes.dart';
 import 'navigation_overlay_insets.dart';
+import 'navigation_panel_geometry.dart';
 
 /// The shell owns chrome only; GoRouter owns every supplied Navigator.
 class AppNavigationShell extends ConsumerWidget {
@@ -56,6 +57,14 @@ class AppNavigationShell extends ConsumerWidget {
         ),
       ),
     );
+    final attachedExtent = ref
+        .watch(navigationFooterExtentsProvider)
+        .values
+        .where((lease) => lease.destination == active)
+        .fold<double>(
+          0,
+          (extent, lease) => lease.extent > extent ? lease.extent : extent,
+        );
     final controller = ref.read(navigationChromeProvider.notifier);
     final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
     Future<void> select(DestinationId id) async {
@@ -232,14 +241,17 @@ class AppNavigationShell extends ConsumerWidget {
                 !keyboard &&
                 !chrome.selectionActive &&
                 (chrome.menuOpen || chrome.barVisible);
-            final viewerCoversBar = chrome.viewerOpen && !chrome.viewerClosing;
-            final barShown = barPositionVisible && !viewerCoversBar;
+            final barShown = barPositionVisible && !chrome.viewerOpen;
+            // A root operation may temporarily use another source branch.
+            // Return to its caller before falling back to remembered Browse.
+            final rootCanPop = ModalRoute.canPopOf(context) ?? false;
             return PopScope(
-              canPop: !chrome.menuOpen && active == browse,
+              canPop: !chrome.menuOpen && (active == browse || rootCanPop),
               onPopInvokedWithResult: (didPop, _) {
                 if (!didPop && chrome.menuOpen) {
                   controller.setMenuOpen(false);
                 } else if (!didPop &&
+                    !rootCanPop &&
                     active != browse &&
                     !chrome.selectionActive) {
                   unawaited(select(browse));
@@ -254,18 +266,20 @@ class AppNavigationShell extends ConsumerWidget {
                     children: [
                       if (wide) SizedBox(width: 240, child: catalogPanel()),
                       Expanded(
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            NavigationOverlayInsetsScope(
-                              systemMediaQuery: MediaQuery.of(context),
-                              extent: bottomExtent,
-                              child: MediaQuery(
+                        child: NavigationOverlayInsetsScope(
+                          systemMediaQuery: MediaQuery.of(context),
+                          extent: bottomExtent,
+                          footerExtent: wide ? 0 : attachedExtent,
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              MediaQuery(
                                 data: MediaQuery.of(context).copyWith(
                                   padding: MediaQuery.paddingOf(context)
                                       .copyWith(
                                         bottom:
                                             wide ||
+                                                !barPositionVisible ||
                                                 keyboard ||
                                                 chrome.selectionActive ||
                                                 chrome.viewerOpen
@@ -277,6 +291,7 @@ class AppNavigationShell extends ConsumerWidget {
                                       .copyWith(
                                         bottom:
                                             wide ||
+                                                !barPositionVisible ||
                                                 keyboard ||
                                                 chrome.selectionActive ||
                                                 chrome.viewerOpen
@@ -290,60 +305,58 @@ class AppNavigationShell extends ConsumerWidget {
                                   child: ExcludeSemantics(
                                     excluding: !wide && chrome.menuOpen,
                                     child: NavigationBarScrollScope(
-                                      extent: bottomExtent,
+                                      extent: wide
+                                          ? 0
+                                          : bottomExtent + attachedExtent,
                                       child: navigationShell,
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: bottomExtent,
-                              child: NavigationDrawerHost(
-                                enabled:
-                                    !wide &&
-                                    !keyboard &&
-                                    !chrome.viewerOpen &&
-                                    !chrome.selectionActive &&
-                                    !interactionsBlocked &&
-                                    (ModalRoute.isCurrentOf(context) ?? true),
-                                edgeDragWidth: legacyDrawerEdgeDragWidth(
-                                  MediaQuery.widthOf(context),
-                                  ref.watch(
-                                    settingsProvider.select(
-                                      (s) => s.swipeAreaToOpenSidebarPercentage,
-                                    ),
-                                  ),
-                                ),
-                                child: SizedBox(
-                                  width: (constraints.maxWidth - 48).clamp(
-                                    240,
-                                    280,
-                                  ),
-                                  child: catalogPanel(),
-                                ),
-                              ),
-                            ),
-                            if (!wide)
                               Positioned(
-                                bottom: 0,
+                                top: 0,
                                 left: 0,
                                 right: 0,
-                                height: bottomExtent,
-                                // Keep the timeline position ready as soon as
-                                // the viewer starts revealing it again.
-                                child: Visibility(
-                                  visible: !viewerCoversBar,
-                                  maintainState: true,
+                                bottom: bottomExtent,
+                                child: NavigationDrawerHost(
+                                  enabled:
+                                      !wide &&
+                                      !keyboard &&
+                                      !chrome.viewerOpen &&
+                                      !chrome.selectionActive &&
+                                      !interactionsBlocked &&
+                                      (ModalRoute.isCurrentOf(context) ?? true),
+                                  edgeDragWidth: legacyDrawerEdgeDragWidth(
+                                    MediaQuery.widthOf(context),
+                                    ref.watch(
+                                      settingsProvider.select(
+                                        (s) =>
+                                            s.swipeAreaToOpenSidebarPercentage,
+                                      ),
+                                    ),
+                                  ),
+                                  child: SizedBox(
+                                    width: (constraints.maxWidth - 48).clamp(
+                                      240,
+                                      280,
+                                    ),
+                                    child: catalogPanel(),
+                                  ),
+                                ),
+                              ),
+                              if (!wide)
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: bottomExtent,
+                                  // Keep the bar mounted while it moves out
+                                  // with the Viewer route and back on dismissal.
                                   child: IgnorePointer(
                                     ignoring: !barShown || chrome.viewerOpen,
                                     child: ExcludeFocus(
                                       excluding: !barShown || chrome.viewerOpen,
                                       child: _NavigationBarSlide(
-                                        keyboard: keyboard,
                                         child: Material(
                                           color: Theme.of(context)
                                               .colorScheme
@@ -424,8 +437,8 @@ class AppNavigationShell extends ConsumerWidget {
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -495,25 +508,31 @@ class AppNavigationShell extends ConsumerWidget {
   );
 }
 
-/// Only the bar's translation rebuilds for each scroll update.
-class _NavigationBarSlide extends ConsumerWidget {
-  const _NavigationBarSlide({required this.keyboard, required this.child});
-
-  final bool keyboard;
+/// Shares absolute panel displacement with the route-owned attached footer.
+class _NavigationBarSlide extends StatelessWidget {
+  const _NavigationBarSlide({required this.child});
   final Widget child;
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chrome = ref.watch(navigationChromeProvider);
-    final transition = navigationBarTransition(
-      chrome: chrome,
-      keyboard: keyboard,
-      disableAnimations: MediaQuery.disableAnimationsOf(context),
-    );
-    return AnimatedSlide(
-      offset: Offset(0, transition.hiddenFraction),
-      duration: transition.duration,
+  Widget build(BuildContext context) {
+    final panel = NavigationPanelScope.maybeOf(context)!;
+    return ValueListenableBuilder<NavigationPanelGeometry>(
+      key: const ValueKey('navigation-panel-motion'),
+      valueListenable: panel.motion,
       child: child,
+      builder: (context, geometry, child) => IgnorePointer(
+        ignoring: !geometry.navigationVisible,
+        child: ExcludeFocus(
+          excluding: !geometry.navigationVisible,
+          child: ExcludeSemantics(
+            excluding: !geometry.navigationVisible,
+            child: Transform.translate(
+              key: const ValueKey('navigation-panel-translation'),
+              offset: Offset(0, geometry.displacement),
+              child: child,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -41,9 +41,9 @@ Retention counts cached metadata entries; disabling a feed retains its cache and
 does not change contained Topics' Auto-update preferences.
 
 Collection browsing includes local name/query and optional profile filtering,
-descendant-aware bulk actions, and stable Name, Updates first, Last post oldest,
-and Manual sorting. Selecting folders affects the union of their descendant
-Topic UUIDs; independent copies remain independent. Back or Escape exits
+descendant-aware bulk actions, and stable Manual, Name, Unread First,
+and Recently Added sorting. Selecting folders affects the union of their
+descendant Topic UUIDs; independent copies remain independent. Back or Escape exits
 selection first, failed mutations retain selection, and scoped Unfollow confirms
 the affected Topic count without deleting folders.
 
@@ -72,8 +72,8 @@ demonstrate avoided work on that host only; they are not an Android capacity or
 latency guarantee. No Android profile/release or live-site measurement was run
 for this pass.
 
-**Name (A–Z)** sorts Topics by display name (query fallback) and child folders by
-name, ignoring letter case. Equal Topic names retain manual order. The selection
+**Name** sorts Topics alphabetically (A–Z) by display name (query fallback) and
+child folders by name, ignoring letter case. Equal Topic names retain manual order. The selection
 uses the existing global view preference and survives settings reload; it does
 not rewrite manual positions or folder membership.
 
@@ -383,16 +383,23 @@ rendering and sorting never fetch posts. A pin without a successful baseline
 shows `Not checked`, while a successful empty snapshot shows `No posts`.
 Refresh errors keep the prior cached value and remain visible.
 
-The collection offers Manual order, Updates first, and Oldest post first.
-Updates first places cached NEW searches before read searches,
+The collection offers **Manual**, **Name**, **Unread First**, and **Recently Added**.
+Unread First places cached NEW searches before read searches,
 then sorts each group by its newest cached last-post time. Searches without an
 upload time follow dated searches within their group; manual order breaks equal
 or missing-time ties. The selected view is shared by Home and named folders
-and restored from settings after the app restarts. Folder rows stay in manual
-order, and sorted views disable Move Up and Move Down. Switching back to Manual
-order restores the persisted organization order unchanged. Sorting reads cached
-state only and does not fetch posts or write organization order. Missing or unknown stored
-sort modes resolve to Manual order.
+and restored from settings after the app restarts. Name sorts child folders
+alphabetically; Unread First puts folders with unseen Topics first. Manual and
+Recently Added keep folder rows in manual order. Sorted views disable Move Up and
+Move Down. Switching back to Manual order restores the persisted organization
+order unchanged. Sorting reads cached
+state only and does not fetch posts or write organization order. Recently Added
+orders Topics by persisted creation time, newest first, then position and stable
+ID for equal timestamps. It also applies to the final filtered projection and
+inside each direct received publisher section. It does not change creation dates,
+folder membership, or the independent feed-member sorting controls.
+Missing, unknown, or removed stored sort modes (`addedOldest` and
+`lastPostOldest`) resolve to Manual.
 
 Folder cards provide refresh, rename, manual ordering, and deletion through
 their overflow menus; folder creation is available from the root page overflow.
@@ -618,21 +625,21 @@ fails, the previous cache is restored only after verifying that the persisted
 site is still the old one. An interrupted update can leave that cache empty;
 the feed rebuilds it through later source refreshes.
 
-Each feed persists a chronological, deduplicated recent snapshot of at most 500
-posts. Successful source snapshots merge into it; failures preserve the cache
-and source status. Opening the feed renders this snapshot without a source
-scan. Approaching the end starts a session-only chronological merge of older
-pages from the member sources. Source pagination buffers and older post IDs are
-discarded when the feed view closes. History loading starts after actual
-scrolling; very short cached lists expose a Load older posts button. An empty
-recent snapshot waits for foreground source refreshes. Older browsing may
-require many network requests for a large feed, while opening its recent cache
-remains immediate. The feed grid uses infinite scrolling regardless of the
-global page mode. When new posts arrive during history browsing, the current
-session stays in place until the user chooses Show updated posts. Failed page
-loads keep their source cursor and offer Retry. Gelbooru OR batching and an OS
-background service are
-separate future work.
+Each feed persists a chronological, deduplicated recent snapshot. A mounted
+feed accepts that cache when it opens, with a finite initialization window if
+the cache has yet to be populated. After initialization, successful background
+and manual refreshes update storage and stage the latest result for **Show
+Updates**. The displayed Posts, filters, sort order and viewer sequence use the
+accepted snapshot. Applying pending results requires no network request. A
+material definition or access change supersedes stale data, and a local reset
+generation prevents an older source refresh from reviving a cleared feed.
+
+After history starts, its session merges older pages from the member sources.
+Failure keeps loaded posts and the source cursor. When coverage recovers, the
+grid reorders retained history without resetting to page one and restores the
+visible anchor. A viewer or active selection defers the reorder. Closing the
+feed discards the history session. The feed grid uses infinite scrolling
+regardless of the global page mode.
 
 Each cached feed row stores the same versioned post snapshot used by bookmarks,
 including common media data, origin identity, and engine-specific data. The
@@ -661,35 +668,39 @@ the engine registry and i18n output.
 ## Shared-folder backup and restore
 
 Current export and import uses `.bsexport`. Folder and feed UUIDs provide
-Update, Merge, Merge into, Copy, and Skip choices. Identical pins are matched
-by resolved profile and normalized query and are reported as already present
-instead of producing a conflict. A sole compatible local profile is selected
-automatically; ambiguous or missing mappings block import before writes.
+Update, Merge, Merge into, Copy, and Skip choices. Topic matching considers
+the source, normalized query and destination. A compatible saved profile can
+own an ordinary imported Topic. If the import has no resolved profile, the
+Topic keeps its original source reference in independent local storage.
+
+An independently stored import opens with a unique compatible profile for the
+same engine and installation, or with the existing credential-free reader for
+supported public sites. Private or unsupported sources without a reader stay
+visible and can still be edited, organized, deleted and exported. The profile
+filter follows the current saved reader. A profile appearing or disappearing
+changes read access without moving or deleting the Topic. Portable exports keep
+the original reference and omit credentials. Received mirrors retain their
+own ownership and read-only controls.
 
 Backup version 4 stores shared folder definitions and order, folder member
 order, and Home order alongside portable profile references and independent
-pin definitions. Empty folders survive restore. Imported IDs resolve through
-the existing identity rules before memberships are rebuilt. Pin-only backups
-append newly created pins to Home and preserve reused pins' destinations.
-Old experimental profile-folder backups require no folder migration.
+pin definitions. Empty folders survive restore. Pin-only backups append newly
+created pins to Home and preserve reused pins' destinations. Old experimental
+profile-folder backups require no folder migration.
 
-Unmatched pin or feed profiles require confirmation before skipping records.
-Standalone restore obtains approval before writing pins, feeds, or folders.
-ZIP and server transfer prepare selected sources and run this preflight before
-any source imports, including profiles. Matching uses the selected backup's
-profiles when present, otherwise current profiles. Cancel or headless import
-with unmatched records aborts before writes. Approval is revalidated against
-the actual profiles before pin execution; changed unmatched records abort.
+Legacy standalone feeds still require a profile mapping. Raw and ZIP imports
+that include unmatched legacy feeds obtain confirmation before skipping them,
+and revalidate that approval before writing. Topic-only imports can proceed
+without a mapping.
 
 ## Migration package imports
 
 Current AnimeBoxes migration packages use explicit folder/search selection
-with ordered Home membership and require profile UUID mapping before writes. Collection actions remain
-available even when there are no local pins or folders. New-copy imports
+with ordered Home membership. Collection actions remain available on a fresh
+installation. New-copy imports
 allocate folder names using the repository's case-insensitive uniqueness rule
 with numeric suffixes, and use the same name allocation in change previews and
-application. If a source profile UUID already resolves locally, repeat review
-recognizes existing queries and skips those searches. When a fresh source UUID
+application. Repeat review recognizes matched Topic definitions, including independently stored imports. When a fresh source UUID
 is explicitly mapped to an existing profile, selected queries can reuse pins.
 A reused pin has one organization destination: copying an imported folder moves
 its selected pins into that copy while preserving local-only pins in the old

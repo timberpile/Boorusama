@@ -56,7 +56,7 @@ void main() {
   });
 
   test('rejects selected and recommended items absent from the payload', () {
-    const data = BookmarkBackupData(bookmarks: [], groups: []);
+    final data = BookmarkBackupData(bookmarks: [], groups: []);
     final issues = validator.validate(
       sourceId: 'bookmarks',
       packageSchemaVersion: 3,
@@ -77,7 +77,7 @@ void main() {
   });
 
   test('rejects bookmark groups referencing an absent bookmark', () {
-    const data = BookmarkBackupData(
+    final data = BookmarkBackupData(
       bookmarks: [],
       groups: [
         BookmarkGroupBackup(
@@ -322,7 +322,7 @@ void main() {
         'ungrouped',
       }),
       itemRecommendations: const {},
-      data: const BookmarkBackupData(bookmarks: [], groups: []),
+      data: BookmarkBackupData(bookmarks: [], groups: []),
     );
 
     expect(issues, isEmpty);

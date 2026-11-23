@@ -1,6 +1,7 @@
 import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 import 'package:i18n/i18n.dart';
+
 import '../../../groups/folder_tree.dart';
 import '../../sources/following_topic_import_service.dart';
 import 'collection_import_action.dart';
@@ -9,12 +10,17 @@ import '../../../bookmarks/types.dart';
 import '../../../configs/config/types.dart';
 import '../../../search/following_topics/types.dart';
 import '../../sources/bookmark_backup_data.dart';
+import '../../sources/bookmark_import_planner.dart';
+import '../../sources/bookmark_unified_import.dart';
+import '../../../bookmarks/src/data/stored_bookmark_codec.dart';
+import '../../../bookmarks/src/types/bookmark_record_fields.dart';
 import '../../sources/topic_feed_backup_data.dart';
 import '../../sources/following_topic_backup_data.dart';
 import '../../sources/search_backup_profile.dart';
 import '../models/import_action.dart';
 import 'import_plan.dart';
 import 'bookmark_profile_dependency.dart';
+import 'bookmark_profile_mapping.dart';
 import 'import_change_preview.dart';
 import 'import_preflight.dart';
 import 'profile_dependency_planner.dart';
@@ -23,13 +29,18 @@ import '../../../search/following_topics/src/compatibility/topic_storage_contrac
 
 final class BookmarkImportLocalSnapshot {
   BookmarkImportLocalSnapshot({
-    required Iterable<Bookmark> bookmarks,
+    Iterable<PostBookmark> bookmarks = const [],
+    Iterable<Bookmark>? records,
     required Iterable<BookmarkGroup> groups,
     this.folders = const [],
-  }) : bookmarks = List.unmodifiable(bookmarks),
+    this.pools = const [],
+  }) : records = records == null ? null : List.unmodifiable(records),
+       bookmarks = List.unmodifiable(bookmarks),
        groups = List.unmodifiable(groups);
 
-  final List<Bookmark> bookmarks;
+  final List<Bookmark>? records;
+  final List<CollectionBookmark> pools;
+  final List<PostBookmark> bookmarks;
   final List<BookmarkGroup> groups;
   final List<CollectionFolder> folders;
 }
@@ -247,275 +258,235 @@ final class ImportPlannedChangeProjector {
     required BookmarkBackupData incoming,
     required ResolvedImportSource resolution,
     Map<ProfileReferenceKey, String> profileMappings = const {},
+    Set<ProfileReferenceKey> explicitProfileMappings = const {},
+    StoredBookmarkCodec recordCodec = const StoredBookmarkCodec(),
   }) {
-    final mappedBookmarks = <int, Bookmark>{};
-    for (final bookmark in selectedProfileBookmarks(incoming, resolution)) {
-      final profileId =
-          profileMappings[ProfileReferenceKey.fromReference(
-            bookmarkProfileReference(bookmark),
-          )];
-      if (profileId != null)
-        mappedBookmarks[bookmark.id] = bookmarkWithProfileHint(
-          bookmark,
-          profileId,
-        );
+    final localData =
+        (local.records == null
+                ? BookmarkBackupData(
+                    bookmarks: local.bookmarks,
+                    pools: local.pools,
+                    folders: local.folders,
+                    groups: [
+                      for (final g in local.groups)
+                        BookmarkGroupBackup(
+                          id: g.id,
+                          name: g.name,
+                          bookmarkIds: g.bookmarkIds.toList(),
+                          addedAt: g.addedAt,
+                          folderId: g.folderId,
+                          parentGroupId: g.parentGroupId,
+                          position: g.position,
+                        ),
+                    ],
+                  )
+                : BookmarkBackupData.unified(
+                    records: local.records!,
+                    folders: local.folders,
+                    groups: [
+                      for (final g in local.groups)
+                        BookmarkGroupBackup(
+                          id: g.id,
+                          name: g.name,
+                          bookmarkIds: g.bookmarkIds.toList(),
+                          addedAt: g.addedAt,
+                          folderId: g.folderId,
+                          parentGroupId: g.parentGroupId,
+                          position: g.position,
+                        ),
+                    ],
+                  ))
+            .asHierarchy();
+    final localGroups = [
+      for (final g in localData.groups)
+        BookmarkGroup(
+          id: g.id!,
+          name: g.name,
+          bookmarkIds: g.bookmarkIds.toSet(),
+          addedAt: g.addedAt,
+          folderId: g.folderId,
+          parentGroupId: g.parentGroupId,
+          position: g.position,
+        ),
+    ];
+    final assigned = {for (final g in localGroups) ...g.bookmarkIds};
+    final unassigned = localData.records
+        .where((r) => !assigned.contains(r.id))
+        .toList();
+    final defaultIndex = localGroups.indexWhere((g) => g.isDefault);
+    final oldDefault = defaultIndex < 0 ? null : localGroups[defaultIndex];
+    final repairedDefault = BookmarkGroup(
+      id: defaultBookmarkGroupId,
+      name: 'Default',
+      bookmarkIds: {
+        ...?oldDefault?.bookmarkIds,
+        ...unassigned.map((r) => r.id),
+      },
+      addedAt: {
+        ...?oldDefault?.addedAt,
+        for (final r in unassigned) r.id: bookmarkCreatedAt(r),
+      },
+      position: oldDefault?.position ?? 0,
+    );
+    if (defaultIndex < 0) {
+      localGroups.add(repairedDefault);
+    } else {
+      localGroups[defaultIndex] = repairedDefault;
     }
-    final data = BookmarkBackupData(
-      bookmarks: [
-        for (final bookmark in incoming.bookmarks)
-          mappedBookmarks[bookmark.id] ?? bookmark,
-      ],
+    Map<Object, Object?> entities(
+      List<Bookmark> records,
+      List<BookmarkGroup> groups,
+      List<CollectionFolder> folders,
+    ) {
+      final recordsById = {for (final r in records) r.id: r};
+      final keys = {
+        for (final r in records)
+          r.id: bookmarkContentIdentity(r) ?? ('local', r.id),
+      };
+      return {
+        for (final r in records)
+          _key('bookmark', keys[r.id]!): _BookmarkValue.from(
+            r,
+            codec: recordCodec,
+          ),
+        for (final f in folders) _key('bookmark-folder', f.id): f,
+        for (final g in groups)
+          _key('bookmark-group', g.id): _BookmarkGroupValue(
+            name: g.name,
+            bookmarkIds: {for (final id in g.bookmarkIds) keys[id]!},
+            addedAt: {
+              for (final id in g.bookmarkIds)
+                keys[id]!: g.addedAt[id] ?? bookmarkCreatedAt(recordsById[id]!),
+            },
+            folderId: g.folderId,
+            parentGroupId: g.parentGroupId,
+            position: g.position,
+          ),
+      };
+    }
+
+    final localEntities = entities(
+      localData.records,
+      localGroups,
+      localData.folders,
+    );
+    if (resolution.action == ImportAction.skip)
+      return PlannedChangeSummary(preserved: localEntities.length);
+    final mapped = mapBookmarkImportProfiles(
+      incoming: selectedProfileRecords(incoming, resolution),
+      local: localData.records,
+      mappings: profileMappings,
+      explicitMappings: explicitProfileMappings,
+      replace: resolution.action == ImportAction.replace,
+      incomingGroups: incoming.groups,
+      localGroups: localGroups,
+      codec: recordCodec,
+    );
+    final data = BookmarkBackupData.unified(
+      records: [for (final r in incoming.records) mapped[r.id] ?? r],
       groups: incoming.groups,
       folders: incoming.folders,
     );
-    final localByIdentity = {
-      for (final bookmark in local.bookmarks)
-        bookmark.transferIdentity: bookmark,
-    };
-    final localIdentityById = {
-      for (final bookmark in local.bookmarks)
-        bookmark.id: bookmark.transferIdentity,
-    };
-    final localGroups = <String, _BookmarkGroupValue>{
-      for (final group in local.groups)
-        group.id: _BookmarkGroupValue(
-          name: group.name,
-          folderId: group.folderId,
-          position: group.position,
-          bookmarkIds: {
-            for (final id in group.bookmarkIds) ?localIdentityById[id],
-          },
-        ),
-    };
-    // Preflight observes the repaired library, including legacy orphan migration.
-    final localMemberships = {
-      for (final g in localGroups.values) ...g.bookmarkIds,
-    };
-    localGroups.putIfAbsent(
-      defaultBookmarkGroupId,
-      () => _BookmarkGroupValue(
-        name: 'Default',
-        bookmarkIds: localByIdentity.keys.toSet().difference(localMemberships),
-      ),
-    );
-    final localEntities = <Object, Object?>{
-      for (final f in local.folders) _key('bookmark-folder', f.id): f,
-      for (final entry in localByIdentity.entries)
-        _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
-      for (final entry in localGroups.entries)
-        _key('bookmark-group', entry.key): entry.value,
-    };
-    if (resolution.action == ImportAction.skip) {
-      return PlannedChangeSummary(preserved: localEntities.length);
-    }
-
-    final incomingIdentityById = {
-      for (final bookmark in data.bookmarks)
-        bookmark.id: bookmark.transferIdentity,
-    };
-    final incomingByIdentity = {
-      for (final bookmark in data.bookmarks)
-        bookmark.transferIdentity: bookmark,
-    };
-    if (resolution.action == ImportAction.replace) {
-      final projected = <Object, Object?>{
-        for (final f in data.folders) _key('bookmark-folder', f.id): f,
-        for (final entry in incomingByIdentity.entries)
-          _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
-        for (final (index, group) in data.groups.indexed)
-          _key(
-            'bookmark-group',
-            group.id ?? 'legacy-$index',
-          ): _BookmarkGroupValue(
-            name: group.name,
-            folderId: group.folderId,
-            position: group.position,
-            bookmarkIds: {
-              for (final id in group.bookmarkIds) ?incomingIdentityById[id],
-            },
-          ),
-      };
-      final defaultKey = _key('bookmark-group', defaultBookmarkGroupId);
-      final existingDefault = projected[defaultKey] as _BookmarkGroupValue?;
-      final grouped = {for (final g in data.groups) ...g.bookmarkIds};
-      projected[defaultKey] = _BookmarkGroupValue(
-        name: 'Default',
-        bookmarkIds: {
-          ...?existingDefault?.bookmarkIds,
-          for (final b in data.bookmarks)
-            if (!grouped.contains(b.id)) b.transferIdentity,
-        },
-      );
-      return _summarize(
-        local: localEntities,
-        projected: projected,
-        touched: {...localEntities.keys, ...projected.keys},
-      );
-    }
-
     final actions = {for (final item in resolution.items) item.id: item};
-    final allGroupedIncomingIds = {
-      for (final group in data.groups) ...group.bookmarkIds,
-    };
-    final ungroupedAction = actions['ungrouped']?.action;
+    final allGrouped = {for (final g in data.groups) ...g.bookmarkIds};
+    final ungrouped = actions['ungrouped']?.action;
     final chosenGroups = [
-      for (final group in data.groups)
-        if (actions['group:${group.id}']?.action != ImportAction.skip) group,
+      for (final g in data.groups)
+        if (resolution.action == ImportAction.replace ||
+            actions['group:${g.id}']?.action != ImportAction.skip)
+          g,
     ];
     final chosenIds = {
-      for (final group in chosenGroups) ...group.bookmarkIds,
-      if (ungroupedAction != null && ungroupedAction != ImportAction.skip)
-        for (final bookmark in data.bookmarks)
-          if (!allGroupedIncomingIds.contains(bookmark.id)) bookmark.id,
+      for (final g in chosenGroups) ...g.bookmarkIds,
+      if (resolution.action == ImportAction.replace ||
+          (ungrouped != null && ungrouped != ImportAction.skip))
+        ...data.records.map((r) => r.id).toSet().difference(allGrouped),
     };
-    final projectedBookmarks = Map.of(localByIdentity);
-    final projectedGroups = Map.of(localGroups);
-    final touched = <Object>{};
-
-    if (ungroupedAction == ImportAction.update) {
-      final groupedLocal = {
-        for (final group in projectedGroups.values) ...group.bookmarkIds,
+    final selected = BookmarkBackupData.unified(
+      records: data.records.where(
+        (r) => allGrouped.contains(r.id) || chosenIds.contains(r.id),
+      ),
+      groups: data.groups,
+      folders: data.folders,
+    );
+    final plan = const BookmarkImportPlanner().plan(
+      data: selected,
+      currentBookmarks: localData.records,
+      currentGroups: localGroups,
+    );
+    var serial = 0;
+    String newId() =>
+        'ffffffff-ffff-4fff-8fff-${(++serial).toString().padLeft(12, '0')}';
+    final resolved = plan.resolveActions({
+      for (final g in plan.groups)
+        g.id: g.resolveAction(
+          resolution.action == ImportAction.replace
+              ? ImportAction.replace
+              : actions['group:${g.id}']?.action ??
+                    (g.conflicts ? ImportAction.update : ImportAction.copy),
+          targetId: actions['group:${g.id}']?.targetId?.replaceFirst(
+            'group:',
+            '',
+          ),
+          destinationId:
+              actions['group:${g.id}']?.action == ImportAction.copy &&
+                  g.conflicts
+              ? newId()
+              : g.id,
+        ),
+    });
+    if (resolved.groups.any(
+      (g) =>
+          g.resolvedAction == ImportAction.mergeIntoTarget &&
+          (g.targetId == null ||
+              !localGroups.any((local) => local.id == g.targetId)),
+    )) {
+      return null;
+    }
+    final removeIds = <int>{};
+    if (ungrouped == ImportAction.update) {
+      final grouped = {for (final g in localGroups) ...g.bookmarkIds};
+      final incomingKeys = {
+        for (final r in selected.records)
+          if (!allGrouped.contains(r.id)) ?bookmarkContentIdentity(r),
       };
-      final incomingUngrouped = {
-        for (final id in chosenIds)
-          if (!allGroupedIncomingIds.contains(id)) ?incomingIdentityById[id],
-      };
-      projectedBookmarks.removeWhere(
-        (identity, _) =>
-            !groupedLocal.contains(identity) &&
-            !incomingUngrouped.contains(identity),
+      removeIds.addAll(
+        localData.records
+            .where(
+              (r) =>
+                  !grouped.contains(r.id) &&
+                  !incomingKeys.contains(bookmarkContentIdentity(r)),
+            )
+            .map((r) => r.id),
       );
     }
-    for (final id in chosenIds) {
-      final identity = incomingIdentityById[id];
-      final bookmark = identity == null ? null : incomingByIdentity[identity];
-      if (identity == null || bookmark == null) continue;
-      projectedBookmarks.putIfAbsent(identity, () => bookmark);
-      if (mappedBookmarks.containsKey(id)) {
-        projectedBookmarks[identity] = bookmarkWithProfileHint(
-          projectedBookmarks[identity]!,
-          bookmark.post.origin.profileIdHint!,
-        );
-      }
-      touched.add(_key('bookmark', identity));
-    }
-
-    final copies = chosenGroups
-        .where(
-          (g) =>
-              !g.isDefault &&
-              (actions['group:${g.id}']?.action ??
-                      (localGroups.containsKey(g.id)
-                          ? ImportAction.update
-                          : ImportAction.copy)) ==
-                  ImportAction.copy,
-        )
-        .toList();
-    var nextFolderId = 0;
-    final hierarchy = copies.isEmpty
-        ? null
-        : planFolderHierarchyCopy(
-            current: local.folders,
-            incoming: data.folders,
-            itemFolders: copies.map((g) => g.folderId),
-            wrapperName: Translations().folders.imported_groups,
-            newId: () => '__created__bookmark-folder-${nextFolderId++}',
-          );
-    final projectedFolders = hierarchy?.folders ?? local.folders;
-    final orphanCandidates = <BookmarkUniqueId>{};
-    for (final (index, group) in chosenGroups.indexed) {
-      final sourceId = group.id ?? 'legacy-$index';
-      final item = actions['group:${group.id}'];
-      final action = group.isDefault
-          ? ImportAction.merge
-          : item?.action ??
-                (projectedGroups.containsKey(sourceId)
-                    ? ImportAction.update
-                    : ImportAction.copy);
-      final memberships = {
-        for (final id in group.bookmarkIds) ?incomingIdentityById[id],
-      };
-      final targetId = switch (action) {
-        ImportAction.mergeIntoTarget => _optionalIdWithoutPrefix(
-          item?.targetId,
-          'group:',
-        ),
-        ImportAction.copy when projectedGroups.containsKey(sourceId) =>
-          '__copy__bookmark-group-$sourceId-$index',
-        _ => sourceId,
-      };
-      // Target selection is an intermediate review state. Preflight reports
-      // invalid targets; a complete preview is available once one is chosen.
-      if (targetId == null ||
-          (action == ImportAction.mergeIntoTarget &&
-              !localGroups.containsKey(targetId))) {
-        return null;
-      }
-      final existing = projectedGroups[targetId];
-      projectedGroups[targetId] = switch (action) {
-        ImportAction.update => _BookmarkGroupValue(
-          name: existing?.name ?? group.name,
-          folderId: existing?.folderId,
-          position: existing?.position ?? group.position,
-          bookmarkIds: memberships,
-        ),
-        ImportAction.replace => _BookmarkGroupValue(
-          name: group.name,
-          bookmarkIds: memberships,
-        ),
-        ImportAction.merge ||
-        ImportAction.mergeIntoTarget => _BookmarkGroupValue(
-          name: existing?.name ?? group.name,
-          folderId: existing?.folderId,
-          position: existing?.position ?? group.position,
-          bookmarkIds: {...?existing?.bookmarkIds, ...memberships},
-        ),
-        ImportAction.copy => _BookmarkGroupValue(
-          name: group.name,
-          folderId: group.folderId == null
-              ? hierarchy?.wrapperId
-              : hierarchy?.folderIds[group.folderId],
-          position: group.position,
-          bookmarkIds: memberships,
-        ),
-        ImportAction.skip || ImportAction.configureItems => throw StateError(
-          'Group action is not applicable',
-        ),
-      };
-      if ((action == ImportAction.update || action == ImportAction.replace) &&
-          existing != null) {
-        orphanCandidates.addAll(existing.bookmarkIds.difference(memberships));
-      }
-      touched.add(_key('bookmark-group', targetId));
-    }
-    final finalMemberships = {
-      for (final group in projectedGroups.values) ...group.bookmarkIds,
-    };
-    for (final identity in orphanCandidates.difference(finalMemberships)) {
-      projectedBookmarks.remove(identity);
-      touched.add(_key('bookmark', identity));
-    }
-
-    final defaultBefore = projectedGroups[defaultBookmarkGroupId];
-    projectedGroups[defaultBookmarkGroupId] = _BookmarkGroupValue(
-      name: 'Default',
-      bookmarkIds: {
-        ...?defaultBefore?.bookmarkIds,
-        ...projectedBookmarks.keys.toSet().difference(finalMemberships),
-      },
+    final prepared = BookmarkImportPreparation.prepare(
+      plan: resolved,
+      currentRecords: localData.records,
+      currentGroups: localGroups,
+      currentFolders: localData.folders,
+      normalize: (r, {previous}) => r,
+      replace: resolution.action == ImportAction.replace,
+      removeIds: removeIds,
+      importFolderName: Translations().folders.imported_groups,
+      newId: newId,
     );
-    touched.add(_key('bookmark-group', defaultBookmarkGroupId));
-
+    final write = prepared.materialize(prepared.newIds);
+    final resultRecords = <int, Bookmark>{
+      if (resolution.action != ImportAction.replace)
+        for (final r in localData.records)
+          if (!write.removeIds.contains(r.id)) r.id: r,
+      for (final r in write.records) r.id: r,
+    };
+    final projected = entities(
+      resultRecords.values.toList(),
+      write.groups,
+      write.folders,
+    );
     return _summarize(
       local: localEntities,
-      projected: {
-        for (final f in projectedFolders) _key('bookmark-folder', f.id): f,
-        for (final entry in projectedBookmarks.entries)
-          _key('bookmark', entry.key): _BookmarkValue.from(entry.value),
-        for (final entry in projectedGroups.entries)
-          _key('bookmark-group', entry.key): entry.value,
-      },
-      touched: touched,
+      projected: projected,
+      touched: {...localEntities.keys, ...projected.keys},
     );
   }
 
@@ -551,16 +522,6 @@ final class ImportPlannedChangeProjector {
     }
 
     final items = {for (final item in resolution.items) item.id: item};
-    final requiresUnmappedProfile = incoming.records.any(
-      (record) =>
-          (resolution.action == ImportAction.replace ||
-              items['search:${record.id}']?.action != ImportAction.skip) &&
-          !profileMappings.containsKey(
-            ProfileReferenceKey.fromReference(record.profile),
-          ),
-    );
-    if (requiresUnmappedProfile) return null;
-
     final searches = <String, FollowingTopic>{
       for (final search in local.searches) search.id: search,
     };
@@ -591,7 +552,8 @@ final class ImportPlannedChangeProjector {
               }))) {
         continue;
       }
-      final profileId = _profileId(record.profile, profileMappings);
+      final profileId =
+          profileMappings[ProfileReferenceKey.fromReference(record.profile)];
       final saved = findMatchingTopicForImport(
         record: record,
         data: incoming,
@@ -621,20 +583,28 @@ final class ImportPlannedChangeProjector {
       final id = searches.containsKey(record.id)
           ? '__created__pinned-${record.id}'
           : record.id;
-      final created = FollowingTopic.create(
-        id: id,
-        profileId: profileId,
-        query: record.query,
-        name: record.name,
-        position: searches.values
-            .where(
-              (search) =>
-                  search.profileId == profileId &&
-                  !internalIds.contains(search.id),
+      final created = profileId == null
+          ? profilelessFollowingTopicForImport(
+              record: record,
+              id: id,
+              namespace: '__created__topic-source-$id',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
             )
-            .length,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      );
+          : FollowingTopic.create(
+              id: id,
+              profileId: profileId,
+              query: record.query,
+              queryStructure: record.queryStructure,
+              name: record.name,
+              position: searches.values
+                  .where(
+                    (search) =>
+                        search.profileId == profileId &&
+                        !internalIds.contains(search.id),
+                  )
+                  .length,
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+            );
       searches[id] = created;
       importedByBackupId[record.id] = id;
       createdIds.add(id);
@@ -990,6 +960,35 @@ String _profileId(
   return id;
 }
 
+// Global bookmark creation dates are compatibility metadata. Membership dates
+// carry ordering semantics and must still participate in import comparisons.
+bool _sameProjectedEntity(Object? before, Object? after) {
+  if (identical(before, after)) return true;
+  if (before is _BookmarkGroupValue && after is _BookmarkGroupValue) {
+    // Equatable's nested set scans make a full-library group quadratic.
+    return before.name == after.name &&
+        before.folderId == after.folderId &&
+        before.parentGroupId == after.parentGroupId &&
+        before.position == after.position &&
+        const SetEquality<Object>().equals(
+          before.bookmarkIds,
+          after.bookmarkIds,
+        ) &&
+        const SetEquality<Object>().equals(before.poolIds, after.poolIds) &&
+        const MapEquality<Object, DateTime>().equals(
+          before.addedAt,
+          after.addedAt,
+        );
+  }
+  if (before is CollectionBookmark && after is CollectionBookmark) {
+    return const DeepCollectionEquality().equals(
+      before.toJson()..remove('createdAt'),
+      after.toJson()..remove('createdAt'),
+    );
+  }
+  return before == after;
+}
+
 PlannedChangeSummary _summarize({
   required Map<Object, Object?> local,
   required Map<Object, Object?> projected,
@@ -1012,7 +1011,7 @@ PlannedChangeSummary _summarize({
     } else if (!hasProjected) {
       deleted++;
       change = const PlannedChangeSummary(deleted: 1);
-    } else if (local[key] != projected[key]) {
+    } else if (!_sameProjectedEntity(local[key], projected[key])) {
       updated++;
       change = const PlannedChangeSummary(updated: 1);
     } else if (touched.contains(key)) {
@@ -1045,7 +1044,7 @@ List<ImportChangePreviewRow> _previewRows(
   var metadataChanges = 0;
   for (final key in {...local.keys, ...projected.keys}.cast<_EntityKey>()) {
     final before = local[key], after = projected[key];
-    if (before == after) continue;
+    if (_sameProjectedEntity(before, after)) continue;
     final kind = before == null
         ? ImportChangeKind.added
         : after == null
@@ -1056,8 +1055,14 @@ List<ImportChangePreviewRow> _previewRows(
       case final _BookmarkGroupValue group:
         final old = before as _BookmarkGroupValue?,
             next = after as _BookmarkGroupValue?;
-        final oldMembers = old?.bookmarkIds ?? <BookmarkUniqueId>{},
-            nextMembers = next?.bookmarkIds ?? <BookmarkUniqueId>{};
+        final oldMembers = <Object>{
+              ...?old?.bookmarkIds,
+              for (final id in old?.poolIds ?? <Object>{}) ('pool', id),
+            },
+            nextMembers = <Object>{
+              ...?next?.bookmarkIds,
+              for (final id in next?.poolIds ?? <Object>{}) ('pool', id),
+            };
         rows.add(
           ImportChangePreviewRow(
             category: 'bookmarks',
@@ -1088,6 +1093,19 @@ List<ImportChangePreviewRow> _previewRows(
             entityChanged: true,
           ),
         );
+      case final CollectionBookmark _:
+        if (before is CollectionBookmark && after is CollectionBookmark) {
+          Map<String, Object?> metadata(CollectionBookmark pool) =>
+              pool.toJson()
+                ..remove('createdAt')
+                ..remove('groupIds')
+                ..remove('localId');
+          if (!const DeepCollectionEquality().equals(
+            metadata(before),
+            metadata(after),
+          ))
+            metadataChanges++;
+        }
       case final _BookmarkValue _:
         if (before != null && after != null) metadataChanges++;
       case _SearchValue() || _FolderValue() || _HomeValue():
@@ -1496,44 +1514,62 @@ final class _EntityKey extends Equatable {
 }
 
 final class _BookmarkValue extends Equatable {
-  const _BookmarkValue({
-    required this.createdAt,
-    required this.updatedAt,
-    required this.snapshot,
-    required this.postId,
-  });
-
-  factory _BookmarkValue.from(Bookmark bookmark) => _BookmarkValue(
-    createdAt: bookmark.createdAt,
-    updatedAt: bookmark.updatedAt,
-    snapshot: bookmark.snapshot,
-    postId: bookmark.postId,
+  const _BookmarkValue(this.wire);
+  factory _BookmarkValue.from(
+    Bookmark bookmark, {
+    StoredBookmarkCodec codec = const StoredBookmarkCodec(),
+  }) => _BookmarkValue(
+    codec.encodeForTransfer(bookmark)
+      ..remove('id')
+      ..remove('createdAt'),
   );
-
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final Object snapshot;
-  final int? postId;
-
+  final Map<String, Object?> wire;
   @override
-  List<Object?> get props => [createdAt, updatedAt, snapshot, postId];
+  List<Object?> get props => [wire];
 }
 
 final class _BookmarkGroupValue extends Equatable {
   _BookmarkGroupValue({
     required this.name,
-    required Set<BookmarkUniqueId> bookmarkIds,
+    required Set<Object> bookmarkIds,
+    this.poolIds = const {},
+    Map<Object, DateTime> addedAt = const {},
     this.folderId,
+    this.parentGroupId,
     this.position = 0,
-  }) : bookmarkIds = Set.unmodifiable(bookmarkIds);
+  }) : bookmarkIds = Set.unmodifiable(bookmarkIds),
+       addedAt = Map.unmodifiable({
+         for (final entry in addedAt.entries)
+           if (bookmarkIds.contains(entry.key)) entry.key: entry.value.toUtc(),
+       });
 
+  final Map<Object, DateTime> addedAt;
   final String name;
-  final Set<BookmarkUniqueId> bookmarkIds;
+  final Set<Object> bookmarkIds;
+  final Set<Object> poolIds;
+  _BookmarkGroupValue withPools(Set<Object> ids) => _BookmarkGroupValue(
+    name: name,
+    bookmarkIds: bookmarkIds,
+    addedAt: addedAt,
+    poolIds: ids,
+    folderId: folderId,
+    parentGroupId: parentGroupId,
+    position: position,
+  );
   final String? folderId;
+  final String? parentGroupId;
   final int position;
 
   @override
-  List<Object?> get props => [name, bookmarkIds, folderId, position];
+  List<Object?> get props => [
+    name,
+    bookmarkIds,
+    addedAt,
+    folderId,
+    parentGroupId,
+    position,
+    poolIds,
+  ];
 }
 
 final class _SearchValue extends Equatable {

@@ -4,6 +4,9 @@ import 'package:foundation/foundation.dart';
 
 // Project imports:
 import '../../../../configs/config/types.dart';
+import '../../../../bookmarks/src/types/pool_bookmark_capability.dart';
+import '../types/feed_series_membership.dart';
+import 'feed_series_enrichment.dart';
 import '../../../../errors/types.dart';
 import '../../../../http/client/coordination.dart';
 import '../../../../posts/post/types.dart';
@@ -16,12 +19,15 @@ import '../types/search_refresh.dart';
 import '../types/following_topic.dart';
 import '../types/following_topic_repository.dart';
 
-typedef SearchPostRepositoryResolver =
-    PostRepository<Post> Function(BooruConfig config);
-typedef SearchPostDataCodecResolver =
-    BooruPostDataCodec? Function(BooruConfig config);
-typedef SearchRefreshQueryAdapterResolver =
-    SearchRefreshQueryAdapter Function(BooruConfigAuth config);
+typedef SearchPostRepositoryResolver = PostRepository<Post> Function(
+  BooruConfig config,
+);
+typedef SearchPostDataCodecResolver = BooruPostDataCodec? Function(
+  BooruConfig config,
+);
+typedef SearchRefreshQueryAdapterResolver = SearchRefreshQueryAdapter Function(
+  BooruConfigAuth config,
+);
 
 class SearchRefreshService {
   SearchRefreshService({
@@ -30,12 +36,14 @@ class SearchRefreshService {
     required this.resolveQueryAdapter,
     required this.scanner,
     this.resolvePostDataCodec,
+    this.resolveSeriesCapability,
     Clock clock = const Clock(),
   }) : _clock = clock;
 
   final FollowingTopicRepository repository;
   final SearchPostRepositoryResolver resolvePostRepository;
   final SearchPostDataCodecResolver? resolvePostDataCodec;
+  final PoolBookmarkCapability? Function(BooruConfig)? resolveSeriesCapability;
   final SearchRefreshQueryAdapterResolver resolveQueryAdapter;
   final ChronologicalSearchScanner scanner;
   final Clock _clock;
@@ -47,6 +55,19 @@ class SearchRefreshService {
     bool requireFullSnapshot = false,
     int snapshotPostLimit = 1000,
   }) async {
+    if (!_requestCurrent()) return const SearchRefreshDiscarded();
+    final store = repository;
+    final feeds = store is FollowingRefreshPublicationStore
+        ? (await (store as FollowingRefreshPublicationStore)
+                  .readRefreshPublication(topic.id, includeFeeds: true))
+              .feeds
+        : (await store.getFeeds())
+              .where((feed) => feed.sourceIds.contains(topic.id))
+              .toList();
+    if (!_requestCurrent()) return const SearchRefreshDiscarded();
+    final feedGenerations = {
+      for (final feed in feeds) feed.id: feed.cacheGeneration,
+    };
     final startedAt = _clock.now().toUtc();
     final checkpoint = topic.lastSuccessfulCheckAt;
     final baseline = checkpoint == null;
@@ -200,21 +221,34 @@ class SearchRefreshService {
               );
           }
         }
+        final origin = PostOrigin.fromSource(
+          booruType: config.auth.booruType,
+          booruId: config.booruId,
+          source: config.url,
+          profileIdHint: config.anonymousReadScope == null ? config.id : null,
+        );
+        final incoming = [
+          for (final post in [...initialPosts, ...posts])
+            post.copyWith(origin: origin),
+        ];
+        final memberships = await _seriesForRefresh(
+          topic,
+          config,
+          incoming,
+          feeds,
+        );
+        if (!_requestCurrent()) return const SearchRefreshDiscarded();
         final committed = await repository.commitRefresh(
           SearchRefreshCommit(
             topicId: topic.id,
+            expectedFeedGenerations: feedGenerations,
             canCommit: _commitGuard(),
             automaticResolver: automatic,
+            feedSeriesMemberships: memberships,
             feedPosts: [
-              for (final post in [...initialPosts, ...posts])
+              for (final post in incoming)
                 feedPostSnapshotFromPost(
                   post,
-                  origin: PostOrigin.fromSource(
-                    booruType: config.auth.booruType,
-                    booruId: config.booruId,
-                    source: config.url,
-                    profileIdHint: config.id,
-                  ),
                   dataCodec: resolvePostDataCodec?.call(config),
                 ),
             ],
@@ -242,6 +276,54 @@ class SearchRefreshService {
           },
           baseline: baseline,
         );
+    }
+  }
+
+  bool _requestCurrent() =>
+      !(ApiRequestContext.current().cancelToken?.isCancelled ?? false) &&
+      (ApiRequestContext.current().canStart?.call() ?? true);
+
+  Future<Map<String, FeedSeriesMembership>> _seriesForRefresh(
+    FollowingTopic topic,
+    BooruConfig config,
+    List<Post> incoming,
+    List<TopicFeed> feeds,
+  ) async {
+    final resolve = resolveSeriesCapability;
+    if (resolve == null || feeds.isEmpty || !_requestCurrent()) return {};
+    try {
+      final candidates = <Post>[...incoming];
+      for (final feed in feeds) {
+        for (final snapshot in feed.posts) {
+          final origin = PostOrigin.fromSnapshot(snapshot.origin);
+          if (!feedSeriesMatchesConfig(origin, config)) continue;
+          final cached =
+              feed.seriesMemberships[feedSeriesPostKey(
+                origin,
+                feedPostId(snapshot),
+              )];
+          if (cached == null ||
+              (cached.sourceId == topic.id &&
+                  cached.sourceRevision != topic.runtimeRevision)) {
+            candidates.add(
+              decodeFeedPost(
+                snapshot,
+                dataCodec: resolvePostDataCodec?.call(config),
+              ),
+            );
+          }
+        }
+      }
+      return await enrichFeedSeries(
+        config: config,
+        source: topic,
+        posts: candidates,
+        capability: resolve(config),
+        isCurrent: _requestCurrent,
+      );
+    } on Object {
+      // Optional enrichment never discards a successful Post refresh.
+      return {};
     }
   }
 

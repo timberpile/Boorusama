@@ -1,3 +1,4 @@
+import 'package:i18n/i18n.dart';
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
@@ -7,6 +8,12 @@ import 'package:kurumi/material.dart';
 import '../../../../settings/providers.dart';
 import '../../../listing/types.dart';
 import '../../pool_grid_item.dart';
+
+class PoolDiscoveryPage<T> {
+  const PoolDiscoveryPage(this.items, this.nextRawPage);
+  final List<T> items;
+  final int? nextRawPage;
+}
 
 class PoolPagedSliverGridView<T> extends ConsumerStatefulWidget {
   const PoolPagedSliverGridView({
@@ -18,8 +25,12 @@ class PoolPagedSliverGridView<T> extends ConsumerStatefulWidget {
     required this.name,
     super.key,
     this.refreshKey,
+    this.kind,
+    this.fetchRawPage,
   });
 
+  final Future<PoolDiscoveryPage<T>> Function(WidgetRef ref, int page)?
+  fetchRawPage;
   final BoxConstraints constraints;
   final Object? refreshKey;
   final Future<List<T>> Function(WidgetRef ref, int page) fetchPage;
@@ -27,6 +38,7 @@ class PoolPagedSliverGridView<T> extends ConsumerStatefulWidget {
   final void Function(WidgetRef ref, T pool) onTap;
   final int? Function(T pool) total;
   final String? Function(T pool) name;
+  final PoolGridItemKind Function(T pool)? kind;
 
   @override
   ConsumerState<PoolPagedSliverGridView<T>> createState() =>
@@ -35,10 +47,21 @@ class PoolPagedSliverGridView<T> extends ConsumerStatefulWidget {
 
 class _PoolPagedSliverGridViewState<T>
     extends ConsumerState<PoolPagedSliverGridView<T>> {
+  final _next = <int, int?>{};
+  var _generation = 0;
   late final controller = PagingController<int, T>(
-    getNextPageKey: (state) =>
-        state.lastPageIsEmpty ? null : state.nextIntPageKey,
-    fetchPage: (pageKey) => widget.fetchPage(ref, pageKey),
+    getNextPageKey: (state) => widget.fetchRawPage == null
+        ? (state.lastPageIsEmpty ? null : state.nextIntPageKey)
+        : (state.keys?.isNotEmpty == true ? _next[state.keys!.last] : 1),
+    fetchPage: (pageKey) async {
+      final fetch = widget.fetchRawPage;
+      if (fetch == null) return widget.fetchPage(ref, pageKey);
+      final generation = _generation;
+      final page = await fetch(ref, pageKey);
+      if (mounted && generation == _generation)
+        _next[pageKey] = page.nextRawPage;
+      return page.items;
+    },
   );
 
   @override
@@ -46,6 +69,8 @@ class _PoolPagedSliverGridViewState<T>
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.refreshKey != widget.refreshKey) {
+      _generation++;
+      _next.clear();
       controller.refresh();
     }
   }
@@ -76,7 +101,12 @@ class _PoolPagedSliverGridViewState<T>
         0.2;
 
     return SliverPadding(
-      padding: EdgeInsets.symmetric(horizontal: imageGridPadding),
+      padding: EdgeInsets.fromLTRB(
+        imageGridPadding,
+        0,
+        imageGridPadding,
+        MediaQuery.paddingOf(context).bottom,
+      ),
       sliver: PagingListener(
         controller: controller,
         builder: (context, state, fetchNextPage) => PagedSliverGrid(
@@ -88,7 +118,18 @@ class _PoolPagedSliverGridViewState<T>
               onTap: () => widget.onTap(ref, pool),
               total: widget.total(pool),
               name: widget.name(pool),
+              kind: widget.kind?.call(pool) ?? PoolGridItemKind.collection,
             ),
+            noItemsFoundIndicatorBuilder: widget.fetchRawPage == null
+                ? null
+                : (context) => Center(
+                    child: state.hasNextPage
+                        ? TextButton(
+                            onPressed: fetchNextPage,
+                            child: Text(context.t.infinite_scroll.load_more),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
             firstPageProgressIndicatorBuilder: (context) => const Center(
               child: CircularProgressIndicator.adaptive(),
             ),

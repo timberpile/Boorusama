@@ -1,5 +1,7 @@
 // Package imports:
 import 'package:booru_clients/core.dart' as c;
+import 'package:booru_clients/gelbooru.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
@@ -29,6 +31,11 @@ const _kGelbooruV2FullviewGestureActions = {
   ..._kGelbooruV2SpecificGestureActions,
 };
 
+final _rule34CookieRequestUris = [
+  Rule34WebsiteSession.addFavoriteUri,
+  Rule34WebsiteSession.indexUri,
+];
+
 class CreateGelbooruV2ConfigPage extends StatelessWidget {
   const CreateGelbooruV2ConfigPage({
     required this.url,
@@ -48,6 +55,7 @@ class CreateGelbooruV2ConfigPage extends StatelessWidget {
       backgroundColor: backgroundColor,
       authTab: GelbooruV2AuthView(
         authConfig: c.GelbooruV2Config.siteCapabilities(url).auth,
+        requireMatchingWebsiteSession: GelbooruV2Client.isRule34Website(url),
       ),
       gestureTab: BooruConfigGesturesView(
         previewGestureActions: _kGelbooruV2PreviewGestureActions,
@@ -70,10 +78,12 @@ class CreateGelbooruV2ConfigPage extends StatelessWidget {
 class GelbooruV2AuthView extends ConsumerStatefulWidget {
   const GelbooruV2AuthView({
     this.authConfig,
+    this.requireMatchingWebsiteSession = false,
     super.key,
   });
 
   final c.AuthConfig? authConfig;
+  final bool requireMatchingWebsiteSession;
 
   @override
   ConsumerState<GelbooruV2AuthView> createState() => _GelbooruV2AuthViewState();
@@ -102,6 +112,34 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
     apiKeyController.dispose();
   }
 
+  String? _importWebsiteSession(List<Cookie> cookies) {
+    final userIds = _cookieValues(cookies, Rule34WebsiteSession.userIdCookie);
+    final tokens = _cookieValues(cookies, Rule34WebsiteSession.sessionCookie);
+    final messages = context.t.favorites.update;
+    if (userIds.length != 1 || tokens.length != 1) {
+      return messages.website_session_missing;
+    }
+    final session = Rule34WebsiteSession.fromCookies(
+      signedUserId: userIds.single,
+      token: tokens.single,
+    );
+    if (session == null) return messages.website_session_missing;
+    final apiUserId = loginController.text.trim();
+    if (apiUserId.isNotEmpty && apiUserId != session.userId) {
+      return messages.website_session_import_failed;
+    }
+
+    ref.editNotifier.updateLogin(session.userId);
+    ref.editNotifier.updatePassHash(session.toStoredValue());
+    loginController.text = session.userId;
+    return null;
+  }
+
+  Set<String> _cookieValues(List<Cookie> cookies, String name) => {
+    for (final cookie in cookies)
+      if (cookie.name == name && cookie.value.trim().isNotEmpty) cookie.value,
+  };
+
   @override
   Widget build(BuildContext context) {
     final authConfig = widget.authConfig;
@@ -109,11 +147,14 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
       final String key when key.isNotEmpty => context.t[key],
       _ => context.t.booru.api_key_instructions.variants_2,
     };
-    final passHash = ref.watch(
+    final (userId, passHash) = ref.watch(
       editBooruConfigProvider(
         ref.watch(editBooruConfigIdProvider),
-      ).select((value) => value.passHash),
+      ).select((value) => (value.login, value.passHash)),
     );
+    final websiteSessionPresent = widget.requireMatchingWebsiteSession
+        ? Rule34WebsiteSession.fromStoredValue(passHash, userId: userId) != null
+        : null;
     final authRequired = authConfig?.required ?? false;
 
     return SingleChildScrollView(
@@ -151,7 +192,14 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
             AdvancedAuthSection(
               loginController: loginController,
               getLoginUrl: () => loginUrl,
-              showWarningContainer: passHash != null,
+              importCookies: widget.requireMatchingWebsiteSession
+                  ? _importWebsiteSession
+                  : null,
+              cookieRequestUris: widget.requireMatchingWebsiteSession
+                  ? _rule34CookieRequestUris
+                  : null,
+              websiteSessionPresent: websiteSessionPresent,
+              showWarningContainer: websiteSessionPresent ?? passHash != null,
               warningTitle: context
                   .t
                   .booru

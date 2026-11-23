@@ -1,3 +1,4 @@
+import 'package:kurumi/kurumi.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/core/search/search/src/widgets/search_app_bar.dart';
@@ -177,7 +178,7 @@ void main() {
 
   Finder pageOverflow() => find.descendant(
     of: find.byType(AppBar),
-    matching: find.byTooltip('More'),
+    matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
   );
 
   Future<void> openPageMenu(WidgetTester tester) async {
@@ -191,12 +192,12 @@ void main() {
     await settle(tester);
   }
 
-  PopupMenuItem refreshAllItem(WidgetTester tester) =>
-      tester.widget<PopupMenuItem>(
+  KurumiPopupMenuItem refreshAllItem(WidgetTester tester) =>
+      tester.widget<KurumiPopupMenuItem>(
         find.ancestor(
           of: find.text('Refresh All'),
           matching: find.byWidgetPredicate(
-            (widget) => widget is PopupMenuItem,
+            (widget) => widget is KurumiPopupMenuItem,
           ),
         ),
       );
@@ -209,7 +210,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: card,
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: followingCardMenus(),
       ),
     );
     await settle(tester);
@@ -221,6 +222,8 @@ void main() {
     String name = 'Cats',
   ]) async {
     await openMenu(tester, name);
+    await tester.ensureVisible(find.text(label));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(label));
     await settle(tester);
   }
@@ -295,7 +298,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: folderCard,
-            matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+            matching: followingCardMenus(),
           ),
         );
         await settle(tester);
@@ -589,7 +592,7 @@ void main() {
   ) async {
     initialize();
     await pumpRouter(tester);
-    await tester.tap(find.byTooltip('More').first);
+    await tester.tap(find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')).first);
     await settle(tester);
     expect(find.text('Topic updates'), findsNothing);
     expect(find.text('Refresh All'), findsOneWidget);
@@ -776,7 +779,7 @@ void main() {
       expect(find.text('2 items selected'), findsOneWidget);
       await drag.up();
       await settle(tester);
-      expect(find.byType(PopupMenuButton<FollowingTopicAction>), findsNothing);
+      expect(followingCardMenus(), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
@@ -810,11 +813,11 @@ void main() {
         expect(find.text('1 item selected'), findsNothing);
         await tester.tapAt(const Offset(5, 5));
         await settle(tester);
-        final previewsBeforeSelection = tester
+        final previewTopicsBeforeSelection = tester
             .widget<FollowingTopicFolderCard>(
               find.byType(FollowingTopicFolderCard),
             )
-            .previews;
+            .previewTopics;
         await tester.longPress(find.text(start));
         await settle(tester);
         expect(
@@ -823,8 +826,8 @@ void main() {
                 .widget<FollowingTopicFolderCard>(
                   find.byType(FollowingTopicFolderCard),
                 )
-                .previews,
-            previewsBeforeSelection,
+                .previewTopics,
+            previewTopicsBeforeSelection,
           ),
           isTrue,
         );
@@ -842,7 +845,7 @@ void main() {
           expect(find.text('Mark Read'), findsOneWidget);
         }
         expect(
-          find.byType(PopupMenuButton<FollowingTopicAction>),
+          followingCardMenus(),
           findsNothing,
         );
         expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -1068,7 +1071,7 @@ void main() {
     await tester.tap(
       find.descendant(
         of: folderCard,
-        matching: find.byType(PopupMenuButton<FollowingTopicAction>),
+        matching: followingCardMenus(),
       ),
     );
     await settle(tester);
@@ -1091,7 +1094,7 @@ void main() {
       expect(harness.requests, isEmpty);
       expect((await harness.repository.getAll()).single.id, 'cats');
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isFalse);
+      expect((refreshAllItem(tester).onTap != null), isFalse);
     },
   );
 
@@ -1348,26 +1351,15 @@ void main() {
 
       await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      expect(find.byType(PopupMenuItem<FollowingTopicSort>), findsNWidgets(4));
-      expect(
-        tester
-            .widgetList<PopupMenuItem<FollowingTopicSort>>(
-              find.byType(PopupMenuItem<FollowingTopicSort>),
-            )
-            .map((item) => item.value),
-        [
-          FollowingTopicSort.manual,
-          FollowingTopicSort.nameAsc,
-          FollowingTopicSort.updatesFirst,
-          FollowingTopicSort.lastPostOldest,
-        ],
-      );
-      expect(find.text('Manual Order'), findsOneWidget);
-      expect(find.text('Updates First'), findsOneWidget);
-      expect(find.text('Oldest Post First'), findsOneWidget);
+      expect(find.text('Recently Added'), findsOneWidget);
+      expect(find.text('Name'), findsOneWidget);
+      expect(find.text('Manual'), findsOneWidget);
+      expect(find.text('Unread First'), findsOneWidget);
+      expect(find.text('Added Date: Oldest First'), findsNothing);
+      expect(find.text('Oldest Post First'), findsNothing);
       expect(find.text('Unseen first'), findsNothing);
       expect(find.text('Newest post first'), findsNothing);
-      await tester.tap(find.text('Updates First'));
+      await tester.tap(find.text('Unread First'));
       await settle(tester);
 
       expect(
@@ -1382,7 +1374,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Sort By'));
       await settle(tester);
-      await tester.tap(find.text('Manual Order'));
+      await tester.tap(find.text('Manual'));
       await settle(tester);
       expect(
         tester.getTopLeft(find.text('Cats')).dy,
@@ -1436,7 +1428,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
 
     expect(
@@ -1503,7 +1495,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
@@ -1527,7 +1519,7 @@ void main() {
     expect(harness.requests, isEmpty);
   });
 
-  testWidgets('oldest post view keeps undated cards after dated cards', (
+  testWidgets('unread view keeps undated cards after dated cards', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(800, 1200));
@@ -1556,15 +1548,15 @@ void main() {
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Oldest Post First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
 
     expect(
-      tester.getTopLeft(find.text('Older')).dy,
-      lessThan(tester.getTopLeft(find.text('Newer')).dy),
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('Older')).dy),
     );
     expect(
-      tester.getTopLeft(find.text('Newer')).dy,
+      tester.getTopLeft(find.text('Older')).dy,
       lessThan(tester.getTopLeft(find.text('Not checked')).dy),
     );
   });
@@ -1588,13 +1580,13 @@ void main() {
           (label: 'Move Up', enabled: c.moveUp),
           (label: 'Move Down', enabled: c.moveDown),
         ]) {
-          final item = tester.widget<PopupMenuItem<FollowingTopicAction>>(
+          final item = tester.widget<KurumiPopupMenuItem>(
             find.ancestor(
               of: find.text(action.label),
-              matching: find.byType(PopupMenuItem<FollowingTopicAction>),
+              matching: find.byType(KurumiPopupMenuItem),
             ),
           );
-          expect(item.enabled, action.enabled);
+          expect(item.onTap != null, action.enabled);
         }
         await tester.tapAt(const Offset(1, 1));
         await settle(tester);
@@ -1621,7 +1613,7 @@ void main() {
     await pump(tester);
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Updates First'));
+    await tester.tap(find.text('Unread First'));
     await settle(tester);
     await openMenu(tester, 'Dogs');
 
@@ -1630,23 +1622,26 @@ void main() {
     }
   });
 
-  testWidgets('selected date view carries from Home into a folder', (
+  testWidgets('recently added view carries from Home into a folder', (
     tester,
   ) async {
     initialize();
     await harness.seed([
-      topicFixture(
-        name: 'Newer',
-        previewCount: 1,
-        postCreatedAt: DateTime.utc(2026, 9, 13),
-      ),
-      topicFixture(
-        id: 'older',
-        name: 'Older',
+      FollowingTopic.create(
+        id: 'cats',
+        profileId: testProfile.id,
         query: 'older',
+        name: 'Older',
+        position: 0,
+        createdAt: DateTime.utc(2026, 9, 12),
+      ),
+      FollowingTopic.create(
+        id: 'newer',
+        profileId: testProfile.id,
+        query: 'newer',
+        name: 'Newer',
         position: 1,
-        previewCount: 1,
-        postCreatedAt: DateTime.utc(2026, 9, 12),
+        createdAt: DateTime.utc(2026, 9, 13),
       ),
     ]);
     final notifier = harness.container.read(
@@ -1654,20 +1649,20 @@ void main() {
     );
     final folder = await notifier.createSharedFolder('Favorites');
     await notifier.moveTopicToSharedFolder('cats', folder.id);
-    await notifier.moveTopicToSharedFolder('older', folder.id);
+    await notifier.moveTopicToSharedFolder('newer', folder.id);
     await pump(tester);
 
     await tester.tap(find.byTooltip('Sort By'));
     await settle(tester);
-    await tester.tap(find.text('Oldest Post First'));
+    await tester.tap(find.text('Recently Added'));
     await settle(tester);
     await tester.tap(find.text('Favorites'));
     await settle(tester);
 
     expect(find.widgetWithText(AppBar, 'Favorites'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Older')).dy,
-      lessThan(tester.getTopLeft(find.text('Newer')).dy),
+      tester.getTopLeft(find.text('Newer')).dy,
+      lessThan(tester.getTopLeft(find.text('Older')).dy),
     );
   });
 
@@ -2085,7 +2080,7 @@ void main() {
         '00000000-0000-4000-8000-00000000000c',
       ]);
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isFalse);
+      expect((refreshAllItem(tester).onTap != null), isFalse);
       await tester.tapAt(const Offset(1, 1));
       await settle(tester);
       harness.container
@@ -2093,7 +2088,7 @@ void main() {
           .select(otherTestProfile);
       await pump(tester);
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isFalse);
+      expect((refreshAllItem(tester).onTap != null), isFalse);
       await tester.tapAt(const Offset(1, 1));
       await settle(tester);
       harness.refreshGate!.complete();
@@ -2104,7 +2099,7 @@ void main() {
         '00000000-0000-4000-8000-000000000063',
       ]);
       await openPageMenu(tester);
-      expect(refreshAllItem(tester).enabled, isTrue);
+      expect((refreshAllItem(tester).onTap != null), isTrue);
       expect(
         (await harness.repository.getById('other'))!.lastSuccessfulCheckAt,
         isNotNull,

@@ -15,7 +15,7 @@ void main() {
   const firstGroupId = '550e8400-e29b-41d4-a716-446655440000';
   const secondGroupId = '5f1d7f5e-3114-4dc7-a347-18f95852fc31';
   final bookmarks = [
-    Bookmark.empty.copyWith(
+    PostBookmark.empty.copyWith(
       id: 1,
       postId: () => 1,
       originalUrl: 'https://example.com/1.jpg',
@@ -23,7 +23,7 @@ void main() {
       createdAt: DateTime.utc(2026),
       tags: const {'red'},
     ),
-    Bookmark.empty.copyWith(
+    PostBookmark.empty.copyWith(
       id: 2,
       postId: () => 2,
       originalUrl: 'https://example.com/2.jpg',
@@ -31,7 +31,7 @@ void main() {
       createdAt: DateTime.utc(2026, 1, 2),
       tags: const {'blue'},
     ),
-    Bookmark.empty.copyWith(
+    PostBookmark.empty.copyWith(
       id: 3,
       postId: () => 3,
       originalUrl: 'https://example.com/3.jpg',
@@ -66,7 +66,7 @@ void main() {
   }
 
   test('unkeyable stored rows never make other posts appear bookmarked', () {
-    final invalid = Bookmark.empty.copyWith(
+    final invalid = PostBookmark.empty.copyWith(
       id: 77,
       sourceUrl: 'https://booru.example',
       postId: () => 0,
@@ -171,7 +171,7 @@ void main() {
     final state = BookmarkLibraryState(
       bookmarks: List.generate(
         6,
-        (index) => Bookmark.empty.copyWith(
+        (index) => PostBookmark.empty.copyWith(
           id: index + 1,
           sourceUrl: 'https://preview.example',
           postId: () => index + 1,

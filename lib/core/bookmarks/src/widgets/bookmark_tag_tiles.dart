@@ -24,15 +24,11 @@ class _BookmarkTagTilesState extends ConsumerState<BookmarkTagTiles> {
   @override
   Widget build(BuildContext context) {
     final post = InheritedPost.of<Post>(context);
-    final config = switch (const PostOriginResolver().resolve(
-      post.origin,
-      ref.watch(booruConfigProvider),
-    )) {
-      ResolvedPostOrigin(:final config) => config,
-      _ => null,
-    };
+    // The viewer already captured its reader; profile reordering must not change
+    // the account used by a late tag expansion.
+    final config = ref.watch(currentReadOnlyBooruConfigProvider);
 
-    if (config == null) {
+    if (config == BooruConfig.empty) {
       return const DefaultInheritedBasicTagsTile<Post>();
     }
 

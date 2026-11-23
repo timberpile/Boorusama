@@ -1,3 +1,6 @@
+import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_card.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/following_topic_folder_card.dart';
+
 import 'dart:async';
 
 import 'package:clock/clock.dart';
@@ -314,6 +317,9 @@ class FollowingTopicHarness {
               ),
             ),
         ),
+        mediaOverrideDioProvider.overrideWith(
+          (ref, config) => ref.watch(dioForWidgetProvider(config)),
+        ),
         httpHeadersProvider.overrideWith((ref, config) => {}),
         routerProvider.overrideWith((_) => router),
         ...overrides,
@@ -445,3 +451,11 @@ Future<void> drain(WidgetTester tester) async {
     );
   }
 }
+
+Finder followingCardMenus() => find.descendant(
+  of: find.byWidgetPredicate(
+    (widget) =>
+        widget is FollowingTopicCard || widget is FollowingTopicFolderCard,
+  ),
+  matching: find.bySemanticsLabel(RegExp(r'^(More|Mehr)$')),
+);

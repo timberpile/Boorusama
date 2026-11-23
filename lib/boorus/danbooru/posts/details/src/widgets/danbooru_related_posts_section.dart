@@ -6,7 +6,8 @@ import 'package:kurumi/material.dart';
 import '../../../../../../core/posts/details/routes.dart';
 import '../../../../../../core/posts/details_parts/widgets.dart';
 import '../../../../../../core/posts/post/types.dart';
-import '../../../../../../core/search/search/routes.dart';
+import '../../../../../../core/posts/related/related_family.dart';
+import '../../../related/related_gallery.dart';
 import '../../../post/types.dart';
 
 class DanbooruRelatedPostsSection extends ConsumerWidget {
@@ -24,10 +25,8 @@ class DanbooruRelatedPostsSection extends ConsumerWidget {
     return SliverRelatedPostsSection(
       posts: posts,
       imageUrl: (item) => item.url720x720,
-      onViewAll: () => goToSearchPage(
-        ref,
-        tag: currentPost.relationshipQuery,
-      ),
+      onViewAll: () =>
+          openRelatedFamily(ref, RelatedFamilyReference.fromPost(currentPost)),
       onTap: (index) => goToPostDetailsPageFromPosts(
         ref: ref,
         posts: posts,

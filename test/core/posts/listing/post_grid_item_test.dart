@@ -1,3 +1,10 @@
+import 'package:material_symbols_icons/symbols.dart';
+import 'package:i18n/i18n.dart';
+
+import 'dart:ui' as ui;
+
+import 'package:boorusama/core/bookmarks/src/widgets/bookmark_seen_filter.dart';
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -5,6 +12,8 @@ import 'dart:typed_data';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:boorusama/core/images/booru_image.dart';
+import 'package:boorusama/core/images/image_candidate_picker.dart';
+import 'package:extended_image/extended_image.dart';
 import 'package:boorusama/core/images/types.dart';
 import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/http/client/providers.dart';
@@ -53,6 +62,239 @@ import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/types.dart';
 
 void main() {
+  for (final grouping in [false, true]) {
+    for (final (familyEvidence, parentId) in [
+      (false, null),
+      (true, null),
+      (false, 10),
+      (false, 0),
+    ]) {
+      testWidgets(
+        'raw Related badge follows grouping=$grouping, evidence=$familyEvidence, parent=$parentId',
+        (tester) async {
+          final post = _post(
+            hasParentOrChildren: familyEvidence,
+            parentId: parentId,
+          );
+          await tester.pumpWidget(
+            _TestApp(
+              groupRelatedPosts: grouping,
+              child: PostGridItem(
+                post: post,
+                index: 0,
+                useHero: false,
+                multiSelectEnabled: false,
+                config: _config.auth,
+                onTap: (_) {},
+                presentation: const GenericPostPresentation(),
+                quickActionButton: const SizedBox.shrink(),
+                imageBuilder: (_) => const SizedBox.expand(),
+              ),
+            ),
+          );
+          expect(
+            find.byIcon(Symbols.photo_library),
+            !grouping && (familyEvidence || (parentId ?? 0) > 0)
+                ? findsOneWidget
+                : findsNothing,
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+  for (final layout in [ImageListType.classic, ImageListType.standard]) {
+    testWidgets(
+      'received marker uses the tile corner in $layout without moving selection controls',
+      (tester) async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(Colors.blue, BlendMode.src);
+        final picture = recorder.endRecording();
+        final portrait = (await tester.runAsync(
+          () => picture.toImage(25, 100),
+        ))!;
+        picture.dispose();
+        final selection = SelectionModeController();
+        addTearDown(selection.dispose);
+        var taps = 0;
+        await tester.pumpWidget(
+          _TestApp(
+            selection: selection,
+            mediaOverrides: [
+              imageListingSettingsProvider.overrideWithValue(
+                Settings.defaultSettings.listing.copyWith(
+                  imageListType: layout,
+                ),
+              ),
+            ],
+            child: Center(
+              child: SizedBox.square(
+                key: const ValueKey('received-cell'),
+                dimension: 160,
+                child: ListenableBuilder(
+                  listenable: selection,
+                  builder: (context, _) => BooruLocalization(
+                    child: BookmarkReadIndicator(
+                      unseen: true,
+                      selecting: selection.isActive,
+                      child: PostGridItem(
+                        post: TestPost(id: 42, width: 25, height: 100),
+                        index: 0,
+                        useHero: false,
+                        multiSelectEnabled: selection.isActive,
+                        config: _config.auth,
+                        additions: PostGridItemAdditions.empty,
+                        quickActionButton: const SizedBox.shrink(),
+                        onTap: (_) => taps++,
+                        imageBuilder: (_) => RawImage(
+                          key: const ValueKey('portrait-image'),
+                          width: 160,
+                          height: 160,
+                          image: portrait,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final bounds = tester.getRect(
+          find.byKey(const ValueKey('received-cell')),
+        );
+        final dot = tester.getRect(
+          find.byKey(const ValueKey('bookmark-unseen-dot')),
+        );
+        expect(dot.right, closeTo(bounds.right - 6, .001));
+        expect(dot.top, closeTo(bounds.top + 6, .001));
+        expect(dot.width, 14);
+        await tester.tapAt(dot.center);
+        expect(taps, 1);
+        selection.enable(initialSelected: [0]);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('bookmark-unseen-dot')), findsNothing);
+        expect(find.byIcon(Icons.zoom_in), findsOneWidget);
+        expect(
+          tester.getRect(find.byKey(const ValueKey('received-cell'))),
+          bounds,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        portrait.dispose();
+      },
+    );
+  }
+
+  for (final layout in ImageListType.values) {
+    testWidgets(
+      'decoded thumbnail probes preserve $layout sizing and request ownership',
+      (
+        tester,
+      ) async {
+        await tester.runAsync(() async {
+          final directory = await Directory.systemTemp.createTemp(
+            'grid-probes-',
+          );
+          final cache = DrainingImageCacheManager(
+            cacheRootPathProvider: () => directory.path,
+          );
+          final adapter = _RecordingGridImageAdapter();
+          final dio = Dio()..httpClientAdapter = adapter;
+          try {
+            await tester.pumpWidget(
+              _TestApp(
+                automaticMediaLoading: true,
+                thumbnailGenerator: const _CandidateGenerator(),
+                mediaOverrides: [
+                  defaultImageCacheManagerProvider.overrideWithValue(cache),
+                  dioForWidgetProvider.overrideWith((ref, config) => dio),
+                  mediaOverrideDioProvider.overrideWith((ref, config) => dio),
+                  httpHeadersProvider.overrideWith((ref, config) => const {}),
+                  deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+                  imageListingSettingsProvider.overrideWithValue(
+                    Settings.defaultSettings.listing.copyWith(
+                      imageListType: layout,
+                    ),
+                  ),
+                ],
+                child: Center(
+                  child: SizedBox.square(
+                    dimension: 160,
+                    child: PostGridItem(
+                      post: TestPost(id: 42),
+                      index: 0,
+                      useHero: false,
+                      multiSelectEnabled: true,
+                      config: _config.auth,
+                      onTap: (_) {},
+                      additions: PostGridItemAdditions.empty,
+                    ),
+                  ),
+                ),
+              ),
+            );
+            final winner = find.descendant(
+              of: find.byType(ImageCandidatePicker),
+              matching: find.byType(ExtendedImage),
+            );
+            await pumpUntil(
+              tester,
+              () =>
+                  winner.evaluate().isNotEmpty &&
+                  find
+                      .descendant(
+                        of: find.byType(ImageCandidatePicker),
+                        matching: find.byType(BooruRawImage),
+                      )
+                      .evaluate()
+                      .isEmpty,
+              reason: 'decoded production thumbnail winner',
+            );
+            await tester.pump();
+            expect(
+              adapter.requests.where((url) => url.endsWith('.jpg')),
+              hasLength(1),
+            );
+            expect(
+              adapter.requests.where((url) => url.endsWith('.jpeg')),
+              hasLength(1),
+            );
+            // Real transport/cache/decoding may cross the primary deadline on
+            // a loaded host. Dedicated picker tests control that clock; this
+            // production-grid check verifies ownership and eventual sizing.
+            for (final extension in ['/image.png', '.webp', '.avif']) {
+              expect(
+                adapter.requests.where((url) => url.endsWith(extension)),
+                hasLength(lessThanOrEqualTo(1)),
+              );
+            }
+            expect(
+              adapter.requests.where((url) => url.endsWith('/thumbnail.png')),
+              hasLength(1),
+            );
+            final size = tester.getSize(winner);
+            expect(size.width, 160);
+            expect(
+              size.height,
+              closeTo(layout == ImageListType.masonry ? 160 / 1.5 : 160, 0.01),
+            );
+            expect(tester.takeException(), isNull);
+          } finally {
+            await tester.pumpWidget(const SizedBox.shrink());
+            PaintingBinding.instance.imageCache.clear();
+            PaintingBinding.instance.imageCache.clearLiveImages();
+            await cache.drain();
+            dio.close(force: true);
+            await directory.delete(recursive: true);
+          }
+        });
+      },
+    );
+  }
+
   for (final cacheState in ['valid', 'missing', 'partial', 'invalid']) {
     for (final autoplay in [false, true]) {
       testWidgets(
@@ -110,6 +352,7 @@ void main() {
                   mediaOverrides: [
                     defaultImageCacheManagerProvider.overrideWithValue(cache),
                     dioForWidgetProvider.overrideWith((ref, config) => dio),
+                    mediaOverrideDioProvider.overrideWith((ref, config) => dio),
                     httpHeadersProvider.overrideWith((ref, config) => const {}),
                     deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
                   ],
@@ -498,7 +741,8 @@ void main() {
       expect(item.isGif, isFalse);
       expect(item.isTranslated, isTrue);
       expect(item.hasComments, isTrue);
-      expect(item.hasParentOrChildren, isTrue);
+      expect(post.hasParentOrChildren, isTrue);
+      expect(find.byIcon(Symbols.photo_library), findsOneWidget);
       expect(item.isAI, isTrue);
       expect(item.hasSound, isTrue);
       expect(item.duration, 12);
@@ -575,6 +819,8 @@ Post _post({
   int id = 42,
   BooruPostData data = const EmptyPostData(typeKey: 'test'),
   String? status,
+  bool hasParentOrChildren = true,
+  int? parentId,
 }) => Post(
   origin: PostOrigin.fromSource(
     booruType: BooruType.danbooru,
@@ -599,7 +845,8 @@ Post _post({
     rating: Rating.general,
     hasComment: true,
     isTranslated: true,
-    hasParentOrChildren: true,
+    hasParentOrChildren: hasParentOrChildren,
+    parentId: parentId,
     source: PostSource.none(),
     score: 17,
     artistTags: const {'artist_tag'},
@@ -628,6 +875,7 @@ class _TestApp extends StatelessWidget {
     this.scroll,
     this.longPress,
     this.contextMenuOnLongPress = false,
+    this.groupRelatedPosts = false,
     this.repository,
     this.automaticMediaLoading = false,
     this.thumbnailGenerator = const _ProbeGenerator(),
@@ -642,6 +890,7 @@ class _TestApp extends StatelessWidget {
 
   final String? longPress;
   final bool contextMenuOnLongPress;
+  final bool groupRelatedPosts;
   final BooruRepository? repository;
 
   final SelectionModeController? selection;
@@ -656,6 +905,7 @@ class _TestApp extends StatelessWidget {
         settingsProvider.overrideWithValue(
           Settings.defaultSettings.copyWith(
             postLongPressContextMenu: contextMenuOnLongPress,
+            groupRelatedPosts: groupRelatedPosts,
           ),
         ),
         currentReadOnlyBooruConfigProvider.overrideWithValue(_config),
@@ -719,6 +969,28 @@ final class _ProbeGenerator implements GridThumbnailUrlGenerator {
     Post post, {
     required GridThumbnailSettings settings,
   }) => const GridThumbnailMedia(url: 'quality-url', aspectRatio: 1.5);
+}
+
+final class _CandidateGenerator implements GridThumbnailUrlGenerator {
+  const _CandidateGenerator();
+
+  @override
+  GridThumbnailMedia resolve(
+    Post post, {
+    required GridThumbnailSettings settings,
+  }) => const GridThumbnailMedia(
+    url: 'https://grid-probe.test/image.jpg',
+    fallbackUrls: [
+      'https://grid-probe.test/image.jpeg',
+      'https://grid-probe.test/image.png',
+      'https://grid-probe.test/image.webp',
+      'https://grid-probe.test/image.avif',
+    ],
+    fallbackUrl: 'https://grid-probe.test/thumbnail.png',
+    placeholderUrl: 'https://grid-probe.test/thumbnail.png',
+    aspectRatio: 1.5,
+    probeImageFormats: true,
+  );
 }
 
 class _GestureRepository implements BooruRepository {

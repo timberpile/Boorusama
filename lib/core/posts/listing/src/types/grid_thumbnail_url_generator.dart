@@ -9,10 +9,22 @@ import '../../../../images/types.dart';
 import '../../../post/types.dart';
 import 'animated_posts_default_state.dart';
 import 'grid_size.dart';
+import 'grid_thumbnail_static_media.dart';
+
+export 'grid_thumbnail_static_media.dart';
 
 abstract class GridThumbnailUrlGenerator {
   GridThumbnailMedia resolve(
     Post post, {
+    required GridThumbnailSettings settings,
+  });
+}
+
+/// Optional source-specific selection for saved static covers.
+abstract interface class GridThumbnailStaticCoverResolver
+    implements GridThumbnailUrlGenerator {
+  GridThumbnailMedia resolveStaticCover(
+    GridThumbnailStaticMedia cover, {
     required GridThumbnailSettings settings,
   });
 }
@@ -24,6 +36,7 @@ class GridThumbnailMedia extends Equatable {
     this.placeholderUrl,
     this.fallbackUrl,
     this.fallbackUrls = const [],
+    this.probeImageFormats = false,
     this.placeholderAspectRatio,
     this.placeholderFit,
   });
@@ -32,8 +45,11 @@ class GridThumbnailMedia extends Equatable {
   final double? aspectRatio;
   final String? placeholderUrl;
   final String? fallbackUrl;
-  // Tried in order before the final fallbackUrl.
+  // Tried in order before the final fallbackUrl unless format probing is enabled.
   final List<String> fallbackUrls;
+
+  /// Opts unknown static-image formats into a bounded decoded-image race.
+  final bool probeImageFormats;
   final double? placeholderAspectRatio;
   final BoxFit? placeholderFit;
 
@@ -44,6 +60,7 @@ class GridThumbnailMedia extends Equatable {
     placeholderUrl,
     fallbackUrl,
     fallbackUrls,
+    probeImageFormats,
     placeholderAspectRatio,
     placeholderFit,
   ];

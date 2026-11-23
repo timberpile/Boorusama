@@ -67,20 +67,22 @@ final shimmie2PostRepoProvider =
                 .toList();
 
             // Optional capability discovery and lookup must not hold up listing.
-            unawaited(() async {
-              try {
-                if (await ref.read(
-                  shimmie2CanFavoriteProvider(config.auth).future,
-                )) {
-                  if (disposed) return;
-                  await ref
-                      .read(favoritesProvider(config.auth).notifier)
-                      .checkFavorites(result.map((post) => post.id).toList());
+            if (options?.cascadeRequest ?? true) {
+              unawaited(() async {
+                try {
+                  if (await ref.read(
+                    shimmie2CanFavoriteProvider(config.auth).future,
+                  )) {
+                    if (disposed) return;
+                    await ref
+                        .read(favoritesProvider(config.auth).notifier)
+                        .checkFavorites(result.map((post) => post.id).toList());
+                  }
+                } catch (_) {
+                  // Favorite enrichment is best effort; mutations report failures.
                 }
-              } catch (_) {
-                // Favorite enrichment is best effort; mutations report failures.
-              }
-            }());
+              }());
+            }
             return result.toResult();
           },
           getSettings: () async =>

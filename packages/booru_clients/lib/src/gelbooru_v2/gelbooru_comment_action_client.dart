@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 
 import '../common/feature.dart';
 import '../gelbooru/gelbooru_session.dart';
+import 'rule34_website_session.dart';
 
 const gelbooruV2CommentUpvoteAction = 'upvote';
 
@@ -39,6 +40,10 @@ final class GelbooruCommentActionClient {
   final String? _userId;
   final String? _passHash;
   final Map<String, FeatureActionEndpoint> _actions;
+  late final _isRule34 = Rule34WebsiteSession.isWebsite(_baseUrl);
+  late final _rule34Session = _isRule34
+      ? Rule34WebsiteSession.fromStoredValue(_passHash, userId: _userId)
+      : null;
 
   bool supports(String actionName) => _actions.containsKey(actionName);
 
@@ -110,6 +115,13 @@ final class GelbooruCommentActionClient {
       ...action.fixedParams,
     };
     final endpoint = Uri.parse(action.baseUrl ?? _baseUrl).resolve(action.path);
+    if (_isRule34 &&
+        action.auth == ActionAuthMode.sessionCookie &&
+        !Rule34WebsiteSession.matchesOrigin(endpoint)) {
+      throw const GelbooruCommentActionException(
+        'Rule34 comment action requires the HTTPS website origin.',
+      );
+    }
 
     try {
       final response = switch (action.method) {
@@ -148,19 +160,28 @@ final class GelbooruCommentActionClient {
   }
 
   Options _optionsFor(FeatureActionEndpoint action) {
+    final rule34Session = action.auth == ActionAuthMode.sessionCookie
+        ? _rule34Session
+        : null;
     final headers = switch (action.auth) {
       ActionAuthMode.none => null,
-      ActionAuthMode.sessionCookie => buildGelbooruSessionHeaders(
-        userId: _userId!,
-        passHash: _passHash!,
-      ),
+      ActionAuthMode.sessionCookie =>
+        rule34Session?.headers ??
+            buildGelbooruSessionHeaders(userId: _userId!, passHash: _passHash!),
     };
 
     return Options(
       validateStatus: (status) =>
           status != null && status >= 200 && status < 300,
       headers: headers,
-      extra: stateChangingRequestExtra,
+      followRedirects: rule34Session == null ? null : false,
+      extra: {
+        ...stateChangingRequestExtra,
+        if (rule34Session != null) ...{
+          privateRequestDiagnosticsKey: true,
+          preferRequestCookiesKey: true,
+        },
+      },
     );
   }
 
@@ -200,6 +221,7 @@ final class GelbooruCommentActionClient {
     );
   }
 
-  bool get _hasSession =>
-      _userId?.isNotEmpty == true && _passHash?.isNotEmpty == true;
+  bool get _hasSession => _isRule34
+      ? _rule34Session != null
+      : _userId?.isNotEmpty == true && _passHash?.isNotEmpty == true;
 }

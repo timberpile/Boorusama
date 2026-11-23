@@ -1,3 +1,4 @@
+import 'shared_image_read.dart';
 // Dart imports:
 import 'dart:async';
 import 'dart:ui' as ui show Codec;
@@ -144,7 +145,12 @@ class DioExtendedNetworkImageProvider
       'The key provided to obtainKey must be the same key that was used to obtain this ImageStreamCompleter',
     );
 
-    final bytes = await _fetchImageBytes(chunkEvents);
+    final Uint8List? bytes;
+    try {
+      bytes = await _fetchImageBytes(chunkEvents);
+    } finally {
+      if (!chunkEvents.isClosed) await chunkEvents.close();
+    }
     if (bytes == null) {
       return Future<ui.Codec>.error(StateError('Failed to load $url.'));
     }
@@ -182,19 +188,48 @@ class DioExtendedNetworkImageProvider
       return cachedBytes;
     }
 
-    // Load from network if not in cache
-    final write = await PendingImageCacheWrite.begin(
-      manager,
-      effectiveCacheKey,
-    );
     try {
-      final networkData = await _loadNetwork(chunkEvents);
-      if (networkData != null && networkData.isNotEmpty) {
-        await write.save(networkData);
-      }
-      return networkData;
-    } finally {
-      await write.abort();
+      return await SharedImageRead.run(
+        dio: dio,
+        manager: manager,
+        key: effectiveCacheKey,
+        headers: headers,
+        owner: cancelToken,
+        load: (sharedToken) async {
+          final write = await PendingImageCacheWrite.begin(
+            manager,
+            effectiveCacheKey,
+          );
+          try {
+            final bytes = await ImageFetcher.fetchImageBytes(
+              url: url,
+              dio: dio,
+              headers: headers,
+              fetchStrategy: fetchStrategy,
+              cancelToken: sharedToken,
+              printError: printError,
+              onReceiveProgress: chunkEvents == null
+                  ? null
+                  : (received, total) {
+                      if (!chunkEvents.isClosed && total >= 0)
+                        chunkEvents.add(
+                          ImageChunkEvent(
+                            cumulativeBytesLoaded: received,
+                            expectedTotalBytes: total,
+                          ),
+                        );
+                    },
+            );
+            if (bytes.isNotEmpty && !sharedToken.isCancelled)
+              await write.save(bytes);
+            return bytes;
+          } finally {
+            await write.abort();
+          }
+        },
+      );
+    } catch (_) {
+      return null;
     }
   }
 

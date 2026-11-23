@@ -68,7 +68,21 @@ void main() {
         postShareProfileName([first, unrelated], post, first.auth),
         'Primary',
       );
-      expect(postShareProfileName([unrelated], post, first.auth), 'site.test');
+      expect(postShareProfileName([unrelated], post, first.auth), isNull);
+      expect(
+        postShareProfileName(
+          [first, second],
+          post.copyWith(
+            origin: PostOrigin.fromSource(
+              booruType: BooruType.danbooru,
+              booruId: BooruType.danbooru.id,
+              source: 'https://site.test',
+            ),
+          ),
+          unrelated.auth,
+        ),
+        isNull,
+      );
     },
   );
 }

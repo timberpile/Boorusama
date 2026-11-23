@@ -6,7 +6,7 @@ import '../../benchmark/scalability/fixtures.dart';
 
 BookmarkLibraryState apply(
   BookmarkLibraryState state, {
-  List<Bookmark> upserts = const [],
+  List<PostBookmark> upserts = const [],
   Set<int> removed = const {},
 }) => state.applyCommittedChanges(
   upserts: upserts,
@@ -23,7 +23,7 @@ void main() {
         final first = scalabilityBookmark(1);
         final second = scalabilityBookmark(2);
         final base = scalabilityLibrary([first]);
-        final input = <Bookmark>[second];
+        final input = <PostBookmark>[second];
         final updated = additionPath
             ? base.withAddedGroupMembers(
                 createdBookmarks: input,

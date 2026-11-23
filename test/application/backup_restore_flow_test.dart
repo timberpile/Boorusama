@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:archive/archive.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:oktoast/oktoast.dart';
@@ -66,6 +67,12 @@ void main() {
       await tester.pump();
 
       expect(source.importedPaths, ['/memory/settings.json']);
+      await tester.pumpAndSettle();
+      final confirmation = find.text('Test backup imported successfully');
+      expect(confirmation, findsOneWidget);
+      await tester.pump(KurumiDurations.longToast);
+      await tester.pumpAndSettle();
+      expect(confirmation, findsNothing);
     } finally {
       dismissAllToast();
       await tester.pumpWidget(const SizedBox());
@@ -129,6 +136,11 @@ void main() {
           .savedSettings,
       isNotEmpty,
     );
+    final confirmation = find.text('Settings imported successfully');
+    await harness.pumpUntilFound(tester, confirmation);
+    await tester.pump(KurumiDurations.longToast);
+    await harness.settle(tester);
+    expect(confirmation, findsNothing);
   });
 
   testWidgets(

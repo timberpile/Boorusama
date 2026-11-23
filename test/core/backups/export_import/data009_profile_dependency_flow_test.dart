@@ -169,10 +169,12 @@ void main() {
           (source) => source.id == 'following_feeds',
         );
         notifier.replaceSource(pinSource.copyWith(action: ImportAction.skip));
+        await notifier.previewComplete;
         expect(dependencyProblem().profileDependency!.sourceIds, {
           'following_feeds',
         });
         notifier.replaceSource(feeds.copyWith(action: ImportAction.skip));
+        await notifier.previewComplete;
         expect(
           container
               .read(importFlowProvider)
@@ -182,11 +184,19 @@ void main() {
           isEmpty,
         );
         notifier.replaceSource(pinSource);
-        expect(dependencyProblem().profileDependency!.sourceIds, {
-          'pinned_searches',
-        });
+        await notifier.previewComplete;
+        expect(
+          container
+              .read(importFlowProvider)
+              .preflight!
+              .errors
+              .map((issue) => issue.code),
+          everyElement('warnings_not_acknowledged'),
+        );
         notifier.replaceSource(feeds);
+        await notifier.previewComplete;
         notifier.chooseProfileMapping(key, firstId);
+        await notifier.previewComplete;
         expect(
           container
               .read(importFlowProvider)

@@ -1,48 +1,85 @@
 import 'dart:math' as math;
 
-// Flutter imports:
-import 'package:flutter/material.dart';
-
-// Package imports:
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:anchor_ui/anchor_ui.dart' show AnchorData;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
+import 'package:kurumi/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-// Project imports:
-import 'bookmark_group_label.dart';
-import '../../../groups/folder_tree.dart';
-import '../types/bookmark_group.dart';
-import '../providers/recent_bookmark_groups_provider.dart';
+import '../../../navigation/app_navigation.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/types.dart';
 import '../data/bookmark_convert.dart';
 import '../providers/bookmark_provider.dart';
-import '../types/bookmark_target.dart';
+import '../providers/bookmark_picker_actions.dart';
+import '../providers/recent_bookmark_groups_provider.dart';
+import '../types/bookmark_group.dart';
+import '../types/bookmark_picker_request.dart';
+import 'bookmark_batch_dialog.dart';
 import 'bookmark_folder_picker_contents.dart';
-import 'bookmark_group_name_dialog.dart';
+import 'bookmark_group_label.dart';
+import 'bookmark_picker_group_creation.dart';
+
+export '../types/bookmark_picker_request.dart';
 
 Future<void> showBookmarkGroupPicker(
   BuildContext context, {
   required BooruConfigAuth config,
   required Post post,
-}) => showDialog<void>(
-  context: context,
-  builder: (_) => BookmarkGroupPicker(config: config, post: post),
+}) => showBookmarkPickerDialog(
+  context,
+  request: PostBookmarkPickerRequest(config: config, post: post),
 );
 
-/// Uses the same anchored surface and compact rows as viewer toolbar menus.
+Future<void> showBookmarkPickerDialog(
+  BuildContext context, {
+  required BookmarkPickerRequest request,
+}) => showDialog<void>(
+  context: context,
+  builder: (_) => BookmarkGroupPickerDialog(request: request),
+);
+
+/// The non-anchored presenter owns exactly its route, even during a handoff.
+class BookmarkGroupPickerDialog extends StatelessWidget {
+  const BookmarkGroupPickerDialog({required this.request, super.key});
+  final BookmarkPickerRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final route = ModalRoute.of(context)!;
+    final navigator = Navigator.of(context);
+    return BookmarkBatchDialog(
+      title: context.t.bookmark.groups.selector,
+      child: BookmarkGroupPicker(
+        request: request,
+        isActive: () => route.isCurrent,
+        onDismiss: () {
+          if (route.isCurrent) {
+            navigator.pop();
+          } else if (route.isActive) {
+            // A creation route already owns the workflow above this one.
+            navigator.removeRoute(route);
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// Shared trigger presentation for Posts and every collection reference type.
 class BookmarkGroupPickerAnchor extends StatefulWidget {
   const BookmarkGroupPickerAnchor({
-    required this.config,
-    required this.post,
+    required this.request,
     required this.builder,
+    this.requestBuilder,
     super.key,
   });
+  final BookmarkPickerRequest request;
 
-  final BooruConfigAuth config;
-  final Post post;
+  /// Capture optional newly loaded facts once, at opening, without replacing
+  /// the already open picker's target during an unrelated parent rebuild.
+  final BookmarkPickerRequest Function()? requestBuilder;
   final Widget Function(BuildContext, VoidCallback show) builder;
 
   @override
@@ -52,33 +89,57 @@ class BookmarkGroupPickerAnchor extends StatefulWidget {
 
 class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
   final _controller = AnchorController();
+  final _navigation = BookmarkPickerNavigation();
+  BookmarkPickerRequest? _presentedRequest;
+
+  void _show() {
+    if (_controller.isShowing) return;
+    _presentedRequest = widget.requestBuilder?.call() ?? widget.request;
+    _controller.show();
+  }
+
+  @override
+  void didUpdateWidget(BookmarkGroupPickerAnchor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.request != widget.request) _controller.hide();
+  }
 
   @override
   void dispose() {
     _controller.dispose();
+    _navigation.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => KurumiAnchor(
-    controller: _controller,
-    overlayBuilder: (context) => Padding(
-      padding: const EdgeInsets.all(8),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: 280,
-          maxHeight: _maxHeight(context),
-        ),
-        child: BookmarkGroupPicker(
-          config: widget.config,
-          post: widget.post,
-          anchored: true,
-          onDismiss: _controller.hide,
+  Widget build(BuildContext context) {
+    final owner = widget.request;
+    return KurumiAnchor(
+      controller: _controller,
+      onBack: () {
+        if (!_navigation.back()) _controller.hide();
+      },
+      overlayBuilder: (context) => Padding(
+        padding: EdgeInsets.zero,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: math.min(420, MediaQuery.sizeOf(context).width - 24),
+            maxHeight: _maxHeight(context),
+          ),
+          child: BookmarkGroupPicker(
+            key: ValueKey(_presentedRequest ?? owner),
+            request: _presentedRequest ?? owner,
+            navigation: _navigation,
+            ownsBack: false,
+            onDismiss: _controller.hide,
+            // hide() revokes writes synchronously, before the fade completes.
+            isActive: () => _controller.isShowing && widget.request == owner,
+          ),
         ),
       ),
-    ),
-    child: widget.builder(context, _controller.show),
-  );
+      child: widget.builder(context, _show),
+    );
+  }
 
   double _maxHeight(BuildContext context) {
     final media = MediaQuery.of(context);
@@ -90,8 +151,6 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
         12;
     final above = bounds == null ? 0.0 : bounds.top - top;
     final below = bounds == null ? bottom - top : bottom - bounds.bottom;
-    // Fit on one side of the toolbar, including the anchor gap and padding.
-    // A whole-screen cap alone lets centered anchors extend past the top edge.
     final available = math.max(above, below) - 4 - 16;
     final cap =
         (media.size.height - media.viewInsets.bottom - media.padding.vertical) *
@@ -102,8 +161,12 @@ class _BookmarkGroupPickerAnchorState extends State<BookmarkGroupPickerAnchor> {
 
 void _showPickerSuccess(NavigatorState navigator, {required bool added}) {
   if (!navigator.mounted) return;
+  final container = ProviderScope.containerOf(navigator.context, listen: false);
+  final feedback =
+      container.read(appNavigationProvider).feedbackKey.currentContext ??
+      navigator.context;
   Kurumi.showSuccessToast(
-    navigator.context,
+    feedback,
     added
         ? navigator.context.t.bookmark.added
         : navigator.context.t.bookmark.removed,
@@ -148,75 +211,135 @@ bool _handleToggleOutcome(
   })(),
 };
 
+/// Shared content, navigation and selection; presenters supply ownership only.
 class BookmarkGroupPicker extends ConsumerStatefulWidget {
   const BookmarkGroupPicker({
-    required this.config,
-    required this.post,
-    this.anchored = false,
-    this.onDismiss,
+    required this.request,
+    required this.onDismiss,
+    required this.isActive,
+    this.onRootBack,
+    this.navigation,
+    this.ownsBack = true,
     super.key,
   });
-
-  final BooruConfigAuth config;
-  final Post post;
-  final bool anchored;
-  final VoidCallback? onDismiss;
-
+  final BookmarkPickerRequest request;
+  final VoidCallback onDismiss;
+  final bool Function() isActive;
+  final VoidCallback? onRootBack;
+  final BookmarkPickerNavigation? navigation;
+  final bool ownsBack;
   @override
   ConsumerState<BookmarkGroupPicker> createState() =>
       _BookmarkGroupPickerState();
 }
 
 class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
-  BooruConfigAuth get config => widget.config;
-  Post get post => widget.post;
+  final _localNavigation = BookmarkPickerNavigation();
+  BookmarkPickerNavigation get _navigation =>
+      widget.navigation ?? _localNavigation;
+  var _dismissed = false;
+  var _creating = false;
+  bool get _active => mounted && !_dismissed && widget.isActive();
+  late final BookmarkPickerActions _actions;
+  @override
+  void initState() {
+    super.initState();
+    _actions = BookmarkPickerActions(
+      container: ProviderScope.containerOf(context, listen: false),
+      request: widget.request,
+      isActive: () => _active,
+    );
+  }
+
+  @override
+  void dispose() {
+    _actions.dispose();
+    _localNavigation.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final request = widget.request;
+    watchBookmarkPickerDraft(ref, request);
     final library = ref.watch(bookmarkProvider).valueOrNull;
-    final uniqueId = bookmarkIdentityForPost(post, config.booruIdHint);
-    final memberships = library?.membershipsFor(uniqueId) ?? const <String>{};
-
+    final identity = request.collectionIdentity;
+    final savedRecordId = request.savedRecordId;
+    final Set<String> memberships;
+    if (savedRecordId != null) {
+      memberships = library?.membershipsForId(savedRecordId) ?? const {};
+    } else if (identity != null) {
+      memberships =
+          library?.pools
+              .where((p) => p.identity == identity)
+              .firstOrNull
+              ?.groupIds ??
+          const {};
+    } else if (request case ContentGroupBookmarkPickerRequest(:final draft)) {
+      final id = library?.idByContent[draft.reference.identity];
+      memberships = id == null ? const {} : library!.membershipsForId(id);
+    } else if (request case PostBookmarkPickerRequest(:final post)) {
+      final saved = library?.storedBookmarkForPost(post);
+      memberships = library?.hasUnifiedRecords == true
+          ? saved == null
+                ? const {}
+                : library!.membershipsForId(saved.id)
+          : library?.membershipsFor(
+                  bookmarkIdentityForPost(post, request.config.booruIdHint),
+                ) ??
+                const {};
+    } else {
+      memberships = const {};
+    }
+    final tree = library?.groupTree;
+    final nestedMemberships = tree == null
+        ? const <String, int>{}
+        : bookmarkNestedMembershipCounts(tree, memberships);
     final recentGroups =
-        ref.watch(recentBookmarkGroupsProvider).valueOrNull ??
+        ref
+            .watch(recentBookmarkGroupsProvider)
+            .valueOrNull
+            ?.where(
+              (group) => !(library?.mirrors.isReceived(group.id) ?? false),
+            )
+            .toList() ??
         const <BookmarkGroup>[];
-    final folders = FolderTree(library?.folders ?? const []);
-    Widget groupRow(
-      BuildContext context,
+    BookmarkPickerMenuItem row(
       BookmarkGroup group, {
       bool recent = false,
-    }) => widget.anchored
-        ? BookmarkPickerMenuItem(
-            icon: Icon(
-              Symbols.bookmarks,
-              fill: memberships.contains(group.id) ? 1 : 0,
-            ),
-            title: group.displayName(context),
-            detail: recent && group.folderId != null
-                ? folders.path(group.folderId)
-                : null,
-            hideOnTap: false,
-            onTap: () => _toggleGroup(context, ref, group.id),
-          )
-        : ListTile(
-            leading: Icon(
-              Symbols.bookmarks,
-              fill: memberships.contains(group.id) ? 1 : 0,
-            ),
-            title: BookmarkPickerLabel(
-              label: group.displayName(context),
-              detail: recent && group.folderId != null
-                  ? folders.path(group.folderId)
-                  : null,
-            ),
-            onTap: () => _toggleGroup(context, ref, group.id),
-          );
-
-    final contents = BookmarkFolderPickerContents(
-      compact: widget.anchored,
+      bool here = false,
+    }) => BookmarkPickerMenuItem(
+      icon: Icon(
+        Symbols.bookmarks,
+        fill: memberships.contains(group.id) ? 1 : 0,
+      ),
+      title: here
+          ? memberships.contains(group.id)
+                ? context.t.bookmark.groups.remove_here
+                : context.t.bookmark.groups.save_here
+          : group.displayName(context),
+      detail: recent
+          ? tree
+                ?.ancestors(group.id)
+                .map((g) => g.displayName(context))
+                .join(' / ')
+          : null,
+      hideOnTap: false,
+      onTap: () => _toggle(group.id),
+    );
+    return BookmarkFolderPickerContents(
       folders: library?.folders ?? const [],
-      groups: library?.groups ?? const [],
+      groups:
+          library?.groups
+              .where((group) => !library.mirrors.isReceived(group.id))
+              .toList() ??
+          const [],
       membershipGroupIds: memberships,
-      groupBuilder: (context, group) => groupRow(context, group),
+      onRootBack: widget.onRootBack ?? _dismiss,
+      navigation: _navigation,
+      ownsBack: widget.ownsBack,
+      currentGroupBuilder: (context, group) => row(group, here: true),
+      groupBuilder: (context, group) => row(group),
       pinnedFooter: recentGroups.isEmpty
           ? null
           : Column(
@@ -227,94 +350,64 @@ class _BookmarkGroupPickerState extends ConsumerState<BookmarkGroupPicker> {
                   title: context.t.bookmark.groups.recent,
                 ),
                 for (final group in recentGroups)
-                  groupRow(context, group, recent: true),
+                  BookmarkPickerSplitRow(
+                    selected: memberships.contains(group.id),
+                    nestedMembershipCount: nestedMemberships[group.id] ?? 0,
+                    navigationLabel:
+                        '${context.t.bookmark.groups.open_group}: ${group.displayName(context)}',
+                    onOpen: () => _navigation.open(group.id),
+                    hasChildren: tree?.childrenOf(group.id).isNotEmpty == true,
+                    child: row(group, recent: true),
+                  ),
               ],
             ),
-      onCreateGroup: (folderId) => _createAndAdd(context, ref, folderId),
-    );
-    if (widget.anchored) return contents;
-    return AlertDialog(
-      title: Text(context.t.bookmark.groups.selector),
-      content: SizedBox(
-        width: 360,
-        height:
-            (MediaQuery.heightOf(context) -
-                MediaQuery.viewInsetsOf(context).bottom) *
-            .6,
-        child: contents,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(context.t.generic.action.cancel),
-        ),
-      ],
+      onCreateGroup: _create,
+      createGroupEnabled: !_creating,
     );
   }
 
-  Future<void> _toggleGroup(
-    BuildContext context,
-    WidgetRef ref,
-    String groupId,
-  ) async {
+  Future<void> _toggle(String groupId) async {
+    if (!_active || _creating) return;
     final navigator = Navigator.of(context, rootNavigator: true);
     final notifier = ref.read(bookmarkProvider.notifier);
-    final outcome = await notifier.togglePostTarget(
-      config,
-      post,
-      target: BookmarkTarget.group(groupId),
-      onRemoved: (r) {
-        if (navigator.mounted) notifier.showRemovalUndo(navigator.context, r);
-      },
-    );
-    final completed = _handleToggleOutcome(navigator, outcome);
-    if (completed && navigator.mounted) _dismiss(navigator);
-  }
-
-  Future<void> _createAndAdd(
-    BuildContext context,
-    WidgetRef ref,
-    String? folderId,
-  ) async {
-    final navigator = Navigator.of(context, rootNavigator: true);
-    final notifier = ref.read(bookmarkProvider.notifier);
-    // An anchor is an overlay, not a route. Close it before opening the dialog
-    // and retain the navigator/notifier because this picker will be disposed.
-    final anchored = widget.anchored;
-    if (anchored) widget.onDismiss?.call();
-    final name = await showBookmarkGroupNameDialog(
-      anchored ? navigator.context : context,
-      title: context.t.bookmark.groups.create,
-    );
-    if (name == null || !navigator.mounted || (!anchored && !mounted)) return;
-    var completed = false;
-    void added() {
-      completed = true;
-      _showPickerSuccess(navigator, added: true);
-    }
-
-    void failed() => _showPickerError(navigator);
     try {
-      await notifier.createGroupWithPosts(
-        name,
-        config,
-        [
-          post,
-        ],
-        folderId: folderId,
+      final outcome = await _actions.toggle(
+        groupId,
+        onRemoved: (removal) {
+          if (navigator.mounted)
+            notifier.showRemovalUndo(navigator.context, removal);
+        },
       );
-      added();
+      if (outcome == null) return;
+      final completed = _handleToggleOutcome(navigator, outcome);
+      if (completed && _active) _dismiss();
     } catch (_) {
-      failed();
+      if (_active) _showPickerError(navigator);
     }
-    if (completed && !anchored && navigator.mounted) _dismiss(navigator);
   }
 
-  void _dismiss(NavigatorState navigator) {
-    if (widget.anchored) {
-      widget.onDismiss?.call();
-    } else {
-      navigator.pop();
-    }
+  void _create(String? folderId) {
+    if (!_active || _creating || _actions.pending) return;
+    _creating = true;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final request = _actions.request;
+    // Install the next owner before releasing this anchor or dialog. Its
+    // immutable request and ProviderContainer survive the old widget's disposal.
+    final result = showDialog<String>(
+      context: navigator.context,
+      builder: (_) => BookmarkPickerGroupCreation(
+        request: request,
+        parentGroupId: folderId,
+      ),
+    );
+    _dismiss();
+    result.then((name) {
+      if (name != null) _showPickerSuccess(navigator, added: true);
+    });
+  }
+
+  void _dismiss() {
+    _dismissed = true;
+    widget.onDismiss();
   }
 }

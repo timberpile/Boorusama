@@ -1,16 +1,34 @@
+import 'dart:developer' show Timeline;
+
+import '../../../../../backups/mitemite/activity_log.dart';
+
 import 'package:foundation/performance.dart';
 
 // Dart imports:
 import 'dart:async';
+import 'dart:convert';
 
 // Package imports:
 import 'package:collection/collection.dart';
 import 'package:clock/clock.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:uuid/uuid.dart';
+import 'package:crypto/crypto.dart';
+import 'package:path/path.dart' as p;
 
 // Project imports:
 import '../../../../../configs/config/src/types/profile_id.dart';
+import '../../../../../groups/folder_tree.dart';
+import '../../../../../../foundation/filesystem.dart';
+import '../../../../../backups/export_import/import/import_journal.dart';
+import '../../../../../backups/export_import/import/import_plan.dart';
+import '../../../../../backups/export_import/import/import_preflight.dart';
+import '../../../../../backups/export_import/import/import_recovery_service.dart';
+import '../../../../../backups/export_import/import/import_transaction.dart';
+import '../../../../../backups/export_import/import/search_runtime_snapshot.dart';
+import '../../../../../backups/export_import/models/import_action.dart';
+import '../../types/following_mirror_state.dart';
+import '../../types/following_topic_source.dart';
 import '../../types/search_post_preview.dart';
 import '../../services/conservative_refresh_policy.dart';
 import '../../types/search_refresh.dart';
@@ -23,22 +41,136 @@ import 'recent_search_post_hive_object.dart';
 import 'search_post_preview_hive_object.dart';
 import 'following_topic_hive_object.dart';
 
-class HiveFollowingTopicRepository implements FollowingTopicRepository {
+part 'following_mirror_storage.dart';
+
+class HiveFollowingTopicRepository
+    implements
+        FollowingTopicRepository,
+        FollowingRefreshPublicationStore,
+        FollowingMirrorStore,
+        FollowingDefinitionReceiptStore,
+        FollowingNotificationReceiptStore,
+        FollowingMirrorActivityReader {
   HiveFollowingTopicRepository({
     required Box<FollowingTopicHiveObject> box,
     Box<dynamic>? organizationBox,
     Uuid uuid = const Uuid(),
     Clock clock = const Clock(),
+    AppFileSystem fs = const IoFileSystem(),
   }) : _organizationBox = organizationBox,
        _box = box,
        _uuid = uuid,
-       _clock = clock;
+       _clock = clock,
+       _fs = fs;
 
   final Box<FollowingTopicHiveObject> _box;
   final Uuid _uuid;
   final Clock _clock;
   final Box<dynamic>? _organizationBox;
+  final AppFileSystem _fs;
+  bool _mirrorRecoveryComplete = false;
   Future<void> _mutationTail = Future.value();
+
+  @override
+  Future<SyncActivityLog> readMirrorActivity() =>
+      _serialize(() async => _followingMirrors().activity);
+
+  @override
+  Future<FollowingMirrorSnapshot> readMirrorSnapshot() =>
+      _serialize(() async => _readFollowingMirrorSnapshot());
+
+  @override
+  Future<void> commitMirrorDefinitions({
+    required FollowingMirrorState expected,
+    required String expectedStructureDigest,
+    required FollowingMirrorState next,
+    required List<FollowingTopic> topics,
+    required TopicOrganization organization,
+    Set<String> removeTopicIds = const {},
+  }) => _serialize(
+    () => _commitFollowingMirrors(
+      expected: expected,
+      expectedStructureDigest: expectedStructureDigest,
+      next: next,
+      topics: topics,
+      organization: organization,
+      removeTopicIds: removeTopicIds,
+    ),
+  );
+
+  @override
+  Future<void> acknowledgeMirrorNotifications(int cursor) =>
+      _serialize(() async {
+        final snapshot = _readFollowingMirrorSnapshot();
+        final activity = snapshot.mirrors.activity.acknowledgePostsThrough(
+          cursor,
+        );
+        if (activity == snapshot.mirrors.activity) return;
+        await _commitFollowingMirrors(
+          expected: snapshot.mirrors,
+          expectedStructureDigest: snapshot.structureDigest,
+          next: FollowingMirrorState(
+            activity: activity,
+            epoch: snapshot.mirrors.epoch + 1,
+            owners: snapshot.mirrors.owners,
+            checkpoints: snapshot.mirrors.checkpoints,
+            subscriptions: snapshot.mirrors.subscriptions,
+            publisherNames: snapshot.mirrors.publisherNames,
+          ),
+          topics: const [],
+          organization: snapshot.organization,
+        );
+      });
+
+  @override
+  Future<void> acknowledgeMirrorDefinition(
+    String localId, {
+    String? definitionDigest,
+  }) => _acknowledgeDefinitions({localId: definitionDigest}, topicsOnly: false);
+
+  @override
+  Future<void> acknowledgeMirrorDefinitions(Map<String, String> captured) =>
+      _acknowledgeDefinitions(Map.unmodifiable(captured), topicsOnly: true);
+
+  Future<void> _acknowledgeDefinitions(
+    Map<String, String?> captured, {
+    required bool topicsOnly,
+  }) => _serialize(() async {
+    final snapshot = _readFollowingMirrorSnapshot();
+    final owners = {...snapshot.mirrors.owners};
+    var changed = false;
+    for (final entry in captured.entries) {
+      final owner = owners[entry.key];
+      if (owner == null ||
+          !owner.hasDefinitionChange ||
+          (topicsOnly && owner.kind != FollowingMirrorKind.topic) ||
+          (entry.value != null && owner.definitionDigest != entry.value))
+        continue;
+      owners[entry.key] = owner.copyWith(acknowledge: true);
+      changed = true;
+    }
+    if (!changed) return;
+    await _commitFollowingMirrors(
+      expected: snapshot.mirrors,
+      expectedStructureDigest: snapshot.structureDigest,
+      next: FollowingMirrorState(
+        activity: snapshot.mirrors.activity,
+        epoch: snapshot.mirrors.epoch + 1,
+        owners: owners,
+        checkpoints: snapshot.mirrors.checkpoints,
+        subscriptions: snapshot.mirrors.subscriptions,
+        publisherNames: snapshot.mirrors.publisherNames,
+      ),
+      topics: const [],
+      organization: snapshot.organization,
+    );
+  });
+
+  int _feedGeneration(String id) =>
+      switch (_organizationBox?.get('feed-reset:$id')) {
+        final int value => value,
+        _ => 0,
+      };
 
   List<TopicFeed> _feeds() {
     final performanceSpan = performanceRecorder.begin(
@@ -53,14 +185,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
               when json['id'] is String &&
                   isCanonicalProfileId(json['profileId']) &&
                   json['name'] is String)
-            TopicFeed.fromJson({
-              ...json,
-              if (json['sourceIds'] is! List)
-                'sourceIds': [
-                  for (final search in _box.values)
-                    if (search.feedId == json['id']) search.id,
-                ],
-            }),
+            _decodeFeed(json),
       ];
       final ordered = feeds.indexed.toList()
         ..sort((left, right) {
@@ -75,6 +200,48 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       performanceSpan.finish(failed: performanceFailed);
     }
   }
+
+  TopicFeed _decodeFeed(Map json) => Timeline.timeSync(
+    'Following decode stored feed',
+    () => TopicFeed.fromJson({
+      ...json,
+      'cacheGeneration': _feedGeneration(json['id'] as String),
+      if (json['sourceIds'] is! List)
+        'sourceIds': [
+          for (final search in _box.values)
+            if (search.feedId == json['id']) search.id,
+        ],
+    }),
+  );
+
+  Iterable<TopicFeed> _decodeFeedRows(
+    Iterable<TopicFeedMetadata> metadata,
+  ) sync* {
+    for (final row in metadata) {
+      if (_organizationBox?.get('feed:${row.id}') case final Map json) {
+        yield _decodeFeed(json);
+      }
+    }
+  }
+
+  @override
+  Future<({FollowingTopic? topic, List<TopicFeed> feeds})>
+  readRefreshPublication(
+    String topicId, {
+    required bool includeFeeds,
+  }) => _serialize(() async {
+    final stored = _box.get(topicId);
+    return (
+      topic: stored == null ? null : _toTopic(stored),
+      feeds: includeFeeds
+          ? _decodeFeedRows(
+              _feedMetadata().where(
+                (feed) => feed.sourceIds.contains(topicId),
+              ),
+            ).toList()
+          : const <TopicFeed>[],
+    );
+  });
 
   Set<String> _feedSourceIds() {
     final stored = _organizationBox?.get('search:organization');
@@ -194,6 +361,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
             FollowingTopic(
               id: destinationId,
               profileId: source.profileId,
+              localSource: source.localSource,
               query: source.query,
               queryStructure: source.queryStructure,
               name: source.name,
@@ -348,9 +516,15 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     final previous = {
       for (final feed in feeds)
         'feed:${feed.id}': storage.get('feed:${feed.id}'),
+      for (final feed in feeds)
+        'feed-reset:${feed.id}': storage.get('feed-reset:${feed.id}'),
     };
     try {
       for (final feed in feeds) {
+        await storage.put(
+          'feed-reset:${feed.id}',
+          _feedGeneration(feed.id) + 1,
+        );
         final key = 'feed:${feed.id}';
         if (folderIds.contains(feed.id)) {
           await storage.delete(key);
@@ -385,7 +559,18 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     if (!organization.folders.any((f) => f.id == folderId)) {
       throw StateError('Folder not found');
     }
-    await _organizationBox?.delete('feed:$folderId');
+    final storage = _organizationBox;
+    if (storage == null) return;
+    final previous = storage.get('feed:$folderId');
+    final generation = _feedGeneration(folderId);
+    try {
+      await storage.delete('feed:$folderId');
+      await storage.put('feed-reset:$folderId', generation + 1);
+    } catch (_) {
+      if (previous != null) await storage.put('feed:$folderId', previous);
+      await storage.put('feed-reset:$folderId', generation);
+      rethrow;
+    }
   });
 
   @override
@@ -395,6 +580,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     required List<String> queries,
     String? id,
   }) => _serialize(() async {
+    if (id != null) _requireWritableFollowing(id);
     final storage = _organizationBox;
     if (storage == null) throw StateError('Feed storage unavailable');
     final normalized = queries
@@ -487,10 +673,12 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
 
   @override
   Future<void> deleteFeed(String id) => _serialize(() async {
+    _requireWritableFollowing(id);
     final feeds = _feeds();
     final feed = feeds.where((item) => item.id == id).firstOrNull;
     if (feed == null) return;
     if (_organization().folders.any((folder) => folder.id == id)) {
+      await _organizationBox?.put('feed-reset:$id', _feedGeneration(id) + 1);
       await _organizationBox?.delete('feed:$id');
       return;
     }
@@ -506,6 +694,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     await _organizationBox?.delete('feed:$id');
     try {
       await _box.deleteAll(orphanIds);
+      await _organizationBox?.put('feed-reset:$id', _feedGeneration(id) + 1);
     } catch (_) {
       await _organizationBox?.put('feed:$id', feed.toJson());
       await _box.putAll(sources);
@@ -516,9 +705,15 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> setFeedOrder(String profileId, List<String> orderedIds) =>
       _serialize(() async {
+        for (final id in orderedIds) {
+          _requireWritableFollowing(id);
+        }
         final storage = _organizationBox;
         if (storage == null) throw StateError('Feed storage unavailable');
-        final feeds = _feeds().where((f) => f.profileId == profileId).toList();
+        final mirrors = _followingMirrors();
+        final feeds = _feeds()
+            .where((f) => f.profileId == profileId && !mirrors.isReceived(f.id))
+            .toList();
         final ids = feeds.map((f) => f.id).toSet();
         if (orderedIds.length != feeds.length ||
             orderedIds.toSet().length != feeds.length ||
@@ -545,18 +740,62 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     String profileId,
     List<TopicFeed> feeds,
   ) => _serialize(() async {
+    final mirrors = _followingMirrors();
+    if (feeds.any((feed) => mirrors.isReceived(feed.id))) {
+      throw const FollowingMirrorReadOnly();
+    }
     if (feeds.any((f) => f.profileId != profileId)) {
       throw StateError('Invalid feed ownership');
     }
     await _organizationBox?.deleteAll(
       _feeds()
-          .where((f) => f.profileId == profileId)
+          .where((f) => f.profileId == profileId && !mirrors.isReceived(f.id))
           .map((f) => 'feed:${f.id}'),
     );
     await _organizationBox?.putAll({
       for (final f in feeds) 'feed:${f.id}': f.toJson(),
+      // Rollback restores the captured cache and its read-admission generation.
+      for (final f in feeds) 'feed-reset:${f.id}': f.cacheGeneration,
     });
   });
+
+  @override
+  Future<void> invalidateFeedSeriesForProfile(String profileId) =>
+      _serialize(() async {
+        final sourceIds = {
+          for (final source in _topics())
+            if (source.profileId == profileId) source.id,
+        };
+        final previous = <String, Object?>{};
+        final next = <String, Object?>{};
+        for (final feed in _feeds()) {
+          if (!feed.seriesMemberships.values.any(
+            (value) =>
+                value.origin.profileIdHint == profileId ||
+                sourceIds.contains(value.sourceId),
+          )) {
+            continue;
+          }
+          final key = 'feed:${feed.id}';
+          previous[key] = _organizationBox?.get(key);
+          next[key] = feed
+              .copyWith(
+                seriesMemberships: {
+                  for (final entry in feed.seriesMemberships.entries)
+                    if (entry.value.origin.profileIdHint != profileId &&
+                        !sourceIds.contains(entry.value.sourceId))
+                      entry.key: entry.value,
+                },
+              )
+              .toJson();
+        }
+        try {
+          await _organizationBox?.putAll(next);
+        } catch (_) {
+          await _organizationBox?.putAll(previous);
+          rethrow;
+        }
+      });
 
   @override
   Future<void> invalidateRuntimeForProfile(String profileId) =>
@@ -619,6 +858,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   FollowingTopic _resetRuntime(FollowingTopic source) => FollowingTopic(
     id: source.id,
     profileId: source.profileId,
+    localSource: source.localSource,
     query: source.query,
     queryStructure: source.queryStructure,
     name: source.name,
@@ -644,6 +884,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> replaceOrganization(TopicOrganization organization) =>
       _serialize(() async {
+        _requireWritableFollowingOrganization(organization);
         final storage = _organizationBox;
         if (storage == null) {
           throw StateError('Organization storage unavailable');
@@ -654,7 +895,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
           throw StateError(e.message);
         }
         final folderIds = <String>{};
-        final folderNames = <(String?, String)>{};
+        final folderNames = <(String?, String?, String)>{};
         final memberships = <String>{};
         final topics = {
           for (final topic in _topics()) topic.id: topic,
@@ -662,7 +903,11 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
 
         for (final folder in organization.folders) {
           if (!folderIds.add(folder.id) ||
-              !folderNames.add((folder.parentId, folder.name.toLowerCase()))) {
+              !folderNames.add((
+                folder.parentId,
+                _followingMirrors().owners[folder.id]?.publisher,
+                folder.name.toLowerCase(),
+              ))) {
             throw StateError('Duplicate shared search folder');
           }
           _validateOrganizationMemberships(
@@ -725,6 +970,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> deleteSharedFolderAndTopics(String folderId) => _serialize(
     () async {
+      _requireWritableFollowing(folderId);
       final storage = _organizationBox;
       if (storage == null) throw StateError('Organization storage unavailable');
       final previousOrganization = _organization();
@@ -752,12 +998,18 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       final priorCaches = {
         for (final feed in affected)
           'feed:${feed.id}': storage.get('feed:${feed.id}'),
+        for (final feed in affected)
+          'feed-reset:${feed.id}': storage.get('feed-reset:${feed.id}'),
       };
       try {
         await _box.deleteAll(previousTopics.keys);
         await storage.put('search:organization', nextOrganization.toJson());
         for (final feed in affected) {
           if (removed.contains(feed.id)) {
+            await storage.put(
+              'feed-reset:${feed.id}',
+              _feedGeneration(feed.id) + 1,
+            );
             await storage.delete('feed:${feed.id}');
           } else {
             final reconciled = feed.reconcileSources(
@@ -865,6 +1117,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     return _topics().firstWhereOrNull(
       (topic) =>
           topic.id != excludingId &&
+          !_followingMirrors().isReceived(topic.id) &&
           topic.profileId == profileId &&
           !internalIds.contains(topic.id) &&
           normalizeSearchIdentity(topic.query) == normalizedQuery,
@@ -961,6 +1214,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     bool? autoUpdateEnabled,
     FollowingTopic? expectedTopic,
   }) => _serialize(() async {
+    _requireWritableFollowing(id);
     final existing = _box.get(id);
     if (expectedTopic != null && existing == null) {
       throw StaleFollowingTopicEditException();
@@ -969,6 +1223,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     if (expectedTopic != null &&
         (current.createdAt != expectedTopic.createdAt ||
             current.profileId != expectedTopic.profileId ||
+            current.localSource != expectedTopic.localSource ||
             current.query != expectedTopic.query ||
             current.queryStructure != expectedTopic.queryStructure ||
             current.name != expectedTopic.name ||
@@ -993,6 +1248,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     final duplicateInSameFolder = _topics().any(
       (search) =>
           search.id != current.id &&
+          !_followingMirrors().isReceived(search.id) &&
           search.profileId == profileId &&
           normalizeSearchIdentity(search.query) == normalizedQuery &&
           organization.placements.any(
@@ -1009,6 +1265,9 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         ? FollowingTopic(
             id: current.id,
             profileId: profileId,
+            localSource: current.profileId == profileId
+                ? current.localSource
+                : null,
             query: trimmedQuery,
             queryStructure: queryStructure != null
                 ? queryStructure()
@@ -1080,6 +1339,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<FollowingTopic> rename(String id, String? name) {
     return _serialize(() async {
+      _requireWritableFollowing(id);
       final current = _requireObject(id);
       final updated = _toTopic(current).copyWithName(name);
       final object = _toObject(updated);
@@ -1100,6 +1360,8 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     int feedMaxPosts = topicFeedRetention,
     String? existingTopicId,
   }) => _serialize(() async {
+    if (existingTopicId != null) _requireWritableFollowing(existingTopicId);
+    if (parentFolderId != null) _requireWritableFollowing(parentFolderId);
     final storage = _organizationBox;
     if (storage == null) throw StateError('Organization storage unavailable');
     final identity = normalizeSearchIdentity(query);
@@ -1122,6 +1384,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     );
     if (current.folders.any(
       (f) =>
+          !_followingMirrors().isReceived(f.id) &&
           f.parentId == parentFolderId &&
           f.name.toLowerCase() == folder.name.toLowerCase(),
     )) {
@@ -1208,6 +1471,10 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     int newIndex,
   ) {
     return _serialize(() async {
+      if (_topicsForProfile(profileId)
+          .any((topic) => _followingMirrors().isReceived(topic.id))) {
+        throw const FollowingMirrorReadOnly();
+      }
       final topics = _topicsForProfile(profileId).toList();
       if (oldIndex < 0 || oldIndex >= topics.length) {
         throw RangeError.index(oldIndex, topics, 'oldIndex');
@@ -1355,6 +1622,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       final updated = FollowingTopic(
         id: current.id,
         profileId: current.profileId,
+        localSource: current.localSource,
         query: current.query,
         queryStructure: current.queryStructure,
         name: current.name,
@@ -1379,16 +1647,25 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         lastSuccessfulCheckAt: commit.startedAt,
       );
       final object = _toObject(updated);
-      final folderStates = {
-        for (final folder in _organization().folders) folder.id: folder,
-      };
-      final referencingFeeds = _feeds()
-          .where(
-            (feed) =>
-                feed.sourceIds.contains(current.id) &&
-                (folderStates[feed.id]?.feedEnabled ?? true),
-          )
-          .toList();
+      final folderStates = <String, bool>{};
+      final organization = _organizationBox?.get('search:organization');
+      if (organization is Map && organization['folders'] is List) {
+        for (final row in organization['folders'] as List) {
+          if (row case {'id': final String id}) {
+            folderStates[id] = row['feedEnabled'] == true;
+          }
+        }
+      }
+      final referencingFeeds = _decodeFeedRows(
+        _feedMetadata().where(
+          (feed) =>
+              feed.sourceIds.contains(current.id) &&
+              (folderStates[feed.id] ?? true) &&
+              (commit.expectedFeedGenerations == null ||
+                  commit.expectedFeedGenerations![feed.id] ==
+                      _feedGeneration(feed.id)),
+        ),
+      ).toList();
       final previousFeeds = <String, Object?>{
         for (final feed in referencingFeeds)
           feed.id: _organizationBox?.get('feed:${feed.id}'),
@@ -1424,10 +1701,20 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       }
       try {
         for (final feed in referencingFeeds) {
-          await _organizationBox?.put(
-            'feed:${feed.id}',
-            feed.merge(commit.feedPosts, sourceId: current.id).toJson(),
+          final updated = Timeline.timeSync(
+            'Following merge feed',
+            () => feed.merge(
+              commit.feedPosts,
+              sourceId: current.id,
+              seriesMemberships: commit.feedSeriesMemberships,
+            ),
           );
+          if (updated != feed) {
+            await _organizationBox?.put(
+              'feed:${feed.id}',
+              Timeline.timeSync('Following encode feed', updated.toJson),
+            );
+          }
         }
         if (saveEstimate) {
           await _organizationBox.put('search:new_post_estimates', estimates);
@@ -1476,6 +1763,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       final updated = FollowingTopic(
         id: topic.id,
         profileId: topic.profileId,
+        localSource: topic.localSource,
         query: topic.query,
         queryStructure: topic.queryStructure,
         name: topic.name,
@@ -1501,6 +1789,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   @override
   Future<void> delete(String id) {
     return _serialize(() async {
+      _requireWritableFollowing(id.trim());
       final current = _box.get(id.trim());
       if (current == null) {
         return;
@@ -1560,7 +1849,11 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
   Future<void> deleteForProfile(String profileId) {
     return _serialize(() async {
       final keys = _box.values
-          .where((object) => object.profileId == profileId)
+          .where(
+            (object) =>
+                object.profileId == profileId &&
+                !_followingMirrors().isReceived(object.id),
+          )
           .map((object) => object.id)
           .toList();
       final previousTopics = {
@@ -1632,6 +1925,10 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     List<FollowingTopic> topics,
   ) {
     return _serialize(() async {
+      final mirrors = _followingMirrors();
+      if (topics.any((topic) => mirrors.isReceived(topic.id))) {
+        throw const FollowingMirrorReadOnly();
+      }
       if (topics.any(
         (topic) => topic.profileId != profileId,
       )) {
@@ -1642,7 +1939,10 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
         );
       }
       final existingKeys = _box.values
-          .where((object) => object.profileId == profileId)
+          .where(
+            (object) =>
+                object.profileId == profileId && !mirrors.isReceived(object.id),
+          )
           .map((object) => object.id)
           .toList();
       await _box.deleteAll(existingKeys);
@@ -1684,6 +1984,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
 
   Future<T> _read<T>(T Function() operation) async {
     await _mutationTail;
+    if (!_mirrorRecoveryComplete) return _serialize(() async => operation());
     return operation();
   }
 
@@ -1691,6 +1992,10 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     final completer = Completer<T>();
     _mutationTail = _mutationTail.catchError((_) {}).then((_) async {
       try {
+        if (!_mirrorRecoveryComplete) {
+          await _recoverFollowingMirrors();
+          _mirrorRecoveryComplete = true;
+        }
         completer.complete(await operation());
       } catch (error, stackTrace) {
         completer.completeError(error, stackTrace);
@@ -1709,7 +2014,14 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
 
   TopicOrganization _organization() {
     final stored = switch (_organizationBox?.get('search:organization')) {
-      final Map json => TopicOrganization.fromJson(json),
+      final Map json => TopicOrganization.fromJson(
+        json,
+        folderScopes: {
+          for (final e in _followingMirrors().owners.entries)
+            if (e.value.kind == FollowingMirrorKind.folder)
+              e.key: e.value.folderNameScope,
+        },
+      ),
       _ => TopicOrganization(folders: const []),
     };
     final internalIds = _feedSourceIds();
@@ -1730,41 +2042,82 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
           searchIds: folder.searchIds.where(
             (id) => topics.containsKey(id) && memberships.add(id),
           ),
+          nameScope: folder.nameScope,
         ),
     ];
-    final homeSearchIds = stored.homeSearchIds
-        .where((id) => topics.containsKey(id) && memberships.add(id))
-        .toList();
+    memberships.addAll(stored.homeSearchIds.where(topics.containsKey));
     final unlisted =
         topics.values.where((topic) => memberships.add(topic.id)).toList()
           ..sort((left, right) {
             final byCreatedAt = left.createdAt.compareTo(right.createdAt);
             return byCreatedAt != 0 ? byCreatedAt : left.id.compareTo(right.id);
           });
+    final owners = _followingMirrors();
+    final localPositions = <String?, int>{};
+    final placements = <FolderPlacement>[
+      for (final parent in <String?>[null, ...folders.map((f) => f.id)])
+        for (final id in stored.directIds(parent))
+          if (topics.containsKey(id))
+            owners.isReceived(id)
+                ? stored.placements.firstWhere((p) => p.itemId == id)
+                : FolderPlacement(
+                    itemId: id,
+                    folderId: parent,
+                    position: localPositions.update(
+                      parent,
+                      (p) => p + 1,
+                      ifAbsent: () => 0,
+                    ),
+                  ),
+    ];
     return TopicOrganization(
       folders: folders,
-      homeSearchIds: [...homeSearchIds, ...unlisted.map((search) => search.id)],
+      placements: [
+        ...placements,
+        for (final (offset, search) in unlisted.indexed)
+          FolderPlacement(
+            itemId: search.id,
+            position:
+                (localPositions[null] == null ? 0 : localPositions[null]! + 1) +
+                offset,
+          ),
+      ],
     );
   }
 
   TopicOrganization _removeOrganizationMemberships(
     TopicOrganization organization,
     Set<String> ids,
-  ) => TopicOrganization(
-    folders: [
-      for (final folder in organization.folders)
-        TopicFolder(
-          id: folder.id,
-          name: folder.name,
-          feedEnabled: folder.feedEnabled,
-          feedMaxPosts: folder.feedMaxPosts,
-          parentId: folder.parentId,
-          position: folder.position,
-          searchIds: folder.searchIds.where((id) => !ids.contains(id)),
+  ) {
+    if (_followingMirrors().owners.isNotEmpty) {
+      // Received definition digests include placement positions. Removing a
+      // local sibling must leave those stored positions intact.
+      return TopicOrganization(
+        folders: organization.folders,
+        placements: organization.placements.where(
+          (p) => !ids.contains(p.itemId),
         ),
-    ],
-    homeSearchIds: organization.homeSearchIds.where((id) => !ids.contains(id)),
-  );
+      );
+    }
+    return TopicOrganization(
+      folders: [
+        for (final folder in organization.folders)
+          TopicFolder(
+            id: folder.id,
+            name: folder.name,
+            feedEnabled: folder.feedEnabled,
+            feedMaxPosts: folder.feedMaxPosts,
+            parentId: folder.parentId,
+            position: folder.position,
+            searchIds: folder.searchIds.where((id) => !ids.contains(id)),
+            nameScope: folder.nameScope,
+          ),
+      ],
+      homeSearchIds: organization.homeSearchIds.where(
+        (id) => !ids.contains(id),
+      ),
+    );
+  }
 
   void _validateOrganizationMemberships(
     Iterable<String> ids,
@@ -1800,7 +2153,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
     final objects = <String, FollowingTopicHiveObject>{
       for (final (index, topic) in _topicsForProfile(
         profileId,
-      ).indexed)
+      ).where((topic) => !_followingMirrors().isReceived(topic.id)).indexed)
         topic.id: _toObject(topic.copyWithPosition(index)),
     };
     await _box.putAll(objects);
@@ -1860,6 +2213,9 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
           estimate is Map && estimate['lowerBound'] == true,
       id: object.id,
       profileId: object.profileId,
+      localSource: object.localSource is Map
+          ? FollowingTopicSource.fromJson(object.localSource as Map)
+          : null,
       query: object.query,
       queryStructure: SearchQueryStructure.tryParse(object.queryStructure),
       name: object.name,
@@ -1900,6 +2256,7 @@ class HiveFollowingTopicRepository implements FollowingTopicRepository {
       profileId: topic.profileId,
       query: topic.query,
       queryStructure: topic.queryStructure?.toJson(),
+      localSource: topic.localSource?.toJson(),
       name: topic.name,
       position: topic.position,
       createdAt: topic.createdAt,
@@ -1965,6 +2322,7 @@ extension on FollowingTopic {
     return FollowingTopic(
       id: id,
       profileId: profileId,
+      localSource: localSource,
       query: query,
       queryStructure: queryStructure != null
           ? queryStructure()
@@ -1989,6 +2347,7 @@ extension on FollowingTopic {
     return FollowingTopic(
       id: id,
       profileId: profileId,
+      localSource: localSource,
       query: query,
       queryStructure: queryStructure,
       name: name,
@@ -2011,6 +2370,7 @@ extension on FollowingTopic {
     return FollowingTopic(
       id: id,
       profileId: profileId,
+      localSource: localSource,
       query: query,
       queryStructure: queryStructure,
       name: name,

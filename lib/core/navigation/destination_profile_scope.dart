@@ -18,7 +18,8 @@ class DestinationScope extends InheritedWidget {
   static DestinationScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DestinationScope>();
   @override
-  bool updateShouldNotify(DestinationScope oldWidget) => id != oldWidget.id;
+  bool updateShouldNotify(DestinationScope oldWidget) =>
+      id != oldWidget.id || active != oldWidget.active;
 }
 
 /// Lives above the destination Navigator so pushed pages and local overlays

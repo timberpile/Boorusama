@@ -76,6 +76,7 @@ final class AppFlowDriver {
           currentDetailPost(tester).id == id,
       description: 'details for post $id to become current',
     );
+    await harness.showViewerControls(tester);
   }
 
   Future<void> openPostMenu(
@@ -104,12 +105,14 @@ final class AppFlowDriver {
   }
 
   Future<void> choosePostMenuAction(String label) async {
-    await tester.tap(
-      find.descendant(
-        of: find.byType(KurumiContextMenuTile),
-        matching: find.text(label),
-      ),
+    final action = find.descendant(
+      of: find.byType(KurumiContextMenuTile),
+      matching: find.text(label),
     );
+    await tester.ensureVisible(action);
+    await harness.settle(tester);
+    expect(action.hitTestable(), findsOneWidget);
+    await tester.tap(action);
     await tester.pump();
     await harness.settle(tester);
   }
@@ -203,6 +206,7 @@ final class AppFlowDriver {
           ),
       description: 'bookmark details for post $postId from booru $booruId',
     );
+    await harness.showViewerControls(tester);
   }
 
   bool _matchesBookmarkPost(

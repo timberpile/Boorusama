@@ -1,9 +1,6 @@
 // Dart imports:
 import 'dart:async';
 
-// Flutter imports:
-import 'package:flutter/widgets.dart';
-
 // Package imports:
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
@@ -12,6 +9,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../configs/config/providers.dart';
+import '../../../../configs/manage/providers.dart';
 import '../../../post/types.dart';
 import '../providers/favorites_notifier.dart';
 import '../types/types.dart';
@@ -33,6 +31,7 @@ class FavoriteContextMenuTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileId = ref.watchConfig.id;
     final config = ref.watchConfigAuth;
     final loginDetails = ref.watch(booruLoginDetailsProvider(config));
     final canFavorite = ref.watch(canFavoriteProvider(config));
@@ -45,15 +44,29 @@ class FavoriteContextMenuTile extends ConsumerWidget {
     final params = (config, post.id);
     final isFaved = ref.watch(favoriteStatusProvider(params));
     final isFavorited = isFaved ?? false;
-    ref.watch(favoriteStatusLoaderProvider(params));
+    final isLoading = ref.watch(favoriteLookupPendingProvider(params));
+    bool isCurrent() =>
+        context.mounted &&
+        ref.readConfig.id == profileId &&
+        ref.readConfigAuth == config;
+    final feedback = feedbackContext ?? context;
+    bool canShowFeedback() {
+      if (!feedback.mounted) return false;
+      if (context.mounted) return isCurrent();
+      // A popup can close while the action is pending. Its caller can provide
+      // a longer-lived feedback context for the same profile.
+      final container = ProviderScope.containerOf(feedback, listen: false);
+      return container.read(currentReadOnlyBooruConfigProvider).id ==
+              profileId &&
+          container.read(currentReadOnlyBooruConfigAuthProvider) == config;
+    }
 
     final title = isFavorited
         ? context.t.post.action.unfavorite
         : context.t.post.action.favorite;
     void toggle() {
-      if (isFaved == null) return;
+      if (isLoading || !isCurrent()) return;
       if (canExecute?.call() == false) {
-        final feedback = feedbackContext ?? context;
         Kurumi.showErrorToast(
           feedback,
           feedback.t.post.action.operation_failed,
@@ -62,16 +75,17 @@ class FavoriteContextMenuTile extends ConsumerWidget {
       }
       unawaited(
         _toggleFavorite(
-          feedbackContext ?? context,
+          feedback,
           notifier,
           isFavorited: isFavorited,
           postId: post.id,
-          profileId: ref.readConfig.id,
+          profileId: profileId,
+          isCurrent: canShowFeedback,
         ),
       );
     }
 
-    if (popup && isFaved == null) return const SizedBox.shrink();
+    if (popup && isLoading) return const SizedBox.shrink();
     return popup
         ? KurumiPopupMenuItem(
             title: Text(title),
@@ -80,10 +94,10 @@ class FavoriteContextMenuTile extends ConsumerWidget {
           )
         : KurumiContextMenuTile(
             title: title,
-            trailing: Icon(
+            leading: Icon(
               isFavorited ? Icons.favorite : Icons.favorite_border,
             ),
-            enabled: isFaved != null,
+            enabled: !isLoading,
             onTap: toggle,
           );
   }
@@ -94,6 +108,7 @@ class FavoriteContextMenuTile extends ConsumerWidget {
     required bool isFavorited,
     required int postId,
     required String profileId,
+    required bool Function() isCurrent,
   }) async {
     final result = await runFavoriteAction(
       context,
@@ -104,9 +119,15 @@ class FavoriteContextMenuTile extends ConsumerWidget {
               AddFavoriteStatus.alreadyExists => true,
               _ => false,
             },
+      isCurrent: isCurrent,
     );
 
-    if (!context.mounted || result == null || result.cleanupInterrupted) return;
+    if (!context.mounted ||
+        !isCurrent() ||
+        result == null ||
+        result.cleanupInterrupted) {
+      return;
+    }
     final success = result.value;
 
     if (success) {

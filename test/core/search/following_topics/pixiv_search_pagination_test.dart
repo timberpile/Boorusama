@@ -26,5 +26,24 @@ void main() {
       expect(result.hasMore, hasMore);
       expect(result.copyWith(), result);
     });
+
+    test('preserves continuation $hasMore when every page is unavailable', () {
+      final result = pixivIllustListResultToPostResult(
+        PixivIllustListResult(
+          illusts: const [
+            PixivIllustDto(
+              id: 42,
+              user: PixivIllustUser(id: 7),
+              pageCount: 3,
+              metaPages: [PixivMetaPage(), PixivMetaPage(), PixivMetaPage()],
+            ),
+          ],
+          hasMore: hasMore,
+        ),
+      );
+
+      expect(result.posts, isEmpty);
+      expect(result.hasMore, hasMore);
+    });
   }
 }

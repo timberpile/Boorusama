@@ -108,6 +108,18 @@ class VideoCacheManager implements ImageCacheManager {
   Future<VideoCacheLease?> acquireVideo(String url, {Duration? maxAge}) async =>
       null;
 
+  Future<VideoCacheLease> acquireGuardedVideo(
+    String url, {
+    required String namespace,
+    required Dio transport,
+    required bool Function() isCurrent,
+    required CancelToken cancelToken,
+    Map<String, String>? headers,
+    bool retain = true,
+  }) => Future.error(
+    UnsupportedError('Guarded video files are unavailable on web'),
+  );
+
   Future<String?> cacheVideo(
     String url, {
     Map<String, String>? headers,
