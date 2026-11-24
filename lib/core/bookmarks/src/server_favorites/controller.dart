@@ -100,6 +100,9 @@ Future<Future<void> Function()?> prepareServerFavoriteProjection(
 }
 
 class _FetchJob {
+  _FetchJob({this.batch});
+
+  final Map<String, ServerFavoriteProgress>? batch;
   final cancellation = ServerFavoriteCancellation();
   final completion = Completer<ServerFavoriteProgress>();
   ServerFavoriteSession? session;
@@ -108,6 +111,7 @@ class _FetchJob {
 class ServerFavoriteFetchNotifier
     extends Notifier<Map<String, ServerFavoriteProgress>> {
   final _jobs = <String, _FetchJob>{};
+  var _batchProgress = const <String, ServerFavoriteProgress>{};
   // Accounts sharing a group share the canonical post/target queue too.
   final _projections = ServerFavoriteProjectionQueue<(String, int, String)>();
   var _disposed = false;
@@ -164,10 +168,14 @@ class ServerFavoriteFetchNotifier
     }
   }
 
+  /// Read alongside [serverFavoriteFetchProvider], which publishes each update.
+  Iterable<ServerFavoriteProgress> get batchProgress => _batchProgress.values;
+
   Future<void> startAll(Iterable<ServerFavoriteSession> sessions) async {
+    final batch = _batchProgress = {};
     await Future.wait([
       for (final session in sessions)
-        start(session.config.id, expectedSession: session),
+        _start(session.config.id, expectedSession: session, batch: batch),
     ]);
   }
 
@@ -176,10 +184,16 @@ class ServerFavoriteFetchNotifier
   Future<ServerFavoriteProgress> start(
     String profileId, {
     ServerFavoriteSession? expectedSession,
+  }) => _start(profileId, expectedSession: expectedSession);
+
+  Future<ServerFavoriteProgress> _start(
+    String profileId, {
+    ServerFavoriteSession? expectedSession,
+    Map<String, ServerFavoriteProgress>? batch,
   }) async {
     final existing = _jobs[profileId];
     if (existing != null) return existing.completion.future;
-    final job = _FetchJob();
+    final job = _FetchJob(batch: batch);
     _jobs[profileId] = job;
     _publish(
       profileId,
@@ -338,6 +352,7 @@ class ServerFavoriteFetchNotifier
 
   void _publish(String profileId, _FetchJob job, ServerFavoriteProgress value) {
     if (_disposed || !identical(_jobs[profileId], job)) return;
+    job.batch?[profileId] = value;
     state = Map.unmodifiable({...state, profileId: value});
   }
 

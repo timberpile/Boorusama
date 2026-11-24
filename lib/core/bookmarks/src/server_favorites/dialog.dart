@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:math' as math;
 
-import 'package:anchor_ui/anchor_ui.dart' show AnchorData;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:i18n/i18n.dart';
 import 'package:kurumi/kurumi.dart';
@@ -23,6 +21,7 @@ import 'target_settings.dart';
 Future<void> showServerFavoritesDialog(BuildContext context) =>
     showDialog<void>(
       context: context,
+      barrierDismissible: false,
       builder: (_) => const ServerFavoritesDialog(),
     );
 
@@ -38,8 +37,13 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
   ServerFavoriteSettings? _baseline;
   late ServerFavoriteSettings _draft;
   List<BooruConfig> _accounts = const [];
+  String? _expandedProfile;
+  var _showUnavailable = false;
   var _saving = false;
+  var _confirmingClose = false;
   ServerFavoriteProblem? _problem;
+
+  bool get _dirty => _baseline != null && _draft != _baseline;
 
   void _load(ServerFavoriteSettings settings, List<BooruConfig> profiles) {
     _baseline = settings;
@@ -56,14 +60,26 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
     final t = context.t.bookmark.server_favorites;
     if (id == null) return t.none;
     final library = ref.read(bookmarkLibraryProvider).valueOrNull;
-    final group = library?.groupsById[id];
-    if (group == null) return t.targetMissing;
+    if (library == null || !library.localGroupIds.contains(id)) {
+      return t.group_unavailable;
+    }
+    final group = library.groupsById[id]!;
     return [
-      ...library!.groupTree
+      ...library.groupTree
           .ancestors(group.id)
           .map((ancestor) => ancestor.displayName(context)),
       group.displayName(context),
     ].join(' / ');
+  }
+
+  String _destination(String id) {
+    final t = context.t.bookmark.server_favorites;
+    final target = _draft.targetFor(id);
+    return switch (target.mode) {
+      ServerFavoriteTargetMode.inherit => t.inherited_group,
+      ServerFavoriteTargetMode.none => t.disabled,
+      ServerFavoriteTargetMode.group => _groupLabel(target.groupId),
+    };
   }
 
   @override
@@ -73,468 +89,544 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
     final library = ref.watch(bookmarkLibraryProvider);
     final profiles = ref.watch(navigationProfilesProvider);
     final progress = ref.watch(serverFavoriteFetchProvider);
-    if (_baseline == null) {
-      if (settings.valueOrNull case final value?) _load(value, profiles);
+    final batchProgress = ref
+        .read(serverFavoriteFetchProvider.notifier)
+        .batchProgress;
+    if (settings.valueOrNull case final value? when _baseline == null) {
+      _load(value, profiles);
     }
-    final changed =
-        _baseline != null && !serverFavoriteAccountsMatch(_accounts, profiles);
+    final baseline = _baseline;
+    final current = settings.valueOrNull;
+    final accountsChanged =
+        baseline != null && !serverFavoriteAccountsMatch(_accounts, profiles);
+    final assignmentsChanged =
+        baseline != null &&
+        current != null &&
+        !_saving &&
+        !baseline.hasSameAssignments(current);
+    final ready =
+        !_saving &&
+        !accountsChanged &&
+        !assignmentsChanged &&
+        settings.hasValue;
     final running = progress.values.any((p) => p.running);
-    final ready = !_saving && !changed && settings.hasValue;
-    final enabled = ready && !running;
-    final availability = {
-      for (final profile in profiles)
-        profile.id: ref.watch(serverFavoriteAvailabilityProvider(profile.auth)),
-    };
-    final available = profiles
-        .where((p) => availability[p.id] == null)
-        .toList();
-    final unavailable = profiles
-        .where((p) => availability[p.id] != null)
-        .toList();
-    final configured = _baseline == null
-        ? <BooruConfig>[]
-        : available
-              .where(
-                (profile) =>
-                    _draft.resolve(profile.id) != null &&
-                    (library.valueOrNull?.groupsById.containsKey(
-                          _draft.resolve(profile.id),
-                        ) ??
-                        false),
-              )
-              .toList();
-    final problem = changed ? ServerFavoriteProblem.accountChanged : _problem;
+    final canEdit = ready && !running && library.hasValue;
+    final available = <BooruConfig>[];
+    final unavailable = <(BooruConfig, ServerFavoriteProblem)>[];
+    for (final profile in profiles) {
+      final problem = ref.watch(
+        serverFavoriteAvailabilityProvider(profile.auth),
+      );
+      if (problem == null) {
+        available.add(profile);
+      } else {
+        unavailable.add((profile, problem));
+      }
+    }
 
-    return AlertDialog(
-      scrollable: true,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      titlePadding: const EdgeInsets.fromLTRB(20, 12, 12, 0),
-      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      title: _ServerFavoritesTitle(title: t.title, onInfo: _showInfo),
-      content: SizedBox(
-        width: 480,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(t.description),
-            const SizedBox(height: 12),
-            if (settings.isLoading || library.isLoading)
-              const LinearProgressIndicator(),
-            if (settings.hasError || library.hasError) ...[
-              Text(t.localFailure),
-              TextButton(
-                onPressed: _saving
-                    ? null
-                    : () {
-                        if (settings.hasError) {
-                          ref.invalidate(serverFavoriteSettingsProvider);
-                        }
-                        if (library.hasError) {
-                          ref.invalidate(bookmarkLibraryProvider);
-                        }
-                      },
-                child: Text(context.t.generic.action.retry),
-              ),
-            ],
-            if (_baseline != null) ...[
-              _targetField(
-                key: const ValueKey('server-favorites-global'),
-                label: t.default_group,
-                value: _groupLabel(_draft.globalGroupId),
-                onTap: enabled && library.hasValue ? () => _choose() : null,
-              ),
-              SwitchListTile(
-                key: const ValueKey('server-favorites-ignore-bookmark-status'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(t.ignore_bookmark_status),
-                subtitle: Text(t.ignore_bookmark_status_description),
-                value: _draft.ignoreBookmarkStatus,
-                onChanged: enabled
-                    ? (value) => setState(() {
-                        _draft = _draft.withIgnoreBookmarkStatus(value);
-                      })
-                    : null,
-              ),
-              _fetchAction(
-                key: const ValueKey('server-favorites-fetch-all'),
-                label: t.save_fetch_all,
-                onPressed: enabled && configured.isNotEmpty
-                    ? () => _save(fetch: configured)
-                    : null,
-              ),
-              if (running) ...[
-                const LinearProgressIndicator(),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: TextButton(
-                    key: const ValueKey('server-favorites-cancel-all'),
-                    onPressed: () => ref
-                        .read(serverFavoriteFetchProvider.notifier)
-                        .cancelAll(),
-                    child: Text(t.cancel_all),
+    final sessions = <String, ServerFavoriteSession>{};
+    if (_baseline case final saved? when ready && !_dirty) {
+      for (final profile in available) {
+        final groupId = saved.resolve(profile.id);
+        if (groupId != null &&
+            (library.valueOrNull?.localGroupIds.contains(groupId) ?? false)) {
+          sessions[profile.id] = ServerFavoriteSession(profile, groupId);
+        }
+      }
+    }
+    final problem = switch ((accountsChanged, assignmentsChanged)) {
+      (true, _) => ServerFavoriteProblem.accountChanged,
+      (_, true) => ServerFavoriteProblem.targetChanged,
+      _ => _problem,
+    };
+    final closeLabel = MaterialLocalizations.of(context).closeButtonLabel;
+    final style = Theme.of(context).textTheme;
+
+    return PopScope(
+      canPop: !_dirty && !_saving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_close());
+      },
+      child: KurumiDismissible(
+        onDismiss: () => unawaited(_close()),
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: KurumiDialog(
+            width: 480,
+            screenInset: 12,
+            dismissible: false,
+            semanticLabel: t.title,
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            child: SizedBox(
+              width: 480,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ServerFavoritesTitle(
+                    title: t.title,
+                    onInfo: () => unawaited(
+                      _showMessage(title: t.about, message: t.help),
+                    ),
+                    onClose: _saving ? null : _close,
                   ),
-                ),
-              ],
-              if (available.isNotEmpty) ...[
-                const Divider(height: 24),
-                _heading(context.t.navigation.profiles),
-                for (final profile in available)
-                  _profile(
-                    profile,
-                    enabled: enabled && library.hasValue,
-                    progress: progress[profile.id],
-                    // Independent jobs may use the saved assignments while
-                    // editing remains locked until all jobs finish.
-                    canFetch:
-                        ready &&
-                        library.hasValue &&
-                        configured.contains(profile) &&
-                        progress[profile.id]?.running != true &&
-                        (!running || _draft == _baseline),
-                  ),
-              ],
-              if (unavailable.isNotEmpty) ...[
-                const Divider(height: 24),
-                _heading(t.unavailable_profiles),
-                for (final profile in unavailable)
-                  _identity(
-                    profile,
-                    subtitle: serverFavoriteProblemText(
-                      context,
-                      availability[profile.id]!,
+                  Flexible(
+                    child: SingleChildScrollView(
+                      key: const ValueKey('server-favorites-content'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_baseline != null)
+                            ListTile(
+                              key: const ValueKey('server-favorites-global'),
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.bookmark_outline),
+                              title: Text(
+                                t.default_group,
+                                style: style.labelLarge,
+                              ),
+                              subtitle: Text(
+                                _groupLabel(_draft.globalGroupId),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: const Icon(Icons.navigate_next),
+                              onTap: canEdit ? () => _choose() : null,
+                            ),
+                          if (settings.isLoading || library.isLoading)
+                            const LinearProgressIndicator(),
+                          if (settings.hasError || library.hasError) ...[
+                            Text(t.localFailure),
+                            TextButton(
+                              onPressed: _saving
+                                  ? null
+                                  : () {
+                                      if (settings.hasError) {
+                                        ref.invalidate(
+                                          serverFavoriteSettingsProvider,
+                                        );
+                                      }
+                                      if (library.hasError) {
+                                        ref.invalidate(bookmarkLibraryProvider);
+                                      }
+                                    },
+                              child: Text(context.t.generic.action.retry),
+                            ),
+                          ],
+                          if (_baseline != null) ...[
+                            const Divider(height: 16),
+                            Text(
+                              context.t.navigation.profiles,
+                              style: style.titleSmall,
+                            ),
+                            for (final profile in available)
+                              _profile(
+                                profile,
+                                canEdit: canEdit,
+                                session: sessions[profile.id],
+                                progress: progress[profile.id],
+                              ),
+                            if (unavailable.isNotEmpty) ...[
+                              const Divider(height: 16),
+                              Semantics(
+                                expanded: _showUnavailable,
+                                child: ListTile(
+                                  key: const ValueKey(
+                                    'server-favorites-unavailable',
+                                  ),
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    t.unavailable_profiles(
+                                      count: unavailable.length,
+                                    ),
+                                  ),
+                                  trailing: Icon(
+                                    _showUnavailable
+                                        ? Icons.expand_less
+                                        : Icons.expand_more,
+                                  ),
+                                  onTap: () => setState(
+                                    () => _showUnavailable = !_showUnavailable,
+                                  ),
+                                ),
+                              ),
+                              if (_showUnavailable)
+                                for (final (profile, reason)
+                                    in unavailable) ...[
+                                  _identity(
+                                    profile,
+                                    detail: _destination(profile.id),
+                                    reason: serverFavoriteProblemText(
+                                      context,
+                                      reason,
+                                    ),
+                                  ),
+                                  if (progress[profile.id] case final value?)
+                                    _progress(profile.id, value),
+                                ],
+                            ],
+                            const Divider(height: 16),
+                            OutlinedButton.icon(
+                              key: const ValueKey('server-favorites-fetch-all'),
+                              onPressed: !running && sessions.isNotEmpty
+                                  ? () => _fetchAll(sessions.values)
+                                  : null,
+                              icon: const Icon(Icons.download),
+                              label: Text(t.fetch_all),
+                            ),
+                            if (batchProgress.any((p) => p.running))
+                              _bulkProgress(batchProgress),
+                            if (problem != null) ...[
+                              const SizedBox(height: 8),
+                              Text(serverFavoriteProblemText(context, problem)),
+                              if (problem ==
+                                      ServerFavoriteProblem.targetChanged ||
+                                  problem ==
+                                      ServerFavoriteProblem.accountChanged)
+                                TextButton(
+                                  onPressed: _saving || !settings.hasValue
+                                      ? null
+                                      : () => setState(
+                                          () => _load(
+                                            settings.requireValue,
+                                            profiles,
+                                          ),
+                                        ),
+                                  child: Text(t.reload_settings),
+                                ),
+                            ],
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-              ],
-              if (problem != null) ...[
-                const SizedBox(height: 8),
-                Text(serverFavoriteProblemText(context, problem)),
-                if (problem == ServerFavoriteProblem.targetChanged ||
-                    problem == ServerFavoriteProblem.accountChanged)
-                  TextButton(
-                    onPressed: _saving
-                        ? null
-                        : () => setState(
-                            () => _load(settings.requireValue, profiles),
+                  const Divider(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          key: const ValueKey('server-favorites-close'),
+                          style: _footerStyle,
+                          onPressed: _saving ? null : _close,
+                          child: Text(closeLabel, textAlign: TextAlign.center),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton(
+                          key: const ValueKey('server-favorites-save'),
+                          style: _footerStyle,
+                          onPressed: ready && !running && _dirty ? _save : null,
+                          child: Text(
+                            context.t.generic.action.save,
+                            textAlign: TextAlign.center,
                           ),
-                    child: Text(t.reload_settings),
+                        ),
+                      ),
+                    ],
                   ),
-              ],
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        SizedBox(
-          width: 480,
-          height: 48,
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  key: const ValueKey('server-favorites-close'),
-                  style: _buttonStyle,
-                  onPressed: _saving ? null : () => Navigator.pop(context),
-                  child: _buttonLabel(
-                    MaterialLocalizations.of(context).closeButtonLabel,
-                  ),
-                ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  key: const ValueKey('server-favorites-save'),
-                  style: _buttonStyle,
-                  onPressed: enabled ? () => _save() : null,
-                  child: _buttonLabel(context.t.generic.action.save),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _identity(BooruConfig profile, {String? subtitle}) => ListTile(
+  static const _footerStyle = ButtonStyle(
+    minimumSize: WidgetStatePropertyAll(Size(0, 48)),
+    padding: WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    ),
+  );
+
+  Widget _identity(
+    BooruConfig profile, {
+    required String detail,
+    String? reason,
+    Widget? trailing,
+    VoidCallback? onTap,
+  }) => ListTile(
     key: ValueKey('server-favorites-profile-${profile.id}'),
     contentPadding: EdgeInsets.zero,
-    leading: SizedBox(
-      width: 32,
-      height: 32,
+    leading: SizedBox.square(
+      dimension: 28,
       child: ConfigAwareWebsiteLogo.fromConfig(
         profile.auth,
         customIconUrl: profile.profileIcon?.url,
       ),
     ),
-    title: Text(
-      _name(profile),
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-    ),
-    subtitle: subtitle == null ? null : Text(subtitle),
+    title: Text(_name(profile), maxLines: 2, overflow: TextOverflow.ellipsis),
+    subtitle: reason == null
+        ? Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis)
+        : Text('$detail\n$reason'),
+    trailing: trailing,
+    onTap: onTap,
   );
 
   Widget _profile(
     BooruConfig profile, {
-    required bool enabled,
+    required bool canEdit,
+    required ServerFavoriteSession? session,
     required ServerFavoriteProgress? progress,
-    required bool canFetch,
   }) {
     final t = context.t.bookmark.server_favorites;
-    final target = _draft.targetFor(profile.id);
-    final label = switch (target.mode) {
-      ServerFavoriteTargetMode.inherit => t.inherited_group.replaceAll(
-        '{group}',
-        _groupLabel(_draft.globalGroupId),
-      ),
-      ServerFavoriteTargetMode.none => t.none,
-      ServerFavoriteTargetMode.group => _groupLabel(target.groupId),
-    };
-    final missing =
-        _draft.resolve(profile.id) != null &&
-        !(ref
-                .read(bookmarkLibraryProvider)
-                .valueOrNull
-                ?.groupsById
-                .containsKey(_draft.resolve(profile.id)) ??
-            false);
+    final id = profile.id;
+    final expanded = _expandedProfile == id;
     final retry =
         progress?.status == ServerFavoriteFetchStatus.failed ||
         progress?.status == ServerFavoriteFetchStatus.cancelled;
+    final name = _name(profile);
     return Column(
-      key: ValueKey('server-favorites-section-${profile.id}'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _identity(profile),
-        KurumiPopupMenuButton(
-          key: ValueKey('server-favorites-target-${profile.id}'),
-          enabled: enabled,
-          maxWidth: 280,
-          semanticLabel: '${_name(profile)}: ${t.bookmark_group}: $label',
-          items: [
-            Builder(
-              builder: (context) => ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: _modeMenuHeight(context),
+        Semantics(
+          key: ValueKey('server-favorites-target-$id'),
+          expanded: expanded,
+          child: _identity(
+            profile,
+            detail: _destination(id),
+            onTap: () =>
+                setState(() => _expandedProfile = expanded ? null : id),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  key: ValueKey('server-favorites-fetch-$id'),
+                  tooltip: retry
+                      ? t.retry_profile(profile: name)
+                      : t.fetch_profile(profile: name),
+                  onPressed: session != null && progress?.running != true
+                      ? () => _fetch(session)
+                      : null,
+                  icon: Icon(retry ? Icons.refresh : Icons.download),
                 ),
-                child: SingleChildScrollView(
-                  key: ValueKey('server-favorites-mode-options-${profile.id}'),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final (mode, text) in [
-                        (ServerFavoriteTargetMode.inherit, t.use_global),
-                        (ServerFavoriteTargetMode.none, t.none),
-                        (ServerFavoriteTargetMode.group, t.different_group),
-                      ])
-                        KurumiPopupMenuItem(
-                          key: ValueKey(
-                            'server-favorites-mode-${profile.id}-${mode.name}',
-                          ),
-                          title: Text(text),
-                          trailing: mode == target.mode
-                              ? const Icon(Icons.check)
-                              : null,
-                          onTap: () {
-                            if (mode == ServerFavoriteTargetMode.group) {
-                              unawaited(_choose(profileId: profile.id));
-                            } else {
-                              setState(() {
-                                _draft = _draft.withProfile(
-                                  profile.id,
-                                  mode == ServerFavoriteTargetMode.inherit
-                                      ? const ServerFavoriteTarget.inherit()
-                                      : const ServerFavoriteTarget.none(),
-                                );
-                                _problem = null;
-                              });
-                            }
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+                Icon(expanded ? Icons.expand_less : Icons.expand_more),
+              ],
             ),
-          ],
-          child: _targetField(
-            label: t.bookmark_group,
-            value: label,
-            icon: Icons.arrow_drop_down,
           ),
         ),
-        if (missing) Text(t.targetMissing),
-        _fetchAction(
-          key: ValueKey('server-favorites-fetch-${profile.id}'),
-          label: retry ? t.retry : t.save_fetch,
-          onPressed: canFetch ? () => _save(fetch: [profile]) : null,
-          icon: retry ? Icons.refresh : Icons.download,
-        ),
-        if (progress != null) _progress(profile.id, progress),
-        const SizedBox(height: 8),
+        if (progress != null) _progress(id, progress),
+        if (expanded)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 16),
+            child: Column(
+              key: ValueKey('server-favorites-mode-options-$id'),
+              children: [
+                for (final (mode, label) in [
+                  (ServerFavoriteTargetMode.inherit, t.use_global),
+                  (ServerFavoriteTargetMode.none, t.disabled),
+                  (ServerFavoriteTargetMode.group, t.different_group),
+                ])
+                  ListTile(
+                    key: ValueKey('server-favorites-mode-$id-${mode.name}'),
+                    contentPadding: const EdgeInsetsDirectional.only(
+                      start: 4,
+                      end: 4,
+                    ),
+                    title: Text(label),
+                    leading: Icon(
+                      mode == _draft.targetFor(id).mode
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    trailing: mode == ServerFavoriteTargetMode.group
+                        ? const Icon(Icons.navigate_next)
+                        : null,
+                    selected: mode == _draft.targetFor(id).mode,
+                    enabled: canEdit,
+                    onTap: canEdit ? () => _setMode(id, mode) : null,
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
 
   Widget _progress(String id, ServerFavoriteProgress progress) {
     final t = context.t.bookmark.server_favorites;
+    final counts = t.progress(pages: progress.pages, added: progress.added);
+    final label = switch (progress.status) {
+      ServerFavoriteFetchStatus.running =>
+        progress.phase == ServerFavoriteFetchPhase.downloading
+            ? t.download_progress(pages: progress.downloadedPages)
+            : t.saving_progress(progress: counts),
+      ServerFavoriteFetchStatus.completed => t.completed,
+      ServerFavoriteFetchStatus.cancelled => t.cancelled,
+      ServerFavoriteFetchStatus.failed => serverFavoriteProblemText(
+        context,
+        progress.problem ?? ServerFavoriteProblem.localFailure,
+      ),
+      ServerFavoriteFetchStatus.idle => counts,
+    };
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 8, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (progress.running) const LinearProgressIndicator(),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          if (!progress.running && progress.pages > 0)
+            Text(counts, style: Theme.of(context).textTheme.bodySmall),
+          if (progress.running)
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: TextButton(
+                key: ValueKey('server-favorites-cancel-$id'),
+                onPressed: () =>
+                    ref.read(serverFavoriteFetchProvider.notifier).cancel(id),
+                child: Text(context.t.generic.action.cancel),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bulkProgress(Iterable<ServerFavoriteProgress> batch) {
+    final t = context.t.bookmark.server_favorites;
+    var finished = 0;
+    var downloaded = 0;
+    var saved = 0;
+    var added = 0;
+    for (final progress in batch) {
+      if (!progress.running) finished++;
+      downloaded += progress.downloadedPages;
+      saved += progress.pages;
+      added += progress.added;
+    }
     return Column(
+      key: const ValueKey('server-favorites-batch-progress'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (progress.running) const LinearProgressIndicator(),
+        LinearProgressIndicator(value: finished / batch.length),
+        Text(t.batch_progress(finished: finished, total: batch.length)),
         Text(
-          progress.phase == ServerFavoriteFetchPhase.downloading
-              ? t.download_progress.replaceAll(
-                  '{pages}',
-                  '${progress.downloadedPages}',
-                )
-              : t.progress
-                    .replaceAll('{pages}', '${progress.pages}')
-                    .replaceAll('{added}', '${progress.added}'),
+          t.batch_counts(downloaded: downloaded, saved: saved, added: added),
         ),
-        if (progress.running)
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: TextButton(
-              key: ValueKey('server-favorites-cancel-$id'),
-              onPressed: () =>
-                  ref.read(serverFavoriteFetchProvider.notifier).cancel(id),
-              child: Text(context.t.generic.action.cancel),
-            ),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton(
+            key: const ValueKey('server-favorites-cancel-all'),
+            onPressed: () =>
+                ref.read(serverFavoriteFetchProvider.notifier).cancelAll(),
+            child: Text(t.cancel_all),
           ),
-        if (progress.problem case final problem?)
-          Text(serverFavoriteProblemText(context, problem)),
-        if (progress.status == ServerFavoriteFetchStatus.completed)
-          Text(t.completed),
-        if (progress.status == ServerFavoriteFetchStatus.cancelled)
-          Text(t.cancelled),
+        ),
       ],
     );
   }
 
-  static const _buttonStyle = ButtonStyle(
-    minimumSize: WidgetStatePropertyAll(Size(0, 48)),
-    padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 8)),
+  Future<bool?> _showMessage({
+    required String title,
+    required String message,
+    String? confirm,
+  }) => showDialog<bool>(
+    context: context,
+    builder: (context) => KurumiDialog(
+      screenInset: 12,
+      semanticLabel: title,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            Text(message),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                confirm == null
+                    ? MaterialLocalizations.of(context).closeButtonLabel
+                    : context.t.generic.action.cancel,
+              ),
+            ),
+            if (confirm != null)
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(confirm),
+              ),
+          ],
+        ),
+      ),
+    ),
   );
 
-  double _modeMenuHeight(BuildContext context) {
-    final media = MediaQuery.of(context);
-    final bounds = AnchorData.of(context).geometry.childBounds;
-    final top = media.padding.top + 12;
-    final bottom =
-        media.size.height -
-        math.max(media.padding.bottom, media.viewInsets.bottom) -
-        12;
-    final above = bounds == null ? 0.0 : bounds.top - top;
-    final below = bounds == null ? bottom - top : bottom - bounds.bottom;
-    // Fit on one side of the field, allowing for the anchor gap and popup
-    // padding. Whole-screen bounds can overflow next to a tall labeled field.
-    return (math.max(above, below) - 4 - 16).clamp(0.0, 480.0);
+  Future<void> _close() async {
+    if (_saving || _confirmingClose) return;
+    if (!_dirty) {
+      Navigator.pop(context);
+      return;
+    }
+    final t = context.t;
+    _confirmingClose = true;
+    final discard = await _showMessage(
+      title: t.booru.unsaved_changes,
+      message: t.bookmark.server_favorites.discard_question,
+      confirm: t.booru.unsaved_changes_discard,
+    );
+    _confirmingClose = false;
+    if (mounted && (discard ?? false)) Navigator.pop(context);
   }
 
-  Widget _targetField({
-    Key? key,
-    required String label,
-    required String value,
-    VoidCallback? onTap,
-    IconData icon = Icons.chevron_right,
-  }) => ListTile(
-    key: key,
-    dense: true,
-    contentPadding: EdgeInsets.zero,
-    title: Text(label, style: Theme.of(context).textTheme.labelMedium),
-    subtitle: Text(
-      value,
-      style: Theme.of(context).textTheme.bodyLarge,
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-    ),
-    trailing: Icon(icon),
-    onTap: onTap,
-  );
+  void _setMode(String id, ServerFavoriteTargetMode mode) {
+    switch (mode) {
+      case ServerFavoriteTargetMode.inherit:
+        _setProfile(id, const ServerFavoriteTarget.inherit());
+      case ServerFavoriteTargetMode.none:
+        _setProfile(id, const ServerFavoriteTarget.none());
+      case ServerFavoriteTargetMode.group:
+        unawaited(_choose(profileId: id));
+    }
+  }
 
-  Widget _fetchAction({
-    required Key key,
-    required String label,
-    required VoidCallback? onPressed,
-    IconData icon = Icons.download,
-  }) => Align(
-    alignment: AlignmentDirectional.centerEnd,
-    child: TextButton.icon(
-      key: key,
-      style: _buttonStyle,
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-    ),
-  );
-
-  Widget _buttonLabel(String label) => FittedBox(
-    fit: BoxFit.scaleDown,
-    child: Text(label, maxLines: 1, softWrap: false),
-  );
-
-  Widget _heading(String text) =>
-      Text(text, style: Theme.of(context).textTheme.titleSmall);
-
-  Future<void> _showInfo() => showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      scrollable: true,
-      title: Text(context.t.bookmark.server_favorites.about),
-      content: Text(context.t.bookmark.server_favorites.help),
-      actions: [
-        OutlinedButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(MaterialLocalizations.of(context).closeButtonLabel),
-        ),
-      ],
-    ),
-  );
+  void _setProfile(String id, ServerFavoriteTarget target) => setState(() {
+    _draft = _draft.withProfile(id, target);
+    _problem = null;
+  });
 
   Future<void> _choose({String? profileId}) async {
+    final globalId = _draft.globalGroupId;
     final target = await showServerFavoriteTargetPicker(
       context,
-      selected: profileId == null
-          ? _draft.globalGroupId == null
-                ? const ServerFavoriteTarget.none()
-                : ServerFavoriteTarget.group(_draft.globalGroupId!)
-          : _draft.targetFor(profileId),
+      allowNone: profileId == null,
+      selected: profileId != null
+          ? _draft.targetFor(profileId)
+          : globalId == null
+          ? const ServerFavoriteTarget.none()
+          : ServerFavoriteTarget.group(globalId),
     );
     if (target == null || !mounted) return;
-    setState(() {
-      _draft = profileId == null
-          ? _draft.withGlobal(target.groupId)
-          : _draft.withProfile(profileId, target);
-      _problem = null;
-    });
+    if (profileId != null) {
+      _setProfile(profileId, target);
+    } else {
+      setState(() {
+        _draft = _draft.withGlobal(target.groupId);
+        _problem = null;
+      });
+    }
   }
 
-  Future<void> _save({List<BooruConfig>? fetch}) async {
+  Future<void> _save() async {
     final baseline = _baseline;
-    if (baseline == null) return;
+    if (baseline == null ||
+        !_dirty ||
+        _saving ||
+        ref.read(serverFavoriteFetchProvider).values.any((p) => p.running)) {
+      return;
+    }
     final updated = _draft;
     setState(() {
       _saving = true;
       _problem = null;
     });
     try {
-      final snapshot = fetch != null
-          ? await ref.read(bookmarkLibraryProvider.notifier).snapshotForExport()
-          : null;
-      final sessions = <ServerFavoriteSession>[];
-      for (final profile in fetch ?? <BooruConfig>[]) {
-        final groupId = updated.resolve(profile.id);
-        if (groupId == null ||
-            !(snapshot?.localGroupIds.contains(groupId) ?? false)) {
-          throw const ServerFavoriteException(
-            ServerFavoriteProblem.targetMissing,
-          );
-        }
-        sessions.add(ServerFavoriteSession(profile, groupId));
-      }
-      if (!mounted) return;
       await ref
           .read(serverFavoriteSettingsProvider.notifier)
           .saveAll(
@@ -542,19 +634,7 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
             expected: baseline,
             updated: updated,
           );
-      if (!mounted) return;
-      if (fetch == null) {
-        Navigator.of(context).pop();
-        return;
-      }
-      // Further fetches and edits must compare against this successful save,
-      // while the editor remains open to display progress and recovery actions.
-      setState(() => _baseline = updated);
-      if (sessions.isNotEmpty) {
-        unawaited(
-          ref.read(serverFavoriteFetchProvider.notifier).startAll(sessions),
-        );
-      }
+      if (mounted) setState(() => _baseline = updated);
     } catch (error) {
       if (mounted) {
         setState(
@@ -567,51 +647,76 @@ class _ServerFavoritesDialogState extends ConsumerState<ServerFavoritesDialog> {
       if (mounted) setState(() => _saving = false);
     }
   }
+
+  void _fetch(ServerFavoriteSession session) {
+    if (_dirty || _saving) return;
+    unawaited(
+      ref
+          .read(serverFavoriteFetchProvider.notifier)
+          .start(
+            session.config.id,
+            expectedSession: session,
+          ),
+    );
+  }
+
+  void _fetchAll(Iterable<ServerFavoriteSession> sessions) {
+    if (_dirty ||
+        _saving ||
+        ref.read(serverFavoriteFetchProvider).values.any((p) => p.running)) {
+      return;
+    }
+    unawaited(
+      ref.read(serverFavoriteFetchProvider.notifier).startAll(sessions),
+    );
+  }
 }
 
-/// Use the same fitting component and typography as toolbar titles, bounded to
-/// one nominal line so this compact dialog does not gain a second title row.
 class _ServerFavoritesTitle extends StatelessWidget {
-  const _ServerFavoritesTitle({required this.title, required this.onInfo});
+  const _ServerFavoritesTitle({
+    required this.title,
+    required this.onInfo,
+    required this.onClose,
+  });
+
   final String title;
   final VoidCallback onInfo;
+  final VoidCallback? onClose;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final style = DefaultTextStyle.of(context).style.merge(
-      theme.appBarTheme.titleTextStyle ?? theme.textTheme.titleLarge,
-    );
-    final scaler = MediaQuery.textScalerOf(context);
+    final style =
+        theme.appBarTheme.titleTextStyle ?? theme.textTheme.titleLarge;
     final painter = TextPainter(
       text: TextSpan(text: title, style: style),
       maxLines: 1,
-      textScaler: scaler,
+      textScaler: MediaQuery.textScalerOf(context),
       textDirection: Directionality.of(context),
     )..layout();
     final height = painter.height;
     painter.dispose();
-    return SizedBox(
-      width: 480,
-      height: height < 48 ? 48 : height,
-      child: Row(
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: height,
-              child: KurumiFittedText(
-                Text(title, style: style),
-                minimumWrappingFontSizeGain: 1.5,
-              ),
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: height,
+            child: KurumiFittedText(Text(title, style: style)),
           ),
-          IconButton(
-            key: const ValueKey('server-favorites-info'),
-            tooltip: context.t.profile.tabs.info,
-            onPressed: onInfo,
-            icon: const Icon(Icons.info_outline),
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          key: const ValueKey('server-favorites-info'),
+          tooltip: context.t.profile.tabs.info,
+          onPressed: onInfo,
+          icon: const Icon(Icons.info_outline),
+        ),
+        IconButton(
+          key: const ValueKey('server-favorites-header-close'),
+          tooltip: MaterialLocalizations.of(context).closeButtonLabel,
+          onPressed: onClose,
+          icon: const Icon(Icons.close),
+        ),
+      ],
     );
   }
 }

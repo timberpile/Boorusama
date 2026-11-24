@@ -70,6 +70,11 @@ class ServerFavoriteSettingsNotifier
     (current, updated) => [groupId],
   );
 
+  Future<void> setCountSyncedGroupsAsBookmarks(bool value) => _update(
+    (current) => current.withIgnoreBookmarkStatus(!value),
+    (_, _) => const [],
+  );
+
   Future<void> setProfile(
     String profileId,
     ServerFavoriteTarget target,
@@ -118,14 +123,14 @@ class ServerFavoriteSettingsNotifier
     ],
   );
 
-  /// Commit the shared editor atomically, including every profile override.
+  /// Commit the shared editor atomically while retaining the Appearance setting.
   Future<void> saveAll({
     required List<BooruConfig> profiles,
     required ServerFavoriteSettings expected,
     required ServerFavoriteSettings updated,
   }) => _update(
     (current) async {
-      if (current != expected) {
+      if (!current.hasSameAssignments(expected)) {
         throw const ServerFavoriteException(
           ServerFavoriteProblem.targetChanged,
         );
@@ -142,7 +147,7 @@ class ServerFavoriteSettingsNotifier
           ServerFavoriteProblem.accountChanged,
         );
       }
-      return updated;
+      return updated.withIgnoreBookmarkStatus(current.ignoreBookmarkStatus);
     },
     (current, updated) => [
       if (current.globalGroupId != updated.globalGroupId) updated.globalGroupId,

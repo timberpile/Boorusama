@@ -85,6 +85,11 @@ List<SettingsSearchItem> buildSettingsSearchCatalog(
   add('appearance', 'show_bookmark_count', appearance.show_bookmark_count);
   add(
     'appearance',
+    'count_synced_groups_as_bookmarks',
+    appearance.count_synced_groups_as_bookmarks,
+  );
+  add(
+    'appearance',
     'group_related_posts',
     t.posts.actions.group_related_posts,
     keywords: ['related parent child family grouping timeline'],

@@ -53,6 +53,32 @@ void main() {
     },
   );
 
+  test(
+    'saving an open target draft preserves a later Appearance preference',
+    () async {
+      final library = h.container.read(bookmarkLibraryProvider.notifier);
+      final group = await library.createGroup('Favorites');
+      final settings = h.container.read(
+        serverFavoriteSettingsProvider.notifier,
+      );
+      final original = await h.container.read(
+        serverFavoriteSettingsProvider.future,
+      );
+      await settings.setCountSyncedGroupsAsBookmarks(true);
+      await settings.saveAll(
+        profiles: h.profiles.profiles,
+        expected: original,
+        updated: original.withGlobal(group.id),
+      );
+      final saved = await h.container.read(
+        serverFavoriteSettingsProvider.future,
+      );
+      expect(saved.globalGroupId, group.id);
+      expect(saved.ignoreBookmarkStatus, isFalse);
+      expect(h.source.calls, 0);
+    },
+  );
+
   test('changing any persisted account rejects assignments without changing contents', () async {
     final library = h.container.read(bookmarkLibraryProvider.notifier);
     final first = await library.createGroup('First');

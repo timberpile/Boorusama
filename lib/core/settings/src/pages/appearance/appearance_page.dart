@@ -7,6 +7,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../../foundation/platform.dart';
+import '../../../../bookmarks/server_favorites.dart';
 import '../../../../configs/appearance/types.dart';
 import '../../../../configs/appearance/widgets.dart';
 import '../../../../configs/config/widgets.dart';
@@ -33,11 +34,14 @@ class AppearancePage extends ConsumerStatefulWidget {
 }
 
 class _AppearancePageState extends ConsumerState<AppearancePage> {
+  var _savingSyncedGroupPreference = false;
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final notifier = ref.watch(settingsNotifierProvider.notifier);
     final hasPremium = ref.watch(hasPremiumProvider);
+    final favoriteSettings = ref.watch(serverFavoriteSettingsProvider);
 
     return SettingsPageScaffold(
       title: Text(context.t.settings.appearance.appearance),
@@ -90,12 +94,40 @@ class _AppearancePageState extends ConsumerState<AppearancePage> {
             (settings) => settings.copyWith(showBookmarkCount: value),
           ),
         ),
+        KurumiSwitchListTile(
+          title: Text(
+            context.t.settings.appearance.count_synced_groups_as_bookmarks,
+          ),
+          value: favoriteSettings.valueOrNull?.ignoreBookmarkStatus == false,
+          onChanged: favoriteSettings.hasValue && !_savingSyncedGroupPreference
+              ? _setCountSyncedGroupsAsBookmarks
+              : null,
+        ),
         const Divider(thickness: 1),
 
         if (ref.watch(showPremiumFeatsProvider))
           const BooruConfigMoreSettingsRedirectCard.appearance(),
       ],
     );
+  }
+
+  Future<void> _setCountSyncedGroupsAsBookmarks(bool value) async {
+    if (_savingSyncedGroupPreference) return;
+    setState(() => _savingSyncedGroupPreference = true);
+    try {
+      await ref
+          .read(serverFavoriteSettingsProvider.notifier)
+          .setCountSyncedGroupsAsBookmarks(value);
+    } catch (_) {
+      if (mounted) {
+        Kurumi.showErrorToast(
+          context,
+          context.t.bookmark.server_favorites.localFailure,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingSyncedGroupPreference = false);
+    }
   }
 
   Widget _buildSimpleTheme(Settings settings) {

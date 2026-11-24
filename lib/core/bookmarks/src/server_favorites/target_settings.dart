@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:equatable/equatable.dart';
 
 /// Local behavior, deliberately separate from bookmark and profile exports.
@@ -94,6 +95,13 @@ class ServerFavoriteSettings extends Equatable {
     ?globalGroupId,
     for (final target in profiles.values) ?target.groupId,
   };
+
+  bool hasSameAssignments(ServerFavoriteSettings other) =>
+      globalGroupId == other.globalGroupId &&
+      const MapEquality<String, ServerFavoriteTarget>().equals(
+        profiles,
+        other.profiles,
+      );
 
   ServerFavoriteSettings withGlobal(String? groupId) => ServerFavoriteSettings(
     globalGroupId: groupId,

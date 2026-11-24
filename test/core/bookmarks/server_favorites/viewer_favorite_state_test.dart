@@ -67,14 +67,7 @@ void main() {
             serverFavoriteSettingsProvider.notifier,
           );
           await settings.setGlobal(group.id);
-          final baseline = container
-              .read(serverFavoriteSettingsProvider)
-              .requireValue;
-          await settings.saveAll(
-            profiles: h.profiles.profiles,
-            expected: baseline,
-            updated: baseline.withIgnoreBookmarkStatus(ignore),
-          );
+          await settings.setCountSyncedGroupsAsBookmarks(!ignore);
           return group;
         });
         final identity = bookmarkIdentityForPost(

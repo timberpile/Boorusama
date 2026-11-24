@@ -13,19 +13,23 @@ import 'target_settings.dart';
 Future<ServerFavoriteTarget?> showServerFavoriteTargetPicker(
   BuildContext context, {
   required ServerFavoriteTarget selected,
+  required bool allowNone,
 }) => showDialog<ServerFavoriteTarget>(
   context: context,
   builder: (_) => _ServerFavoriteTargetPicker(
     selected: selected,
+    allowNone: allowNone,
   ),
 );
 
 class _ServerFavoriteTargetPicker extends ConsumerStatefulWidget {
   const _ServerFavoriteTargetPicker({
     required this.selected,
+    required this.allowNone,
   });
 
   final ServerFavoriteTarget selected;
+  final bool allowNone;
 
   @override
   ConsumerState<_ServerFavoriteTargetPicker> createState() =>
@@ -62,11 +66,12 @@ class _ServerFavoriteTargetPickerState
             const [],
         membershipGroupIds: {?widget.selected.groupId},
         homeChildren: [
-          option(
-            const ServerFavoriteTarget.none(),
-            context.t.bookmark.server_favorites.none,
-            Icons.block_outlined,
-          ),
+          if (widget.allowNone)
+            option(
+              const ServerFavoriteTarget.none(),
+              context.t.bookmark.server_favorites.none,
+              Icons.block_outlined,
+            ),
         ],
         onCreateGroup: _create,
         createGroupEnabled: !_creating,

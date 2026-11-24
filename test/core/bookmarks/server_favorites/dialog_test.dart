@@ -176,7 +176,7 @@ void main() {
     // Do not scroll a visible anchored menu item: ensureVisible would also
     // scroll its opener's dialog and move the menu before the tap.
     if (finder.hitTestable().evaluate().isEmpty) {
-      await tester.ensureVisible(finder);
+      await Scrollable.ensureVisible(tester.element(finder), alignment: .5);
       await tester.pump();
     }
     await tester.tap(finder);
@@ -215,32 +215,23 @@ void main() {
       find.byKey(ValueKey('server-favorites-target-${id ?? h.profile.id}'));
   Future<void> setMode(WidgetTester tester, String mode, {String? id}) async {
     final profileId = id ?? h.profile.id;
-    await tap(tester, target(profileId));
     final options = find.byKey(
       ValueKey('server-favorites-mode-options-$profileId'),
     );
-    final scrollable = find.descendant(
-      of: options,
-      matching: find.byType(Scrollable),
+    if (options.evaluate().isEmpty) await tap(tester, target(profileId));
+    await tap(
+      tester,
+      find.byKey(ValueKey('server-favorites-mode-$profileId-$mode')),
     );
-    final choice = find.byKey(
-      ValueKey('server-favorites-mode-$profileId-$mode'),
-    );
-    final viewport = tester.getRect(options);
-    expect(viewport.top, greaterThanOrEqualTo(0));
-    expect(viewport.bottom, lessThanOrEqualTo(tester.view.physicalSize.height));
-    for (var i = 0; i < 7 && choice.hitTestable().evaluate().isEmpty; i++) {
-      await tester.drag(scrollable, Offset(0, mode == 'inherit' ? 100 : -100));
-      await tester.pumpAndSettle();
-    }
-    expect(
-      choice.hitTestable(),
-      findsOneWidget,
-      reason: 'Mode choices must be reachable inside the bounded menu.',
-    );
-    await tester.tap(choice);
-    await tester.pumpAndSettle();
   }
+
+  Finder unavailable() =>
+      find.byKey(const ValueKey('server-favorites-unavailable'));
+  Finder close() => find.byKey(const ValueKey('server-favorites-close'));
+
+  bool fetchEnabled(WidgetTester tester, [String? id]) => id == null
+      ? tester.widget<OutlinedButton>(getFetch()).onPressed != null
+      : tester.widget<IconButton>(getFetch(id)).onPressed != null;
 
   BooruConfig other({
     String name = 'Second account',
@@ -319,44 +310,6 @@ void main() {
       container.read(serverFavoriteSettingsProvider.future);
 
   testWidgets(
-    'ignore synced bookmark status is a saved draft and survives reload',
-    (tester) async {
-      await prepare();
-      await mount(tester);
-      await open(tester);
-      final toggle = find.byKey(
-        const ValueKey('server-favorites-ignore-bookmark-status'),
-      );
-      await tap(tester, toggle);
-      expect(
-        container
-            .read(serverFavoriteSettingsProvider)
-            .requireValue
-            .ignoreBookmarkStatus,
-        isTrue,
-      );
-      await tap(tester, find.byKey(const ValueKey('server-favorites-close')));
-      await open(tester);
-      expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
-      await tap(tester, toggle);
-      await tap(tester, getSave());
-      expect(
-        container
-            .read(serverFavoriteSettingsProvider)
-            .requireValue
-            .ignoreBookmarkStatus,
-        isFalse,
-      );
-      container.invalidate(serverFavoriteSettingsProvider);
-      await container.read(serverFavoriteSettingsProvider.future);
-      await open(tester);
-      expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
-      expect(h.source.calls, 0);
-      await tester.pumpWidget(const SizedBox.shrink());
-    },
-  );
-
-  testWidgets(
     'Pixiv Favorites opens the shared editor',
     (tester) async {
       final pixiv = pixivFavoriteTestProfile();
@@ -378,9 +331,12 @@ void main() {
         ),
       );
       await open(tester);
+      await tap(tester, unavailable());
 
       expect(
-        find.text('Sign in to this profile before fetching favorites.'),
+        find.textContaining(
+          'Sign in to fetch favorites.',
+        ),
         findsOneWidget,
       );
       expect(getFetch(signedOut.id), findsNothing);
@@ -390,7 +346,7 @@ void main() {
   );
 
   testWidgets(
-    'the labeled editor keeps available profiles first and groups every unavailable profile last',
+    'compact rows keep saved order and unavailable profiles disclose reasons and assignments',
     (tester) async {
       final second = other();
       final unsupported = other(
@@ -407,34 +363,43 @@ void main() {
         profiles: [h.profile, second, unsupported, signedOut],
         order: [signedOut.id, unsupported.id, second.id, h.profile.id],
       );
+      final group = await library.createGroup('Retained target');
+      await container
+          .read(serverFavoriteSettingsProvider.notifier)
+          .setProfile(
+            signedOut.id,
+            ServerFavoriteTarget.group(group.id),
+          );
       await mount(tester, profile: second);
       await open(tester);
       expect(find.text('Second account'), findsOneWidget);
       expect(find.text('Account one'), findsOneWidget);
-      expect(find.text('Unsupported account'), findsOneWidget);
-      expect(find.text('Signed-out account'), findsOneWidget);
-      expect(find.text('Default Bookmark Group'), findsOneWidget);
-      expect(find.text('Bookmark Group'), findsNWidgets(2));
-      expect(find.text('Use default · None'), findsNWidgets(2));
-      expect(find.text('Save & Fetch All'), findsOneWidget);
-      expect(find.text('Save & Fetch'), findsNWidgets(2));
-      expect(find.text('Unavailable profiles'), findsOneWidget);
+      expect(find.text('Unsupported account'), findsNothing);
+      expect(find.text('Signed-out account'), findsNothing);
+      expect(find.text('Default Group'), findsOneWidget);
+      expect(find.text('Default'), findsNWidgets(2));
+      expect(find.text('Fetch All Favorites'), findsOneWidget);
+      expect(find.text('Unavailable (2)'), findsOneWidget);
       expect(
         find.text('Save server favorites to local bookmark groups.'),
-        findsOneWidget,
+        findsNothing,
+      );
+      expect(find.text('Count Synced Groups as Bookmarks'), findsNothing);
+      expect(
+        tester.getTopLeft(target(second.id)).dy,
+        lessThan(tester.getTopLeft(target()).dy),
       );
       expect(
-        tester.getTopLeft(find.text('Second account')).dy,
-        lessThan(tester.getTopLeft(find.text('Account one')).dy),
+        tester.getTopLeft(target()).dy,
+        lessThan(tester.getTopLeft(unavailable()).dy),
       );
-      expect(
-        tester.getTopLeft(find.text('Account one')).dy,
-        lessThan(tester.getTopLeft(find.text('Unavailable profiles')).dy),
-      );
-      expect(
-        tester.getTopLeft(find.text('Unavailable profiles')).dy,
-        lessThan(tester.getTopLeft(find.text('Signed-out account')).dy),
-      );
+      for (final id in [h.profile.id, second.id]) {
+        expect(
+          tester.getRect(target(id)).contains(tester.getCenter(getFetch(id))),
+          isTrue,
+        );
+      }
+      await tap(tester, unavailable());
       expect(
         tester.getTopLeft(find.text('Signed-out account')).dy,
         lessThan(tester.getTopLeft(find.text('Unsupported account')).dy),
@@ -443,17 +408,14 @@ void main() {
         expect(target(profile.id), findsNothing);
         expect(getFetch(profile.id), findsNothing);
       }
-      expect(find.text('Not supported for this engine.'), findsOneWidget);
       expect(
-        find.text('Sign in to this profile before fetching favorites.'),
+        find.textContaining('Not supported for this engine.'),
         findsOneWidget,
       );
-      for (final id in [h.profile.id, second.id]) {
-        expect(
-          tester.getTopLeft(getFetch(id)).dy,
-          greaterThanOrEqualTo(tester.getBottomLeft(target(id)).dy),
-        );
-      }
+      expect(
+        find.textContaining('Retained target\nSign in to fetch favorites.'),
+        findsOneWidget,
+      );
       expect(find.text('Current profile'), findsNothing);
       expect(find.text('Fetch server favorites'), findsNothing);
       expect(find.textContaining('Effective target:'), findsNothing);
@@ -479,7 +441,7 @@ void main() {
   );
 
   testWidgets(
-    'inherited destinations display the current draft folder path without fetching',
+    'the default row shows the draft folder path and inheriting profiles show Default',
     (tester) async {
       final second = other();
       await prepare(
@@ -496,10 +458,20 @@ void main() {
       await tap(tester, getGlobal());
       await enterGroup(tester, 'Collections');
       await pick(tester, 'Favorites');
+      expect(find.text('Collections / Favorites'), findsOneWidget);
       expect(
-        find.text('Use default · Collections / Favorites'),
-        findsNWidgets(2),
+        find.descendant(
+          of: getGlobal(),
+          matching: find.text('Collections / Favorites'),
+        ),
+        findsOneWidget,
       );
+      for (final id in [h.profile.id, second.id]) {
+        expect(
+          find.descendant(of: target(id), matching: find.text('Default')),
+          findsOneWidget,
+        );
+      }
       expect((await saved()).globalGroupId, isNull);
       await setMode(tester, 'group', id: second.id);
       await pick(tester, 'Personal');
@@ -512,7 +484,7 @@ void main() {
       expect(
         find.descendant(
           of: target(),
-          matching: find.text('Use default · None'),
+          matching: find.text('Default'),
         ),
         findsOneWidget,
       );
@@ -523,10 +495,10 @@ void main() {
       expect(target(), findsOneWidget);
       expect(getFetch(h.profile.id), findsOneWidget);
       expect(
-        tester.widget<TextButton>(getFetch(h.profile.id)).onPressed,
+        tester.widget<IconButton>(getFetch(h.profile.id)).onPressed,
         isNull,
       );
-      expect(find.text('Unavailable profiles'), findsNothing);
+      expect(find.textContaining('Unavailable ('), findsNothing);
       expect(h.source.calls, 0);
       await tap(tester, getSave());
       expect((await saved()).globalGroupId, isNull);
@@ -558,9 +530,13 @@ void main() {
         await library.createGroup(groupName);
         await mount(tester, size: size, profile: h.profiles.profiles.single);
         await open(tester);
+        final footer = tester.getRect(getSave());
         await tap(tester, getGlobal());
         await pick(tester, groupName);
-        expect(find.text('Use default · $groupName'), findsOneWidget);
+        expect(
+          find.descendant(of: getGlobal(), matching: find.text(groupName)),
+          findsOneWidget,
+        );
         for (final global in [true, false]) {
           if (global) {
             await tap(tester, getGlobal());
@@ -580,6 +556,7 @@ void main() {
             findsNothing,
           );
           await tap(tester, find.text('Cancel'));
+          expect(tester.getRect(getSave()), footer);
           expect(tester.takeException(), isNull);
         }
       } finally {
@@ -683,7 +660,11 @@ void main() {
         find.textContaining('Folder 00 / Nested / Nested target'),
         findsWidgets,
       );
-      await tap(tester, find.byKey(const ValueKey('server-favorites-close')));
+      await tap(
+        tester,
+        find.byKey(const ValueKey('server-favorites-header-close')),
+      );
+      await tap(tester, find.text("Don't Save"));
       expect((await saved()).globalGroupId, isNull);
       expect(
         (await saved()).targetFor(h.profile.id),
@@ -723,7 +704,7 @@ void main() {
   );
 
   testWidgets(
-    'all profile edits save together and Save closes without fetching',
+    'all profile edits save together and Save stays open without fetching',
     (tester) async {
       final second = other();
       await prepare(profiles: [h.profile, second]);
@@ -733,24 +714,33 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Global group');
+      expect(fetchEnabled(tester), isFalse);
       await setMode(tester, 'none', id: second.id);
       await setMode(tester, 'group');
       await pick(tester, 'Custom group');
+      expect(
+        find.byKey(ValueKey('server-favorites-mode-options-${second.id}')),
+        findsNothing,
+      );
+      expect(fetchEnabled(tester, h.profile.id), isFalse);
+      expect(fetchEnabled(tester), isFalse);
       expect((await saved()).globalGroupId, isNull);
+      expect(store.writes, 0);
       await tap(tester, getSave());
-      expect(find.byType(ServerFavoritesDialog), findsNothing);
+      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       final state = await saved();
       expect(state.globalGroupId, global.id);
       expect(state.resolve(h.profile.id), custom.id);
       expect(state.targetFor(second.id), const ServerFavoriteTarget.none());
       expect(store.writes, 1);
-      await open(tester);
+      expect(fetchEnabled(tester, h.profile.id), isTrue);
+      expect(fetchEnabled(tester), isTrue);
       expect(
         find.descendant(of: target(), matching: find.text('Custom group')),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: target(second.id), matching: find.text('None')),
+        find.descendant(of: target(second.id), matching: find.text('Disabled')),
         findsOneWidget,
       );
       await setMode(tester, 'inherit');
@@ -790,7 +780,7 @@ void main() {
       tester.view.viewInsets = FakeViewPadding.zero;
       await tester.pumpAndSettle();
       await tap(tester, getSave());
-      expect(find.byType(ServerFavoritesDialog), findsNothing);
+      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       final group = (await library.snapshotForExport()).groups.singleWhere(
         (g) => g.name == 'New favorites',
       );
@@ -812,8 +802,21 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Existing favorites');
-      expect(find.text('Clear existing bookmarks?'), findsNothing);
-      await tap(tester, find.byKey(const ValueKey('server-favorites-close')));
+      await tap(tester, close());
+      expect(find.text('Close without saving your changes?'), findsOneWidget);
+      await tap(tester, find.text('Cancel'));
+      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+      expect(
+        find.descendant(
+          of: getGlobal(),
+          matching: find.text('Existing favorites'),
+        ),
+        findsOneWidget,
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Close without saving your changes?'), findsOneWidget);
+      await tap(tester, find.text("Don't Save"));
       expect(find.byType(ServerFavoritesDialog), findsNothing);
       expect(await library.snapshotForExport(), before);
       expect((await saved()).globalGroupId, isNull);
@@ -835,12 +838,11 @@ void main() {
       await tap(tester, getSave());
       expect(find.text('Clear existing bookmarks?'), findsNothing);
       expect(find.text('Clear & Save'), findsNothing);
-      expect(find.byType(ServerFavoritesDialog), findsNothing);
+      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       expect(await library.snapshotForExport(), initial);
       expect((await saved()).globalGroupId, group.id);
       await library.addPostsToGroup(h.profile.auth, [h.post(4)], group.id);
       final before = await library.snapshotForExport();
-      await open(tester);
       await setMode(tester, 'group');
       await pick(tester, 'Existing favorites');
       await tap(tester, getSave());
@@ -888,6 +890,9 @@ void main() {
       await open(tester);
       await tap(tester, getGlobal());
       await pick(tester, 'Favorites');
+      expect(fetchEnabled(tester, h.profile.id), isFalse);
+      await tap(tester, getSave());
+      expect(h.source.calls, 0);
       await tap(tester, getFetch(h.profile.id), running: true);
       expect(
         h.source.requested.isCompleted,
@@ -901,7 +906,7 @@ void main() {
       h.source.pending = Completer();
       firstPage.complete(ServerFavoritePage([h.post(1)], hasMore: true));
       await tester.pump();
-      expect(find.text('1 pages fetched'), findsOneWidget);
+      expect(find.text('Downloading · 1 pages fetched'), findsOneWidget);
       expect(
         (await library.snapshotForExport()).groupsById[group.id]!.bookmarkIds,
         isEmpty,
@@ -931,7 +936,7 @@ void main() {
       expect(secondSource.calls, 0);
       await setMode(tester, 'none');
       await tap(tester, getSave());
-      expect(find.byType(ServerFavoritesDialog), findsNothing);
+      expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       expect(
         (await saved()).targetFor(h.profile.id),
         const ServerFavoriteTarget.none(),
@@ -960,6 +965,7 @@ void main() {
       isTrue,
     );
     await open(tester, running: true);
+    expect(find.text('0 of 1 profiles finished'), findsOneWidget);
     expect(
       find.byKey(ValueKey('server-favorites-cancel-${h.profile.id}')),
       findsOneWidget,
@@ -1028,6 +1034,9 @@ void main() {
       await pick(tester, 'Global');
       await setMode(tester, 'group', id: second.id);
       await pick(tester, 'Override');
+      expect(fetchEnabled(tester), isFalse);
+      await tap(tester, getSave());
+      expect(sources.values.map((source) => source.calls), everyElement(0));
       await tap(tester, getFetch());
       expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       expect(find.text('Fetch completed'), findsNWidgets(2));
@@ -1062,6 +1071,7 @@ void main() {
       expect(h.source.requested.isCompleted, isTrue);
       expect(secondSource.requested.isCompleted, isTrue);
       expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+      expect(find.text('0 of 2 profiles finished'), findsOneWidget);
       await tap(
         tester,
         find.byKey(const ValueKey('server-favorites-cancel-all')),
@@ -1078,11 +1088,8 @@ void main() {
       expect(find.byType(ServerFavoritesDialog), findsOneWidget);
       expect(find.textContaining('The server request failed'), findsOneWidget);
       expect(
-        find.descendant(
-          of: getFetch(h.profile.id),
-          matching: find.text('Save & Retry'),
-        ),
-        findsOneWidget,
+        tester.widget<IconButton>(getFetch(h.profile.id)).tooltip,
+        'Retry fetching favorites for Account one',
       );
       h.source.error = null;
       await tap(tester, getFetch(h.profile.id));
@@ -1120,12 +1127,13 @@ void main() {
         container.read(serverFavoriteFetchProvider)[second.id]!.running,
         isTrue,
       );
+      expect(find.text('1 of 2 profiles finished'), findsOneWidget);
       expect(
-        tester.widget<TextButton>(getFetch(h.profile.id)).onPressed,
+        tester.widget<IconButton>(getFetch(h.profile.id)).onPressed,
         isNotNull,
       );
-      expect(tester.widget<TextButton>(getFetch(second.id)).onPressed, isNull);
-      expect(tester.widget<TextButton>(getFetch()).onPressed, isNull);
+      expect(tester.widget<IconButton>(getFetch(second.id)).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(getFetch()).onPressed, isNull);
       expect(tester.widget<FilledButton>(getSave()).onPressed, isNull);
       expect(tester.widget<ListTile>(getGlobal()).onTap, isNull);
       h.source.error = null;
@@ -1177,17 +1185,17 @@ void main() {
       await tester.pump();
       expect(secondSource.requested.isCompleted, isTrue);
       expect(
-        tester.widget<TextButton>(getFetch(h.profile.id)).onPressed,
+        tester.widget<IconButton>(getFetch(h.profile.id)).onPressed,
         isNull,
       );
       expect((await saved()).globalGroupId, original.id);
       container.read(serverFavoriteFetchProvider.notifier).cancel(second.id);
       await tester.pumpAndSettle();
       expect((await running).status, ServerFavoriteFetchStatus.cancelled);
-      expect(
-        tester.widget<TextButton>(getFetch(h.profile.id)).onPressed,
-        isNotNull,
-      );
+      expect(fetchEnabled(tester, h.profile.id), isFalse);
+      expect(fetchEnabled(tester), isFalse);
+      await tap(tester, getSave());
+      expect(fetchEnabled(tester, h.profile.id), isTrue);
       expect(
         find.descendant(of: getGlobal(), matching: find.text('Draft')),
         findsOneWidget,
@@ -1207,7 +1215,7 @@ void main() {
     await tap(tester, getGlobal());
     await pick(tester, 'Favorites');
     store.fail = true;
-    await tap(tester, getFetch());
+    await tap(tester, getSave());
     expect(find.byType(ServerFavoritesDialog), findsOneWidget);
     expect(
       find.text('The bookmark settings or group could not be saved or loaded.'),
@@ -1215,9 +1223,12 @@ void main() {
     );
     expect(h.source.calls, 0);
     expect((await saved()).globalGroupId, isNull);
+    expect(fetchEnabled(tester), isFalse);
     store.fail = false;
     await tap(tester, getSave());
-    expect(find.byType(ServerFavoritesDialog), findsNothing);
+    expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+    expect(fetchEnabled(tester), isTrue);
+    expect(h.source.calls, 0);
   });
 
   testWidgets(
@@ -1227,10 +1238,13 @@ void main() {
       final group = await library.createGroup('Changed elsewhere');
       await mount(tester);
       await open(tester);
+      await setMode(tester, 'none');
       await container
           .read(serverFavoriteSettingsProvider.notifier)
           .setGlobal(group.id);
-      await tap(tester, getSave());
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilledButton>(getSave()).onPressed, isNull);
+      expect(fetchEnabled(tester), isFalse);
       expect(find.textContaining('The target changed.'), findsOneWidget);
       await tap(tester, find.text('Reload Settings'));
       expect(
@@ -1246,9 +1260,10 @@ void main() {
       await container.read(booruConfigProvider.notifier).fetch();
       await tester.pumpAndSettle();
       expect(tester.widget<FilledButton>(getSave()).onPressed, isNull);
-      expect(tester.widget<TextButton>(getFetch()).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(getFetch()).onPressed, isNull);
       await tap(tester, find.text('Reload Settings'));
-      await tap(tester, getSave());
+      expect(tester.widget<FilledButton>(getSave()).onPressed, isNull);
+      await tap(tester, close());
       expect(find.byType(ServerFavoritesDialog), findsNothing);
       expect(h.source.calls, 0);
     },
@@ -1279,19 +1294,21 @@ void main() {
         );
         expect(find.byType(FavoritesUnavailablePage), findsOneWidget);
         await open(tester);
+        expect(find.text('Account one'), findsNothing);
+        await tap(tester, unavailable());
         expect(find.text('Account one'), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(ServerFavoritesDialog),
-            matching: find.text(
-              'Sign in to this profile before fetching favorites.',
+            matching: find.textContaining(
+              'Sign in to fetch favorites.',
             ),
           ),
           findsOneWidget,
         );
         expect(getFetch(profile.id), findsNothing);
         expect(target(profile.id), findsNothing);
-        expect(find.text('Unavailable profiles'), findsOneWidget);
+        expect(find.textContaining('Unavailable ('), findsOneWidget);
         await tap(tester, getGlobal());
         await pick(tester, 'Global');
         await tap(tester, getSave());
@@ -1300,7 +1317,7 @@ void main() {
           (await saved()).targetFor(profile.id),
           const ServerFavoriteTarget.none(),
         );
-        expect(find.byType(ServerFavoritesDialog), findsNothing);
+        expect(find.byType(ServerFavoritesDialog), findsOneWidget);
         expect(h.source.calls, 0);
       },
     );
@@ -1318,10 +1335,10 @@ void main() {
     await mount(tester);
     await open(tester);
     expect(
-      find.textContaining('The selected group no longer exists.'),
+      find.textContaining('Group unavailable'),
       findsWidgets,
     );
-    expect(tester.widget<TextButton>(getFetch()).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(getFetch()).onPressed, isNull);
     await tap(tester, getGlobal());
     await pick(tester, 'None');
     await tap(tester, getSave());

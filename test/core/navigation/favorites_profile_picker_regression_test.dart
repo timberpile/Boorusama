@@ -182,6 +182,14 @@ void main() {
         await tester.tap(find.text('Favorites Sync'));
         await harness.settle(tester);
         expect(find.byType(ServerFavoritesDialog), findsOneWidget);
+        expect(find.text(backend.configB.name), findsNothing);
+        expect(find.text(backend.config.name), findsNothing);
+        final unavailableProfiles = find.byKey(
+          const ValueKey('server-favorites-unavailable'),
+        );
+        await tester.ensureVisible(unavailableProfiles);
+        await tester.tap(unavailableProfiles);
+        await harness.settle(tester);
         expect(find.text(backend.configB.name), findsOneWidget);
         expect(find.text(backend.config.name), findsOneWidget);
         final groupSelector = find.byKey(

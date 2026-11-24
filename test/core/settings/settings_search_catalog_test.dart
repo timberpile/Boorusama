@@ -33,6 +33,10 @@ void main() {
           sections: {'appearance': 'Appearance'},
           isMobile: true,
         );
+        expect(
+          searchSettings(catalog, 'Count Synced Groups as Bookmarks').single.id,
+          'appearance.count_synced_groups_as_bookmarks',
+        );
         final relatedLabel = locale == 'de-DE'
             ? 'Verwandte Beiträge gruppieren'
             : 'Group Related Posts';
