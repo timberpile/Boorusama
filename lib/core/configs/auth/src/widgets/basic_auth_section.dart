@@ -46,19 +46,24 @@ class BasicAuthSection extends ConsumerWidget {
         if (titleText case final text?)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  text,
-                  style: textTheme.titleSmall?.copyWith(
-                    color: colorScheme.hintColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
+            child: SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  Text(
+                    text,
+                    style: textTheme.titleSmall?.copyWith(
+                      color: colorScheme.hintColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                ?verifyButton,
-              ],
+                  ?verifyButton,
+                ],
+              ),
             ),
           ),
         if (descriptionText case final desc?)
@@ -89,12 +94,7 @@ class BasicAuthSection extends ConsumerWidget {
         ),
         if (pasteButton case final button?) ...[
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              button,
-            ],
-          ),
+          Center(child: button),
         ],
       ],
     );

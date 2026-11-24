@@ -27,7 +27,7 @@ class CreateE621ConfigPage extends StatelessWidget {
     return CreateBooruConfigScaffold(
       initialTab: initialTab,
       backgroundColor: backgroundColor,
-      authTab: const DefaultBooruAuthConfigView(),
+      authTab: const DefaultBooruAuthConfigView(showWebsiteLogin: true),
       searchTab: const DefaultBooruConfigSearchView(
         hasRatingFilter: true,
       ),

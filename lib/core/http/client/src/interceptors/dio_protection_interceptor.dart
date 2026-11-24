@@ -323,6 +323,10 @@ class DioProtectionInterceptor extends Interceptor {
 /// site's base page on the same origin instead.
 Uri challengeUriFor(RequestOptions options) {
   final uri = options.uri;
+  // The embedded solver can record its navigation URL in verbose diagnostics.
+  if (options.extra[privateRequestDiagnosticsKey] == true) {
+    return Uri.parse('${uri.origin}/');
+  }
   final replayable =
       options.method.toUpperCase() == 'GET' && isApiSafeRead(options);
   if (replayable) return uri;

@@ -1,6 +1,7 @@
 // Package imports:
 import 'package:booru_clients/core.dart';
 import 'package:booru_clients/gelbooru.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -71,6 +72,11 @@ final gelbooruV2DioProvider = Provider.family<Dio, BooruConfigAuth>((
   );
 
   dio.options.headers['Referer'] = config.url;
+  if ((GelbooruV2Client.isRule34Website(config.url) ||
+          Uri.tryParse(config.url)?.host == 'realbooru.com') &&
+      (config.apiKey != null || config.passHash != null)) {
+    dio.options.extra[privateRequestDiagnosticsKey] = true;
+  }
 
   return dio;
 });

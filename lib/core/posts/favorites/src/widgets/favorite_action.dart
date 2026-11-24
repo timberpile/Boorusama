@@ -58,7 +58,7 @@ void showFavoriteActionFailure(
     FavoriteActionFailure.unconfirmed => update.failure,
     FavoriteActionFailure.websiteLoginRequired => update.website_login_required,
     FavoriteActionFailure.websiteSessionRejected =>
-      update.website_session_rejected,
+      update.website_session_rejected(action: context.t.auth.relogin),
   };
   Kurumi.showErrorToast(context, message, duration: KurumiDurations.shortToast);
 }

@@ -96,6 +96,14 @@ void main() {
         expect(challengeUriFor(options).toString(), c.expected);
       });
     }
+
+    test('a private read opens the origin without credential parameters', () {
+      final options = RequestOptions(
+        path: 'https://example.com/posts?user_id=42&api_key=synthetic',
+        extra: {privateRequestDiagnosticsKey: true},
+      );
+      expect(challengeUriFor(options), Uri.parse('https://example.com/'));
+    });
   });
 
   testWidgets(

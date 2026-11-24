@@ -110,8 +110,11 @@ class AdvancedAuthSection extends ConsumerWidget {
         ),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 4,
         children: [
           Text(
             context.t.auth.logged_in,
@@ -119,7 +122,9 @@ class AdvancedAuthSection extends ConsumerWidget {
               fontWeight: FontWeight.bold,
             ),
           ),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
               KurumiMaterialRawChip(
                 backgroundColor: Kurumi.themeOf(
@@ -132,7 +137,6 @@ class AdvancedAuthSection extends ConsumerWidget {
                   context.t.auth.relogin,
                 ),
               ),
-              const SizedBox(width: 8),
               KurumiMaterialRawChip(
                 backgroundColor: Kurumi.themeOf(
                   context,
@@ -200,13 +204,11 @@ class AdvancedAuthSection extends ConsumerWidget {
                 'cookie import passHashPresent=${passHash != null} userIdPresent=${uid != null}',
               );
               if (passHash != null) {
-                ref.editNotifier.updatePassHash(
-                  passHash.value,
-                );
                 if (uid != null) {
                   ref.editNotifier.updateLogin(uid.value);
                   loginController.text = uid.value;
                 }
+                ref.editNotifier.updatePassHash(passHash.value);
                 onCookiesReceived?.call(cookies);
                 logger.info('Login', 'cookie import applied');
               } else {
@@ -236,26 +238,23 @@ class AdvancedAuthSection extends ConsumerWidget {
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Kurumi.themeOf(
-                context,
-              ).colorScheme.secondaryContainer,
-            ),
-            onPressed: () {
-              _openBrowser(context, ref, config);
-            },
-            child: Text(
-              title ?? 'Login with Browser',
-              style: TextStyle(
-                color: Kurumi.themeOf(context).colorScheme.onSecondaryContainer,
-              ),
+      child: Center(
+        child: FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Kurumi.themeOf(
+              context,
+            ).colorScheme.secondaryContainer,
+          ),
+          onPressed: () {
+            _openBrowser(context, ref, config);
+          },
+          child: Text(
+            title ?? 'Login with Browser',
+            style: TextStyle(
+              color: Kurumi.themeOf(context).colorScheme.onSecondaryContainer,
             ),
           ),
-        ],
+        ),
       ),
     );
   }

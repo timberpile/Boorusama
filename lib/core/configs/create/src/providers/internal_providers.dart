@@ -117,12 +117,28 @@ class EditBooruConfigNotifier
     );
   }
 
+  void updateWebsiteCredentials({
+    required String login,
+    required String apiKey,
+    required String? passHash,
+  }) {
+    state = state.copyWith(
+      login: login,
+      apiKey: apiKey,
+      passHash: () => passHash,
+    );
+  }
+
   String? Function()? _sessionAfterUserIdEdit(String login) =>
-      login != state.login &&
-          arg.booruType == BooruType.gelbooruV2 &&
-          GelbooruV2Client.isRule34Website(arg.url)
+      login != state.login && _hasAccountBoundWebsiteSession
       ? () => null
       : null;
+
+  bool get _hasAccountBoundWebsiteSession => switch (arg.booruType) {
+    BooruType.gelbooru => Uri.tryParse(arg.url)?.host == 'gelbooru.com',
+    BooruType.gelbooruV2 => GelbooruV2Client.isRule34Website(arg.url),
+    _ => false,
+  };
 
   void updateName(
     String name,

@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:booru_clients/danbooru.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -32,7 +33,7 @@ final danbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final ddosProtectionHandler = ref.watch(httpDdosProtectionBypassProvider);
   final loggerService = ref.watch(loggerProvider);
 
-  return newDio(
+  final dio = newDio(
     apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
@@ -57,4 +58,8 @@ final danbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
           ),
     ],
   );
+  if (config.apiKey?.isNotEmpty ?? false) {
+    dio.options.extra[privateRequestDiagnosticsKey] = true;
+  }
+  return dio;
 });

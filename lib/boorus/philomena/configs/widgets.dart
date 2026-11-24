@@ -4,6 +4,7 @@ import 'package:kurumi/material.dart';
 
 // Project imports:
 import '../../../../core/configs/create/widgets.dart';
+import '../../../core/configs/auth/src/widgets/website_credential_import_button.dart';
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/create/create.dart';
 import '../../../core/configs/create/providers.dart';
@@ -48,6 +49,7 @@ class PhilomenaAuthConfigView extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(height: 24),
+          WebsiteCredentialImportButton(),
           DefaultBooruApiKeyField(
             hintText: 'e.g: AC8gZrxKsDpWy3unU0jB',
           ),

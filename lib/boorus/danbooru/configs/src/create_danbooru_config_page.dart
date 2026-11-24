@@ -54,6 +54,7 @@ class CreateDanbooruConfigPage extends ConsumerWidget {
       initialTab: initialTab,
       backgroundColor: backgroundColor,
       authTab: DefaultBooruAuthConfigView(
+        showWebsiteLogin: true,
         showInstructionWhen: !loginDetails.hasStrictSFW,
         customInstruction: DefaultBooruInstructionHtmlText(
           context.t.booru.api_key_instructions.variants_3,

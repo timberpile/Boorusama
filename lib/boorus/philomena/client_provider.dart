@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:booru_clients/philomena.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,7 +31,7 @@ final philomenaDioProvider = Provider.family<Dio, BooruConfigAuth>((
   final ddosProtectionHandler = ref.watch(httpDdosProtectionBypassProvider);
   final loggerService = ref.watch(loggerProvider);
 
-  return newDio(
+  final dio = newDio(
     apiCoordinator: ref.watch(apiRequestCoordinatorProvider),
     options: DioOptions(
       ddosProtectionHandler: ddosProtectionHandler,
@@ -44,4 +45,8 @@ final philomenaDioProvider = Provider.family<Dio, BooruConfigAuth>((
     ),
     additionalInterceptors: [],
   );
+  if (config.apiKey?.isNotEmpty ?? false) {
+    dio.options.extra[privateRequestDiagnosticsKey] = true;
+  }
+  return dio;
 });

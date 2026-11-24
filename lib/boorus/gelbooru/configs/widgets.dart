@@ -4,6 +4,7 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../../../core/configs/auth/src/widgets/website_credential_import_button.dart';
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/create/providers.dart';
 import '../../../core/configs/create/widgets.dart';
@@ -108,6 +109,10 @@ class _GelbooruAuthViewState extends ConsumerState<GelbooruAuthView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          WebsiteCredentialImportButton(
+            loginController: loginController,
+            apiKeyController: apiKeyController,
+          ),
           BasicAuthSection(
             titleText: context.t.booru.authentication.gelbooru.basic_auth,
             descriptionText:

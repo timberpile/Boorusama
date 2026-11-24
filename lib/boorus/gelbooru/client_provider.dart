@@ -1,5 +1,6 @@
 // Package imports:
 import 'package:booru_clients/gelbooru.dart';
+import 'package:coreutils/coreutils.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -53,6 +54,10 @@ final gelbooruDioProvider = Provider.family<Dio, BooruConfigAuth>((
   );
 
   dio.options.headers['Referer'] = config.url;
+  if (Uri.tryParse(config.url)?.host == 'gelbooru.com' &&
+      (config.apiKey != null || config.passHash != null)) {
+    dio.options.extra[privateRequestDiagnosticsKey] = true;
+  }
 
   return dio;
 });

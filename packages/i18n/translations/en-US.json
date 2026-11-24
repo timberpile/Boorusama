@@ -1598,7 +1598,7 @@
       "added": "Added to favorites",
       "removed": "Removed from favorites",
       "website_login_required": "Website login required. Use Login with Browser in this profile’s authentication settings.",
-      "website_session_rejected": "Your website session was rejected or expired. Use Re-login in this profile’s authentication settings.",
+      "website_session_rejected": "Your website session was rejected or expired. Use $action in this profile’s authentication settings.",
       "website_session_missing": "The browser hasn’t provided a usable Rule34 session. Finish signing in here, open My Account, then tap Access Cookie again.",
       "website_session_import_failed": "This browser is signed in to a different Rule34 account. Switch to the account for this profile, then tap Access Cookie again."
     }
@@ -1797,6 +1797,29 @@
     "misc": "Misc",
     "authentication": {
       "title": "Authentication",
+      "website_import": {
+        "login": "Login",
+        "logout": "Logout",
+        "logging_out": "Logging out…",
+        "logout_failed": "Couldn't log out of the website. Try again.",
+        "sign_in": "Sign in to your account to import your existing credentials.",
+        "extract_credentials": "Extract Credentials",
+        "checking": "Checking website credentials…",
+        "browser_failed": "The website couldn't be loaded.",
+        "session_failed": "Couldn't read a matching website session. Sign in and retry.",
+        "credentials_failed": "Couldn't read an existing API key from this account.",
+        "verification_failed": "Couldn't verify API access. Retry or enter the credentials manually.",
+        "website_sign_in_unconfirmed": "The website hasn’t confirmed your sign-in. Finish signing in, then retry.",
+        "retry": "Retry",
+        "preview": "Import Website Credentials",
+        "user_id": "User ID: $id",
+        "username": "Username: $name",
+        "choose_key": "Choose an API Key",
+        "numbered_key": "API Key $number",
+        "masked_key": "API Key: ••••••••",
+        "session_available": "Website session available",
+        "apply": "Use Credentials"
+      },
       "gelbooru": {
         "basic_auth": "Basic Auth (required)",
         "basic_auth_description": "Providing this information gives the app read access to your account. This is required by Gelbooru as of 06/2025.",
@@ -2279,7 +2302,7 @@
   "auth": {
     "login_required": "You need to provide login details to use this feature.",
     "logged_in": "Logged in",
-    "relogin": "Re-login",
+    "relogin": "Re-Login",
     "clear_credentials": "Clear",
     "login": "Log in",
     "login_expires": "Login expires:",

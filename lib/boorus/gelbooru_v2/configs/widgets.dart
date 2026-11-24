@@ -7,6 +7,8 @@ import 'package:i18n/i18n.dart';
 import 'package:kurumi/material.dart';
 
 // Project imports:
+import '../../../core/configs/auth/src/widgets/website_credential_import_button.dart';
+import '../../../core/configs/auth/src/website_credentials.dart';
 import '../../../core/configs/auth/widgets.dart';
 import '../../../core/configs/create/providers.dart';
 import '../../../core/configs/create/widgets.dart';
@@ -16,6 +18,7 @@ import '../../../core/configs/search/widgets.dart';
 import '../../../core/configs/viewer/widgets.dart';
 import '../../gelbooru/configs/_internal_widgets.dart';
 import 'internal_widgets.dart';
+import 'realbooru_auth_view.dart';
 
 const _kGelbooruV2SpecificGestureActions = {
   kToggleFavoriteAction,
@@ -90,26 +93,23 @@ class GelbooruV2AuthView extends ConsumerStatefulWidget {
 }
 
 class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
-  late final loginController = TextEditingController(
-    text: ref.read(
-      editBooruConfigProvider(
-        ref.read(editBooruConfigIdProvider),
-      ).select((value) => value.login),
-    ),
-  );
-  late final apiKeyController = TextEditingController(
-    text: ref.read(
-      editBooruConfigProvider(
-        ref.read(editBooruConfigIdProvider),
-      ).select((value) => value.apiKey),
-    ),
-  );
+  late final TextEditingController loginController;
+  late final TextEditingController apiKeyController;
+
+  @override
+  void initState() {
+    super.initState();
+    final id = ref.read(editBooruConfigIdProvider);
+    final draft = ref.read(editBooruConfigProvider(id));
+    loginController = TextEditingController(text: draft.login);
+    apiKeyController = TextEditingController(text: draft.apiKey);
+  }
 
   @override
   void dispose() {
-    super.dispose();
     loginController.dispose();
     apiKeyController.dispose();
+    super.dispose();
   }
 
   String? _importWebsiteSession(List<Cookie> cookies) {
@@ -142,6 +142,15 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
 
   @override
   Widget build(BuildContext context) {
+    final editId = ref.watch(editBooruConfigIdProvider);
+    final url = ref.watch(
+      editBooruConfigProvider(editId).select((draft) => draft.url),
+    );
+    if (WebsiteCredentialSite.forProfile(editId.booruType, url) ==
+        WebsiteCredentialSite.realbooru) {
+      return const RealbooruAuthView();
+    }
+
     final authConfig = widget.authConfig;
     final instructionsText = switch (authConfig?.instructionsKey) {
       final String key when key.isNotEmpty => context.t[key],
@@ -163,6 +172,10 @@ class _GelbooruV2AuthViewState extends ConsumerState<GelbooruV2AuthView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          WebsiteCredentialImportButton(
+            loginController: loginController,
+            apiKeyController: apiKeyController,
+          ),
           BasicAuthSection(
             titleText: authRequired
                 ? context.t.booru.authentication.gelbooru.basic_auth

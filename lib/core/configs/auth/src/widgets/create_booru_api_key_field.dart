@@ -36,6 +36,17 @@ class _CreateBooruApiKeyFieldState extends State<CreateBooruApiKeyField> {
       widget.controller ?? TextEditingController(text: widget.text);
 
   @override
+  void didUpdateWidget(CreateBooruApiKeyField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final text = widget.text ?? '';
+    if (widget.controller == null &&
+        widget.text != oldWidget.text &&
+        text != controller.text) {
+      controller.text = text;
+    }
+  }
+
+  @override
   void dispose() {
     super.dispose();
     if (widget.controller == null) {

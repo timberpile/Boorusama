@@ -250,7 +250,7 @@ void main() {
     await tester.tap(find.text('Toggle'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Use Re-login'), findsOneWidget);
+    expect(find.textContaining('Use Re-Login'), findsOneWidget);
     expect(find.text('Added to favorites'), findsNothing);
     expect(container.read(favoritesProvider(_profile.auth)), isEmpty);
     await tester.pump(KurumiDurations.shortToast);
