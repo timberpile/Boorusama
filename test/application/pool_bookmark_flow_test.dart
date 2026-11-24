@@ -1724,6 +1724,7 @@ void main() {
         hasLength(2),
       );
       await driver.clearSelectedSearchTags();
+      await driver.openSearch();
       await driver.submitSearch('pool:10');
       await harness.settle(tester);
       expect(
@@ -2081,6 +2082,7 @@ void main() {
         hasMore: false,
       );
       await driver.clearSelectedSearchTags();
+      await driver.openSearch();
       await driver.submitSearch('dog');
       await harness.pumpUntilFound(tester, postTile(201));
       gate.completeSuccess(

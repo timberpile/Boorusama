@@ -753,6 +753,7 @@
     },
     "trending": "Trending",
     "switch_profile": "Switch Profile",
+    "clear_tags": "Clear Tags",
     "remove_all_selected": "Remove All Selected Tags",
     "result_counter": {
       "one": "$n Result",

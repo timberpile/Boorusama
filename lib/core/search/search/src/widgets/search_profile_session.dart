@@ -45,12 +45,16 @@ class SearchProfileSession extends InheritedWidget {
     required this.onSwitch,
     required super.child,
     this.local = false,
+    this.closeOnClear = false,
     this.postResultsOnly = false,
     super.key,
   });
 
   /// Owns the selected profile locally; it does not change result capability.
   final bool local;
+
+  /// The search was opened over the Browse timeline it can return to.
+  final bool closeOnClear;
 
   /// Explicit compatibility contract for callers supplying Post-only results.
   final bool postResultsOnly;
@@ -64,5 +68,6 @@ class SearchProfileSession extends InheritedWidget {
   bool updateShouldNotify(SearchProfileSession oldWidget) =>
       snapshot != oldWidget.snapshot ||
       local != oldWidget.local ||
+      closeOnClear != oldWidget.closeOnClear ||
       postResultsOnly != oldWidget.postResultsOnly;
 }

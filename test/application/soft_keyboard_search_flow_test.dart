@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:boorusama/core/home/src/widgets/home_search_bar.dart';
 import 'package:boorusama/core/search/search/src/types/search_bar_position.dart';
@@ -11,12 +12,47 @@ import 'package:boorusama/core/search/search/src/widgets/selected_tag_chip.dart'
 import 'package:boorusama/core/search/suggestions/tag_suggestion_items.dart';
 import 'package:boorusama/core/settings/types.dart';
 
+import 'support/app_flow_driver.dart';
 import 'support/app_flow_finders.dart';
 import 'support/fake_booru_backend.dart';
 import 'support/headless_app_harness.dart';
 
 void main() {
   for (final position in SearchBarPosition.values) {
+    testWidgets(
+      'removing the last search item restores Browse without a request at ${position.name}',
+      (tester) async {
+        final harness = await _mountSearch(
+          tester,
+          TestPhone.portrait,
+          position,
+        );
+        final browsePost = tester.element(listingPostWithTag('landscape'));
+        final app = AppFlowDriver(tester: tester, harness: harness);
+        final requests = app.backend.requests.whereType<FakeBooruPostRequest>();
+        await app.submitSearch('cat');
+        await app.submitSearch('blue_hair', waitForRequest: false);
+        expect(requests.last.query, 'cat blue_hair');
+
+        final deleteChip = find.descendant(
+          of: find.byType(SelectedTagChip),
+          matching: find.byIcon(Symbols.close),
+        );
+        await tester.tap(deleteChip.last);
+        await harness.settle(tester);
+        expect(find.byType(SearchAppBar), findsOneWidget);
+        expect(requests.last.query, 'cat');
+
+        final requestCount = requests.length;
+        await tester.tap(deleteChip);
+        await harness.settle(tester);
+        expect(requests, hasLength(requestCount));
+        expect(find.byType(SearchAppBar), findsNothing);
+        expect(postTile(102).hitTestable(), findsOneWidget);
+        expect(tester.element(postTile(102)), same(browsePost));
+      },
+    );
+
     testWidgets(
       'hiding the empty search keyboard returns to interactive Browse at ${position.name}',
       (tester) async {

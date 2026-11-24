@@ -14,6 +14,7 @@ import '../../../../analytics/providers.dart';
 import '../../../../boorus/booru/types.dart';
 import '../../../../configs/config/providers.dart';
 import '../../../../configs/config/types.dart';
+import '../../../../navigation/destination_activity.dart';
 import '../../../../posts/count/widgets.dart';
 import '../../../../posts/listing/providers.dart';
 import '../../../../posts/listing/src/types/post_search_actions.dart';
@@ -137,14 +138,26 @@ class _SearchPageScaffoldState<T extends Post>
           .map((option) => option.key)
           .toSet(),
     );
-    final snapshot = SearchProfileSession.maybeOf(context)?.snapshot;
-    snapshot?.restore(_controller);
+    final session = SearchProfileSession.maybeOf(context);
+    session?.snapshot?.restore(_controller);
     _postController = ValueNotifier(null);
     _autoCommit = SearchAutoCommit(
       readQuery: () => _tagsController.rawTagsString,
       readApplied: () => _controller.tagString.value,
       commit: () {
         if (!mounted) return;
+        if (session?.closeOnClear == true &&
+            _controller.tagString.value.isNotEmpty &&
+            _tagsController.tags.isEmpty) {
+          final route = ModalRoute.of(context);
+          if (route != null &&
+              route.isCurrent &&
+              route.impliesAppBarDismissal &&
+              NavigationActivity.of(context)) {
+            Navigator.of(context).pop();
+          }
+          return;
+        }
         _controller.commitSelection();
       },
       schedule: (callback) {

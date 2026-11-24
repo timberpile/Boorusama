@@ -152,7 +152,7 @@ final class AppFlowDriver {
     );
     if (close.evaluate().isNotEmpty) {
       await tester.tap(close.last);
-      await tester.pump();
+      await harness.settle(tester);
     }
   }
 

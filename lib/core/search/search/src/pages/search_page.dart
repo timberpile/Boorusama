@@ -19,9 +19,10 @@ import '../widgets/search_controller.dart';
 import '../widgets/search_profile_session.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({this.initialConfig, super.key});
+  const SearchPage({this.initialConfig, this.closeOnClear = false, super.key});
 
   final BooruConfig? initialConfig;
+  final bool closeOnClear;
 
   @override
   ConsumerState<SearchPage> createState() => _SearchPageState();
@@ -145,6 +146,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       config: config,
       child: SearchProfileSession(
         local: local,
+        closeOnClear: widget.closeOnClear,
         snapshot: _snapshot,
         onSwitch: _switchProfile,
         child: TopicSearchOriginScope(origin: _origin, child: page),

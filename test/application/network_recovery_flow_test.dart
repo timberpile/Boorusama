@@ -133,7 +133,6 @@ void main() {
       final backend = FakeBooruBackend(strictPostScripts: true)
         ..enqueuePosts(page: 1, posts: const [])
         ..enqueuePosts(page: 1, query: 'empty', posts: const [])
-        ..enqueuePosts(page: 1, posts: const [])
         ..enqueuePosts(page: 1, query: 'cat', posts: [TestPost(id: 101)]);
       final harness = await _mount(tester, backend);
       final driver = AppFlowDriver(tester: tester, harness: harness);
@@ -157,6 +156,7 @@ void main() {
       expect(find.byType(SliverPostGridImageGridItem), findsNothing);
 
       await driver.clearSelectedSearchTags();
+      await driver.openSearch();
       await driver.submitSearch('cat');
       await harness.pumpUntil(
         tester,
@@ -176,7 +176,6 @@ void main() {
     (tester) async {
       final backend = FakeBooruBackend(strictPostScripts: true)
         ..enqueuePosts(page: 1, posts: const []);
-      backend.enqueuePosts(page: 1, posts: const []);
       final catGate = backend.enqueuePostGate(
         siteUrl: backend.config.url,
         query: 'cat',
@@ -207,6 +206,7 @@ void main() {
       final catRequest = _requests(backend).lastWhere((r) => r.query == 'cat');
 
       await driver.clearSelectedSearchTags();
+      await driver.openSearch();
       await driver.submitSearch('dog', waitForRequest: false);
       await harness.pumpUntil(
         tester,

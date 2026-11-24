@@ -54,7 +54,7 @@ class SelectedTagList extends StatelessWidget {
             items: [
               ?profileMenu,
               KurumiPopupMenuItem(
-                title: Text(context.t.search.remove_all_selected),
+                title: Text(context.t.search.clear_tags),
                 icon: const Icon(Symbols.clear_all),
                 onTap: onClear,
               ),

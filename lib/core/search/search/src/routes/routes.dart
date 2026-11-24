@@ -11,6 +11,7 @@ import '../../../../../foundation/platform.dart';
 import '../../../../configs/config/types.dart';
 import '../../../../configs/manage/widgets.dart';
 import '../../../../configs/manage/providers.dart';
+import '../../../../navigation/destination_id.dart';
 import '../../../../navigation/destination_profile_scope.dart';
 import '../../../../home/types.dart';
 import '../../../../router.dart';
@@ -36,7 +37,10 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
           topicOrigin: routeContext?.topicOrigin,
         );
 
-    final local = DestinationScope.maybeOf(context) != null;
+    final destination = DestinationScope.maybeOf(context);
+    final local = destination != null;
+    final fresh =
+        params.query == null && params.tags == null && params.page == null;
     final owner =
         routeContext?.config ??
         ref
@@ -63,7 +67,14 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
                 receipts: routeContext?.followingDefinitionReceipts ?? const {},
                 child: child!,
               ),
-              child: SearchPage(initialConfig: local ? owner : null),
+              child: SearchPage(
+                initialConfig: local ? owner : null,
+                closeOnClear:
+                    fresh &&
+                    params.fromSearchBar == true &&
+                    state.extra is SearchRouteContext &&
+                    destination?.id.kind == DestinationKind.browse,
+              ),
             ),
     );
     final page = local
@@ -78,7 +89,7 @@ GoRoute searchRoutes(Ref ref) => GoRoute(
 
     // A fresh editor overlays its source timeline until a query is applied.
     // Keep that route painted instead of replacing it with an empty surface.
-    if (params.query == null && params.tags == null && params.page == null) {
+    if (fresh) {
       return CustomTransitionPage(
         key: state.pageKey,
         name: state.name,
