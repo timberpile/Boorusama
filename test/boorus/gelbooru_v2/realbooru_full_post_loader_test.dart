@@ -37,6 +37,7 @@ import 'package:boorusama/core/downloads/downloader/providers.dart';
 import 'package:boorusama/core/downloads/downloader/types.dart';
 import 'package:boorusama/core/http/client/providers.dart';
 import 'package:boorusama/core/content/content_media_dio.dart';
+import 'package:boorusama/core/navigation/destination_activity.dart';
 import 'package:boorusama/core/posts/details/providers.dart';
 import 'package:boorusama/core/posts/details/widgets.dart';
 import 'package:boorusama/core/posts/favorites/providers.dart';
@@ -48,8 +49,10 @@ import 'package:boorusama/core/premiums/providers.dart';
 import 'package:boorusama/core/settings/providers.dart';
 import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/themes/colors/providers.dart';
+import 'package:boorusama/core/videos/engines/types.dart';
 import 'package:boorusama/foundation/filesystem.dart';
 import 'package:boorusama/foundation/loggers.dart';
+import 'package:boorusama/foundation/platform.dart';
 
 import '../../support/fakes/memory_app_file_system.dart';
 
@@ -91,6 +94,123 @@ void main() {
       expect(fetches, 1);
     },
   );
+
+  for (final swipeToVideo in [false, true]) {
+    testWidgets(
+      'first visit starts the resolved Realbooru video (swipe=$swipeToVideo)',
+      (
+        tester,
+      ) async {
+        final fetched = Completer<Post?>();
+        var fetches = 0;
+        await tester.pumpWidget(
+          _Harness(
+            post: swipeToVideo
+                ? _post(id: 41, originalUrl: _originalUrl)
+                : _videoPoster(),
+            adjacentPost: swipeToVideo ? _videoPoster() : null,
+            onFetch: () {
+              fetches++;
+              return fetched.future;
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+        if (swipeToVideo) {
+          expect(fetches, 0);
+          await _swipeToNextPost(tester);
+        }
+
+        final page = swipeToVideo ? 1 : 0;
+        final controller = _settledItem(tester).detailsController;
+        expect(controller.currentSettledPage.value, page);
+        expect(controller.postAtPage(page)!.isVideo, isFalse);
+        expect(fetches, 1);
+
+        fetched.complete(_video());
+        await tester.pumpAndSettle();
+        final resolved = _settledItem(tester).post!;
+        expect(resolved.isVideo, isTrue);
+        expect(controller.currentSettledPage.value, page);
+        final player = _PlaybackProbe();
+        controller.onBooruVideoPlayerCreated(player, resolved);
+        expect(player.plays, 1);
+
+        await controller.pauseCurrentVideo();
+        controller.replacePost(page, _video(thumbnailUrl: _sampleUrl));
+        await tester.pumpAndSettle();
+        expect(player.plays, 1);
+        expect(player.isPlaying, isFalse);
+      },
+    );
+  }
+
+  for (final resolveBeforeSwipe in [false, true]) {
+    testWidgets(
+      'leaving clears first-visit autoplay (resolved=$resolveBeforeSwipe)',
+      (
+        tester,
+      ) async {
+        final fetched = Completer<Post?>();
+        await tester.pumpWidget(
+          _Harness(
+            post: _videoPoster(),
+            adjacentPost: _post(id: 43, originalUrl: _originalUrl),
+            onFetch: () => fetched.future,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final controller = _settledItem(tester).detailsController;
+        final resolved = _video();
+        if (resolveBeforeSwipe) {
+          fetched.complete(resolved);
+          await tester.pumpAndSettle();
+          expect(controller.isVideoPlaying.value, isTrue);
+        }
+
+        await _swipeToNextPost(tester);
+        expect(controller.currentSettledPage.value, 1);
+        if (!resolveBeforeSwipe) {
+          fetched.complete(resolved);
+          await tester.pumpAndSettle();
+        }
+        final player = _PlaybackProbe();
+        controller.onBooruVideoPlayerCreated(player, controller.postAtPage(0)!);
+        expect(player.plays, 0);
+        expect(controller.isVideoPlaying.value, isFalse);
+      },
+    );
+  }
+
+  testWidgets('a video resolved while covered starts when its viewer returns', (
+    tester,
+  ) async {
+    final fetched = Completer<Post?>();
+    final active = ValueNotifier(true);
+    await tester.pumpWidget(
+      _Harness(
+        post: _videoPoster(),
+        navigationActive: active,
+        onFetch: () => fetched.future,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final controller = _settledItem(tester).detailsController;
+    active.value = false;
+    await tester.pump();
+    fetched.complete(_video());
+    await tester.pumpAndSettle();
+
+    final player = _PlaybackProbe();
+    controller.onBooruVideoPlayerCreated(player, _settledItem(tester).post!);
+    expect(player.plays, 0);
+    active.value = true;
+    await tester.pumpAndSettle();
+    expect(player.plays, 1);
+
+    await tester.pumpWidget(const SizedBox());
+    active.dispose();
+  });
 
   for (final sameUrl in [false, true]) {
     testWidgets(
@@ -228,6 +348,52 @@ void main() {
 Post _visiblePost(WidgetTester tester) =>
     tester.widgetList<PostMedia<Post>>(find.byType(PostMedia<Post>)).first.post;
 
+PostDetailsItem<Post> _settledItem(WidgetTester tester) {
+  return tester
+      .widgetList<PostDetailsItem<Post>>(find.byType(PostDetailsItem<Post>))
+      .singleWhere(
+        (item) => item.detailsController.currentSettledPage.value == item.index,
+      );
+}
+
+Future<void> _swipeToNextPost(WidgetTester tester) async {
+  await tester.dragFrom(const Offset(400, 230), const Offset(-550, 0));
+  await tester.pumpAndSettle();
+}
+
+Post _videoPoster() => _post(
+  originalUrl: _thumbnailUrl,
+  isVideoPreview: true,
+  metadata: const PostMetadata(page: 1, search: 'video', limit: 42),
+);
+
+Post _video({String thumbnailUrl = _thumbnailUrl}) => _post(
+  originalUrl: 'https://realbooru.test/images/ab/cd/video.mp4',
+  format: 'mp4',
+  thumbnailUrl: thumbnailUrl,
+);
+
+final class _PlaybackProbe implements BooruPlayer {
+  var plays = 0;
+  @override
+  var isPlaying = false;
+
+  @override
+  Future<void> play() async {
+    plays++;
+    isPlaying = true;
+  }
+
+  @override
+  Future<void> pause() async => isPlaying = false;
+
+  @override
+  void dispose() {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 const _thumbnailUrl =
     'https://realbooru.test/thumbnails/ab/cd/'
     'thumbnail_0123456789abcdef0123456789abcdef.jpg';
@@ -244,6 +410,9 @@ final _config = BooruConfig.defaultConfig(
 
 Post _post({
   required String originalUrl,
+  int id = 42,
+  String format = 'jpeg',
+  bool isVideoPreview = false,
   String thumbnailUrl = _thumbnailUrl,
   String? sampleUrl,
   PostMetadata? metadata,
@@ -254,15 +423,15 @@ Post _post({
     source: _config.url,
   ),
   core: PostCoreData(
-    id: 42,
+    id: id,
     thumbnailImageUrl: thumbnailUrl,
     sampleImageUrl: sampleUrl ?? originalUrl,
     originalImageUrl: originalUrl,
-    videoUrl: '',
+    videoUrl: format == 'mp4' ? originalUrl : '',
     videoThumbnailUrl: '',
     width: 0,
     height: 0,
-    format: 'jpeg',
+    format: format,
     md5: '0123456789abcdef0123456789abcdef',
     fileSize: 0,
     duration: 0,
@@ -275,13 +444,18 @@ Post _post({
     score: 0,
     metadata: metadata,
   ),
-  booruData: const GelbooruV2PostData(hasNotes: false),
+  booruData: GelbooruV2PostData(
+    hasNotes: false,
+    isVideoPreview: isVideoPreview,
+  ),
 );
 
 class _Harness extends StatelessWidget {
   const _Harness({
     required this.post,
     required this.onFetch,
+    this.adjacentPost,
+    this.navigationActive,
     this.imageAdapter,
     this.imageCache,
   });
@@ -289,7 +463,17 @@ class _Harness extends StatelessWidget {
   final ImageCacheManager? imageCache;
 
   final Post post;
+  final Post? adjacentPost;
+  final ValueNotifier<bool>? navigationActive;
   final Future<Post?> Function() onFetch;
+
+  Widget get _viewer => MixedPostDetailsPage(
+    posts: [post, ?adjacentPost],
+    initialIndex: 0,
+    initialThumbnailUrl: _thumbnailUrl,
+    scrollController: null,
+    disclaimer: null,
+  );
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -340,6 +524,7 @@ class _Harness extends StatelessWidget {
       ),
       zoomStudyEnabledProvider.overrideWithValue(false),
       deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+      appPlatformProvider.overrideWithValue(AppPlatform.android),
       if (imageAdapter case final adapter?)
         dioForWidgetProvider.overrideWith(
           (_, _) => Dio()..httpClientAdapter = adapter,
@@ -370,13 +555,14 @@ class _Harness extends StatelessWidget {
           data: KurumiThemeData.fromMaterial(Theme.of(context)),
           child: child!,
         ),
-        home: MixedPostDetailsPage(
-          posts: [post],
-          initialIndex: 0,
-          initialThumbnailUrl: _thumbnailUrl,
-          scrollController: null,
-          disclaimer: null,
-        ),
+        home: navigationActive == null
+            ? _viewer
+            : ValueListenableBuilder(
+                valueListenable: navigationActive!,
+                child: _viewer,
+                builder: (_, active, child) =>
+                    NavigationActivity(active: active, child: child!),
+              ),
       ),
     ),
   );

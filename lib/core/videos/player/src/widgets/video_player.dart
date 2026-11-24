@@ -124,8 +124,13 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     error: _error,
     thumbnailUrl: widget.thumbnailUrl,
     isBuffering: _isBuffering,
-    aspectRatio: widget.aspectRatio,
+    aspectRatio: _metadataAspectRatio,
   );
+
+  double? get _metadataAspectRatio {
+    final ratio = widget.aspectRatio;
+    return ratio != null && ratio.isFinite && ratio > 0 ? ratio : null;
+  }
 
   void _log(
     void Function(String tag, String message)? logMethod,
@@ -564,49 +569,64 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
     });
   }
 
+  double? _readyPosterAspectRatio(BooruPlayer player, double videoAspectRatio) {
+    if (_metadataAspectRatio case final ratio?) return ratio;
+    if (_isPreparingSource || _sourceNeedsInitialization) return null;
+
+    // Some engines return a default ratio when dimensions are unknown.
+    // Use the viewport for the poster until the current source has dimensions.
+    final width = player.width;
+    final height = player.height;
+    return width != null && height != null && width > 0 && height > 0
+        ? videoAspectRatio
+        : null;
+  }
+
   Widget _buildMedia({
     required BooruPlayer? player,
     required String? thumbnailUrl,
-    required double aspectRatio,
+    required double? posterAspectRatio,
+    double? videoAspectRatio,
     bool isBuffering = false,
   }) {
-    final media = AspectRatio(
-      aspectRatio: aspectRatio,
+    final media = NullableAspectRatio(
+      aspectRatio: thumbnailUrl == null ? videoAspectRatio : posterAspectRatio,
       child: KurumiHero(
         tag: widget.heroTag,
         child: Stack(
+          fit: StackFit.expand,
           children: [
-            Positioned.fill(
-              child:
-                  player?.buildPlayerWidget(context) ?? const SizedBox.shrink(),
-            ),
+            if (player != null && videoAspectRatio != null)
+              Center(
+                child: AspectRatio(
+                  aspectRatio: videoAspectRatio,
+                  child: player.buildPlayerWidget(context),
+                ),
+              ),
             if (thumbnailUrl case final url?)
-              Positioned.fill(
-                child: ValueListenableBuilder(
-                  valueListenable:
-                      player?.firstFrameRendered ??
-                      const AlwaysStoppedAnimation(false),
-                  builder: (_, rendered, child) => IgnorePointer(
-                    child: Opacity(
-                      opacity: rendered && !_isPreparingSource ? 0 : 1,
-                      child: child,
-                    ),
+              ValueListenableBuilder(
+                valueListenable:
+                    player?.firstFrameRendered ??
+                    const AlwaysStoppedAnimation(false),
+                builder: (_, rendered, child) => IgnorePointer(
+                  child: Opacity(
+                    opacity: rendered && !_isPreparingSource && !isBuffering
+                        ? 0
+                        : 1,
+                    child: child,
                   ),
-                  child: Consumer(
-                    builder: (_, ref, _) => BooruImage(
-                      config: ref.watchConfigAuth,
-                      borderRadius: BorderRadius.zero,
-                      aspectRatio: aspectRatio,
-                      imageUrl: url,
-                    ),
+                ),
+                child: Consumer(
+                  builder: (_, ref, _) => BooruImage(
+                    config: ref.watchConfigAuth,
+                    borderRadius: BorderRadius.zero,
+                    fit: BoxFit.contain,
+                    aspectRatio: posterAspectRatio,
+                    imageUrl: url,
                   ),
                 ),
               ),
-            if (isBuffering)
-              _BufferingOverlay(
-                thumbnailUrl: thumbnailUrl,
-                aspectRatio: aspectRatio,
-              ),
+            if (isBuffering) const _BufferingOverlay(),
           ],
         ),
       ),
@@ -658,7 +678,8 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
             _buildMedia(
               player: player,
               thumbnailUrl: thumbnailUrl,
-              aspectRatio: aspectRatio,
+              posterAspectRatio: _readyPosterAspectRatio(player, aspectRatio),
+              videoAspectRatio: aspectRatio,
               isBuffering: isBuffering,
             ),
           VideoPlayerUnsupported() => VideoPlayerErrorContainer(
@@ -678,7 +699,7 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
             _buildMedia(
               player: null,
               thumbnailUrl: thumbnailUrl,
-              aspectRatio: aspectRatio,
+              posterAspectRatio: aspectRatio,
             ),
           VideoPlayerLoading() => const KurumiHero(
             tag: null,
@@ -695,50 +716,29 @@ class _BooruVideoState extends ConsumerState<BooruVideo> {
 }
 
 class _BufferingOverlay extends StatelessWidget {
-  const _BufferingOverlay({
-    required this.thumbnailUrl,
-    required this.aspectRatio,
-  });
-
-  final String? thumbnailUrl;
-  final double aspectRatio;
+  const _BufferingOverlay();
 
   @override
   Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: Stack(
-        children: [
-          if (thumbnailUrl case final thumb?)
-            Consumer(
-              builder: (_, ref, _) => BooruImage(
-                config: ref.watchConfigAuth,
-                borderRadius: BorderRadius.zero,
-                aspectRatio: aspectRatio,
-                imageUrl: thumb,
+    return ColoredBox(
+      color: Colors.black.withValues(alpha: 0.3),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+              color: Colors.white,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              context.t.video_player.buffering,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
               ),
             ),
-          ColoredBox(
-            color: Colors.black.withValues(alpha: 0.3),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(
-                    color: Colors.white,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.t.video_player.buffering,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

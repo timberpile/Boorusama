@@ -57,6 +57,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
   late ValueNotifier<int> currentPage;
   late ValueNotifier<T> currentPost;
   final VideoPlaybackManager _playback;
+  Object? _scheduledAutoplay;
 
   int get initialPage =>
       currentPage.value != _initialPage ? currentPage.value : _initialPage;
@@ -76,15 +77,23 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     final postIndex = _postIndex(index);
     if (postIndex == null) return;
     RangeError.checkValidIndex(postIndex, posts, 'index');
+    final previous = posts[postIndex];
     posts[postIndex] = post;
     if (currentPage.value == index) {
       currentPost.value = post;
+      if (currentSettledPage.value == index &&
+          !previous.isVideo &&
+          post.isVideo &&
+          postViewerIdentity(previous) == postViewerIdentity(post)) {
+        _scheduleAutoplay(index, postViewerIdentity(post));
+      }
     }
   }
 
   void onPageSettled(int page) {
     if (page == currentSettledPage.value) return;
 
+    _scheduledAutoplay = null;
     final previous = postAtPage(currentSettledPage.value ?? -1);
     // A neighboring page can keep its player after it loses selection.
     if (previous != null && previous.isVideo) {
@@ -96,13 +105,26 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     _playback.setActive(post != null && _navigationActive);
     if (post == null) return;
     _playback.resetProgress();
-    if (!post.isVideo) return;
+    if (post.isVideo) {
+      _scheduleAutoplay(page, postViewerIdentity(post));
+    }
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_disposed && _navigationActive && currentSettledPage.value == page) {
+  void _scheduleAutoplay(int page, String postId) {
+    final token = _scheduledAutoplay = Object();
+    final binding = WidgetsBinding.instance;
+    binding.addPostFrameCallback((_) {
+      if (_disposed || !identical(_scheduledAutoplay, token)) return;
+      _scheduledAutoplay = null;
+      if (currentPage.value != page || currentSettledPage.value != page) return;
+
+      // The listing post can be replaced again before this frame completes.
+      final post = postAtPage(page);
+      if (post != null && post.isVideo && postViewerIdentity(post) == postId) {
         unawaited(playVideo(post));
       }
     });
+    binding.ensureVisualUpdate();
   }
 
   var _navigationActive = true;
@@ -168,6 +190,7 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
         postAtPage(currentSettledPage.value ?? -1) != post) {
       return;
     }
+    _scheduledAutoplay = null;
     if (postViewerIdentity(currentPost.value) == postViewerIdentity(post) &&
         showAnimation) {
       _showPlayPauseAnimation(PlayPauseAction.play);
@@ -220,11 +243,15 @@ class PostDetailsController<T extends Post> extends ChangeNotifier {
     Post post, {
     bool showAnimation = false,
   }) async {
-    if (postViewerIdentity(currentPost.value) == postViewerIdentity(post) &&
-        showAnimation) {
+    final postId = postViewerIdentity(post);
+    final settledPost = postAtPage(currentSettledPage.value ?? -1);
+    if (settledPost != null && postViewerIdentity(settledPost) == postId) {
+      _scheduledAutoplay = null;
+    }
+    if (postViewerIdentity(currentPost.value) == postId && showAnimation) {
       _showPlayPauseAnimation(PlayPauseAction.pause);
     }
-    await _playback.pauseVideo(postViewerIdentity(post));
+    await _playback.pauseVideo(postId);
   }
 
   Future<void> seekFromDoubleTap(Offset tapPosition, Size viewport) async {

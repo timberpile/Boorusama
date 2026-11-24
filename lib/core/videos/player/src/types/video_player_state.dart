@@ -49,7 +49,7 @@ sealed class VideoPlayerState {
     (player: null, error: null, thumbnailUrl: final thumb?) =>
       VideoPlayerLoadingWithThumbnail(
         thumb,
-        aspectRatio ?? 16.0 / 9.0,
+        aspectRatio,
       ),
     (player: null, error: null, thumbnailUrl: null) =>
       const VideoPlayerLoading(),
@@ -84,7 +84,7 @@ class VideoPlayerLoadingWithThumbnail extends VideoPlayerState {
     this.aspectRatio,
   );
   final String thumbnailUrl;
-  final double aspectRatio;
+  final double? aspectRatio;
 }
 
 class VideoPlayerLoading extends VideoPlayerState {

@@ -1,17 +1,29 @@
 import 'dart:async';
 
+import 'package:boorusama/core/configs/config/types.dart';
+import 'package:boorusama/core/configs/manage/providers.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
+import 'package:boorusama/core/http/client/providers.dart';
+import 'package:boorusama/core/images/providers.dart';
+import 'package:boorusama/core/settings/providers.dart';
+import 'package:boorusama/core/settings/types.dart';
 import 'package:boorusama/core/videos/engines/types.dart';
 import 'package:boorusama/core/videos/player/src/widgets/video_player.dart';
+import 'package:boorusama/foundation/info/device_info.dart';
 import 'package:boorusama/foundation/platform.dart';
 import 'package:cache_manager/cache_manager.dart';
 import 'package:dio/dio.dart';
+import 'package:extended_image/src/image/raw_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as image;
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../core/posts/details/progressive_image_test_utils.dart' show testApp;
+import '../core/posts/details/progressive_image_test_utils.dart'
+    show TestImageCache, portraitPng, pumpUntil, testApp;
 
 class _Lease implements VideoCacheLease {
   @override
@@ -26,7 +38,7 @@ class _Lease implements VideoCacheLease {
 }
 
 class _Player extends Fake implements BooruPlayer {
-  _Player({this.initializeGate});
+  _Player({this.initializeGate, this.aspectRatio = 1, this.width, this.height});
   final Future<void>? initializeGate;
   final initializeEntered = Completer<void>();
   VideoSource? source;
@@ -71,7 +83,11 @@ class _Player extends Fake implements BooruPlayer {
   @override
   Future<void> pause() async {}
   @override
-  double get aspectRatio => 1;
+  final double aspectRatio;
+  @override
+  final int? width;
+  @override
+  final int? height;
   @override
   Duration get duration => const Duration(seconds: 1);
   @override
@@ -92,6 +108,126 @@ Widget _app(Widget child) => ProviderScope(
 );
 
 void main() {
+  const wideRatio = 16 / 9;
+  for (final (viewport, metadata, nativeDimensions) in [
+    (const Size(390, 800), null, false),
+    (const Size(800, 390), null, false),
+    (const Size(800, 390), wideRatio, false),
+    (const Size(800, 390), null, true),
+  ]) {
+    testWidgets(
+      'fits the video poster ($viewport, metadata=$metadata, native=$nativeDimensions)',
+      (
+        tester,
+      ) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = viewport;
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetPhysicalSize);
+        final gate = Completer<void>();
+        final player = _Player(
+          initializeGate: gate.future,
+          aspectRatio: wideRatio,
+          width: nativeDimensions ? 160 : null,
+          height: nativeDimensions ? 90 : null,
+        );
+        addTearDown(player.firstFrameRendered.dispose);
+        final dio = Dio();
+        addTearDown(() => dio.close(force: true));
+        final portrait = viewport.width < viewport.height;
+        final poster = portrait
+            ? portraitPng
+            : image.encodePng(
+                image.copyRotate(image.decodePng(portraitPng)!, angle: 90),
+              );
+        final posterUrl =
+            'https://example.test/poster-${portrait ? 'portrait' : 'landscape'}.png';
+        var frames = 0;
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              appPlatformProvider.overrideWithValue(AppPlatform.android),
+              automaticMediaLoadingEnabledProvider.overrideWithValue(true),
+              currentReadOnlyBooruConfigAuthProvider.overrideWithValue(
+                BooruConfig.empty.auth,
+              ),
+              defaultImageCacheManagerProvider.overrideWithValue(
+                TestImageCache({posterUrl: poster}),
+              ),
+              deviceInfoProvider.overrideWithValue(DeviceInfo.empty()),
+              imageListingSettingsProvider.overrideWithValue(
+                Settings.defaultSettings.listing,
+              ),
+              dioForWidgetProvider.overrideWith((_, _) => dio),
+              httpHeadersProvider.overrideWith((_, _) => const {}),
+            ],
+            child: MaterialApp(
+              builder: (context, child) => KurumiTheme(
+                data: KurumiThemeData.fromMaterial(Theme.of(context)),
+                child: child!,
+              ),
+              home: Scaffold(
+                body: BooruVideo(
+                  url: 'https://example.test/video.mp4',
+                  thumbnailUrl: posterUrl,
+                  aspectRatio: metadata,
+                  playerFactory: (_) => player,
+                  onFrameRendered: () => frames++,
+                ),
+              ),
+            ),
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        final raw = find.byType(ExtendedRawImage);
+        await tester.runAsync(
+          () => pumpUntil(
+            tester,
+            () => raw.evaluate().any(
+              (element) => (element.widget as ExtendedRawImage).image != null,
+            ),
+            reason: 'video poster decode',
+          ),
+        );
+
+        Size paintedPoster() {
+          final widget = tester.widget<ExtendedRawImage>(raw);
+          expect(widget.fit, BoxFit.contain);
+          final decoded = widget.image!;
+          return applyBoxFit(
+            widget.fit!,
+            Size(decoded.width.toDouble(), decoded.height.toDouble()),
+            tester.getSize(raw),
+          ).destination;
+        }
+
+        final fullFit = portrait ? const Size(200, 800) : const Size(800, 200);
+        const videoFit = Size(390 * wideRatio, 390 * wideRatio / 4);
+        void expectPoster(Size expected) {
+          final painted = paintedPoster();
+          expect(painted.width, closeTo(expected.width, 1));
+          expect(painted.height, closeTo(expected.height, 1));
+        }
+
+        expectPoster(metadata != null ? videoFit : fullFit);
+        expect(frames, 0);
+
+        gate.complete();
+        await tester.pumpAndSettle();
+        expect(find.text('local-player'), findsOneWidget);
+        expectPoster(metadata != null || nativeDimensions ? videoFit : fullFit);
+        expect(frames, 0);
+
+        player.firstFrameRendered.value = true;
+        await tester.pumpAndSettle();
+        final opacity = find.ancestor(of: raw, matching: find.byType(Opacity));
+        expect(tester.widget<Opacity>(opacity.first).opacity, 0);
+        expect(frames, 1);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets('display waits for a current rendered frame and active surface', (
     tester,
   ) async {
