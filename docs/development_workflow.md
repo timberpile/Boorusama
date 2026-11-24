@@ -44,16 +44,20 @@ and removed with `--branch`, but not newly created by this helper. Other legacy
 branches remain usable through normal Git commands; do not rename running work.
 For a branch that already exists without a worktree, inspect it and deliberately
 attach it with `git worktree add <isolated-path> <existing-branch>`; the helper
-never silently reuses, resets, or recreates existing state.
+never silently reuses, resets, or recreates existing state. If the requested
+branch is checked out in the primary checkout, preserve its changes and safely
+detach that checkout before attaching the task worktree. Do not reset, stash, or
+discard unrelated user work.
 
 Continue an existing worktree for the same task; never reuse it for unrelated work.
-Do not edit the user's primary checkout except under the small-change exception;
-never switch, stash, or reset it.
+Do not edit or switch the user's primary checkout except for the documented
+small-change exception or the safe detachment of the explicitly requested branch.
 
 Keep changes within the request; avoid unrelated cleanup. Local work and commits
 on the agent's own isolated task branch/worktree are explicitly authorized as
 part of the requested task; no separate approval is needed unless the user says
-otherwise.
+otherwise. Stage only task-owned changes. Commit all task changes before
+reporting completion unless the user explicitly asks to leave them uncommitted.
 
 Merging or integrating a task branch always requires explicit user authorization.
 Approval such as “this branch can be merged” authorizes the complete task workflow:
@@ -70,6 +74,15 @@ unrelated remote changes still require explicit authorization. An explicit
 issue-creation or issue-work request also authorizes the scoped issue metadata updates in the [issue workflow](issue_workflow.md),
 not a code push or merge. Use `gh` or the connected GitHub tools and explicitly
 target `timberpile/Boorusama`; provide manual instructions for other repositories.
+
+## Durable working files
+
+Keep logs, review evidence, verification results, recovery scripts/state, and
+handoffs needed to continue or verify work out of volatile directories such as
+`/tmp` (which WSL may clear after a crash). Use durable workspace storage such
+as ignored `.worktrees/_artifacts/<task>/` for local artifacts and tracked docs
+for shared handoffs. Reserve `/tmp` for disposable scratch only. After a crash,
+treat interrupted checks as incomplete unless durable evidence proves completion.
 
 ## Integration
 
@@ -89,6 +102,13 @@ checked commit/state and commands in the normal task report.
 | `upstream/master` synchronization | `develop` | Real merge preserving upstream ancestry |
 | Release promotion from `develop` | `master` | Real merge titled `Merge branch 'develop'` |
 | Release history from `origin/master` | `develop` | Fast-forward when possible; otherwise an explicitly approved real merge |
+
+An issue-linked integration must include every completed issue ID in its
+Conventional Commit subject (e.g. `fix: restore viewer state (#63)`), including
+squash commits, equivalent replay, and explicitly requested PR squash merges.
+Do not invent issue IDs for issue-free work. Use `Refs #123` while acceptance
+is pending and `Closes #123` only when the issue workflow's completion
+criteria are met.
 
 Commit bodies are optional; keep them short and include only useful rationale
 or context beyond the title. Do not use `Merge branch ...` as an ordinary squash

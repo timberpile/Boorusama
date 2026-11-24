@@ -8,6 +8,16 @@ See the [Kurumi component index](designs/2026-11-02-kurumi-component-inventory.m
 
 Boorusama is a compact, information-dense booru client. Prioritize fast search, browsing, multi-selection, and context actions without sacrificing readability, accessibility, responsive behavior, or platform input methods. Preserve established task flows and features. Do not trade density for ornamental spacing or introduce controls solely to match a mockup.
 
+### Action labels and UI text
+
+Keep UI labels short and context-aware. Do not restate information already clear
+from the current screen, dialog, selection, or action. Prefer "Import" to
+"Import to Local Library" and "Save" to "Save File" when the destination is
+established by context; add qualifiers only when two actions would otherwise be
+ambiguous. Follow established app naming conventions and retain accessible
+tooltips/semantics for icon-only actions. Do not add explanatory copy unless
+it helps the user understand a state, make a choice, or complete an action.
+
 ## Component ownership
 
 1. **`packages/kurumi` owns reusable visual behavior**: theme foundations, app bars, buttons, menus, inputs, chips, settings surfaces, dialogs, sheets, focus and interaction primitives. Prefer a public Kurumi component when its behavior meets the use case. Check `packages/kurumi/lib/kurumi.dart` for its supported API before adding a wrapper. Some `KurumiMaterial...` types are intentional `typedef` aliases to Flutter Material widgets, not custom-rendered controls.
@@ -78,6 +88,7 @@ pickers, bottom sheets and context menus. Do not introduce raw Material
 Kurumi alternative exists. Flutter `showDialog` remains valid as routing for
 Kurumi-styled content. Keep reusable picker content and state independent of its
 container; equivalent entry points should present the same workflow consistently.
+Do not mix differently styled Material and Kurumi menu rows inside one popup.
 Document a technical justification for exceptions and preserve established styling.
 
 Match the interaction before the class name. Following Topics' sort menu uses

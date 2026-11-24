@@ -1,119 +1,55 @@
 # Boorusama agent instructions
 
-## Isolation and scope
+## Workflow and scope
 
-Use an isolated task branch/worktree for GitHub Issues. Small
-explicit issue-free changes may use local `develop` under the
-[development workflow](docs/development_workflow.md#isolation-and-small-changes).
-When the user specifies an existing task branch, continue that branch instead of
-creating a new one. Reuse its isolated worktree if present; otherwise create an
-isolated worktree for that branch and work there. If it is checked out in the
-primary checkout, preserve its changes and detach that checkout before attaching
-the branch to the task worktree.
+Choose the applicable skill from `.agents/skills/<name>/SKILL.md`:
 
-Keep changes within the request; avoid unrelated cleanup. Follow that workflow
-for checkout setup, authorization, integration, and cleanup.
-Commit all task changes before reporting completion, unless the user explicitly
-asks to leave them uncommitted. Stage only changes belonging to the task.
-
-Approval to merge a task branch (including “can be merged”) authorizes completing
-the workflow: integrate and push the approved change to `origin/develop`, close
-the associated issue after verifying publication, and delete the completed remote
-task branch as well as its local branch/worktree. Do not ask again for these
-steps. Honor explicit narrower limits such as “local only” or “keep the branch”;
-required verification and protection of unrelated work still apply.
-
-When integrating an issue-linked task into `develop`, include its GitHub issue ID
-in the resulting Conventional Commit subject, for example
-`fix: hide scroll-to-top button at the top (#63)`. This applies to squash commits,
-equivalent replay, and explicitly requested PR squash merges; preserve the issue
-ID even when intermediate commits are discarded. Include every completed issue
-ID when an explicitly approved integration covers multiple issues. Issue-free
-changes do not require an invented issue ID. Use `Refs #<issue-id>` while
-acceptance is pending and `Closes #<issue-id>` only when the issue workflow's
-completion criteria are met.
-
-## Durable working files
-
-Keep agent-managed files needed to continue or verify current development out of
-`/tmp` and other volatile OS temporary directories. WSL can crash and clear them
-mid-task. This includes build/test logs, review evidence, verification results,
-recovery scripts and state, and handoffs. Use durable workspace storage such as
-the ignored `.worktrees/_artifacts/<task>/` directory for local artifacts, and
-the appropriate tracked documentation for shared handoffs. Reserve `/tmp` for
-disposable scratch files whose loss cannot affect task recovery or completion
-claims. After a crash, treat running checks as interrupted unless durable
-completion evidence proves otherwise.
-
-## Workflow selection
-
-Use the applicable `.agents/skills/<name>/SKILL.md`:
-
-| Skill | Use when |
+| Skill | When to use |
 | --- | --- |
-| [research-ticket](.agents/skills/research-ticket/SKILL.md) | Research bug/feature reports, check existing issues, and prepare reviewable issue drafts and local-agent handoffs |
-| [implement-change](.agents/skills/implement-change/SKILL.md) | Clear, scoped implementation |
-| [debug-issue](.agents/skills/debug-issue/SKILL.md) | Known symptom, uncertain cause |
-| [design-change](.agents/skills/design-change/SKILL.md) | Significant architecture, data/migration, subsystem, or UX/state decisions; requested design |
-| [execute-plan](.agents/skills/execute-plan/SKILL.md) | Implement an existing plan or detailed design |
-| [verify-change](.agents/skills/verify-change/SKILL.md) | Requested review or justified additional validation of a large change |
-| [prepare-release](.agents/skills/prepare-release/SKILL.md) | Next release version and changelog; explicitly requested delivery through a GitHub draft |
+| `research-ticket` | Investigate reports, check existing issues, and draft issues or handoffs |
+| `debug-issue` | Investigate bugs with an uncertain cause |
+| `design-change` | Resolve significant architecture, persistence, or UX decisions |
+| `implement-change` | Implement a clear, scoped change |
+| `execute-plan` | Implement an existing plan or detailed design |
+| `verify-change` | Review or independently validate a change |
+| `prepare-release` | Prepare the next release or an explicitly requested release draft |
 
-Default for authorized implementation: inspect → implement → scope-appropriate
-verification → review → final Flutter analysis → report.
-Research-only requests end with findings and drafts; publishing issues or changing code
-requires the user's authorization.
-Tickets, issues, design/plan documents, subagents, and reviewer pairs are optional, not routine
-prerequisites. Use PRs only when explicitly requested. Do not automatically chain
-skills; implementation includes verification. Use Superpowers only when explicitly
-requested.
+Inspect relevant code, tests, and documentation first. Keep changes within
+the authorized scope; do not clean up unrelated work. Default implementation
+workflow: inspect → implement → scope-appropriate verification → review →
+final Flutter analysis → report.
+Research alone does not authorize issue publication or code changes. GitHub Issues
+are the only task tracker, but ordinary changes need no issue. Do not require
+plans, PRs, subagents, or separate reviewers as routine prerequisites. Use PRs
+and Superpowers only when explicitly requested; do not automatically chain skills.
 
-## Context and conventions
+## Isolation, commits, and publication
 
-Read only relevant code, tests, and docs. Consult
-[engineering guidelines](docs/engineering_guidelines.md) for needed detail.
-Use the [issue workflow](docs/issue_workflow.md) for tracked tasks and explicit
-issue work. GitHub Issues are the only task tracker; do not create local ticket
-files or a parallel repository queue. Ordinary scoped changes still need no
-issue. Read relevant
-[development workflow](docs/development_workflow.md) sections for integration,
-publication, releases, or upstream synchronization.
+Follow [development workflow](docs/development_workflow.md) for worktrees,
+branch reuse, authorization, integration, publication, durable working files,
+and cleanup. Work on an isolated branch/worktree for GitHub Issues; the documented
+small issue-free change exception permits a local `develop` commit. Preserve
+unrelated user work. Commit scoped task changes before reporting completion,
+unless explicitly asked to leave them uncommitted.
 
-- **Repository language:** All code comments, documentation, commit messages, issues, design/merge plans and agent handoffs must be written in **English**. Only user-facing UI localization resources may contain text in their intended target languages. Translate any new non-localization German prose to English before committing.
-- Always use `fvm` for Flutter/Dart.
-- Use manually declared Riverpod `Notifier`/`AsyncNotifier` providers; no provider codegen.
-- Follow nearby architecture/style; keep business logic out of widgets when practical.
-- Before UI changes, inspect comparable screens; reuse application components, spacing,
-  typography, sizing, and interactions. Justify intentional deviations.
-- For shared UI consistency work, consult `docs/ui_style_guide.md` as a proposed
-  baseline until #136 is accepted; preserve approved feature behavior and inspect
-  the current Kurumi API before introducing new visual patterns.
-- Localize user-facing strings and use `context.t`. Author new or changed strings
-  in `packages/i18n/translations/en-US.json` only; do not author German or other
-  translations unless explicitly requested. Use the existing English fallback
-  for missing translations and preserve existing locales and translated prose.
-  Normal code generation for supported locales is still required when inputs
-  change; never manually edit generated Dart.
-- Treat external/site/API data as nullable; use `equatable` when useful.
-- Prefer readable pattern matching; comment non-obvious decisions.
+Merging a task branch requires approval. Approval such as "can be merged"
+authorizes the complete verified integration workflow, including publication
+to `origin/develop`, issue closure, and cleanup, unless narrower limits are given.
+It does not authorize unrelated changes or a PR.
 
-### Kurumi dialogs and popup surfaces
+## Engineering and UI
 
-Use existing Kurumi components for application dialogs, popup menus, anchored
-pickers, bottom sheets, and context menus. Do not introduce raw Material
-`AlertDialog`, `Dialog`, `SimpleDialog`, or `PopupMenuButton` when an appropriate
-Kurumi alternative exists.
+Follow [engineering guidelines](docs/engineering_guidelines.md) and nearby
+architecture. Use `fvm` for Flutter/Dart. Repository content must be in English
+except localization resources. Prefer the simplest solution satisfying approved
+requirements; do not add speculative abstractions, metadata, or features.
 
-Prefer `KurumiAnchor`, `KurumiDialog`, `KurumiPopupMenuButton`,
-`KurumiContextMenu`, or existing Kurumi sheet components according to the
-interaction. Flutter's `showDialog` is allowed as a routing mechanism when
-presenting a Kurumi-styled dialog. Do not mix differently styled Material and
-Kurumi menu rows in one popup.
-
-Keep reusable picker content and state independent from presentation surfaces.
-The same workflow must use consistent presentation patterns across entry points.
-Exceptions require a documented technical justification and must preserve the
-application's established styling.
+Before UI changes, inspect comparable screens. Reuse Kurumi components and
+follow the [UI style guide](docs/ui_style_guide.md) as a proposed baseline
+until #136 is accepted; preserve approved behavior. Keep action labels short
+and context-aware: prefer "Import" over "Import to Local Library" and "Save"
+over "Save File" when the context is already clear. Qualify only to avoid ambiguity.
+Use `context.t` for localized UI strings.
 
 ## Released data and compatibility
 
@@ -129,57 +65,15 @@ user-data reset or retirement of public support is authorized by this policy.
 
 ## Verification and devices
 
-Format changed Dart files with `fvm dart format`, run directly related behavior
-tests during implementation, and analyze affected scope when useful. After
-implementation and review changes are finished, make sure generated Dart matches
-the current checkout. Run `fvm flutter analyze --no-pub` from the repository
-root for changes that affect Dart or its analysis. Fix every error, warning,
-and informational finding.
-Recheck any behavior affected by the fixes and rerun the full analysis until
-it reports `No issues found!` on the final state before reporting completion.
+Follow [scope-appropriate verification](docs/engineering_guidelines.md#scope-appropriate-verification).
+Run final Flutter analysis on Dart changes and resolve all findings.
+Before integrating into `develop`, require a complete local test-suite pass on
+the final combined candidate. Reuse an existing pass only while that candidate
+remains valid. Report incomplete or unrun checks without claiming readiness.
 
-Default ordinary test concurrency to detected available physical cores (minimum one),
-using `python3 scripts/physical_core_count.py`; `TEST_CONCURRENCY` overrides the
-complete runner. Workload benchmarks keep their explicit serial setting.
-Tests should use controlled clocks or completion signals instead of fixed sleeps
-and strict wall-clock budgets; retain meaningful timing contracts and bounded
-hang guards as described in the [test guidelines](docs/engineering_guidelines.md#tests).
-Choose verification by the change's scope, following the
-[verification guidance](docs/engineering_guidelines.md#scope-appropriate-verification):
+Use an emulator only for necessary device/UI integration. Follow
+[Android emulator coordination](docs/android_emulator.md) and use Maestro MCP.
+Read only needed entries from ignored `.test_credentials`; never commit or expose
+credentials in logs, screenshots, issues, responses, or fixtures.
 
-- Documentation, issue status, comments, and other non-runtime-only changes:
-  run relevant documentation/tooling checks. Do not run application tests.
-- Scoped application changes: run affected test files or directories and nearby
-  consumer tests when a meaningful boundary is crossed.
-- Local package changes: run that package's complete suite and relevant consumer
-  tests in the application or other packages.
-- Broad changes to shared core models/infrastructure, dependencies/toolchain,
-  generated-code infrastructure, test infrastructure, repository-wide behavior,
-  or genuinely unclear scope: run the complete local suite. Prefer broader checks
-  when uncertain.
-
-Before a task is safe to integrate into `develop`, the final integration candidate
-must pass the [complete local test suite](docs/engineering_guidelines.md#complete-local-test-suite)
-(application, every package/CLI, and repository tooling). Targeted verification
-proves the task locally; full verification proves the integration candidate.
-Reuse a complete pass on that same candidate across handoffs and documentation
-or status-only updates. Relevant code, tests, dependencies, generated runtime
-output, or changes to the combined develop candidate require re-verification.
-Record the checked commit/state, commands, results and limits in the normal task
-report; no cache or verification metadata is needed. Report failed or incomplete
-checks without claiming the candidate is ready to integrate.
-Run `./gen.sh` when generated output is missing or its inputs have changed
-since the last generation, including after switching revisions.
-
-For UI changes, exercise affected actions at narrow width, enlarged text, and
-with the keyboard open when relevant. Apply these checks where the interaction
-can be constrained (e.g. dialogs, sheets, forms, or search/filter controls);
-prefer targeted widget tests when they cover this efficiently.
-
-Use an emulator only for necessary device/UI integration. Before any operation,
-read and follow the [exclusive lease procedure](docs/android_emulator.md).
-Use Maestro MCP for UI control. Test accounts are already signed in; read only
-needed entries from ignored `.test_credentials` and never commit or expose them
-in logs, screenshots, issues, responses, or fixtures.
-
-Report changes, significant decisions, checks actually performed, and limitations.
+Report significant decisions, changes, checks actually performed, and limitations.

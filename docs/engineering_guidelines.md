@@ -164,8 +164,14 @@ stable performance budgets; compare repeated same-host measurements.
 - Prefer factory methods or constructors for complex setup. Put constructors
   at the top of a class.
 - Put business logic in state classes or dedicated files, not widgets.
-- Never hardcode user-facing text. Add it to i18n resources and access it
-  through `BuildContext` with `context.t`.
+- All code comments, documentation, commit messages, issues, design/merge plans,
+  and agent handoffs must be written in English; only localization resources may
+  contain other languages. Translate non-localization German prose before commit.
+- Never hardcode user-facing text. Use `BuildContext` with `context.t`.
+  Author new or changed translations in `packages/i18n/translations/en-US.json`
+  only, unless other locales are explicitly requested. Preserve existing
+  translations and English fallback, regenerate supported locales when inputs
+  change, and never manually edit generated Dart.
 - Use `equatable` for value equality when needed.
 - Use pattern matching to make code more readable; use traditional
   `if`/`else` only when it improves readability.
