@@ -1,7 +1,13 @@
+import 'package:boorusama/boorus/pixiv/posts/link_generator.dart';
+import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
+import 'package:boorusama/boorus/pixiv/works/bookmark_targets.dart';
+import 'package:boorusama/boorus/pixiv/works/work_mapper.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_grid_entry.dart';
 import 'package:boorusama/core/bookmarks/src/types/legacy_group_bookmark.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/bookmarks/src/types/bookmark_mirror_state.dart';
 
+import '../../boorus/pixiv/works/work_test_fixtures.dart';
 import '../../support/fakes/test_post.dart';
 import 'pool_bookmark_test_utils.dart';
 
@@ -18,6 +24,76 @@ import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/posts/post/types.dart';
 
 void main() {
+  test(
+    'saved Pixiv Ugoira and Works share one source in All and Groups',
+    () async {
+      final access = workAccess(site: 'https://pixiv.net');
+      final animation = pixivWorkPagePosts(
+        work(type: 'ugoira', pageCount: 1),
+        access,
+      ).single;
+      final at = DateTime.utc(2026);
+      final artworkLink = const PixivPostLinkGenerator().getLink(animation);
+      final draft = PixivPageBookmarkTarget(access: access, post: animation)
+          .draft(currentAccess: access, at: at)
+          .copyWith(id: 1, sourceUrl: artworkLink);
+      final codec = StoredBookmarkCodec(
+        postDataCodec: (_) => const PixivPostCodec(),
+      );
+      final ugoira = codec.decode(codec.encode(draft)) as PostBookmark;
+      final illustration = PixivWorkBookmarkTarget(
+        access: access,
+        summary: pixivWorkSummary(work(id: 121), access),
+      ).draft(currentAccess: access, at: at).copyWith(id: 2);
+      final library = BookmarkLibraryState(
+        bookmarks: [ugoira],
+        records: [ugoira, illustration],
+        groups: [
+          BookmarkGroup(
+            id: poolGroupA,
+            name: 'Pixiv',
+            bookmarkIds: const {1, 2},
+          ),
+        ],
+      );
+      final container = ProviderContainer(
+        overrides: [bookmarkProvider.overrideWith(() => _Library(library))],
+      );
+      addTearDown(container.dispose);
+
+      expect(ugoira.sourceUrl, 'https://www.pixiv.net/artworks/120');
+      expect(ugoira.identity.site, 'pixiv.net');
+      expect(illustration.reference.siteNamespace, 'pixiv.net');
+      for (final view in [
+        const BookmarkView.all(),
+        BookmarkView.group(poolGroupA),
+      ]) {
+        expect(
+          await container.read(
+            availableBookmarkViewSourcesProvider(view).future,
+          ),
+          ['pixiv.net'],
+        );
+        container.read(selectedBooruUrlProvider.notifier).state =
+            'www.pixiv.net';
+        final selected = container.read(effectiveBookmarkSourceProvider(view));
+        expect(selected, 'pixiv.net');
+        final entries = selectBookmarkGridEntries(
+          state: library,
+          view: view,
+          selectedTags: const [],
+          sortType: BookmarkSortType.newest,
+          selectedBooruUrl: selected,
+        );
+        expect(entries.whereType<BookmarkPostEntry>().single.bookmark, ugoira);
+        expect(
+          entries.whereType<BookmarkNativeGroupEntry>().single.bookmark,
+          illustration,
+        );
+      }
+    },
+  );
+
   test('imported source choices and filtering use portable origins without profiles', () async {
     const codec = StoredBookmarkCodec();
     const hosts = [
@@ -204,7 +280,7 @@ void main() {
     });
     expect(
       await container.read(availableBookmarkViewSourcesProvider(view).future),
-      unorderedEquals(['a.test', 'b.test', 'pool.test', 'www.pixiv.net']),
+      unorderedEquals(['a.test', 'b.test', 'pool.test', 'pixiv.net']),
     );
     expect(
       await container.read(
@@ -216,7 +292,7 @@ void main() {
         'b.test',
         'c.test',
         'pool.test',
-        'www.pixiv.net',
+        'pixiv.net',
       ]),
     );
     expect(await container.read(availableBooruUrlsProvider.future), ['a.test']);
@@ -249,7 +325,7 @@ void main() {
       initial.mirrors,
     );
 
-    // Unified native records use their portable exact site, also without a reader.
+    // Native records still supply source choices without a reader.
     library.replace(
       BookmarkLibraryState(
         bookmarks: const [],
@@ -266,7 +342,7 @@ void main() {
     );
     expect(
       await container.read(availableBookmarkViewSourcesProvider(view).future),
-      ['www.pixiv.net'],
+      ['pixiv.net'],
     );
     expect(await container.read(availableBooruUrlsProvider.future), isEmpty);
   });
@@ -293,6 +369,32 @@ void main() {
       expect(bookmarkSourceMatchesHost('https://example.test', ''), isFalse);
     },
   );
+
+  test('source matching aliases only the two Pixiv website hosts', () {
+    expect(
+      bookmarkSourceMatchesHost(
+        'https://www.pixiv.net/artworks/120',
+        'pixiv.net',
+      ),
+      isTrue,
+    );
+    expect(
+      bookmarkSourceMatchesHost('https://pixiv.net', 'https://www.pixiv.net/'),
+      isTrue,
+    );
+    expect(
+      bookmarkSourceMatchesHost('app-api.pixiv.net', 'pixiv.net'),
+      isFalse,
+    );
+    expect(
+      bookmarkSourceMatchesHost('www.pixiv.net.example', 'pixiv.net'),
+      isFalse,
+    );
+    expect(
+      bookmarkSourceMatchesHost('www.example.test', 'example.test'),
+      isFalse,
+    );
+  });
 }
 
 class _Library extends BookmarkLibraryNotifier {

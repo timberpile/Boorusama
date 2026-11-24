@@ -202,7 +202,7 @@ class BookmarkProfileAvailability {
           unavailableReasons[bookmark.id] ?? observedFailures[bookmark.id];
       if (reason == null || !seen.add(bookmark.id)) continue;
       sites.update(
-        bookmark.reference.siteNamespace,
+        canonicalBookmarkSourceHost(bookmark.reference.siteNamespace),
         (count) => count + 1,
         ifAbsent: () => 1,
       );

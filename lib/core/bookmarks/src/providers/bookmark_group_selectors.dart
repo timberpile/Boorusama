@@ -24,25 +24,33 @@ enum BookmarkSortType {
 }
 
 /// Transfer omits local-only sourceUrl, so imported records use portable origins.
-String? bookmarkSourceHost(PostBookmark bookmark) {
-  for (final source in [bookmark.sourceUrl, bookmark.post.origin.sourceHost]) {
-    final uri = Uri.tryParse(
-      source.contains('://') ? source : 'https://$source',
-    );
-    if (uri != null && uri.host.isNotEmpty) return uri.host.toLowerCase();
-  }
-  return null;
+String? bookmarkSourceHost(PostBookmark bookmark) =>
+    _bookmarkSourceHostFromUrl(bookmark.sourceUrl) ??
+    _bookmarkSourceHostFromUrl(bookmark.post.origin.sourceHost);
+
+/// Pixiv artwork links use the web host and Pixiv profiles use the apex host.
+/// Group these hosts in the source filter without changing persisted identities.
+String canonicalBookmarkSourceHost(String host) => switch (host.toLowerCase()) {
+  'pixiv.net' || 'www.pixiv.net' => 'pixiv.net',
+  _ => host,
+};
+
+String? _bookmarkSourceHostFromUrl(String source) {
+  final host = Uri.tryParse(
+    source.contains('://') ? source : 'https://$source',
+  )?.host.toLowerCase();
+  return host == null || host.isEmpty
+      ? null
+      : canonicalBookmarkSourceHost(host);
 }
 
 /// The source picker supplies hosts, independent of URL paths and ports.
 bool bookmarkSourceMatchesHost(String source, String selectedHost) {
-  final uri = Uri.tryParse(source.contains('://') ? source : 'https://$source');
+  final host = _bookmarkSourceHostFromUrl(source);
   final target = selectedHost.contains('://')
-      ? Uri.tryParse(selectedHost)?.host
-      : selectedHost;
-  return uri != null &&
-      uri.host.isNotEmpty &&
-      uri.host.toLowerCase() == target?.toLowerCase();
+      ? _bookmarkSourceHostFromUrl(selectedHost)
+      : canonicalBookmarkSourceHost(selectedHost.toLowerCase());
+  return host != null && host == target;
 }
 
 /// Resolve dates once before sorting, rather than scanning groups in every

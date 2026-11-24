@@ -89,13 +89,16 @@ final availableBooruUrlsProvider = FutureProvider.autoDispose<List<String>>((
         .map((p) => Uri.tryParse('https://${p.origin.sourceHost}')?.host)
         .nonNulls
         .where((host) => host.isNotEmpty)
-        .map((host) => host.toLowerCase()),
+        .map((host) => canonicalBookmarkSourceHost(host.toLowerCase())),
   );
   hosts.addAll(
     records
         .whereType<ContentGroupBookmark>()
         .where(isNativeGroupBookmark)
-        .map((record) => record.reference.siteNamespace),
+        .map(
+          (record) =>
+              canonicalBookmarkSourceHost(record.reference.siteNamespace),
+        ),
   );
   return hosts.toList();
 });
@@ -119,13 +122,13 @@ final availableBookmarkViewSourcesProvider = FutureProvider.autoDispose
         ))
           if (Uri.tryParse('https://${pool.origin.sourceHost}')?.host
               case final host? when host.isNotEmpty)
-            host.toLowerCase(),
+            canonicalBookmarkSourceHost(host.toLowerCase()),
         for (final record in selectNativeGroupBookmarks(
           state: library,
           view: view,
           selectedTags: const [],
         ))
-          record.reference.siteNamespace,
+          canonicalBookmarkSourceHost(record.reference.siteNamespace),
       };
       return hosts.toList();
     });
@@ -134,7 +137,8 @@ final availableBookmarkViewSourcesProvider = FutureProvider.autoDispose
 /// same effective value while the mounted active picker clears obsolete state.
 final effectiveBookmarkSourceProvider = Provider.autoDispose
     .family<String?, BookmarkView>((ref, view) {
-      final selected = ref.watch(selectedBooruUrlProvider);
+      final raw = ref.watch(selectedBooruUrlProvider);
+      final selected = raw == null ? null : canonicalBookmarkSourceHost(raw);
       final sources = ref.watch(availableBookmarkViewSourcesProvider(view));
       if (selected == null ||
           sources.isLoading ||
