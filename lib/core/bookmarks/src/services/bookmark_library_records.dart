@@ -6,8 +6,9 @@ extension on BookmarkLibraryService {
   Future<BookmarkDraftSaveResult> _saveUnifiedDrafts(
     Iterable<Bookmark> drafts,
     String groupId,
-    Iterable<Bookmark> savedRecords,
-  ) => unifiedStore!.runReadWriteScope(() async {
+    Iterable<Bookmark> savedRecords, {
+    required bool useDraftMembershipDates,
+  }) => unifiedStore!.runReadWriteScope(() async {
     final store = unifiedStore!;
     final target = await _requireUnifiedGroup(groupId);
     // All structures and source interpretations are validated before the
@@ -17,6 +18,7 @@ extension on BookmarkLibraryService {
         store.normalizeRecord(bookmarkWithId(draft, 0)),
     ];
     final known = <Object, Bookmark>{};
+    final membershipDates = <Object, DateTime>{};
     final resolved = <Bookmark>[];
     for (final frozen in savedRecords) {
       final current = await store.read(frozen.id);
@@ -30,6 +32,12 @@ extension on BookmarkLibraryService {
       if (identity == null) {
         pending.add(candidate);
         continue;
+      }
+      if (useDraftMembershipDates) {
+        membershipDates.putIfAbsent(
+          identity,
+          () => bookmarkCreatedAt(candidate),
+        );
       }
       final previous =
           known[identity] ??
@@ -54,10 +62,9 @@ extension on BookmarkLibraryService {
     ];
     // Pending known records appear exactly once. Resolved existing records
     // are selected by their authoritative IDs rather than draft IDs.
-    final selected = <int>{
-      for (final record in [...resolved, ...created]) record.id,
-    };
-    final added = selected.difference(target.bookmarkIds);
+    final selected = [...resolved, ...created];
+    final selectedIds = {for (final record in selected) record.id};
+    final added = selectedIds.difference(target.bookmarkIds);
     if (added.isNotEmpty || created.isNotEmpty) {
       final now = DateTime.now().toUtc();
       await store.commitOrganization(
@@ -65,7 +72,14 @@ extension on BookmarkLibraryService {
         groups: [
           target.copyWith(
             bookmarkIds: {...target.bookmarkIds, ...added},
-            addedAt: {...target.addedAt, for (final id in added) id: now},
+            addedAt: {
+              ...target.addedAt,
+              for (final record in selected)
+                if (added.contains(record.id))
+                  record.id: useDraftMembershipDates
+                      ? membershipDates[bookmarkContentIdentity(record)] ?? now
+                      : now,
+            },
           ),
         ],
       );

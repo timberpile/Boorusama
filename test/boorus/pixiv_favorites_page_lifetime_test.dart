@@ -47,6 +47,7 @@ void main() {
         },
       );
       await page.pump(tester);
+      expect(find.byKey(const ValueKey('favorites-page-menu')), findsOneWidget);
       page.calls.single.complete(1, count: 60);
       await _until(tester, () => !page.controller(tester).refreshing);
       await drain(tester);

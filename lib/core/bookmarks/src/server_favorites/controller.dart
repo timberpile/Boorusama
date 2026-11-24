@@ -2,8 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../boorus/pixiv/client_provider.dart';
+import '../../../../boorus/pixiv/configs/extra_data.dart';
+import '../../../../boorus/pixiv/favorites/sync_source.dart';
+import '../../../boorus/booru/types.dart';
 import '../../../configs/config/types.dart';
 import '../../../configs/manage/providers.dart';
+import '../../../content/types.dart';
 import '../../../http/client/coordination.dart';
 import '../../../posts/post/types.dart';
 import '../providers/bookmark_provider.dart';
@@ -203,42 +208,9 @@ class ServerFavoriteFetchNotifier
         }
       }
       job.session = session;
-      final source = ref.read(serverFavoriteSourceProvider(session.config));
-      result =
-          await ServerFavoriteFetchRunner<Post>(
-            // Thumbnail-only listings also resolve each post inside this
-            // context, so their detail requests share the bulk pacing.
-            fetchPage: (page) => runWithApiRequestContext(
-              ApiRequestContext(
-                requestClass: ApiRequestClass.bulkTransfer,
-                allowCooldownRetry: false,
-                canStart: () => !job.cancellation.isCancelled,
-              ),
-              () => source.fetchPage(page, cancellation: job.cancellation),
-            ),
-            identity: BookmarkIdentity.fromPost,
-            validateSession: () => _validate(session),
-            addPage: (posts, cancellation) => ref
-                .read(bookmarkLibraryProvider.notifier)
-                .runWithLibrary(() async {
-                  cancellation.throwIfCancelled();
-                  await _validate(session);
-                  cancellation.throwIfCancelled();
-                  for (final post in posts) {
-                    _validatePost(session, post);
-                  }
-                  return ref
-                      .read(bookmarkLibraryProvider.notifier)
-                      .addPostsToGroup(
-                        session.config.auth,
-                        posts,
-                        session.groupId,
-                      );
-                }),
-          ).run(
-            cancellation: job.cancellation,
-            onProgress: (progress) => _publish(profileId, job, progress),
-          );
+      result = session.config.auth.booruType == BooruType.pixiv
+          ? await _fetchPixiv(session, job)
+          : await _fetchPosts(session, job);
     } on ServerFavoriteCancelled {
       result = const ServerFavoriteProgress(
         status: ServerFavoriteFetchStatus.cancelled,
@@ -259,6 +231,110 @@ class ServerFavoriteFetchNotifier
     job.completion.complete(result);
     return result;
   }
+
+  Future<ServerFavoriteProgress> _fetchPosts(
+    ServerFavoriteSession session,
+    _FetchJob job,
+  ) {
+    final source = ref.read(serverFavoriteSourceProvider(session.config));
+    return _runFetch<Post>(
+      session,
+      job,
+      fetchPage: (page) =>
+          source.fetchPage(page, cancellation: job.cancellation),
+      identity: BookmarkIdentity.fromPost,
+      savePage: (library, posts, _) {
+        for (final post in posts) {
+          _validatePost(session, post);
+        }
+        return library.addPostsToGroup(
+          session.config.auth,
+          posts,
+          session.groupId,
+        );
+      },
+    );
+  }
+
+  Future<ServerFavoriteProgress> _fetchPixiv(
+    ServerFavoriteSession session,
+    _FetchJob job,
+  ) {
+    final config = session.config;
+    final source = PixivFavoritesSyncSource(
+      client: ref.read(pixivClientProvider(config.auth)),
+      // This context builds snapshots only. The job separately validates its
+      // account and target before each request and inside the write boundary.
+      access: ContentAccessContext.profile(
+        config: config,
+        authEpoch: 0,
+        policyEpoch: 0,
+      ),
+      userId: pixivAuthenticatedUserId(config.auth)!,
+      cancellation: job.cancellation,
+    );
+    DateTime? previousDraftAt;
+    return _runFetch<PixivFavoriteBookmark>(
+      session,
+      job,
+      fetchPage: (_) => source.fetchPage(),
+      identity: (bookmark) => bookmark.illustId,
+      savePage: (library, bookmarks, cancellation) =>
+          library.addBookmarkDraftsToGroup(
+            bookmarks.map((bookmark) {
+              final now = DateTime.now().toUtc();
+              final previous = previousDraftAt;
+              // Preserve the listing order even when the local clock ties or
+              // an artwork already has a canonical record in a different group.
+              final at = previous != null && !now.isAfter(previous)
+                  ? previous.add(const Duration(microseconds: 1))
+                  : now;
+              previousDraftAt = at;
+              return bookmark.draft(at);
+            }),
+            session.groupId,
+            useDraftMembershipDates: true,
+            beforeCommit: cancellation.throwIfCancelled,
+          ),
+    );
+  }
+
+  Future<ServerFavoriteProgress> _runFetch<T>(
+    ServerFavoriteSession session,
+    _FetchJob job, {
+    required Future<ServerFavoritePage<T>> Function(int page) fetchPage,
+    required Object Function(T) identity,
+    required Future<int> Function(
+      BookmarkLibraryNotifier library,
+      List<T> entries,
+      ServerFavoriteCancellation cancellation,
+    )
+    savePage,
+  }) =>
+      ServerFavoriteFetchRunner<T>(
+        fetchPage: (page) => runWithApiRequestContext(
+          ApiRequestContext(
+            requestClass: ApiRequestClass.bulkTransfer,
+            allowCooldownRetry: false,
+            canStart: () => !job.cancellation.isCancelled,
+          ),
+          () => fetchPage(page),
+        ),
+        identity: identity,
+        validateSession: () => _validate(session),
+        addPage: (entries, cancellation) {
+          final library = ref.read(bookmarkLibraryProvider.notifier);
+          return library.runWithLibrary(() async {
+            cancellation.throwIfCancelled();
+            await _validate(session);
+            cancellation.throwIfCancelled();
+            return savePage(library, entries, cancellation);
+          });
+        },
+      ).run(
+        cancellation: job.cancellation,
+        onProgress: (progress) => _publish(session.config.id, job, progress),
+      );
 
   void _publish(String profileId, _FetchJob job, ServerFavoriteProgress value) {
     if (_disposed || !identical(_jobs[profileId], job)) return;

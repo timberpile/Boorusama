@@ -38,6 +38,7 @@ typedef PixivTokenRefresher = Future<PixivTokens> Function(String refreshToken);
 class PixivAuthInterceptor extends Interceptor {
   PixivAuthInterceptor({
     required String refreshToken,
+    this.expectedUserId,
     PixivTokenRefresher? refresher,
     this.onTokenRefreshed,
     this.onAuthFailed,
@@ -64,6 +65,7 @@ class PixivAuthInterceptor extends Interceptor {
   /// token request, because there is no access token to reuse.
   final Duration failureCooldown;
 
+  final int? expectedUserId;
   final void Function(PixivTokens tokens)? onTokenRefreshed;
   final void Function()? onAuthFailed;
   final void Function(String message)? onLog;
@@ -74,6 +76,7 @@ class PixivAuthInterceptor extends Interceptor {
   String? _accessToken;
   DateTime? _accessTokenExpiry;
   DateTime? _lastFailureAt;
+  var _accountMismatch = false;
 
   /// The single-flight latch (FIX 6a). Requests arriving while a refresh is
   /// in progress await THIS future and then attach the fresh token, instead
@@ -137,10 +140,21 @@ class PixivAuthInterceptor extends Interceptor {
       _accessTokenExpiry = null;
       _lastFailureAt = null;
     }
-    if (_isExpiring && !_isCoolingDown) {
+    if (!_accountMismatch && _isExpiring && !_isCoolingDown) {
       await _refreshOnce(options);
     }
 
+    if (_accountMismatch) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          error: const PixivAuthException(
+            'Refreshed Pixiv account did not match',
+          ),
+        ),
+      );
+      return;
+    }
     if (_lastRefreshError case final error?) {
       handler.reject(error.copyWith(requestOptions: options));
       return;
@@ -165,6 +179,7 @@ class PixivAuthInterceptor extends Interceptor {
     if (!_isApiRequest(err.requestOptions) ||
         !isUnauthorized ||
         alreadyRetried ||
+        _accountMismatch ||
         _isCoolingDown ||
         !isApiSafeRead(err.requestOptions) ||
         (err.requestOptions.cancelToken?.isCancelled ?? false)) {
@@ -224,6 +239,13 @@ class PixivAuthInterceptor extends Interceptor {
       final tokens = await _refresher(_refreshToken);
       final accessToken = tokens.accessToken;
       final refreshToken = tokens.refreshToken;
+      final returnedUserId = tokens.user?.id;
+      if (expectedUserId != null &&
+          returnedUserId != null &&
+          int.tryParse(returnedUserId) != expectedUserId) {
+        _accountMismatch = true;
+        throw const PixivAuthException('Refreshed Pixiv account did not match');
+      }
 
       if (accessToken == null || accessToken.isEmpty) {
         onLog?.call('Token response carried no access token');

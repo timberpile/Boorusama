@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:boorusama/boorus/pixiv/configs/extra_data.dart';
+import 'package:boorusama/boorus/pixiv/posts/post_codec.dart';
+import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_group_repository_hive.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/bookmark_hive_object.dart';
 import 'package:boorusama/core/bookmarks/src/data/hive/repository.dart';
+import 'package:boorusama/core/bookmarks/src/data/hive/unified_bookmark_group_repository.dart';
+import 'package:boorusama/core/bookmarks/src/services/bookmark_storage_migration.dart';
+import 'package:boorusama/core/bookmarks/src/types/bookmark_group_repository.dart';
 
 import '../../../support/fakes/bookmark_test_storage.dart';
 
@@ -23,6 +29,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 
 import '../../search/following_topics/topic_test_utils.dart';
+
+BooruConfig pixivFavoriteTestProfile({
+  String? token = 'fixture-token',
+  String? userId = '42',
+}) => BooruConfig.fromJson({
+  ...BooruConfig.empty.toJson(),
+  'id': '00000000-0000-4000-8000-000000000042',
+  'name': 'Pixiv fixture',
+  'booruId': BooruType.pixiv.id,
+  'booruIdHint': BooruType.pixiv.id,
+  'url': 'https://pixiv.net',
+  'apiKey': token,
+  'passHash': PixivExtraData(userId: userId).toPassHash(),
+});
 
 class FavoriteTestStore implements MiscDataStore {
   bool fail = false;
@@ -109,10 +129,13 @@ class FavoriteHarness {
   late Box<dynamic> organizationBox;
   late BookmarkTestStorage bookmarkStorage;
   List<Override> Function(BooruConfig)? _extraOverrides;
+  bool _unifiedGroups = false;
   late BooruConfig profile;
 
   Future<void> open({
     bool sharedAuth = false,
+    bool unifiedGroups = false,
+    List<BooruConfig> additionalProfiles = const [],
     List<Override> Function(BooruConfig)? extraOverrides,
   }) async {
     profile = BooruConfig.fromJson({
@@ -133,6 +156,7 @@ class FavoriteHarness {
           'id': '00000000-0000-4000-8000-000000000002',
           'name': 'Account two',
         }),
+      ...additionalProfiles,
     ]);
     source = FavoriteTestSource([post(1), post(2)]);
     directory = await Directory.systemTemp.createTemp('server-favorites-');
@@ -142,6 +166,7 @@ class FavoriteHarness {
     if (!Hive.isAdapterRegistered(5))
       Hive.registerAdapter(BookmarkGroupHiveObjectAdapter());
     _extraOverrides = extraOverrides;
+    _unifiedGroups = unifiedGroups;
     await _openRepositories();
   }
 
@@ -150,11 +175,25 @@ class FavoriteHarness {
     groupBox = await Hive.openBox<BookmarkGroupHiveObject>('favorites-groups');
     organizationBox = await Hive.openBox<dynamic>('favorites-organization');
     bookmarkStorage = await BookmarkTestStorage.open(bookmarkBox);
-    bookmarks = bookmarkStorage.repository(bookmarkBox);
-    groups = BookmarkGroupRepositoryHive(
-      groupBox,
-      organizationBox: organizationBox,
+    bookmarks = bookmarkStorage.repository(
+      bookmarkBox,
+      postDataCodec: (type) =>
+          type == BooruType.pixiv ? const PixivPostCodec() : null,
     );
+    groups = _unifiedGroups
+        ? await BookmarkStorageMigration(
+            bookmarks: bookmarks,
+            legacyGroups: groupBox,
+            legacyOrganization: organizationBox,
+            metadata: bookmarkStorage.metadataBox,
+          ).open()
+        : BookmarkGroupRepositoryHive(
+            groupBox,
+            organizationBox: organizationBox,
+          );
+    final BookmarkGroupRepository groupRepository = _unifiedGroups
+        ? UnifiedBookmarkGroupRepository(bookmarks: bookmarks, reader: groups)
+        : groups;
     container = ProviderContainer(
       overrides: [
         ...bookmarkStorage.overrides,
@@ -165,7 +204,7 @@ class FavoriteHarness {
           () => BooruConfigNotifier(initialConfigs: profiles.profiles),
         ),
         bookmarkRepoProvider.overrideWith((ref) => bookmarks),
-        bookmarkGroupRepoProvider.overrideWith((ref) => groups),
+        bookmarkGroupRepoProvider.overrideWith((ref) => groupRepository),
         bookmarkUrlResolverProvider.overrideWith(
           (ref, id) => const DefaultImageUrlResolver(),
         ),
@@ -192,6 +231,7 @@ class FavoriteHarness {
   /// storage, so preservation checks cannot pass from retained memory state.
   Future<void> restart({bool warmLibrary = true}) async {
     container.dispose();
+    if (_unifiedGroups) await groups.close();
     await bookmarkStorage.close();
     await bookmarkBox.close();
     await groupBox.close();
@@ -201,6 +241,7 @@ class FavoriteHarness {
 
   Future<void> close() async {
     container.dispose();
+    if (_unifiedGroups) await groups.close();
     await bookmarkStorage.close();
     await bookmarkBox.close();
     await groupBox.close();

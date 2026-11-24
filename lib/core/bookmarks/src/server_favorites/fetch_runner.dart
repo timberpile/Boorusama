@@ -42,6 +42,7 @@ class ServerFavoriteCancellation {
   final _signal = Completer<void>();
 
   bool get isCancelled => _signal.isCompleted;
+  Future<void> get whenCancelled => _signal.future;
 
   void cancel() {
     if (!isCancelled) _signal.complete();
@@ -66,14 +67,21 @@ class ServerFavoriteCancelled implements Exception {
 }
 
 class ServerFavoritePage<T> {
-  ServerFavoritePage(Iterable<T> posts, {this.hasMore})
-    : posts = List.unmodifiable(posts);
+  ServerFavoritePage(
+    Iterable<T> posts, {
+    this.hasMore,
+    this.cursorAdvanced = false,
+  }) : posts = List.unmodifiable(posts);
 
   final List<T> posts;
 
   /// Null means the source has no reliable end marker. Request until empty;
   /// never infer exhaustion from a short (possibly server-filtered) page.
   final bool? hasMore;
+
+  /// A source with an independently validated cursor can advance even if
+  /// this page contributes no eligible or previously unseen entries.
+  final bool cursorAdvanced;
 }
 
 /// Explicit, additive fetch only. There are no timers, lifecycle hooks, durable
@@ -141,8 +149,8 @@ class ServerFavoriteFetchRunner<T> {
         await cancellation.wait(validateSession());
         cancellation.throwIfCancelled();
 
-        if (response.posts.isEmpty) {
-          if (response.hasMore == true) {
+        if (response.posts.isEmpty && !response.cursorAdvanced) {
+          if (response.hasMore ?? false) {
             throw const ServerFavoriteException(
               ServerFavoriteProblem.paginationStalled,
             );
@@ -157,7 +165,9 @@ class ServerFavoriteFetchRunner<T> {
           unique.putIfAbsent(identity(post), () => post);
         }
         final advances = unique.keys.any((key) => !seen.contains(key));
-        if (!advances && response.hasMore != false) {
+        if (!advances &&
+            (response.hasMore ?? true) &&
+            !response.cursorAdvanced) {
           throw const ServerFavoriteException(
             ServerFavoriteProblem.paginationStalled,
           );

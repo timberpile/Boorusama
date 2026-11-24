@@ -1,4 +1,5 @@
 import './profile_uuid_utils.dart';
+
 // Dart imports:
 import 'dart:typed_data';
 
@@ -314,6 +315,39 @@ void main() {
   });
 
   group('attaching the live bearer token to a request', () {
+    test(
+      'rejects refreshed credentials for a different known account',
+      () async {
+        var authFailures = 0;
+        var persisted = false;
+        final adapter = _StaticTokenAdapter(() => 'different-account');
+        final interceptor = PixivAuthInterceptor(
+          refreshToken: 'fixture',
+          expectedUserId: 42,
+          refresher: (_) async => PixivTokens.fromJson({
+            'access_token': 'different-account',
+            'refresh_token': 'different-refresh-token',
+            'user': {'id': '99'},
+          }),
+          onAuthFailed: () => authFailures++,
+          onTokenRefreshed: (_) => persisted = true,
+        );
+        final dio = Dio(BaseOptions(baseUrl: 'https://app-api.pixiv.net'))
+          ..httpClientAdapter = adapter
+          ..interceptors.add(interceptor);
+        interceptor.attach(dio);
+        addTearDown(() => dio.close(force: true));
+
+        await expectLater(
+          dio.get<dynamic>('/illust'),
+          throwsA(isA<DioException>()),
+        );
+        expect(authFailures, 1);
+        expect(persisted, isFalse);
+        expect(adapter.headerLog, isEmpty);
+      },
+    );
+
     test('replaces the placeholder one instead of sending a second', () async {
       final adapter = _StaticTokenAdapter(() => 'live');
       final interceptor = PixivAuthInterceptor(

@@ -5,6 +5,7 @@ import '../../../../boorus/e621/favorites/providers.dart';
 import '../../../../boorus/moebooru/moebooru.dart';
 import '../../../../boorus/gelbooru_v2/favorites/providers.dart';
 import '../../../../boorus/gelbooru_v2/gelbooru_v2_provider.dart';
+import '../../../../boorus/pixiv/configs/extra_data.dart';
 import '../../../configs/config/types.dart';
 import '../../../posts/post/providers.dart';
 import '../../../posts/post/types.dart';
@@ -27,7 +28,8 @@ bool supportsServerFavoriteFetch(BooruType type) => switch (type) {
   BooruType.moebooru ||
   BooruType.gelbooru ||
   BooruType.gelbooruV2 ||
-  BooruType.szurubooru => true,
+  BooruType.szurubooru ||
+  BooruType.pixiv => true,
   _ => false,
 };
 
@@ -41,10 +43,10 @@ bool supportsServerFavoriteProjection(BooruType type) => switch (type) {
   _ => false,
 };
 
-/// This is deliberately pure: checking availability must not construct an
-/// engine client, probe an account, or start a favorites request.
+/// Legacy Post listing queries. Pixiv uses its artwork cursor source.
 String serverFavoriteQuery(BooruConfigAuth auth) {
-  if (!supportsServerFavoriteFetch(auth.booruType)) {
+  if (!supportsServerFavoriteFetch(auth.booruType) ||
+      auth.booruType == BooruType.pixiv) {
     throw const ServerFavoriteException(ServerFavoriteProblem.unsupported);
   }
   final login = auth.login;
@@ -80,6 +82,11 @@ String serverFavoriteQuery(BooruConfigAuth auth) {
 final serverFavoriteAvailabilityProvider =
     Provider.family<ServerFavoriteProblem?, BooruConfigAuth>((ref, auth) {
       try {
+        if (auth.booruType == BooruType.pixiv) {
+          return pixivAuthenticatedUserId(auth) == null
+              ? ServerFavoriteProblem.signedOut
+              : null;
+        }
         if (!supportsServerFavoriteFetch(auth.booruType)) {
           return ServerFavoriteProblem.unsupported;
         }

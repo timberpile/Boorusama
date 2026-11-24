@@ -74,6 +74,7 @@ final pixivDioProvider = Provider.family<Dio, BooruConfigAuth>((ref, config) {
   final authInterceptor = switch (refreshToken) {
     final String token when token.isNotEmpty => PixivAuthInterceptor(
       refreshToken: token,
+      expectedUserId: pixivAuthenticatedUserId(config),
       refresher: (current) => ref.read(apiAuthRefreshRegistryProvider).run(
         (
           'pixiv',

@@ -28,10 +28,8 @@ bool serverFavoriteActorMatches(BooruConfig expected, BooruConfig actual) {
       a.url != b.url ||
       a.login != b.login)
     return false;
-  final user = PixivExtraData.fromPassHash(a.passHash).userId;
-  return user != null &&
-      user.isNotEmpty &&
-      user == PixivExtraData.fromPassHash(b.passHash).userId;
+  final user = pixivAuthenticatedUserId(a);
+  return user != null && user == pixivAuthenticatedUserId(b);
 }
 
 bool serverFavoriteAccountsMatch(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:boorusama/core/bookmarks/server_favorites.dart';
 import 'package:boorusama/boorus/danbooru/posts/favorites/src/favorites_page.dart';
 import 'package:boorusama/boorus/e621/favorites/widgets.dart';
+import 'package:boorusama/boorus/pixiv/favorites/page.dart';
 import 'package:boorusama/core/boorus/engine/providers.dart';
 import 'package:boorusama/core/boorus/engine/types.dart';
 import 'package:boorusama/core/bookmarks/src/server_favorites/dialog.dart';
@@ -17,8 +18,10 @@ import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/configs/config/types.dart';
 import 'package:boorusama/core/configs/manage/providers.dart';
 import 'package:boorusama/core/configs/manage/widgets.dart';
+import 'package:boorusama/core/developer_options/providers.dart';
 import 'package:boorusama/core/boorus/booru/types.dart';
 import 'package:boorusama/core/groups/folder_tree.dart';
+import 'package:boorusama/core/images/providers.dart';
 import 'package:boorusama/core/posts/favorites/widgets.dart';
 import 'package:boorusama/core/posts/post/providers.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -33,6 +36,8 @@ import 'package:oktoast/oktoast.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../support/fakes/memory_repositories.dart';
+import '../../../application/support/fake_image_dio.dart';
+import '../../posts/details/progressive_image_test_utils.dart';
 import 'test_support.dart';
 
 void main() {
@@ -75,6 +80,9 @@ void main() {
     container = ProviderContainer(
       overrides: [
         bookmarkLibraryProvider.overrideWith(_FavoritesDialogLibrary.new),
+        deterministicFaviconDioOverride(),
+        automaticMediaLoadingEnabledProvider.overrideWithValue(false),
+        defaultImageCacheManagerProvider.overrideWithValue(TestImageCache({})),
         currentReadOnlyBooruConfigProvider.overrideWithValue(h.profile),
         booruEngineRegistryProvider.overrideWith(
           (ref) => BooruEngineRegistry(),
@@ -344,6 +352,39 @@ void main() {
       expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
       expect(h.source.calls, 0);
       await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
+  testWidgets(
+    'Pixiv Favorites opens the shared editor',
+    (tester) async {
+      final pixiv = pixivFavoriteTestProfile();
+      final signedOut = BooruConfig.fromJson({
+        ...pixivFavoriteTestProfile(token: null).toJson(),
+        'id': '00000000-0000-4000-8000-000000000043',
+        'name': 'Signed-out Pixiv profile',
+      });
+      await prepare(profiles: [pixiv, signedOut]);
+      final group = await library.createGroup('Pixiv target');
+      await container
+          .read(serverFavoriteSettingsProvider.notifier)
+          .setGlobal(group.id);
+      await mount(
+        tester,
+        child: CurrentBooruConfigScope(
+          config: signedOut,
+          child: const PixivFavoritesPage(),
+        ),
+      );
+      await open(tester);
+
+      expect(
+        find.text('Sign in to this profile before fetching favorites.'),
+        findsOneWidget,
+      );
+      expect(getFetch(signedOut.id), findsNothing);
+      expect(h.source.calls, 0);
+      expect(tester.takeException(), isNull);
     },
   );
 

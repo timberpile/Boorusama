@@ -107,14 +107,21 @@ class BookmarkLibraryService {
 
   /// Draft/file IDs never select a local slot. Saving performs no metadata or
   /// member requests and keeps a previously saved observation unchanged.
+  /// Importers can supply per-draft local addition times for new memberships.
   Future<BookmarkDraftSaveResult> saveDraftsToGroup(
     Iterable<Bookmark> drafts,
     String groupId, {
     Iterable<Bookmark> savedRecords = const [],
+    bool useDraftMembershipDates = false,
   }) {
     if (unifiedStore == null)
       throw StateError('Unified Bookmark storage unavailable');
-    return _saveUnifiedDrafts(drafts, groupId, savedRecords);
+    return _saveUnifiedDrafts(
+      drafts,
+      groupId,
+      savedRecords,
+      useDraftMembershipDates: useDraftMembershipDates,
+    );
   }
 
   Future<({BookmarkGroup group, int addedCount})> createGroupWithSavedRecords(

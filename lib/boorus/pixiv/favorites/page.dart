@@ -8,6 +8,7 @@ import '../../../core/configs/config/providers.dart';
 import '../../../core/configs/config/types.dart';
 import '../../../core/configs/create/routes.dart';
 import '../../../core/navigation/navigation_profile_picker.dart';
+import '../../../core/posts/favorites/src/widgets/favorites_page_menu.dart';
 import '../../../core/posts/listing/types.dart';
 import '../../../core/widgets/widgets.dart';
 import '../configs/extra_data.dart';
@@ -21,14 +22,15 @@ class PixivFavoritesPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watchConfig;
-    final userId = int.tryParse(
-      PixivExtraData.fromPassHash(config.passHash).userId ?? '',
-    );
-    if (userId == null || userId <= 0 || (config.apiKey?.isEmpty ?? true)) {
+    final userId = pixivAuthenticatedUserId(config.auth);
+    if (userId == null) {
       return Scaffold(
         appBar: KurumiAppBar(
           title: Text(context.t.profile.favorites),
-          actions: const [NavigationProfilePicker(favorites: true)],
+          actions: const [
+            NavigationProfilePicker(favorites: true),
+            FavoritesPageMenu(),
+          ],
         ),
         body: Center(
           child: FilledButton(
@@ -100,7 +102,10 @@ class _FavoritesViewState extends ConsumerState<_FavoritesView> {
         sliverHeaders: [
           KurumiSliverAppBar(
             title: Text(context.t.profile.favorites),
-            actions: const [NavigationProfilePicker(favorites: true)],
+            actions: const [
+              NavigationProfilePicker(favorites: true),
+              FavoritesPageMenu(),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(

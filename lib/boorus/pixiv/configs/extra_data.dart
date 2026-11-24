@@ -1,6 +1,16 @@
 // Dart imports:
 import 'dart:convert';
 
+import '../../../core/configs/config/types.dart';
+
+int? pixivAuthenticatedUserId(BooruConfigAuth auth) {
+  if (auth.apiKey?.trim().isNotEmpty != true) return null;
+  final id = int.tryParse(
+    PixivExtraData.fromPassHash(auth.passHash).userId ?? '',
+  );
+  return id != null && id > 0 ? id : null;
+}
+
 /// The non-secret half of a Pixiv login, stored as JSON in
 /// `BooruConfig.passHash`.
 ///

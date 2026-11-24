@@ -687,13 +687,30 @@ class BookmarkLibraryNotifier extends AsyncNotifier<BookmarkLibraryState> {
     Iterable<ContentGroupBookmark> drafts,
     String groupId, {
     void Function()? beforeCommit,
+  }) => addBookmarkDraftsToGroup(
+    drafts,
+    groupId,
+    manual: true,
+    beforeCommit: beforeCommit,
+  );
+
+  Future<int> addBookmarkDraftsToGroup(
+    Iterable<Bookmark> drafts,
+    String groupId, {
+    bool manual = false,
+    bool useDraftMembershipDates = false,
+    void Function()? beforeCommit,
   }) => withBookmarkCommitGuard(
     () => _runTrackedMutation(() async {
       beforeCommit?.call();
       final service = await _service;
       beforeCommit?.call();
-      final result = await service.saveDraftsToGroup(drafts, groupId);
-      if (result.addedCount > 0) await _rememberManualGroup(groupId);
+      final result = await service.saveDraftsToGroup(
+        drafts,
+        groupId,
+        useDraftMembershipDates: useDraftMembershipDates,
+      );
+      if (manual && result.addedCount > 0) await _rememberManualGroup(groupId);
       return result.addedCount;
     }),
     beforeCommit,
