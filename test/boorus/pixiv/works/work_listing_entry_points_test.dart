@@ -17,7 +17,14 @@ import 'package:boorusama/core/cache/misc_data_store.dart';
 import 'package:boorusama/core/content/groups/group_source_provider.dart';
 import 'package:boorusama/core/content/types.dart';
 import 'package:boorusama/core/content/widgets/native_content_grid.dart';
+import 'package:boorusama/core/posts/links/boorusama_link_file.dart';
+import 'package:boorusama/core/posts/links/boorusama_search_link.dart';
+import 'package:boorusama/core/posts/links/share_search_link_button.dart';
+import 'package:boorusama/core/posts/shares/src/share_action_adapter.dart';
 import 'package:boorusama/core/posts/listing/widgets.dart';
+import 'package:boorusama/foundation/filesystem.dart';
+import 'package:boorusama/core/posts/listing/src/widgets/timeline_toolbar.dart';
+import 'package:boorusama/core/search/following_topics/src/widgets/topic_follow_control.dart';
 import 'package:boorusama/core/posts/listing/types.dart';
 import 'package:boorusama/core/settings/src/types/settings.dart';
 import 'package:boorusama/core/posts/post/types.dart';
@@ -26,7 +33,9 @@ import 'package:boorusama/core/search/search/src/widgets/search_profile_session.
 import 'package:boorusama/core/search/search/widgets.dart';
 import 'package:boorusama/core/content/content_access_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:kurumi/kurumi.dart';
 import 'package:kurumi/material.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/search/following_topics/following_topic_test_utils.dart';
 import '../../../support/fakes/memory_repositories.dart';
@@ -58,6 +67,82 @@ void main() {
       expect(pixivWorkIndexForPagePosition(counts, 900), 2);
     },
   );
+  for (final count in [0, 3]) {
+    testWidgets(
+      'artist results keep search actions in one toolbar, count=$count',
+      (
+        tester,
+      ) async {
+        await tester.binding.setSurfaceSize(const Size(320, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final config = workAccess().config!;
+        final client = _Client(count: count);
+        final sharedSearches = <BoorusamaSearchLink>[];
+        late final FollowingTopicHarness harness;
+        harness = FollowingTopicHarness(
+          profiles: [config],
+          overrides: [
+            currentReadOnlyBooruConfigProvider.overrideWithValue(config),
+            pixivClientProvider.overrideWith((_, _) => client),
+            searchLinkShareAdapterProvider.overrideWithValue(
+              ShareActionAdapter((params) async {
+                final fs = harness.container.read(appFileSystemProvider);
+                final bytes = await fs.readBytes(params.files!.single.path);
+                sharedSearches.add(
+                  BoorusamaSearchLink.parse(
+                    BoorusamaLinkFile.decode(bytes).uri.toString(),
+                  ),
+                );
+                return const ShareResult('', ShareResultStatus.success);
+              }),
+            ),
+            booruGroupCapabilityProvider.overrideWith(
+              (ref, _) => createPixivGroupCapability(ref),
+            ),
+          ],
+        );
+        addTearDown(harness.dispose);
+        await harness.pump(
+          tester,
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: const TextScaler.linear(2),
+              ),
+              child: const PixivWorkSearchPage(
+                params: SearchParams(query: 'user:7'),
+              ),
+            ),
+          ),
+        );
+        await drain(tester);
+        final toolbar = find.byType(TimelineToolbar);
+        final follow = find.byType(FollowTopicButton);
+        expect(toolbar, findsOneWidget);
+        expect(follow, findsOneWidget);
+        expect(find.descendant(of: toolbar, matching: follow), findsOneWidget);
+        expect(tester.widget<FollowTopicButton>(follow).query, 'user:7');
+        final overflow = find.descendant(
+          of: toolbar,
+          matching: find.byType(KurumiPopupMenuButton),
+        );
+        expect(overflow.hitTestable(), findsOneWidget);
+        expect(find.text('Share Boorusama Search Link'), findsNothing);
+        await tester.tap(overflow);
+        await tester.pumpAndSettle();
+        final share = find.text('Share Boorusama Search Link');
+        expect(share, findsOneWidget);
+        await tester.tap(share);
+        await tester.pumpAndSettle();
+        expect(share, findsNothing);
+        expect(sharedSearches.single.query, 'user:7');
+        expect(sharedSearches.single.site.host, Uri.parse(config.url).host);
+        expect(client.calls, [('artist', '7', 1)]);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
   for (final local in [false, true]) {
     for (final query in [null, '', 'user:7', 'cat']) {
       testWidgets(

@@ -188,9 +188,12 @@ class _ExpandCollapseButton extends StatelessWidget {
               children: [
                 Icon(icon),
                 const SizedBox(width: 4),
-                Text(
-                  text,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                Flexible(
+                  child: Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
                 ),
               ],
             ),

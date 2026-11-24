@@ -11,7 +11,6 @@ import '../../../core/http/client/coordination.dart';
 import '../../../core/content/content_access_provider.dart';
 import '../../../core/content/groups/group_source_provider.dart';
 import '../../../core/content/widgets/native_content_grid.dart';
-import '../../../core/content/groups/group_visibility.dart';
 import '../../../core/posts/listing/types.dart';
 import '../../../core/settings/providers.dart';
 import '../../../core/navigation/destination_activity.dart';
@@ -31,6 +30,8 @@ class PixivWorkGrid extends ConsumerWidget {
     required this.queryIdentity,
     this.header,
     this.sliverHeaders = const [],
+    this.toolbarControls = const [],
+    this.toolbarMenuItems = const [],
     this.initialPage = 1,
     this.initialScrollPosition,
     this.pageMode,
@@ -42,6 +43,8 @@ class PixivWorkGrid extends ConsumerWidget {
   final Object queryIdentity;
   final Widget? header;
   final List<Widget> sliverHeaders;
+  final List<Widget> toolbarControls;
+  final List<Widget> toolbarMenuItems;
   final int initialPage;
   final int? initialScrollPosition;
   final PageMode? pageMode;
@@ -98,6 +101,8 @@ class PixivWorkGrid extends ConsumerWidget {
         if (visibility != null)
           _FavoritesListRefresh(profileId: config.id, visibility: visibility),
       ],
+      toolbarControls: toolbarControls,
+      toolbarMenuItems: toolbarMenuItems,
       fetchPage: (page) async {
         final request = ApiRequestContext.current();
         final source =
@@ -124,18 +129,7 @@ class PixivWorkGrid extends ConsumerWidget {
           hasMore: result.hasMore,
           illusts: [
             for (final dto in result.illusts)
-              if (groupAllowsRating(
-                    config,
-                    pixivWorkRating(dto),
-                  ) &&
-                  groupTagsPassBlacklist(
-                    pixivWorkTags(dto),
-                    blacklist,
-                    rating: pixivWorkRating(dto),
-                    sourceId: dto.id,
-                    sourceUrl: access.baseUrl.toString(),
-                  ))
-                dto,
+              if (pixivWorkPassesFilters(dto, access, blacklist)) dto,
           ],
         );
         favorites.observe(

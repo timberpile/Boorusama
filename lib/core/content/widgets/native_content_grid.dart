@@ -73,6 +73,8 @@ class NativeContentGrid extends ConsumerStatefulWidget {
     this.onRefresh,
     this.header,
     this.sliverHeaders = const [],
+    this.toolbarControls = const [],
+    this.toolbarMenuItems = const [],
     this.allowPageModeChange = false,
     this.counterLabel,
     this.groupLabel,
@@ -92,6 +94,8 @@ class NativeContentGrid extends ConsumerStatefulWidget {
   final VoidCallback? onRefresh;
   final Widget? header;
   final List<Widget> sliverHeaders;
+  final List<Widget> toolbarControls;
+  final List<Widget> toolbarMenuItems;
   final bool allowPageModeChange;
   final String Function(BuildContext, int)? counterLabel;
   final String Function(BuildContext, ContentGroupSummary)? groupLabel;
@@ -250,7 +254,9 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                         ...widget.sliverHeaders,
                         if (widget.header case final header?)
                           SliverToBoxAdapter(child: header),
-                        if (_controller.entries.isNotEmpty)
+                        if (_controller.entries.isNotEmpty ||
+                            widget.toolbarControls.isNotEmpty ||
+                            widget.toolbarMenuItems.isNotEmpty)
                           TimelineHeaderSliver(
                             keepVisible: listing.keepTimelineToolbarVisible,
                             reduceMotion: ref.watch(
@@ -265,6 +271,8 @@ class _NativeContentGridState extends ConsumerState<NativeContentGrid> {
                                 _controller.entries.length,
                               ),
                               allowPageModeChange: widget.allowPageModeChange,
+                              controls: widget.toolbarControls,
+                              menuItems: widget.toolbarMenuItems,
                             ),
                           ),
                         if (_controller.entries.isEmpty &&

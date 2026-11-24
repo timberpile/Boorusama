@@ -67,6 +67,39 @@ class _ArtistSectionState extends ConsumerState<ArtistSection> {
             uri.host.isNotEmpty
         ? url
         : null;
+    // A zero-duration AnimatedSize can mark itself dirty during layout
+    // when the viewer's asynchronous commentary changes size.
+    final reduceMotion =
+        KurumiTheme.maybeBehaviorOf(context)?.reduceMotion ?? false;
+    final description = commentary.isEmpty
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 12,
+            ),
+            child: AppHtml(
+              selectionRegistrar: NativeMetadataSelectionScope.registrarOf(
+                context,
+              ),
+              style: {
+                'body': Style(
+                  whiteSpace: WhiteSpace.pre,
+                  margin: Margins.zero,
+                ),
+                'h2': Style(
+                  margin: Margins.zero,
+                  padding: HtmlPaddings.only(top: 4, bottom: 8),
+                ),
+              },
+              data: getDescriptionText(display, commentary),
+              onLinkTap: (url, attributes, element) => url != null
+                  ? launchExternalUrl(
+                      Uri.parse(url),
+                      launcher: ref.read(externalUrlLauncherProvider),
+                    )
+                  : null,
+            ),
+          );
     return Container(
       padding: const EdgeInsets.only(
         bottom: 8,
@@ -84,41 +117,17 @@ class _ArtistSectionState extends ConsumerState<ArtistSection> {
               artistAvatarBuilder: widget.artistAvatarBuilder,
               onChanged: onChanged,
             ),
-          KurumiAnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: commentary.isEmpty
-                ? const SizedBox.shrink()
-                : Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                    ),
-                    child: AppHtml(
-                      selectionRegistrar:
-                          NativeMetadataSelectionScope.registrarOf(context),
-                      style: {
-                        'body': Style(
-                          whiteSpace: WhiteSpace.pre,
-                          margin: Margins.zero,
-                        ),
-                        'h2': Style(
-                          margin: Margins.zero,
-                          padding: HtmlPaddings.only(top: 4, bottom: 8),
-                        ),
-                      },
-                      data: getDescriptionText(display, commentary),
-                      onLinkTap: (url, attributes, element) => url != null
-                          ? launchExternalUrl(
-                              Uri.parse(url),
-                              launcher: ref.read(externalUrlLauncherProvider),
-                            )
-                          : null,
-                    ),
-                  ),
-            crossFadeState: commentary.isEmpty
-                ? CrossFadeState.showFirst
-                : CrossFadeState.showSecond,
-            duration: const Duration(milliseconds: 80),
-          ),
+          if (reduceMotion)
+            description
+          else
+            KurumiAnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: description,
+              crossFadeState: commentary.isEmpty
+                  ? CrossFadeState.showFirst
+                  : CrossFadeState.showSecond,
+              duration: const Duration(milliseconds: 80),
+            ),
         ],
       ),
     );

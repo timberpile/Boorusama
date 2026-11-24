@@ -10,6 +10,7 @@ import 'types/types.dart';
 
 part 'pixiv_client_bookmarks.dart';
 part 'pixiv_client_following.dart';
+part 'pixiv_client_related.dart';
 
 const _kFilter = 'for_ios';
 

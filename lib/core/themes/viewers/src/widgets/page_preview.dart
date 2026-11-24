@@ -298,7 +298,7 @@ class PreviewDetails extends StatelessWidget {
             SliverIgnorePointer(
               sliver: SliverDetailsPostList(
                 onTap: () {},
-                tag: _previewPost.tags.first,
+                title: _previewPost.tags.first.replaceAll('_', ' '),
                 subtitle: context.t.post.detail.artist,
                 child: const SliverPreviewPostGridPlaceholder(
                   itemCount: 9,

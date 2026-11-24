@@ -21,15 +21,15 @@ import 'expandable_sliver_grid.dart';
 
 class SliverDetailsPostList extends ConsumerWidget {
   const SliverDetailsPostList({
-    required this.tag,
-    required this.subtitle,
+    required this.title,
+    this.subtitle,
     required this.onTap,
     required this.child,
     super.key,
   });
 
-  final String tag;
-  final String subtitle;
+  final String title;
+  final String? subtitle;
   final Widget child;
   final VoidCallback onTap;
 
@@ -61,15 +61,13 @@ class SliverDetailsPostList extends ConsumerWidget {
                         Symbols.arrow_right_alt,
                       ),
                       title: Text(
-                        tag.replaceAll('_', ' '),
+                        title,
                         style: const TextStyle(
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.5,
                         ),
                       ),
-                      subtitle: Text(
-                        subtitle,
-                      ),
+                      subtitle: subtitle == null ? null : Text(subtitle!),
                     ),
                   ),
                 ),
@@ -130,17 +128,11 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
         gridDelegate: _getGridDelegate(constraints?.maxWidth),
         itemBuilder: (context, index) => _buildGridItem(ref, index),
       ),
-      final BatchedPreview batch => ExpandableSliverGrid(
+      final BatchedPreview batch => BatchedDetailsPreviewGrid(
         itemCount: posts.length,
-        gridDelegate: _getGridDelegate(constraints?.maxWidth),
         builder: (context, index) => _buildGridItem(ref, index),
-        shouldLimit: (totalCount, expandCount) =>
-            batch.calculateProgressiveLimit(
-              totalCount: totalCount,
-              expandCount: expandCount,
-            ),
+        limit: batch,
         onShowAll: onShowAll,
-        showCollapseButtonWhenExpanded: false,
       ),
       final LimitedPreview limitConfig => ExpandableSliverGrid(
         itemCount: posts.length,
@@ -202,6 +194,37 @@ class SliverPreviewPostGrid<T extends Post> extends ConsumerWidget {
       },
     );
   }
+}
+
+/// Shared Details grid that progressively reveals already loaded entries.
+class BatchedDetailsPreviewGrid extends StatelessWidget {
+  const BatchedDetailsPreviewGrid({
+    required this.itemCount,
+    required this.builder,
+    required this.limit,
+    this.onShowAll,
+    super.key,
+  });
+
+  final int itemCount;
+  final Widget Function(BuildContext, int) builder;
+  final BatchedPreview limit;
+  final VoidCallback? onShowAll;
+
+  @override
+  Widget build(BuildContext context) => ExpandableSliverGrid(
+    itemCount: itemCount,
+    gridDelegate: _getGridDelegate(
+      PostDetailsSheetConstraints.of(context)?.maxWidth,
+    ),
+    builder: builder,
+    shouldLimit: (totalCount, expandCount) => limit.calculateProgressiveLimit(
+      totalCount: totalCount,
+      expandCount: expandCount,
+    ),
+    onShowAll: onShowAll,
+    showCollapseButtonWhenExpanded: false,
+  );
 }
 
 class SliverPreviewPostGridPlaceholder extends StatelessWidget {

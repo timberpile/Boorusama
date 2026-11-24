@@ -80,7 +80,7 @@ class _DefaultInheritedArtistPostsSectionState<T extends Post>
                         ),
                         SliverDetailsPostList(
                           key: ValueKey(postsQuery),
-                          tag: tag,
+                          title: tag.replaceAll('_', ' '),
                           subtitle: context.t.post.detail.artist,
                           onTap: () => _goToArtistPage(tag),
                           child: ListenableBuilder(

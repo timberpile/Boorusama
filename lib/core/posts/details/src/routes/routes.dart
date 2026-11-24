@@ -180,6 +180,17 @@ class PostDetailsTransitionPage<T> extends CustomTransitionPage<T> {
         transitionDuration: const Duration(milliseconds: 260),
         reverseTransitionDuration: const Duration(milliseconds: 210),
         transitionsBuilder: (context, animation, secondary, child) =>
-            ViewerRouteTransition(animation: animation, child: child),
+            ViewerRouteTransition(
+              // Cupertino child routes wrap this transition while sliding.
+              // Keep the viewer's paint readiness and drag state across it.
+              key: _ViewerTransitionKey(animation),
+              animation: animation,
+              child: child,
+            ),
       );
+}
+
+class _ViewerTransitionKey
+    extends GlobalObjectKey<State<ViewerRouteTransition>> {
+  const _ViewerTransitionKey(super.value);
 }

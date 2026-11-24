@@ -18,18 +18,21 @@ final searchLinkShareAdapterProvider = Provider<ShareActionAdapter>(
   (ref) => ShareActionAdapter(SharePlus.instance.share),
 );
 
-/// A single file-only action, shared by all engines' search result headers.
+/// Owns a file-only search action. A custom builder can place the action
+/// inside an overflow while this owner stays mounted after the menu closes.
 class SearchLinkShareMenu extends ConsumerStatefulWidget {
   const SearchLinkShareMenu({
     required this.link,
     this.profileName,
     this.shareAdapter,
+    this.actionBuilder,
     super.key,
   });
 
   final BoorusamaSearchLink? link;
   final String? profileName;
   final ShareActionAdapter? shareAdapter;
+  final Widget Function(BuildContext, VoidCallback?)? actionBuilder;
 
   @override
   ConsumerState<SearchLinkShareMenu> createState() =>
@@ -64,11 +67,13 @@ class _SearchLinkShareMenuState extends ConsumerState<SearchLinkShareMenu> {
         !_sharing &&
         SharePlatformCapabilities.forPlatform(currentAppPlatform())
             .canShareMedia;
-    return IconButton(
-      tooltip: context.linkFileLabel,
-      icon: const Icon(Icons.share),
-      onPressed: enabled ? _share : null,
-    );
+    final onShare = enabled ? _share : null;
+    return widget.actionBuilder?.call(context, onShare) ??
+        IconButton(
+          tooltip: context.linkFileLabel,
+          icon: const Icon(Icons.share),
+          onPressed: onShare,
+        );
   }
 }
 

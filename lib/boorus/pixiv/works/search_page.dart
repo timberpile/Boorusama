@@ -41,6 +41,7 @@ class PixivWorkSearchPage extends ConsumerWidget {
             initialScrollPosition,
             pageMode,
             header,
+            toolbarActions,
           ) {
             final composed = composer.compose(queryText.split(' '));
             final query = PixivQuery.parse(composed);
@@ -51,6 +52,8 @@ class PixivWorkSearchPage extends ConsumerWidget {
               initialScrollPosition: initialScrollPosition,
               pageMode: pageMode,
               header: header,
+              toolbarControls: [toolbarActions.follow],
+              toolbarMenuItems: [toolbarActions.share],
               fetchPage: (page) {
                 final client = ref.read(pixivClientProvider(config.auth));
                 return fetchPixivWorkPage(client, query, page);

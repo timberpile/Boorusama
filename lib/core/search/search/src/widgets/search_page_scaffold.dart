@@ -69,6 +69,7 @@ class SearchPageScaffold<T extends Post> extends ConsumerStatefulWidget {
     int? initialScrollPosition,
     PageMode? pageMode,
     Widget header,
+    ({Widget follow, Widget share}) toolbarActions,
   )?
   nativeResultBuilder;
 
@@ -300,6 +301,31 @@ class _SearchPageScaffoldState<T extends Post>
         return false;
       },
     );
+    Widget followAction(String query) => FollowTopicButton(
+      query: query,
+      queryStructure: _typedQueryStructure(_tagsController.tags),
+      originatingTopicId: origin?.value?.topic.id,
+      original: origin?.value,
+      onOpen: () => _openFollow(origin),
+      compact: true,
+      showCount: false,
+      onFeedback: (message) => _topicFeedback.value = message,
+    );
+    Widget topicFeedback(String query) => ValueListenableBuilder(
+      valueListenable: _topicFeedback,
+      builder: (context, error, _) => switch (error) {
+        final message? when query.trim().isNotEmpty => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            message,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
+        _ => const SizedBox.shrink(),
+      },
+    );
+
+    final nativeResults = widget.nativeResultBuilder;
     return PostSearchActionsScope(
       actions: actions,
       child: RawSearchPageScaffold(
@@ -315,7 +341,35 @@ class _SearchPageScaffoldState<T extends Post>
             DefaultMobileSearchLandingView(controller: _controller),
         itemBuilder: widget.itemBuilder,
         resultGridBuilder: widget.resultGridBuilder,
-        nativeResultBuilder: widget.nativeResultBuilder,
+        nativeResultBuilder: nativeResults == null
+            ? null
+            : (context, query, page, position, mode, header) =>
+                  SearchLinkShareMenu(
+                    profileName: profile.name,
+                    link: BoorusamaSearchLink.fromRaw(
+                      auth: profile.auth,
+                      query: query,
+                    ),
+                    actionBuilder: (context, onShare) => nativeResults(
+                      context,
+                      query,
+                      page,
+                      position,
+                      mode,
+                      header,
+                      (
+                        follow: ListenableBuilder(
+                          listenable: _tagsController,
+                          builder: (context, _) => followAction(query),
+                        ),
+                        share: KurumiPopupMenuItem(
+                          title: Text(context.t.search.app_link.share),
+                          icon: const Icon(Icons.share, size: 18),
+                          onTap: onShare,
+                        ),
+                      ),
+                    ),
+                  ),
         searchSuggestions: DefaultSearchSuggestions(
           multiSelectController: _searchModeController,
           config: ref.watchConfigAuth,
@@ -387,20 +441,7 @@ class _SearchPageScaffoldState<T extends Post>
                                         constraints: BoxConstraints(
                                           maxWidth: constraints.maxWidth * 0.55,
                                         ),
-                                        child: FollowTopicButton(
-                                          query: value,
-                                          queryStructure: _typedQueryStructure(
-                                            _tagsController.tags,
-                                          ),
-                                          originatingTopicId:
-                                              origin?.value?.topic.id,
-                                          original: origin?.value,
-                                          onOpen: () => _openFollow(origin),
-                                          compact: true,
-                                          showCount: false,
-                                          onFeedback: (message) =>
-                                              _topicFeedback.value = message,
-                                        ),
+                                        child: followAction(value),
                                       ),
                                     ),
                                   ],
@@ -409,52 +450,12 @@ class _SearchPageScaffoldState<T extends Post>
                             ),
                           ],
                         ),
-                        ValueListenableBuilder(
-                          valueListenable: _topicFeedback,
-                          builder: (context, error, _) => switch (error) {
-                            final message? when value.trim().isNotEmpty =>
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                ),
-                                child: Text(
-                                  message,
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                                ),
-                              ),
-                            _ => const SizedBox.shrink(),
-                          },
-                        ),
+                        topicFeedback(value),
                       ],
                     ),
                   )
-                : widget.nativeResultBuilder != null
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      SearchLinkShareMenu(
-                        profileName: ref.watchConfig.name,
-                        link: BoorusamaSearchLink.fromRaw(
-                          auth: ref.watchConfigAuth,
-                          query: value,
-                        ),
-                      ),
-                      FollowTopicButton(
-                        query: value,
-                        queryStructure: _typedQueryStructure(
-                          _tagsController.tags,
-                        ),
-                        originatingTopicId: origin?.value?.topic.id,
-                        original: origin?.value,
-                        onOpen: () => _openFollow(origin),
-                        compact: true,
-                        showCount: false,
-                        onFeedback: (message) => _topicFeedback.value = message,
-                      ),
-                    ],
-                  )
+                : nativeResults != null
+                ? topicFeedback(value)
                 : const SizedBox.shrink(),
           ),
         ),

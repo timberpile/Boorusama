@@ -13,11 +13,15 @@ class NativeContentConfigurationHeader extends ConsumerWidget {
     required this.count,
     this.allowPageModeChange = false,
     this.counterLabel,
+    this.controls = const [],
+    this.menuItems = const [],
     super.key,
   });
   final int count;
   final String? counterLabel;
   final bool allowPageModeChange;
+  final List<Widget> controls;
+  final List<Widget> menuItems;
 
   @override
   Widget build(
@@ -28,9 +32,11 @@ class NativeContentConfigurationHeader extends ConsumerWidget {
     postCount: count,
     counterLabel: counterLabel,
     blacklistControls: const SizedBox.shrink(),
+    additionalControls: controls,
     trailing: KurumiPopupMenuButton(
       iconBackgroundColor: Colors.transparent,
       items: [
+        ...menuItems,
         KurumiPopupMenuItem(
           title: Text(context.t.posts.actions.view_options),
           icon: const Icon(Icons.settings, size: 18),

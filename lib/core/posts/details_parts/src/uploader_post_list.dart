@@ -76,7 +76,7 @@ class _UploaderPostsSectionState<T extends Post>
             onTap: () {
               _goToUploaderPage(q);
             },
-            tag: q.resolveDisplayName(),
+            title: q.resolveDisplayName().replaceAll('_', ' '),
             subtitle: context.t.post.detail.uploader,
             child: ListenableBuilder(
               listenable: _visController,

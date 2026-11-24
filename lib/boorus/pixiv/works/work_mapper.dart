@@ -1,6 +1,7 @@
 import 'package:booru_clients/pixiv.dart';
 
 import '../../../core/boorus/booru/types.dart';
+import '../../../core/content/groups/group_visibility.dart';
 import '../../../core/content/types.dart';
 import '../../../core/posts/post/types.dart';
 import '../../../core/posts/rating/types.dart';
@@ -75,6 +76,22 @@ bool pixivWorkIsVisible(PixivIllustDto dto) =>
     (dto.user?.id ?? 0) > 0 &&
     (dto.visible ?? true) &&
     !(dto.isMuted ?? false);
+
+bool pixivWorkPassesFilters(
+  PixivIllustDto dto,
+  ContentAccessContext access,
+  Set<String> blacklist,
+) {
+  final rating = pixivWorkRating(dto);
+  return groupAllowsRating(access.config!, rating) &&
+      groupTagsPassBlacklist(
+        pixivWorkTags(dto),
+        blacklist,
+        rating: rating,
+        sourceId: dto.id,
+        sourceUrl: access.baseUrl.toString(),
+      );
+}
 
 ContentGroupSummary pixivWorkSummary(
   PixivIllustDto dto,

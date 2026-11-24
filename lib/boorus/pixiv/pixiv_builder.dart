@@ -20,6 +20,8 @@ import 'ugoira/ugoira_media.dart';
 import 'works/search_page.dart';
 import 'works/work_information.dart';
 import 'works/page_parent_work_section.dart';
+import 'works/related_section.dart';
+import 'works/author_section.dart';
 
 class PixivBuilder extends BaseBooruBuilder {
   PixivBuilder();
@@ -115,7 +117,9 @@ class PixivBuilder extends BaseBooruBuilder {
       DetailsPart.tags: (context) => const DefaultInheritedTagsTile<Post>(),
       DetailsPart.fileDetails: (context) =>
           const DefaultInheritedFileDetailsSection<Post>(),
+      DetailsPart.artistPosts: (context) => const PixivAuthorWorksSection(),
       DetailsPart.parentWork: (context) => const PixivParentWorkSection(),
+      DetailsPart.relatedPosts: (context) => const PixivRelatedWorksSection(),
     },
   );
 

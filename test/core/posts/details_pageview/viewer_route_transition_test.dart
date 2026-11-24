@@ -7,6 +7,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:i18n/i18n.dart';
 import 'package:go_router/go_router.dart';
+import 'package:kurumi/cupertino.dart' show CupertinoPage;
 import 'package:kurumi/material.dart';
 
 void main() {
@@ -355,6 +356,64 @@ void main() {
       }
     },
   );
+
+  testWidgets('a Cupertino child route keeps the settled viewer painted', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => const ColoredBox(color: Colors.blue),
+        ),
+        GoRoute(
+          path: '/viewer',
+          pageBuilder: (_, state) => PostDetailsTransitionPage(
+            key: state.pageKey,
+            child: const ColoredBox(color: Colors.black),
+          ),
+        ),
+        GoRoute(
+          path: '/customize',
+          pageBuilder: (_, state) => CupertinoPage(
+            key: state.pageKey,
+            child: const ColoredBox(color: Colors.green),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    router.push<void>('/viewer').ignore();
+    await tester.pumpAndSettle();
+    final viewer = find.byType(ViewerRouteTransition, skipOffstage: false);
+    final opacity = find.descendant(
+      of: viewer,
+      matching: find.byType(Opacity, skipOffstage: false),
+      skipOffstage: false,
+    );
+    final settled = tester.state(viewer);
+
+    void expectSettledViewer() {
+      expect(tester.widget<Opacity>(opacity).opacity, 1);
+      expect(tester.state(viewer), same(settled));
+    }
+
+    router.push<void>('/customize').ignore();
+    await tester.pump();
+    expectSettledViewer();
+    for (var frame = 0; frame < 28; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expectSettledViewer();
+    }
+    router.pop();
+    await tester.pump();
+    expectSettledViewer();
+    for (var frame = 0; frame < 28; frame++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      expectSettledViewer();
+    }
+  });
 
   testWidgets(
     'side entry never paints a full-screen frame over the timeline before sliding',
