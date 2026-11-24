@@ -114,11 +114,10 @@ class AutoBackupSection extends ConsumerWidget {
                           try {
                             final path =
                                 await AutoBackupRepositoryAndroid.pickDirectory();
-                            if (path != null) {
-                              _updateSettings(
-                                settingsNotifier,
-                                settings.copyWith(userSelectedPath: () => path),
-                              );
+                            if (path != null && context.mounted) {
+                              await ref
+                                  .read(autoBackupDirectoryRecoveryProvider)
+                                  .selectDirectory(path);
                             }
                           } catch (error) {
                             if (context.mounted) {
